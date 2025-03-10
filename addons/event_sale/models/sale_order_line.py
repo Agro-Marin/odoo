@@ -25,10 +25,10 @@ class SaleOrderLine(models.Model):
                     _("The sale order line with the product %(product_name)s needs an event and a ticket.", product_name=so_line.product_id.name))
 
     @api.depends('state', 'event_id')
-    def _compute_product_uom_readonly(self):
+    def _compute_product_uom_updatable(self):
         event_lines = self.filtered(lambda line: line.event_id)
-        event_lines.update({'product_uom_readonly': True})
-        super(SaleOrderLine, self - event_lines)._compute_product_uom_readonly()
+        event_lines.update({'product_uom_updatable': False})
+        super(SaleOrderLine, self - event_lines)._compute_product_uom_updatable()
 
     def _init_registrations(self):
         """ Create registrations linked to a sales order line. A sale
@@ -95,7 +95,7 @@ class SaleOrderLine(models.Model):
             return False
         return super()._use_template_name()
 
-    def _get_display_price(self):
+    def _get_price_display(self):
         if self.event_ticket_id and self.event_id:
             event_ticket = self.event_ticket_id
             company = event_ticket.company_id or self.env.company
@@ -104,4 +104,4 @@ class SaleOrderLine(models.Model):
             else:
                 price = event_ticket.price
             return self._convert_to_sol_currency(price, company.currency_id)
-        return super()._get_display_price()
+        return super()._get_price_display()

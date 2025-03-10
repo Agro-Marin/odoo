@@ -190,21 +190,21 @@ class DeliveryCarrier(models.Model):
     def _match_must_have_tags(self, order):
         self.ensure_one()
         return not self.must_have_tag_ids or any(
-            tag in order.order_line.product_id.all_product_tag_ids
+            tag in order.line_ids.product_id.all_product_tag_ids
             for tag in self.must_have_tag_ids
         )
 
     def _match_excluded_tags(self, order):
         self.ensure_one()
-        return not any(tag in order.order_line.product_id.all_product_tag_ids for tag in self.excluded_tag_ids)
+        return not any(tag in order.line_ids.product_id.all_product_tag_ids for tag in self.excluded_tag_ids)
 
     def _match_weight(self, order):
         self.ensure_one()
-        return not self.max_weight or sum(order_line.product_id.weight * order_line.product_qty for order_line in order.order_line) <= self.max_weight
+        return not self.max_weight or sum(order_line.product_id.weight * order_line.product_qty for order_line in order.line_ids) <= self.max_weight
 
     def _match_volume(self, order):
         self.ensure_one()
-        return not self.max_volume or sum(order_line.product_id.volume * order_line.product_qty for order_line in order.order_line) <= self.max_volume
+        return not self.max_volume or sum(order_line.product_id.volume * order_line.product_qty for order_line in order.line_ids) <= self.max_volume
 
     @api.onchange('integration_level')
     def _onchange_integration_level(self):
@@ -400,7 +400,7 @@ class DeliveryCarrier(models.Model):
         order = order.sudo()
         total = weight = volume = quantity = wv = 0
         total_delivery = 0.0
-        for line in order.order_line:
+        for line in order.line_ids:
             if line.state == 'cancel':
                 continue
             if line.is_delivery:

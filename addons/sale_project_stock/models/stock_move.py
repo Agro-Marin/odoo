@@ -53,7 +53,7 @@ class StockMove(models.Model):
             'discount': 0.0,
             'product_id': self.product_id.id,
             'product_uom_qty': self.product_uom_qty,
-            'qty_delivered': self.quantity,
+            'qty_transfered': self.quantity,
         }
 
     def _get_new_picking_values(self):

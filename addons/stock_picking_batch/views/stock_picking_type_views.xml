@@ -1,5 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="stock_picking_type_kanban_batch" model="ir.ui.view">
+        <field name="name">picking.type.kanban.batch</field>
+        <field name="model">stock.picking.type</field>
+        <field name="inherit_id" ref="stock.stock_picking_type_kanban" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='kanban_menu_section']" position="inside">
+                <div role="menuitem">
+                    <a name="action_batch" type="object" context="{'view_mode':'form'}">
+                        Prepare Batch
+                    </a>
+                </div>
+                <div role="menuitem">
+                    <a name="stock_picking_batch.action_prepare_wave_for_picking_type" type="action">
+                        Prepare Wave
+                    </a>
+                </div>
+            </xpath>
+            <xpath expr="//button[@name='get_action_picking_tree_ready']" position="before">
+                <button t-if="record.count_picking_batch.raw_value > 0"
+                    name="action_batch" type="object" class="btn btn-primary me-2">
+                    <field name="count_picking_batch" /> Batches </button>
+            </xpath>
+            <xpath expr="//button[@name='get_action_picking_tree_ready']" position="attributes">
+                <attribute
+                    name="t-attf-class"
+                    remove="btn-primary"
+                    add="{{ record.count_picking_batch.raw_value > 0 ? 'btn-secondary' : 'btn-primary'}}"
+                    separator=" "
+                />
+            </xpath>
+            <xpath expr="//div[@name='picking_type_backorder_count']" class="row" position="after">
+                <div class="row">
+                    <a class="col-8 offset-4 text-truncate"
+                        name="%(stock_picking_batch.action_picking_tree_wave)d" type="action">
+                        <div t-if="record.count_picking_wave.raw_value > 0" class="row">
+                            <span class="col-6">Waves</span>
+                            <field name="count_picking_wave" class="col-2 text-end" />
+                        </div>
+                    </a>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
     <record id="view_picking_type_form_inherit" model="ir.ui.view">
         <field name="name">stock.picking.type.form.inherit</field>
         <field name="model">stock.picking.type</field>

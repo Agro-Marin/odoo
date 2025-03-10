@@ -27,7 +27,7 @@ class SaleOrderLine(models.Model):
     def _onchange_service_product_uom_qty(self):
         if self.state == 'sale' and self.product_id.type == 'service' and self.product_id.with_company(self._purchase_service_get_company()).service_to_purchase:
             if self.product_uom_qty < self._origin.product_uom_qty:
-                if self.product_uom_qty < self.qty_delivered:
+                if self.product_uom_qty < self.qty_transfered:
                     return {}
                 warning_mess = {
                     'title': _('Ordered quantity decreased!'),
@@ -105,7 +105,7 @@ class SaleOrderLine(models.Model):
         """
         for line in self:
             last_purchase_line = self.env['purchase.order.line'].search([('sale_line_id', '=', line.id)], order='create_date DESC', limit=1)
-            if last_purchase_line.state in ['draft', 'sent', 'to approve']:  # update qty for draft PO lines
+            if last_purchase_line.state == 'draft':  # update qty for draft PO lines
                 quantity = line.product_uom_id._compute_quantity(new_qty, last_purchase_line.product_uom_id)
                 last_purchase_line.write({'product_qty': quantity})
             elif last_purchase_line.state in ['purchase', 'done', 'cancel']:  # create new PO, by forcing the quantity as the difference from SO line
@@ -114,8 +114,8 @@ class SaleOrderLine(models.Model):
 
     def _purchase_get_date_order(self, supplierinfo):
         """ return the ordered date for the purchase order, computed as : SO commitment date - supplier delay """
-        commitment_date = fields.Datetime.from_string(self.order_id.commitment_date or fields.Datetime.now())
-        return commitment_date - relativedelta(days=int(supplierinfo.delay))
+        date_commitment = fields.Datetime.from_string(self.order_id.date_commitment or fields.Datetime.now())
+        return date_commitment - relativedelta(days=int(supplierinfo.delay))
 
     def _purchase_service_get_company(self):
         return self.company_id

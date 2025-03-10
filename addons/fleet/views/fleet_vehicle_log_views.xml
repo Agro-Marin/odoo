@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_search_fleet_vehicle_log" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.search</field>
+        <field name="model">fleet.vehicle.log</field>
+        <field name="arch" type="xml">
+            <search string="Services Logs">
+                <field name="vehicle_id" />
+                <field name="product_id" />
+		<field name="product_category_id" />
+                <separator />
+                <filter name="inactive" string="Archived"
+                    domain="[('active', '=', False)]" />
+                <group expand="1" string="Group By">
+                    <filter name="groupby_product_category_id" string="Service Type"
+                        context="{'group_by': 'product_category_id'}" />
+                    <filter name="groupby_manager_id" string="Fleet Manager"
+                        context="{'group_by': 'manager_id'}" />
+                    <filter name="groupby_vehicle_id" string="Vehicle"
+                        context="{'group_by': 'vehicle_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_list_fleet_vehicle_log" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.list</field>
+        <field name="model">fleet.vehicle.log</field>
+        <field name="arch" type="xml">
+            <list string="Logs" multi_edit="1" expand="1">
+                <field name="currency_id" column_invisible="True" />
+                <field name="date" readonly="1" />
+                <field name="vehicle_id" readonly="1" widget="many2one_avatar" />
+                <field name="driver_id" widget="many2one_avatar" invisible="not context.get('show_driver')" />
+		<field name="product_category_id" invisible="context.get('hide_product_category')"/>
+                <field name="product_id" domain="[('categ_id', 'child_of', product_category_id)]" invisible="context.get('hide_product')" />
+                <field name="vendor_id" invisible="not context.get('show_vendor')" />
+                <field name="amount" sum="Total" widget="monetary" />
+                <field name="odometer" optional="show" />
+                <field name="state"
+                    widget="badge"
+                    readonly="1"
+                    decoration-success="state == 'done'"
+                    decoration-warning="state == 'new'"
+                    decoration-info="state == 'running'" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_kanban_fleet_vehicle_log" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.kanban</field>
+        <field name="model">fleet.vehicle.log</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state">
+                <field name="currency_id" />
+                <progressbar field="activity_state"
+                    colors='{"planned": "success", "today": "warning", "overdue": "danger"}' />
+                <templates>
+                    <t t-name="card">
+                        <div class="flex-row">
+                            <field name="vehicle_id" widget="image"
+                                options="{'preview_image': 'image_128'}"
+                                class="float-start col-2 pe-2" />
+                            <div class="col-10 pe-2 text-truncate">
+                                <field class="fw-bolder" name="vehicle_id" />
+                                <span
+                                    t-attf-class="float-end badge #{['todo', 'running'].indexOf(record.state.raw_value) > -1 ? 'text-bg-secondary' : ['cancelled'].indexOf(record.state.raw_value) > -1 ? 'text-bg-danger' : 'text-bg-success'}">
+                                    <field name="state" />
+                                </span>
+                                <div class="text-truncate">
+                                    <em>
+                                        <field name="product_id" />
+                                    </em>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-truncate">
+                            <field name="driver_id" />
+                            <field class="float-end" name="date" />
+                        </div>
+                        <field class="text-truncate" name="vendor_id" />
+                        <footer class="pt-0">
+                            <field name="amount" widget="monetary"
+                                options="{'currency_field': 'currency_id'}" />
+                            <field name="activity_ids" widget="kanban_activity" class="ms-auto" />
+                        </footer>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_graph_fleet_vehicle_log" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.graph</field>
+        <field name="model">fleet.vehicle.log</field>
+        <field name="arch" type="xml">
+            <graph string="Services Costs Per Month" sample="1">
+                <field name="date" />
+                <field name="vehicle_id" />
+                <field name="amount" type="measure" />
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_pivot_fleet_vehicle_log" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.pivot</field>
+        <field name="model">fleet.vehicle.log</field>
+        <field name="arch" type="xml">
+            <pivot>
+                <field name="currency_id" invisible="1" />
+                <field name="product_id" type="col" />
+                <field name="vendor_id" type="row" />
+                <field name="vehicle_id" type="row" />
+                <field name="amount" type="measure" />
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_form_fleet_vehicle_log" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.form</field>
+        <field name="model">fleet.vehicle.log</field>
+        <field name="arch" type="xml">
+            <form string="Services Logs">
+                <field name="active" invisible="1" />
+                <field name="currency_id" invisible="1" />
+                <header>
+                    <field name="state" widget="statusbar" options="{'clickable': '1'}" />
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                        invisible="active" />
+                    <group>
+                        <group string="Vendor">
+                            <field name="vendor_id" widget="many2one_avatar" />
+                            <field name="date" />
+                            <field name="product_category_id" />
+                            <field name="product_id" />
+                            <field name="service_ids" widget="many2many_tags" />
+                        </group>
+                        <group string="Vehicle">
+                            <field name="vehicle_id" />
+                            <field name="driver_id" widget="many2one_avatar" />
+                            <field name="amount"
+                                widget="monetary"
+                                class="w-25"
+                                help="Cost that is paid only once at the creation of the contract" />
+                            <label for="odometer" />
+                            <div class="o_row">
+                                <field name="odometer" class="w-25" />
+                                <field name="odometer_uom_id" class="ps-1 ps-sm-0" />
+                            </div>
+                        </group>
+                    </group>
+                    <group>
+                        <group name="1" string="Date">
+                            <field name="date_start" />
+                            <field name="date_end" />
+                        </group>
+                        <group name="2" string="Date">
+                            <field name="date_start" />
+                            <field name="date_end" />
+                        </group>
+                    </group>
+                    <separator string="Notes" />
+                    <field name="notes" nolabel="1"
+                        placeholder="Write here any other information related to the service completed." />
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
+    <record id="view_activity_fleet_vehicle_log" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.activity</field>
+        <field name="model">fleet.vehicle.log</field>
+        <field name="arch" type="xml">
+            <activity string="Services">
+                <templates>
+                    <div t-name="activity-box">
+                        <img
+                            t-att-src="activity_image('fleet.vehicle', 'image_128', record.vehicle_id.raw_value)"
+                            role="img" t-att-title="record.vehicle_id.value"
+                            t-att-alt="record.vehicle_id.value" />
+                        <div class="ms-2">
+                            <field name="vehicle_id" class="o_text_block" />
+                        </div>
+                    </div>
+                </templates>
+            </activity>
+        </field>
+    </record>
+
+    <record id="action_fleet_vehicle_log" model="ir.actions.act_window">
+        <field name="name">Logs</field>
+        <field name="res_model">fleet.vehicle.log</field>
+        <field name="view_mode">list,kanban,form,graph,pivot,activity</field>
+        <field name="context">{'search_default_groupby_product_category_id': 1, 'search_default_groupby_vehicle_id': 1, 'create': 0, 'edit': 0}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new log entry
+            </p>
+            <p>
+                Track all the logs done on your vehicle.
+                Logs can be of many types according to product assigned.
+            </p>
+        </field>
+    </record>
+
+</odoo>

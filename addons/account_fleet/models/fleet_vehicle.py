@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command, models, fields
@@ -7,8 +6,16 @@ from odoo import Command, models, fields
 class FleetVehicle(models.Model):
     _inherit = 'fleet.vehicle'
 
-    bill_count = fields.Integer(compute='_compute_move_ids', string="Bills Count")
-    account_move_ids = fields.One2many('account.move', compute='_compute_move_ids')
+
+    account_move_ids = fields.One2many(
+        comodel_name='account.move',
+        compute='_compute_move_ids',
+    )
+    bill_count = fields.Integer(
+        string="Bills Count",
+        compute='_compute_move_ids',
+    )
+
 
     def _compute_move_ids(self):
         if not self.env.user.has_group('account.group_account_readonly'):
@@ -32,13 +39,11 @@ class FleetVehicle(models.Model):
 
     def action_view_bills(self):
         self.ensure_one()
-
         form_view_ref = self.env.ref('account.view_move_form', False)
         list_view_ref = self.env.ref('account_fleet.account_move_view_tree', False)
-
-        result = self.env['ir.actions.act_window']._for_xml_id('account.action_move_in_invoice_type')
-        result.update({
-            'domain': [('id', 'in', self.account_move_ids.ids)],
+        action = self.env['ir.actions.act_window']._for_xml_id('account.action_move_in_invoice_type')
+        action.update({
             'views': [(list_view_ref.id, 'list'), (form_view_ref.id, 'form')],
+            'domain': [('id', 'in', self.account_move_ids.ids)],
         })
-        return result
+        return action

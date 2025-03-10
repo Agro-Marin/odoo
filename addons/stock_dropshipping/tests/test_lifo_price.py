@@ -29,7 +29,7 @@ class TestLifoPrice(ValuationReconciliationTestCommon):
         product_form.is_storable = True
         product_form.categ_id = product_category_001
         # <field name="list_price" position="attributes">
-        #     <attribute name="readonly">product_variant_count &gt; 1</attribute>
+        #     <attribute name="readonly">count_product_variant &gt; 1</attribute>
         #     <attribute name="invisible">1</attribute>
         # </field>
         # <field name="list_price" position="after">

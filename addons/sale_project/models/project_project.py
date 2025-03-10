@@ -16,10 +16,10 @@ class ProjectProject(models.Model):
 
     def _domain_sale_line_id(self):
         domain = expression.AND([
-            self.env['sale.order.line']._sellable_lines_domain(),
+            self.env['sale.order.line']._get_domain_sellable(),
             self.env['sale.order.line']._domain_sale_line_service(),
             [
-                ('order_partner_id', '=?', unquote("partner_id")),
+                ('partner_id', '=?', unquote("partner_id")),
             ],
         ])
         return domain
@@ -78,15 +78,15 @@ class ProjectProject(models.Model):
         self.filtered(
             lambda p:
                 p.sale_line_id and (
-                    not p.partner_id or p.sale_line_id.order_partner_id.commercial_partner_id != p.partner_id.commercial_partner_id
+                    not p.partner_id or p.sale_line_id.partner_id.commercial_partner_id != p.partner_id.commercial_partner_id
                 )
         ).update({'sale_line_id': False})
 
-    def _get_projects_for_invoice_status(self, invoice_status):
-        """ Returns a recordset of project.project that has any Sale Order which invoice_status is the same as the
-            provided invoice_status.
+    def _get_projects_for_invoice_state(self, invoice_state):
+        """ Returns a recordset of project.project that has any Sale Order which invoice_state is the same as the
+            provided invoice_state.
 
-            :param invoice_status: The invoice status.
+            :param invoice_state: The invoice status.
         """
         result = self.env.execute_query(SQL("""
             SELECT id
@@ -97,23 +97,23 @@ class ProjectProject(models.Model):
                                 JOIN project_task pt ON pt.sale_order_id = so.id
                                WHERE pt.project_id = pp.id
                                  AND pt.active = true
-                                 AND so.invoice_status = %(invoice_status)s)
+                                 AND so.invoice_state = %(invoice_state)s)
                     OR EXISTS(SELECT 1
                                 FROM sale_order so
                                 JOIN sale_order_line sol ON sol.order_id = so.id
                                WHERE sol.id = pp.sale_line_id
-                                 AND so.invoice_status = %(invoice_status)s))
-               AND id in %(ids)s""", ids=tuple(self.ids), invoice_status=invoice_status))
+                                 AND so.invoice_state = %(invoice_state)s))
+               AND id in %(ids)s""", ids=tuple(self.ids), invoice_state=invoice_state))
         return self.env['project.project'].browse(id_ for id_, in result)
 
-    @api.depends('sale_order_id.invoice_status', 'tasks.sale_order_id.invoice_status')
+    @api.depends('sale_order_id.invoice_state', 'tasks.sale_order_id.invoice_state')
     def _compute_has_any_so_to_invoice(self):
-        """Has any Sale Order whose invoice_status is set as To Invoice"""
+        """Has any Sale Order whose invoice_state is set as To Invoice"""
         if not self.ids:
             self.has_any_so_to_invoice = False
             return
 
-        project_to_invoice = self._get_projects_for_invoice_status('to invoice')
+        project_to_invoice = self._get_projects_for_invoice_state('to do')
         project_to_invoice.has_any_so_to_invoice = True
         (self - project_to_invoice).has_any_so_to_invoice = False
 
@@ -154,7 +154,7 @@ class ProjectProject(models.Model):
     def _onchange_reinvoiced_sale_order_id(self):
         if (
             not self.sale_line_id
-            and (service_sols := self.reinvoiced_sale_order_id.order_line.filtered('is_service'))
+            and (service_sols := self.reinvoiced_sale_order_id.line_ids.filtered('is_service'))
         ):
             self.sale_line_id = service_sols[0]
 
@@ -307,20 +307,20 @@ class ProjectProject(models.Model):
 
         return super().action_profitability_items(section_name, domain, res_id)
 
-    @api.depends('sale_order_id.invoice_status', 'tasks.sale_order_id.invoice_status')
+    @api.depends('sale_order_id.invoice_state', 'tasks.sale_order_id.invoice_state')
     def _compute_has_any_so_with_nothing_to_invoice(self):
-        """Has any Sale Order whose invoice_status is set as No"""
+        """Has any Sale Order whose invoice_state is set as No"""
         if not self.ids:
             self.has_any_so_with_nothing_to_invoice = False
             return
 
-        project_nothing_to_invoice = self._get_projects_for_invoice_status('no')
+        project_nothing_to_invoice = self._get_projects_for_invoice_state('no')
         project_nothing_to_invoice.has_any_so_with_nothing_to_invoice = True
         (self - project_nothing_to_invoice).has_any_so_with_nothing_to_invoice = False
 
     def action_create_invoice(self):
         action = self.env["ir.actions.actions"]._for_xml_id("sale.action_view_sale_advance_payment_inv")
-        so_ids = (self.sale_order_id | self.task_ids.sale_order_id).filtered(lambda so: so.invoice_status in ['to invoice', 'no']).ids
+        so_ids = (self.sale_order_id | self.task_ids.sale_order_id).filtered(lambda so: so.invoice_state in ['to do', 'no']).ids
         action['context'] = {
             'active_id': so_ids[0] if len(so_ids) == 1 else False,
             'active_ids': so_ids
@@ -492,7 +492,7 @@ class ProjectProject(models.Model):
             'sol_items': [{
                 **sol_read,
                 **get_action(sol_read['id']),
-            } for sol_read in all_sols.with_context(with_price_unit=True)._read_format(['display_name', 'product_uom_qty', 'qty_delivered', 'qty_invoiced', 'product_uom_id', 'product_id'])],
+            } for sol_read in all_sols.with_context(with_price_unit=True)._read_format(['display_name', 'product_uom_qty', 'qty_transfered', 'qty_invoiced', 'product_uom_id', 'product_id'])],
             'displayLoadMore': display_load_more,
         }
 
@@ -566,7 +566,7 @@ class ProjectProject(models.Model):
         sale_line_read_group = self.env['sale.order.line'].sudo()._read_group(
             self._get_profitability_sale_order_items_domain(domain),
             ['currency_id', 'product_id', 'is_downpayment'],
-            ['id:array_agg', 'untaxed_amount_to_invoice:sum', 'untaxed_amount_invoiced:sum'],
+            ['id:array_agg', 'amount_to_invoice_taxexc:sum', 'amount_invoiced_taxexc:sum'],
         )
         display_sol_action = with_action and len(self) == 1 and self.env.user.has_group('sales_team.group_sale_salesman')
         revenues_dict = {}
@@ -580,13 +580,13 @@ class ProjectProject(models.Model):
             sols_per_product = defaultdict(lambda: [0.0, 0.0, []])
             downpayment_amount_invoiced = 0
             downpayment_sol_ids = []
-            for currency, product, is_downpayment, sol_ids, untaxed_amount_to_invoice, untaxed_amount_invoiced in sale_line_read_group:
+            for currency, product, is_downpayment, sol_ids, amount_to_invoice_taxexc, amount_invoiced_taxexc in sale_line_read_group:
                 if is_downpayment:
-                    downpayment_amount_invoiced += currency._convert(untaxed_amount_invoiced, convert_company.currency_id, convert_company, round=False)
+                    downpayment_amount_invoiced += currency._convert(amount_invoiced_taxexc, convert_company.currency_id, convert_company, round=False)
                     downpayment_sol_ids += sol_ids
                 else:
-                    sols_per_product[product.id][0] += currency._convert(untaxed_amount_to_invoice, convert_company.currency_id, convert_company)
-                    sols_per_product[product.id][1] += currency._convert(untaxed_amount_invoiced, convert_company.currency_id, convert_company)
+                    sols_per_product[product.id][0] += currency._convert(amount_to_invoice_taxexc, convert_company.currency_id, convert_company)
+                    sols_per_product[product.id][1] += currency._convert(amount_invoiced_taxexc, convert_company.currency_id, convert_company)
                     sols_per_product[product.id][2] += sol_ids
             if downpayment_amount_invoiced:
                 downpayments_data = {
@@ -625,14 +625,14 @@ class ProjectProject(models.Model):
                     service_policy = general_to_service_map.get(
                         (invoice_policy, service_type),
                         'ordered_prepaid')
-                for product_id, (amount_to_invoice, amount_invoiced, sol_ids) in sols_per_product.items():
+                for product_id, (amount_to_invoice_taxexc, amount_invoiced_taxexc, sol_ids) in sols_per_product.items():
                     if product_id in product_ids:
                         invoice_type = service_policy_to_invoice_type.get(service_policy, 'materials')
                         revenue = revenues_dict.setdefault(invoice_type, {'invoiced': 0.0, 'to_invoice': 0.0})
-                        revenue['to_invoice'] += amount_to_invoice
-                        total_to_invoice += amount_to_invoice
-                        revenue['invoiced'] += amount_invoiced
-                        total_invoiced += amount_invoiced
+                        revenue['to_invoice'] += amount_to_invoice_taxexc
+                        total_to_invoice += amount_to_invoice_taxexc
+                        revenue['invoiced'] += amount_invoiced_taxexc
+                        total_invoiced += amount_invoiced_taxexc
                         if display_sol_action and invoice_type in ['service_revenues', 'materials']:
                             revenue.setdefault('record_ids', []).extend(sol_ids)
 
@@ -767,7 +767,7 @@ class ProjectProject(models.Model):
             ['id:recordset'],
         )[0][0]
         revenue_items_from_invoices = self._get_revenues_items_from_invoices(
-            excluded_move_line_ids=sale_lines.invoice_lines.ids,
+            excluded_move_line_ids=sale_lines.invoice_line_ids.ids,
             with_action=with_action
         )
         profitability_items['revenues']['data'] += revenue_items_from_invoices['revenues']['data']

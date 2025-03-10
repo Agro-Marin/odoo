@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="approval_category_purchase" model="approval.category">
+        <field name="name">RFQ</field>
+        <field name="sequence">1</field>
+        <field name="has_date">required</field>
+        <field name="has_amount">required</field>
+        <field name="has_partner">required</field>
+<!--         <field name="approver_ids"
+            eval="[Command.set([
+                obj().search([('groups_id', 'in', [ref('purchase.group_purchase_manager')])])
+            ])]"/>
+ -->    </record>
+
+</odoo>

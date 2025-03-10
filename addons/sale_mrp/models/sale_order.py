@@ -21,7 +21,7 @@ class SaleOrder(models.Model):
     @api.depends('procurement_group_id.stock_move_ids.created_production_id.procurement_group_id.mrp_production_ids')
     def _compute_mrp_production_ids(self):
         data = self.env['procurement.group']._read_group([('sale_id', 'in', self.ids)], ['sale_id'], ['id:recordset'])
-        production_order_by_sale_line = self.env['mrp.production']._read_group([('sale_line_id', 'in', self.order_line.ids)], ['sale_line_id'], ['id:recordset'])
+        production_order_by_sale_line = self.env['mrp.production']._read_group([('sale_line_id', 'in', self.line_ids.ids)], ['sale_line_id'], ['id:recordset'])
         mrp_productions = defaultdict(self.env['mrp.production'].browse)
         for sale, procurement_groups in data:
             mrp_productions[sale.id] |= procurement_groups.stock_move_ids.created_production_id.procurement_group_id.mrp_production_ids | procurement_groups.mrp_production_ids

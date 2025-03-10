@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" ?>
 <odoo noupdate="1">
 
     <record id="product.consu_delivery_01" model="product.product">
@@ -128,6 +128,7 @@
     <record id="product.product_attribute_2" model="product.attribute">
         <field name="display_type">color</field>
     </record>
+
     <record id="product.product_attribute_3" model="product.attribute">
         <field name="display_type">select</field>
     </record>
@@ -135,19 +136,20 @@
     <record id="product.product_attribute_value_3" model="product.attribute.value">
         <field name="html_color">#FFFFFF</field>
     </record>
+
     <record id="product.product_attribute_value_4" model="product.attribute.value">
         <field name="html_color">#000000</field>
     </record>
 
     <record id="product_attribute_value_7" model="product.attribute.value">
         <field name="name">Custom</field>
-        <field name="attribute_id" ref="product.product_attribute_1"/>
+        <field name="attribute_id" ref="product.product_attribute_1" />
         <field name="is_custom">True</field>
         <field name="sequence">3</field>
     </record>
 
     <record id="product.product_4_attribute_1_product_template_attribute_line" model="product.template.attribute.line">
-        <field name="value_ids" eval="[(4,ref('product_attribute_value_7'))]"/>
+        <field name="value_ids" eval="[(4,ref('product_attribute_value_7'))]" />
     </record>
 
     <!--
@@ -155,15 +157,20 @@
     Check "product.product_4_attribute_1_value_2" for more information about this
     -->
     <function model="ir.model.data" name="_update_xmlids">
-        <value model="base" eval="[{
+        <value
+            model="base"
+            eval="[{
             'xml_id': 'sale.product_4_attribute_1_value_3',
             'record': obj().env.ref('product.product_4_attribute_1_product_template_attribute_line').product_template_value_ids[2],
             'noupdate': True,
-        }]"/>
+        }]"
+        />
     </function>
 
     <function model="ir.model.data" name="_update_xmlids">
-        <value model="base" eval="[{
+        <value
+            model="base"
+            eval="[{
             'xml_id': 'sale.product_product_4e',
             'record': obj().env.ref('product.product_product_4_product_template')._get_variant_for_combination(obj().env.ref('sale.product_4_attribute_1_value_3') + obj().env.ref('product.product_4_attribute_2_value_1')),
             'noupdate': True,
@@ -171,7 +178,8 @@
             'xml_id': 'sale.product_product_4f',
             'record': obj().env.ref('product.product_product_4_product_template')._get_variant_for_combination(obj().env.ref('sale.product_4_attribute_1_value_3') + obj().env.ref('product.product_4_attribute_2_value_2')),
             'noupdate': True,
-        },]"/>
+        },]"
+        />
     </function>
 
     <record id="product_product_4e" model="product.product">
@@ -186,36 +194,44 @@
 
     <record id="advance_product_0" model="product.product">
         <field name="name">Deposit</field>
-        <field name="categ_id" eval="ref('product.product_category_services', raise_if_not_found=False)"/>
+        <field name="categ_id" ref="product.product_category_services"/>
         <field name="type">service</field>
         <field name="list_price">150.0</field>
         <field name="invoice_policy">order</field>
         <field name="standard_price">100.0</field>
-        <field name="uom_id" ref="uom.product_uom_unit"/>
-        <field name="company_id" eval="[]"/>
-        <field name="image_1920" type="base64" file="sale/static/img/advance_product_0-image.jpg"/>
-        <field name="taxes_id" eval="[]"/>
-        <field name="supplier_taxes_id" eval="[]"/>
+        <field name="uom_id" ref="uom.product_uom_unit" />
+        <field name="company_id" eval="[]" />
+        <field name="image_1920" type="base64" file="sale/static/img/advance_product_0-image.jpg" />
+        <field name="taxes_id" eval="[]" />
+        <field name="supplier_taxes_id" eval="[]" />
     </record>
 
     <record id="product_product_1_product_template" model="product.template">
         <field name="name">Chair floor protection</field>
-        <field name="categ_id" ref="product.product_category_office"/>
+        <field name="categ_id" ref="product.product_category_office" />
         <field name="list_price">12.0</field>
         <field name="weight">0.01</field>
-        <field name="uom_id" ref="uom.product_uom_unit"/>
+        <field name="uom_id" ref="uom.product_uom_unit" />
         <field name="description_sale">Office chairs can harm your floor: protect it.</field>
-        <field name="image_1920" type="base64" file="sale/static/img/floor_protection-image.jpg"/>
+        <field name="image_1920" type="base64" file="sale/static/img/floor_protection-image.jpg" />
     </record>
 
     <record id="product.product_product_4_product_template" model="product.template">
-        <field name="optional_product_ids" eval="[Command.set([ref('product.product_product_11_product_template')])]"/>
+        <field
+            name="optional_product_ids"
+            eval="[Command.set([ref('product.product_product_11_product_template')])]"
+        />
     </record>
+
     <record id="product.product_product_11_product_template" model="product.template">
-        <field name="optional_product_ids" eval="[Command.set([ref('product_product_1_product_template')])]"/>
+        <field name="optional_product_ids" eval="[Command.set([ref('product_product_1_product_template')])]" />
     </record>
+
     <record id="product.product_product_13_product_template" model="product.template">
-        <field name="optional_product_ids" eval="[Command.set([ref('product.product_product_11_product_template')])]"/>
+        <field
+            name="optional_product_ids"
+            eval="[Command.set([ref('product.product_product_11_product_template')])]"
+        />
     </record>
 
 </odoo>

@@ -1125,7 +1125,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
             prod_form.product_qty = 3
             production = prod_form.save()
         production.action_confirm()
-        self.assertEqual(production.purchase_order_count, 1)
+        self.assertEqual(production.count_purchase_order, 1)
         purchase = production.procurement_group_id.stock_move_ids.created_purchase_line_ids.order_id
         self.assertEqual(len(purchase), 1)
 

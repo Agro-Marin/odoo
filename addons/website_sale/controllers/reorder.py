@@ -3,10 +3,10 @@
 from odoo.exceptions import AccessError, MissingError
 from odoo.http import request, route
 
-from odoo.addons.sale.controllers import portal as sale_portal
+from odoo.addons.sale.controllers.customer_portal import CustomerPortal as SaleCustomerPortal
 
 
-class CustomerPortal(sale_portal.CustomerPortal):
+class CustomerPortal(SaleCustomerPortal):
 
     def _sale_reorder_get_line_context(self):
         return {}

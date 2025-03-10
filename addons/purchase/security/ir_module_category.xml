@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="base.module_category_inventory_purchase" model="ir.module.category">
+        <field name="description">Helps you manage your purchase-related processes such as requests for quotations, supplier bills, etc...</field>
+        <field name="sequence">8</field>
+    </record>
+
+</odoo>

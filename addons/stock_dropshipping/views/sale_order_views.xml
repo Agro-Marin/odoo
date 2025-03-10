@@ -6,7 +6,7 @@
             <field name="model">sale.order</field>
             <field name="inherit_id" ref="sale.view_order_form"/>
             <field name="arch" type="xml">
-                <xpath expr="//button[@name='action_view_delivery']" position="before">
+                <xpath expr="//button[@name='action_view_picking']" position="before">
                     <t groups="purchase.group_purchase_user">
                         <button type="object"
                             name="action_view_dropship"

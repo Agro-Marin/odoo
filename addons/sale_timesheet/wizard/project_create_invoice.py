@@ -36,20 +36,20 @@ class ProjectCreateInvoice(models.TransientModel):
         for p in self:
             p._candidate_orders = p.project_id\
                 .mapped('tasks.sale_line_id.order_id')\
-                .filtered(lambda so: so.invoice_status == 'to invoice')
+                .filtered(lambda so: so.invoice_status == 'to do')
 
     @api.depends('sale_order_id')
     def _compute_amount_to_invoice(self):
         for wizard in self:
             amount_untaxed = 0.0
             amount_tax = 0.0
-            for line in wizard.sale_order_id.order_line.filtered(lambda sol: sol.invoice_status == 'to invoice'):
+            for line in wizard.sale_order_id.order_line.filtered(lambda sol: sol.invoice_status == 'to do'):
                 amount_untaxed += line.price_reduce * line.qty_to_invoice
                 amount_tax += line.price_tax
             wizard.amount_to_invoice = amount_untaxed + amount_tax
 
     def action_create_invoice(self):
-        if not self.sale_order_id and self.sale_order_id.invoice_status != 'to invoice':
+        if not self.sale_order_id and self.sale_order_id.invoice_status != 'to do':
             raise UserError(_("The selected Sales Order should contain something to invoice."))
         action = self.env["ir.actions.actions"]._for_xml_id("sale.action_view_sale_advance_payment_inv")
         action['context'] = {

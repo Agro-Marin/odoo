@@ -36,7 +36,7 @@ class TestSaleAutoInvoice(TestSaleCouponCommon):
         })
         # Apply discount
         self._apply_promo_code(self.empty_order, '100dis')
-        self.empty_order._validate_order()
+        self.empty_order._action_confirm_and_send()
         self.assertTrue(
             self.empty_order.invoice_ids,
             "Invoices should be generated for orders with zero total amount",

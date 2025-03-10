@@ -169,9 +169,9 @@
                         name="%(account.res_partner_action_supplier_bills)d"
                         groups="account.group_account_invoice"
                         icon="fa-pencil-square-o" help="Vendor Bills"
-                        invisible="supplier_invoice_count == 0"
+                        invisible="count_supplier_invoice == 0"
                     >
-                        <field string="Vendor Bills" name="supplier_invoice_count" widget="statinfo"/>
+                        <field string="Vendor Bills" name="count_supplier_invoice" widget="statinfo"/>
                     </button>
                 </div>
 

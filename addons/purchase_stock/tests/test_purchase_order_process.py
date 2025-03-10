@@ -55,7 +55,7 @@ class TestPurchaseOrderProcess(PurchaseTestCommon):
         self.assertEqual([rec[1] for rec in delay_reports], [0.0, 0.0])
         # cancel the first part of the PO
         purchase_order.order_line.filtered(lambda l: l.product_id == self.product_1).product_qty = 0
-        self.assertEqual(partner.purchase_order_count, 1)
+        self.assertEqual(partner.count_purchase_order, 1)
         self.assertTrue(float_compare(partner.on_time_rate, 0.0, precision_rounding=0.01) <= 0, "negative number indicates no data")
         self.assertEqual(purchase_order.picking_ids.move_ids.filtered(lambda l: l.product_id == self.product_1).state, 'cancel')
         purchase_order.picking_ids.move_ids.filtered(lambda l: l.product_id == self.product_2).quantity = 3.0

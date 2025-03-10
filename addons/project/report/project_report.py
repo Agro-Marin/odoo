@@ -7,61 +7,109 @@ from odoo.addons.rating.models.rating_data import RATING_LIMIT_MIN
 
 
 class ReportProjectTaskUser(models.Model):
-    _name = 'report.project.task.user'
+    _name = "report.project.task.user"
     _description = "Tasks Analysis"
-    _order = 'name desc, project_id'
+    _order = "name desc, project_id"
     _auto = False
 
-    name = fields.Char(string='Task', readonly=True)
-    user_ids = fields.Many2many('res.users', relation='project_task_user_rel', column1='task_id', column2='user_id',
-                                string='Assignees', readonly=True)
+    name = fields.Char(string="Task", readonly=True)
+    user_ids = fields.Many2many(
+        "res.users",
+        relation="project_task_user_rel",
+        column1="task_id",
+        column2="user_id",
+        string="Assignees",
+        readonly=True,
+    )
     create_date = fields.Datetime("Create Date", readonly=True)
-    date_assign = fields.Datetime(string='Assignment Date', readonly=True)
-    date_end = fields.Datetime(string='Ending Date', readonly=True)
-    date_deadline = fields.Datetime(string='Deadline', readonly=True)
-    date_last_stage_update = fields.Datetime(string='Last Stage Update', readonly=True)
+    date_assign = fields.Datetime(string="Assignment Date", readonly=True)
+    date_end = fields.Datetime(string="Ending Date", readonly=True)
+    date_deadline = fields.Datetime(string="Deadline", readonly=True)
+    date_last_stage_update = fields.Datetime(string="Last Stage Update", readonly=True)
     display_in_project = fields.Boolean(export_string_translation=False)
-    project_id = fields.Many2one('project.project', string='Project', readonly=True)
-    working_days_close = fields.Float(string='Working Days to Close',
-        digits=(16, 2), readonly=True, aggregator="avg")
-    working_days_open = fields.Float(string='Working Days to Assign',
-        digits=(16, 2), readonly=True, aggregator="avg")
-    delay_endings_days = fields.Float(string='Days to Deadline', digits=(16, 2), aggregator="avg", readonly=True)
-    nbr = fields.Integer('# of Tasks', readonly=True)  # TDE FIXME master: rename into nbr_tasks
-    working_hours_open = fields.Float(string='Working Hours to Assign', digits=(16, 2), readonly=True, aggregator="avg")
-    working_hours_close = fields.Float(string='Working Hours to Close', digits=(16, 2), readonly=True, aggregator="avg")
-    rating_last_value = fields.Float('Last Rating (1-5)', aggregator="avg", readonly=True, groups="project.group_project_rating")
-    rating_avg = fields.Float('Average Rating (1-5)', readonly=True, aggregator='avg', groups="project.group_project_rating")
-    priority = fields.Selection([
-        ('0', 'Low'),
-        ('1', 'High')
-        ], readonly=True, string="Priority")
+    project_id = fields.Many2one("project.project", string="Project", readonly=True)
+    working_days_close = fields.Float(
+        string="Working Days to Close", digits=(16, 2), readonly=True, aggregator="avg"
+    )
+    working_days_open = fields.Float(
+        string="Working Days to Assign", digits=(16, 2), readonly=True, aggregator="avg"
+    )
+    delay_endings_days = fields.Float(
+        string="Days to Deadline", digits=(16, 2), aggregator="avg", readonly=True
+    )
+    nbr = fields.Integer(
+        "# of Tasks", readonly=True
+    )  # TDE FIXME master: rename into nbr_tasks
+    working_hours_open = fields.Float(
+        string="Working Hours to Assign",
+        digits=(16, 2),
+        readonly=True,
+        aggregator="avg",
+    )
+    working_hours_close = fields.Float(
+        string="Working Hours to Close", digits=(16, 2), readonly=True, aggregator="avg"
+    )
+    rating_last_value = fields.Float(
+        "Last Rating (1-5)",
+        aggregator="avg",
+        readonly=True,
+        groups="project.group_project_rating",
+    )
+    rating_avg = fields.Float(
+        "Average Rating (1-5)",
+        readonly=True,
+        aggregator="avg",
+        groups="project.group_project_rating",
+    )
+    priority = fields.Selection(
+        [("0", "Low"), ("1", "High")], readonly=True, string="Priority"
+    )
 
-    state = fields.Selection([
-        ('01_in_progress', 'In Progress'),
-        ('1_done', 'Done'),
-        ('04_waiting_normal', 'Waiting'),
-        ('03_approved', 'Approved'),
-        ('1_canceled', 'Cancelled'),
-        ('02_changes_requested', 'Changes Requested'),
-    ], string='State', readonly=True)
-    is_closed = fields.Boolean(string='Closed state', readonly=True)
-    company_id = fields.Many2one('res.company', string='Company', readonly=True)
-    partner_id = fields.Many2one('res.partner', string='Customer', readonly=True)
-    stage_id = fields.Many2one('project.task.type', string='Stage', readonly=True)
-    task_id = fields.Many2one('project.task', string='Tasks', readonly=True)
-    tag_ids = fields.Many2many('project.tags', relation='project_tags_project_task_rel',
-        column1='project_task_id', column2='project_tags_id',
-        string='Tags', readonly=True)
-    parent_id = fields.Many2one('project.task', string='Parent Task', readonly=True)
-    personal_stage_type_ids = fields.Many2many('project.task.type', relation='project_task_user_rel',
-        column1='task_id', column2='stage_id',
-        string="Personal Stage", readonly=True)
-    milestone_id = fields.Many2one('project.milestone', readonly=True)
-    message_is_follower = fields.Boolean(related='task_id.message_is_follower')
-    dependent_ids = fields.Many2many('project.task', relation='task_dependencies_rel', column1='depends_on_id',
-        column2='task_id', string='Block', readonly=True,
-        domain="[('allow_task_dependencies', '=', True), ('id', '!=', id)]")
+    state = fields.Selection(
+        [
+            ("01_in_progress", "In Progress"),
+            ("1_done", "Done"),
+            ("04_waiting_normal", "Waiting"),
+            ("03_approved", "Approved"),
+            ("1_canceled", "Cancelled"),
+            ("02_changes_requested", "Changes Requested"),
+        ],
+        string="State",
+        readonly=True,
+    )
+    is_closed = fields.Boolean(string="Closed state", readonly=True)
+    company_id = fields.Many2one("res.company", string="Company", readonly=True)
+    partner_id = fields.Many2one("res.partner", string="Customer", readonly=True)
+    stage_id = fields.Many2one("project.task.type", string="Stage", readonly=True)
+    task_id = fields.Many2one("project.task", string="Tasks", readonly=True)
+    tag_ids = fields.Many2many(
+        "project.tags",
+        relation="project_tags_project_task_rel",
+        column1="project_task_id",
+        column2="project_tags_id",
+        string="Tags",
+        readonly=True,
+    )
+    parent_id = fields.Many2one("project.task", string="Parent Task", readonly=True)
+    personal_stage_type_ids = fields.Many2many(
+        "project.task.type",
+        relation="project_task_user_rel",
+        column1="task_id",
+        column2="stage_id",
+        string="Personal Stage",
+        readonly=True,
+    )
+    milestone_id = fields.Many2one("project.milestone", readonly=True)
+    message_is_follower = fields.Boolean(related="task_id.message_is_follower")
+    dependent_ids = fields.Many2many(
+        "project.task",
+        relation="task_dependencies_rel",
+        column1="depends_on_id",
+        column2="task_id",
+        string="Block",
+        readonly=True,
+        domain="[('allow_task_dependencies', '=', True), ('id', '!=', id)]",
+    )
     description = fields.Text(readonly=True)
 
     def _select(self):
@@ -143,10 +191,19 @@ class ReportProjectTaskUser(models.Model):
 
     def init(self):
         tools.drop_view_if_exists(self._cr, self._table)
-        self._cr.execute("""
+        self._cr.execute(
+            """
     CREATE view %s as
          SELECT %s
            FROM %s
           WHERE %s
        GROUP BY %s
-        """ % (self._table, self._select(), self._from(), self._where(), self._group_by()))
+        """
+            % (
+                self._table,
+                self._select(),
+                self._from(),
+                self._where(),
+                self._group_by(),
+            )
+        )

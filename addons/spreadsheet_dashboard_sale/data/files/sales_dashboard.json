@@ -2171,7 +2171,7 @@
       "context": {},
       "orderBy": [
         { "name": "amount_untaxed", "asc": false },
-        { "name": "invoice_status", "asc": true }
+        { "name": "invoice_state", "asc": true }
       ],
       "id": "2",
       "name": "Sales Orders by Untaxed Amount",

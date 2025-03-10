@@ -10,21 +10,27 @@ from odoo.tools import OrderedSet
 class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
 
-    mrp_production_count = fields.Integer(
-        "Count of MO Source",
-        compute='_compute_mrp_production_count',
-        groups='mrp.group_mrp_user')
 
-    @api.depends('order_line.move_dest_ids.group_id.mrp_production_ids')
+    mrp_production_count = fields.Integer(
+        string="Count of MO Source",
+        compute='_compute_mrp_production_count',
+        groups='mrp.group_mrp_user',
+    )
+
+
+    @api.depends('line_ids.move_dest_ids.group_id.mrp_production_ids')
     def _compute_mrp_production_count(self):
         for purchase in self:
             purchase.mrp_production_count = len(purchase._get_mrp_productions())
 
     def _get_mrp_productions(self, **kwargs):
-        linked_mo = self.order_line.move_dest_ids.group_id.mrp_production_ids \
-                  | self.env['stock.move'].browse(self.order_line.move_ids._rollup_move_dests()).group_id.mrp_production_ids
-        group_mo = self.order_line.group_id.mrp_production_ids
-
+        linked_mo = (
+            self.line_ids.move_dest_ids.group_id.mrp_production_ids
+            | self.env['stock.move'].browse(
+                self.line_ids.move_ids._rollup_move_dests()
+            ).group_id.mrp_production_ids
+        )
+        group_mo = self.line_ids.procurement_group_id.mrp_production_ids
         return linked_mo | group_mo
 
     def action_view_mrp_productions(self):
@@ -51,9 +57,9 @@ class PurchaseOrder(models.Model):
 class PurchaseOrderLine(models.Model):
     _inherit = 'purchase.order.line'
 
-    def _compute_qty_received(self):
+    def _compute_qty_transfered(self):
         kit_lines = self.env['purchase.order.line']
-        lines_stock = self.filtered(lambda l: l.qty_received_method == 'stock_moves' and l.move_ids and l.state != 'cancel')
+        lines_stock = self.filtered(lambda l: l.qty_transfered_method == 'stock_moves' and l.move_ids and l.state != 'cancel')
         product_by_company = defaultdict(OrderedSet)
         for line in lines_stock:
             product_by_company[line.company_id].add(line.product_id.id)
@@ -73,14 +79,14 @@ class PurchaseOrderLine(models.Model):
                     'outgoing_moves': lambda m:
                         m._is_outgoing() and m.to_refund,
                 }
-                line.qty_received = moves._compute_kit_quantities(line.product_id, order_qty, kit_bom, filters)
+                line.qty_transfered = moves._compute_kit_quantities(line.product_id, order_qty, kit_bom, filters)
                 kit_lines += line
-        super(PurchaseOrderLine, self - kit_lines)._compute_qty_received()
+        super(PurchaseOrderLine, self - kit_lines)._compute_qty_transfered()
 
     def _get_upstream_documents_and_responsibles(self, visited):
         return [(self.order_id, self.order_id.user_id, visited)]
 
-    def _get_qty_procurement(self):
+    def _get_procurement_qty(self):
         self.ensure_one()
         # Specific case when we change the qty on a PO for a kit product.
         # We don't try to be too smart and keep a simple approach: we compare the quantity before
@@ -89,11 +95,11 @@ class PurchaseOrderLine(models.Model):
         bom = self.env['mrp.bom'].sudo()._bom_find(self.product_id, bom_type='phantom')[self.product_id]
         if bom and 'previous_product_qty' in self.env.context:
             return self.env.context['previous_product_qty'].get(self.id, 0.0)
-        return super()._get_qty_procurement()
+        return super()._get_procurement_qty()
 
-    def _get_move_dests_initial_demand(self, move_dests):
+    def _get_stock_move_dests_initial_demand(self, move_dests):
         kit_bom = self.env['mrp.bom']._bom_find(self.product_id, bom_type='phantom')[self.product_id]
         if kit_bom:
             filters = {'incoming_moves': lambda m: True, 'outgoing_moves': lambda m: False}
-            return move_dests._compute_kit_quantities(self.product_id, self.product_qty, kit_bom, filters)
-        return super()._get_move_dests_initial_demand(move_dests)
+            return move_dests._compute_kit_quantities(self.product_id, self.product_uom_qty, kit_bom, filters)
+        return super()._get_stock_move_dests_initial_demand(move_dests)

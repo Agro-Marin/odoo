@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-
   <template id="portal_my_home_menu_purchase" name="Portal layout : purchase menu entries" inherit_id="portal.portal_breadcrumbs" priority="25">
     <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
       <li t-if="page_name == 'rfq' or order and order.state == 'sent'" t-attf-class="breadcrumb-item #{'active ' if not order else ''}">
@@ -105,7 +104,7 @@
                           <span class='d-none d-md-inline' t-field="order.date_approve" t-options="{'time_only': True}"/>
                       </td>
                       <td id="order_badge" class="text-center">
-                          <span t-if="order.invoice_status == 'to invoice'" class="badge rounded-pill text-bg-info">
+                          <span t-if="order.invoice_state == 'to do'" class="badge rounded-pill text-bg-info">
                               <i class="fa fa-fw fa-file-text" role="img" aria-label="Waiting for Bill" title="Waiting for Bill"></i><span class="d-none d-md-inline"> Waiting for Bill</span>
                           </span>
                           <span t-if="order.state == 'cancel'" class="badge rounded-pill text-bg-secondary">
@@ -303,7 +302,7 @@
 
                           <t t-set="current_subtotal" t-value="0"/>
 
-                          <t t-foreach="order.order_line" t-as="line">
+                          <t t-foreach="order.line_ids" t-as="line">
 
                               <t t-set="current_subtotal" t-value="current_subtotal + line.price_subtotal"/>
 
@@ -364,7 +363,7 @@
                                 </t>
                             </tr>
 
-                            <t t-if="current_section and (line_last or order.order_line[line_index+1].display_type == 'line_section') and order.state in ['purchase', 'done']">
+                            <t t-if="current_section and (line_last or order.line_ids[line_index+1].display_type == 'line_section') and order.state in ['purchase', 'done']">
                                 <tr class="is-subtotal text-end">
                                     <td colspan="99">
                                         <strong class="mr16">Subtotal</strong>
@@ -418,5 +417,4 @@
       </div>
     </xpath>
   </template>
-
 </odoo>

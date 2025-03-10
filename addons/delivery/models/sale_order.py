@@ -24,36 +24,36 @@ class SaleOrder(models.Model):
             if order.partner_shipping_id.is_pickup_location:
                 order.partner_shipping_id = order.partner_id
 
-    @api.depends('order_line')
+    @api.depends('line_ids')
     def _compute_is_service_products(self):
         for so in self:
-            so.is_all_service = all(line.product_id.type == 'service' for line in so.order_line.filtered(lambda x: not x.display_type))
+            so.is_all_service = all(line.product_id.type == 'service' for line in so.line_ids.filtered(lambda x: not x.display_type))
 
     def _compute_amount_total_without_delivery(self):
         self.ensure_one()
-        delivery_cost = sum([l.price_total for l in self.order_line if l.is_delivery])
+        delivery_cost = sum([l.price_total for l in self.line_ids if l.is_delivery])
         return self.amount_total - delivery_cost
 
-    @api.depends('order_line')
+    @api.depends('line_ids')
     def _compute_delivery_state(self):
         for order in self:
-            order.delivery_set = any(line.is_delivery for line in order.order_line)
+            order.delivery_set = any(line.is_delivery for line in order.line_ids)
 
-    @api.onchange('order_line', 'partner_id', 'partner_shipping_id')
+    @api.onchange('line_ids', 'partner_id', 'partner_shipping_id')
     def onchange_order_line(self):
         self.ensure_one()
-        delivery_line = self.order_line.filtered('is_delivery')
+        delivery_line = self.line_ids.filtered('is_delivery')
         if delivery_line:
             self.recompute_delivery_price = True
 
-    def _get_update_prices_lines(self):
+    def _get_order_lines_price_updatable(self):
         """ Exclude delivery lines from price list recomputation based on product instead of carrier """
-        lines = super()._get_update_prices_lines()
+        lines = super()._get_order_lines_price_updatable()
         return lines.filtered(lambda line: not line.is_delivery)
 
     def _remove_delivery_line(self):
         """Remove delivery products from the sales orders"""
-        delivery_lines = self.order_line.filtered("is_delivery")
+        delivery_lines = self.line_ids.filtered("is_delivery")
         if not delivery_lines:
             return
         to_delete = delivery_lines.filtered(lambda x: x.qty_invoiced == 0)
@@ -150,7 +150,7 @@ class SaleOrder(models.Model):
             }
         }
 
-    def _action_confirm(self):
+    def _hook_action_confirm(self):
         for order in self:
             order_location = order.pickup_location_data
 
@@ -196,7 +196,7 @@ class SaleOrder(models.Model):
                 'is_pickup_location': True,
             })
             order.with_context(update_delivery_shipping_partner=True).write({'partner_shipping_id': shipping_partner})
-        return super()._action_confirm()
+        return super()._hook_action_confirm()
 
     def _prepare_delivery_line_vals(self, carrier, price_unit):
         context = {}
@@ -229,8 +229,8 @@ class SaleOrder(models.Model):
         }
         if carrier.free_over and self.currency_id.is_zero(price_unit) :
             values['name'] = _('%s\nFree Shipping', values['name'])
-        if self.order_line:
-            values['sequence'] = self.order_line[-1].sequence + 1
+        if self.line_ids:
+            values['sequence'] = self.line_ids[-1].sequence + 1
         del context
         return values
 
@@ -238,7 +238,7 @@ class SaleOrder(models.Model):
         values = self._prepare_delivery_line_vals(carrier, price_unit)
         return self.env['sale.order.line'].sudo().create(values)
 
-    @api.depends('order_line.product_uom_qty', 'order_line.product_uom_id')
+    @api.depends('line_ids.product_uom_qty', 'line_ids.product_uom_id')
     def _compute_shipping_weight(self):
         for order in self:
             order.shipping_weight = order._get_estimated_weight()
@@ -246,7 +246,7 @@ class SaleOrder(models.Model):
     def _get_estimated_weight(self):
         self.ensure_one()
         weight = 0.0
-        for order_line in self.order_line.filtered(lambda l: l.product_id.type == 'consu' and not l.is_delivery and not l.display_type and l.product_uom_qty > 0):
+        for order_line in self.line_ids.filtered(lambda l: l.product_id.type == 'consu' and not l.is_delivery and not l.display_type and l.product_uom_qty > 0):
             weight += order_line.product_qty * order_line.product_id.weight
         return weight
 

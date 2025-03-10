@@ -368,7 +368,7 @@ class MrpProduction(models.Model):
 
         return [('id', 'in', matching_production_ids)]
 
-    @api.depends('state', 'reservation_state', 'date_start', 'move_raw_ids', 'move_raw_ids.forecast_availability', 'move_raw_ids.forecast_expected_date')
+    @api.depends('state', 'reservation_state', 'date_start', 'move_raw_ids', 'move_raw_ids.forecast_availability', 'move_raw_ids.forecast_date_planned')
     def _compute_components_availability(self):
         productions = self.filtered(lambda mo: mo.state not in ('cancel', 'done', 'draft'))
         productions.components_availability_state = 'available'
@@ -386,7 +386,7 @@ class MrpProduction(models.Model):
                 production.components_availability = _('Not Available')
                 production.components_availability_state = 'unavailable'
             else:
-                forecast_date = max(production.move_raw_ids.filtered('forecast_expected_date').mapped('forecast_expected_date'), default=False)
+                forecast_date = max(production.move_raw_ids.filtered('forecast_date_planned').mapped('forecast_date_planned'), default=False)
                 if forecast_date:
                     production.components_availability = _('Exp %s', format_date(self.env, forecast_date))
                     if production.date_start:
@@ -468,9 +468,9 @@ class MrpProduction(models.Model):
             else:
                 production.is_planned = False
 
-    @api.depends('move_raw_ids.delay_alert_date')
+    @api.depends('move_raw_ids.date_delay_alert')
     def _compute_delay_alert_date(self):
-        delay_alert_date_data = self.env['stock.move']._read_group([('id', 'in', self.move_raw_ids.ids), ('delay_alert_date', '!=', False)], ['raw_material_production_id'], ['delay_alert_date:max'])
+        delay_alert_date_data = self.env['stock.move']._read_group([('id', 'in', self.move_raw_ids.ids), ('date_delay_alert', '!=', False)], ['raw_material_production_id'], ['date_delay_alert:max'])
         delay_alert_date_data = {raw_material_production.id: delay_alert_date_max for raw_material_production, delay_alert_date_max in delay_alert_date_data}
         for production in self:
             production.delay_alert_date = delay_alert_date_data.get(production.id, False)
@@ -966,7 +966,7 @@ class MrpProduction(models.Model):
                 lambda move: move.state in ('confirmed', 'partially_available')
                 and (move._should_bypass_reservation()
                     or move.picking_type_id.reservation_method == 'at_confirm'
-                    or (move.reservation_date and move.reservation_date <= fields.Date.today())))
+                    or (move.date_reservation and move.date_reservation <= fields.Date.today())))
             moves_to_reassign._action_assign()
         return res
 
@@ -2019,7 +2019,7 @@ class MrpProduction(models.Model):
             lambda move: move.state in ('confirmed', 'partially_available')
             and (move._should_bypass_reservation()
                 or move.picking_type_id.reservation_method == 'at_confirm'
-                or (move.reservation_date and move.reservation_date <= fields.Date.today())))
+                or (move.date_reservation and move.date_reservation <= fields.Date.today())))
         move_to_assign._action_assign()
 
         # Avoid triggering a useless _recompute_state
@@ -2435,7 +2435,7 @@ class MrpProduction(models.Model):
         for production in self.filtered(lambda p: p.state in ('draft', 'confirmed')):
             if production.state == 'draft':
                 production.action_confirm()
-            move_expected_date = production.move_raw_ids.filtered('forecast_expected_date').mapped('forecast_expected_date')
+            move_expected_date = production.move_raw_ids.filtered('forecast_date_planned').mapped('forecast_date_planned')
             expected_date = max(move_expected_date, default=False)
             if expected_date and production.components_availability_state != 'unavailable':
                 production.date_start = expected_date

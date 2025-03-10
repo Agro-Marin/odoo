@@ -15,7 +15,7 @@ patch(ControlButtons.prototype, {
             multiSelect: false,
             domain: [
                 ["state", "!=", "cancel"],
-                ["invoice_status", "!=", "invoiced"],
+                ["invoice_state", "!=", "invoiced"],
                 ["currency_id", "=", this.pos.currency.id],
             ],
             context: context,

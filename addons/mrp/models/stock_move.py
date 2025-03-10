@@ -468,7 +468,7 @@ class StockMove(models.Model):
             if float_compare(move.product_uom_qty, 0, precision_rounding=move.product_uom.rounding) > 0:
                 if move._should_bypass_reservation() \
                         or move.picking_type_id.reservation_method == 'at_confirm' \
-                        or (move.reservation_date and move.reservation_date <= fields.Date.today()):
+                        or (move.date_reservation and move.date_reservation <= fields.Date.today()):
                     to_assign |= move
 
             if move.procure_method == 'make_to_order':
@@ -619,7 +619,7 @@ class StockMove(models.Model):
         self.ensure_one()
         return {
             'state': 'draft' if self.state == 'draft' else 'confirmed',
-            'reservation_date': self.reservation_date,
+            'date_reservation': self.date_reservation,
             'date_deadline': self.date_deadline,
             'manual_consumption': self._is_manual_consumption(),
             'move_orig_ids': [Command.link(m.id) for m in self.mapped('move_orig_ids')],

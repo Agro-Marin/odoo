@@ -28,7 +28,7 @@ class StockMoveLine(models.Model):
             create_column(self._cr, "stock_move_line", "expiration_date", "timestamp")
         return super()._auto_init()
 
-    @api.depends('product_id', 'lot_id.expiration_date', 'picking_id.scheduled_date')
+    @api.depends('product_id', 'lot_id.expiration_date', 'picking_id.date_planned')
     def _compute_expiration_date(self):
         for move_line in self:
             if move_line.lot_id.expiration_date:
@@ -36,7 +36,7 @@ class StockMoveLine(models.Model):
             elif move_line.picking_type_use_create_lots:
                 if move_line.product_id.use_expiration_date:
                     if not move_line.expiration_date:
-                        from_date = move_line.picking_id.scheduled_date or fields.Datetime.today()
+                        from_date = move_line.picking_id.date_planned or fields.Datetime.today()
                         move_line.expiration_date = from_date + datetime.timedelta(days=move_line.product_id.expiration_time)
                 else:
                     move_line.expiration_date = False
@@ -46,7 +46,7 @@ class StockMoveLine(models.Model):
         res = super()._onchange_product_id()
         if self.picking_type_use_create_lots:
             if self.product_id.use_expiration_date:
-                from_date = self.picking_id.scheduled_date or fields.Datetime.today()
+                from_date = self.picking_id.date_planned or fields.Datetime.today()
                 self.expiration_date = from_date + datetime.timedelta(days=self.product_id.expiration_time)
             else:
                 self.expiration_date = False

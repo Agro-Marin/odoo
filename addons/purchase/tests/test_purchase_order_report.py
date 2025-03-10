@@ -48,9 +48,9 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         f.partner_id = po.partner_id
         # <field name="invoice_vendor_bill_id" position="after">
         #     <field name="purchase_id" invisible="1"/>
-        #     <label for="purchase_vendor_bill_id" string="Auto-Complete" class="oe_edit_only"
+        #     <label for="purchase_bill_union_id" string="Auto-Complete" class="oe_edit_only"
         #             invisible="state != 'draft' or move_type != 'in_invoice'" />
-        #     <field name="purchase_vendor_bill_id" nolabel="1"
+        #     <field name="purchase_bill_union_id" nolabel="1"
         #             invisible="state != 'draft' or move_type != 'in_invoice'"
         #             class="oe_edit_only"
         #             domain="('company_id', '=', company_id), ('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else [('company_id', '=', company_id)]"
@@ -58,13 +58,13 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         #             context="{'show_total_amount': True}"
         #             options="{'no_create': True, 'no_open': True}"/>
         # </field>
-        # @api.onchange('purchase_vendor_bill_id', 'purchase_id')
+        # @api.onchange('purchase_bill_union_id', 'purchase_id')
         # def _onchange_purchase_auto_complete(self):
         #     ...
-        #     elif self.purchase_vendor_bill_id.purchase_order_id:
-        #         self.purchase_id = self.purchase_vendor_bill_id.purchase_order_id
-        #     self.purchase_vendor_bill_id = False
-        # purchase_vendor_bill_id = fields.Many2one('purchase.bill.union'
+        #     elif self.purchase_bill_union_id.purchase_order_id:
+        #         self.purchase_id = self.purchase_bill_union_id.purchase_order_id
+        #     self.purchase_bill_union_id = False
+        # purchase_bill_union_id = fields.Many2one('purchase.bill.union'
         # class PurchaseBillUnion(models.Model):
         #     _name = 'purchase.bill.union'
         #     ...
@@ -78,7 +78,7 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         #                 ...
         #             )""")
         #     ...
-        f.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-po.id)
+        f.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-po.id)
         invoice = f.save()
         invoice.action_post()
         po.flush_model()

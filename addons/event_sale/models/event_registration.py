@@ -146,6 +146,6 @@ class EventRegistration(models.Model):
 
     def _get_event_registration_ids_from_order(self):
         self.ensure_one()
-        return self.sale_order_id.order_line.filtered(
+        return self.sale_order_id.line_ids.filtered(
             lambda line: line.event_id == self.event_id
         ).registration_ids.ids

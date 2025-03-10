@@ -1,9 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.addons.sale.controllers import portal as sale_portal
+from odoo.addons.sale.controllers.customer_portal import CustomerPortal as SaleCustomerPortal
 
 
-class CustomerPortal(sale_portal.CustomerPortal):
+class CustomerPortal(SaleCustomerPortal):
 
     def _get_payment_values(self, order_sudo, website_id=None, **kwargs):
         """ Override of `sale` to inject the `website_id` into the kwargs.

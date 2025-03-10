@@ -21,15 +21,13 @@ class TestFleet(common.TransactionCase):
         car_1 = self.env["fleet.vehicle"].create({
             "model_id": model.id,
             "driver_id": user.partner_id.id,
-            "plan_to_change_car": False
         })
 
         car_2 = self.env["fleet.vehicle"].create({
             "model_id": model.id,
             "driver_id": user.partner_id.id,
-            "plan_to_change_car": False
         })
-        Log = self.env['fleet.vehicle.log.contract']
+        Log = self.env['fleet.vehicle.log']
         Log.create({
             'vehicle_id': car_2.id,
             'expiration_date': fields.Date.add(fields.Date.today(), days=10)
@@ -60,10 +58,9 @@ class TestFleet(common.TransactionCase):
         car_1 = self.env["fleet.vehicle"].create({
             "model_id": model.id,
             "driver_id": user.partner_id.id,
-            "plan_to_change_car": False
         })
 
-        Log = self.env['fleet.vehicle.log.contract']
+        Log = self.env['fleet.vehicle.log']
         Log.create({
             'vehicle_id': car_1.id,
             'expiration_date': fields.Date.add(fields.Date.today(), days=-2)

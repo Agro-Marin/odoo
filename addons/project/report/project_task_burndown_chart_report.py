@@ -8,34 +8,53 @@ from odoo.addons.resource.models.utils import filter_domain_leaf
 
 
 class ProjectTaskBurndownChartReport(models.AbstractModel):
-    _name = 'project.task.burndown.chart.report'
-    _description = 'Burndown Chart'
+    _name = "project.task.burndown.chart.report"
+    _description = "Burndown Chart"
     _auto = False
-    _order = 'date'
+    _order = "date"
 
-    allocated_hours = fields.Float(string='Allocated Time', readonly=True)
-    date = fields.Datetime('Date', readonly=True)
-    date_assign = fields.Datetime(string='Assignment Date', readonly=True)
-    date_deadline = fields.Date(string='Deadline', readonly=True)
-    date_last_stage_update = fields.Date(string='Last Stage Update', readonly=True)
-    state = fields.Selection([
-        ('01_in_progress', 'In Progress'),
-        ('1_done', 'Done'),
-        ('04_waiting_normal', 'Waiting'),
-        ('03_approved', 'Approved'),
-        ('1_canceled', 'Cancelled'),
-        ('02_changes_requested', 'Changes Requested'),
-    ], string='State', readonly=True)
-    is_closed = fields.Selection([('closed', 'Closed tasks'), ('open', 'Open tasks')], string="Closing Stage", readonly=True)
-    milestone_id = fields.Many2one('project.milestone', readonly=True)
-    partner_id = fields.Many2one('res.partner', string='Customer', readonly=True)
-    project_id = fields.Many2one('project.project', readonly=True)
-    stage_id = fields.Many2one('project.task.type', readonly=True)
-    tag_ids = fields.Many2many('project.tags', relation='project_tags_project_task_rel',
-                               column1='project_task_id', column2='project_tags_id',
-                               string='Tags', readonly=True)
-    user_ids = fields.Many2many('res.users', relation='project_task_user_rel', column1='task_id', column2='user_id',
-                                string='Assignees', readonly=True)
+    allocated_hours = fields.Float(string="Allocated Time", readonly=True)
+    date = fields.Datetime("Date", readonly=True)
+    date_assign = fields.Datetime(string="Assignment Date", readonly=True)
+    date_deadline = fields.Date(string="Deadline", readonly=True)
+    date_last_stage_update = fields.Date(string="Last Stage Update", readonly=True)
+    state = fields.Selection(
+        [
+            ("01_in_progress", "In Progress"),
+            ("1_done", "Done"),
+            ("04_waiting_normal", "Waiting"),
+            ("03_approved", "Approved"),
+            ("1_canceled", "Cancelled"),
+            ("02_changes_requested", "Changes Requested"),
+        ],
+        string="State",
+        readonly=True,
+    )
+    is_closed = fields.Selection(
+        [("closed", "Closed tasks"), ("open", "Open tasks")],
+        string="Closing Stage",
+        readonly=True,
+    )
+    milestone_id = fields.Many2one("project.milestone", readonly=True)
+    partner_id = fields.Many2one("res.partner", string="Customer", readonly=True)
+    project_id = fields.Many2one("project.project", readonly=True)
+    stage_id = fields.Many2one("project.task.type", readonly=True)
+    tag_ids = fields.Many2many(
+        "project.tags",
+        relation="project_tags_project_task_rel",
+        column1="project_task_id",
+        column2="project_tags_id",
+        string="Tags",
+        readonly=True,
+    )
+    user_ids = fields.Many2many(
+        "res.users",
+        relation="project_task_user_rel",
+        column1="task_id",
+        column2="user_id",
+        string="Assignees",
+        readonly=True,
+    )
 
     # This variable is used in order to distinguish conditions that can be set on `project.task` and thus being used
     # at a lower level than the "usual" query made by the `read_group_raw`. Indeed, the domain applied on those fields
@@ -44,16 +63,16 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
     @property
     def task_specific_fields(self):
         return [
-            'date_assign',
-            'date_deadline',
-            'date_last_stage_update',
-            'state',
-            'milestone_id',
-            'partner_id',
-            'project_id',
-            'stage_id',
-            'tag_ids',
-            'user_ids',
+            "date_assign",
+            "date_deadline",
+            "date_last_stage_update",
+            "state",
+            "milestone_id",
+            "partner_id",
+            "project_id",
+            "stage_id",
+            "tag_ids",
+            "user_ids",
         ]
 
     def _where_calc(self, domain, active_test=True):
@@ -64,27 +83,36 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         # Build the query on `project.task` with the domain fields that are linked to that model. This is done in order
         # to be able to reduce the number of treated records in the query by limiting them to the one corresponding to
         # the ids that are returned from this sub query.
-        project_task_query = self.env['project.task']._where_calc(task_specific_domain)
+        project_task_query = self.env["project.task"]._where_calc(task_specific_domain)
         self.env.flush_query(project_task_query.subselect())
 
         # Get the stage_id `ir.model.fields`'s id in order to inject it directly in the query and avoid having to join
         # on `ir_model_fields` table.
-        IrModelFieldsSudo = self.env['ir.model.fields'].sudo()
-        field_id = IrModelFieldsSudo.search([('name', '=', 'stage_id'), ('model', '=', 'project.task')]).id
+        IrModelFieldsSudo = self.env["ir.model.fields"].sudo()
+        field_id = IrModelFieldsSudo.search(
+            [("name", "=", "stage_id"), ("model", "=", "project.task")]
+        ).id
 
-        groupby = self.env.context.get('project_task_burndown_chart_report_groupby', ['date:month', 'stage_id'])
-        date_groupby = [g for g in groupby if g.startswith('date')][0]
+        groupby = self.env.context.get(
+            "project_task_burndown_chart_report_groupby", ["date:month", "stage_id"]
+        )
+        date_groupby = [g for g in groupby if g.startswith("date")][0]
 
         # Computes the interval which needs to be used in the `SQL` depending on the date group by interval.
-        interval = date_groupby.split(':')[1]
-        sql_interval = '1 %s' % interval if interval != 'quarter' else '3 month'
+        interval = date_groupby.split(":")[1]
+        sql_interval = "1 %s" % interval if interval != "quarter" else "3 month"
 
-        simple_date_groupby_sql = self._read_group_groupby(f"date:{interval}", main_query)
+        simple_date_groupby_sql = self._read_group_groupby(
+            f"date:{interval}", main_query
+        )
         # Removing unexistant table name from the expression
         simple_date_groupby_sql = self.env.cr.mogrify(simple_date_groupby_sql).decode()
-        simple_date_groupby_sql = simple_date_groupby_sql.replace('"project_task_burndown_chart_report".', '')
+        simple_date_groupby_sql = simple_date_groupby_sql.replace(
+            '"project_task_burndown_chart_report".', ""
+        )
 
-        burndown_chart_sql = SQL("""
+        burndown_chart_sql = SQL(
+            """
             (
               WITH task_ids AS %(task_query_subselect)s,
               all_stage_task_moves AS (
@@ -199,13 +227,13 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
 
         # hardcode 'project_task_burndown_chart_report' as the query above
         # (with its own parameters)
-        main_query._tables['project_task_burndown_chart_report'] = burndown_chart_sql
+        main_query._tables["project_task_burndown_chart_report"] = burndown_chart_sql
 
         return main_query
 
     @api.model
     def _validate_group_by(self, groupby):
-        """ Check that the both `date` and `stage_id` are part of `group_by`, otherwise raise a `UserError`.
+        """Check that the both `date` and `stage_id` are part of `group_by`, otherwise raise a `UserError`.
 
         :param groupby: List of group by fields.
         """
@@ -213,17 +241,21 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         is_closed_or_stage_in_groupby = False
         date_in_groupby = False
         for gb in groupby:
-            if gb.startswith('date'):
+            if gb.startswith("date"):
                 date_in_groupby = True
-            elif gb in ['stage_id', 'is_closed']:
+            elif gb in ["stage_id", "is_closed"]:
                 is_closed_or_stage_in_groupby = True
 
         if not date_in_groupby or not is_closed_or_stage_in_groupby:
-            raise UserError(_('The view must be grouped by date and by Stage - Burndown chart or Is Closed - Burnup chart'))
+            raise UserError(
+                _(
+                    "The view must be grouped by date and by Stage - Burndown chart or Is Closed - Burnup chart"
+                )
+            )
 
     @api.model
     def _determine_domains(self, domain):
-        """ Compute two separated domain from the provided one:
+        """Compute two separated domain from the provided one:
         * A domain that only contains fields that are specific to `project.task.burndown.chart.report`
         * A domain that only contains fields that are specific to `project.task`
 
@@ -232,21 +264,41 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
         :param domain: The domain that has been passed to the read_group.
         :return: A tuple containing the non `project.task` specific domain and the `project.task` specific domain.
         """
-        burndown_chart_specific_fields = list(set(self._fields) - set(self.task_specific_fields))
-        task_specific_domain = filter_domain_leaf(domain, lambda field: field not in burndown_chart_specific_fields)
-        non_task_specific_domain = filter_domain_leaf(domain, lambda field: field not in self.task_specific_fields)
+        burndown_chart_specific_fields = list(
+            set(self._fields) - set(self.task_specific_fields)
+        )
+        task_specific_domain = filter_domain_leaf(
+            domain, lambda field: field not in burndown_chart_specific_fields
+        )
+        non_task_specific_domain = filter_domain_leaf(
+            domain, lambda field: field not in self.task_specific_fields
+        )
         return non_task_specific_domain, task_specific_domain
 
     def _read_group_select(self, aggregate_spec, query):
-        if aggregate_spec == '__count':
-            return SQL("SUM(%s)", SQL.identifier(self._table, '__count'))
+        if aggregate_spec == "__count":
+            return SQL("SUM(%s)", SQL.identifier(self._table, "__count"))
         return super()._read_group_select(aggregate_spec, query)
 
-    def _read_group(self, domain, groupby=(), aggregates=(), having=(), offset=0, limit=None, order=None):
+    def _read_group(
+        self,
+        domain,
+        groupby=(),
+        aggregates=(),
+        having=(),
+        offset=0,
+        limit=None,
+        order=None,
+    ):
         self._validate_group_by(groupby)
         self = self.with_context(project_task_burndown_chart_report_groupby=groupby)
 
         return super()._read_group(
-            domain=domain, groupby=groupby, aggregates=aggregates,
-            having=having, offset=offset, limit=limit, order=order,
+            domain=domain,
+            groupby=groupby,
+            aggregates=aggregates,
+            having=having,
+            offset=offset,
+            limit=limit,
+            order=order,
         )

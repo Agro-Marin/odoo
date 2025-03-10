@@ -5,15 +5,31 @@ from odoo import api, fields, models, _
 
 class FleetVehicleSendMail(models.TransientModel):
     _name = 'fleet.vehicle.send.mail'
-    _inherit = ['mail.composer.mixin']
+    _inherit = 'mail.composer.mixin'
     _description = 'Send mails to Drivers'
 
-    vehicle_ids = fields.Many2many('fleet.vehicle', string='Vehicles', required=True)
-    author_id = fields.Many2one('res.partner', 'Author', required=True, default=lambda self: self.env.user.partner_id.id)
-    template_id = fields.Many2one(domain=lambda self: [('model_id', '=', self.env['ir.model']._get('fleet.vehicle').id)])
+
+    vehicle_ids = fields.Many2many(
+        'fleet.vehicle',
+        string='Vehicles',
+        required=True,
+    )
+    author_id = fields.Many2one(
+        'res.partner',
+        'Author',
+        required=True,
+        default=lambda self: self.env.user.partner_id.id,
+    )
+    template_id = fields.Many2one(
+        domain=lambda self: [('model_id', '=', self.env['ir.model']._get('fleet.vehicle').id)]
+    )
     attachment_ids = fields.Many2many(
-        'ir.attachment', 'fleet_vehicle_mail_compose_message_ir_attachments_rel',
-        'wizard_id', 'attachment_id', string='Attachments')
+        'ir.attachment',
+        'fleet_vehicle_mail_compose_message_ir_attachments_rel',
+        'wizard_id', 'attachment_id',
+        string='Attachments',
+    )
+
 
     @api.depends('subject')
     def _compute_render_model(self):
@@ -32,7 +48,10 @@ class FleetVehicleSendMail(models.TransientModel):
                 'tag': 'display_notification',
                 'params': {
                     'type': 'danger',
-                    'message': _("The following vehicle drivers are missing an email address: %s.", ', '.join(without_emails.mapped("name"))),
+                    'message': _(
+                        'The following vehicle drivers are missing an email address: %s.',
+                        ', '.join(without_emails.mapped('name'))
+                    ),
                 }
             }
 
@@ -55,7 +74,7 @@ class FleetVehicleSendMail(models.TransientModel):
 
     def action_save_as_template(self):
         model = self.env['ir.model']._get('fleet.vehicle')
-        template_name = _("Vehicle: Mass mail drivers")
+        template_name = _('Vehicle: Mass mail drivers')
         template = self.env['mail.template'].create({
             'name': template_name,
             'subject': self.subject or False,
@@ -63,15 +82,12 @@ class FleetVehicleSendMail(models.TransientModel):
             'model_id': model.id,
             'use_default_to': True,
         })
-
         if self.attachment_ids:
             attachments = self.env['ir.attachment'].sudo().browse(self.attachment_ids.ids).filtered(lambda a: a.create_uid.id == self._uid)
             if attachments:
                 attachments.write({'res_model': template._name, 'res_id': template.id})
             template.attachment_ids |= self.attachment_ids
-
         self.write({'template_id': template.id})
-
         return {
             'type': 'ir.actions.act_window',
             'view_mode': 'form',

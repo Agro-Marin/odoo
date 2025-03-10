@@ -572,7 +572,7 @@ class ResPartner(models.Model):
     )
     ref_company_ids = fields.One2many('res.company', 'partner_id',
         string='Companies that refers to partner')
-    supplier_invoice_count = fields.Integer(compute='_compute_supplier_invoice_count', string='# Vendor Bills')
+    count_supplier_invoice = fields.Integer(compute='_compute_count_supplier_invoice', string='# Vendor Bills')
     invoice_ids = fields.One2many('account.move', 'partner_id', string='Invoices', readonly=True, copy=False)
     contract_ids = fields.One2many('account.analytic.account', 'partner_id', string='Partner Contracts', readonly=True)
     bank_account_count = fields.Integer(compute='_compute_bank_count', string="Bank")
@@ -648,7 +648,7 @@ class ResPartner(models.Model):
         for partner in self:
             partner.bank_account_count = mapped_data.get(partner.id, 0)
 
-    def _compute_supplier_invoice_count(self):
+    def _compute_count_supplier_invoice(self):
         # retrieve all children partners and prefetch 'parent_id' on them
         all_partners = self.with_context(active_test=False).search_fetch(
             [('id', 'child_of', self.ids)],
@@ -662,11 +662,11 @@ class ResPartner(models.Model):
         )
         self_ids = set(self._ids)
 
-        self.supplier_invoice_count = 0
+        self.count_supplier_invoice = 0
         for partner, count in supplier_invoice_groups:
             while partner:
                 if partner.id in self_ids:
-                    partner.supplier_invoice_count += count
+                    partner.count_supplier_invoice += count
                 partner = partner.parent_id
 
     # TODO remove in master

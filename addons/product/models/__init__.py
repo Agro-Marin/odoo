@@ -30,3 +30,8 @@ from . import res_country_group
 from . import res_currency
 from . import res_partner
 from . import uom_uom
+from . import stock_product_category
+from . import account_product_category
+from . import sale_product_category
+from . import mrp_product_category
+from . import purchase_product_category

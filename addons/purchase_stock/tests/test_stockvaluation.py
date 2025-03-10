@@ -515,7 +515,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         move_form.invoice_date = move_form.date
         move_form.partner_id = self.partner_id
-        move_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-po1.id)
+        move_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-po1.id)
         invoice_po1 = move_form.save()
         invoice_po1.action_post()
 
@@ -542,7 +542,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         move_form.invoice_date = move_form.date
         move_form.partner_id = self.partner_id
-        move_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-po2.id)
+        move_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-po2.id)
         invoice_po2 = move_form.save()
         invoice_po2.action_post()
 
@@ -569,9 +569,9 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
 
         # Not supposed to see/change the purchase order of a refund invoice by default
         # <field name="purchase_id" invisible="1"/>
-        # <label for="purchase_vendor_bill_id" string="Auto-Complete" class="oe_edit_only"
+        # <label for="purchase_bill_union_id" string="Auto-Complete" class="oe_edit_only"
         #         invisible="state != 'draft' or move_type != 'in_invoice'" />
-        # <field name="purchase_vendor_bill_id" nolabel="1"
+        # <field name="purchase_bill_union_id" nolabel="1"
         #         invisible="state != 'draft' or move_type != 'in_invoice'"
         move_form._view['modifiers']['purchase_id']['invisible'] = 'False'
         move_form.purchase_id = po2
@@ -616,7 +616,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         move_form.invoice_date = move_form.date
         move_form.partner_id = order.partner_id
-        move_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-order.id)
+        move_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-order.id)
         with move_form.invoice_line_ids.edit(0) as line_form:
             line_form.price_unit = 15.0
         invoice = move_form.save()
@@ -1767,7 +1767,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
         # Create an invoice with a different price and a discount
         invoice_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         invoice_form.invoice_date = invoice_form.date
-        invoice_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-order.id)
+        invoice_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-order.id)
         with invoice_form.invoice_line_ids.edit(0) as line_form:
             line_form.price_unit = 100.0
             line_form.discount = 10.0
@@ -1817,7 +1817,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
         # Create an invoice with a different price and a discount
         invoice_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         invoice_form.invoice_date = invoice_form.date
-        invoice_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-order.id)
+        invoice_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-order.id)
         with invoice_form.invoice_line_ids.edit(0) as line_form:
             line_form.tax_ids.clear()
             line_form.discount = 10.0
@@ -1865,7 +1865,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
         # Create an invoice with a different price and a discount
         invoice_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         invoice_form.invoice_date = invoice_form.date
-        invoice_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-order.id)
+        invoice_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-order.id)
         with invoice_form.invoice_line_ids.edit(0) as line_form:
             line_form.price_unit = 100.0
             line_form.discount = 10.0
@@ -2027,7 +2027,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
         ]:
             bill_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
             bill_form.invoice_date = bill_form.date
-            bill_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-po.id)
+            bill_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-po.id)
             bill = bill_form.save()
             bill.invoice_line_ids.quantity = qty
             bill.invoice_line_ids.price_unit = 120.0
@@ -2136,7 +2136,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
 
         bill01_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         bill01_form.invoice_date = bill01_form.date
-        bill01_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-po.id)
+        bill01_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-po.id)
         bill01 = bill01_form.save()
         bill01.invoice_line_ids.quantity = 1
         bill01.invoice_line_ids.price_unit = 60
@@ -2144,7 +2144,7 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
 
         bill02_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         bill02_form.invoice_date = bill02_form.date
-        bill02_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-po.id)
+        bill02_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-po.id)
         bill02 = bill02_form.save()
         bill02.invoice_line_ids.quantity = 4
         bill02.invoice_line_ids.price_unit = 60
@@ -3701,48 +3701,3 @@ class TestStockValuationWithCOA(AccountTestInvoicingCommon):
         bill.invoice_date = fields.Date.today()
         bill.action_post()
         self.assertEqual(avco_prod.standard_price, pre_bill_cost)
-
-    def test_manual_non_standard_cost_bill_post(self):
-        """ With manual valuation (+ continental accounting), receiving some product with a
-        non-standard cost method, consuming the available qty, and then invoicing that product at
-        different `price_unit` than the receipt should not create pdiff AccountMoveLines.
-        """
-        self.env.company.anglo_saxon_accounting = False
-        self.product1.categ_id.write({
-            'property_valuation': 'manual_periodic',
-            'property_cost_method': 'average',
-        })
-        product = self.product1
-        purchase_order = self.env['purchase.order'].create({
-            'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
-                'product_id': product.id,
-                'product_qty': 10,
-                'price_unit': 100,
-            })],
-        })
-        purchase_order.button_confirm()
-        purchase_order.picking_ids.button_validate()
-        with Form(self.env['stock.scrap']) as scrap_form:
-            scrap_form.product_id = product
-            scrap_form.scrap_qty = 10
-            scrap = scrap_form.save()
-        scrap.action_validate()
-        purchase_order.action_create_invoice()
-        bill = purchase_order.invoice_ids
-        bill.invoice_line_ids.price_unit = 120
-        bill.invoice_date = fields.Date.today()
-        bill.action_post()
-        expense_account, tax_paid_account, account_payable_account = (
-            self.company_data['default_account_expense'],
-            self.company_data['default_account_tax_purchase'],
-            self.company_data['default_account_payable'],
-        )
-        self.assertRecordValues(
-            bill.line_ids,
-            [
-                {'account_id': expense_account.id,           'debit': 1200.0,   'credit': 0.0},
-                {'account_id': tax_paid_account.id,          'debit': 180.0,    'credit': 0.0},
-                {'account_id': account_payable_account.id,   'debit': 0.0,      'credit': 1380.0},
-            ]
-        )

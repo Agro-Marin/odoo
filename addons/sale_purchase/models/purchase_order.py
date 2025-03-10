@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models, _
@@ -7,22 +6,25 @@ from odoo import api, fields, models, _
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
 
-    sale_order_count = fields.Integer(
-        "Number of Source Sale",
-        compute='_compute_sale_order_count',
-        groups='sales_team.group_sale_salesman')
 
-    @api.depends('order_line.sale_order_id')
-    def _compute_sale_order_count(self):
+    count_sale_order = fields.Integer(
+        string="Number of Source Sale",
+        compute='_compute_count_sale_order',
+        groups='sales_team.group_sale_salesman',
+    )
+
+
+    @api.depends('line_ids.sale_order_id')
+    def _compute_count_sale_order(self):
         for purchase in self:
-            purchase.sale_order_count = len(purchase._get_sale_orders())
+            purchase.count_sale_order = len(purchase._get_sale_orders())
 
     def action_view_sale_orders(self):
         self.ensure_one()
         sale_order_ids = self._get_sale_orders().ids
         action = {
-            'res_model': 'sale.order',
             'type': 'ir.actions.act_window',
+            'res_model': 'sale.order',
         }
         if len(sale_order_ids) == 1:
             action.update({
@@ -32,26 +34,25 @@ class PurchaseOrder(models.Model):
         else:
             action.update({
                 'name': _('Sources Sale Orders %s', self.name),
-                'domain': [('id', 'in', sale_order_ids)],
                 'view_mode': 'list,form',
+                'domain': [('id', 'in', sale_order_ids)],
             })
         return action
 
-    def button_cancel(self):
-        result = super(PurchaseOrder, self).button_cancel()
+    def action_cancel(self):
+        result = super().action_cancel()
         self.sudo()._activity_cancel_on_sale()
         return result
 
     def _get_sale_orders(self):
-        return self.order_line.sale_order_id
+        return self.line_ids.sale_order_id
 
     def _activity_cancel_on_sale(self):
-        """ If some PO are cancelled, we need to put an activity on their origin SO (only the open ones). Since a PO can have
-            been modified by several SO, when cancelling one PO, many next activities can be schedulded on different SO.
-        """
+        """If some PO are cancelled, we need to put an activity on their origin SO (only the open ones). Since a PO can have
+        been modified by several SO, when cancelling one PO, many next activities can be schedulded on different SO."""
         sale_to_notify_map = {}  # map SO -> recordset of PO as {sale.order: set(purchase.order.line)}
         for order in self:
-            for purchase_line in order.order_line:
+            for purchase_line in order.line_ids:
                 if purchase_line.sale_line_id:
                     sale_order = purchase_line.sale_line_id.order_id
                     sale_to_notify_map.setdefault(sale_order, self.env['purchase.order.line'])
@@ -70,5 +71,13 @@ class PurchaseOrder(models.Model):
 class PurchaseOrderLine(models.Model):
     _inherit = 'purchase.order.line'
 
-    sale_order_id = fields.Many2one(related='sale_line_id.order_id', string="Sale Order")
-    sale_line_id = fields.Many2one('sale.order.line', string="Origin Sale Item", index='btree_not_null', copy=False)
+
+    sale_order_id = fields.Many2one(
+        related='sale_line_id.order_id', string="Sale Order",
+    )
+    sale_line_id = fields.Many2one(
+        comodel_name='sale.order.line',
+        string="Origin Sale Item",
+        copy=False,
+        index='btree_not_null',
+    )

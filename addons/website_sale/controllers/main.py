@@ -20,7 +20,7 @@ from odoo.tools.translate import _
 
 from odoo.addons.payment.controllers import portal as payment_portal
 from odoo.addons.portal.controllers.portal import _build_url_w_params
-from odoo.addons.sale.controllers import portal as sale_portal
+from odoo.addons.sale.controllers.customer_portal import CustomerPortal
 from odoo.addons.web_editor.tools import get_video_thumbnail
 from odoo.addons.website.controllers.main import QueryURL
 from odoo.addons.website.models.ir_http import sitemap_qs2dom
@@ -1317,7 +1317,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if redirection := self._check_cart_and_addresses(order_sudo):
             return redirection
 
-        order_sudo._recompute_taxes()
+        order_sudo._recompute_tax_ids()
         order_sudo._recompute_prices()
         extra_step = request.website.viewref('website_sale.extra_info')
         if extra_step.active:
@@ -1364,7 +1364,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             'submit_button_label': _("Pay now"),
         }
         payment_form_values = {
-            **sale_portal.CustomerPortal._get_payment_values(
+            **CustomerPortal._get_payment_values(
                 self, order, website_id=request.website.id
             ),
             'display_submit_button': False,  # The submit button is re-added outside the form.
@@ -1451,7 +1451,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
         if not order_sudo.amount_total and not tx_sudo:
             if order_sudo.state != 'sale':
                 # Only confirm the order if it wasn't already confirmed.
-                order_sudo._validate_order()
+                order_sudo.with_context(send_email=True).action_confirm()
 
             # clean context and session, then redirect to the portal page
             request.website.sale_reset()
@@ -1657,9 +1657,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
             'value': order.amount_total,
             'tax': order.amount_tax,
             'currency': order.currency_id.name,
-            'items': self.order_lines_2_google_api(order.order_line),
+            'items': self.order_lines_2_google_api(order.line_ids),
         }
-        delivery_line = order.order_line.filtered('is_delivery')
+        delivery_line = order.line_ids.filtered('is_delivery')
         if delivery_line:
             tracking_cart_dict['shipping'] = delivery_line.price_unit
         return tracking_cart_dict

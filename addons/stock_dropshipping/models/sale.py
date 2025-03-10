@@ -7,17 +7,17 @@ from odoo import models, fields, api
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
-    dropship_picking_count = fields.Integer("Dropship Count", compute='_compute_picking_ids')
+    dropship_picking_count = fields.Integer("Dropship Count", compute='_compute_count_picking_ids')
 
     @api.depends('picking_ids.is_dropship')
-    def _compute_picking_ids(self):
-        super()._compute_picking_ids()
+    def _compute_count_picking_ids(self):
+        super()._compute_count_picking_ids()
         for order in self:
             dropship_count = len(order.picking_ids.filtered(lambda p: p.is_dropship))
-            order.delivery_count -= dropship_count
+            order.count_picking_ids -= dropship_count
             order.dropship_picking_count = dropship_count
 
-    def action_view_delivery(self):
+    def action_view_picking(self):
         return self._get_action_view_picking(self.picking_ids.filtered(lambda p: not p.is_dropship))
 
     def action_view_dropship(self):
@@ -39,7 +39,7 @@ class SaleOrderLine(models.Model):
                     line.is_mto = True
                     break
 
-    def _get_qty_procurement(self, previous_product_uom_qty):
+    def _get_procurement_qty(self, previous_product_uom_qty):
         # People without purchase rights should be able to do this operation
         purchase_lines_sudo = self.sudo().purchase_line_ids
         if purchase_lines_sudo.filtered(lambda r: r.state != 'cancel'):
@@ -48,7 +48,7 @@ class SaleOrderLine(models.Model):
                 qty += po_line.product_uom_id._compute_quantity(po_line.product_qty, self.product_uom_id, rounding_method='HALF-UP')
             return qty
         else:
-            return super(SaleOrderLine, self)._get_qty_procurement(previous_product_uom_qty=previous_product_uom_qty)
+            return super(SaleOrderLine, self)._get_procurement_qty(previous_product_uom_qty=previous_product_uom_qty)
 
     @api.depends('purchase_line_count')
     def _compute_product_updatable(self):

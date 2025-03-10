@@ -5,7 +5,7 @@
         <field name="model">fleet.vehicle</field>
         <field name="inherit_id" ref="fleet.fleet_vehicle_view_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//button[@name='open_assignation_logs']" position='before'>
+            <xpath expr="//button[@name='action_view_assignation_logs']" position='before'>
                 <button name="action_view_bills"
                     type="object"
                     class="oe_stat_button"
