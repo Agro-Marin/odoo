@@ -499,7 +499,7 @@ class AccountBankStatementLine(models.Model):
         self.ensure_one()
         all_reconcilable_account_ids = self.env['account.account'].search([
             ("company_ids", "child_of", self.company_id.root_id.id),
-            ('reconcile', '=', True),
+            ('reconcile', '=', True), ("deprecated", "=", False)
         ]).ids
         state_domain = [('parent_state', '=', 'posted')]
         if allow_draft:

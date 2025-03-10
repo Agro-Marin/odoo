@@ -1,19 +1,13 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import models, api
 from odoo.tools.misc import str2bool
 
 
 class IrConfigParameter(models.Model):
-    _inherit = 'ir.config_parameter'
+    _inherit = "ir.config_parameter"
 
-    def _sale_sync_cron(self, unlink=False):
-        for config in self:
-            if (
-                config.key == 'sale.automatic_invoice'
-                and (send_invoice_cron := self.env.ref('sale.send_invoice_cron', raise_if_not_found=False))
-            ):
-                send_invoice_cron.active = False if unlink else str2bool(config.value)
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -29,3 +23,16 @@ class IrConfigParameter(models.Model):
     def unlink(self):
         self._sale_sync_cron(unlink=True)
         return super().unlink()
+
+    # ------------------------------------------------------------
+    # HELPERS
+    # ------------------------------------------------------------
+
+    def _sale_sync_cron(self, unlink=False):
+        for config in self:
+            if config.key == "sale.automatic_invoice" and (
+                send_invoice_cron := self.env.ref(
+                    "sale.send_invoice_cron", raise_if_not_found=False
+                )
+            ):
+                send_invoice_cron.active = False if unlink else str2bool(config.value)

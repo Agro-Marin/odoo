@@ -10,5 +10,5 @@ class SaleReport(models.Model):
 
     def _select_additional_fields(self):
         res = super()._select_additional_fields()
-        res['project_id'] = 's.project_id'
+        res['project_id'] = 'o.project_id'
         return res

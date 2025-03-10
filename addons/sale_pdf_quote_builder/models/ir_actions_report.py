@@ -34,7 +34,7 @@ class IrActionsReport(models.Model):
                 quotation_documents = order.quotation_document_ids
                 headers = quotation_documents.filtered(lambda doc: doc.document_type == 'header')
                 footers = quotation_documents - headers
-                has_product_document = any(line.product_document_ids for line in order.order_line)
+                has_product_document = any(line.product_document_ids for line in order.line_ids)
 
                 if not headers and not has_product_document and not footers:
                     continue
@@ -53,7 +53,7 @@ class IrActionsReport(models.Model):
                             writer, header, form_fields_values_mapping, prefix, order
                         )
                 if has_product_document:
-                    for line in order.order_line:
+                    for line in order.line_ids:
                         for doc in line.product_document_ids:
                             # Use both the id of the line and the doc as variants could use the same
                             # document.

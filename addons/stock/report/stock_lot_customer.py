@@ -4,17 +4,17 @@ from odoo import fields, models
 
 
 class StockLotReport(models.Model):
-    _name = 'stock.lot.report'
+    _name = "stock.lot.report"
     _description = "Customer Lot Report"
-    _rec_name = 'lot_id'
+    _rec_name = "lot_id"
     _auto = False
 
-    lot_id = fields.Many2one('stock.lot', 'Lot/Serial', readonly=True)
-    product_id = fields.Many2one('product.product', readonly=True)
-    partner_id = fields.Many2one('res.partner', readonly=True)
-    picking_id = fields.Many2one('stock.picking', readonly=True)
+    lot_id = fields.Many2one("stock.lot", "Lot/Serial", readonly=True)
+    product_id = fields.Many2one("product.product", readonly=True)
+    partner_id = fields.Many2one("res.partner", readonly=True)
+    picking_id = fields.Many2one("stock.picking", readonly=True)
     quantity = fields.Float(readonly=True)
-    uom_id = fields.Many2one('uom.uom', readonly=True)
+    uom_id = fields.Many2one("uom.uom", readonly=True)
     delivery_date = fields.Datetime(readonly=True)
     address = fields.Char(readonly=True)
     has_return = fields.Boolean(readonly=True)

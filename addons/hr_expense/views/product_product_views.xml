@@ -35,7 +35,7 @@
                     </div>
                     <sheet>
                         <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
-                        <field name='product_variant_count' invisible='1'/>
+                        <field name='count_product_variant' invisible='1'/>
                         <field name="id" invisible="1"/>
                         <field name="image_1920" widget="image" class="oe_avatar" options="{'image_preview': 'image_128'}"/>
                         <field name="type" invisible="1"/>

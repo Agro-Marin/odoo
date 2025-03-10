@@ -7,15 +7,15 @@ from odoo import api, Command, fields, models, _
 class MrpProduction(models.Model):
     _inherit = 'mrp.production'
 
-    purchase_order_count = fields.Integer(
+    count_purchase_order = fields.Integer(
         "Count of generated PO",
-        compute='_compute_purchase_order_count',
+        compute='_compute_count_purchase_order',
         groups='purchase.group_purchase_user')
 
     @api.depends('procurement_group_id.stock_move_ids.created_purchase_line_ids.order_id', 'procurement_group_id.stock_move_ids.move_orig_ids.purchase_line_id.order_id')
-    def _compute_purchase_order_count(self):
+    def _compute_count_purchase_order(self):
         for production in self:
-            production.purchase_order_count = len(production._get_purchase_orders())
+            production.count_purchase_order = len(production._get_purchase_orders())
 
     def action_view_purchase_orders(self):
         self.ensure_one()

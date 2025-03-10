@@ -74,7 +74,7 @@
                         <notebook colspan="4">
                             <page name="content" string="Content">
                                 <field name="slide_ids" string="Content" colspan="4" nolabel="1" widget="slide_category_one2many" mode="list,kanban" context="{'default_channel_id': id, 'form_view_ref' : 'website_slides.view_slide_slide_form_wo_channel_id'}">
-                                     <list decoration-bf="is_category" editable="bottom">
+                                     <list limit="500" decoration-bf="is_category" editable="bottom">
                                         <field name="sequence" widget="handle"/>
                                         <field name="name"/>
                                         <field name="slide_category" invisible="slide_category == 'category'"/>

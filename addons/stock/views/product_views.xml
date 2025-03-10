@@ -371,7 +371,7 @@
                                 invisible="type == 'service'"
                                 context="{
                                     'invisible_handle': True,
-                                    'single_product': product_variant_count == 1,
+                                    'single_product': count_product_variant == 1,
                                 }">
                                     <div class="o_stat_info">
                                         <span class="o_stat_text">Putaway Rules</span>
@@ -493,7 +493,7 @@
                                 invisible="type == 'service'"
                                 context="{
                                     'invisible_handle': True,
-                                    'single_product': product_variant_count == 1,
+                                    'single_product': count_product_variant == 1,
                                 }">
                                     <div class="o_stat_info">
                                         <span class="o_stat_text">Putaway Rules</span>

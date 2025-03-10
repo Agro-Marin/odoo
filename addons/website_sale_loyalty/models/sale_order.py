@@ -79,7 +79,7 @@ class SaleOrder(models.Model):
                 or coupon.program_id.is_nominative
                 or (rewards.reward_type == 'product' and rewards.multi_product)
                 or rewards in self.disabled_auto_rewards
-                or rewards in self.order_line.reward_id
+                or rewards in self.line_ids.reward_id
             ):
                 continue
 
@@ -193,7 +193,7 @@ class SaleOrder(models.Model):
 
     def _get_free_shipping_lines(self):
         self.ensure_one()
-        return self.order_line.filtered(lambda l: l.reward_id.reward_type == 'shipping')
+        return self.line_ids.filtered(lambda l: l.reward_id.reward_type == 'shipping')
 
     def _allow_nominative_programs(self):
         if not request or not hasattr(request, 'website'):

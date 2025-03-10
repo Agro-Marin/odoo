@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem
+        id="menu_stock_jobs"
+        name="Jobs"
+        parent="stock.menu_stock_warehouse_mgmt"
+        sequence="2" />
+
+    <menuitem
+        id="stock_picking_batch_menu"
+        parent="menu_stock_jobs"
+        sequence="30"
+        action="stock_picking_batch_action" />
+
+    <menuitem
+        id="stock_picking_wave_menu"
+        parent="menu_stock_jobs"
+        sequence="31"
+        action="action_picking_tree_wave" />
+</odoo>

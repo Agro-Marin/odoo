@@ -172,14 +172,14 @@ class TestSalePurchaseStockFlow(TransactionCase):
             'warehouse_id': self.warehouse.id,
         })
         sale.action_confirm()
-        self.assertEqual(sale.purchase_order_count, 1)
+        self.assertEqual(sale.count_purchase_order, 1)
         purchase = sale._get_purchase_orders()
         purchase.button_confirm()
 
         receipt = purchase.picking_ids
         receipt.move_ids.write({'quantity': 1, 'picked': True})
         receipt._action_done()
-        self.assertEqual(sale.purchase_order_count, 1)
+        self.assertEqual(sale.count_purchase_order, 1)
 
     def test_mto_and_partial_cancel(self):
         """

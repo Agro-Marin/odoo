@@ -916,7 +916,7 @@ class ProductTemplate(models.Model):
         """
         self.ensure_one()
 
-        if self.product_variant_count == 1:
+        if self.count_product_variant == 1:
             return self.product_variant_id._to_markup_data(website)
 
         base_url = website.get_base_url()

@@ -24,13 +24,13 @@ class SaleOrderLine(models.Model):
     def get_description_following_lines(self):
         return self.name.splitlines()[1:]
 
-    def _get_order_date(self):
+    def _get_date_order(self):
         self.ensure_one()
         if self.order_id.website_id and self.state == 'draft':
             # cart prices must always be computed based on the current time, not on the order
             # creation date.
             return fields.Datetime.now()
-        return super()._get_order_date()
+        return super()._get_date_order()
 
     def _get_shop_warning(self, clear=True):
         self.ensure_one()
@@ -44,7 +44,7 @@ class SaleOrderLine(models.Model):
         tax_display = 'total_excluded' if show_tax == 'tax_excluded' else 'total_included'
 
         return self.tax_ids.compute_all(
-            self.price_unit, self.currency_id, 1, self.product_id, self.order_partner_id,
+            self.price_unit, self.currency_id, 1, self.product_id, self.partner_id,
         )[tax_display]
 
     def _get_displayed_quantity(self):

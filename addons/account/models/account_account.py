@@ -775,11 +775,15 @@ class AccountAccount(models.Model):
         :param journal_id: only return accounts allowed on this journal id
         :returns: List of account ids, ordered by frequency (from most to least frequent)
         """
+        excluded_account_ids = [
+            self.env["res.company"].browse(company_id).account_cash_basis_base_account_id.id,
+        ]
         domain = [
             *self.env['account.move.line']._check_company_domain(company_id),
             ('partner_id', '=', partner_id),
             ('account_id.deprecated', '=', False),
             ('date', '>=', fields.Date.add(fields.Date.today(), days=-365 * 2)),
+            ('account_id', 'not in', excluded_account_ids),
         ]
         if journal_id:
             domain += ['|', ('account_id.allowed_journal_ids', '=', journal_id), ('account_id.allowed_journal_ids', '=', False)]

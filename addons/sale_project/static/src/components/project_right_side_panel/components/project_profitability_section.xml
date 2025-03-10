@@ -40,7 +40,7 @@
                                     <t t-else="" t-esc="sale_item.display_name"/>
                                 </td>
                                 <td class="text-end align-middle"><t t-esc="formatValue(sale_item.product_uom_qty, uom_name)"/> <t t-esc="uom_name"/></td>
-                                <td class="text-end align-middle"><t t-esc="formatValue(sale_item.qty_delivered, uom_name)"/> <t t-esc="uom_name"/></td>
+                                <td class="text-end align-middle"><t t-esc="formatValue(sale_item.qty_transfered, uom_name)"/> <t t-esc="uom_name"/></td>
                                 <td class="text-end align-middle"><t t-esc="formatValue(sale_item.qty_invoiced, uom_name)"/> <t t-esc="uom_name"/></td>
                             </tr>
                         </tbody>

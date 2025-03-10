@@ -49,13 +49,13 @@ class HrExpense(models.Model):
         """
         Resets the quantity of a SOL created by a reinvoiced expense to 0 when the expense or its move is reset to an unfinished state
 
-        Note: Resetting the qty_delivered will raise if the product is a storable product and sale_stock is installed,
+        Note: Resetting the qty_transfered will raise if the product is a storable product and sale_stock is installed,
               but it's fine as it doesn't make much sense to have a stored product in an expense.
         """
         self.check_access('write')
         # If we can edit the expense, we may not be able to edit the sol without sudoing.
         self.sudo().sale_order_line_id.write({
-            'qty_delivered': 0.0,
+            'qty_transfered': 0.0,
             'product_uom_qty': 0.0,
             'expense_ids': [Command.clear()],
         })

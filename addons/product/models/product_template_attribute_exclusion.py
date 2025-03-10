@@ -1,29 +1,38 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models
 
 
 class ProductTemplateAttributeExclusion(models.Model):
-    _name = 'product.template.attribute.exclusion'
+    _name = "product.template.attribute.exclusion"
     _description = "Product Template Attribute Exclusion"
-    _order = 'product_tmpl_id, id'
+    _order = "product_tmpl_id, id"
+
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
 
     product_template_attribute_value_id = fields.Many2one(
-        comodel_name='product.template.attribute.value',
+        comodel_name="product.template.attribute.value",
         string="Attribute Value",
-        ondelete='cascade',
-        index=True)
+        ondelete="cascade",
+        index=True,
+    )
     product_tmpl_id = fields.Many2one(
-        comodel_name='product.template',
+        comodel_name="product.template",
         string="Product Template",
-        ondelete='cascade',
         required=True,
-        index=True)
+        ondelete="cascade",
+        index=True,
+    )
     value_ids = fields.Many2many(
-        comodel_name='product.template.attribute.value',
-        relation='product_attr_exclusion_value_ids_rel',
+        comodel_name="product.template.attribute.value",
+        relation="product_attr_exclusion_value_ids_rel",
         string="Attribute Values",
-        domain="[('product_tmpl_id', '=', product_tmpl_id), ('ptav_active', '=', True)]")
+        domain='[("product_tmpl_id", "=", product_tmpl_id), ("ptav_active", "=", True)]',
+    )
+
+    # ------------------------------------------------------------
+    # CRUD METHODS
+    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -31,17 +40,17 @@ class ProductTemplateAttributeExclusion(models.Model):
         exclusions.product_tmpl_id._create_variant_ids()
         return exclusions
 
+    def write(self, values):
+        templates = self.env["product.template"]
+        if "product_tmpl_id" in values:
+            templates = self.product_tmpl_id
+        res = super().write(values)
+        (templates | self.product_tmpl_id)._create_variant_ids()
+        return res
+
     def unlink(self):
         # Keep a reference to the related templates before the deletion.
         templates = self.product_tmpl_id
         res = super().unlink()
         templates._create_variant_ids()
-        return res
-
-    def write(self, values):
-        templates = self.env['product.template']
-        if 'product_tmpl_id' in values:
-            templates = self.product_tmpl_id
-        res = super().write(values)
-        (templates | self.product_tmpl_id)._create_variant_ids()
         return res

@@ -15,7 +15,7 @@ class SaleOrder(models.Model):
         readonly=True,
     )
 
-    def _send_order_notification_mail(self, mail_template):
+    def _mail_notification(self, mail_template):
         """ Override of `sale` to reschedule order status emails to be sent asynchronously. """
         async_send = str2bool(self.env['ir.config_parameter'].sudo().get_param('sale.async_emails'))
         cron = async_send and self.env.ref('sale_async_emails.cron', raise_if_not_found=False)
@@ -24,7 +24,7 @@ class SaleOrder(models.Model):
             self.pending_email_template_id = mail_template
             cron._trigger()
         else:  # We are in the cron job, or the user has disabled async emails.
-            super()._send_order_notification_mail(mail_template)  # Send the email synchronously.
+            super()._mail_notification(mail_template)  # Send the email synchronously.
 
     @api.model
     def _cron_send_pending_emails(self, auto_commit=True):
@@ -37,7 +37,7 @@ class SaleOrder(models.Model):
         pending_email_orders = self.search([('pending_email_template_id', '!=', False)])
         for order in pending_email_orders:
             order = order[0]  # Avoid pre-fetching after each cache invalidation due to committing.
-            order.with_context(is_async_email=True)._send_order_notification_mail(
+            order.with_context(is_async_email=True)._mail_notification(
                 order.pending_email_template_id
             )  # Asynchronously resume the email sending.
             order.pending_email_template_id = None

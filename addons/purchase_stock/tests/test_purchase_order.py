@@ -79,7 +79,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
 
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         move_form.partner_id = self.partner_a
-        move_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-self.po.id)
+        move_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-self.po.id)
         self.invoice = move_form.save()
 
         self.assertEqual(self.po.order_line.mapped('qty_invoiced'), [5.0, 5.0], 'Purchase: all products should be invoiced"')
@@ -113,7 +113,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
         move_form.invoice_date = move_form.date
         move_form.partner_id = self.partner_a
-        move_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-self.po.id)
+        move_form.purchase_bill_union_id = self.env['purchase.bill.union'].browse(-self.po.id)
         self.invoice = move_form.save()
         self.invoice.action_post()
 
@@ -146,9 +146,9 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
         move_form.partner_id = self.partner_a
         # Not supposed to see/change the purchase order of a refund invoice by default
         # <field name="purchase_id" invisible="1"/>
-        # <label for="purchase_vendor_bill_id" string="Auto-Complete" class="oe_edit_only"
+        # <label for="purchase_bill_union_id" string="Auto-Complete" class="oe_edit_only"
         #         invisible="state != 'draft' or move_type != 'in_invoice'" />
-        # <field name="purchase_vendor_bill_id" nolabel="1"
+        # <field name="purchase_bill_union_id" nolabel="1"
         #         invisible="state != 'draft' or move_type != 'in_invoice'"
         move_form._view['modifiers']['purchase_id']['invisible'] = 'False'
         move_form.purchase_id = self.po

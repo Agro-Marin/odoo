@@ -54,7 +54,7 @@ class PosOrder(models.Model):
 
         order_ids = self.browse([o['id'] for o in data["pos.order"]])
         for order in order_ids:
-            used_pos_lines = order.lines.sale_order_origin_id.order_line.pos_order_line_ids.ids
+            used_pos_lines = order.lines.sale_order_origin_id.line_ids.pos_order_line_ids.ids
             lines = order.lines.filtered(
                 lambda l: (
                     l.id not in used_pos_lines
@@ -67,7 +67,7 @@ class PosOrder(models.Model):
                 )
             )
             for line in lines:
-                sale_lines = line.sale_order_origin_id.order_line or line.refunded_orderline_id.sale_order_origin_id.order_line
+                sale_lines = line.sale_order_origin_id.line_ids or line.refunded_orderline_id.sale_order_origin_id.line_ids
                 sale_order_origin = line.sale_order_origin_id or line.refunded_orderline_id.sale_order_origin_id
                 if not any(line.display_type and line.is_downpayment for line in sale_lines):
                     self.env['sale.order.line'].create(
@@ -101,9 +101,9 @@ class PosOrder(models.Model):
                     sale_order.action_confirm()
 
             # update the demand qty in the stock moves related to the sale order line
-            # flush the qty_delivered to make sure the updated qty_delivered is used when
+            # flush the qty_transfered to make sure the updated qty_transfered is used when
             # updating the demand value
-            so_lines.flush_recordset(['qty_delivered'])
+            so_lines.flush_recordset(['qty_transfered'])
             # track the waiting pickings
             waiting_picking_ids = set()
             for so_line in so_lines:
@@ -183,7 +183,6 @@ class PosOrder(models.Model):
         if pos_line.sale_order_origin_id:
             origin_line = pos_line.sale_order_line_id
             inv_line_vals["name"] = origin_line.name
-            origin_line._set_analytic_distribution(inv_line_vals)
 
         return inv_line_vals
 

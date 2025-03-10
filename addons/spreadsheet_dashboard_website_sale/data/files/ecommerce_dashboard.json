@@ -354,7 +354,7 @@
               "context": {
                 "search_default_Sales": 1,
                 "group_by": [],
-                "search_default_filter_order_date": 1,
+                "search_default_filter_order_date_365": 1,
                 "search_default_recurring": 0,
                 "search_default_non_recurring": 1
               },
@@ -550,7 +550,7 @@
       "context": {
         "search_default_Sales": 1,
         "group_by": [],
-        "search_default_filter_order_date": 1,
+        "search_default_filter_order_date_365": 1,
         "search_default_recurring": 0,
         "search_default_non_recurring": 1
       },

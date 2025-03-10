@@ -351,11 +351,20 @@ class PosOrder(models.Model):
         ('invoiced', 'Fully Invoiced'),
         ('to_invoice', 'To Invoice'),
     ], string='Invoice Status', compute='_compute_invoice_status')
+    invoice_state = fields.Selection([
+        ('invoiced', 'Fully Invoiced'),
+        ('to_invoice', 'To Invoice'),
+    ], string='Invoice State', compute='_compute_invoice_state')
 
     @api.depends('account_move')
     def _compute_invoice_status(self):
         for order in self:
             order.invoice_status = 'invoiced' if len(order.account_move) else 'to_invoice'
+
+    @api.depends('account_move')
+    def _compute_invoice_state(self):
+        for order in self:
+            order.invoice_state = 'invoiced' if len(order.account_move) else 'to_invoice'
 
     @api.depends('session_id')
     def _compute_order_config_id(self):

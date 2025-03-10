@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
 
         <template id="report_picking">
             <t t-call="web.report_layout">
                 <div class="article o_report_layout_standard">
                     <t t-foreach="docs" t-as="o">
-                        <t t-set="address" t-value="None"/>
+                        <t t-set="address" t-value="None" />
                         <div class="page o_report_stockpicking_operations">
                             <div class="row justify-content-between">
                                 <div class="col-4">
@@ -61,7 +60,7 @@
                                         t-field="o.picking_type_id.warehouse_id.partner_id"
                                         t-options='{"widget": "contact", "fields": ["name"], "no_marker": True}'/>
                                     <div t-else=""
-                                        t-field="o.picking_type_id.warehouse_id.name"/>
+                                        t-field="o.picking_type_id.warehouse_id.name" />
                                     </div>
                                 <div name="div_state">
                                     <strong>Status:</strong>
@@ -76,9 +75,9 @@
                                         <strong>Done Date:</strong>
                                         <p t-field="o.date_done" t-options='{"widget": "date"}'>2023-09-24</p>
                                     </t>
-                                    <t t-elif="o.state != 'done' and o.scheduled_date">
+                                    <t t-elif="o.state != 'done' and o.date_planned">
                                         <strong>Scheduled Date:</strong>
-                                        <p t-field="o.scheduled_date" t-options='{"widget": "date"}'>2023-09-24</p>
+                                        <p t-field="o.date_planned" t-options='{"widget": "date"}'>2023-09-24</p>
                                     </t>
                                 </div>
                                 <div name="div_vendor" t-if="o.picking_type_id.code=='incoming' and o.partner_id">
@@ -88,7 +87,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <t t-set="format_number" t-value="lambda x: int(x) if x == int(x) else '{:.2f}'.format(x)"/>
+                            <t t-set="format_number" t-value="lambda x: int(x) if x == int(x) else '{:.2f}'.format(x)" />
                             <!-- In this step, we loop over every move of the picking and do the following
                                 1. We add the barcode column if any of the products has a barcode or if we have a tracked move
                                 2. We add From/To columns according to the type of the picking
@@ -97,11 +96,11 @@
                                 4. If a move contains only one move line, the move is summarized in the heading only
                             -->
                             <table class="table table-sm o_main_table" t-if="o.move_line_ids and o.move_ids_without_package" style="table-layout: fixed; width: 100%">
-                                <t t-set="picking_has_barcode" t-value="any(move_line.product_id and move_line.product_id.barcode for move_line in o.move_line_ids)"/>
-                                <t t-set="picking_has_serial_number" t-value="any(move_line.lot_id or move_line.lot_name for move_line in o.move_line_ids)" groups="stock.group_production_lot"/>
-                                <t t-set="barcode_col_exists" t-value="picking_has_barcode or picking_has_serial_number"/>
-                                <t t-set="from_col_exists" t-value="o.picking_type_id.code != 'incoming'"/>
-                                <t t-set="to_col_exists" t-value="o.picking_type_id.code != 'outgoing'"/>
+                                <t t-set="picking_has_barcode" t-value="any(move_line.product_id and move_line.product_id.barcode for move_line in o.move_line_ids)" />
+                                <t t-set="picking_has_serial_number" t-value="any(move_line.lot_id or move_line.lot_name for move_line in o.move_line_ids)" groups="stock.group_production_lot" />
+                                <t t-set="barcode_col_exists" t-value="picking_has_barcode or picking_has_serial_number" />
+                                <t t-set="from_col_exists" t-value="o.picking_type_id.code != 'incoming'" />
+                                <t t-set="to_col_exists" t-value="o.picking_type_id.code != 'outgoing'" />
                                 <thead>
                                     <tr>
                                         <th name="th_product" class="text-start">
@@ -124,7 +123,7 @@
                                 <tbody>
                                     <t t-foreach="o.move_ids_without_package" t-as="move">
                                         <!-- This flag is true if there are multiple move lines in a move, or if there is at least one tracked move line -->
-                                        <t t-set="move_has_multiple_lines" t-value="len(move.move_line_ids) > 1 or any(move_line.lot_id or move_line.lot_name for move_line in move.move_line_ids)"/>
+                                        <t t-set="move_has_multiple_lines" t-value="len(move.move_line_ids) > 1 or any(move_line.lot_id or move_line.lot_name for move_line in move.move_line_ids)" />
                                         <tr>
                                             <td class="text-start">
                                                 <span t-field="move.product_id.display_name">Customizable Desk</span><br/>
@@ -135,12 +134,12 @@
                                                 <span t-out="format_number(move.quantity)">3.00</span>
                                                 <span t-field="move.product_uom" groups="uom.group_uom">units</span>
                                                 <span t-if="move.packaging_uom_id and move.packaging_uom_id != move.product_uom">
-                                                    (<span t-field="move.packaging_uom_qty" t-options='{"widget": "integer"}'/> <span t-field="move.packaging_uom_id.name"/>)
+                                                    (<span t-field="move.packaging_uom_qty" t-options='{"widget": "integer"}'/> <span t-field="move.packaging_uom_id.name" />)
                                                 </span>
                                             </td>
                                             <!-- If a move contains only one move line, the move is summarized in the heading only -->
                                             <td class="text-start" t-if="from_col_exists" groups="stock.group_stock_multi_locations">
-                                                <div t-if="not move_has_multiple_lines">
+                                                <div t-if="move.move_line_ids and not move_has_multiple_lines">
                                                     <span t-field="move.move_line_ids[0].location_id.display_name">WH/Stock</span>
                                                     <t t-if="move.move_line_ids and move.move_line_ids[0].package_id">
                                                         <span t-field="move.move_line_ids[0].package_id">Package A</span>
@@ -149,7 +148,7 @@
                                             </td>
                                             <!-- If a move contains only one move line, the move is summarized in the heading only -->
                                             <td class="text-start" t-if="to_col_exists" groups="stock.group_stock_multi_locations">
-                                                <div t-if="not move_has_multiple_lines">
+                                                <div t-if="move.move_line_ids and not move_has_multiple_lines">
                                                     <span t-field="move.move_line_ids[0].location_dest_id.display_name">WH/Outgoing</span>
                                                     <t t-if="move.move_line_ids and move.move_line_ids[0].result_package_id">
                                                         <span t-field="move.move_line_ids[0].result_package_id">Package B</span>
@@ -222,31 +221,32 @@
                                                 <br/>
                                         </td>
                                         <td t-if="o.picking_type_id.code != 'incoming'" groups="stock.group_stock_multi_locations">
-                                            <span t-field="package.location_id"/>
+                                            <span t-field="package.location_id" />
                                         </td>
                                         <td t-if="o.picking_type_id.code != 'outgoing'" groups="stock.group_stock_multi_locations">
-                                            <span t-field="package.location_dest_id"/>
+                                            <span t-field="package.location_dest_id" />
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
 
-                            <t t-set="no_reserved_product" t-value="o.move_ids.filtered(lambda x: x.product_uom_qty != x.quantity and x.move_line_ids and x.state!='done')"/>
+                            <t t-set="no_reserved_product" t-value="o.move_ids.filtered(lambda x: x.product_uom_qty != x.quantity and x.move_line_ids and x.state!='done')" />
                             <p t-if="o.state in ['draft', 'waiting', 'confirmed'] or no_reserved_product"><i class="fa fa-exclamation-triangle" />
                                 All products could not be reserved. Click on the "Check Availability" button to try to reserve products.
                             </p>
-                            <p t-else=""/>
+                            <p t-else="" />
                             <div class="oe_structure"></div>
-                            <p t-field="o.note"/>
+                            <p t-field="o.note" />
                             <div class="oe_structure"></div>
                         </div>
                     </t>
                 </div>
             </t>
         </template>
+
         <template id="report_picking_type_label">
             <t t-set="title">Operation Types</t>
-            <t t-call="stock.report_generic_barcode"/>
+            <t t-call="stock.report_generic_barcode" />
         </template>
-    </data>
+
 </odoo>

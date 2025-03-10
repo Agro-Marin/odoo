@@ -11,7 +11,7 @@ from odoo.tools.translate import _
 
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.controllers.portal import PaymentPortal
-from odoo.addons.sale.controllers.portal import CustomerPortal
+from odoo.addons.sale.controllers.customer_portal import CustomerPortal
 from odoo.addons.website_sale.controllers.main import WebsiteSale
 
 
@@ -45,7 +45,7 @@ class Cart(PaymentPortal):
                 request.session['sale_order_id'] = abandoned_order.id
                 return request.redirect('/shop/cart')
             elif revive_method == 'merge':
-                abandoned_order.order_line.write({'order_id': request.session['sale_order_id']})
+                abandoned_order.line_ids.write({'order_id': request.session['sale_order_id']})
                 abandoned_order.action_cancel()
             elif abandoned_order.id != request.session.get('sale_order_id'):  # abandoned cart found, user have to choose what to do
                 values.update({'id': abandoned_order.id, 'access_token': abandoned_order.access_token})
@@ -56,7 +56,7 @@ class Cart(PaymentPortal):
             'suggested_products': [],
         })
         if order_sudo:
-            order_sudo.order_line.filtered(lambda sol: sol.product_id and not sol.product_id.active).unlink()
+            order_sudo.line_ids.filtered(lambda sol: sol.product_id and not sol.product_id.active).unlink()
             values['suggested_products'] = order_sudo._cart_accessories()
             values.update(self._get_express_shop_payment_values(order_sudo))
 
@@ -81,7 +81,7 @@ class Cart(PaymentPortal):
             'shipping_info_required': order._has_deliverable_products(),
             # Todo: remove in master
             'delivery_amount': payment_utils.to_minor_currency_units(
-                order.order_line.filtered(lambda l: l.is_delivery).price_total, order.currency_id
+                order.line_ids.filtered(lambda l: l.is_delivery).price_total, order.currency_id
             ),
             'shipping_address_update_route': WebsiteSale._express_checkout_delivery_route,
         })
@@ -255,7 +255,7 @@ class Cart(PaymentPortal):
         # eg. website_sale_loyalty, a cart line could be a temporary record without id.
         # In this case, the line_id must be found out through the given product id.
         if not line_id:
-            line_id = order_sudo.order_line.filtered(
+            line_id = order_sudo.line_ids.filtered(
                 lambda sol: sol.product_id.id == product_id
             )[:1].id
             if not line_id:
@@ -302,7 +302,7 @@ class Cart(PaymentPortal):
         website=True
     )
     def clear_cart(self):
-        request.cart.order_line.unlink()
+        request.cart.line_ids.unlink()
 
     def _get_cart_notification_information(self, order, line_ids):
         """ Get the information about the sales order lines to show in the notification.
@@ -323,7 +323,7 @@ class Cart(PaymentPortal):
                 }],
             }
         """
-        lines = order.order_line.filtered(lambda line: line.id in line_ids)
+        lines = order.line_ids.filtered(lambda line: line.id in line_ids)
         if not lines:
             return {}
 
@@ -351,7 +351,7 @@ class Cart(PaymentPortal):
         :rtype: dict
         :return: The tracking information.
         """
-        lines = order_sudo.order_line.filtered(
+        lines = order_sudo.line_ids.filtered(
             lambda line: line.id in line_ids
         ).with_context(display_default_code=False)
         return [
@@ -360,8 +360,8 @@ class Cart(PaymentPortal):
                 'item_name': line.product_id.display_name,
                 'item_category': line.product_id.categ_id.name,
                 'currency': line.currency_id.name,
-                'price': line.price_reduce_taxexcl,
-                'discount': line.price_unit - line.price_reduce_taxexcl,
+                'price': line.price_unit_discounted_taxexc,
+                'discount': line.price_unit - line.price_unit_discounted_taxexc,
                 'quantity': line.product_uom_qty,
             } for line in lines
         ]

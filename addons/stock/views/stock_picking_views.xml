@@ -8,7 +8,7 @@
                     <templates>
                         <div t-name="activity-box" class="d-block">
                             <field name="name" display="full" class="o_text_block o_text_bold"/>
-                            <field name="scheduled_date"/>
+                            <field name="date_planned"/>
                         </div>
                     </templates>
                 </activity>
@@ -20,7 +20,7 @@
             <field name="model">stock.picking</field>
             <field name="priority" eval="2"/>
             <field name="arch" type="xml">
-                <calendar string="Calendar View" date_start="scheduled_date" color="partner_id" event_limit="5" quick_create="0">
+                <calendar string="Calendar View" date_start="date_planned" color="partner_id" event_limit="5" quick_create="0">
                     <field name="partner_id" filters="1"/>
                     <field name="origin"/>
                     <field name="picking_type_id"/>
@@ -35,7 +35,7 @@
             <field name="model">stock.picking</field>
             <field name="arch" type="xml">
                 <kanban class="o_kanban_mobile" sample="1">
-                    <field name="scheduled_date"/>
+                    <field name="date_planned"/>
                     <field name="picking_type_id"/>
                     <progressbar field="activity_state" colors='{"planned": "success", "today": "warning", "overdue": "danger"}'/>
                     <templates>
@@ -53,7 +53,7 @@
                                     <field name="json_popover" nolabel="1" widget="stock_rescheduling_popover" invisible="not json_popover"/>
                                 </div>
                                 <div class="d-flex ms-auto mt-1 align-items-center">
-                                    <field name="scheduled_date" options="{'show_time': false}"/>
+                                    <field name="date_planned" options="{'show_time': false}"/>
                                     <field name="user_id" widget="many2one_avatar_user" invisible="not user_id" readonly="state in ['cancel', 'done']" class="ms-1"/>
                                 </div>
                             </footer>
@@ -80,7 +80,7 @@
                     <field name="partner_id" optional="show" readonly="state in ['cancel', 'done']"/>
                     <field name="is_signed" string="Signed" optional="hide" groups="stock.group_stock_sign_delivery"/>
                     <field name="user_id" optional="hide" widget="many2one_avatar_user" readonly="state in ['cancel', 'done']"/>
-                    <field name="scheduled_date" optional="show" widget="remaining_days" invisible="state in ('done', 'cancel')" readonly="state in ['cancel', 'done']"/>
+                    <field name="date_planned" optional="show" widget="remaining_days" invisible="state in ('done', 'cancel')" readonly="state in ['cancel', 'done']"/>
                     <field name="picking_type_code" column_invisible="True"/>
                     <field name="products_availability_state" column_invisible="True" options='{"lazy": true}'/>
                     <field name="products_availability" options='{"lazy": true}'
@@ -220,12 +220,12 @@
                             <field name="use_create_lots" invisible="1"/> <!-- used by embedded stock.move list view below -->
                         </group>
                         <group>
-                            <label for="scheduled_date"/>
+                            <label for="date_planned"/>
                             <div class="o_row">
-                                <field name="scheduled_date" readonly="state in ['cancel', 'done']" required="id"
-                                    decoration-warning="state not in ('done', 'cancel') and scheduled_date &lt; now"
-                                    decoration-danger="state not in ('done', 'cancel') and scheduled_date &lt; current_date"
-                                    decoration-bf="state not in ('done', 'cancel') and (scheduled_date &lt; current_date or scheduled_date &lt; now)"/>
+                                <field name="date_planned" readonly="state in ['cancel', 'done']" required="id"
+                                    decoration-warning="state not in ('done', 'cancel') and date_planned &lt; now"
+                                    decoration-danger="state not in ('done', 'cancel') and date_planned &lt; current_date"
+                                    decoration-bf="state not in ('done', 'cancel') and (date_planned &lt; current_date or date_planned &lt; now)"/>
                                 <field name="json_popover" nolabel="1" widget="stock_rescheduling_popover" invisible="not json_popover"/>
                             </div>
                             <field name="date_deadline"
@@ -250,7 +250,7 @@
                         <page string="Operations" name="operations">
                             <field name="move_ids_without_package" mode="list,kanban"
                                 readonly="state == 'done' and is_locked"
-                                context="{'default_company_id': company_id, 'default_date': scheduled_date, 'default_date_deadline': date_deadline, 'picking_type_code': picking_type_code, 'default_picking_id': id, 'form_view_ref': 'stock.view_stock_move_operations', 'address_in_id': partner_id, 'default_picking_type_id': picking_type_id, 'default_location_id': location_id, 'default_location_dest_id': location_dest_id, 'default_partner_id': partner_id}"
+                                context="{'default_company_id': company_id, 'default_date': date_planned, 'default_date_deadline': date_deadline, 'picking_type_code': picking_type_code, 'default_picking_id': id, 'form_view_ref': 'stock.view_stock_move_operations', 'address_in_id': partner_id, 'default_picking_type_id': picking_type_id, 'default_location_id': location_id, 'default_location_dest_id': location_dest_id, 'default_partner_id': partner_id}"
                                 add-label="Add a Product">
                                 <list decoration-muted="scrapped == True or state == 'cancel' or (state == 'done' and is_locked == True)" string="Stock Moves" editable="bottom">
                                     <field name="company_id" column_invisible="True"/>
@@ -287,7 +287,7 @@
                                         invisible="not product_id or product_uom_qty == 0 or quantity == 0 and forecast_availability &lt;= 0 or (parent.picking_type_code == 'outgoing' and state != 'draft')"/>
                                     <button type="object" name="action_product_forecast_report" title="Forecast Report" icon="fa-area-chart text-danger"
                                         invisible="not product_id or product_uom_qty == 0 or quantity &gt; 0 or forecast_availability &gt; 0 or (parent.picking_type_code == 'outgoing' and state != 'draft')"/>
-                                    <field name="forecast_expected_date" column_invisible="True"/>
+                                    <field name="forecast_date_planned" column_invisible="True"/>
                                     <field name="forecast_availability" string="Forecast" optional="hide"
                                         column_invisible="parent.state in ('draft', 'done') or parent.picking_type_code != 'outgoing'" widget="forecast_widget"/>
                                     <field name="product_qty" readonly="1" column_invisible="True"/>
@@ -366,9 +366,9 @@
                     <filter invisible="1" name="day_2" string="The day after tomorrow" domain="[('search_date_category', '=', 'day_2')]"/>
                     <filter invisible="1" name="after" string="After" domain="[('search_date_category', '=', 'after')]"/>
                     <filter name="late" string="Late" help="Deadline exceed or/and by the scheduled"
-                        domain="[('state', 'in', ('assigned', 'waiting', 'confirmed')), '|', '|', ('has_deadline_issue', '=', True), ('date_deadline', '&lt;', current_date), ('scheduled_date', '&lt;', current_date)]"/>
+                        domain="[('state', 'in', ('assigned', 'waiting', 'confirmed')), '|', '|', ('has_deadline_issue', '=', True), ('date_deadline', '&lt;', current_date), ('date_planned', '&lt;', current_date)]"/>
                     <filter string="Planning Issues" name="planning_issues" help="Transfers that are late on scheduled time or one of pickings will be late"
-                        domain="['|', ('delay_alert_date', '!=', False), '&amp;', ('scheduled_date','&lt;', time.strftime('%Y-%m-%d %H:%M:%S')), ('state', 'in', ('assigned', 'waiting', 'confirmed'))]"/>
+                        domain="['|', ('date_delay_alert', '!=', False), '&amp;', ('date_planned','&lt;', time.strftime('%Y-%m-%d %H:%M:%S')), ('state', 'in', ('assigned', 'waiting', 'confirmed'))]"/>
                     <filter string="Late Availability" name="late_availability" domain="[('products_availability_state', '=', 'late')]"/>
                     <separator/>
                     <filter name="backorder" string="Backorders" domain="[('backorder_id', '!=', False), ('state', 'in', ('assigned', 'waiting', 'confirmed'))]" help="Remaining parts of picking partially processed"/>
@@ -385,7 +385,7 @@
                         domain="[('activity_exception_decoration', '!=', False)]"/>
                     <group expand="0" string="Group By">
                         <filter string="Status" name="status" domain="[]" context="{'group_by': 'state'}"/>
-                        <filter string="Scheduled Date" name="expected_date" domain="[]" context="{'group_by': 'scheduled_date'}"/>
+                        <filter string="Scheduled Date" name="date_planned" domain="[]" context="{'group_by': 'date_planned'}"/>
                         <filter string="Source Document" name="origin" domain="[]" context="{'group_by': 'origin'}"/>
                         <filter string="Operation Type" name="picking_type" domain="[]" context="{'group_by': 'picking_type_id'}"/>
                         <filter string="Properties" name="group_by_picking_properties" context="{'group_by': 'picking_properties'}"/>

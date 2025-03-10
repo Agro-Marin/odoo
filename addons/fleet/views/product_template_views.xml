@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_template_form" model="ir.ui.view">
+        <field name="name">product.template.form.fleet.inherit</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <field name="product_tooltip" position="after">
+                <field name="vehicle_service" invisible="type != 'service'"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="product_template_action_vehicle_services" model="ir.actions.act_window">
+        <field name="name">Vehicle Services</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="view_id" ref="product.product_template_kanban_view" />
+        <field name="search_view_id" ref="product.product_template_search_view" />
+	<field name="domain">[('vehicle_service', '=', True)]</field>
+        <field name="context">{"search_default_filter_to_sell":1, "default_type": "service", "default_vehicle_service":1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new vehicle service
+            </p>
+            <p>
+                You must define a vehicle service
+            </p>
+        </field>
+    </record>
+</odoo>

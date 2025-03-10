@@ -3,7 +3,7 @@
 from werkzeug.exceptions import NotFound
 
 from odoo import exceptions, SUPERUSER_ID
-from odoo.addons.sale.controllers.portal import CustomerPortal
+from odoo.addons.sale.controllers.customer_portal import CustomerPortal
 from odoo.http import request, route
 from odoo.tools import consteq
 

@@ -11,7 +11,7 @@ from odoo.tools.sql import column_exists, create_column
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
-    qty_delivered_method = fields.Selection(selection_add=[('milestones', 'Milestones')])
+    qty_transfered_method = fields.Selection(selection_add=[('milestones', 'Milestones')])
     project_id = fields.Many2one(
         'project.project', 'Generated Project',
         index=True, copy=False, export_string_translation=False)
@@ -106,19 +106,19 @@ class SaleOrderLine(models.Model):
                 line.product_updatable = False
 
     @api.depends('product_id')
-    def _compute_qty_delivered_method(self):
+    def _compute_qty_transfered_method(self):
         milestones_lines = self.filtered(lambda sol:
             not sol.is_expense
             and sol.product_id.type == 'service'
             and sol.product_id.service_type == 'milestones'
         )
-        milestones_lines.qty_delivered_method = 'milestones'
-        super(SaleOrderLine, self - milestones_lines)._compute_qty_delivered_method()
+        milestones_lines.qty_transfered_method = 'milestones'
+        super(SaleOrderLine, self - milestones_lines)._compute_qty_transfered_method()
 
-    @api.depends('qty_delivered_method', 'product_uom_qty', 'reached_milestones_ids.quantity_percentage')
-    def _compute_qty_delivered(self):
-        lines_by_milestones = self.filtered(lambda sol: sol.qty_delivered_method == 'milestones')
-        super(SaleOrderLine, self - lines_by_milestones)._compute_qty_delivered()
+    @api.depends('qty_transfered_method', 'product_uom_qty', 'reached_milestones_ids.quantity_percentage')
+    def _compute_qty_transfered(self):
+        lines_by_milestones = self.filtered(lambda sol: sol.qty_transfered_method == 'milestones')
+        super(SaleOrderLine, self - lines_by_milestones)._compute_qty_transfered()
 
         if not lines_by_milestones:
             return
@@ -131,7 +131,7 @@ class SaleOrderLine(models.Model):
         reached_milestones_per_sol = {sale_line.id: percentage_sum for sale_line, percentage_sum in project_milestone_read_group}
         for line in lines_by_milestones:
             sol_id = line.id or line._origin.id
-            line.qty_delivered = reached_milestones_per_sol.get(sol_id, 0.0) * line.product_uom_qty
+            line.qty_transfered = reached_milestones_per_sol.get(sol_id, 0.0) * line.product_uom_qty
 
     @api.depends('order_id.partner_id', 'product_id', 'order_id.project_id')
     def _compute_analytic_distribution(self):
@@ -441,14 +441,14 @@ class SaleOrderLine(models.Model):
             if self.product_id.service_tracking == 'task_in_project':
                 self.task_id.milestone_id = milestone.id
 
-    def _prepare_invoice_line(self, **optional_values):
+    def _prepare_aml_vals(self, **optional_values):
         """
             If the sale order line isn't linked to a sale order which already have a default analytic account,
             this method allows to retrieve the analytic account which is linked to project or task directly linked
             to this sale order line, or the analytic account of the project which uses this sale order line, if it exists.
         """
-        values = super()._prepare_invoice_line(**optional_values)
-        if not values.get('analytic_distribution') and not self.analytic_distribution:
+        values = super()._prepare_aml_vals(**optional_values)
+        if not values.get('analytic_distribution'):
             if self.task_id.project_id.account_id:
                 values['analytic_distribution'] = {self.task_id.project_id.account_id.id: 100}
             elif self.project_id.account_id:

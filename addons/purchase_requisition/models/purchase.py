@@ -29,7 +29,7 @@ class PurchaseOrder(models.Model):
     purchase_group_id = fields.Many2one('purchase.order.group')
     alternative_po_ids = fields.One2many(
         'purchase.order', related='purchase_group_id.order_ids', readonly=False,
-        domain="[('id', '!=', id), ('state', 'in', ['draft', 'sent', 'to approve'])]",
+        domain="[('id', '!=', id), ('state', '=', 'draft')]",
         string="Alternative POs", check_company=True,
         help="Other potential purchase orders for purchasing products")
     has_alternatives = fields.Boolean(
@@ -92,37 +92,37 @@ class PurchaseOrder(models.Model):
 
             # Compute quantity and price_unit
             if line.product_uom_id != line.product_id.uom_id:
-                product_qty = line.product_uom_id._compute_quantity(line.product_qty, line.product_id.uom_id)
+                product_uom_qty = line.product_uom_id._compute_quantity(line.product_uom_qty, line.product_id.uom_id)
                 price_unit = line.product_uom_id._compute_price(line.price_unit, line.product_id.uom_id)
             else:
-                product_qty = line.product_qty
+                product_uom_qty = line.product_uom_qty
                 price_unit = line.price_unit
 
             if requisition.requisition_type != 'purchase_template':
-                product_qty = 0
+                product_uom_qty = 0
 
             # Create PO line
             order_line_values = line._prepare_purchase_order_line(
-                name=name, product_qty=product_qty, price_unit=price_unit,
+                name=name, product_qty=product_uom_qty, price_unit=price_unit,
                 taxes_ids=taxes_ids)
             order_lines.append((0, 0, order_line_values))
-        self.order_line = order_lines
+        self.line_ids = order_lines
 
-    def button_confirm(self):
+    def action_confirm(self):
         if self.alternative_po_ids and not self.env.context.get('skip_alternative_check', False):
-            alternative_po_ids = self.alternative_po_ids.filtered(lambda po: po.state in ['draft', 'sent', 'to approve'] and po.id not in self.ids)
+            alternative_po_ids = self.alternative_po_ids.filtered(lambda po: po.state == 'draft' and po.id not in self.ids)
             if alternative_po_ids:
                 view = self.env.ref('purchase_requisition.purchase_requisition_alternative_warning_form')
                 return {
                     'name': _("What about the alternative Requests for Quotations?"),
                     'type': 'ir.actions.act_window',
-                    'view_mode': 'form',
                     'res_model': 'purchase.requisition.alternative.warning',
+                    'view_mode': 'form',
                     'views': [(view.id, 'form')],
                     'target': 'new',
                     'context': dict(self.env.context, default_alternative_po_ids=alternative_po_ids.ids, default_po_ids=self.ids),
                 }
-        res = super(PurchaseOrder, self).button_confirm()
+        res = super(PurchaseOrder, self).action_confirm()
         return res
 
     @api.model_create_multi
@@ -211,7 +211,7 @@ class PurchaseOrder(models.Model):
         po_alternatives = self | self.alternative_po_ids
 
         for line in po_alternatives.order_line:
-            if not line.product_qty or not line.price_total_cc or line.state in ['cancel', 'purchase', 'done']:
+            if not line.product_uom_qty or not line.price_total_cc or line.state in ['cancel', 'purchase']:
                 continue
 
             # if no best price line => no best price unit line either
@@ -220,9 +220,9 @@ class PurchaseOrder(models.Model):
                 product_to_best_price_unit[line.product_id] = line
             else:
                 price_subtotal = line.price_total_cc
-                price_unit = line.price_total_cc / line.product_qty
+                price_unit = line.price_total_cc / line.product_uom_qty
                 current_price_subtotal = product_to_best_price_line[line.product_id][0].price_total_cc
-                current_price_unit = product_to_best_price_unit[line.product_id][0].price_total_cc / product_to_best_price_unit[line.product_id][0].product_qty
+                current_price_unit = product_to_best_price_unit[line.product_id][0].price_total_cc / product_to_best_price_unit[line.product_id][0].product_uom_qty
 
                 if current_price_subtotal > price_subtotal:
                     product_to_best_price_line[line.product_id] = line
@@ -270,7 +270,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             line.price_total_cc = line.price_subtotal / line.order_id.currency_rate
 
-    def _compute_price_unit_and_date_planned_and_name(self):
+    def _compute_name_price_unit_discount_date_planned(self):
         po_lines_without_requisition = self.env['purchase.order.line']
         for pol in self:
             if pol.product_id.id not in pol.order_id.requisition_id.line_ids.product_id.ids:
@@ -283,7 +283,7 @@ class PurchaseOrderLine(models.Model):
                     params = {'order_id': pol.order_id}
                     seller = pol.product_id._select_seller(
                         partner_id=partner,
-                        quantity=pol.product_qty,
+                        quantity=pol.product_uom_qty,
                         date=pol.order_id.date_order and pol.order_id.date_order.date(),
                         uom_id=line.product_uom_id,
                         params=params)
@@ -297,11 +297,11 @@ class PurchaseOrderLine(models.Model):
                         name += '\n' + line.product_description_variants
                     pol.name = name
                     break
-        super(PurchaseOrderLine, po_lines_without_requisition)._compute_price_unit_and_date_planned_and_name()
+        super(PurchaseOrderLine, po_lines_without_requisition)._compute_name_price_unit_discount_date_planned()
 
     def action_clear_quantities(self):
-        zeroed_lines = self.filtered(lambda l: l.state not in ['cancel', 'purchase', 'done'])
-        zeroed_lines.write({'product_qty': 0})
+        zeroed_lines = self.filtered(lambda l: l.state not in ['cancel', 'purchase'])
+        zeroed_lines.write({'product_uom_qty': 0})
         if len(self) > len(zeroed_lines):
             return {
                 'type': 'ir.actions.client',
@@ -316,7 +316,7 @@ class PurchaseOrderLine(models.Model):
 
     def action_choose(self):
         order_lines = (self.order_id | self.order_id.alternative_po_ids).mapped('order_line')
-        order_lines = order_lines.filtered(lambda l: l.product_qty and l.product_id.id in self.product_id.ids and l.id not in self.ids)
+        order_lines = order_lines.filtered(lambda l: l.product_uom_qty and l.product_id.id in self.product_id.ids and l.id not in self.ids)
         if order_lines:
             return order_lines.action_clear_quantities()
         return {

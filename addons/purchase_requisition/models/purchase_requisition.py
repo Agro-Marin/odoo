@@ -120,7 +120,7 @@ class PurchaseRequisition(models.Model):
         for requisition in self:
             for requisition_line in requisition.line_ids:
                 requisition_line.supplier_info_ids.sudo().unlink()
-            requisition.purchase_ids.button_cancel()
+            requisition.purchase_ids.action_cancel()
             for po in requisition.purchase_ids:
                 po.message_post(body=_('Cancelled by the agreement associated to this quotation.'))
         self.state = 'cancel'
@@ -146,7 +146,7 @@ class PurchaseRequisition(models.Model):
         """
         Generate all purchase order based on selected lines, should only be called on one agreement at a time
         """
-        if any(purchase_order.state in ['draft', 'sent', 'to approve'] for purchase_order in self.mapped('purchase_ids')):
+        if any(purchase_order.state == 'draft' for purchase_order in self.mapped('purchase_ids')):
             raise UserError(_("To close this purchase requisition, cancel related Requests for Quotation.\n\n"
                 "Imagine the mess if someone confirms these duplicates: double the order, double the trouble :)"))
         for requisition in self:
@@ -185,12 +185,12 @@ class PurchaseRequisitionLine(models.Model):
         line_found = defaultdict(set)
         for line in self:
             total = 0.0
-            for po in line.requisition_id.purchase_ids.filtered(lambda purchase_order: purchase_order.state in ['purchase', 'done']):
-                for po_line in po.order_line.filtered(lambda order_line: order_line.product_id == line.product_id):
+            for po in line.requisition_id.purchase_ids.filtered(lambda purchase_order: purchase_order.state == 'purchase'):
+                for po_line in po.line_ids.filtered(lambda order_line: order_line.product_id == line.product_id):
                     if po_line.product_uom_id != line.product_uom_id:
-                        total += po_line.product_uom_id._compute_quantity(po_line.product_qty, line.product_uom_id)
+                        total += po_line.product_uom_id._compute_quantity(po_line.product_uom_qty, line.product_uom_id)
                     else:
-                        total += po_line.product_qty
+                        total += po_line.product_uom_qty
             if line.product_id not in line_found[line.requisition_id]:
                 line.qty_ordered = total
                 line_found[line.requisition_id].add(line.product_id)

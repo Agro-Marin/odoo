@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="purchase_order_view_tree_inherit" model="ir.ui.view">
+        <field name="name">purchase.order.list.inherit</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_view_tree" />
+        <field name="arch" type="xml">
+            <field name="invoice_state" position="before">
+                <field name="date_effective" column_invisible="True" />
+                <field name="transfer_state" widget="badge"
+                    optional="hide"
+                    decoration-success="date_planned and (date_planned &gt; datetime.datetime.combine(datetime.date.today(), datetime.time(23,59,59)).to_utc().strftime('%Y-%m-%d %H:%M:%S') or transfer_state=='done' and date_effective &lt;= date_planned)"
+                    decoration-danger="date_planned and (date_planned &lt; date_effective or date_planned &lt; datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and transfer_state!='done' and date_effective &lt;= date_planned)"
+                    decoration-warning="date_planned and date_planned &gt;= datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and date_planned &lt;= datetime.datetime.combine(datetime.date.today(), datetime.time(23,59,59)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and transfer_state!='done'" />
+            </field>
+        </field>
+    </record>
+
+    <record id="purchase_order_view_form_inherit" model="ir.ui.view">
+        <field name="name">purchase.order.form.inherit</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_view_invoice']" position="before">
+                <button name="action_view_picking"
+                    type="object" class="oe_stat_button"
+                    icon="fa-truck"
+                    invisible="count_picking_ids == 0"
+                    groups="stock.group_stock_user">
+                    <field name="count_picking_ids" string="Receipt" widget="statinfo" />
+                </button>
+            </xpath>
+            <xpath expr="//field[@name='line_ids']/list//field[@name='date_planned']"
+                position="after">
+                <field name="move_dest_ids" column_invisible="True" />
+            </xpath>
+            <xpath expr="//page/field[@name='line_ids']/list/field[@name='product_qty']"
+                position="after">
+                <field name="forecasted_issue" column_invisible="True" />
+                <button name="action_product_forecast_report" title="Forecast Report"
+                    type="object" class="text-danger"
+                    icon="fa-area-chart"
+                    invisible="not id or not forecasted_issue or not is_storable" />
+                <button name="action_product_forecast_report" title="Forecast Report"
+                    type="object"
+                    icon="fa-area-chart"
+                    invisible="not id or forecasted_issue or not is_storable"/>
+            </xpath>
+            <xpath expr="//div[@name='date_planned_div']" position="inside">
+                <div>
+                    <button name="%(action_purchase_vendor_delay_report)d"
+                        type="action" class="oe_link"
+                        context="{'search_default_partner_id': partner_id}"
+                        invisible="state == 'purchase' or not partner_id">
+                        <span invisible="on_time_rate &lt; 0"><field name="on_time_rate"
+                                digits="[42, 0]" class="oe_inline" />% On-Time Delivery</span>
+                        <span invisible="on_time_rate &gt;= 0">No data yet</span>
+                    </button>
+                </div>
+            </xpath>
+            <xpath expr="//label[@for='receipt_reminder_email']" position="attributes">
+                <attribute name="invisible">date_effective</attribute>
+            </xpath>
+            <xpath expr="//div[@name='reminder']" position="attributes">
+                <attribute name="invisible">date_effective</attribute>
+            </xpath>
+            <xpath expr="//div[@name='reminder']" position="after">
+                <field name="date_effective" invisible="not date_effective" />
+            </xpath>
+            <xpath expr="//field[@name='line_ids']/form//field[@name='invoice_line_ids']"
+                position="after">
+                <field name="move_ids" />
+            </xpath>
+            <xpath expr="//group[@name='transfer_info']" position="inside">
+                <field name="transfer_state" invisible="state != 'purchase'" />
+            </xpath>
+            <xpath expr="//field[@name='line_ids']/form//field[@name='analytic_distribution']"
+                position="before">
+                <field name="propagate_cancel" groups="base.group_no_one" />
+            </xpath>
+            <xpath expr="//field[@name='line_ids']/list//field[@name='analytic_distribution']"
+                position="before">
+                <field name="propagate_cancel" optional="hide" groups="base.group_no_one" />
+            </xpath>
+            <xpath expr="//field[@name='line_ids']/list//field[@name='qty_transfered']"
+                position="attributes">
+                <attribute name="column_invisible">parent.state != 'purchase'</attribute>
+                <attribute name="readonly">product_type == 'consu'</attribute>
+            </xpath>
+            <xpath expr="//page[@name='other_information']//group[@name='transfer_info']" position="inside">
+                <field name="default_location_dest_id_usage" invisible="1" />
+                <field name="incoterm_id" readonly="locked" />
+                <field name="incoterm_location" readonly="locked" />
+            </xpath>
+            <xpath expr="//field[@name='currency_id']" position="after">
+                <field name="picking_type_id"
+                    readonly="state in ['cancel', 'purchase']"
+                    domain="[('code','=','incoming'), '|', ('warehouse_id', '=', False), ('warehouse_id.company_id', '=', company_id)]"
+                    options="{'no_create': True}" />
+                <field name="dest_address_id"
+                    required="default_location_dest_id_usage == 'customer'"
+                    readonly="state in ['cancel', 'purchase']"
+                    invisible="default_location_dest_id_usage != 'customer'" />
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,29 +1,34 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields, models
 
 
 class ResCompany(models.Model):
-    _inherit = 'res.company'
+    """Inherit ResCompany"""
 
-    po_lead = fields.Float(string='Purchase Lead Time', required=True,
+    _inherit = "res.company"
+
+    # ------------------------------------------------------------
+    # FIELDS
+    # ------------------------------------------------------------
+
+    po_lock = fields.Selection(
+        selection=[
+            ("edit", "Allow to edit purchase orders"),
+            ("lock", "Confirmed purchase orders are not editable"),
+        ],
+        string="Purchase Order Modification",
+        default="edit",
+        help="Purchase Order Modification used when you want to purchase order editable after confirm",
+    )
+    po_lead = fields.Float(
+        string="Purchase Lead Time",
+        default=0.0,
+        required=True,
         help="Margin of error for vendor lead times. When the system "
-             "generates Purchase Orders for procuring products, "
-             "they will be scheduled that many days earlier "
-             "to cope with unexpected vendor delays.", default=0.0)
-
-    po_lock = fields.Selection([
-        ('edit', 'Allow to edit purchase orders'),
-        ('lock', 'Confirmed purchase orders are not editable')
-        ], string="Purchase Order Modification", default="edit",
-        help='Purchase Order Modification used when you want to purchase order editable after confirm')
-
-    po_double_validation = fields.Selection([
-        ('one_step', 'Confirm purchase orders in one step'),
-        ('two_step', 'Get 2 levels of approvals to confirm a purchase order')
-        ], string="Levels of Approvals", default='one_step',
-        help="Provide a double validation mechanism for purchases")
-
-    po_double_validation_amount = fields.Monetary(string='Double validation amount', default=5000,
-        help="Minimum amount for which a double validation is required")
+        "generates Purchase Orders for procuring products, "
+        "they will be scheduled that many days earlier "
+        "to cope with unexpected vendor delays.",
+    )
+    po_approval = fields.Boolean(
+        string="Require approvoal to confirm",
+        help="Create an approval before confirming a RFQ.",
+    )

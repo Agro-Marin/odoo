@@ -37,7 +37,7 @@ class SaleOrderLine(models.Model):
         return self.is_delivery
 
     # override to allow deletion of delivery line in a confirmed order
-    def _check_line_unlink(self):
+    def _cant_be_unlinked(self):
         """
         Extend the allowed deletion policy of SO lines.
 
@@ -47,7 +47,7 @@ class SaleOrderLine(models.Model):
         :returns: set of lines that cannot be deleted
         """
 
-        undeletable_lines = super()._check_line_unlink()
+        undeletable_lines = super()._cant_be_unlinked()
         return undeletable_lines.filtered(lambda line: not line.is_delivery)
 
     def _compute_pricelist_item_id(self):

@@ -80,7 +80,7 @@ class SaleOrder(models.Model):
         if not line and not product:
             return self.env['sale.order.line']
         product = product or line.product_id
-        return self.order_line.filtered(lambda l: l.product_id == product)
+        return self.line_ids.filtered(lambda l: l.product_id == product)
 
     def _check_cart_is_ready_to_be_paid(self):
         values = []

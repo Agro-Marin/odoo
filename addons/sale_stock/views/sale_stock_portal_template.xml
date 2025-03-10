@@ -5,18 +5,17 @@
         name="Orders Shipping Followup"
         inherit_id="sale.sale_order_portal_content">
         <tbody id="sale_info_table" position="inside">
-            <tr t-if="sale_order.incoterm">
+            <tr t-if="sale_order.incoterm_id">
                 <th class="pb-0">Incoterm:</th>
                 <td class="w-100 pb-0 text-wrap">
                     <p t-if="sale_order.incoterm_location">
-                        <span t-field="sale_order.incoterm.code"/> <br/>
+                        <span t-field="sale_order.incoterm_id.code"/> <br/>
                         <span t-field="sale_order.incoterm_location"/>
                     </p>
-                    <p t-else="" t-field="sale_order.incoterm.code" class="m-0"/>
+                    <p t-else="" t-field="sale_order.incoterm_id.code" class="m-0"/>
                 </td>
             </tr>
         </tbody>
-
         <div id="sale_invoices" position="after">
             <t t-set="delivery_orders" t-value="sale_order.picking_ids.filtered(lambda picking: picking.picking_type_id.code == 'outgoing')"/>
             <t t-set="latest_delivery_orders" t-value="delivery_orders.sorted('date', reverse=True)[:3]"/>
@@ -51,14 +50,14 @@
                                     <i class="fa fa-fw fa-clock-o"/>Preparation
                                 </span>
                             </div>
-                            <div class="small d-lg-inline-block" t-if="picking.date_done or picking.scheduled_date">
+                            <div class="small d-lg-inline-block" t-if="picking.date_done or picking.date_planned">
                                 Date:
                                 <span class="text-muted"
                                         t-field="picking.date_done"
                                         t-options="{'date_only': True}"/>
                                 <span t-if="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
                                         class="text-muted"
-                                        t-field="picking.scheduled_date"
+                                        t-field="picking.date_planned"
                                         t-options="{'date_only': True}"/>
                             </div>
                         </div>
@@ -97,7 +96,7 @@
                                 t-options="{'date_only': True}"/>
                             <span t-if="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
                                 class="text-muted"
-                                t-field="picking.scheduled_date"
+                                t-field="picking.date_planned"
                                 t-options="{'date_only': True}"/>
                         </div>
                     </div>

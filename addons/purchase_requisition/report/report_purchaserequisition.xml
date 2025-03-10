@@ -56,7 +56,7 @@
                                 </t>
                             </td>
                             <td class="text-end">
-                                <span t-field="line_id.product_qty">5</span>
+                                <span t-field="line_id.product_uom_qty">5</span>
                             </td>
                             <td class="text-end" t-if="has_ordered_quantity">
                                 <span t-field="line_id.qty_ordered">5</span>

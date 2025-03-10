@@ -17,11 +17,11 @@ export class ForecastWidgetField extends FloatField {
             ...this.nodeOptions,
         });
         this.forecastExpectedDate = formatDate(
-            data.forecast_expected_date,
-            fields.forecast_expected_date
+            data.forecast_date_planned,
+            fields.forecast_date_planned
         );
-        if (data.forecast_expected_date && data.date_deadline) {
-            this.forecastIsLate = data.forecast_expected_date > data.date_deadline;
+        if (data.forecast_date_planned && data.date_deadline) {
+            this.forecastIsLate = data.forecast_date_planned > data.date_deadline;
         }
         const digits = fields.forecast_availability.digits;
         const options = { digits, thousandsSep: "", decimalPoint: "." };
