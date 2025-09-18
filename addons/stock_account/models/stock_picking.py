@@ -10,7 +10,7 @@ class StockPicking(models.Model):
 
     country_code = fields.Char(related="company_id.account_fiscal_country_id.code")
 
-    @api.constrains("scheduled_date", "date_done")
+    @api.constrains("date_planned", "date_done")
     def _check_backdate_allowed(self):
         for picking in self:
             if picking._is_date_in_lock_period():
@@ -24,7 +24,7 @@ class StockPicking(models.Model):
 
     def _is_date_in_lock_period(self):
         self.ensure_one()
-        lock = self.company_id._get_lock_date_violations(self.scheduled_date.date(), fiscalyear=True)
+        lock = self.company_id._get_lock_date_violations(self.date_planned.date(), fiscalyear=True)
         if self.date_done:
             lock += self.company_id._get_lock_date_violations(self.date_done.date(), fiscalyear=True)
         return bool(lock)

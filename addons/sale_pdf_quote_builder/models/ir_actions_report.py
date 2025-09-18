@@ -28,7 +28,7 @@ class IrActionsReport(models.Model):
 
         for order in orders:
             if (
-                order.state == 'sale'
+                order.state == 'done'
                 or order.id not in result
                 or 'stream' not in result[order.id]
             ):
@@ -38,7 +38,7 @@ class IrActionsReport(models.Model):
                 quotation_documents = order.quotation_document_ids
                 headers = quotation_documents.filtered(lambda doc: doc.document_type == 'header')
                 footers = quotation_documents - headers
-                has_product_document = any(line.product_document_ids for line in order.order_line)
+                has_product_document = any(line.product_document_ids for line in order.line_ids)
 
                 if not headers and not has_product_document and not footers:
                     continue
@@ -57,7 +57,7 @@ class IrActionsReport(models.Model):
                             writer, header, form_fields_values_mapping, prefix, order
                         )
                 if has_product_document:
-                    for line in order.order_line:
+                    for line in order.line_ids:
                         for doc in line.product_document_ids:
                             # Use both the id of the line and the doc as variants could use the same
                             # document.
@@ -135,7 +135,7 @@ class IrActionsReport(models.Model):
         base_record = order_line or order
         path = form_field.path
 
-        # If path = 'order_id.order_line.product_id.name'
+        # If path = 'order_id.line_ids.product_id.name'
         path = path.split('.')  # ['order_id', 'order_line', 'product_id', 'name']
         # Sudo to be able to follow the path set by the admin
         records = base_record.sudo().mapped('.'.join(path[:-1]))  # product.product(id1, id2, ...)

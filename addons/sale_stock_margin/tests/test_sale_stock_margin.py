@@ -340,7 +340,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             product.write({
                 'standard_price': cost,
                 'list_price': price,
-                'invoice_policy': 'delivery',
+                'invoice_policy': 'transferred',
             })
         sale_order = self._create_sale_order()
         self._create_sale_order_line(sale_order, products[0], 10, products[0].list_price)
@@ -368,7 +368,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
         product.write({
                 'standard_price': 20,
                 'list_price': 25,
-                'invoice_policy': 'order',
+                'invoice_policy': 'ordered',
             })
         product2 = self.env['product.product'].create({
             'name': 'product2',
@@ -376,7 +376,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             'is_storable': True,
             'standard_price': 10,
             'list_price': 20,
-            'invoice_policy': 'order',
+            'invoice_policy': 'ordered',
         })
         sale_order = self._create_sale_order()
         self._create_sale_order_line(sale_order, product, 10, product.list_price)
@@ -400,7 +400,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
         self.product.write({
                 'standard_price': 20,
                 'list_price': 25,
-                'invoice_policy': 'order',
+                'invoice_policy': 'ordered',
             })
         product2 = self.env['product.product'].create({
             'name': 'product2',
@@ -409,7 +409,7 @@ class TestSaleStockMargin(TestStockValuationCommon):
             'categ_id': categ_average.id,
             'standard_price': 10,
             'list_price': 20,
-            'invoice_policy': 'order',
+            'invoice_policy': 'ordered',
         })
         sale_order = self._create_sale_order()
         self._create_sale_order_line(sale_order, self.product, 10, self.product.list_price)
