@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { DynamicSnippetCarouselOption } from "./dynamic_snippet_carousel_option";
-import { DYNAMIC_SNIPPET, setDatasetIfUndefined } from "./dynamic_snippet_option_plugin";
+import { DynamicSnippetCarouselOption } from "./dynamic_snippet_carousel_option.js";
+import { DYNAMIC_SNIPPET, setDatasetIfUndefined } from "./dynamic_snippet_option_plugin.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 
 /**

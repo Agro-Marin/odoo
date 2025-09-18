@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { SubChannelPreview } from "@mail/discuss/core/public_web/sub_channel_preview";
@@ -7,7 +8,6 @@ import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
-
 /**
  * @typedef {Object} Props
  * @property {import("@mail/core/common/thread_model").Thread} thread
@@ -35,7 +35,9 @@ export class SubChannelList extends Component {
         this.loadMoreState = useVisible("load-more", (isVisible) => {
             if (isVisible) {
                 this.props.thread.loadMoreSubChannels({
-                    searchTerm: this.state.searching ? this.state.searchTerm : undefined,
+                    searchTerm: this.state.searching
+                        ? this.state.searchTerm
+                        : undefined,
                 });
             }
         });
@@ -45,12 +47,14 @@ export class SubChannelList extends Component {
                     this.clearSearch();
                 }
             },
-            () => [this.state.searchTerm]
+            () => [this.state.searchTerm],
         );
     }
 
     get NO_THREAD_FOUND() {
-        return _t(`No thread named "%(thread_name)s"`, { thread_name: this.state.lastSearchTerm });
+        return _t(`No thread named "%(thread_name)s"`, {
+            thread_name: this.state.lastSearchTerm,
+        });
     }
 
     async onClickSubThread(subThread) {
@@ -108,7 +112,7 @@ export class SubChannelList extends Component {
         this.state.subChannels = fuzzyLookup(
             this.state.searchTerm ?? "",
             this.props.thread.sub_channel_ids,
-            ({ name }) => name
+            ({ name }) => name,
         );
     }
 }

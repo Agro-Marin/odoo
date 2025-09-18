@@ -24,6 +24,7 @@ odoo/filestore
 odoo/addons/base/maintenance
 # windows installation config file
 /odoo.conf
+/odoo.log
 
 # generated for windows installer?
 install/win32/*.bat
@@ -41,6 +42,9 @@ tsconfig.json
 package-lock.json
 package.json
 .husky
+
+# Rust build artifacts (platform-specific, must be compiled per environment)
+crates/*/target/
 
 # various virtualenv
 /bin/

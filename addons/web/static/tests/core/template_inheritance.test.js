@@ -1,6 +1,8 @@
-import { test, expect } from "@odoo/hoot";
-import { applyInheritance } from "@web/core/template_inheritance";
+// @ts-check
+
+import { expect, test } from "@odoo/hoot";
 import { patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
+import { applyInheritance } from "@web/core/template_inheritance";
 
 const parser = new DOMParser();
 const serializer = new XMLSerializer();
@@ -12,7 +14,7 @@ function _applyInheritance(arch, inherits, url = "test/from_op") {
     const modifiedTemplate = applyInheritance(
         archXmlDoc.documentElement,
         inheritsDoc.documentElement,
-        url
+        url,
     );
     return serializer.serializeToString(modifiedTemplate);
 }
@@ -28,11 +30,31 @@ test("warn when contains(@class, ...)", async () => {
     const operations = `
     <t t-inherit="web.A"><xpath expr="*[contains(@class, 'my-class')]" position="inside"><span/></xpath></t>`;
     expect(_applyInheritance(arch, operations, "")).toBe(
-        `<t t-name="web.A" t-translation-context="from_target"><div class="my-class"><span t-translation-context=""/></div></t>`
+        `<t t-name="web.A" t-translation-context="from_target"><div class="my-class"><span t-translation-context=""/></div></t>`,
     );
     expect.verifySteps([
         `Error-prone use of @class in template "web.A" (or one of its inheritors). Use the hasclass(*classes) function to filter elements by their classes`,
     ]);
+});
+
+test("warn on every contains(@class, ...) — not just alternating calls", async () => {
+    serverState.debug = "1";
+    patchWithCleanup(console, {
+        warn(msg) {
+            expect.step(msg);
+        },
+    });
+    const arch = `<t t-name="web.B"><div class="c1" /><div class="c2" /></t>`;
+    // Two successive contains(@class) operations — before the /g fix, only the
+    // first would warn (the second was missed due to stale lastIndex).
+    const operations = `<t t-inherit="web.B">
+        <xpath expr="*[contains(@class, 'c1')]" position="inside"><span/></xpath>
+        <xpath expr="*[contains(@class, 'c2')]" position="inside"><span/></xpath>
+    </t>`;
+    _applyInheritance(arch, operations, "");
+    const expectedWarning =
+        `Error-prone use of @class in template "web.B" (or one of its inheritors). Use the hasclass(*classes) function to filter elements by their classes`;
+    expect.verifySteps([expectedWarning, expectedWarning]);
 });
 
 test("no operation", async () => {

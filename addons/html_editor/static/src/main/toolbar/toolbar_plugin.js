@@ -1,12 +1,13 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { isEmptyTextNode, isZWS } from "@html_editor/utils/dom_info";
 import { reactive } from "@odoo/owl";
-import { composeToolbarButton, Toolbar } from "./toolbar";
+import { composeToolbarButton, Toolbar } from "./toolbar.js";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
-import { ToolbarMobile } from "./mobile_toolbar";
+import { ToolbarMobile } from "./mobile_toolbar.js";
 import { debounce } from "@web/core/utils/timing";
-import { omit, pick } from "@web/core/utils/objects";
+import { omit, pick } from "@web/core/utils/collections/objects";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 import { memoize } from "@web/core/utils/functions";
@@ -162,6 +163,7 @@ export class ToolbarPlugin extends Plugin {
     resources = {
         selectionchange_handlers: this.handleSelectionChange.bind(this),
         selection_leave_handlers: () => this.closeToolbar(),
+        selection_enter_handlers: () => this.updateToolbar(),
         step_added_handlers: () => this.updateToolbar(),
         user_commands: {
             id: "expandToolbar",
@@ -274,9 +276,9 @@ export class ToolbarPlugin extends Plugin {
     }
 
     destroy() {
-        this.debouncedUpdateToolbar.cancel();
-        this.updateToolbar.cancel();
-        this.overlay.close();
+        this.debouncedUpdateToolbar?.cancel();
+        this.updateToolbar?.cancel();
+        this.overlay?.close();
         super.destroy();
     }
 

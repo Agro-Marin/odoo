@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Component, markup, useRef } from "@odoo/owl";
-import { getActiveHotkey } from "@web/core/hotkeys/hotkey_service";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-import { InputConfirmationDialog } from "./input_confirmation_dialog";
+import { InputConfirmationDialog } from "./input_confirmation_dialog.js";
 import { fuzzyLookup } from "@web/core/utils/search";
 
 export class SnippetViewer extends Component {

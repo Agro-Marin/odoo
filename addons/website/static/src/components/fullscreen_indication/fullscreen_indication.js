@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useBus } from "@web/core/utils/hooks";
 import { EventBus, Component, useState, markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

@@ -1,7 +1,6 @@
+/** @odoo-module native */
 import { registerThreadAction } from "@mail/core/common/thread_actions";
-
 import { _t } from "@web/core/l10n/translation";
-
 registerThreadAction("expand-discuss", {
     condition: ({ owner, store, thread }) =>
         thread &&
@@ -9,7 +8,7 @@ registerThreadAction("expand-discuss", {
         thread.model === "discuss.channel" &&
         !store.env.services.ui.isSmall &&
         !owner.isDiscussSidebarChannelActions,
-    icon: "fa fa-fw fa-expand",
+    icon: "fa-solid fa-up-right-and-down-left-from-center",
     name: _t("Open in Discuss"),
     open({ owner, store, thread }) {
         store.env.services.action.doAction(
@@ -20,7 +19,7 @@ registerThreadAction("expand-discuss", {
             {
                 clearBreadcrumbs: owner.env.services["home_menu"]?.hasHomeMenu,
                 additionalContext: { active_id: thread.id },
-            }
+            },
         );
     },
     sequence: 10,
@@ -37,7 +36,7 @@ registerThreadAction("advanced-settings", {
             target: "current",
         });
     },
-    icon: "fa fa-fw fa-gear",
+    icon: "fa-solid fa-gear",
     name: _t("Advanced Settings"),
     sequence: 20,
     sequenceGroup: 30,

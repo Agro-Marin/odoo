@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { useService, useBus } from "@web/core/utils/hooks";
-import { BomOverviewControlPanel } from "../bom_overview_control_panel/mrp_bom_overview_control_panel";
-import { BomOverviewTable } from "../bom_overview_table/mrp_bom_overview_table";
+import { BomOverviewControlPanel } from "../bom_overview_control_panel/mrp_bom_overview_control_panel.js";
+import { BomOverviewTable } from "../bom_overview_table/mrp_bom_overview_table.js";
 import { Component, EventBus, onWillStart, useSubEnv, useState } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
@@ -71,7 +72,7 @@ export class BomOverviewComponent extends Component {
         this.variants = bomData["variants"];
         this.showVariants = bomData["is_variant_applied"];
         if (this.showVariants) {
-            this.state.currentVariantId ||= Object.keys(this.variants)[0];
+            this.state.currentVariantId ||= this.state.bomData.product_id;
         }
         this.state.precision = bomData["precision"];
         this.state.foldable = bomData["lines"]["foldable"];

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
-import { isVisible } from "@web/core/utils/ui";
+import { isVisible } from "@web/core/utils/dom/ui";
 
 export class FullScreenHeight extends Interaction {
     static selector = ".o_full_screen_height";

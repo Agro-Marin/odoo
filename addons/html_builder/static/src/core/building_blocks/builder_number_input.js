@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { convertNumericToUnit, getHtmlStyle } from "@html_editor/utils/formatting";
 import { Component } from "@odoo/owl";
 import {
@@ -5,14 +6,14 @@ import {
     useInputBuilderComponent,
     useBuilderComponent,
     useInputDebouncedCommit,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
 import {
     BuilderTextInputBase,
     textInputBasePassthroughProps,
 } from "@html_builder/core/building_blocks/builder_text_input_base";
 import { useChildRef } from "@web/core/utils/hooks";
-import { pick } from "@web/core/utils/objects";
+import { pick } from "@web/core/utils/collections/objects";
 
 export class BuilderNumberInput extends Component {
     static template = "html_builder.BuilderNumberInput";

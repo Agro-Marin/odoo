@@ -1,4 +1,4 @@
-.o_field_project_task_state_selection, .o_field_task_stage_with_state_selection {
+.o_field_project_task_state_selection, .o_field_task_step_with_state_selection {
     .o_status {
         width: $o-bubble-color-size-xl;
         height: $o-bubble-color-size-xl;
@@ -60,7 +60,7 @@
     }
 }
 
-.o_field_task_stage_with_state_selection {
+.o_field_task_step_with_state_selection {
     .fa-lg {
         font-size: 1.57em;
     }

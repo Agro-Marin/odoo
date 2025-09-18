@@ -1,4 +1,5 @@
-import { Component, useState, useRef, useEffect, onMounted } from "@odoo/owl";
+/** @odoo-module native */
+import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
 
 export class AccordionItem extends Component {
     static template = "pos_hr.AccordionItem";
@@ -24,7 +25,7 @@ export class AccordionItem extends Component {
             () => {
                 this.contentHeight = this.calculateFullHeight();
             },
-            () => [this.props.slots.content]
+            () => [this.props.slots.content],
         );
     }
 
@@ -36,10 +37,13 @@ export class AccordionItem extends Component {
     }
 
     calculateFullHeight() {
-        const children = Array.from(this.content.el.getElementsByClassName("accordion-content"));
+        const children = Array.from(
+            this.content.el.getElementsByClassName("accordion-content"),
+        );
         const fullHeight = children.reduce(
-            (accumulator, child) => accumulator + Math.min(this.getHiddenHeight(child), 100),
-            0
+            (accumulator, child) =>
+                accumulator + Math.min(this.getHiddenHeight(child), 100),
+            0,
         );
         return fullHeight;
     }

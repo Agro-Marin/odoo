@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 
 // See `HtmlUpgradeManager` docstring for usage details.

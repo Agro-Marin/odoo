@@ -1,6 +1,6 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { Base } from "./related_models";
-
+import { Base } from "./related_models.js";
 export class ProductPricelist extends Base {
     static pythonModel = "product.pricelist";
 
@@ -53,4 +53,6 @@ export class ProductPricelist extends Base {
     }
 }
 
-registry.category("pos_available_models").add(ProductPricelist.pythonModel, ProductPricelist);
+registry
+    .category("pos_available_models")
+    .add(ProductPricelist.pythonModel, ProductPricelist);

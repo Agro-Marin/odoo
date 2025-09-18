@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { isArtificialVoidElement } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { selectElements } from "@html_editor/utils/dom_traversal";

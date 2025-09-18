@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { batched, reactive } from "@odoo/owl";
 
 export const HEADINGS = ["H1", "H2", "H3", "H4", "H5", "H6"];

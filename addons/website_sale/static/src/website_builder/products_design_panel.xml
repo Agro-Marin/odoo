@@ -172,7 +172,7 @@
         </t>
 
         <button class="btn o-hb-btn btn-primary o-wsale-btn-overlay flex-grow-0" t-on-click="openDesignOverlay">
-            <i class="fa fa-paint-brush" role="presentation"/>
+            <i class="fa-solid fa-paint-brush" role="presentation"/>
         </button>
     </BuilderRow>
 
@@ -565,7 +565,7 @@
                         classAction="'o_wsale_products_opt_actions_promote'">
                         <div class="d-flex align-items-center">
                             <span class="me-1">Promote</span>
-                            <i class="fa fa-shopping-cart ms-2"/>
+                            <i class="fa-solid fa-shopping-cart ms-2"/>
                         </div>
                     </BuilderSelectItem>
                     <BuilderSelectItem

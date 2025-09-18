@@ -1,5 +1,4 @@
-import { browser } from "@web/core/browser/browser";
-
+/** @odoo-module native */
 /**
  * Returns a function, that, when invoked, will only be triggered at most once
  * during a given window of time. Normally, the throttled function will run
@@ -9,6 +8,7 @@ import { browser } from "@web/core/browser/browser";
  *
  * credit to `underscore.js`
  */
+import { browser } from "@web/core/browser/browser";
 function throttle(func, wait, options) {
     let timeout, context, args, result;
     let previous = 0;

@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { BomOverviewDisplayFilter } from "../bom_overview_display_filter/mrp_bom_overview_display_filter";
+import { BomOverviewDisplayFilter } from "../bom_overview_display_filter/mrp_bom_overview_display_filter.js";
 
 export const SHOW_OPTIONS = {
     type: Object,

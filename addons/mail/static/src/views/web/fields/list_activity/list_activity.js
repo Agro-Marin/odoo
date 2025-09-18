@@ -1,11 +1,9 @@
+/** @odoo-module native */
 import { ActivityButton } from "@mail/core/web/activity_button";
-
 import { Component } from "@odoo/owl";
-
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { standardFieldProps } from "@web/views/fields/standard_field_props";
-
+import { standardFieldProps } from "@web/fields/standard_field_props";
 class ListActivityButton extends ActivityButton {
     static props = {
         ...ActivityButton.props,
@@ -16,7 +14,7 @@ class ListActivityButton extends ActivityButton {
     setup() {
         super.setup();
         this.defaultActivityStateClass = "";
-        this.defaultActivityDecorationClass = "fa-clock-o";
+        this.defaultActivityDecorationClass = "fa-regular fa-clock";
     }
 }
 

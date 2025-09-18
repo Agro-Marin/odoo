@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     DocumentSelector,
     renderStaticFileBox,

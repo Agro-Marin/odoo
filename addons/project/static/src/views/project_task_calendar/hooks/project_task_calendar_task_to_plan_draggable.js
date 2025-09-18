@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
-import { makeDraggableHook } from "@web/core/utils/draggable_hook_builder";
-import { pick } from "@web/core/utils/objects";
+import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder";
+import { pick } from "@web/core/utils/collections/objects";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 const hookParams = {

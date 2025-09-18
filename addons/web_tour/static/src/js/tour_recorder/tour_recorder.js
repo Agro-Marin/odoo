@@ -1,12 +1,13 @@
+/** @odoo-module */
 import { useService } from "@web/core/utils/hooks";
-import { Dropdown } from "@web/core/dropdown/dropdown";
-import { DropdownItem } from "@web/core/dropdown/dropdown_item";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { browser } from "@web/core/browser/browser";
 import { queryAll, queryFirst, queryOne } from "@odoo/hoot-dom";
 import { Component, useState, useExternalListener } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { x2ManyCommands } from "@web/core/orm_service";
-import { tourRecorderState } from "./tour_recorder_state";
+import { x2ManyCommands } from "@web/model/relational_model/commands";
+import { tourRecorderState } from "./tour_recorder_state.js";
 
 const PRECISE_IDENTIFIERS = ["data-menu-xmlid", "name", "contenteditable"];
 const ODOO_CLASS_REGEX = /^oe?(-|_)[\w-]+$/;
@@ -177,7 +178,7 @@ export class TourRecorder extends Component {
                 root: this.state.editedElement.parentElement,
             });
             this.state.steps.push({
-                trigger: `.o-autocomplete--dropdown-item > a:contains('${selectedRow.textContent}'), .fa-circle-o-notch`,
+                trigger: `.o-autocomplete--dropdown-item > a:contains('${selectedRow.textContent}'), .fa-circle-notch`,
                 run: "click",
             });
             this.state.editedElement = undefined;

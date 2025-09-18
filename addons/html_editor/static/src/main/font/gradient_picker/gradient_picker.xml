@@ -121,7 +121,7 @@
                     <t t-if="this.colors.length > 2">
                         <a t-on-click="() => this.removeColor(this.state.currentColorIndex)"
                            t-attf-style="left: #{this.colors[this.state.currentColorIndex].percentage}%"
-                           type="button" class="btn btn-sm btn-light"><i class="fa fa-fw fa-trash" role="img"/></a>
+                           type="button" class="btn btn-sm btn-light"><i class="fa-solid fa-trash-can" role="img"/></a>
                     </t>
                 </div>
             </div>

@@ -1,8 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import json
-
 from odoo.http import Controller, request, route, SessionExpiredException
+from odoo.libs.json import dumps as json_dumps
 from ..models.bus import channel_with_db
 from ..websocket import WebsocketConnectionHandler
 
@@ -21,7 +20,7 @@ class WebsocketController(Controller):
 
     @route('/websocket/health', type='http', auth='none', save_session=False)
     def health(self):
-        data = json.dumps({
+        data = json_dumps({
             'status': 'pass',
         })
         headers = [('Content-Type', 'application/json'),
@@ -47,13 +46,36 @@ class WebsocketController(Controller):
         This is mainly used by Odoo.sh."""
         request.env["ir.websocket"]._on_websocket_closed(request.cookies)
 
-    @route('/bus/websocket_worker_bundle', type='http', auth='public', cors='*')
+    @route('/bus/websocket_worker_bundle', type='http', auth='public')
     def get_websocket_worker_bundle(self, v=None):  # pylint: disable=unused-argument
         """
-        :param str v: Version of the worker, frontend only argument used to
-            prevent new worker versions to be loaded from the browser cache.
+        Serve the compiled websocket worker bundle.
+
+        :param str v: Cache-busting version token (ignored server-side).
+
+        CORS: We handle CORS manually rather than via the route ``cors='*'``
+        decorator because ``Access-Control-Allow-Origin: *`` is forbidden by
+        the CORS spec when the request carries credentials (session cookie).
+        In prefork mode the HTTP workers (port 8069) and the gevent/WebSocket
+        server (port 8072) have different origins, so the JS client fetches
+        this bundle cross-origin *with* credentials so the gevent server can
+        resolve the active database.  When an ``Origin`` header is present we
+        echo it back and add ``Access-Control-Allow-Credentials: true``.
+        Note: ``cors='*'`` writes to ``future_response`` in ``pre_dispatch``
+        and is merged via ``extend`` in ``post_dispatch`` — it cannot be
+        overridden from within a controller, hence the manual approach here.
         """
         bundle_name = 'bus.websocket_worker_assets'
         bundle = request.env["ir.qweb"]._get_asset_bundle(bundle_name, debug_assets="assets" in request.session.debug)
         stream = request.env['ir.binary']._get_stream_from(bundle.js())
-        return stream.get_response(content_security_policy=None)
+        response = stream.get_response(content_security_policy=None)
+        origin = request.httprequest.headers.get('Origin')
+        if origin:
+            # Credentials are present: wildcard is forbidden, echo the origin.
+            # Vary: Origin is required so caches keep per-origin copies.
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Vary'] = 'Origin'
+        else:
+            response.headers['Access-Control-Allow-Origin'] = '*'
+        return response

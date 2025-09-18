@@ -1,5 +1,7 @@
-import { describe, expect, test } from "@odoo/hoot";
+// @ts-check
 
+import { describe, expect, test } from "@odoo/hoot";
+import { reactive } from "@odoo/owl";
 import {
     deepCopy,
     deepEqual,
@@ -8,7 +10,7 @@ import {
     omit,
     pick,
     shallowEqual,
-} from "@web/core/utils/objects";
+} from "@web/core/utils/collections/objects";
 
 describe.current.tags("headless");
 
@@ -32,7 +34,9 @@ describe("shallowEqual", () => {
 
         const arr = ["x", "y", "z"];
         expect(shallowEqual({ a: arr }, { a: arr })).toBe(true);
-        expect(shallowEqual({ a: ["x", "y", "z"] }, { a: ["x", "y", "z"] })).toBe(false);
+        expect(shallowEqual({ a: ["x", "y", "z"] }, { a: ["x", "y", "z"] })).toBe(
+            false,
+        );
 
         const fn = () => {};
         expect(shallowEqual({ a: fn }, { a: fn })).toBe(true);
@@ -46,8 +50,8 @@ describe("shallowEqual", () => {
         expect(shallowEqual({ a: 1, date: dateA }, { a: 1, date: dateB })).toBe(false);
         expect(
             shallowEqual({ a: 1, date: dateA }, { a: 1, date: dateB }, (a, b) =>
-                a instanceof Date ? Number(a) === Number(b) : a === b
-            )
+                a instanceof Date ? Number(a) === Number(b) : a === b,
+            ),
         ).toBe(true);
     });
 });
@@ -81,9 +85,46 @@ test("deepCopy", () => {
     expect(copy.a).not.toBe(obj.a);
     expect(copy.o).not.toBe(obj.o);
 
-    expect(deepCopy(new Date())).not.toBeInstanceOf(Date);
-    expect(deepCopy(new Set(["a"]))).not.toBeInstanceOf(Set);
-    expect(deepCopy(new Map([["a", 1]]))).not.toBeInstanceOf(Map);
+    // structuredClone preserves Date, Set, and Map (unlike JSON round-trip)
+    // Note: structuredClone uses the native Date constructor, so instanceof
+    // checks fail when the test runner patches Date with MockDate.
+    const date = new Date();
+    const dateCopy = deepCopy(date);
+    expect(Object.prototype.toString.call(dateCopy)).toBe("[object Date]");
+    expect(dateCopy).not.toBe(date);
+    expect(dateCopy.getTime()).toBe(date.getTime());
+
+    const set = new Set(["a"]);
+    const setCopy = deepCopy(set);
+    expect(setCopy).toBeInstanceOf(Set);
+    expect(setCopy).not.toBe(set);
+    expect([...setCopy]).toEqual(["a"]);
+
+    const map = new Map([["a", 1]]);
+    const mapCopy = deepCopy(map);
+    expect(mapCopy).toBeInstanceOf(Map);
+    expect(mapCopy).not.toBe(map);
+    expect(mapCopy.get("a")).toBe(1);
+
+    // OWL reactive proxies: structuredClone cannot clone Proxy objects (they
+    // lack internal slots), so deepCopy falls back to JSON round-trip which
+    // reads through the proxy's get trap transparently.
+    const reactiveObj = reactive({
+        ids: [1, 2, 3],
+        name: "test",
+        nested: { flag: true },
+    });
+    const reactiveCopy = deepCopy(reactiveObj);
+    expect(reactiveCopy).toEqual({ ids: [1, 2, 3], name: "test", nested: { flag: true } });
+    expect(reactiveCopy).not.toBe(reactiveObj);
+    expect(reactiveCopy.ids).not.toBe(reactiveObj.ids);
+
+    // Reproduces the project subtask bug: a plain object containing a reactive
+    // array (Many2many field IDs wrapped by OWL reactivity).
+    const context = { default_tag_ids: reactive([4, 5, 6]), default_name: "subtask" };
+    const contextCopy = deepCopy(context);
+    expect(contextCopy).toEqual({ default_tag_ids: [4, 5, 6], default_name: "subtask" });
+    expect(contextCopy.default_tag_ids).not.toBe(context.default_tag_ids);
 });
 
 test("isObject", () => {
@@ -128,7 +169,11 @@ test("pick", () => {
     expect(pick({}, "a")).toEqual({});
     expect(pick({ a: 3, b: "a", c: [] }, "a")).toEqual({ a: 3 });
     expect(pick({ a: 3, b: "a", c: [] }, "a", "c")).toEqual({ a: 3, c: [] });
-    expect(pick({ a: 3, b: "a", c: [] }, "a", "b", "c")).toEqual({ a: 3, b: "a", c: [] });
+    expect(pick({ a: 3, b: "a", c: [] }, "a", "b", "c")).toEqual({
+        a: 3,
+        b: "a",
+        c: [],
+    });
 
     // Non enumerable property
     class MyClass {
@@ -157,8 +202,8 @@ test("deepMerge", () => {
                     b_b: 3,
                     b_c: 4,
                 },
-            }
-        )
+            },
+        ),
     ).toEqual({
         a: 2,
         b: {
@@ -183,8 +228,8 @@ test("deepMerge", () => {
         b: undefined,
     });
 
-    expect(deepMerge("foo", 1)).toBe(undefined);
-    expect(deepMerge(null, null)).toBe(undefined);
+    expect(deepMerge("foo", 1)).toBe(1);
+    expect(deepMerge(null, null)).toBe(null);
 
     const f = () => {};
     expect(deepMerge({ a: undefined }, { a: f })).toEqual({ a: f });
@@ -202,8 +247,8 @@ test("deepMerge", () => {
             {
                 [symbolA]: 3,
                 [symbolB]: 2,
-            }
-        )
+            },
+        ),
     ).toEqual({
         [symbolA]: 3,
         [symbolB]: 2,

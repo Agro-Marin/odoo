@@ -1,7 +1,7 @@
-/** @odoo-module **/
+/** @odoo-module native */
 
 import { registry } from "@web/core/registry";
-import { standardFieldProps } from "@web/views/fields/standard_field_props";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
 

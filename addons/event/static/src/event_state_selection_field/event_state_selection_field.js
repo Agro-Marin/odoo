@@ -1,6 +1,6 @@
-import { formatSelection } from "@web/views/fields/formatters";
+import { formatSelection } from "@web/fields/formatters";
 import { registry } from "@web/core/registry";
-import { StateSelectionField, stateSelectionField } from "@web/views/fields/state_selection/state_selection_field";
+import { StateSelectionField, stateSelectionField } from "@web/fields/selection/state_selection/state_selection_field";
 import { useService } from "@web/core/utils/hooks";
 
 
@@ -17,8 +17,8 @@ export class EventStateSelection extends StateSelectionField {
         this.icons = {
             normal: "o_status",
             done: "o_status o_status_green",
-            blocked: "fa fa-lg fa-exclamation-circle",
-            cancel: "fa fa-lg fa-times-circle",
+            blocked: "fa-solid fa-exclamation-circle fa-lg",
+            cancel: "fa-solid fa-times-circle fa-lg",
         };
         this.colorIcons = {
             normal: "",

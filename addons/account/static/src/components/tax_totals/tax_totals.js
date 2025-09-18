@@ -1,7 +1,8 @@
-import { formatMonetary } from "@web/views/fields/formatters";
-import { formatFloat } from "@web/core/utils/numbers";
-import { parseFloat } from "@web/views/fields/parsers";
-import { standardFieldProps } from "@web/views/fields/standard_field_props";
+/** @odoo-module native */
+import { formatMonetary } from "@web/fields/formatters";
+import { formatFloat } from "@web/core/utils/format/numbers";
+import { parseFloat } from "@web/fields/parsers";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 import { registry } from "@web/core/registry";
 import {
     Component,
@@ -12,7 +13,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { useNumpadDecimal } from "@web/views/fields/numpad_decimal_hook";
+import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 
 /**
  A line of some TaxTotalsComponent, giving the values of a tax group.

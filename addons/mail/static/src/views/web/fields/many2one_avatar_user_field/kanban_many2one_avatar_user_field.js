@@ -1,14 +1,19 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { computeM2OProps, KanbanMany2One } from "@web/views/fields/many2one/many2one";
+import {
+    computeM2OProps,
+    KanbanMany2One,
+} from "@web/fields/relational/many2one/many2one";
 import {
     buildM2OFieldDescription,
     extractM2OFieldProps,
     m2oSupportedOptions,
     Many2OneField,
-} from "@web/views/fields/many2one/many2one_field";
-import { Avatar } from "../avatar/avatar";
+} from "@web/fields/relational/many2one/many2one_field";
+
+import { Avatar } from "../avatar/avatar.js";
 
 export class KanbanMany2OneAvatarUserField extends Component {
     static template = "mail.KanbanMany2OneAvatarUserField";
@@ -19,7 +24,9 @@ export class KanbanMany2OneAvatarUserField extends Component {
     };
 
     get displayName() {
-        return this.props.displayAvatarName && this.value ? this.value.display_name : "";
+        return this.props.displayAvatarName && this.value
+            ? this.value.display_name
+            : "";
     }
 
     get m2oProps() {

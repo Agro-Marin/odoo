@@ -9,6 +9,7 @@ from odoo.fields import Domain
 
 
 class ProjectProject(models.Model):
+    _name = 'project.project'
     _inherit = 'project.project'
 
     def _add_purchase_items(self, profitability_items, with_action=True):

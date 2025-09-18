@@ -1,6 +1,6 @@
-import { Dialog } from "@web/core/dialog/dialog";
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
-
+import { Dialog } from "@web/ui/dialog/dialog";
 patch(Dialog.prototype, {
     /**
      * @override

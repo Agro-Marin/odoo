@@ -1,4 +1,5 @@
-import { closestBlock, isBlock } from "./blocks";
+/** @odoo-module native */
+import { closestBlock, isBlock } from "./blocks.js";
 import {
     isEmptyTextNode,
     isParagraphRelatedElement,
@@ -6,11 +7,11 @@ import {
     isVisible,
     nextLeaf,
     previousLeaf,
-} from "./dom_info";
-import { callbacksForCursorUpdate } from "./selection";
-import { isEmptyBlock, isPhrasingContent } from "../utils/dom_info";
-import { childNodes, descendants } from "./dom_traversal";
-import { childNodeIndex, DIRECTIONS, nodeSize } from "./position";
+} from "./dom_info.js";
+import { callbacksForCursorUpdate } from "./selection.js";
+import { isEmptyBlock, isPhrasingContent } from "../utils/dom_info.js";
+import { childNodes, descendants } from "./dom_traversal.js";
+import { childNodeIndex, DIRECTIONS, nodeSize } from "./position.js";
 import {
     baseContainerGlobalSelector,
     createBaseContainer,

@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { prepareUpdate } from "@html_editor/utils/dom_state";
 import { withSequence } from "@html_editor/utils/resource";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { _t } from "@web/core/l10n/translation";
-import { Plugin } from "../plugin";
-import { closestBlock, isBlock } from "../utils/blocks";
-import { cleanTextNode, fillEmpty, removeClass, splitTextNode, unwrapContents } from "../utils/dom";
+import { Plugin } from "../plugin.js";
+import { closestBlock, isBlock } from "../utils/blocks.js";
+import { cleanTextNode, fillEmpty, removeClass, splitTextNode, unwrapContents } from "../utils/dom.js";
 import {
     areSimilarElements,
     isContentEditable,
@@ -17,17 +18,17 @@ import {
     isZwnbsp,
     isZWS,
     previousLeaf,
-} from "../utils/dom_info";
-import { isFakeLineBreak } from "../utils/dom_state";
+} from "../utils/dom_info.js";
+import { isFakeLineBreak } from "../utils/dom_state.js";
 import {
     childNodes,
     closestElement,
     descendants,
     findFurthest,
     selectElements,
-} from "../utils/dom_traversal";
-import { formatsSpecs, FORMATTABLE_TAGS } from "../utils/formatting";
-import { boundariesIn, boundariesOut, DIRECTIONS, leftPos, rightPos } from "../utils/position";
+} from "../utils/dom_traversal.js";
+import { formatsSpecs, FORMATTABLE_TAGS } from "../utils/formatting.js";
+import { boundariesIn, boundariesOut, DIRECTIONS, leftPos, rightPos } from "../utils/position.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 const allWhitespaceRegex = /^[\s\u200b]*$/;
@@ -268,6 +269,15 @@ export class FormatPlugin extends Plugin {
                 formatsSpecs[format].removeStyle &&
                 this.hasSelectionFormat(format, targetedNodes)
             ) {
+                // Heading/typography-inherent bold is not removable formatting
+                // — only count bold when it comes from explicit inline tags
+                // (STRONG/B) or inline font-weight styles.
+                if (format === "bold") {
+                    const textNodes = targetedNodes.filter(isTextNode);
+                    if (!textNodes.some((n) => hasExplicitBoldFormatting(n))) {
+                        continue;
+                    }
+                }
                 return true;
             }
         }
@@ -284,7 +294,7 @@ export class FormatPlugin extends Plugin {
     }
 
     // @todo phoenix: refactor this method.
-    _formatSelection(formatName, { applyStyle, formatProps } = {}) {
+    _formatSelection(formatName, { applyStyle, formatProps, removeFormat: isRemoveFormat } = {}) {
         this.dependencies.selection.selectAroundNonEditable();
         // note: does it work if selection is in opposite direction?
         const selection = this.dependencies.split.splitSelection();
@@ -396,8 +406,20 @@ export class FormatPlugin extends Plugin {
                         removeFormat(node, formatSpec);
                     }
                 } else {
-                    formatSpec.addNeutralStyle &&
-                        formatSpec.addNeutralStyle(getOrCreateSpan(node, inlineAncestors));
+                    // During removeFormat, don't neutralize bold that is
+                    // inherent to the block (heading tags, typography classes)
+                    // — only neutralize when user explicitly toggled bold off
+                    // or there's inline font-weight on the block itself.
+                    const skipNeutral =
+                        isRemoveFormat &&
+                        formatName === "bold" &&
+                        !parentNode.style?.fontWeight;
+                    if (!skipNeutral) {
+                        formatSpec.addNeutralStyle &&
+                            formatSpec.addNeutralStyle(
+                                getOrCreateSpan(node, inlineAncestors)
+                            );
+                    }
                 }
             } else if (
                 (!firstBlockOrClassHasFormat || parentNode.nodeName === "LI") &&
@@ -452,18 +474,38 @@ export class FormatPlugin extends Plugin {
         } else if (selectedTextNodes.length) {
             const firstNode = selectedTextNodes[0];
             const lastNode = selectedTextNodes[selectedTextNodes.length - 1];
+            // When removing formatting, preserve the original range "end"
+            // position if it's still in the DOM. This matters when the
+            // selection ended at the boundary of a partially-selected
+            // formatted node that was not unformatted (e.g. removeFormat with
+            // `<font>[ab<br>cd<br><font>]ef</font>` — the ] must stay at the
+            // start of "ef", not snap back to end of "cd").
+            // When applying formatting, new wrapper elements shift DOM offsets,
+            // so the original position would be incorrect.
+            const isRight = selection.direction === DIRECTIONS.RIGHT;
+            let endNode = lastNode;
+            let endOffset = lastNode.length;
+            if (!applyStyle) {
+                const origEnd = isRight
+                    ? { node: selection.focusNode, offset: selection.focusOffset }
+                    : { node: selection.anchorNode, offset: selection.anchorOffset };
+                if (origEnd.node?.isConnected) {
+                    endNode = origEnd.node;
+                    endOffset = origEnd.offset;
+                }
+            }
             let newSelection;
-            if (selection.direction === DIRECTIONS.RIGHT) {
+            if (isRight) {
                 newSelection = {
                     anchorNode: firstNode,
                     anchorOffset: 0,
-                    focusNode: lastNode,
-                    focusOffset: lastNode.length,
+                    focusNode: endNode,
+                    focusOffset: endOffset,
                 };
             } else {
                 newSelection = {
-                    anchorNode: lastNode,
-                    anchorOffset: lastNode.length,
+                    anchorNode: endNode,
+                    anchorOffset: endOffset,
                     focusNode: firstNode,
                     focusOffset: 0,
                 };
@@ -629,7 +671,7 @@ export class FormatPlugin extends Plugin {
                 return;
             }
             const element = closestElement(selection.anchorNode);
-            if (element.hasAttribute("data-oe-zws-empty-inline")) {
+            if (element?.hasAttribute("data-oe-zws-empty-inline")) {
                 // Select its ZWS content to make sure the text will be
                 // inserted inside the element, and not before (outside) it.
                 // This addresses an undesired behavior of the
@@ -716,9 +758,29 @@ function getOrCreateSpan(node, ancestors) {
         return span;
     }
 }
+/**
+ * Check whether a text node has explicit inline bold formatting (STRONG/B tags
+ * or font-weight inline styles), as opposed to bold inherited from a heading
+ * tag or CSS class (typography/display classes).
+ */
+function hasExplicitBoldFormatting(textNode) {
+    const block = closestBlock(textNode);
+    let el = closestElement(textNode);
+    while (el && el !== block) {
+        if (["STRONG", "B"].includes(el.tagName) || el.style?.fontWeight) {
+            return true;
+        }
+        el = el.parentElement;
+    }
+    return Boolean(block?.style?.fontWeight);
+}
+
 function removeFormat(node, formatSpec) {
     const document = node.ownerDocument;
     node = closestElement(node);
+    if (!node) {
+        return;
+    }
     if (formatSpec.hasStyle(node)) {
         formatSpec.removeStyle(node);
         if (["SPAN", "FONT"].includes(node.tagName) && !node.getAttributeNames().length) {

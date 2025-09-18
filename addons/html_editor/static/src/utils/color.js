@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { isColorGradient } from "@web/core/utils/colors";
-import { isElement } from "./dom_info";
+import { isColorGradient } from "@web/core/utils/format/colors";
+import { isElement } from "./dom_info.js";
 
 export const COLOR_PALETTE_COMPATIBILITY_COLOR_NAMES = [
     "primary",

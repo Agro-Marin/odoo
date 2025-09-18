@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Implement this interface to support a new payment method in the POS:
  *

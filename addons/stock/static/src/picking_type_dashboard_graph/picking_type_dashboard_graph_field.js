@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { cookie } from "@web/core/browser/cookie";
 import { getColor, getCustomColor } from "@web/core/colors/colors";
 import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
-import { JournalDashboardGraphField } from "@web/views/fields/journal_dashboard_graph/journal_dashboard_graph_field";
+import { JournalDashboardGraphField } from "@web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field";
 
 export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
     setup() {

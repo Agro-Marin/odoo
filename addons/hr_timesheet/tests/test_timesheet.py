@@ -50,14 +50,14 @@ class TestCommonTimesheet(TransactionCase):
         cls.task1 = cls.env['project.task'].create({
             'name': 'Task One',
             'priority': '0',
-            'state': '01_in_progress',
+            'state': 'in_progress',
             'project_id': cls.project_customer.id,
             'partner_id': cls.partner.id,
         })
         cls.task2 = cls.env['project.task'].create({
             'name': 'Task Two',
             'priority': '1',
-            'state': '1_done',
+            'state': 'done',
             'project_id': cls.project_customer.id,
         })
         # users

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { SelectNumberColumn } from "@html_builder/core/select_number_column";
 import { BaseOptionComponent } from "@html_builder/core/utils";
-import { AddElementOption } from "./add_element_option";
-import { SpacingOption } from "./spacing_option";
+import { AddElementOption } from "./add_element_option.js";
+import { SpacingOption } from "./spacing_option.js";
 
 export class LayoutOption extends BaseOptionComponent {
     static template = "website.LayoutOption";

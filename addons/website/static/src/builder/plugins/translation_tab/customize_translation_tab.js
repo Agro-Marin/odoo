@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
 

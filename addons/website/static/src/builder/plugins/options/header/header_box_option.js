@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
 import { ShadowOption } from "@html_builder/plugins/shadow_option";
-import { basicHeaderOptionSettings } from "./basicHeaderOptionSettings";
+import { basicHeaderOptionSettings } from "./basicHeaderOptionSettings.js";
 
 export class HeaderBoxOption extends BaseOptionComponent {
     static template = "website.HeaderBoxOption";

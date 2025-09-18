@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { AccountProductCatalogSearchModel } from "@account/components/product_catalog/search/search_model";
 import { useSubEnv } from "@odoo/owl";
-import { getSuggestToggleState } from "../utils";
+import { getSuggestToggleState } from "../utils.js";
 
 export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalogSearchModel {
     setup() {

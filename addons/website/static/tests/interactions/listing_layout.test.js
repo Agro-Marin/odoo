@@ -18,7 +18,7 @@ test("listing_layout toggle to list mode", async () => {
                 <div class="listing_layout_switcher btn-group" data-active-classes="border-primary" data-view-id="123">
                     <input id="apply_grid" type="radio" class="btn-check" value="grid" checked="checked">
                     <label title="Grid" for="apply_grid" class="btn">
-                        <i class="fa fa-th-large"></i>
+                        <i class="fa-solid fa-th-large"></i>
                     </label>
                     <input id="apply_list" type="radio" class="btn-check" value="list">
                     <label title="List" for="apply_list" class="btn">
@@ -68,7 +68,7 @@ test("listing_layout toggle to grid mode", async () => {
                 <div class="listing_layout_switcher btn-group" data-active-classes="border-primary" data-view-id="123">
                     <input id="apply_grid" type="radio" class="btn-check" value="grid">
                     <label title="Grid" for="apply_grid" class="btn">
-                        <i class="fa fa-th-large"></i>
+                        <i class="fa-solid fa-th-large"></i>
                     </label>
                     <input id="apply_list" type="radio" class="btn-check" value="list" checked="checked">
                     <label title="List" for="apply_list" class="btn">

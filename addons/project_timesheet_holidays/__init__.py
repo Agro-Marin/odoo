@@ -30,7 +30,7 @@ def post_init(env):
                     'name': env._('Internal'),
                     'allow_timesheets': True,
                     'company_id': company.id,
-                    'type_ids': type_ids,
+                    'workflow_step_ids': type_ids,
                 }).id
             company.write({'internal_project_id': project_id})
         if not company.leave_timesheet_task_id:

@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
-import { Toolbar } from "./toolbar";
+import { Toolbar } from "./toolbar.js";
 
 export class ToolbarMobile extends Component {
     static template = "html_editor.MobileToolbar";

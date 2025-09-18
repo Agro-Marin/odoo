@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { resizeGrid, setElementToMaxZindex } from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
@@ -91,6 +92,10 @@ export class AddElementOptionPlugin extends Plugin {
 export class AddGridElementAction extends BuilderAction {
     static id = "addGridElement";
     static dependencies = ["addElementOption", "media"];
+
+    setup() {
+        this.canTimeout = false;
+    }
 
     async apply({ editingElement: rowEl, params: { mainParam: elementType } }) {
         if (elementType === "image") {

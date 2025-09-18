@@ -1,6 +1,7 @@
+/** @odoo-module */
 import * as hoot from "@odoo/hoot-dom";
 import { patch } from "@web/core/utils/patch";
-import { TourHelpers } from "./tour_helpers";
+import { TourHelpers } from "./tour_helpers.js";
 
 patch(TourHelpers.prototype, {
     /**

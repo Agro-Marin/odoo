@@ -1,4 +1,5 @@
-import { isColorGradient } from "@web/core/utils/colors";
+/** @odoo-module native */
+import { isColorGradient } from "@web/core/utils/format/colors";
 
 /**
  * Extracts url and gradient parts from the background-image CSS property.

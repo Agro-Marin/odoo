@@ -1,3 +1,8 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/core/py_js/py_tokenizer - Lexer that splits Python expression strings into typed tokens */
+
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
@@ -60,12 +65,12 @@ const directMap = {
 function decodeStringLiteral(str, unicode) {
     const out = [];
     let code;
-    for (var i = 0; i < str.length; ++i) {
+    for (let i = 0; i < str.length; ++i) {
         if (str[i] !== "\\") {
             out.push(str[i]);
             continue;
         }
-        var escape = str[i + 1];
+        const escape = str[i + 1];
         if (escape in directMap) {
             out.push(directMap[escape]);
             ++i;
@@ -82,11 +87,11 @@ function decodeStringLiteral(str, unicode) {
                     break;
                 }
                 throw new TokenizerError("SyntaxError: \\N{} escape not implemented");
-            case "u":
+            case "u": {
                 if (!unicode) {
                     break;
                 }
-                var uni = str.slice(i + 2, i + 6);
+                const uni = str.slice(i + 2, i + 6);
                 if (!/[0-9a-f]{4}/i.test(uni)) {
                     throw new TokenizerError(
                         [
@@ -96,7 +101,7 @@ function decodeStringLiteral(str, unicode) {
                             "-",
                             i + 4,
                             ": truncated \\uXXXX escape",
-                        ].join("")
+                        ].join(""),
                     );
                 }
                 code = parseInt(uni, 16);
@@ -104,15 +109,16 @@ function decodeStringLiteral(str, unicode) {
                 // escape + 4 hex digits
                 i += 5;
                 continue;
+            }
             case "U":
                 if (!unicode) {
                     break;
                 }
                 // TODO: String.fromCodePoint
                 throw new TokenizerError("SyntaxError: \\U escape not implemented");
-            case "x":
+            case "x": {
                 // get 2 hex digits
-                var hex = str.slice(i + 2, i + 4);
+                const hex = str.slice(i + 2, i + 4);
                 if (!/[0-9a-f]{2}/i.test(hex)) {
                     if (!unicode) {
                         throw new TokenizerError("ValueError: invalid \\x escape");
@@ -125,7 +131,7 @@ function decodeStringLiteral(str, unicode) {
                             "-",
                             i + 2,
                             ": truncated \\xXX escape",
-                        ].join("")
+                        ].join(""),
                     );
                 }
                 code = parseInt(hex, 16);
@@ -133,20 +139,22 @@ function decodeStringLiteral(str, unicode) {
                 // skip escape + 2 hex digits
                 i += 3;
                 continue;
-            default:
+            }
+            default: {
                 // Check if octal
-                if (!/[0-8]/.test(escape)) {
+                if (!/[0-7]/.test(escape)) {
                     break;
                 }
-                var r = /[0-8]{1,3}/g;
+                const r = /[0-7]{1,3}/g;
                 r.lastIndex = i + 1;
-                var m = r.exec(str);
-                var oct = m[0];
+                const m = r.exec(str);
+                const oct = m[0];
                 code = parseInt(oct, 8);
                 out.push(String.fromCharCode(code));
                 // skip matchlength
                 i += oct.length;
                 continue;
+            }
         }
         out.push("\\");
     }
@@ -215,15 +223,26 @@ const PointFloat = group(`\\d+\\.\\d*(${Exponent})?`, `\\.\\d+(${Exponent})?`);
 const FloatNumber = group(PointFloat, `\\d+${Exponent}`);
 
 const Number = group(FloatNumber, IntNumber);
-const Operator = group("\\*\\*=?", ">>=?", "<<=?", "<>", "!=", "//=?", "[+\\-*/%&|^=<>]=?", "~");
+const Operator = group(
+    "\\*\\*=?",
+    ">>=?",
+    "<<=?",
+    "<>",
+    "!=",
+    "//=?",
+    "[+\\-*/%&|^=<>]=?",
+    "~",
+);
 const Bracket = "[\\[\\]\\(\\)\\{\\}]";
 const Special = "[:;.,`@]";
 const Funny = group(Operator, Bracket, Special);
 const ContStr = group(
     "([uU])?'([^\n'\\\\]*(?:\\\\.[^\n'\\\\]*)*)'",
-    '([uU])?"([^\n"\\\\]*(?:\\\\.[^\n"\\\\]*)*)"'
+    '([uU])?"([^\n"\\\\]*(?:\\\\.[^\n"\\\\]*)*)"',
 );
 const PseudoToken = Whitespace + group(Number, Funny, ContStr, Name);
+/** Module-level regex — reused across tokenize() calls, reset via lastIndex. */
+const pseudoprog = new RegExp(PseudoToken, "g");
 const NumberPattern = new RegExp("^" + Number + "$");
 const StringPattern = new RegExp("^" + ContStr + "$");
 const NamePattern = new RegExp("^" + Name + "$");
@@ -240,12 +259,12 @@ const strip = new RegExp("^" + Whitespace);
  * @returns {Token[]}
  */
 export function tokenize(str) {
+    /** @type {Token[]} */
     const tokens = [];
     const max = str.length;
-    let start = 0;
     let end = 0;
-    // /g flag makes repeated exec() have memory
-    const pseudoprog = new RegExp(PseudoToken, "g");
+    // /g flag makes repeated exec() have memory — reuse module-level regex
+    pseudoprog.lastIndex = 0;
     while (pseudoprog.lastIndex < max) {
         const pseudomatch = pseudoprog.exec(str);
         if (!pseudomatch) {
@@ -259,7 +278,7 @@ export function tokenize(str) {
                     ">> at index " +
                     (end || 0) +
                     "; parsed so far: " +
-                    tokens
+                    tokens,
             );
         }
         if (pseudomatch.index > end) {
@@ -267,7 +286,7 @@ export function tokenize(str) {
                 throw new TokenizerError("Invalid expression");
             }
         }
-        start = pseudomatch.index;
+        const start = pseudomatch.index;
         end = pseudoprog.lastIndex;
         let token = str.slice(start, end).replace(strip, "");
         if (NumberPattern.test(token)) {
@@ -276,20 +295,23 @@ export function tokenize(str) {
                 value: parseFloat(token),
             });
         } else if (StringPattern.test(token)) {
-            var m = StringPattern.exec(token);
+            const m = StringPattern.exec(token);
             tokens.push({
                 type: 1 /* String */,
-                value: decodeStringLiteral(m[3] !== undefined ? m[3] : m[5], !!(m[2] || m[4])),
+                value: decodeStringLiteral(
+                    m[3] !== undefined ? m[3] : m[5],
+                    !!(m[2] || m[4]),
+                ),
             });
         } else if (symbols.has(token)) {
             // transform 'not in' and 'is not' in a single token
-            if (token === "in" && tokens.length > 0 && tokens[tokens.length - 1].value === "not") {
+            if (token === "in" && tokens.length > 0 && tokens.at(-1).value === "not") {
                 token = "not in";
                 tokens.pop();
             } else if (
                 token === "not" &&
                 tokens.length > 0 &&
-                tokens[tokens.length - 1].value === "is"
+                tokens.at(-1).value === "is"
             ) {
                 token = "is not";
                 tokens.pop();

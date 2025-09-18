@@ -67,6 +67,7 @@
         'views/snippets/mass_mailing_masonry_snippets.xml',
         'views/snippets/mass_mailing_people_snippets.xml',
         'views/snippets/mass_mailing_text_snippets.xml',
+        'views/snippets/mass_mailing_website_snippets.xml',
     ],
     'demo': [
         'demo/utm.xml',
@@ -95,6 +96,7 @@
             'web/static/src/scss/pre_variables.scss',
             'web/static/lib/bootstrap/scss/_variables.scss',
             'web/static/lib/bootstrap/scss/_maps.scss',
+            'web/static/lib/bootstrap/scss/_alert.scss',
             ('include', 'web._assets_bootstrap_frontend'),
 
             # useful scss from /html_editor web.assets_frontend
@@ -109,13 +111,17 @@
             ('after', 'web/static/lib/bootstrap/scss/_maps.scss', 'mass_mailing/static/src/scss/mass_mailing.ui.scss'),
 
             'html_editor/static/src/scss/bootstrap_overridden.scss',
+            'html_builder/static/src/scss/background.scss',
 
-            'web/static/src/libs/fontawesome/css/font-awesome.css',
+            'web/static/src/libs/fontawesome7/css/fontawesome.css',
+            'web/static/src/libs/fontawesome7/css/solid.css',
+            'web/static/src/libs/fontawesome7/css/regular.css',
+            'web/static/src/libs/fontawesome7/css/brands.css',
             'web/static/lib/odoo_ui_icons/*',
             'web/static/src/scss/animation.scss',
             'web/static/src/scss/mimetypes.scss',
             'web/static/src/scss/ui.scss',
-            'web/static/src/scss/fontawesome_overridden.scss',
+            'web/static/src/scss/rtl_icon_flip.scss',
 
             ('include', 'mass_mailing.assets_mail_themes'),
             'mass_mailing/static/src/scss/mass_mailing_mail.scss',

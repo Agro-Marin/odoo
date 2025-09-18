@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
-import { BackgroundImageOption } from "./background_image_option";
-import { BackgroundPositionOption } from "./background_position_option";
-import { BackgroundShapeOption } from "./background_shape_option";
-import { useBackgroundOption } from "./background_hook";
+import { BackgroundImageOption } from "./background_image_option.js";
+import { BackgroundPositionOption } from "./background_position_option.js";
+import { BackgroundShapeOption } from "./background_shape_option.js";
+import { useBackgroundOption } from "./background_hook.js";
 import { ImageFilterOption } from "@html_builder/plugins/image/image_filter_option";
 import { ImageFormatOption } from "@html_builder/plugins/image/image_format_option";
 

@@ -1,6 +1,6 @@
+/** @odoo-module native */
 import { SoundEffects } from "@mail/core/common/sound_effects_service";
 import { patch } from "@web/core/utils/patch";
-
 patch(SoundEffects.prototype, {
     play() {
         this.soundEffects = {

@@ -51,7 +51,7 @@
                                     class="form-control add-quantity-input"
                                     value="1"
                                     min="1"/>
-                                <button class="o_add_qty btn btn-primary fa fa-plus"
+                                <button class="o_add_qty btn btn-primary fa-solid fa-plus"
                                         type="submit"
                                         t-on-click="onClickAddQty"
                                         title="Add a quantity"/>
@@ -72,7 +72,7 @@
                     </form>
                     <div style="margin-left:300px;">
                         <button t-on-click="onClickAddProducts" string="All Products" class="btn btn-link">
-                            <i class="fa fa-pencil"/>
+                            <i class="fa-solid fa-pencil"/>
                             Add Products
                         </button>
                     </div>

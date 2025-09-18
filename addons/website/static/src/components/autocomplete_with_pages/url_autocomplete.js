@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";
 import { useChildRef } from "@web/core/utils/hooks";

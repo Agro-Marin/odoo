@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ========================================================================
+         Workflow DAG Enhancements for base.automation
+         ======================================================================== -->
+
+    <record id="view_base_automation_form_workflow_dag" model="ir.ui.view">
+        <field name="name">base.automation.form.workflow.dag</field>
+        <field name="model">base.automation</field>
+        <field name="inherit_id" ref="base_automation.view_base_automation_form" />
+        <field name="arch" type="xml">
+
+            <!-- Trigger Now button for on_hand automations -->
+            <xpath expr="//form/sheet" position="before">
+                <header>
+                    <button
+                        name="action_manual_trigger"
+                        string="⚡ Trigger Now"
+                        type="object"
+                        class="btn-primary"
+                        invisible="trigger != 'on_hand'"
+                        groups="base.group_user"
+                        help="Manually trigger this automation on selected records" />
+                </header>
+            </xpath>
+
+            <!-- Helpful info panel for on_hand trigger -->
+            <xpath expr="//div[hasclass('oe_title')]" position="after">
+                <group invisible="trigger != 'on_hand'">
+                    <div class="alert alert-info" role="alert">
+                        <h5><i class="fa-regular fa-hand" /> Manual Trigger</h5>
+                        <p class="mb-1">This automation runs only when manually triggered.</p>
+                        <ul class="mb-0">
+                            <li>Click <strong>⚡ Trigger Now</strong> from the record you want to automate</li>
+                            <li>Or add an action menu to your model</li>
+                            <li>Or call <code>action_manual_trigger()</code> programmatically</li>
+                        </ul>
+                        <p class="mb-0 mt-2">
+                            <em>Tip: Add <strong>predecessor dependencies</strong> between actions in the
+                                Actions tab for multi-step DAG execution.</em>
+                        </p>
+                    </div>
+                </group>
+            </xpath>
+
+            <!-- Force list view mode for actions tab to show DAG fields -->
+            <xpath expr="//page[@name='actions']/field[@name='action_server_ids']"
+                position="attributes">
+                <attribute name="mode">list,form</attribute>
+                <attribute name="context">{'list_view_ref': 'base_automation.view_ir_actions_server_tree_workflow'}</attribute>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

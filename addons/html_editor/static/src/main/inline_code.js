@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { isBlock, closestBlock } from "@html_editor/utils/blocks";
 import { splitTextNode, unwrapContents } from "@html_editor/utils/dom";

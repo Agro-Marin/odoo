@@ -49,7 +49,7 @@
 
         <menuitem name="EDI Proxy Users"
                   sequence="11"
-                  parent="account.account_invoicing_menu"
+                  parent="account.menu_account_invoicing"
                   id="menu_account_proxy_client_user"
                   action="action_tree_account_edi_proxy_client_user"
                   groups="base.group_no_one"/>

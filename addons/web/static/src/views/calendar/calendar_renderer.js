@@ -1,9 +1,14 @@
-import { ActionSwiper } from "@web/core/action_swiper/action_swiper";
-import { CalendarCommonRenderer } from "./calendar_common/calendar_common_renderer";
-import { CalendarYearRenderer } from "./calendar_year/calendar_year_renderer";
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/views/calendar/calendar_renderer - Top-level calendar renderer delegating to scale-specific sub-renderers */
 
 import { Component } from "@odoo/owl";
+import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 
+import { CalendarCommonRenderer } from "./calendar_common/calendar_common_renderer.js";
+import { CalendarYearRenderer } from "./calendar_year/calendar_year_renderer.js";
+/** Top-level calendar renderer that delegates to scale-specific sub-renderers. */
 export class CalendarRenderer extends Component {
     static template = "web.CalendarRenderer";
     static components = {
@@ -25,7 +30,7 @@ export class CalendarRenderer extends Component {
         cleanSquareSelection: Function,
     };
     get concreteRenderer() {
-        return this.constructor.components[this.props.model.scale];
+        return /** @type {any} */ (this.constructor).components[this.props.model.scale];
     }
     get concreteRendererProps() {
         if (this.props.model.scale === "year") {

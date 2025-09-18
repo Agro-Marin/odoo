@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { booleanFavoriteField } from "@web/views/fields/boolean_favorite/boolean_favorite_field";
+import { booleanFavoriteField } from "@web/fields/basic/boolean_favorite/boolean_favorite_field";
 
 export const projectIsFavoriteField = {
     ...booleanFavoriteField,

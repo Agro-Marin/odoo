@@ -1,6 +1,8 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
-import { rottingProgressBarPatch } from "./rotting_progress_bar_hook";
+
+import { rottingProgressBarPatch } from "./rotting_progress_bar_hook.js";
 
 export class RottingKanbanController extends KanbanController {
     setup() {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     getEmbeddedProps,
     StateChangeManager,
@@ -12,10 +13,10 @@ import {
     useExternalListener,
     useRef,
 } from "@odoo/owl";
-import { Dropdown } from "@web/core/dropdown/dropdown";
-import { useDropdownState } from "@web/core/dropdown/dropdown_hooks";
-import { DropdownItem } from "@web/core/dropdown/dropdown_item";
-import { ReadonlyEmbeddedVideoComponent } from "../../core/video/readonly_video";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { ReadonlyEmbeddedVideoComponent } from "../../core/video/readonly_video.js";
 
 export class EmbeddedVideoComponent extends ReadonlyEmbeddedVideoComponent {
     static template = "html_editor.EmbeddedVideo";

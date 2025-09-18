@@ -49,8 +49,10 @@ export class ResUsers extends webModels.ResUsers {
                             "im_status",
                             "is_admin",
                             mailDataHelpers.Store.one("main_user_id", ["notification_type"]),
+                            mailDataHelpers.Store.one("main_user_id", ["signature"]),
                             "name",
                             "notification_type",
+                            "signature",
                             "user",
                         ],
                     })
@@ -100,7 +102,7 @@ export class ResUsers extends webModels.ResUsers {
             userActivitiesByModelName[modelName]["total_count"] += 1;
             userActivitiesByModelName[modelName].actions = [
                 {
-                    icon: "fa-clock-o",
+                    icon: "fa-regular fa-clock",
                     name: "Summary",
                 },
             ];
@@ -188,7 +190,7 @@ export class ResUsers extends webModels.ResUsers {
             userActivitiesByModelName[modelName]["total_count"] += 1;
             userActivitiesByModelName[modelName].actions = [
                 {
-                    icon: "fa-clock-o",
+                    icon: "fa-regular fa-clock",
                     name: "Summary",
                 },
             ];

@@ -1,13 +1,14 @@
+/** @odoo-module native */
 import { session } from "@web/session";
 import { _t } from "@web/core/l10n/translation";
 import { Component, useState, useRef, useEffect, useExternalListener } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { browser } from "@web/core/browser/browser";
-import { cleanZWChars, deduceURLfromText } from "./utils";
-import { useColorPicker } from "@web/core/color_picker/color_picker";
-import { CheckBox } from "@web/core/checkbox/checkbox";
+import { cleanZWChars, deduceURLfromText } from "./utils.js";
+import { useColorPicker } from "@web/components/color_picker/color_picker";
+import { CheckBox } from "@web/components/checkbox/checkbox";
 
-const DEFAULT_CUSTOM_TEXT_COLOR = "#714B67";
+const DEFAULT_CUSTOM_TEXT_COLOR = "#A855F7";
 const DEFAULT_CUSTOM_FILL_COLOR = "#ffffff";
 
 const isCSSVariable = (color) => color.match(/^o-color-\d$|^\d{3}$/);
@@ -210,6 +211,10 @@ export class LinkPopover extends Component {
                     },
                     {
                         env: this.__owl__.childEnv,
+                        // `useOverlayServiceOffset` adds 1000 to each sequence value to solve
+                        // overlay visibility in `iframe`, here we increment default sequence (50)
+                        // by 1 and we add 1000 to have color picker always on top of all overlays.
+                        sequence: 1051,
                     }
                 );
             this.customTextColorPicker = createCustomColorPicker(
@@ -403,7 +408,7 @@ export class LinkPopover extends Component {
      */
     async updateDocumentState() {
         const url = this.state.url;
-        const urlObject = URL.parse(url, this.props.document.URL);
+        const urlObject = URL.parse(url, document.URL);
         if (
             url &&
             (url.startsWith("/web/content/") ||
@@ -484,16 +489,16 @@ export class LinkPopover extends Component {
     }
     async loadAsyncLinkPreview() {
         let url;
-        if (this.state.url === "") {
+        if (!this.state.url || this.state.url.startsWith("#")) {
             this.resetPreview();
-            this.state.previewIcon.value = "fa-question-circle-o";
+            this.state.previewIcon.value = "fa-regular fa-circle-question";
             return;
         }
         if (this.isLogoutUrl()) {
             // The session ends if we fetch this url, so the preview is hardcoded
             this.resetPreview();
             this.state.urlTitle = _t("Logout");
-            this.state.previewIcon.value = "fa-sign-out";
+            this.state.previewIcon.value = "fa-solid fa-right-from-bracket";
             return;
         }
         if (this.isAttachmentUrl()) {
@@ -504,7 +509,7 @@ export class LinkPopover extends Component {
             return;
         }
         try {
-            url = new URL(this.state.url, this.props.document.URL); // relative to absolute
+            url = new URL(this.state.url, document.URL); // relative to absolute
         } catch {
             // Invalid URL, might happen with editor unsuported protocol. eg type
             // `geo:37.786971,-122.399677`, become `http://geo:37.786971,-122.399677`
@@ -516,7 +521,7 @@ export class LinkPopover extends Component {
         this.resetPreview();
         const protocol = url.protocol;
         if (!protocol.startsWith("http")) {
-            const faMap = { "mailto:": "fa-envelope-o", "tel:": "fa-phone" };
+            const faMap = { "mailto:": "fa-regular fa-envelope", "tel:": "fa-solid fa-phone" };
             const icon = faMap[protocol];
             if (icon) {
                 this.state.previewIcon.value = icon;

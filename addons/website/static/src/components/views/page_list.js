@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { usePageManager } from "./page_manager_hook";
-import { PageSearchModel } from "./page_search_model";
+import { usePageManager } from "./page_manager_hook.js";
+import { PageSearchModel } from "./page_search_model.js";
 import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { DeletePageDialog, DuplicatePageDialog } from "@website/components/dialog/page_properties";
 import { useService } from "@web/core/utils/hooks";
 
@@ -45,7 +46,7 @@ export class PageListController extends listView.Controller {
         if (Object.prototype.hasOwnProperty.call(this.props.fields, "is_published")) {
             menuItems.publish = {
                 sequence: 15,
-                icon: "fa fa-globe",
+                icon: "fa-solid fa-earth-americas",
                 description: _t("Publish"),
                 callback: async () => {
                     this.dialogService.add(ConfirmationDialog, {
@@ -60,7 +61,7 @@ export class PageListController extends listView.Controller {
             };
             menuItems.unpublish = {
                 sequence: 16,
-                icon: "fa fa-chain-broken",
+                icon: "fa-solid fa-link-slash",
                 description: _t("Unpublish"),
                 callback: async () => this.togglePublished(false),
             };

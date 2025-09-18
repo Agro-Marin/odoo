@@ -1,10 +1,9 @@
-import { markup, reactive } from "@odoo/owl";
-
+/** @odoo-module native */
 import { parseVersion } from "@mail/utils/common/misc";
+import { markup, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
-
+import { registry } from "@web/core/registry";
 /** In object so it's patchable */
 export const pttExtensionServiceInternal = {
     onAnswerIsEnabled(pttService) {
@@ -42,7 +41,7 @@ export const pttExtensionHookService = {
                     {
                         anchor_start: markup`<a href="${this.downloadURL}" target="_blank" class="text-reset text-decoration-underline">`,
                         anchor_end: markup`</a>`,
-                    }
+                    },
                 );
             },
         });
@@ -67,7 +66,9 @@ export const pttExtensionHookService = {
                             // Second key press is slow to come thus, the first timeout
                             // must be greater than the following ones.
                             rtc.setPttReleaseTimeout(
-                                isFirstPress ? INITIAL_RELEASE_TIMEOUT : COMMON_RELEASE_TIMEOUT
+                                isFirstPress
+                                    ? INITIAL_RELEASE_TIMEOUT
+                                    : COMMON_RELEASE_TIMEOUT,
                             );
                         }
                     }

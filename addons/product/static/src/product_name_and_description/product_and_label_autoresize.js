@@ -1,4 +1,5 @@
-import { useAutoresize } from "@web/core/utils/autoresize";
+/** @odoo-module native */
+import { useAutoresize } from "@web/core/utils/dom/autoresize";
 
 /**
  * This overriden version of the resizeTextArea method is specificly done for the product_label_section_and_note widget

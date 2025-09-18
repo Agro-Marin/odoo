@@ -76,7 +76,7 @@
             </span>
             <span class="d-inline-block m-0 mb-3"
                 t-if="props.closest &amp;&amp; props.closest &lt; props.left">
-                <i class="fa fa-warning"/> Only <t t-esc="props.closest"/>
+                <i class="fa-solid fa-triangle-exclamation"/> Only <t t-esc="props.closest"/>
                 <t t-if="props.request_unit == 'hour'"> hours</t>
                 <t t-else=""> days</t>
                 can be used before the allocation expires.

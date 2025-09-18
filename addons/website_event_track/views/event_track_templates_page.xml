@@ -38,19 +38,19 @@
 
 <template id="event_track_content_partner_info">
     <div class="mb-1 align-items-baseline text-break" t-if="track.partner_function">
-        <i class="fa fa-briefcase me-2"/><span t-out="track.partner_function"/>
+        <i class="fa-solid fa-briefcase me-2"/><span t-out="track.partner_function"/>
         <t t-if="track.partner_company_name">
             <span> at </span><span t-out="track.partner_company_name"/>
         </t>
     </div>
     <div class="mb-1 align-items-baseline text-break" t-if="track.partner_id.website">
-        <i class="fa fa-globe me-2"/><a t-att-href="track.partner_id.website"><span t-field="track.partner_id.website"/></a>
+        <i class="fa-solid fa-earth-americas me-2"/><a t-att-href="track.partner_id.website"><span t-field="track.partner_id.website"/></a>
     </div>
     <div class="mb-1 align-items-baseline text-break" t-if="track.partner_email">
-        <i class="fa fa-envelope me-2"/><a t-att-mailto="track.partner_email"><span t-field="track.partner_email"/></a>
+        <i class="fa-solid fa-envelope me-2"/><a t-att-mailto="track.partner_email"><span t-field="track.partner_email"/></a>
     </div>
     <div class="mb-1 align-items-baseline text-break" t-if="track.partner_phone">
-        <i class="fa fa-phone me-2"/><span t-field="track.partner_phone"/>
+        <i class="fa-solid fa-phone me-2"/><span t-field="track.partner_phone"/>
     </div>
 </template>
 

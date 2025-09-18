@@ -1,5 +1,6 @@
-import { Plugin } from "../plugin";
-import { closestBlock, isBlock } from "../utils/blocks";
+/** @odoo-module native */
+import { Plugin } from "../plugin.js";
+import { closestBlock, isBlock } from "../utils/blocks.js";
 import {
     cleanTrailingBR,
     fillEmpty,
@@ -9,7 +10,7 @@ import {
     removeStyle,
     unwrapContents,
     wrapInlinesInBlocks,
-} from "../utils/dom";
+} from "../utils/dom.js";
 import {
     allowsParagraphRelatedElements,
     getDeepestPosition,
@@ -28,7 +29,7 @@ import {
     listElementSelector,
     isEditorTab,
     isPhrasingContent,
-} from "../utils/dom_info";
+} from "../utils/dom_info.js";
 import {
     childNodes,
     children,
@@ -36,9 +37,9 @@ import {
     descendants,
     firstLeaf,
     lastLeaf,
-} from "../utils/dom_traversal";
-import { FONT_SIZE_CLASSES, TEXT_STYLE_CLASSES } from "../utils/formatting";
-import { childNodeIndex, nodeSize, rightPos } from "../utils/position";
+} from "../utils/dom_traversal.js";
+import { FONT_SIZE_CLASSES, TEXT_STYLE_CLASSES } from "../utils/formatting.js";
+import { childNodeIndex, nodeSize, rightPos } from "../utils/position.js";
 import { normalizeCursorPosition } from "@html_editor/utils/selection";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
@@ -75,6 +76,8 @@ function getConnectedParents(nodes) {
  *
  * @typedef {((container: Element, block: Element) => container)[]} before_insert_processors
  * @typedef {((arg: { nodeToInsert: Node, container: HTMLElement }) => nodeToInsert)[]} node_to_insert_processors
+ *
+ * @typedef {((el: HTMLElement) => Promise<boolean>)[]} are_inlines_allowed_at_root_predicates
  *
  * @typedef {string[]} system_attributes
  * @typedef {string[]} system_classes
@@ -424,7 +427,7 @@ export class DomPlugin extends Plugin {
         let insertedNodesParents = getConnectedParents(allInsertedNodes);
         for (const parent of insertedNodesParents) {
             if (
-                !this.config.allowInlineAtRoot &&
+                !this.areInlinesAllowedAtRoot(parent) &&
                 this.isEditionBoundary(parent) &&
                 allowsParagraphRelatedElements(parent)
             ) {
@@ -486,6 +489,16 @@ export class DomPlugin extends Plugin {
             return true;
         }
         return isContentEditableAncestor(node);
+    }
+
+    areInlinesAllowedAtRoot(node) {
+        const results = this.getResource("are_inlines_allowed_at_root_predicates")
+            .map((p) => p(node))
+            .filter((r) => r !== undefined);
+        if (!results.length) {
+            return this.config.allowInlineAtRoot;
+        }
+        return results.every((r) => r);
     }
 
     /**
@@ -569,7 +582,7 @@ export class DomPlugin extends Plugin {
     // commands
     // --------------------------------------------------------------------------
 
-    insertFontAwesome({ faClass = "fa fa-star" } = {}) {
+    insertFontAwesome({ faClass = "fa-solid fa-star" } = {}) {
         const fontAwesomeNode = document.createElement("i");
         fontAwesomeNode.className = faClass;
         this.insert(fontAwesomeNode);

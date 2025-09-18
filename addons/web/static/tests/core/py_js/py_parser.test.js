@@ -1,6 +1,7 @@
-import { describe, expect, test } from "@odoo/hoot";
+// @ts-check
 
-import { parseExpr } from "@web/core/py_js/py";
+import { describe, expect, test } from "@odoo/hoot";
+import { clearASTCache, parseExpr } from "@web/core/py_js/py";
 
 describe.current.tags("headless");
 
@@ -351,4 +352,31 @@ test("tuple in list", () => {
 test("cannot parse []a", () => {
     expect(() => parseExpr("[]a")).toThrow(/Error: Token\(s\) unused/);
     expect(() => parseExpr("[]a b")).toThrow(/Error: Token\(s\) unused/);
+});
+
+// ---------------------------------------------------------------------------
+// AST cache tests
+// ---------------------------------------------------------------------------
+
+describe("AST cache", () => {
+    test("parseExpr returns identical AST for repeated calls", () => {
+        const ast1 = parseExpr("1 + 2");
+        const ast2 = parseExpr("1 + 2");
+        expect(ast1).toBe(ast2); // same reference — cache hit
+    });
+
+    test("parseExpr returns different AST for different expressions", () => {
+        const ast1 = parseExpr("1 + 2");
+        const ast2 = parseExpr("3 + 4");
+        expect(ast1).not.toBe(ast2);
+    });
+
+    test("clearASTCache invalidates cached ASTs", () => {
+        const ast1 = parseExpr("a + b");
+        clearASTCache();
+        const ast2 = parseExpr("a + b");
+        // After clearing, the AST should be structurally equal but a different object
+        expect(ast1).not.toBe(ast2);
+        expect(ast1).toEqual(ast2);
+    });
 });

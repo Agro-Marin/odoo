@@ -1,7 +1,7 @@
-import { registry } from "@web/core/registry";
-import { browser } from "@web/core/browser/browser";
+/** @odoo-module native */
 import { EventBus } from "@odoo/owl";
-
+import { browser } from "@web/core/browser/browser";
+import { registry } from "@web/core/registry";
 export const legacyMultiTabService = {
     start() {
         const bus = new EventBus();
@@ -24,7 +24,10 @@ export const legacyMultiTabService = {
         }
 
         function setItemInStorage(key, value) {
-            browser.localStorage.setItem(generateLocalStorageKey(key), JSON.stringify(value));
+            browser.localStorage.setItem(
+                generateLocalStorageKey(key),
+                JSON.stringify(value),
+            );
         }
 
         function onStorage({ key, newValue }) {

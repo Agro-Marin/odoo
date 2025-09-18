@@ -1,8 +1,8 @@
-import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { useService } from "@web/core/utils/hooks";
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { ListContainer } from "@point_of_sale/app/components/list_container/list_container";
-
+import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { useService } from "@web/core/utils/hooks";
 export class OrderTabs extends Component {
     static template = "point_of_sale.OrderTabs";
     static components = {

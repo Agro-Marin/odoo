@@ -67,7 +67,7 @@
                             <field name="is_warning_visible" invisible="1"/>
                             <span invisible="not is_warning_visible">
                                 <span
-                                    class="fa fa-exclamation-triangle text-danger ps-3">
+                                    class="fa-solid fa-exclamation-triangle text-danger ps-3">
                                 </span>
                                 <span class="text-danger">
                                     All applications will lose their hired date and hired status.

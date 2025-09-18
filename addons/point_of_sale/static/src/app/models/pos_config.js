@@ -1,11 +1,11 @@
+/** @odoo-module native */
+import { getImageDataUrl } from "@point_of_sale/utils";
 import { registry } from "@web/core/registry";
 import { imageUrl } from "@web/core/utils/urls";
-import { Base } from "./related_models";
-import { getImageDataUrl } from "@point_of_sale/utils";
-import { logPosMessage } from "../utils/pretty_console_log";
-import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting";
-import { PosOrderAccounting } from "./accounting/pos_order_accounting";
-
+import { logPosMessage } from "../utils/pretty_console_log.js";
+import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
+import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";
+import { Base } from "./related_models.js";
 const CONSOLE_COLOR = "#F5B427";
 
 export class PosConfig extends Base {
@@ -27,7 +27,7 @@ export class PosConfig extends Base {
 
         const updateLinePrices = (ids, fields) => {
             const fieldTargetted = fields?.some((field) =>
-                PosOrderlineAccounting.accountingFields.has(field)
+                PosOrderlineAccounting.accountingFields.has(field),
             );
 
             if (fieldTargetted || !fields) {
@@ -41,7 +41,7 @@ export class PosConfig extends Base {
 
         const updateOrderPrices = (id, fields) => {
             const fieldTargetted = fields?.some((field) =>
-                PosOrderAccounting.accountingFields.has(field)
+                PosOrderAccounting.accountingFields.has(field),
             );
 
             if (fieldTargetted) {
@@ -51,8 +51,12 @@ export class PosConfig extends Base {
         };
 
         lineModel.addEventListener("create", (data) => updateLinePrices(data.ids));
-        lineModel.addEventListener("update", (data) => updateLinePrices([data.id], data.fields));
-        orderModel.addEventListener("update", (data) => updateOrderPrices(data.id, data.fields));
+        lineModel.addEventListener("update", (data) =>
+            updateLinePrices([data.id], data.fields),
+        );
+        orderModel.addEventListener("update", (data) =>
+            updateOrderPrices(data.id, data.fields),
+        );
     }
 
     get hasCashRounding() {
@@ -107,14 +111,16 @@ export class PosConfig extends Base {
 
     async cacheReceiptLogo() {
         try {
-            this.uiState.receiptLogoDataUrl = await getImageDataUrl(this.receiptCompanyLogoUrl);
+            this.uiState.receiptLogoDataUrl = await getImageDataUrl(
+                this.receiptCompanyLogoUrl,
+            );
         } catch (error) {
             logPosMessage(
                 "PosConfig",
                 "cacheReceiptLogo",
                 "Error while caching receipt logo",
                 CONSOLE_COLOR,
-                [error]
+                [error],
             );
         }
     }

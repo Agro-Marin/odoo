@@ -1,10 +1,11 @@
-import { ScheduledDateDialog } from "./scheduled_date_dialog";
+/** @odoo-module native */
+import { Component } from "@odoo/owl";
 import { deserializeDateTime, serializeDateTime } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { standardFieldProps } from "@web/views/fields/standard_field_props";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
-import { Component } from "@odoo/owl";
+import { ScheduledDateDialog } from "./scheduled_date_dialog.js";
 
 /**
  * Widgets used to display and select the scheduled date in the composer (in monocomment mode)

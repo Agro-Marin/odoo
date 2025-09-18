@@ -1,8 +1,13 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/core/utils/concurrency - Async primitives: Mutex, KeepLast, Race, Deferred, and delay */
+
 /**
  * Returns a promise resolved after 'wait' milliseconds
  *
- * @param {int} [wait=0] the delay in ms
- * @return {Promise}
+ * @param {number} [wait=0] the delay in ms
+ * @returns {Promise<void>}
  */
 export function delay(wait) {
     return new Promise(function (resolve) {
@@ -12,7 +17,8 @@ export function delay(wait) {
 
 /**
  * KeepLast is a concurrency primitive that manages a list of tasks, and only
- * keeps the last task active.
+ * keeps the last task active.  When a new task is added, any previously pending
+ * task is silently discarded — its wrapper promise never settles.
  *
  * @template T
  */
@@ -21,7 +27,8 @@ export class KeepLast {
         this._id = 0;
     }
     /**
-     * Register a new task
+     * Register a new task.  If a task was already pending it is superseded:
+     * its wrapper promise will never resolve or reject.
      *
      * @param {Promise<T>} promise
      * @returns {Promise<T>}
@@ -30,18 +37,20 @@ export class KeepLast {
         this._id++;
         const currentId = this._id;
         return new Promise((resolve, reject) => {
-            promise
-                .then((value) => {
+            promise.then(
+                (value) => {
                     if (this._id === currentId) {
                         resolve(value);
                     }
-                })
-                .catch((reason) => {
-                    // not sure about this part
+                    // Superseded — silently discard.
+                },
+                (reason) => {
                     if (this._id === currentId) {
                         reject(reason);
                     }
-                });
+                    // Superseded — silently discard.
+                },
+            );
         });
     }
 }
@@ -81,30 +90,41 @@ export class KeepLast {
  */
 export class Mutex {
     constructor() {
+        /** @type {Promise<any>} */
         this._lock = Promise.resolve();
+        /** @type {number} */
         this._queueSize = 0;
+        /** @type {Promise<void> | undefined} */
         this._unlockedProm = undefined;
+        /** @type {(() => void) | undefined} */
         this._unlock = undefined;
     }
     /**
      * Add a computation to the queue, it will be executed as soon as the
      * previous computations are completed.
      *
-     * @param {() => (void | Promise<void>)} action a function which may return a Promise
-     * @returns {Promise<void>}
+     * @template T
+     * @param {() => (T | Promise<T>)} action a function which may return a Promise
+     * @returns {Promise<T>}
      */
     async exec(action) {
         this._queueSize++;
         if (!this._unlockedProm) {
-            this._unlockedProm = new Promise((resolve) => {
-                this._unlock = () => {
-                    resolve();
-                    this._unlockedProm = undefined;
-                };
-            });
+            const { promise, resolve } = Promise.withResolvers();
+            this._unlockedProm = promise;
+            this._unlock = () => {
+                resolve();
+                this._unlockedProm = undefined;
+            };
         }
         const always = () => {
-            return Promise.resolve(action()).finally(() => {
+            let result;
+            try {
+                result = action();
+            } catch (e) {
+                result = Promise.reject(e);
+            }
+            return Promise.resolve(result).finally(() => {
                 if (--this._queueSize === 0) {
                     this._unlock();
                 }
@@ -134,9 +154,14 @@ export class Mutex {
  */
 export class Race {
     constructor() {
+        /** @type {Promise<T> | null} */
         this.currentProm = null;
+        /** @type {((value: T) => void) | null} */
         this.currentPromResolver = null;
+        /** @type {((error: any) => void) | null} */
         this.currentPromRejecter = null;
+        /** @type {number} Generation counter to protect against stale callbacks */
+        this._generation = 0;
     }
     /**
      * Register a new promise. If there is an ongoing race, the promise is added
@@ -149,22 +174,30 @@ export class Race {
      */
     add(promise) {
         if (!this.currentProm) {
-            this.currentProm = new Promise((resolve, reject) => {
-                this.currentPromResolver = (value) => {
-                    this.currentProm = null;
-                    this.currentPromResolver = null;
-                    this.currentPromRejecter = null;
-                    resolve(value);
-                };
-                this.currentPromRejecter = (error) => {
-                    this.currentProm = null;
-                    this.currentPromResolver = null;
-                    this.currentPromRejecter = null;
-                    reject(error);
-                };
-            });
+            this._generation++;
+            const gen = this._generation;
+            const { promise, resolve, reject } = Promise.withResolvers();
+            this.currentProm = promise;
+            this.currentPromResolver = (value) => {
+                if (this._generation !== gen) {
+                    return; // stale callback from a previous race — ignore
+                }
+                this.currentProm = null;
+                this.currentPromResolver = null;
+                this.currentPromRejecter = null;
+                resolve(value);
+            };
+            this.currentPromRejecter = (error) => {
+                if (this._generation !== gen) {
+                    return; // stale callback from a previous race — ignore
+                }
+                this.currentProm = null;
+                this.currentPromResolver = null;
+                this.currentPromRejecter = null;
+                reject(error);
+            };
         }
-        promise.then(this.currentPromResolver).catch(this.currentPromRejecter);
+        promise.then(this.currentPromResolver, this.currentPromRejecter);
         return this.currentProm;
     }
     /**
@@ -177,16 +210,16 @@ export class Race {
 }
 
 /**
- * Deferred is basically a resolvable/rejectable extension of Promise.
+ * A native Promise enriched with public `resolve` and `reject` methods.
+ * The constructor returns a Promise (not a Deferred instance) due to the
+ * constructor return override — prefer `Promise.withResolvers()` in new code.
+ *
+ * @template [T=unknown]
+ * @returns {Promise<T> & { resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void }}
  */
-export class Deferred extends Promise {
+export class Deferred {
     constructor() {
-        let resolve;
-        let reject;
-        const prom = new Promise((res, rej) => {
-            resolve = res;
-            reject = rej;
-        });
-        return Object.assign(prom, { resolve, reject });
+        const { promise, resolve, reject } = Promise.withResolvers();
+        return Object.assign(promise, { resolve, reject });
     }
 }

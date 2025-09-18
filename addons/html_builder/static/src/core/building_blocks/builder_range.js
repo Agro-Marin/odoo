@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
 import {
     basicContainerBuilderComponentProps,
@@ -5,8 +6,8 @@ import {
     useBuilderComponent,
     useInputBuilderComponent,
     useInputDebouncedCommit,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderRange extends Component {
     static template = "html_builder.BuilderRange";

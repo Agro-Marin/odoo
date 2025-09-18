@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ComposerAction } from "@mail/core/common/composer_actions";
 
 import { patch } from "@web/core/utils/patch";

@@ -1,3 +1,8 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/webclient/actions/reports/report_hook - Hook enriching DOM elements with [res-id][res-model] into clickable action links */
+
 import { useComponent, useEffect } from "@odoo/owl";
 
 /**
@@ -6,8 +11,8 @@ import { useComponent, useEffect } from "@odoo/owl";
  * Each element with those attrs will become a link to the specified resource.
  * Works with Iframes.
  *
- * @param {owl reference} ref Owl ref to the element to enrich
- * @param {string} [selector] Selector to apply to the element resolved by the ref.
+ * @param {{ el: HTMLElement | null }} ref - Owl ref to the element to enrich
+ * @param {string | null} [selector] - Selector to apply to the element resolved by the ref
  */
 export function useEnrichWithActionLinks(ref, selector = null) {
     const comp = useComponent();
@@ -20,7 +25,7 @@ export function useEnrichWithActionLinks(ref, selector = null) {
                 enrich(comp, element, selector);
             }
         },
-        () => [ref.el]
+        () => [ref.el],
     );
 }
 
@@ -44,18 +49,22 @@ function enrich(component, targetElement, selector, isIFrame = false) {
 
     // Search the elements with the selector, update them and bind an action.
     for (const currentTarget of targets) {
-        const elementsToWrap = currentTarget.querySelectorAll("[res-id][res-model][view-type]");
+        const elementsToWrap = currentTarget.querySelectorAll(
+            "[res-id][res-model][view-type]",
+        );
         for (const element of elementsToWrap.values()) {
             const wrapper = doc.createElement("a");
             wrapper.setAttribute("href", "#");
             wrapper.addEventListener("click", (ev) => {
                 ev.preventDefault();
+                const viewIdAttr = element.getAttribute("view-id");
+                const viewId = viewIdAttr ? Number(viewIdAttr) : false;
                 component.env.services.action.doAction({
                     type: "ir.actions.act_window",
                     view_mode: element.getAttribute("view-type"),
                     res_id: Number(element.getAttribute("res-id")),
                     res_model: element.getAttribute("res-model"),
-                    views: [[element.getAttribute("view-id"), element.getAttribute("view-type")]],
+                    views: [[viewId, element.getAttribute("view-type")]],
                 });
             });
             element.parentNode.insertBefore(wrapper, element);

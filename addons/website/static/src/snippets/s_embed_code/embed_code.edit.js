@@ -1,4 +1,5 @@
-import { EmbedCode } from "./embed_code";
+/** @odoo-module native */
+import { EmbedCode } from "./embed_code.js";
 import { registry } from "@web/core/registry";
 
 import { _t } from "@web/core/l10n/translation";

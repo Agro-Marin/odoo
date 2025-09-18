@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { ancestors } from "@html_editor/utils/dom_traversal";
-import { Plugin } from "../plugin";
-import { throttleForAnimation } from "@web/core/utils/timing";
-import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/scrolling";
+import { Plugin } from "../plugin.js";
+import { debounce, throttleForAnimation } from "@web/core/utils/timing";
+import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/dom/scrolling";
 
 /**
  * @typedef {(() => void)[]} layout_geometry_change_handlers
@@ -18,10 +19,15 @@ export class PositionPlugin extends Plugin {
         external_history_step_handlers: this.layoutGeometryChange.bind(this),
         history_reset_from_steps_handlers: this.layoutGeometryChange.bind(this),
         step_added_handlers: this.layoutGeometryChange.bind(this),
+        before_filter_mutation_record_handlers: this.handlePotentialLayoutGeometryChange.bind(this),
     };
 
     setup() {
         this.layoutGeometryChange = throttleForAnimation(this.layoutGeometryChange.bind(this));
+        this.debouncedLayoutGeometryChange = debounce(
+            this.layoutGeometryChange.bind(this),
+            "animationFrame"
+        );
         this.resizeObserver = new ResizeObserver(this.layoutGeometryChange);
         this.resizeObserver.observe(this.document.body);
         this.resizeObserver.observe(this.editable);
@@ -29,9 +35,12 @@ export class PositionPlugin extends Plugin {
         if (this.window !== window) {
             this.addDomListener(this.window, "resize", this.layoutGeometryChange);
         }
-        const scrollableElements = [this.editable, ...ancestors(this.editable)].filter(
-            (node) => couldBeScrollableX(node) || couldBeScrollableY(node)
-        );
+        const scrollableElements = [
+            this.editable,
+            ...ancestors(this.editable).filter(
+                (node) => couldBeScrollableX(node) || couldBeScrollableY(node)
+            ),
+        ];
         for (const scrollableElement of scrollableElements) {
             this.addDomListener(scrollableElement, "scroll", () => {
                 this.layoutGeometryChange();
@@ -40,6 +49,17 @@ export class PositionPlugin extends Plugin {
         }
     }
 
+    handlePotentialLayoutGeometryChange(records) {
+        for (const record of records) {
+            if (
+                record.type === "classList" ||
+                (record.type === "attributes" && record.attributeName === "style")
+            ) {
+                this.debouncedLayoutGeometryChange();
+                return;
+            }
+        }
+    }
     destroy() {
         this.resizeObserver.disconnect();
         super.destroy();

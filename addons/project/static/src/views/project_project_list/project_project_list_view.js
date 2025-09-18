@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { listView } from '@web/views/list/list_view';
-import { ProjectProjectListRenderer } from "./project_project_list_renderer";
-import { ProjectListController } from "./project_project_list_controller";
-import { ProjectRelationalModel } from "../project_relational_model";
+import { ProjectProjectListRenderer } from "./project_project_list_renderer.js";
+import { ProjectListController } from "./project_project_list_controller.js";
+import { ProjectRelationalModel } from "../project_relational_model.js";
 
 export const projectProjectListView = {
     ...listView,

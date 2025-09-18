@@ -7,6 +7,7 @@ from odoo.fields import Domain
 
 
 class ProjectProject(models.Model):
+    _name = 'project.project'
     _inherit = 'project.project'
 
     # ----------------------------

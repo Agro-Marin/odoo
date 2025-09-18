@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { DocumentFileUploader } from "../document_file_uploader/document_file_uploader";
+import { DocumentFileUploader } from "../document_file_uploader/document_file_uploader.js";
 
 export class AccountFileUploader extends DocumentFileUploader {
     static template = "account.AccountFileUploader";

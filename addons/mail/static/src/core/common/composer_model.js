@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { fields, OR, Record } from "@mail/core/common/record";
 import {
     convertBrToLineBreak,
@@ -5,8 +6,7 @@ import {
     prettifyMessageText,
 } from "@mail/utils/common/format";
 import { markup } from "@odoo/owl";
-import { isHtmlEmpty } from "@web/core/utils/html";
-
+import { isHtmlEmpty } from "@web/core/utils/dom/html";
 export class Composer extends Record {
     static id = OR("thread", "message");
 
@@ -116,7 +116,9 @@ export class Composer extends Record {
         },
     });
     autofocus = 0;
-    replyToMessage = fields.One("mail.message", { inverse: "composerAsReplyToMessage" });
+    replyToMessage = fields.One("mail.message", {
+        inverse: "composerAsReplyToMessage",
+    });
     /** @type {"text" | "html" | undefined} */
     updateFrom = undefined;
 
@@ -125,7 +127,9 @@ export class Composer extends Record {
     }
 
     get targetThread() {
-        return this.replyToMessage?.thread ?? this.thread ?? this.message?.thread ?? null;
+        return (
+            this.replyToMessage?.thread ?? this.thread ?? this.message?.thread ?? null
+        );
     }
 }
 

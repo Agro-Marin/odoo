@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseWebsiteBackgroundOption } from "@website/builder/plugins/options/background_option";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
@@ -8,7 +9,7 @@ import {
     ONLY_BG_COLOR_SELECTOR,
     ONLY_BG_IMAGE_EXCLUDE,
     ONLY_BG_IMAGE_SELECTOR,
-} from "./utils";
+} from "./utils.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { SNIPPET_SPECIFIC_BEFORE } from "@html_builder/utils/option_sequence";
 import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";

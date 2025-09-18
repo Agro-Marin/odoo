@@ -1,7 +1,6 @@
-import { rpc } from "@web/core/network/rpc";
-
+/** @odoo-module native */
 import { BasePrinter } from "@point_of_sale/app/utils/printer/base_printer";
-
+import { rpc } from "@web/core/network/rpc";
 /**
  * Printer that sends print requests thru /hw_proxy endpoints.
  * Doesn't require pos_iot to be installed.

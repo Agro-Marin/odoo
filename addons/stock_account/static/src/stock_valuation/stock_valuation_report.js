@@ -1,17 +1,18 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { formatMonetary } from "@web/views/fields/formatters";
+import { formatMonetary } from "@web/fields/formatters";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
 import { Component, onWillStart, useChildSubEnv, useState } from "@odoo/owl";
 
-import { StockValuationReportButtonsBar } from "../stock_valuation/buttons_bar/buttons_bar"
-import { StockValuationReportController } from "../stock_valuation/controller"
-import { StockValuationReportFilters } from "../stock_valuation/filters/filters"
-import { StockValuationReportLine } from "../stock_valuation/line/line"
-import { StockValuationReportToggleLine } from "../stock_valuation/line/toggle_line"
+import { StockValuationReportButtonsBar } from "../stock_valuation/buttons_bar/buttons_bar.js"
+import { StockValuationReportController } from "../stock_valuation/controller.js"
+import { StockValuationReportFilters } from "../stock_valuation/filters/filters.js"
+import { StockValuationReportLine } from "../stock_valuation/line/line.js"
+import { StockValuationReportToggleLine } from "../stock_valuation/line/toggle_line.js"
 
 
 export class StockValuationReport extends Component {

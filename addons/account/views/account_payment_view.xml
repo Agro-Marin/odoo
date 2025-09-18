@@ -141,6 +141,10 @@
                     <header>
                         <button name="action_post" string="Confirm" type="object" class="oe_highlight"
                                 invisible="state != 'draft'" data-hotkey="q"/>
+                        <button name="%(account.action_report_payment_receipt)d"
+                                type="action"
+                                string="Print"
+                                invisible="state == 'draft'"/>
                         <button name="action_validate" string="Validate" type="object" class="oe_highlight"
                                 invisible="state != 'in_process' or move_id" data-hotkey="q"/>
                         <button name="action_reject" string="Reject" type="object"

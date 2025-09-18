@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { isProtected } from "@html_editor/utils/dom_info";
-import { Plugin } from "../plugin";
-import { descendants } from "../utils/dom_traversal";
+import { Plugin } from "../plugin.js";
+import { descendants } from "../utils/dom_traversal.js";
 
 export class CommentPlugin extends Plugin {
     static id = "comment";

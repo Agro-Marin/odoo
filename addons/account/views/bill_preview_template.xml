@@ -109,7 +109,7 @@
                                 <div id="total" class="page"  style="margin-top: 32px !important;">
                                     <div style="width:49%; display:inline-block;"></div>
                                     <div  style="width:50%; display:inline-block;">
-                                        <table class="table table-sm" style="page-break-inside: avoid; width:100%">
+                                        <table class="table table-sm" style="break-inside: avoid; width:100%">
                                             <tbody><tr class="o_subtotal">
                                                 <td><strong>Subtotal</strong></td>
                                                 <td class="text-end">

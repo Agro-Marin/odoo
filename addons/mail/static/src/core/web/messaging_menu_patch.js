@@ -1,12 +1,11 @@
+/** @odoo-module native */
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
+import { MessagingMenuQuickSearch } from "@mail/core/web/messaging_menu_quick_search";
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { useEffect } from "@odoo/owl";
-
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
-import { MessagingMenuQuickSearch } from "@mail/core/web/messaging_menu_quick_search";
-
 Object.assign(MessagingMenu.components, { MessagingMenuQuickSearch });
 
 patch(MessagingMenu.prototype, {
@@ -34,7 +33,7 @@ patch(MessagingMenu.prototype, {
                 }
                 this.lastSearchTerm = this.store.discuss.searchTerm;
             },
-            () => [this.store.discuss.searchTerm]
+            () => [this.store.discuss.searchTerm],
         );
         useEffect(
             () => {
@@ -42,7 +41,7 @@ patch(MessagingMenu.prototype, {
                     this.state.activeIndex = null;
                 }
             },
-            () => [this.dropdown.isOpen]
+            () => [this.dropdown.isOpen],
         );
     },
     beforeOpen() {
@@ -65,8 +64,10 @@ patch(MessagingMenu.prototype, {
         return (
             this.threads.length > 0 ||
             this.visibleStandaloneMessages.length > 0 ||
-            (this.store.failures.length > 0 && this.store.discuss.activeTab === "notification") ||
-            (this.shouldAskPushPermission && this.store.discuss.activeTab === "notification") ||
+            (this.store.failures.length > 0 &&
+                this.store.discuss.activeTab === "notification") ||
+            (this.shouldAskPushPermission &&
+                this.store.discuss.activeTab === "notification") ||
             (this.canPromptToInstall && this.store.discuss.activeTab === "notification")
         );
     },
@@ -79,7 +80,9 @@ patch(MessagingMenu.prototype, {
             },
             iconSrc: this.store.odoobot.avatarUrl,
             partner: this.store.odoobot,
-            isShown: this.store.discuss.activeTab === "notification" && this.canPromptToInstall,
+            isShown:
+                this.store.discuss.activeTab === "notification" &&
+                this.canPromptToInstall,
         };
     },
     get notificationRequest() {
@@ -89,14 +92,15 @@ patch(MessagingMenu.prototype, {
             iconSrc: this.store.odoobot.avatarUrl,
             partner: this.store.odoobot,
             isShown:
-                this.store.discuss.activeTab === "notification" && this.shouldAskPushPermission,
+                this.store.discuss.activeTab === "notification" &&
+                this.shouldAskPushPermission,
         };
     },
     get _tabs() {
         return [
             {
-                icon: "fa fa-bell-o",
-                activeIcon: "fa fa-bell",
+                icon: "fa-regular fa-bell",
+                activeIcon: "fa-solid fa-bell",
                 id: "notification",
                 label: _t("Notifications"),
                 sequence: 10,
@@ -108,10 +112,11 @@ patch(MessagingMenu.prototype, {
                         : this.store.starred.counter,
                 icon:
                     this.store.self.main_user_id?.notification_type === "inbox"
-                        ? "fa fa-inbox"
-                        : "fa fa-star-o",
+                        ? "fa-solid fa-inbox"
+                        : "fa-regular fa-star",
                 activeIcon:
-                    this.store.self.main_user_id?.notification_type !== "inbox" && "fa fa-star",
+                    this.store.self.main_user_id?.notification_type !== "inbox" &&
+                    "fa-solid fa-star",
                 id:
                     this.store.self.main_user_id?.notification_type === "inbox"
                         ? "inbox"
@@ -128,7 +133,9 @@ patch(MessagingMenu.prototype, {
     /** @param {import("models").Failure} failure */
     onClickFailure(failure) {
         const threadIds = new Set(
-            failure.notifications.map(({ mail_message_id: message }) => message.thread.id)
+            failure.notifications.map(
+                ({ mail_message_id: message }) => message.thread.id,
+            ),
         );
         if (threadIds.size === 1) {
             const message = failure.notifications[0].mail_message_id;
@@ -162,9 +169,14 @@ patch(MessagingMenu.prototype, {
         });
     },
     cancelNotifications(failure) {
-        return this.env.services.orm.call(failure.resModel, "notify_cancel_by_type", [], {
-            notification_type: failure.type,
-        });
+        return this.env.services.orm.call(
+            failure.resModel,
+            "notify_cancel_by_type",
+            [],
+            {
+                notification_type: failure.type,
+            },
+        );
     },
     toggleSearch() {
         this.store.discuss.searchTerm = "";
@@ -173,7 +185,10 @@ patch(MessagingMenu.prototype, {
     get counter() {
         let value =
             this.store.globalCounter +
-            this.store.failures.reduce((acc, f) => acc + parseInt(f.notifications.length), 0);
+            this.store.failures.reduce(
+                (acc, f) => acc + parseInt(f.notifications.length),
+                0,
+            );
         if (this.canPromptToInstall) {
             value++;
         }

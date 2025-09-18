@@ -1,4 +1,5 @@
-import { ProductTemplateAttributeLine } from './product_template_attribute_line';
+/** @odoo-module native */
+import { ProductTemplateAttributeLine } from './product_template_attribute_line.js';
 
 export class ProductProduct {
     /**

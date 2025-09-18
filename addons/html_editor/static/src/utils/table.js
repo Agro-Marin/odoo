@@ -1,4 +1,5 @@
-import { closestElement } from "./dom_traversal";
+/** @odoo-module native */
+import { closestElement } from "./dom_traversal.js";
 
 /**
  * Get the index of the given table row/cell.

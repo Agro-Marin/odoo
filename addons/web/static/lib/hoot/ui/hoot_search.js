@@ -362,7 +362,7 @@ export class HootSearch extends Component {
                             t-att-disabled="isRunning"
                             t-on-change="toggleExact"
                         />
-                        <i class="fa fa-quote-right text-gray transition-colors" />
+                        <i class="fa-solid fa-quote-right text-gray transition-colors" />
                     </label>
                     <label
                         class="hoot-search-icon cursor-pointer p-1"
@@ -377,7 +377,7 @@ export class HootSearch extends Component {
                             t-att-disabled="isRunning"
                             t-on-change="toggleRegExp"
                         />
-                        <i class="fa fa-asterisk text-gray transition-colors" />
+                        <i class="fa-solid fa-asterisk text-gray transition-colors" />
                     </label>
                     <label
                         class="hoot-search-icon cursor-pointer p-1"
@@ -391,7 +391,7 @@ export class HootSearch extends Component {
                             t-att-disabled="isRunning"
                             t-on-change="toggleDebug"
                         />
-                        <i class="fa fa-bug text-gray transition-colors" />
+                        <i class="fa-solid fa-bug text-gray transition-colors" />
                     </label>
                 </div>
                 <t t-if="state.showDropdown">

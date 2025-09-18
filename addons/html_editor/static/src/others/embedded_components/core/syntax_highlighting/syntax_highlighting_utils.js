@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global Prism */
 import { fillEmpty } from "@html_editor/utils/dom";
 import { descendants, lastLeaf } from "@html_editor/utils/dom_traversal";

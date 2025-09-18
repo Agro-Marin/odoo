@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { session } from "@web/session";
-import { utils } from "@web/core/ui/ui_service";
+import { utils } from "@web/ui/block/ui_service";
 import * as hoot from "@odoo/hoot-dom";
-import { pick } from "@web/core/utils/objects";
+import { pick } from "@web/core/utils/collections/objects";
 
 /**
  * @typedef TourStep

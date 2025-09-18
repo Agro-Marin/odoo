@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { FontSizeSelector } from "@html_editor/main/font/font_size_selector";
 
 export class BuilderFontSizeSelector extends FontSizeSelector {

@@ -1,4 +1,5 @@
-import { HierarchyNavbar } from "./hierarchy_navbar";
+/** @odoo-module native */
+import { HierarchyNavbar } from "./hierarchy_navbar.js";
 import { Layout } from "@web/search/layout";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";

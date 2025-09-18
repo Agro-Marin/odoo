@@ -1,17 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- better support for long company name -->
+        <!-- The internal_layout header now uses CSS Grid (grid-template-columns: 1fr auto 1fr)
+             which already handles long company names well. No column overrides needed. -->
         <template id="report_statement_internal_layout" inherit_id="web.internal_layout" primary="True">
-            <xpath expr="//div[hasclass('col-3')]" position="attributes">
-                <attribute name="class">col-4</attribute>
-            </xpath>
-            <xpath expr="//div[hasclass('col-2') and hasclass('offset-2') and hasclass('text-center')]" position="attributes">
-                <attribute name="class">col-4 text-center</attribute>
-            </xpath>
-            <xpath expr="//div[hasclass('col-2') and hasclass('offset-3') and hasclass('text-end')]" position="attributes">
-                <attribute name="class">col-2 offset-2 text-end</attribute>
-            </xpath>
         </template>
 
         <template id="report_statement">
@@ -49,7 +41,7 @@
                                             </strong>
                                         </h5>
                                     </div>
-                                    <div class="col-5" style="text-align: end;">
+                                    <div class="col-5 text-end">
                                         <h5>
                                             <strong>
                                                 <span t-if="o.name">

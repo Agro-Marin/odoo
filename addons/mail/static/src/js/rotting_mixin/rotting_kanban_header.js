@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { KanbanHeader } from "@web/views/kanban/kanban_header";
-import { RottingColumnProgress } from "./rotting_column_progress";
 
+import { RottingColumnProgress } from "./rotting_column_progress.js";
 export class RottingKanbanHeader extends KanbanHeader {
     static template = "mail.RottingKanbanHeader";
     static components = {

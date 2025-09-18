@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CARD_PARENT_HANDLERS } from "@website/builder/plugins/options/utils";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";

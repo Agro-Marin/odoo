@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { closestElement, selectElements } from "@html_editor/utils/dom_traversal";
 import { removeClass } from "@html_editor/utils/dom";

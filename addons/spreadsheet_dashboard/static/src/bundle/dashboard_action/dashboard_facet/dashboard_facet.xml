@@ -6,7 +6,7 @@
             <div class="o_searchview_facet_label position-relative rounded-start-2 px-1 rounded-end-0 p-0 btn btn-primary" t-on-click.stop="props.onClick">
                 <small class="px-1" t-esc="props.facet.title"/>
                 <span class="position-absolute start-0 top-0 bottom-0 end-0 bg-inherit opacity-0 opacity-100-hover">
-                    <i class="fa fa-fw fa-cog"></i>
+                    <i class="fa-solid fa-cog"></i>
                 </span>
             </div>
             <div class="o_facet_values position-relative d-flex flex-wrap align-items-center rounded-end-2 text-wrap overflow-hidden">

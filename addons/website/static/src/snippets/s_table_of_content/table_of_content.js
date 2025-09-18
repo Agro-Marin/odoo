@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
 import { patch } from "@web/core/utils/patch";
-import { closestScrollableY, isScrollableY } from "@web/core/utils/scrolling";
-import { isVisible } from "@web/core/utils/ui";
+import { closestScrollableY, isScrollableY } from "@web/core/utils/dom/scrolling";
+import { isVisible } from "@web/core/utils/dom/ui";
 import { AnchorSlide } from "@website/interactions/anchor_slide";
 
 const getSelector = (element) => {

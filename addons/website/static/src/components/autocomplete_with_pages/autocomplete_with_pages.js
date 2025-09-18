@@ -1,4 +1,5 @@
-import { AutoComplete } from "@web/core/autocomplete/autocomplete";
+/** @odoo-module native */
+import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { useEffect } from "@odoo/owl";
 
 export class AutoCompleteWithPages extends AutoComplete {

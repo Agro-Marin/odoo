@@ -1,8 +1,8 @@
 /* global owl */
 
 import useStore from "../../hooks/useStore.js";
-import { BootstrapDialog } from "./BootstrapDialog.js";
 import { LoadingFullScreen } from "../LoadingFullScreen.js";
+import { BootstrapDialog } from "./BootstrapDialog.js";
 
 const { Component, xml, useState } = owl;
 
@@ -35,12 +35,16 @@ export class WifiDialog extends Component {
     isCurrentlyConnectedToWifi() {
         return (
             !this.store.base.is_access_point_up &&
-            this.store.base.network_interfaces.some((netInterface) => netInterface.is_wifi)
+            this.store.base.network_interfaces.some(
+                (netInterface) => netInterface.is_wifi,
+            )
         );
     }
 
     isCurrentlyConnectedToEthernet() {
-        return this.store.base.network_interfaces.some((netInterface) => !netInterface.is_wifi);
+        return this.store.base.network_interfaces.some(
+            (netInterface) => !netInterface.is_wifi,
+        );
     }
 
     async getWiFiNetworks() {
@@ -160,7 +164,7 @@ export class WifiDialog extends Component {
                     <div class="mb-3 d-flex gap-1">
                         <input name="password" t-att-type="state.isPasswordVisible ? '' : 'password'" class="form-control" aria-label="Username" aria-describedby="basic-addon1" t-model="this.form.password" placeholder="Wi-Fi password"/>
                         <button class="btn btn-secondary" type="button" t-on-click="togglePasswordVisibility">
-                            <i t-att-class="'fa fa-eye' + (state.isPasswordVisible ? '-slash' : '')"></i>
+                            <i t-att-class="'fa-regular fa-eye' + (state.isPasswordVisible ? '-slash' : '')"></i>
                         </button>
                     </div>
                 </div>

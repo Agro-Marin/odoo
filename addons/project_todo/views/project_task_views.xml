@@ -8,7 +8,7 @@
         <field name="priority">800</field>
         <field name="arch" type="xml">
             <kanban highlight_color="color"
-                    default_group_by="personal_stage_type_id"
+                    default_group_by="triage_id"
                     class="o_kanban_small_column"
                     on_create="quick_create"
                     quick_create_view="project_todo.project_task_view_todo_quick_create_form"
@@ -28,19 +28,19 @@
                     </t>
                     <t t-name="card">
                         <t t-set="todoHasAssignees" t-value="record.user_ids.raw_value.length &gt; 1"/>
-                        <div t-att-class="{'opacity-50': ['1_done', '1_canceled'].includes(record.state.raw_value)}">
+                        <div t-att-class="{'opacity-50': ['done', 'canceled'].includes(record.state.raw_value)}">
                             <field name="name" class="fw-bold fs-5" widget="name_with_subtask_count"/>
                             <field t-if="record.date_deadline.raw_value" name="date_deadline" widget="remaining_days"/>
                             <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
                             <field t-if="record.displayed_image_id.value" name="displayed_image_id" widget="attachment_image"/>
                         </div>
                         <div class="d-flex pt-2">
-                            <div class="d-flex" t-att-class="{'opacity-50': ['1_done', '1_canceled'].includes(record.state.raw_value)}">
+                            <div class="d-flex" t-att-class="{'opacity-50': ['done', 'canceled'].includes(record.state.raw_value)}">
                                 <field name="priority" class="me-2" widget="priority"/>
                                 <field name="activity_ids" widget="kanban_activity"/>
                             </div>
                             <div class="d-flex ms-auto">
-                                <div t-att-class="{'opacity-50': ['1_done', '1_canceled'].includes(record.state.raw_value), 'o_todo_hide_avatar': !todoHasAssignees}">
+                                <div t-att-class="{'opacity-50': ['done', 'canceled'].includes(record.state.raw_value), 'o_todo_hide_avatar': !todoHasAssignees}">
                                     <field name="user_ids" widget="many2many_avatar_user" readonly="True"/>
                                 </div>
                                 <field name="state" widget="todo_done_checkmark"/>
@@ -58,7 +58,7 @@
         <field name="model">project.task</field>
         <field name="arch" type="xml">
             <list string="To-dos"
-                  default_group_by="personal_stage_type_id"
+                  default_group_by="triage_id"
                   editable="bottom"
                   multi_edit="1"
                   open_form_view="True"
@@ -70,7 +70,7 @@
                 <field name="date_deadline" optional="show" widget="remaining_days"/>
                 <field name="activity_ids" optional="show" widget="list_activity"/>
                 <field name="tag_ids" optional="show" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}"/>
-                <field name="personal_stage_type_id" string="Stage" optional="hide"/>
+                <field name="triage_id" string="Stage" optional="hide"/>
             </list>
         </field>
     </record>
@@ -87,7 +87,7 @@
                 <field name="company_id" invisible="1"/>
                 <field name="project_id" invisible="1"/>
                 <header>
-                    <field name="personal_stage_type_id"
+                    <field name="triage_id"
                            domain="[('user_id','=',uid)]"
                            widget="statusbar"
                            options="{'clickable': '1', 'fold_field': 'fold'}"/>
@@ -200,13 +200,13 @@
         <field name="arch" type="xml">
             <calendar string="To-dos"
                       date_start="date_deadline" mode="month"
-                      color="personal_stage_type_id" hide_time="true"
+                      color="triage_id" hide_time="true"
                       event_open_popup="true" quick_create="1" show_unusual_days="True"
                       scales="day,week,month,year">
                 <field name="name"/>
                 <field name="priority" widget="priority"/>
                 <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" invisible="not tag_ids"/>
-                <field name="personal_stage_id" string="Personal Stage" options="{'no_open': True}" invisible="not personal_stage_id"/>
+                <field name="personal_triage_id" string="Personal Stage" options="{'no_open': True}" invisible="not personal_triage_id"/>
             </calendar>
         </field>
     </record>
@@ -243,11 +243,11 @@
                 <field name="name"/>
                 <field name="tag_ids"/>
                 <field name="user_ids"/>
-                <field name="personal_stage_type_ids" string="Stage"/>
+                <field name="triage_ids" string="Stage"/>
                 <separator/>
                 <filter name="open_tasks" string="Open" domain="[('is_closed', '=', False)]"/>
                 <filter name="closed_tasks" string="Closed" domain="[('is_closed', '=', True)]"/>
-                <filter string="Closed On" name="closed_on" domain="[('is_closed', '=', True)]" date="date_last_stage_update"/>
+                <filter string="Closed On" name="closed_on" domain="[('is_closed', '=', True)]" date="date_last_status_change"/>
                 <separator/>
                 <filter name="date_deadline" string="Deadline" domain="[('date_deadline', '!=', False)]" date="date_deadline"/>
                 <separator/>
@@ -266,7 +266,7 @@
                     <filter string="Priority" name="groupby_priority" context="{'group_by': 'priority'}"/>
                     <filter string="Tags" name="tags" help="By assigned tags" context="{'group_by':'tag_ids'}"/>
                     <filter string="Assignees" name="user_ids" context="{'group_by': 'user_ids'}"/>
-                    <filter string="Stage" name="stage" help="By personal stages" context="{'group_by':'personal_stage_type_id'}"/>
+                    <filter string="Stage" name="stage" help="By personal stages" context="{'group_by':'triage_id'}"/>
                     <filter string="Deadline" name="deadline" context="{'group_by': 'date_deadline'}"/>
                 </group>
             </search>

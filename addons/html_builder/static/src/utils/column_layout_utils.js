@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Calculates the number of columns for the mobile or desktop version.
  * If all elements don't have the same size, returns "custom".

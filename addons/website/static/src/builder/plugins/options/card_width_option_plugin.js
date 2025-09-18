@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ClassAction, StyleAction } from "@html_builder/core/core_builder_action_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";

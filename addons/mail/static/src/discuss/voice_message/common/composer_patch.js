@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { patch } from "@web/core/utils/patch";
-import { useVoiceRecorder } from "./voice_recorder";
 
+import { useVoiceRecorder } from "./voice_recorder.js";
 patch(Composer, {
     components: { ...Composer.components },
 });

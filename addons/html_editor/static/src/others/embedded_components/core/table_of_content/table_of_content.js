@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { TableOfContentManager } from "@html_editor/others/embedded_components/core/table_of_content/table_of_content_manager";
 

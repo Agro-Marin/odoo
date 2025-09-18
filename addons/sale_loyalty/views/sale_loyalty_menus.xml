@@ -3,13 +3,13 @@
 
     <menuitem id="menu_discount_loyalty_type_config"
         action="loyalty.loyalty_program_discount_loyalty_action"
-        parent="sale.product_menu_catalog"
+        parent="sale.menu_sale_products"
         groups="sales_team.group_sale_manager"
         sequence="40"/>
 
     <menuitem id="menu_gift_ewallet_type_config"
         action="loyalty.loyalty_program_gift_ewallet_action"
-        parent="sale.product_menu_catalog"
+        parent="sale.menu_sale_products"
         groups="sales_team.group_sale_manager"
         sequence="50"/>
 

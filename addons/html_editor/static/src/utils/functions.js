@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Creates a version of the function that's memoized on the value of its first
  * argument, which must be an Object.

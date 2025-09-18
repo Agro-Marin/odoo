@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { getValueFromVar } from "@html_builder/utils/utils";
 import { getBgImageURLFromEl, isBackgroundImageAttribute } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { removeOnImageChangeAttrs } from "@html_editor/utils/image_processing";
 import { registry } from "@web/core/registry";
-import { convertCSSColorToRgba } from "@web/core/utils/colors";
-import { getBackgroundImageColor } from "./background_image_option";
+import { convertCSSColorToRgba } from "@web/core/utils/format/colors";
+import { getBackgroundImageColor } from "./background_image_option.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { StyleAction } from "@html_builder/core/core_builder_action_plugin";
 import { withSequence } from "@html_editor/utils/resource";
@@ -164,6 +165,10 @@ export class SelectFilterColorAction extends StyleAction {
         // Find the filter element.
         let filterEl = editingElement.querySelector(":scope > .o_we_bg_filter");
 
+        // If no value is provided, use the current one if any.
+        if (filterEl && value === undefined) {
+            value = filterEl.style.backgroundImage;
+        }
         // If the filter would be transparent, remove it / don't create it.
         const rgba = value && convertCSSColorToRgba(value);
         if (!value || (rgba && rgba.opacity < 0.001)) {

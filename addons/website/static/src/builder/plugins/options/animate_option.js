@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { isImageSupportedForStyle } from "@html_builder/plugins/image/replace_media_option";
 
@@ -8,9 +9,9 @@ import { isImageSupportedForStyle } from "@html_builder/plugins/image/replace_me
 export class AnimateOption extends BaseOptionComponent {
     static template = "website.AnimateOption";
     static dependencies = ["animateOption"];
-    static selector = ".o_animable, section .row > div, img, .fa, .btn";
+    static selector = ".o_animable, section .row > div, img, :is(.fa-solid, .fa-regular, .fa-brands), .btn";
     static exclude =
-        "[data-oe-xpath], .o_not-animable, .s_col_no_resize.row > div, .s_col_no_resize";
+        "[data-oe-xpath], .o_not-animable, .s_col_no_resize.row > div, .s_col_no_resize, .s_website_form_submit";
     static props = {
         dropdownClass: { type: String, optional: true, default: "o-hb-select-dropdown" },
         requireAnimation: { type: Boolean, optional: true },

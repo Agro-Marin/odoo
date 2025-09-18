@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import {
     clickableBuilderComponentProps,
     useActionInfo,
     useSelectableItemComponent,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
-import { Img } from "../img";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
+import { Img } from "../img.js";
 
 export class BuilderButton extends Component {
     static template = "html_builder.BuilderButton";

@@ -1,18 +1,23 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/search/search_bar/search_bar - Search bar with autocomplete suggestions, facet display, and keyboard navigation */
+
+import { Component, status, useRef, useState } from "@odoo/owl";
+import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { hasTouch } from "@web/core/browser/feature_detection";
 import { Domain } from "@web/core/domain";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useAutofocus, useBus, useChildRef, useService } from "@web/core/utils/hooks";
-import { DomainSelectorDialog } from "@web/core/domain_selector_dialog/domain_selector_dialog";
 import { fuzzyTest } from "@web/core/utils/search";
-import { _t } from "@web/core/l10n/translation";
-import { SearchBarMenu } from "../search_bar_menu/search_bar_menu";
-import { Component, status, useRef, useState } from "@odoo/owl";
-import { useDropdownState } from "@web/core/dropdown/dropdown_hooks";
-import { hasTouch } from "@web/core/browser/feature_detection";
-import { Dropdown } from "@web/core/dropdown/dropdown";
-import { DropdownItem } from "@web/core/dropdown/dropdown_item";
-import { useNavigation } from "@web/core/navigation/navigation";
+import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
+import { useNavigation } from "@web/services/navigation/navigation";
 
 const parsers = registry.category("parsers");
 
@@ -34,7 +39,15 @@ const parseValue = (value, fieldType) => {
     }
 };
 
-const CHAR_FIELDS = ["char", "html", "many2many", "many2one", "one2many", "text", "properties"];
+const CHAR_FIELDS = [
+    "char",
+    "html",
+    "many2many",
+    "many2one",
+    "one2many",
+    "text",
+    "properties",
+];
 const FOLDABLE_TYPES = ["properties", "many2one", "many2many"];
 
 let nextItemId = 1;
@@ -69,11 +82,15 @@ export class SearchBar extends Component {
     setup() {
         this.dialogService = useService("dialog");
         this.fields = this.env.searchModel.searchViewFields;
-        this.searchItemsFields = this.env.searchModel.getSearchItems((f) => f.type === "field");
+        this.searchItemsFields = this.env.searchModel.getSearchItems(
+            (f) => f.type === "field",
+        );
         this.root = useRef("root");
         this.ui = useService("ui");
 
-        this.visibilityState = useState(this.props.toggler?.state || { showSearchBar: true });
+        this.visibilityState = useState(
+            this.props.toggler?.state || { showSearchBar: true },
+        );
 
         // core state
         this.state = useState({
@@ -107,12 +124,11 @@ export class SearchBar extends Component {
             this.inputRef.el.focus();
         });
 
-        useBus(this.env.searchModel, "update", this.render);
+        useBus(this.env.searchModel, "update", () => this.render());
     }
 
     /**
      * @param {number} id
-     * @param {Object}
      */
     getSearchItem(id) {
         return this.env.searchModel.searchItems[id];
@@ -123,7 +139,7 @@ export class SearchBar extends Component {
      * @param {number[]} [options.expanded]
      * @param {string} [options.query]
      * @param {Object[]} [options.subItems]
-     * @returns {Object[]}
+     * @returns {Promise<void>}
      */
     async computeState(options = {}) {
         const query = "query" in options ? options.query : this.state.query;
@@ -134,12 +150,18 @@ export class SearchBar extends Component {
         for (const id of expanded) {
             const searchItem = this.getSearchItem(id);
             if (searchItem.type === "field" && searchItem.fieldType === "properties") {
-                tasks.push({ id, prom: this.getSearchItemsProperties(searchItem) });
+                tasks.push({
+                    id,
+                    prom: this.getSearchItemsProperties(searchItem),
+                });
             } else if (!subItems[id]) {
                 if (!this.state.subItemsLimits[id]) {
                     this.state.subItemsLimits[id] = SUB_ITEMS_DEFAULT_LIMIT;
                 }
-                tasks.push({ id, prom: this.computeSubItems(searchItem, query) });
+                tasks.push({
+                    id,
+                    prom: this.computeSubItems(searchItem, query),
+                });
             }
         }
 
@@ -156,7 +178,7 @@ export class SearchBar extends Component {
         this.state.query = query;
         this.subItems = subItems;
 
-        this.inputRef.el.value = query;
+        /** @type {HTMLInputElement} */ (this.inputRef.el).value = query;
 
         const trimmedQuery = this.state.query.trim();
 
@@ -189,7 +211,10 @@ export class SearchBar extends Component {
         /** @todo do something with respect to localization (rtl) */
         let preposition = this.getPreposition(searchItem);
 
-        if ((isFieldProperty && FOLDABLE_TYPES.includes(fieldType)) || fieldType === "properties") {
+        if (
+            (isFieldProperty && FOLDABLE_TYPES.includes(fieldType)) ||
+            fieldType === "properties"
+        ) {
             // Do not chose preposition for foldable properties
             // or the properties item itself
             preposition = null;
@@ -242,7 +267,9 @@ export class SearchBar extends Component {
             preposition,
             searchItemId: searchItem.id,
             label: this.state.query,
-            operator: searchItem.operator || (CHAR_FIELDS.includes(fieldType) ? "ilike" : "="),
+            operator:
+                searchItem.operator ||
+                (CHAR_FIELDS.includes(fieldType) ? "ilike" : "="),
             value,
             isFieldProperty,
         };
@@ -303,15 +330,15 @@ export class SearchBar extends Component {
     /**
      * @param {Object} searchItem
      * @param {string} query
-     * @returns {Object[]}
+     * @returns {Promise<Object[]>}
      */
     async computeSubItems(searchItem, query) {
         const field = this.fields[searchItem.fieldName];
-        let options = [];
+        let options;
         let showLoadMore = false;
         if (searchItem.fieldType === "selection") {
             options = field.selection.filter(([_, label]) =>
-                fuzzyTest(query.toLowerCase(), label.toLowerCase())
+                fuzzyTest(query.toLowerCase(), label.toLowerCase()),
             );
         } else {
             let domain = [];
@@ -330,7 +357,10 @@ export class SearchBar extends Component {
             const limitToFetch = this.state.subItemsLimits[searchItem.id] + 1;
             options = await this.orm.call(relation, "name_search", [], {
                 domain: domain,
-                context: { ...this.env.searchModel.globalContext, ...field.context },
+                context: {
+                    ...this.env.searchModel.globalContext,
+                    ...field.context,
+                },
                 limit: limitToFetch,
                 name: query.trim(),
             });
@@ -362,7 +392,8 @@ export class SearchBar extends Component {
                     label: _t("Load more"),
                     unselectable: true,
                     loadMore: () => {
-                        this.state.subItemsLimits[searchItem.id] += SUB_ITEMS_DEFAULT_LIMIT;
+                        this.state.subItemsLimits[searchItem.id] +=
+                            SUB_ITEMS_DEFAULT_LIMIT;
                         const newSubItems = [...this.subItems];
                         newSubItems[searchItem.id] = undefined;
                         this.computeState({ subItems: newSubItems });
@@ -388,9 +419,9 @@ export class SearchBar extends Component {
         const facets = this.root.el.getElementsByClassName("o_searchview_facet");
         if (facets.length) {
             if (index === undefined) {
-                facets[facets.length - 1].focus();
+                /** @type {HTMLElement} */ (facets[facets.length - 1]).focus();
             } else {
-                facets[index].focus();
+                /** @type {HTMLElement} */ (facets[index]).focus();
             }
         }
     }
@@ -442,9 +473,17 @@ export class SearchBar extends Component {
                 // the item but use the current query. Typical usecase is when scanning a barcode,
                 // as the keystrokes are closer than when a user uses a regular keyboard.
                 label = this.state.query;
-                value = parseValue(this.state.query.trim(), fieldType);
+                try {
+                    value = parseValue(this.state.query.trim(), fieldType);
+                } catch {
+                    // Rapid typing produced an unparseable intermediate value — keep original
+                }
             }
-            this.env.searchModel.addAutoCompletionValues(searchItemId, { label, operator, value });
+            this.env.searchModel.addAutoCompletionValues(searchItemId, {
+                label,
+                operator,
+                value,
+            });
         }
 
         if (item.loadMore) {
@@ -476,7 +515,7 @@ export class SearchBar extends Component {
     }
 
     setupFacetNavigation() {
-        const isFacet = (target) => target && target.classList.contains("o_searchview_facet");
+        const isFacet = (target) => target?.classList.contains("o_searchview_facet");
 
         useNavigation(this.facetContainerRef, {
             shouldFocusChildInput: false,
@@ -490,9 +529,16 @@ export class SearchBar extends Component {
                 return [];
             },
             hotkeys: {
+                tab: {
+                    isAvailable: () => false,
+                },
+                "shift+tab": {
+                    isAvailable: () => false,
+                },
                 enter: {
                     isAvailable: () => !this.inputDropdownState.isOpen,
-                    callback: () => this.env.searchModel.search() /** @todo keep this thing ?*/,
+                    callback: () =>
+                        this.env.searchModel.search() /** @todo keep this thing ?*/,
                 },
                 arrowdown: {
                     callback: () => this.env.searchModel.trigger("focus-view"),
@@ -508,7 +554,7 @@ export class SearchBar extends Component {
                         if (isFacet(navigator.activeItem.el)) {
                             this.removeFacet(facets[navigator.activeItemIndex]);
                         } else if (facets.length > 0) {
-                            this.removeFacet(facets[facets.length - 1]);
+                            this.removeFacet(facets.at(-1));
                         }
                     },
                 },
@@ -516,22 +562,29 @@ export class SearchBar extends Component {
                     bypassEditableProtection: true,
                     allowRepeat: false,
                     isAvailable: ({ target }) =>
-                        isFacet(target) || target.selectionStart === this.state.query.length,
+                        isFacet(target) ||
+                        target.selectionStart === this.state.query.length,
                     callback: (navigator) => {
                         navigator.next();
                         if (navigator.activeItem.el === this.inputRef.el) {
-                            this.inputRef.el.setSelectionRange(0, 0);
+                            /** @type {HTMLInputElement} */ (
+                                this.inputRef.el
+                            ).setSelectionRange(0, 0);
                         }
                     },
                 },
                 arrowleft: {
                     bypassEditableProtection: true,
-                    isAvailable: ({ target }) => isFacet(target) || target.selectionStart === 0,
+                    isAvailable: ({ target }) =>
+                        isFacet(target) || target.selectionStart === 0,
                     callback: (navigator) => {
                         navigator.previous();
                         if (navigator.activeItem.el === this.inputRef.el) {
-                            const inputLength = this.inputRef.el.value.length;
-                            this.inputRef.el.setSelectionRange(inputLength, inputLength);
+                            const input = /** @type {HTMLInputElement} */ (
+                                this.inputRef.el
+                            );
+                            const inputLength = input.value.length;
+                            input.setSelectionRange(inputLength, inputLength);
                         }
                     },
                 },
@@ -540,29 +593,37 @@ export class SearchBar extends Component {
     }
 
     /**
-     * @returns {import("@web/core/navigation/navigation").NavigationOptions}
+     * @returns {import("@web/services/navigation/navigation").NavigationOptions}
      */
     getDropdownNavigation() {
         const isExpansible = (index) => {
             const item = this.items[index];
-            return item && item.isParent;
+            return item?.isParent;
         };
 
         const isCollapsible = (index) => {
             const item = this.items[index];
             return (
-                item && ((item.isParent && item.isExpanded) || item.isChild || item.isFieldProperty)
+                item &&
+                ((item.isParent && item.isExpanded) ||
+                    item.isChild ||
+                    item.isFieldProperty)
             );
         };
 
         return {
             virtualFocus: true,
-            getItems: () => this.menuRef.el?.querySelectorAll(":scope .o-dropdown-item") ?? [],
+            getItems: () =>
+                /** @type {any} */ (this.menuRef).el?.querySelectorAll(
+                    ":scope .o-dropdown-item",
+                ) ?? [],
             isNavigationAvailable: ({ navigator, target }) =>
                 this.inputDropdownState.isOpen &&
-                (this.facetContainerRef.el?.contains(target) || navigator.contains(target)),
+                (this.facetContainerRef.el?.contains(target) ||
+                    navigator.contains(target)),
             onUpdated: (navigator) => (this.navigator = navigator),
-            onItemActivated: (itemEl) => (this.lastActiveItemId = parseInt(itemEl.id, 10)),
+            onItemActivated: (itemEl) =>
+                (this.lastActiveItemId = parseInt(itemEl.id, 10)),
             hotkeys: {
                 escape: {
                     callback: () => {
@@ -573,7 +634,8 @@ export class SearchBar extends Component {
                 arrowright: {
                     bypassEditableProtection: true,
                     allowRepeat: false,
-                    isAvailable: ({ navigator }) => isExpansible(navigator.activeItemIndex),
+                    isAvailable: ({ navigator }) =>
+                        isExpansible(navigator.activeItemIndex),
                     callback: (navigator) => {
                         const item = this.items[navigator.activeItemIndex];
                         if (item.isParent) {
@@ -587,22 +649,30 @@ export class SearchBar extends Component {
                 },
                 arrowleft: {
                     bypassEditableProtection: true,
-                    isAvailable: ({ navigator }) => isCollapsible(navigator.activeItemIndex),
+                    isAvailable: ({ navigator }) =>
+                        isCollapsible(navigator.activeItemIndex),
                     callback: (navigator) => {
                         const item = this.items[navigator.activeItemIndex];
 
                         const findIndex = (id) =>
                             this.items.findIndex(
-                                (item) => item.isParent && item.searchItemId === id
+                                (item) => item.isParent && item.searchItemId === id,
                             );
-                        if (item && item.isParent && item.isExpanded) {
+                        if (item?.isParent && item.isExpanded) {
                             this.toggleItem(item, false);
-                        } else if (item && item.isChild) {
+                        } else if (item?.isChild) {
                             navigator.items[findIndex(item.searchItemId)]?.setActive();
-                        } else if (item && item.isFieldProperty) {
-                            navigator.items[findIndex(item.propertyItemId)]?.setActive();
-                        } else if (this.inputRef.el.selectionStart === 0) {
-                            navigator.items[this.env.searchModel.facets.length - 1]?.setActive();
+                        } else if (item?.isFieldProperty) {
+                            navigator.items[
+                                findIndex(item.propertyItemId)
+                            ]?.setActive();
+                        } else if (
+                            /** @type {HTMLInputElement} */ (this.inputRef.el)
+                                .selectionStart === 0
+                        ) {
+                            navigator.items[
+                                this.env.searchModel.facets.length - 1
+                            ]?.setActive();
                         }
                     },
                 },
@@ -649,7 +719,7 @@ export class SearchBar extends Component {
 
     onSearchClick() {
         if (!hasTouch()) {
-            if (!this.inputRef.el.value.length) {
+            if (!(/** @type {HTMLInputElement} */ (this.inputRef.el).value.length)) {
                 this.searchBarDropdownState.open();
             } else {
                 this.inputDropdownState.open();
@@ -664,7 +734,7 @@ export class SearchBar extends Component {
         if (!hasTouch()) {
             this.searchBarDropdownState.close();
         }
-        const query = ev.target.value;
+        const query = /** @type {HTMLInputElement} */ (ev.target).value;
         if (query.trim()) {
             if (!ev.isComposing) {
                 // Protection for IME input
@@ -681,7 +751,7 @@ export class SearchBar extends Component {
      * @param {CompositionEvent} ev
      */
     onCompositionEnd(ev) {
-        const query = ev.target.value;
+        const query = /** @type {HTMLInputElement} */ (ev.target).value;
         if (query.trim()) {
             // Open dropdown after IME composition is complete
             this.inputDropdownState.open();
@@ -700,7 +770,8 @@ export class SearchBar extends Component {
     }
 
     onToggleSearchBar() {
-        this.state.showSearchBar = !this.state.showSearchBar;
+        const state = /** @type {any} */ (this.state);
+        state.showSearchBar = !state.showSearchBar;
     }
 
     onInputDropdownChanged(isOpen) {

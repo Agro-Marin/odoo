@@ -56,7 +56,7 @@
                         <tbody style="border: none;">
                             <tr t-foreach="floor.get('table_rows')" t-as="row" style="border: none;">
                                 <td t-foreach="row" t-as="table" style="width: 33%; text-align:center; border: none;">
-                                    <div class="mb-3" style="page-break-inside: avoid">
+                                    <div class="mb-3" style="break-inside: avoid">
                                         <h4 class="fw-bold text-center" t-if="table.get('table_number')">
                                             <t t-esc="table['table_number']"/>
                                         </h4>

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { HtmlUpgradeManager } from "@html_editor/html_migrations/html_upgrade_manager";
 import { stripVersion } from "@html_editor/html_migrations/html_migrations_utils";
 import { stripHistoryIds } from "@html_editor/others/collaboration/collaboration_odoo_plugin";
@@ -20,9 +21,9 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { useRecordObserver } from "@web/model/relational_model/utils";
-import { standardFieldProps } from "@web/views/fields/standard_field_props";
-import { TranslationButton } from "@web/views/fields/translation_button";
+import { useRecordObserver } from "@web/fields/hooks/record_observer";
+import { standardFieldProps } from "@web/fields/standard_field_props";
+import { TranslationButton } from "@web/fields/translation_button";
 import { HtmlViewer } from "@html_editor/components/html_viewer/html_viewer";
 import { EditorVersionPlugin } from "@html_editor/core/editor_version_plugin";
 import { withSequence } from "@html_editor/utils/resource";

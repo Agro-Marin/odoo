@@ -33,16 +33,16 @@
                                 <strong><a t-attf-href="/groups/#{ slug(group) }" t-esc="group.name"/></strong>
                                 <div t-if="group.alias_email and not group.is_closed"
                                     class="d-flex align-items-center ms-3">
-                                    <i class="fa fa-envelope-o me-1" role="img" aria-label="Alias" title="Alias"/>
+                                    <i class="fa-regular fa-envelope me-1" role="img" aria-label="Alias" title="Alias"/>
                                     <a class="text-break" t-attf-href="mailto:#{group.alias_email}" t-field="group.alias_email"/>
                                 </div>
                             </div>
                             <div t-field="group.description" class="text-muted d-flex"/>
                         </div>
                         <div class="col-lg-3">
-                            <i class="fa fa-fw fa-user" role="img" aria-label="Recipients" title="Recipients"/> <span class="o_mg_members_count" t-out="group.member_count"/> members<br />
+                            <i class="fa-solid fa-user" role="img" aria-label="Recipients" title="Recipients"/> <span class="o_mg_members_count" t-out="group.member_count"/> members<br />
                             <t t-if="group.mail_group_message_last_month_count and not group.is_closed">
-                                <i class="fa fa-fw fa-envelope-o" role="img" aria-label="Traffic" title="Traffic"/> <t t-esc="group.mail_group_message_last_month_count"/> messages / month
+                                <i class="fa-regular fa-envelope" role="img" aria-label="Traffic" title="Traffic"/> <t t-esc="group.mail_group_message_last_month_count"/> messages / month
                             </t>
                         </div>
                         <div class="col-lg-4">
@@ -255,7 +255,7 @@
             </span>
             <span class="mx-2">-</span>
             <span>
-                <i class="fa fa-calendar" role="img" aria-label="Date" title="Date"/>
+                <i class="fa-solid fa-calendar-days" role="img" aria-label="Date" title="Date"/>
                 <span t-field="message.create_date" t-options="{'widget': 'datetime', 'format': 'hh:mm - d MMM Y'}"/>
             </span>
         </small>
@@ -293,7 +293,7 @@
             <span t-if="group.is_closed" class="ms-2 badge bg-warning">Closed</span>
         </div>
         <h4 class="text-center text-muted" t-if="group.alias_email and not group.is_closed">
-            <i class="fa fa-envelope-o" role="img" aria-label="Alias" title="Alias"/>
+            <i class="fa-regular fa-envelope" role="img" aria-label="Alias" title="Alias"/>
             <a class="text-break" t-attf-href="mailto:#{group.alias_email}" t-field="group.alias_email"/>
         </h4>
     </template>

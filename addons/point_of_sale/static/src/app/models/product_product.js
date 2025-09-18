@@ -1,7 +1,7 @@
-import { registry } from "@web/core/registry";
-import { Base } from "./related_models";
+/** @odoo-module native */
 import { normalize } from "@web/core/l10n/utils";
-
+import { registry } from "@web/core/registry";
+import { Base } from "./related_models.js";
 // When adding a method to this class, please pay attention to naming.
 // As in the backend, when trying to access taxes_id on product.product,
 // taxes_id will be taken from the template.
@@ -32,7 +32,11 @@ const ProductProductTemplateProxy = new Proxy(ProductProduct, {
             get(target, prop) {
                 const val = Reflect.get(target, prop);
 
-                if (val || target.model.fields[prop] || typeof prop === "symbol") {
+                if (
+                    val !== undefined ||
+                    target.model.fields[prop] ||
+                    typeof prop === "symbol"
+                ) {
                     return val;
                 }
 

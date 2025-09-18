@@ -27,7 +27,7 @@
                             t-on-click="() => doReprintOrder.call()"
                             t-elif="this.pos.unwatched.printers.length and this.currentOrder.uiState.lastPrints.length"
                             t-att-disabled="doReprintOrder.status === 'loading'">
-                        <i class="fa fa-cutlery" aria-hidden="true"></i>
+                        <i class="fa-solid fa-utensils" aria-hidden="true"></i>
                     </button>
                     <button
                         class="btn-switchpane new-button btn btn-lg flex-grow-1 lh-sm btn-secondary"

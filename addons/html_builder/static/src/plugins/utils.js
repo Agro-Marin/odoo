@@ -1,3 +1,6 @@
+/** @odoo-module native */
+export const dynamicSVGSelector = "img[src^='/html_editor/shape/'], img[src^='/web_editor/shape/']";
+
 export function applyFunDependOnSelectorAndExclude(fn, rootEl, selectorParams) {
     const editingEls = getEditingEls(rootEl, selectorParams);
     if (!editingEls.length) {

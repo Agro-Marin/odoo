@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
@@ -8,13 +9,13 @@ registry.category("web_tour.tours").add('project_tour', {
     url: "/odoo",
     steps: () => [stepUtils.showAppsMenuItem(), {
     isActive: ["community"],
-    trigger: '.o_app[data-menu-xmlid="project.menu_main_pm"]',
+    trigger: '.o_app[data-menu-xmlid="project.menu_project_root"]',
     content: markup(_t('Want a better way to <b>manage your projects</b>? <i>It starts here.</i>')),
     tooltipPosition: 'right',
     run: "click",
 }, {
     isActive: ["enterprise"],
-    trigger: '.o_app[data-menu-xmlid="project.menu_main_pm"]',
+    trigger: '.o_app[data-menu-xmlid="project.menu_project_root"]',
     content: markup(_t('Want a better way to <b>manage your projects</b>? <i>It starts here.</i>')),
     tooltipPosition: 'bottom',
     run: "click",

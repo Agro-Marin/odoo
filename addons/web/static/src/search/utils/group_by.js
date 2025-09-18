@@ -1,4 +1,9 @@
-import { DEFAULT_INTERVAL, BACKEND_INTERVAL_OPTIONS } from "./dates";
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/search/utils/group_by - Group-by descriptor parser and interval validation for search queries */
+
+import { BACKEND_INTERVAL_OPTIONS, DEFAULT_INTERVAL } from "./dates.js";
 
 /**
  * @param {string} descr
@@ -13,10 +18,8 @@ function errorMsg(descr) {
  * @returns {Object}
  */
 export function getGroupBy(descr, fields) {
-    let fieldName;
-    let interval;
     let spec;
-    [fieldName, interval] = descr.split(":");
+    let [fieldName, interval] = descr.split(":");
     if (!fieldName) {
         throw Error();
     }
@@ -28,7 +31,7 @@ export function getGroupBy(descr, fields) {
         if (["date", "datetime"].includes(fieldType)) {
             if (!interval) {
                 interval = DEFAULT_INTERVAL;
-            } else if (!Object.keys(BACKEND_INTERVAL_OPTIONS).includes(interval)) {
+            } else if (!(interval in BACKEND_INTERVAL_OPTIONS)) {
                 throw Error(errorMsg(descr));
             }
             spec = `${fieldName}:${interval}`;
@@ -40,7 +43,7 @@ export function getGroupBy(descr, fields) {
         }
     } else {
         if (interval) {
-            if (!Object.keys(BACKEND_INTERVAL_OPTIONS).includes(interval)) {
+            if (!(interval in BACKEND_INTERVAL_OPTIONS)) {
                 throw Error(errorMsg(descr));
             }
             spec = `${fieldName}:${interval}`;

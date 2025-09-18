@@ -2060,7 +2060,7 @@ export const CASE_EVENT_TYPES = {
     },
     time: {
         value: 0b1000000,
-        icon: "fa fa-hourglass text-sm",
+        icon: "fa-solid fa-hourglass text-sm",
         color: "blue",
     },
 };
@@ -2076,8 +2076,10 @@ export const INCLUDE_LEVEL = {
 export const MIME_TYPE = {
     formData: "multipart/form-data",
     blob: "application/octet-stream",
+    html: "text/html",
     json: "application/json",
     text: "text/plain",
+    xml: "text/xml",
 };
 
 export const STORAGE = {

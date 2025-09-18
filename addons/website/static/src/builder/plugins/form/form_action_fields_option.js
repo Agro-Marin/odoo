@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 

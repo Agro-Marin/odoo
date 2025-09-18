@@ -78,7 +78,7 @@
                         <div class="d-flex">
                             <field name="name" class="fw-bolder fs-5"/>
                             <div class="badge rounded-pill ms-auto" title="Number of bounced email.">
-                                <i class="fa fa-exclamation-triangle" role="img" aria-label="Warning" title="Warning"/> <field name="message_bounce"/>
+                                <i class="fa-solid fa-exclamation-triangle" role="img" aria-label="Warning" title="Warning"/> <field name="message_bounce"/>
                             </div>
                         </div>
                         <field name="tag_ids"/>
@@ -109,7 +109,7 @@
                         <group>
                             <label for="email" class="oe_inline"/>
                             <div class="o_row o_row_readonly" name="email_details">
-                                 <button name="mail_action_blacklist_remove" class="fa fa-ban text-danger"
+                                 <button name="mail_action_blacklist_remove" class="fa-solid fa-ban text-danger"
                                     title="This email is blacklisted for mass mailings. Click to unblacklist."
                                     type="object" context="{'default_email': email}" groups="base.group_user"
                                     invisible="not is_blacklisted"/>

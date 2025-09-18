@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { isElement } from "@html_editor/utils/dom_info";
 import { registry } from "@web/core/registry";

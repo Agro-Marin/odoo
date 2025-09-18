@@ -1,6 +1,6 @@
-import { visitXML } from "@web/core/utils/xml";
-import { Field } from "@web/views/fields/field";
-
+/** @odoo-module native */
+import { visitXML } from "@web/core/utils/dom/xml";
+import { Field } from "@web/fields/field";
 export class ActivityArchParser {
     parse(xmlDoc, models, modelName) {
         const jsClass = xmlDoc.getAttribute("js_class");
@@ -22,7 +22,7 @@ export class ActivityArchParser {
                     models,
                     modelName,
                     "activity",
-                    jsClass
+                    jsClass,
                 );
                 if (!(fieldInfo.name in fieldNextIds)) {
                     fieldNextIds[fieldInfo.name] = 0;

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";

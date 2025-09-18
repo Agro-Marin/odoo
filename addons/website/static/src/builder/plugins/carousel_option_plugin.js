@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { CarouselItemHeaderMiddleButtons } from "./carousel_item_header_buttons";
+import { CarouselItemHeaderMiddleButtons } from "./carousel_item_header_buttons.js";
 import { renderToElement } from "@web/core/utils/render";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { withSequence } from "@html_editor/utils/resource";

@@ -49,10 +49,13 @@ patch(PortalComposer.prototype, {
                     const index = Math.floor(this.starValue);
                     const decimal = this.starValue - index;
                     const starIndex = [...el.parentElement.children].indexOf(el) + 1; // index counts from 1 to 5
+                    const isHalf = decimal && starIndex === index;
+                    const isFull = decimal ? starIndex < index : starIndex <= index;
                     return {
-                        "fa-star-o": starIndex > index,
-                        "fa-star-half-o": decimal && starIndex === index,
-                        "fa-star": decimal ? starIndex < index : starIndex <= index,
+                        "fa-solid": isFull,
+                        "fa-regular": !isFull,
+                        "fa-star": !isHalf,
+                        "fa-star-half": isHalf,
                     };
                 },
             },

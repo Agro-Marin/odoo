@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderComponent } from "@html_builder/core/building_blocks/builder_component";
 import {
     basicContainerBuilderComponentProps,
@@ -6,10 +7,10 @@ import {
 } from "@html_builder/core/utils";
 import { isSmallInteger } from "@html_builder/utils/utils";
 import { Component, onWillUpdateProps, useRef } from "@odoo/owl";
-import { Dropdown } from "@web/core/dropdown/dropdown";
-import { useDropdownState } from "@web/core/dropdown/dropdown_hooks";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { _t } from "@web/core/l10n/translation";
-import { useSortable } from "@web/core/utils/sortable_owl";
+import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 
 export class BuilderList extends Component {
     static template = "html_builder.BuilderList";
@@ -37,6 +38,7 @@ export class BuilderList extends Component {
         defaultNewValue: { type: Object, optional: true },
         columnWidth: { optional: true },
         forbidLastItemRemoval: { type: Boolean, optional: true },
+        isInputDisabled: { type: Boolean, optional: true },
     };
     static defaultProps = {
         addItemTitle: _t("Add"),
@@ -48,6 +50,7 @@ export class BuilderList extends Component {
         defaultNewValue: {},
         columnWidth: {},
         forbidLastItemRemoval: false,
+        isInputDisabled: false,
     };
     static components = { BuilderComponent, Dropdown };
 

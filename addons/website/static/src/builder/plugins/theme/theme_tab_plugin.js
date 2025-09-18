@@ -1,12 +1,13 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { withSequence } from "@html_editor/utils/resource";
-import { ThemeAdvancedOption } from "./theme_advanced_option";
-import { ThemeButtonOption } from "./theme_button_option";
-import { ThemeColorsOption } from "./theme_colors_option";
-import { ThemeHeadingsOption } from "./theme_headings_option";
+import { ThemeAdvancedOption } from "./theme_advanced_option.js";
+import { ThemeButtonOption } from "./theme_button_option.js";
+import { ThemeColorsOption } from "./theme_colors_option.js";
+import { ThemeHeadingsOption } from "./theme_headings_option.js";
 import { setBuilderCSSVariables } from "@html_builder/utils/utils_css";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import {
@@ -14,10 +15,10 @@ import {
     convertRgbaToCSSColor,
     convertHslToRgb,
     convertRgbToHsl,
-} from "@web/core/utils/colors";
+} from "@web/core/utils/format/colors";
 import { reactive } from "@odoo/owl";
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { CustomizeWebsiteVariableAction } from "../customize_website_plugin";
+import { CustomizeWebsiteVariableAction } from "../customize_website_plugin.js";
 import { EditHeadBodyDialog } from "@website/components/edit_head_body_dialog/edit_head_body_dialog";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 
@@ -318,6 +319,9 @@ export class ChangeColorPaletteAction extends CustomizeWebsiteVariableAction {
 
 export class EditCustomCodeAction extends BuilderAction {
     static id = "editCustomCode";
+    setup() {
+        this.canTimeout = false;
+    }
     apply() {
         this.services.dialog.add(EditHeadBodyDialog);
     }
@@ -326,6 +330,9 @@ export class EditCustomCodeAction extends BuilderAction {
 export class ConfigureApiKeyAction extends BuilderAction {
     static id = "configureApiKey";
     static dependencies = ["googleMapsOption"];
+    setup() {
+        this.canTimeout = false;
+    }
     apply() {
         this.dependencies.googleMapsOption.configureGMapsAPI("", true);
     }

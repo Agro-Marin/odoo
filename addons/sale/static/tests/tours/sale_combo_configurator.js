@@ -9,7 +9,7 @@ registry
     .add('sale_combo_configurator', {
         url: '/odoo',
         steps: () => [
-            ...stepUtils.goToAppSteps('sale.sale_menu_root', "Open the sales app"),
+            ...stepUtils.goToAppSteps('sale.menu_sale_root', "Open the sales app"),
             ...tourUtils.createNewSalesOrder(),
             ...tourUtils.selectCustomer("Test Partner"),
             ...tourUtils.addProduct("Combo product"),
@@ -58,7 +58,7 @@ registry
             tourUtils.checkSOLDescriptionContains("Product B2"),
             {
                 content: "Verify the combo item quantities",
-                trigger: 'td[name="product_uom_qty"]:contains(3.00)',
+                trigger: 'td[name="product_qty"]:contains(3.00)',
             },
             {
                 content: "Verify the first combo item's unit price",
@@ -87,7 +87,7 @@ registry
             tourUtils.checkSOLDescriptionContains("Product B2"),
             {
                 content: "Verify the combo item quantities",
-                trigger: 'td[name="product_uom_qty"]:contains(2.00)',
+                trigger: 'td[name="product_qty"]:contains(2.00)',
             },
             {
                 content: "Verify the first combo item's unit price",
@@ -111,7 +111,7 @@ registry
     .add('sale_combo_configurator_with_optional_products', {
         url: '/odoo',
         steps: () => [
-            ...stepUtils.goToAppSteps('sale.sale_menu_root', "Open the sales app"),
+            ...stepUtils.goToAppSteps('sale.menu_sale_root', "Open the sales app"),
             ...tourUtils.createNewSalesOrder(),
             ...tourUtils.selectCustomer("Test Partner"),
             ...tourUtils.addProduct("Combo product"),

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { threadCompareRegistry } from "@mail/core/common/thread_compare";
 import { compareDatetime } from "@mail/utils/common/misc";
 
@@ -17,7 +18,7 @@ threadCompareRegistry.add(
             return 1;
         }
     },
-    { sequence: 20 }
+    { sequence: 20 },
 );
 
 threadCompareRegistry.add(
@@ -36,5 +37,5 @@ threadCompareRegistry.add(
             }
         }
     },
-    { sequence: 30 }
+    { sequence: 30 },
 );

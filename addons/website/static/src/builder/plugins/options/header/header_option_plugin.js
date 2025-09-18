@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     SNIPPET_SPECIFIC_END,
     SNIPPET_SPECIFIC_NEXT,
@@ -6,11 +7,11 @@ import {
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { HeaderElementsOption } from "./header_elements_option";
-import { HeaderFontOption } from "./header_font_option";
-import { HeaderTemplateOption } from "./header_template_option";
-import { HeaderIconBackgroundOption } from "./header_icon_background_option";
-import { HeaderTopOptions } from "./header_top_options";
+import { HeaderElementsOption } from "./header_elements_option.js";
+import { HeaderFontOption } from "./header_font_option.js";
+import { HeaderTemplateOption } from "./header_template_option.js";
+import { HeaderIconBackgroundOption } from "./header_icon_background_option.js";
+import { HeaderTopOptions } from "./header_top_options.js";
 
 const [
     HEADER_TEMPLATE,
@@ -36,7 +37,7 @@ export {
     HEADER_END,
 };
 
-class HeaderOptionPlugin extends Plugin {
+export class HeaderOptionPlugin extends Plugin {
     static id = "headerOption";
     static dependencies = ["customizeWebsite", "menuDataPlugin"];
 
@@ -58,6 +59,11 @@ class HeaderOptionPlugin extends Plugin {
             withSequence(HEADER_ELEMENTS, HeaderElementsOption),
             withSequence(HEADER_ICON_BACKGROUND, HeaderIconBackgroundOption),
         ],
+        // we consider the container of Contact Us allows inline element at root
+        // to avoid wrapping the button in a <p> or <div>, which would remove
+        // this button if it's empty
+        are_inlines_allowed_at_root_predicates: (node) =>
+            node.matches("#o_main_nav .oe_structure_solo .oe_unremovable [contenteditable='true']"),
     };
 }
 

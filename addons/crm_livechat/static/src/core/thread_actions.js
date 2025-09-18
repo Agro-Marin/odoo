@@ -4,7 +4,7 @@ import { registerThreadAction } from "@mail/core/common/thread_actions";
 import "@mail/discuss/call/common/thread_actions";
 
 import { _t } from "@web/core/l10n/translation";
-import { usePopover } from "@web/core/popover/popover_hook";
+import { usePopover } from "@web/ui/popover/popover_hook";
 
 registerThreadAction("create-lead", {
     actionPanelComponent: LivechatCommandDialog,
@@ -13,12 +13,12 @@ registerThreadAction("create-lead", {
         commandName: "lead",
         placeholderText: _t("e.g. Product pricing"),
         title: _t("Create Lead"),
-        icon: "fa fa-handshake-o",
+        icon: "fa-regular fa-handshake",
     }),
     close: ({ action }) => action.popover?.close(),
     condition: false, // managed by ThreadAction patch
     panelOuterClass: "bg-100",
-    icon: "fa fa-handshake-o",
+    icon: "fa-regular fa-handshake",
     name: _t("Create Lead"),
     sequence: 10,
     sequenceGroup: 25,

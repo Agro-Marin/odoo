@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { DocumentFileUploader } from "../document_file_uploader/document_file_uploader";
+import { DocumentFileUploader } from "../document_file_uploader/document_file_uploader.js";
 
 import { Component, onWillStart } from "@odoo/owl";
 

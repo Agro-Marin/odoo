@@ -1,7 +1,7 @@
-import { compareDatetime } from "@mail/utils/common/misc";
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
+import { compareDatetime } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
-
 export class DiscussAppCategory extends Record {
     static id = "id";
 
@@ -14,7 +14,9 @@ export class DiscussAppCategory extends Record {
             return String.prototype.localeCompare.call(t1.name, t2.name);
         }
         if (this.id === "chats") {
-            return compareDatetime(t2.lastInterestDt, t1.lastInterestDt) || t2.id - t1.id;
+            return (
+                compareDatetime(t2.lastInterestDt, t1.lastInterestDt) || t2.id - t1.id
+            );
         }
     }
 
@@ -22,7 +24,9 @@ export class DiscussAppCategory extends Record {
         return (
             !this.hidden &&
             (!this.hideWhenEmpty ||
-                this.threads.some((thread) => thread.displayToSelf || thread.isLocallyPinned))
+                this.threads.some(
+                    (thread) => thread.displayToSelf || thread.isLocallyPinned,
+                ))
         );
     }
 
@@ -37,7 +41,9 @@ export class DiscussAppCategory extends Record {
     // Hide categories from the devtools if really bothered.
     hidden = fields.Attr(undefined, {
         compute() {
-            return Boolean(localStorage.getItem(`mail.sidebar_category_${this.id}_hidden`));
+            return Boolean(
+                localStorage.getItem(`mail.sidebar_category_${this.id}_hidden`),
+            );
         },
         onUpdate() {
             if (!this.hidden && this.hidden !== undefined) {
@@ -66,7 +72,7 @@ export class DiscussAppCategory extends Record {
         onUpdate() {
             if (this.localStateKey) {
                 this._openLocally = JSON.parse(
-                    browser.localStorage.getItem(this.localStateKey) ?? "true"
+                    browser.localStorage.getItem(this.localStateKey) ?? "true",
                 );
             }
         },
@@ -95,7 +101,7 @@ export class DiscussAppCategory extends Record {
                     new_settings: {
                         [this.serverStateKey]: value,
                     },
-                }
+                },
             );
         } else {
             this._openLocally = value;
@@ -111,7 +117,9 @@ export class DiscussAppCategory extends Record {
         },
         inverse: "discussAppCategory",
     });
-    threadsWithCounter = fields.Many("Thread", { inverse: "categoryAsThreadWithCounter" });
+    threadsWithCounter = fields.Many("Thread", {
+        inverse: "categoryAsThreadWithCounter",
+    });
 }
 
 DiscussAppCategory.register();

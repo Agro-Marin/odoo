@@ -15,7 +15,7 @@ test("set o_editable_media class on contenteditable false media elements", async
     const Plugins = [...MAIN_PLUGINS, TestPlugin];
     await setupEditor(
         `
-        <div class="wrapper"><i class="fa fa-shopping-cart fa-stack"></i></div>`,
+        <div class="wrapper"><i class="fa-solid fa-shopping-cart fa-stack"></i></div>`,
         {
             config: { Plugins },
         }

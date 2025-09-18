@@ -46,7 +46,7 @@
       },
       "merges": [],
       "cells": {
-        "A7": "[Tasks by Stage](odoo://view/{\"viewType\":\"graph\",\"action\":{\"domain\":[],\"context\":{\"group_by\":[\"stage_id\",\"state\"],\"graph_measure\":\"__count\",\"graph_mode\":\"bar\",\"graph_groupbys\":[\"stage_id\",\"state\"]},\"modelName\":\"report.project.task.user\",\"views\":[[false,\"graph\"],[false,\"pivot\"],[false,\"list\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"Tasks Analysis\"})",
+        "A7": "[Tasks by Stage](odoo://view/{\"viewType\":\"graph\",\"action\":{\"domain\":[],\"context\":{\"group_by\":[\"step_id\",\"state\"],\"graph_measure\":\"__count\",\"graph_mode\":\"bar\",\"graph_groupbys\":[\"step_id\",\"state\"]},\"modelName\":\"report.project.task.user\",\"views\":[[false,\"graph\"],[false,\"pivot\"],[false,\"list\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"Tasks Analysis\"})",
         "A23": "[Top Assignees](odoo://view/{\"viewType\":\"pivot\",\"action\":{\"domain\":[[\"user_ids\",\"!=\",false]],\"context\":{\"group_by\":[],\"pivot_measures\":[\"effective_hours\",\"nbr\"],\"pivot_column_groupby\":[],\"pivot_row_groupby\":[\"user_ids\"]},\"modelName\":\"report.project.task.user\",\"views\":[[false,\"graph\"],[false,\"pivot\"],[false,\"list\"],[false,\"search\"]]},\"threshold\":0,\"name\":\"Tasks Analysis\"})",
         "A24": "=_t(\"Assignee\")",
         "A25": "=PIVOT.HEADER(1,\"#user_ids\",1)",
@@ -270,7 +270,7 @@
             "background": "#FFFFFF",
             "legendPosition": "top",
             "metaData": {
-              "groupBy": ["stage_id", "state"],
+              "groupBy": ["step_id", "state"],
               "measure": "__count",
               "order": null,
               "resModel": "report.project.task.user",
@@ -284,7 +284,7 @@
                 "graph_measure": "__count__"
               },
               "domain": [],
-              "groupBy": ["stage_id", "state"],
+              "groupBy": ["step_id", "state"],
               "orderBy": []
             },
             "type": "odoo_bar",
@@ -850,8 +850,8 @@
   "lists": {},
   "listNextId": 1,
   "chartOdooMenusReferences": {
-    "26f09a19-26d7-4d7d-b8d9-9eda7661ef5a": "project.menu_main_pm",
-    "70a88eff-8ce0-4392-8905-156ef2771086": "project.menu_main_pm",
+    "26f09a19-26d7-4d7d-b8d9-9eda7661ef5a": "project.menu_project_root",
+    "70a88eff-8ce0-4392-8905-156ef2771086": "project.menu_project_root",
     "8eae55ae-5435-49ee-ad58-dae822bbd9dd": "project.menu_project_report_task_analysis",
     "746a2799-0dc9-4bce-b309-4cedffa67a3a": "project.menu_project_report_task_analysis",
     "488da38e-01db-46a0-b4b0-e2fafc4ad390": "project.menu_project_report_task_analysis",

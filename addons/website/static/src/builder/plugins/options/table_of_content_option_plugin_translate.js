@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { applyFunDependOnSelectorAndExclude } from "@html_builder/plugins/utils";
 

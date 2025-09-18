@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // This script is to be called directly in the <head>. It should not import any
 // other file or library, as it cannot be transformed into a module (because a
 // module is deferred): the function should be the very first thing launched on

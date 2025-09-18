@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export const basicHeaderOptionSettings = {
     editableOnly: false,
     selector: "#wrapwrap > header",

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { SearchbarOption } from "./searchbar_option";
+import { SearchbarOption } from "./searchbar_option.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 
 /** @typedef {import("plugins").TranslatedString} TranslatedString */

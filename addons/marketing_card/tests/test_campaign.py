@@ -70,7 +70,7 @@ class TestMarketingCardMail(MailCase, MarketingCardCommon):
         # once cards are updated they can be sent
         with self.mock_image_renderer():
             mailing.action_update_cards()
-        self.assertEqual(len(self._wkhtmltoimage_bodies), 5)
+        self.assertEqual(len(self._render_image_bodies), 5)
 
         self.assertFalse(mailing.card_requires_sync_count)
         mailing.action_launch()
@@ -86,7 +86,7 @@ class TestMarketingCardMail(MailCase, MarketingCardCommon):
         # updating when the campaign was not modified only updates cards that need to be
         with self.mock_image_renderer():
             mailing.action_update_cards()
-        self.assertEqual(len(self._wkhtmltoimage_bodies), 1)
+        self.assertEqual(len(self._render_image_bodies), 1)
 
         self.assertFalse(mailing.card_requires_sync_count)
 
@@ -96,9 +96,9 @@ class TestMarketingCardMail(MailCase, MarketingCardCommon):
         self.assertTrue(mailing.card_requires_sync_count)
         with self.mock_image_renderer():
             mailing.action_update_cards()
-        self.assertEqual(len(self._wkhtmltoimage_bodies), 5)
+        self.assertEqual(len(self._render_image_bodies), 5)
 
-        with self.mock_mail_gateway(), self.assertQueryCount(65):
+        with self.mock_mail_gateway(), self.assertQueryCount(54):
             mailing._action_send_mail()
 
         cards = self.env['card.card'].search([('campaign_id', '=', campaign.id)])
@@ -154,7 +154,7 @@ class TestMarketingCardRender(MarketingCardCommon):
             })
             self.assertTrue(campaign.image_preview)
 
-        role_values = _extract_values_from_document(html.fromstring(self._wkhtmltoimage_bodies[0]))
+        role_values = _extract_values_from_document(html.fromstring(self._render_image_bodies[0]))
         self.assertEqual(role_values['body'].attrib['style'], "background-image: url('data:image/png;base64,');")
         self.assertEqual(role_values['header'].text, 'Come and See')
         self.assertEqual(role_values['header'].attrib['style'], 'color: #CC8888;')
@@ -181,7 +181,7 @@ class TestMarketingCardRender(MarketingCardCommon):
         with self.mock_image_renderer():
             campaign.preview_record_ref = self.partners[1]
             self.assertTrue(campaign.image_preview)
-        role_values = _extract_values_from_document(html.fromstring(self._wkhtmltoimage_bodies[0]))
+        role_values = _extract_values_from_document(html.fromstring(self._render_image_bodies[0]))
         self.assertEqual(role_values['body'].attrib['style'], "background-image: url('data:image/png;base64,');")
         self.assertEqual(role_values['subheader'].text, 'Bob')
         self.assertEqual(role_values['sub_section1'].text, 'bob@justbob.me')
@@ -202,7 +202,7 @@ class TestMarketingCardRender(MarketingCardCommon):
 
         with self.mock_image_renderer():
             campaign.preview_record_ref.sudo().name = 'An updated name'
-        self.assertFalse(self._wkhtmltoimage_bodies, 'Updating the preview record does not refresh the preview.')
+        self.assertFalse(self._render_image_bodies, 'Updating the preview record does not refresh the preview.')
 
         # mismatch preview
 
@@ -391,11 +391,11 @@ class TestMarketingCardSecurity(MarketingCardCommon):
 
         with self.assertRaises(exceptions.UserError), self.mock_image_renderer():
             campaign._update_cards([('id', '=', self.marketing_card_user.partner_id.id)])
-        self.assertFalse(self._wkhtmltoimage_bodies, 'There should have been no render on illegal fields')
+        self.assertFalse(self._render_image_bodies, 'There should have been no render on illegal fields')
 
         with self.mock_image_renderer():
             campaign.with_user(self.system_admin)._update_cards([('id', '=', self.marketing_card_user.partner_id.id)])
-        self.assertIn('test marketing card state', self._wkhtmltoimage_bodies[0])
+        self.assertIn('test marketing card state', self._render_image_bodies[0])
 
     def test_campaign_ownership(self):
         campaign_as_manager = self.campaign.with_user(self.marketing_card_manager)

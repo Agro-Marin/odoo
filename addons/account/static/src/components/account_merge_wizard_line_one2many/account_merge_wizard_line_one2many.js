@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import {
     SectionAndNoteListRenderer,
     SectionAndNoteFieldOne2Many,
     sectionAndNoteFieldOne2Many,
-} from "../section_and_note_fields_backend/section_and_note_fields_backend";
+} from "../section_and_note_fields_backend/section_and_note_fields_backend.js";
 
 export class AccountMergeWizardLinesRenderer extends SectionAndNoteListRenderer {
     setup() {

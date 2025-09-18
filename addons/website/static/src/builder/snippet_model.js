@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SnippetModel } from "@html_builder/snippets/snippet_service";
 import { applyTextHighlight } from "@website/js/highlight_utils";
 import { registry } from "@web/core/registry";
@@ -19,16 +20,30 @@ patch(SnippetModel.prototype, {
     /**
      * @override
      */
-    getSnippetLabel(snippetEl) {
-        const label = super.getSnippetLabel(snippetEl);
-        // Check if any element in the snippet has the "parallax" class to show
-        // the "Parallax" label. This must be done this way because a theme or
-        // custom snippet may add or remove parallax elements. Note that if a
-        // label is already set, we do not change it.
+    getSnippetLabel(snippetEl, isCustom = false) {
+        let label = super.getSnippetLabel(snippetEl);
         if (!label) {
             const contentEl = snippetEl.children[0];
-            if (contentEl.matches(".parallax") || !!contentEl.querySelector(".parallax")) {
-                return _t("Parallax");
+            const parallaxLabel = _t("Parallax");
+            // Retrieve the original snippet label when a snippet is a custom
+            // snippet.
+            if (isCustom) {
+                const originalSnippetLabel = this.getOriginalSnippet(
+                    contentEl.dataset.snippet
+                )?.label;
+                if (originalSnippetLabel && originalSnippetLabel !== parallaxLabel) {
+                    label = originalSnippetLabel;
+                }
+            }
+            // Check if any element in the snippet has the "parallax" class to
+            // show the "Parallax" label. This must be done this way because a
+            // theme or custom snippet may add or remove parallax elements. Note
+            // that if a label is already set, we do not change it.
+            if (
+                !label &&
+                (contentEl.matches(".parallax") || !!contentEl.querySelector(".parallax"))
+            ) {
+                label = parallaxLabel;
             }
         }
         return label;

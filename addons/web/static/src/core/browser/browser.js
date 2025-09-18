@@ -1,3 +1,8 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/core/browser/browser - Patchable browser API facade (localStorage, fetch, setTimeout, etc.) for testability */
+
 /**
  * Browser
  *
@@ -7,7 +12,9 @@
  * object for a test.
  */
 
+/** @type {Storage} */
 let sessionStorage;
+/** @type {Storage} */
 let localStorage;
 try {
     sessionStorage = window.sessionStorage;
@@ -28,7 +35,9 @@ export const browser = {
     AudioBufferSourceNode: window.AudioBufferSourceNode,
     AudioContext: window.AudioContext,
     AudioWorkletNode: window.AudioWorkletNode,
-    BeforeInstallPromptEvent: window.BeforeInstallPromptEvent?.bind(window),
+    BeforeInstallPromptEvent: /** @type {any} */ (
+        window
+    ).BeforeInstallPromptEvent?.bind(window),
     GainNode: window.GainNode,
     MediaStreamAudioSourceNode: window.MediaStreamAudioSourceNode,
     removeEventListener: window.removeEventListener.bind(window),
@@ -51,8 +60,6 @@ export const browser = {
     localStorage,
     sessionStorage,
     fetch: window.fetch.bind(window),
-    innerHeight: window.innerHeight,
-    innerWidth: window.innerWidth,
     ontouchstart: window.ontouchstart,
     BroadcastChannel: window.BroadcastChannel,
     visualViewport: window.visualViewport,
@@ -85,6 +92,7 @@ Object.defineProperty(browser, "innerWidth", {
  * @returns {typeof window["localStorage"]}
  */
 export function makeRAMLocalStorage() {
+    /** @type {{[key: string]: string}} */
     let store = {};
     return {
         setItem(key, value) {
@@ -105,8 +113,8 @@ export function makeRAMLocalStorage() {
         get length() {
             return Object.keys(store).length;
         },
-        key() {
-            return "";
+        key(index) {
+            return Object.keys(store)[index] ?? null;
         },
     };
 }

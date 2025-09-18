@@ -238,7 +238,7 @@
                 <ol class="breadcrumb px-0 mt16">
                     <li id="o_payment_portal_home" class="breadcrumb-item">
                         <a href="/my/home">
-                            <i class="fa fa-home"
+                            <i class="fa-solid fa-house"
                                role="img"
                                title="Home"
                                aria-label="Home"/>
@@ -341,13 +341,13 @@
              t-attf-class="{{o_payment_status_alert_class}}"
         >
             <t t-set="alert_icon"
-               t-value="'fa-cog fa-spin' if is_processing and alert_style != 'danger'
-                        else 'fa-check' if alert_style == 'success'
-                        else 'fa-info-circle' if alert_style == 'info'
-                        else 'fa-exclamation-triangle'"
+               t-value="'fa-solid fa-gear fa-spin' if is_processing and alert_style != 'danger'
+                        else 'fa-solid fa-check' if alert_style == 'success'
+                        else 'fa-solid fa-circle-info' if alert_style == 'info'
+                        else 'fa-solid fa-triangle-exclamation'"
             />
             <div id="o_payment_status_icon">
-                <i t-attf-class="fa {{alert_icon}}"/>
+                <i t-attf-class="{{alert_icon}}"/>
             </div>
             <div id="o_payment_status_message" class="w-100">
                 <h5 t-if="status_heading" t-out="status_heading" class="alert-heading mb-0"/>

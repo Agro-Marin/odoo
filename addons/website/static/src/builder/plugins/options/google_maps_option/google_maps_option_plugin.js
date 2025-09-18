@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { renderToElement } from "@web/core/utils/render";
 import { Plugin } from "@html_editor/plugin";
-import { GoogleMapsApiKeyDialog } from "./google_maps_api_key_dialog";
-import { GoogleMapsOption } from "./google_maps_option";
+import { GoogleMapsApiKeyDialog } from "./google_maps_api_key_dialog.js";
+import { GoogleMapsOption } from "./google_maps_option.js";
 import { Deferred } from "@web/core/utils/concurrency";
 import { BuilderAction } from "@html_builder/core/builder_action";
 

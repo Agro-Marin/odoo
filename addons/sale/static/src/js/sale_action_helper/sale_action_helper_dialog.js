@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { Dialog } from "@web/core/dialog/dialog";
+import { Dialog } from "@web/ui/dialog/dialog";
 
 export class SaleActionHelperDialog extends Component {
     static components = { Dialog };

@@ -6,7 +6,7 @@
             <Dropdown>
                 <button class="btn btn-secondary">
                     <span class="o_dropdown_title">Order</span>
-                    <i class="fa fa-caret-down ms-1"/>
+                    <i class="fa-solid fa-caret-down ms-1"/>
                 </button>
                 <t t-set-slot="content">
                     <DropdownItem t-if="hasSelectedRecords" onSelected="() => this.onClickOrder(false)">

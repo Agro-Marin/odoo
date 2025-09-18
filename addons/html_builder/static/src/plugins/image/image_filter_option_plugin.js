@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { normalizeColor } from "@html_builder/utils/utils_css";
 import { defaultImageFilterOptions } from "@html_editor/main/media/image_post_process_plugin";

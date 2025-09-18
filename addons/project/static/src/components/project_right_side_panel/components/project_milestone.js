@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { formatDate } from "@web/core/l10n/dates";
 import { useService } from '@web/core/utils/hooks';
 import { Component, useState, onWillUpdateProps } from "@odoo/owl";
@@ -36,7 +37,7 @@ export class ProjectMilestone extends Component {
     }
 
     _getCheckBoxIcon() {
-        return this.milestone.is_reached ? "fa-check-square-o" : "fa-square-o";
+        return this.milestone.is_reached ? "fa-solid fa-square-check" : "fa-regular fa-square";
     }
 
     onWillUpdateProps(nextProps) {

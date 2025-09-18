@@ -1,4 +1,5 @@
-import { StockValuationReportLine } from "./line";
+/** @odoo-module native */
+import { StockValuationReportLine } from "./line.js";
 
 
 export class StockValuationReportToggleLine extends StockValuationReportLine {

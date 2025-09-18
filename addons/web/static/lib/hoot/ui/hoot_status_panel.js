@@ -124,7 +124,7 @@ export class HootStatusPanel extends Component {
                     Ready
                 </t>
                 <t t-elif="runnerState.status === 'running'">
-                    <i t-if="state.debug" class="text-cyan fa fa-bug" title="Debugging" />
+                    <i t-if="state.debug" class="text-cyan fa-solid fa-bug" title="Debugging" />
                     <div
                         t-else=""
                         class="animate-spin shrink-0 grow-0 w-4 h-4 border-2 border-emerald border-t-transparent rounded-full"
@@ -141,7 +141,7 @@ export class HootStatusPanel extends Component {
                         <t t-if="env.runner.aborted">, run aborted by user</t>)
                     </span>
                     <span class="md:hidden flex items-center gap-1">
-                        <i class="fa fa-clock-o" />
+                        <i class="fa-regular fa-clock" />
                         <strong class="text-primary" t-esc="env.runner.totalTime" />
                     </span>
                 </t>
@@ -160,7 +160,7 @@ export class HootStatusPanel extends Component {
                         t-on-click.stop="() => this.filterResults('passed')"
                         t-attf-title="Show {{ runnerReporting.passed }} passed tests"
                     >
-                        <i class="fa fa-check-circle" />
+                        <i class="fa-solid fa-check-circle" />
                         <t t-esc="runnerReporting.passed" />
                     </button>
                 </t>
@@ -171,7 +171,7 @@ export class HootStatusPanel extends Component {
                         t-on-click.stop="() => this.filterResults('failed')"
                         t-attf-title="Show {{ runnerReporting.failed }} failed tests"
                     >
-                        <i class="fa fa-times-circle" />
+                        <i class="fa-solid fa-times-circle" />
                         <t t-esc="runnerReporting.failed" />
                     </button>
                 </t>
@@ -182,7 +182,7 @@ export class HootStatusPanel extends Component {
                         t-on-click.stop="() => this.filterResults('skipped')"
                         t-attf-title="Show {{ runnerReporting.skipped }} skipped tests"
                     >
-                        <i class="fa fa-pause-circle" />
+                        <i class="fa-solid fa-pause-circle" />
                         <t t-esc="runnerReporting.skipped" />
                     </button>
                 </t>
@@ -193,7 +193,7 @@ export class HootStatusPanel extends Component {
                         t-on-click.stop="() => this.filterResults('todo')"
                         t-attf-title="Show {{ runnerReporting.todo }} tests to do"
                     >
-                        <i class="fa fa-exclamation-circle" />
+                        <i class="fa-solid fa-exclamation-circle" />
                         <t t-esc="runnerReporting.todo" />
                     </button>
                 </t>
@@ -206,7 +206,7 @@ export class HootStatusPanel extends Component {
                             t-att-disabled="uiState.resultsPage === 0"
                             t-on-click.stop="previousPage"
                         >
-                            <i class="fa fa-chevron-left" />
+                            <i class="fa-solid fa-chevron-left" />
                         </button>
                         <strong class="text-primary" t-esc="uiState.resultsPage + 1" />
                         <span class="text-gray">/</span>
@@ -217,7 +217,7 @@ export class HootStatusPanel extends Component {
                             t-att-disabled="uiState.resultsPage === lastPage"
                             t-on-click.stop="nextPage"
                         >
-                            <i class="fa fa-chevron-right" />
+                            <i class="fa-solid fa-chevron-right" />
                         </button>
                     </div>
                 </t>

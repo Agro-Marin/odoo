@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     splitBetween,
     SNIPPET_SPECIFIC_AFTER,

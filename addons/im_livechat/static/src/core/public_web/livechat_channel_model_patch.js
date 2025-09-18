@@ -12,7 +12,7 @@ const livechatChannelPatch = {
                     extraClass: "o-mail-DiscussSidebarCategory-livechat",
                     hideWhenEmpty: !this.are_you_inside,
                     id: `im_livechat.category_${this.id}`,
-                    icon: "fa fa-commenting-o",
+                    icon: "fa-regular fa-comment-dots",
                     name: this.name,
                     sequence: 22,
                 };

@@ -5,7 +5,7 @@ registry.category("web_tour.tours").add('project_test_tour', {
     url: '/odoo',
     steps: () => [
     stepUtils.showAppsMenuItem(), {
-        trigger: '.o_app[data-menu-xmlid="project.menu_main_pm"]',
+        trigger: '.o_app[data-menu-xmlid="project.menu_project_root"]',
         run: "click",
     },
     {

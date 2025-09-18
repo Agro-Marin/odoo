@@ -4,10 +4,10 @@ import { registry } from "@web/core/registry";
 import { markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-import { htmlJoin } from "@web/core/utils/html";
+import { htmlJoin } from "@web/core/utils/dom/html";
 import { session } from "@web/session";
 import { FlagMarkAsOffensiveDialog } from "../components/flag_mark_as_offensive/flag_mark_as_offensive";
 import { WebsiteForumTagsWrapper } from "../components/website_forum_tags_wrapper";
@@ -443,9 +443,9 @@ export class WebsiteForum extends Interaction {
             styleForIncorrect.call(toggler.classList, "opacity-50");
             const answerBorder = answer.querySelector("div .border-start");
             styleForCorrect.call(answerBorder.classList, "border-success");
-            const togglerIcon = toggler.querySelector(".fa");
-            styleForCorrect.call(togglerIcon.classList, "fa-check-circle", "text-success");
-            styleForIncorrect.call(togglerIcon.classList, "fa-check-circle-o");
+            const togglerIcon = toggler.querySelector("i");
+            styleForCorrect.call(togglerIcon.classList, "fa-solid", "text-success");
+            styleForIncorrect.call(togglerIcon.classList, "fa-regular");
             const correctBadge = answer.querySelector(".o_wforum_answer_correct_badge");
             styleForCorrect.call(correctBadge.classList, "d-inline");
             styleForIncorrect.call(correctBadge.classList, "d-none");
@@ -460,10 +460,10 @@ export class WebsiteForum extends Interaction {
         const data = await this.waitFor(rpc(currentTargetEl.dataset.href));
         currentTargetEl.classList.toggle("opacity-50", !data);
         currentTargetEl.classList.toggle("opacity-100-hover", !data);
-        const currentTargetEl_icon = currentTargetEl.querySelector(".fa");
-        currentTargetEl_icon.classList.toggle("fa-star-o", !data);
+        const currentTargetEl_icon = currentTargetEl.querySelector("i");
+        currentTargetEl_icon.classList.toggle("fa-regular", !data);
+        currentTargetEl_icon.classList.toggle("fa-solid", data);
         currentTargetEl_icon.classList.toggle("o_wforum_gold", data);
-        currentTargetEl_icon.classList.toggle("fa-star", data);
     }
 
     /**

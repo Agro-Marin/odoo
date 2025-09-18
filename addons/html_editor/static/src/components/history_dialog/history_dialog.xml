@@ -29,13 +29,13 @@
                         <div class="history-view-top-bar">
                             <div>
                                 <div class="text-info smaller">
-                                    <i class="fa fa-info-circle me-1" title="Version date"/>
+                                    <i class="fa-solid fa-info-circle me-1" title="Version date"/>
                                     Showing the document as it was on <t t-esc="this.getRevisionDate(this.currentRevision)" />, submited by <t t-esc="this.currentRevision.create_user_name" />
                                 </div>
                             </div>
                             <div>
                                 <a type="object" href="#" role="button" class="btn btn-secondary" t-on-click="() => state.currentView = 'comparison'">
-                                    <i class="fa fa-exchange" title="View comparison" />
+                                    <i class="fa-solid fa-right-left" title="View comparison" />
                                     View comparison
                                 </a>
                             </div>
@@ -76,13 +76,13 @@
                             </t>
                             <div>
                                 <div class="text-info smaller">
-                                    <i class="fa fa-info-circle me-1" title="Version date"/>
+                                    <i class="fa-solid fa-info-circle me-1" title="Version date"/>
                                     Showing all differences between the current version and the selected one updated by <t t-esc="this.currentRevision.create_user_name" /> on <t t-esc="this.getRevisionDate(this.currentRevision)" />
                                 </div>
                             </div>
                             <div>
                                 <a type="object" href="#" role="button" class="btn btn-secondary" t-on-click="() => state.currentView = 'content'">
-                                    <i class="fa fa-eye" title="View Content"/>
+                                    <i class="fa-regular fa-eye" title="View Content"/>
                                     View content
                                 </a>
                             </div>

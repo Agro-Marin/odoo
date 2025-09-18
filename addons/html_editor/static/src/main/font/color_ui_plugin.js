@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
-import { ColorSelector } from "./color_selector";
+import { ColorSelector } from "./color_selector.js";
 import { reactive } from "@odoo/owl";
 import { isTextNode } from "@html_editor/utils/dom_info";
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { isCSSColor, RGBA_REGEX, rgbaToHex } from "@web/core/utils/colors";
+import { isCSSColor, RGBA_REGEX, rgbaToHex } from "@web/core/utils/format/colors";
 
 const RGBA_OPACITY = 0.6;
 const HEX_OPACITY = "99";

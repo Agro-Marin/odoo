@@ -1,14 +1,15 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { deduceURLfromText } from "@html_editor/main/link/utils";
 import { pyToJsLocale, jsToPyLocale } from "@web/core/l10n/utils";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
 import { rpc } from "@web/core/network/rpc";
-import { escapeRegExp } from "@web/core/utils/strings";
+import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useService, useAutofocus } from "@web/core/utils/hooks";
-import { isVisible } from "@web/core/utils/ui";
-import { CheckBox } from "@web/core/checkbox/checkbox";
+import { isVisible } from "@web/core/utils/dom/ui";
+import { CheckBox } from "@web/components/checkbox/checkbox";
 import { MediaDialog } from "@html_editor/main/media/media_dialog/media_dialog";
-import { WebsiteDialog } from "./dialog";
+import { WebsiteDialog } from "./dialog.js";
 import {
     Component,
     onMounted,
@@ -867,7 +868,7 @@ export class SeoChecks extends Component {
                     if (imgLinkEl?.src) {
                         label = imgLinkEl.src.split("/").pop();
                         isImageLink = true;
-                    } else if (el.querySelector(".fa")) {
+                    } else if (el.querySelector(":is(.fa-solid, .fa-regular, .fa-brands)")) {
                         label =
                             el.ariaLabel || el.title || el.href.split("/").filter(Boolean).pop();
                         isImageLink = true;

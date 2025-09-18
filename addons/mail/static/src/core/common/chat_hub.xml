@@ -37,7 +37,7 @@
                 <t t-out="compactCounter"/>
             </div>
             <button class="o-mail-ChatHub-bubbleBtn btn fs-2 shadow" t-on-click="expand">
-                <i class="o-mail-ChatHub-hiddenBtnIcon d-flex justify-content-center align-items-center btn rounded-circle shadow-sm fa fa-comments"/>
+                <i class="o-mail-ChatHub-hiddenBtnIcon d-flex justify-content-center align-items-center btn rounded-circle shadow-sm fa-solid fa-comments"/>
             </button>
         </div>
     </Dropdown>

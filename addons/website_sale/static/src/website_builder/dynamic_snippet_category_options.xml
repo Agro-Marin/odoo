@@ -26,13 +26,13 @@
             <BuilderRow label.translate="Alignment">
                 <BuilderButtonGroup dataAttributeAction="'alignment'">
                     <BuilderButton dataAttributeActionValue="'left'">
-                        <i class="fa fa-fw fa-align-left"/>
+                        <i class="fa-solid fa-align-left"/>
                     </BuilderButton>
                     <BuilderButton dataAttributeActionValue="'center'">
-                        <i class="fa fa-fw fa-align-center"/>
+                        <i class="fa-solid fa-align-center"/>
                     </BuilderButton>
                     <BuilderButton dataAttributeActionValue="'right'">
-                        <i class="fa fa-fw fa-align-right"/>
+                        <i class="fa-solid fa-align-right"/>
                     </BuilderButton>
                 </BuilderButtonGroup>
             </BuilderRow>

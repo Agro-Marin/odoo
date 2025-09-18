@@ -61,24 +61,22 @@ access_account_journal_group_manager,account.journal.group manager,model_account
 access_account_group_basic,account.group.basic,model_account_group,account.group_account_basic,1,0,0,0
 access_account_group_manager,account.group,model_account_group,account.group_account_manager,1,1,1,1
 access_account_group,account.group,model_account_group,account.group_account_readonly,1,0,0,0
-access_account_root_manager,account.root,model_account_root,account.group_account_manager,1,0,0,0
-access_account_root,account.root,model_account_root,account.group_account_readonly,1,0,0,0
-access_account_code_mapping,account.code.mapping,model_account_code_mapping,account.group_account_readonly,1,0,0,0
-access_account_code_mapping_manager,account.code.mapping,model_account_code_mapping,account.group_account_manager,1,1,0,0
-access_account_account_manager,account.account,model_account_account,account.group_account_manager,1,1,1,1
-access_account_account,account.account.readonly,model_account_account,account.group_account_readonly,1,0,0,0
-access_account_account_user,account.account user,model_account_account,base.group_user,1,0,0,0
-access_account_account_partner_manager,account.account partner manager,model_account_account,base.group_partner_manager,1,0,0,0
-access_account_account_invoice,account.account invoice,model_account_account,account.group_account_invoice,1,0,0,0
+access_account_root_manager,account.root,base_account.model_account_root,account.group_account_manager,1,0,0,0
+access_account_root,account.root,base_account.model_account_root,account.group_account_readonly,1,0,0,0
+access_account_code_mapping,account.code.mapping,base_account.model_account_code_mapping,account.group_account_readonly,1,0,0,0
+access_account_code_mapping_manager,account.code.mapping,base_account.model_account_code_mapping,account.group_account_manager,1,1,0,0
+access_account_account_manager,account.account,base_account.model_account_account,account.group_account_manager,1,1,1,1
+access_account_account,account.account.readonly,base_account.model_account_account,account.group_account_readonly,1,0,0,0
+access_account_account_partner_manager,account.account partner manager,base_account.model_account_account,base.group_partner_manager,1,0,0,0
+access_account_account_invoice,account.account invoice,base_account.model_account_account,account.group_account_invoice,1,0,0,0
 
 access_account_tax_internal_user,account.tax internal user,model_account_tax,base.group_user,1,0,0,0
 access_account_tax_readonly,account.tax,model_account_tax,account.group_account_readonly,1,0,0,0
 access_account_tax_invoice,account.tax,model_account_tax,account.group_account_invoice,1,0,0,0
 access_account_tax_manager,account.tax,model_account_tax,account.group_account_manager,1,1,1,1
-access_account_tag_internal_user,account.account.tag internal user,model_account_account_tag,base.group_user,1,0,0,0
-access_account_account_tax,account.account.tag,model_account_account_tag,account.group_account_user,1,1,1,1
-access_account_account_tax_readonly,account.account.tag,model_account_account_tag,account.group_account_readonly,1,0,0,0
-access_account_account_tax_user,account.account.tag,model_account_account_tag,account.group_account_invoice,1,0,0,0
+access_account_account_tax,account.account.tag,base_account.model_account_account_tag,account.group_account_user,1,1,1,1
+access_account_account_tax_readonly,account.account.tag,base_account.model_account_account_tag,account.group_account_readonly,1,0,0,0
+access_account_account_tax_user,account.account.tag,base_account.model_account_account_tag,account.group_account_invoice,1,0,0,0
 access_account_tax_repartition_line_user,account.tax repartition.line.user,model_account_tax_repartition_line,base.group_user,1,0,0,0
 access_account_tax_repartition_line_readonly,account.tax repartition.line.invoice,model_account_tax_repartition_line,account.group_account_readonly,1,0,0,0
 access_account_tax_repartition_line_invoice,account.tax repartition.line.invoice,model_account_tax_repartition_line,account.group_account_invoice,1,0,0,0

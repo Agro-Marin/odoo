@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { TextHighlight } from "@website/interactions/text_highlights";
 import { registry } from "@web/core/registry";
 

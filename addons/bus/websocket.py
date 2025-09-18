@@ -4,7 +4,7 @@ import functools
 import hashlib
 import logging
 import os
-import psycopg2
+import psycopg
 import random
 import socket
 import struct
@@ -15,7 +15,7 @@ from collections import defaultdict, deque
 from contextlib import contextmanager, suppress
 from enum import IntEnum
 from itertools import count
-from psycopg2.pool import PoolError
+from odoo.db import PoolError
 from queue import PriorityQueue
 from urllib.parse import urlparse
 from weakref import WeakSet
@@ -50,16 +50,16 @@ def acquire_cursor(db):
     try:
         for _ in range(MAX_TRY_ON_POOL_ERROR):
             # Yield before trying to acquire the cursor to let other
-            # greenlets release their cursor.
+            # threads release their cursor.
             time.sleep(0)
             with suppress(PoolError), Registry(db).cursor() as cr:
                 yield cr
                 return
             time.sleep(delay + random.uniform(0, JITTER_ON_POOL_ERROR))
             delay *= 1.5
-        raise PoolError('Failed to acquire cursor after %s retries' % MAX_TRY_ON_POOL_ERROR)
+        raise PoolError(f'Failed to acquire cursor after {MAX_TRY_ON_POOL_ERROR} retries')
     finally:
-        # Yield after releasing the cursor to let waiting greenlets
+        # Yield after releasing the cursor to let waiting threads
         # immediately pick up the freed connection.
         time.sleep(0)
 
@@ -325,11 +325,7 @@ class Websocket:
         # always sorted by notif_id ASC
         self._notif_history = []
         # Websocket start up
-        self.__selector = (
-            selectors.PollSelector()
-            if odoo.evented and hasattr(selectors, 'PollSelector')
-            else selectors.DefaultSelector()
-        )
+        self.__selector = selectors.DefaultSelector()
         self.__selector.register(self.__socket, selectors.EVENT_READ)
         self.__selector.register(self.__cmd_queue, selectors.EVENT_READ)
         self.state = ConnectionState.OPEN
@@ -493,7 +489,7 @@ class Websocket:
 
     def _process_next_message(self):
         """
-        Process the next message coming throught the socket. If a
+        Process the next message coming through the socket. If a
         data message can be extracted, return its decoded payload.
         As per the RFC, only control frames will be processed once
         the connection reaches the closing state.
@@ -688,7 +684,7 @@ class Websocket:
             if sequence != registry.registry_sequence:
                 _logger.warning("Bus operation aborted; registry has been reloaded")
             else:
-                _logger.error(exc, exc_info=True)
+                _logger.exception("Unhandled exception in websocket handler")
         if self.state is ConnectionState.OPEN:
             self._disconnect(code, reason)
         else:
@@ -699,7 +695,7 @@ class Websocket:
         This method is a simple rate limiter designed not to allow
         more than one request by `RL_DELAY` seconds. `RL_BURST` specify
         how many requests can be made in excess of the given rate at the
-        begining. When requests are received too fast, raises the
+        beginning. When requests are received too fast, raises the
         `RateLimitExceededException`.
         """
         now = time.time()
@@ -756,13 +752,9 @@ class Websocket:
         `SESSION_EXPIRED` close code. If no cursor can be acquired,
         close the connection with the `TRY_LATER` close code.
         """
-        session = root.session_store.get(self._session.sid)
-        if not session:
-            raise SessionExpiredException()
-        if 'next_sid' in session:
-            self._session = root.session_store.get(session['next_sid'])
-            return self._dispatch_bus_notifications()
-         # Mark the notification request as processed.
+        session = _follow_session_chain(self._session)
+        self._session = session
+        # Mark the notification request as processed.
         self._waiting_for_dispatch = False
         with acquire_cursor(session.db) as cr:
             env = self.new_env(cr, session)
@@ -786,9 +778,10 @@ class Websocket:
         # 6 can only be removed after 3 reaches the threshold and is removed as
         # well, and if 4 appears in the meantime, 3 can be removed but 6 will
         # have to wait for 4 to reach the threshold as well.
+        now = time.time()
         last_index = -1
         for i, notif in enumerate(self._notif_history):
-            if time.time() - notif[1] > self.MAX_NOTIFICATION_HISTORY_SEC:
+            if now - notif[1] > self.MAX_NOTIFICATION_HISTORY_SEC:
                 last_index = i
             else:
                 break
@@ -886,6 +879,24 @@ class TimeoutManager:
 # ------------------------------------------------------
 
 
+def _follow_session_chain(initial_session):
+    """Resolve a session, following ``next_sid`` rotation chains.
+
+    Returns the final (non-rotated) session.  Raises
+    :class:`~odoo.http.SessionExpiredException` if any session in the
+    chain is missing or if the chain exceeds 10 hops (which indicates a
+    bug or circular rotation).
+    """
+    session = root.session_store.get(initial_session.sid)
+    for _ in range(10):
+        if not session:
+            raise SessionExpiredException()
+        if 'next_sid' not in session:
+            return session
+        session = root.session_store.get(session['next_sid'])
+    raise SessionExpiredException()
+
+
 _wsrequest_stack = LocalStack()
 wsrequest = _wsrequest_stack()
 
@@ -923,7 +934,7 @@ class WebsocketRequest:
             threading.current_thread().dbname = self.registry.db_name
             self.registry.check_signaling()
         except (
-            AttributeError, psycopg2.OperationalError, psycopg2.ProgrammingError
+            AttributeError, psycopg.OperationalError, psycopg.ProgrammingError
         ) as exc:
             raise InvalidDatabaseException() from exc
 
@@ -943,12 +954,9 @@ class WebsocketRequest:
         self.env["ir.websocket"]._serve_ir_websocket(event_name, data)
 
     def _get_session(self):
-        session = root.session_store.get(self.ws._session.sid)
-        if 'next_sid' in session:
-            self.ws._session = root.session_store.get(session['next_sid'])
-            return self._get_session()
-        if not session:
-            raise SessionExpiredException()
+        """Return the current session, following at most 10 next_sid hops."""
+        session = _follow_session_chain(self.ws._session)
+        self.ws._session = session
         return session
 
     def update_env(self, user=None, context=None, su=None):
@@ -999,7 +1007,7 @@ class WebsocketConnectionHandler:
     @classmethod
     def open_connection(cls, request, version):
         """
-        Open a websocket connection if the handshake is successfull.
+        Open a websocket connection if the handshake is successful.
         :return: Response indicating the server performed a connection
         upgrade.
         :raise: UpgradeRequired if there is no intersection between the
@@ -1023,10 +1031,10 @@ class WebsocketConnectionHandler:
             # WebSocket authentication.
             request.session.is_dirty = True
             return response
-        except KeyError as exc:
-            raise RuntimeError(
-                f"Couldn't bind the websocket. Is the connection opened on the evented port ({config['gevent_port']})?"
-            ) from exc
+        except KeyError:
+            raise ServiceUnavailable(
+                "Websocket unavailable on this port. Use the evented service port."
+            )
         except HTTPException as exc:
             # The HTTP stack does not log exceptions derivated from the
             # HTTPException class since they are valid responses.

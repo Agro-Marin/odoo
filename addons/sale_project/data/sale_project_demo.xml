@@ -5,7 +5,7 @@
         <record id="so_template_project" model="project.project">
             <field name="name">Sales Order</field>
             <field name="active">False</field>
-            <field name="type_ids" eval="[Command.link(ref('project.project_stage_0')), Command.link(ref('project.project_stage_1')), Command.link(ref('project.project_stage_2'))]"/>
+            <field name="workflow_step_ids" eval="[Command.link(ref('project.project_stage_0')), Command.link(ref('project.project_stage_1')), Command.link(ref('project.project_stage_2'))]"/>
             <field name="description">This project is used as a template for projects created from sales orders.</field>
         </record>
 
@@ -153,7 +153,7 @@
             <field name="sequence" eval="2"/>
             <field name="product_id" ref="product.product_product_furniture"/>
             <field name="product_uom_qty">15</field>
-            <field name="qty_delivered">12</field>
+            <field name="qty_transferred">12</field>
         </record>
 
         <record id="sale_line_construction_3" model="sale.order.line">
@@ -161,7 +161,7 @@
             <field name="sequence" eval="2"/>
             <field name="product_id" ref="product_product_flooring"/>
             <field name="product_uom_qty">10</field>
-            <field name="qty_delivered">8</field>
+            <field name="qty_transferred">8</field>
         </record>
 
         <record id="sale_line_construction_4" model="sale.order.line">
@@ -169,7 +169,7 @@
             <field name="sequence" eval="2"/>
             <field name="product_id" ref="product_product_plumbing"/>
             <field name="product_uom_qty">12</field>
-            <field name="qty_delivered">10</field>
+            <field name="qty_transferred">10</field>
         </record>
 
         <function model="sale.order" name="action_confirm" eval="[[ref('sale_order_construction_material')]]"/>
@@ -180,23 +180,23 @@
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_project.sale_line_construction_1'))]"/>
             <value eval="{
                 'user_ids': [Command.link(ref('base.user_admin'))],
-                'state': '02_changes_requested',
+                'state': 'changes_requested',
             }"/>
         </function>
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_project.sale_line_construction_2'))]"/>
             <value eval="{
                 'user_ids': [Command.link(ref('base.user_demo'))],
-                'state': '03_approved',
+                'state': 'approved',
             }"/>
         </function>
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_project.sale_line_construction_3'))]"/>
             <value eval="{
                 'milestone_id': ref('project.project_home_construction_milestone_1'),
-                'stage_id': ref('project.project_stage_2'),
+                'step_id': ref('project.project_stage_2'),
                 'user_ids':[Command.link(ref('base.user_admin'))],
-                'state': '1_done',
+                'state': 'done',
             }"/>
         </function>
         <function model="project.task" name="write">

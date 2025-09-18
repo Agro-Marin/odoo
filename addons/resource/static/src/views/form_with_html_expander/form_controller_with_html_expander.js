@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { FormController } from "@web/views/form/form_controller";
 

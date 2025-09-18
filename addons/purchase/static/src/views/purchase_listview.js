@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { PurchaseDashBoard } from "@purchase/views/purchase_dashboard";
 import { PurchaseFileUploader } from "@purchase/components/purchase_file_uploader/purchase_file_uploader";

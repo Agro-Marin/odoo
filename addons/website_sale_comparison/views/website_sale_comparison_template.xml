@@ -32,7 +32,7 @@
                     t-att-data-product-product-id="product_variant_id"
                     data-action="o_comparelist"
                 >
-                    <span class="fa fa-exchange fa-fw o_not-animable"/>
+                    <span class="fa-solid fa-right-left o_not-animable"/>
                     <span class="o_label small ms-2">Compare</span>
                 </button>
 
@@ -43,7 +43,7 @@
                     comparison button
                 -->
                 <div class="o_add_compare_placeholder pe-none opacity-0 btn">
-                    <span class="fa fa-exchange fa-fw"/>
+                    <span class="fa-solid fa-right-left"/>
                 </div>
             </t>
         </xpath>
@@ -82,7 +82,7 @@
                 t-att-data-product-template-id="product.id"
                 data-action="o_comparelist"
             >
-                <span class="fa fa-exchange"/>
+                <span class="fa-solid fa-right-left"/>
                 <span t-att-class="'d-inline ms-2' + (' d-lg-none' if website.product_page_image_width == '50_pc' and not (is_view_active('website_sale.cta_wrapper_boxed') or is_view_active('website_sale.cta_wrapper_large')) or is_view_active('website_sale_wishlist.product_add_to_wishlist') else '')">Add to compare</span>
             </button>
         </xpath>
@@ -371,7 +371,7 @@
                                                 t-att-data-product-template-id="product.product_tmpl_id.id"
                                                 t-att-data-show-quantity="is_view_active('website_sale.product_quantity')"
                                             >
-                                                <i class="fa fa-shopping-cart me-2" aria-hidden="true"/>Add to Cart
+                                                <i class="fa-solid fa-shopping-cart me-2" aria-hidden="true"/>Add to Cart
                                             </button>
                                         </div>
                                     </div>

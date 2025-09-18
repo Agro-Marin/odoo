@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import {
     StateSelectionField,
     stateSelectionField,
-} from "@web/views/fields/state_selection/state_selection_field";
-import { useCommand } from "@web/core/commands/command_hook";
-import { formatSelection } from "@web/views/fields/formatters";
+} from "@web/fields/selection/state_selection/state_selection_field";
+import { useCommand } from "@web/services/commands/command_hook";
+import { formatSelection } from "@web/fields/formatters";
 
 import { registry } from "@web/core/registry";
 import { useState } from "@odoo/owl";
@@ -23,28 +24,28 @@ export class ProjectTaskStateSelection extends StateSelectionField {
             isStateButtonHighlighted: false,
         });
         this.icons = {
-            "01_in_progress": "o_status",
-            "03_approved": "o_status o_status_green",
-            "02_changes_requested": "fa fa-lg fa-exclamation-circle",
-            "1_done": "fa fa-lg fa-check-circle",
-            "1_canceled": "fa fa-lg fa-times-circle",
-            "04_waiting_normal": "fa fa-lg fa-hourglass-o",
+            "in_progress": "o_status",
+            "approved": "o_status o_status_green",
+            "changes_requested": "fa-solid fa-exclamation-circle fa-lg",
+            "done": "fa-solid fa-check-circle fa-lg",
+            "canceled": "fa-solid fa-times-circle fa-lg",
+            "waiting": "fa-solid fa-hourglass fa-lg",
         };
         this.colorIcons = {
-            "01_in_progress": "",
-            "03_approved": "text-success",
-            "02_changes_requested": "o_status_changes_requested",
-            "1_done": "text-success",
-            "1_canceled": "text-danger",
-            "04_waiting_normal": "btn-outline-info",
+            "in_progress": "",
+            "approved": "text-success",
+            "changes_requested": "o_status_changes_requested",
+            "done": "text-success",
+            "canceled": "text-danger",
+            "waiting": "btn-outline-info",
         };
         this.colorButton = {
-            "01_in_progress": "btn-outline-secondary",
-            "03_approved": "btn-outline-success",
-            "02_changes_requested": "btn-outline-warning",
-            "1_done": "btn-outline-success",
-            "1_canceled": "btn-outline-danger",
-            "04_waiting_normal": "btn-outline-info",
+            "in_progress": "btn-outline-secondary",
+            "approved": "btn-outline-success",
+            "changes_requested": "btn-outline-warning",
+            "done": "btn-outline-success",
+            "canceled": "btn-outline-danger",
+            "waiting": "btn-outline-info",
         };
         if (this.props.viewType != 'form') {
             super.setup();
@@ -79,10 +80,10 @@ export class ProjectTaskStateSelection extends StateSelectionField {
 
     get options() {
         const labels = new Map(super.options);
-        const states = ["1_canceled", "1_done"];
+        const states = ["canceled", "done"];
         const currentState = this.props.record.data[this.props.name];
-        if (currentState != "04_waiting_normal") {
-            states.unshift("01_in_progress", "02_changes_requested", "03_approved");
+        if (currentState != "waiting") {
+            states.unshift("in_progress", "changes_requested", "approved");
         }
         return states.map((state) => [state, labels.get(state)]);
     }
@@ -93,7 +94,7 @@ export class ProjectTaskStateSelection extends StateSelectionField {
     }
 
     get label() {
-        const waitOption = super.options.findLast(([state, _]) => state === "04_waiting_normal");
+        const waitOption = super.options.findLast(([state, _]) => state === "waiting");
         const fullSelection = [...this.options, waitOption];
         return formatSelection(this.currentValue, {
             selection: fullSelection,
@@ -125,7 +126,7 @@ export class ProjectTaskStateSelection extends StateSelectionField {
     }
 
     async toggleState() {
-        const toggleVal = this.currentValue == "1_done" ? "01_in_progress" : "1_done";
+        const toggleVal = this.currentValue == "done" ? "in_progress" : "done";
         await this.updateRecord(toggleVal);
     }
 

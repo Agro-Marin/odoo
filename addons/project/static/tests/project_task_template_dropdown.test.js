@@ -12,16 +12,16 @@ function addTemplateTasks() {
             id: 4,
             name: "Template Task 1",
             project_id: 1,
-            stage_id: 1,
-            state: "01_in_progress",
+            step_id: 1,
+            state: "in_progress",
             is_template: true,
         },
         {
             id: 5,
             name: "Template Task 2",
             project_id: 1,
-            stage_id: 1,
-            state: "01_in_progress",
+            step_id: 1,
+            state: "in_progress",
             is_template: true,
         }
     );

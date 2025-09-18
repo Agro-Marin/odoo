@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { unwrapContents } from "@html_editor/utils/dom";
 import { closestElement, descendants, selectElements } from "@html_editor/utils/dom_traversal";
 import { findInSelection, callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { _t } from "@web/core/l10n/translation";
-import { LinkPopover } from "./link_popover";
+import { LinkPopover } from "./link_popover.js";
 import { DIRECTIONS, leftPos, nodeSize, rightPos } from "@html_editor/utils/position";
-import { EMAIL_REGEX, URL_REGEX, cleanZWChars, deduceURLfromText } from "./utils";
+import { EMAIL_REGEX, URL_REGEX, cleanZWChars, deduceURLfromText } from "./utils.js";
 import {
     isElement,
     isProtected,
@@ -433,6 +434,10 @@ export class LinkPlugin extends Plugin {
             description: _t("Create an URL."),
             icon: "fa-link",
             run: () => {
+                this.dispatchTo(
+                    "before_paste_handlers",
+                    this.dependencies.selection.getEditableSelection()
+                );
                 this.dependencies.dom.insert(this.createLink(url, text));
                 this.dependencies.history.addStep();
             },
@@ -1101,6 +1106,19 @@ export class LinkPlugin extends Plugin {
                 this.dependencies.history.addStep();
                 ev.preventDefault();
             }
+        }
+        // Firefox: avoid corrupted selection inside link.
+        const selection = this.document.getSelection();
+        if (
+            ev.inputType === "insertText" &&
+            selection.isCollapsed &&
+            selection.anchorNode.nodeType === Node.TEXT_NODE &&
+            selection.anchorNode.parentElement.tagName === "A"
+        ) {
+            // Reset hidden internal selection state.
+            const offset = selection.anchorOffset;
+            selection.collapse(selection.anchorNode, 0);
+            selection.collapse(selection.anchorNode, offset);
         }
         this.updateCurrentLinkSyncState();
     }

@@ -36,7 +36,7 @@
                         <div t-else="" style="margin: 0 3px">
                             <BuilderButton
                                 type="'danger'"
-                                className="'fa fa-fw fa-minus'"
+                                className="'fa-solid fa-minus'"
                                 title.translate="Remove link"
                                 action="'deleteSocialMediaLink'"
                                 applyTo="`a:nth-of-type(${item.domPosition})`"
@@ -55,7 +55,7 @@
 
 <t t-name="website.example_social_media_link">
     <a href="https://www.example.com" target="_blank" aria-label="example">
-        <i class="fa rounded shadow-sm o_editable_media fa-pencil"/>
+        <i class="fa-solid fa-pencil rounded shadow-sm o_editable_media"/>
     </a>
 </t>
 

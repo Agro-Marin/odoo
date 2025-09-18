@@ -13,14 +13,14 @@ $button-width: 3rem;
 
 .editor_notification_manager {
     width: calc(100% - #{$button-width});
-    @include media-breakpoint-up(sm) {
+    @media (min-width: 576px) {
         width: calc(#{$o-notification-max-width-sm} + #{$button-width});
     }
 }
 
 .editor_notification_body {
     width: calc(100% - #{$button-width});
-    @include media-breakpoint-up(sm) {
+    @media (min-width: 576px) {
         width: $o-notification-max-width-sm;
     }
 }

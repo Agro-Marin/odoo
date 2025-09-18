@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Creates a function to track whether a key has been seen before.
  * The returned function returns true for the first occurrence of each key,

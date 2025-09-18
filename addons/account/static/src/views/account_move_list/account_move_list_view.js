@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { fileUploadListView } from "../file_upload_list/file_upload_list_view";
-import { AccountMoveListController } from "./account_move_list_controller";
-import { AccountMoveListRenderer } from "./account_move_list_renderer";
+import { fileUploadListView } from "../file_upload_list/file_upload_list_view.js";
+import { AccountMoveListController } from "./account_move_list_controller.js";
+import { AccountMoveListRenderer } from "./account_move_list_renderer.js";
 
 export const accountMoveUploadListView = {
     ...fileUploadListView,

@@ -1,19 +1,22 @@
-import { Domain } from "@web/core/domain";
-import { DataPoint } from "./datapoint";
+// @ts-check
+/** @odoo-module native */
 
-/**
- * @typedef Params
- * @property {string[]} groupBy
- */
+/** @module @web/model/relational_model/group - Single group node within a grouped list, holding aggregates and a nested record list */
+
+import { Domain } from "@web/core/domain";
+
+import { DataPoint } from "./datapoint.js";
+/** @import { RelationalModelConfig } from "./relational_model.js" */
 
 export class Group extends DataPoint {
     static type = "Group";
 
     /**
-     * @param {import("./relational_model").Config} config
+     * @param {RelationalModelConfig & { groupByFieldName: string, list: any, record?: any }} config
+     * @param {Record<string, any>} data
      */
     setup(config, data) {
-        super.setup(...arguments);
+        super.setup(config, data);
         this.groupByField = this.fields[config.groupByFieldName];
         this.range = data.range;
         this._rawValue = data.rawValue;
@@ -25,16 +28,23 @@ export class Group extends DataPoint {
         this.aggregates = data.aggregates;
         let List;
         if (config.list.groupBy.length) {
-            List = this.model.constructor.DynamicGroupList;
+            List = this.model.Class.DynamicGroupList;
         } else {
-            List = this.model.constructor.DynamicRecordList;
+            List = this.model.Class.DynamicRecordList;
         }
-        /** @type {import("./dynamic_group_list").DynamicGroupList | import("./dynamic_record_list").DynamicRecordList} */
+        /** @type {any} DynamicRecordList or DynamicGroupList depending on groupBy depth */
         this.list = new List(this.model, config.list, data);
         this._useGroupCountForList();
         if (config.record) {
-            config.record.context = { ...config.record.context, ...config.context };
-            this.record = new this.model.constructor.Record(this.model, config.record, data.values);
+            config.record.context = {
+                ...config.record.context,
+                ...config.context,
+            };
+            this.record = new this.model.Class.Record(
+                this.model,
+                config.record,
+                data.values,
+            );
         }
     }
 
@@ -84,7 +94,11 @@ export class Group extends DataPoint {
             await this.list.load({ domain: this.groupDomain });
             this.count = this.list.isGrouped ? this.list.recordCount : this.list.count;
         }
-        this.model._updateConfig(this.config, { extraDomain: filter }, { reload: false });
+        this.model._updateConfig(
+            this.config,
+            { extraDomain: filter },
+            { reload: false },
+        );
     }
 
     deleteRecords(records) {
@@ -99,7 +113,7 @@ export class Group extends DataPoint {
         this.model._updateConfig(
             this.config,
             { isFolded: !this.config.isFolded },
-            { reload: false }
+            { reload: false },
         );
     }
 
@@ -129,7 +143,9 @@ export class Group extends DataPoint {
     }
 
     async _removeRecords(recordIds) {
-        const idsToRemove = recordIds.filter((id) => this.list.records.some((r) => r.id === id));
+        const idsToRemove = recordIds.filter((id) =>
+            this.list.records.some((r) => r.id === id),
+        );
         this.list._removeRecords(idsToRemove);
         this.count -= idsToRemove.length;
     }

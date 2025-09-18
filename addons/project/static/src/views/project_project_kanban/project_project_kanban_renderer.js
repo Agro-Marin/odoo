@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
-import { ProjectProjectKanbanHeader } from "./project_project_kanban_header";
+import { ProjectProjectKanbanHeader } from "./project_project_kanban_header.js";
 
 
 export class ProjectProjectKanbanRenderer extends KanbanRenderer {

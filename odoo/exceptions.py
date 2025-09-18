@@ -12,9 +12,10 @@ class UserError(Exception):
     Typically when the user tries to do something that has no sense given the current
     state of a record.
     """
+
     http_status = 422  # Unprocessable Entity
 
-    def __init__(self, message):
+    def __init__(self, message: str) -> None:
         """
         :param message: exception message and frontend modal content
         """
@@ -22,7 +23,7 @@ class UserError(Exception):
 
 
 class RedirectWarning(Exception):
-    """ Warning with a possibility to redirect the user instead of simply
+    """Warning with a possibility to redirect the user instead of simply
     displaying the warning message.
 
     :param str message: exception message and frontend modal content
@@ -32,7 +33,14 @@ class RedirectWarning(Exception):
     :param dict additional_context: parameter passed to action_id.
            Can be used to limit a view to active_ids for example.
     """
-    def __init__(self, message, action, button_text, additional_context=None):
+
+    def __init__(
+        self,
+        message: str,
+        action: int | str,
+        button_text: str,
+        additional_context: dict | None = None,
+    ) -> None:
         super().__init__(message, action, button_text, additional_context)
 
 
@@ -47,13 +55,14 @@ class AccessDenied(UserError):
 
         When you try to log with a wrong password.
     """
+
     http_status = 403  # Forbidden
 
-    def __init__(self, message="Access Denied"):
+    def __init__(self, message: str = "Access Denied") -> None:
         super().__init__(message)
         self.suppress_traceback()  # must be called in `except`s too
 
-    def suppress_traceback(self):
+    def suppress_traceback(self) -> None:
         """
         Remove the traceback, cause and context of the exception, hiding
         where the exception occured but keeping the exception message.
@@ -66,13 +75,14 @@ class AccessDenied(UserError):
         accessible by the system administrators.
         """
         self.with_traceback(None)
-        self.traceback = ('', '', '')
+        self.traceback = ("", "", "")
 
         # During handling of the above exception, another exception occurred
         self.__context__ = None
 
         # The above exception was the direct cause of the following exception
         self.__cause__ = None
+
 
 class AccessError(UserError):
     """Access rights error.
@@ -81,6 +91,7 @@ class AccessError(UserError):
 
         When you try to read a record that you are not allowed to.
     """
+
     http_status = 403  # Forbidden
 
 
@@ -92,7 +103,7 @@ class CacheMiss(KeyError):
         When you try to read a value in a flushed cache.
     """
 
-    def __init__(self, record, field):
+    def __init__(self, record: object, field: object) -> None:
         super().__init__("%r.%s" % (record, field.name))
 
 
@@ -103,6 +114,7 @@ class MissingError(UserError):
 
         When you try to write on a deleted record.
     """
+
     http_status = 404  # Not Found
 
 
@@ -113,6 +125,7 @@ class LockError(UserError):
 
         Code tried to lock records, but could not succeed.
     """
+
     http_status = 409  # Conflict
 
 

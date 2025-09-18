@@ -33,10 +33,10 @@ class ResPartner(models.Model):
             meeting_data = self.env.execute_query(SQL("""
                 SELECT res_partner_id, calendar_event_id, count(1)
                   FROM calendar_event_res_partner_rel
-                 WHERE res_partner_id IN %s AND calendar_event_id IN %s
+                 WHERE res_partner_id = ANY(%s) AND calendar_event_id IN %s
               GROUP BY res_partner_id, calendar_event_id
                 """,
-                all_partners._ids,
+                list(all_partners._ids),
                 query.subselect(),
             ))
 
@@ -58,7 +58,7 @@ class ResPartner(models.Model):
     def _compute_application_statistics_hook(self):
         data_list = super()._compute_application_statistics_hook()
         for partner in self.filtered('meeting_count'):
-            stat_info = {'iconClass': 'fa-calendar', 'value': partner.meeting_count, 'label': _('Meetings'), 'tagClass': 'o_tag_color_3'}
+            stat_info = {'iconClass': 'fa-solid fa-calendar', 'value': partner.meeting_count, 'label': _('Meetings'), 'tagClass': 'o_tag_color_3'}
             data_list[partner.id].append(stat_info)
         return data_list
 

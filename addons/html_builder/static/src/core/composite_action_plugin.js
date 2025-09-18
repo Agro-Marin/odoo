@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { convertParamToObject } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { BuilderAction } from "@html_builder/core/builder_action";

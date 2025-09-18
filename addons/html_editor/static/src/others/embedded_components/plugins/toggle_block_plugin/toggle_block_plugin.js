@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import { Plugin } from "@html_editor/plugin";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
@@ -17,7 +18,7 @@ import { childNodeIndex, nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 import { renderToString } from "@web/core/utils/render";
-import { uuid } from "@web/core/utils/strings";
+import { uuid } from "@web/core/utils/format/strings";
 
 const toggleSelector = "[data-embedded='toggleBlock']";
 const titleSelector = "[data-embedded-editable='title']";
@@ -70,7 +71,7 @@ export class ToggleBlockPlugin extends Plugin {
                 id: "insertToggleBlock",
                 title: _t("Toggle list"),
                 description: _t("Hide Text under foldable toggles"),
-                icon: "fa-caret-square-o-right",
+                icon: "fa-regular fa-square-caret-right",
                 isAvailable: (selection) =>
                     isHtmlContentSupported(selection) &&
                     !closestElement(selection.anchorNode, `${toggleSelector} ${titleSelector}`),

@@ -23,7 +23,7 @@
             t-if="isOutOfStock()"
             class="text-danger fw-bold"
         >
-            <i class="fa fa-times me-1"/>
+            <i class="fa-solid fa-times me-1"/>
             Out of stock
         </div>
     </t>

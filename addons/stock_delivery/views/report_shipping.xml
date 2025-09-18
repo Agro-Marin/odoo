@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="report_shipping2" inherit_id="stock.report_picking">
+    <template id="report_shipping2" inherit_id="stock.report_picking_document">
         <xpath expr="//div[@name='div_picking_date']" position="after">
             <div t-if="o.carrier_id">
                 <strong>Carrier:</strong>

@@ -1,7 +1,7 @@
+/** @odoo-module native */
+import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
-import { EventBus } from "@odoo/owl";
-
 const STATE = Object.freeze({
     INIT: "INIT",
     MASTER: "MASTER",
@@ -43,7 +43,7 @@ export const multiTabSharedWorkerService = {
                 default:
                     console.warn(
                         "multiTabSharedWorkerService received unknown message type:",
-                        type
+                        type,
                     );
             }
         }

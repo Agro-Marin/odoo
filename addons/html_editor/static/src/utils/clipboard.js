@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Add origin to relative img src.
  * @param {Document} doc

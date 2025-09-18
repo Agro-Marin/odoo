@@ -111,7 +111,7 @@
                                             t-att-data-show-quantity="is_view_active('website_sale.product_quantity')"
                                         >
                                             <!-- Avoid whitespaces undesired gaps -->
-                                            <i class="fa fa-shopping-cart fa-fw" role="presentation"/><span class="o_label small ms-1">Add to Cart</span>
+                                            <i class="fa-solid fa-shopping-cart" role="presentation"/><span class="o_label small ms-1">Add to Cart</span>
                                         </button>
                                     </t>
                                 </div>

@@ -1,4 +1,5 @@
-import { useDateTimePicker } from "@web/core/datetime/datetime_picker_hook";
+/** @odoo-module native */
+import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { serializeDate } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";

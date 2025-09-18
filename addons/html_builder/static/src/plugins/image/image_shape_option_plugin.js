@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { DEFAULT_PALETTE } from "@html_editor/utils/color";
@@ -20,7 +21,7 @@ import { _t } from "@web/core/l10n/translation";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { getMimetype } from "@html_editor/utils/image";
 import { withSequence } from "@html_editor/utils/resource";
-import { deepCopy, deepMerge } from "@web/core/utils/objects";
+import { deepCopy, deepMerge } from "@web/core/utils/collections/objects";
 
 /**
  * @typedef {Object.<string, {

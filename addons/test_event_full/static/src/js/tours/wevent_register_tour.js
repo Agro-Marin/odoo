@@ -15,7 +15,7 @@ const reminderToggleSteps = function (talkName, reminderOn, toggleReminder) {
     else {
         steps = steps.concat([{
             content: `Check Favorite for ${talkName} was off`,
-            trigger: "div.o_wetrack_js_reminder i.fa-bell-o",
+            trigger: "div.o_wetrack_js_reminder i.fa-bell",
         }]);
         if (toggleReminder) {
             steps = steps.concat([{

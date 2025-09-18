@@ -1,4 +1,5 @@
-import { Countdown } from "./countdown";
+/** @odoo-module native */
+import { Countdown } from "./countdown.js";
 import { registry } from "@web/core/registry";
 
 const CountdownEdit = (I) =>

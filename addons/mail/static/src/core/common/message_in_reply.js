@@ -1,8 +1,7 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
-
 import { useService } from "@web/core/utils/hooks";
 import { url } from "@web/core/utils/urls";
-
 export class MessageInReply extends Component {
     static props = ["class?", "message", "onClick?"];
     static defaultProps = { class: "" };

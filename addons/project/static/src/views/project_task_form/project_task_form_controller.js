@@ -1,12 +1,13 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { HistoryDialog } from "@html_editor/components/history_dialog/history_dialog";
 import { useService } from '@web/core/utils/hooks';
 import { markup, useEffect } from "@odoo/owl";
 import { FormControllerWithHTMLExpander } from '@resource/views/form_with_html_expander/form_controller_with_html_expander';
 import { getHtmlFieldMetadata, setHtmlFieldMetadata } from "@html_editor/fields/html_field";
 
-import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown";
+import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 
 export const subTaskDeleteConfirmationMessage = _t(
     `Deleting a task will also delete its associated sub-tasks. \
@@ -61,7 +62,7 @@ export class ProjectTaskFormController extends FormControllerWithHTMLExpander {
             ...super.getStaticActionMenuItems(),
             openHistoryDialog: {
                 sequence: 15,
-                icon: "fa fa-history",
+                icon: "fa-solid fa-history",
                 description: _t("Version History"),
                 callback: () => this.openHistoryDialog(),
             },

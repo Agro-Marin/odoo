@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { htmlField, HtmlField } from "@html_editor/fields/html_field";
 import { MoveNodePlugin } from "@html_editor/main/movenode_plugin";

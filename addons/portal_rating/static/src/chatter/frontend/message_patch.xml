@@ -17,7 +17,7 @@
                     t-attf-class="btn px-2 my-2 btn-sm border o_wrating_js_publisher_comment_btn {{ message.rating_id.publisher_comment !== '' ? 'd-none' : '' }}"
                     t-att-data-mes_index="message.rating_id.mes_index"
                     t-on-click="onClikEditComment">
-                    <i class="fa fa-comment text-muted me-1"/>Comment
+                    <i class="fa-solid fa-comment text-muted me-1"/>Comment
                 </button>
                 <div t-if="state.editRating" class="mt-2">
                     <Composer autofocus="true" composer="message.composer" onDiscardCallback.bind="exitEditCommentMode" onPostCallback.bind="exitEditCommentMode" mode="'compact'"/>
@@ -41,10 +41,10 @@
                                         </button>
                                         <t t-set-slot="content">
                                             <DropdownItem class="'o_wrating_js_publisher_comment_edit'" onSelected="() => this.onClikEditComment()">
-                                                <i class="fa fa-fw fa-pencil me-1"/>Edit
+                                                <i class="fa-solid fa-pencil me-1"/>Edit
                                             </DropdownItem>
                                             <DropdownItem class="'o_wrating_js_publisher_comment_delete'" onSelected="() => this.deleteComment()">
-                                                <i class="fa fa-fw fa-trash-o me-1"/>Delete
+                                                <i class="fa-regular fa-trash-can me-1"/>Delete
                                             </DropdownItem>
                                         </t>
                                     </Dropdown>

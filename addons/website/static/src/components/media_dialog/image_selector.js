@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { ImageSelector as HtmlImageSelector } from "@html_editor/main/media/media_dialog/image_selector";
 

@@ -1,3 +1,8 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/core/l10n/localization - Shared reactive localization object (date/number formats, direction, locale) */
+
 /**
  * @typedef Localization
  * @property {string} dateFormat
@@ -23,18 +28,15 @@
  *   const dateFormat = localization.dateFormat; // dateFormat isn't set yet
  * @type {Localization}
  */
-export const localization = new Proxy(
-    {},
-    {
-        get: (target, p) => {
-            // "then" can be called implicitly if the object is returned in an
-            // `async` function, so we need to allow it.
-            if (p in target || p === "then") {
-                return Reflect.get(target, p);
-            }
-            throw new Error(
-                `could not access localization parameter "${p}": parameters are not ready yet. Maybe add 'localization' to your dependencies?`
-            );
-        },
-    }
-);
+export const localization = new Proxy(/** @type {any} */ ({}), {
+    get: (target, p) => {
+        // "then" can be called implicitly if the object is returned in an
+        // `async` function, so we need to allow it.
+        if (p in target || p === "then") {
+            return Reflect.get(target, p);
+        }
+        throw new Error(
+            `could not access localization parameter "${String(p)}": parameters are not ready yet. Maybe add 'localization' to your dependencies?`,
+        );
+    },
+});

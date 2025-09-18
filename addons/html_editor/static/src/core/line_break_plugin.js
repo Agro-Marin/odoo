@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { splitTextNode } from "@html_editor/utils/dom";
-import { Plugin } from "../plugin";
-import { CTGROUPS, CTYPES } from "../utils/content_types";
-import { getState, isFakeLineBreak, prepareUpdate } from "../utils/dom_state";
-import { DIRECTIONS, leftPos, rightPos } from "../utils/position";
+import { Plugin } from "../plugin.js";
+import { CTGROUPS, CTYPES } from "../utils/content_types.js";
+import { getState, isFakeLineBreak, prepareUpdate } from "../utils/dom_state.js";
+import { DIRECTIONS, leftPos, rightPos } from "../utils/position.js";
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { closestBlock, isBlock } from "../utils/blocks";
-import { nextLeaf } from "../utils/dom_info";
+import { closestBlock, isBlock } from "../utils/blocks.js";
+import { nextLeaf } from "../utils/dom_info.js";
 
 /**
  * @typedef { Object } LineBreakShared

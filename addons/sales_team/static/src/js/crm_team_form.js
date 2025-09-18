@@ -1,10 +1,10 @@
-/** @odoo-module **/
+/** @odoo-module native */
 
 import { _t } from "@web/core/l10n/translation";
 import { formView } from "@web/views/form/form_view";
 import { FormController } from "@web/views/form/form_controller";
 import { registry } from "@web/core/registry";
-import { user } from "@web/core/user";
+import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";
 
 

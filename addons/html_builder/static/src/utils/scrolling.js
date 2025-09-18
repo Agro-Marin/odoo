@@ -1,9 +1,10 @@
+/** @odoo-module native */
 // Scrolling util functions needed by the frontend apps and sub-modules. These
 // functions indeed take into account all frontend-specific concepts (like the
 // header at the top of the page, the wrapwrap,...) which are not considered in
 // the `@web/core/utils/scrolling` utils.
 
-import { getScrollingElement } from "@web/core/utils/scrolling";
+import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 
 /**
  * Determines if an element is scrollable.

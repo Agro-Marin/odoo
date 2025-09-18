@@ -80,7 +80,7 @@
                 <table name="journal_entries"
                     t-if="o.move_id and o.move_id.move_type == 'entry'"
                     class="table table-borderless"
-                    style="page-break-inside: avoid;">
+                    style="break-inside: avoid;">
                     <thead>
                         <tr>
                             <th class="col-8"><span>Account</span></th>

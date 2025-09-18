@@ -1,4 +1,5 @@
-import { ProductProduct } from './product_product';
+/** @odoo-module native */
+import { ProductProduct } from './product_product.js';
 
 export class ProductComboItem {
     /**

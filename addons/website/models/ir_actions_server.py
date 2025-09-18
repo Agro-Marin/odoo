@@ -2,7 +2,7 @@
 
 from odoo import api, fields, models
 from odoo.http import request
-from odoo.tools import urls
+from odoo.libs.web import urls
 from odoo.tools.json import scriptsafe as json_scriptsafe
 
 
@@ -42,7 +42,7 @@ class IrActionsServer(models.Model):
                 action.website_url = False
 
     @api.model
-    def _get_eval_context(self, action):
+    def _get_eval_context(self, action=None):
         """ Override to add the request object in eval_context. """
         eval_context = super()._get_eval_context(action)
         if action.state == 'code':

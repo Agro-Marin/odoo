@@ -13,12 +13,12 @@
                     t-att-data-product-id='wish.product_id.id'
                     aria-label="Add to compare"
                 >
-                    <i class="fa fa-fw fa-exchange" role="presentation"/>
+                    <i class="fa-solid fa-right-left" role="presentation"/>
                 </button>
 
                 <!-- Render placeholder when product is not comparable to ensure alignment -->
                 <div t-else="" class="o_add_to_compare_placeholder btn btn-light pe-none opacity-0">
-                    <i class="fa fa-exchange fa-fw" aria-hidden="true"/>
+                    <i class="fa-solid fa-right-left" aria-hidden="true"/>
                 </div>
             </t>
         </xpath>

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { usePopover } from "@web/core/popover/popover_hook";
+import { usePopover } from "@web/ui/popover/popover_hook";
 import { Component } from "@odoo/owl";
-import { standardFieldProps } from "@web/views/fields/standard_field_props";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 /**
  * Extend this to add functionality to Popover (custom methods etc.)
@@ -35,7 +36,9 @@ export class PopoverWidgetField extends Component {
         const position = this.jsonValue.position || "top";
         this.popover = usePopover(this.constructor.components.Popover, { position });
         this.color = this.jsonValue.color || 'text-primary';
-        this.icon = this.jsonValue.icon || 'fa-info-circle';
+        const rawIcon = this.jsonValue.icon || 'fa-circle-info';
+        // Support full FA7 class strings ("fa-solid fa-x") and bare icon names ("fa-x")
+        this.icon = rawIcon.includes(' ') ? rawIcon : `fa-solid ${rawIcon}`;
     }
 
     showPopup(ev){

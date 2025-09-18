@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Record } from "@mail/core/common/record";
 
 export class Website extends Record {

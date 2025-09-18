@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import {
     activateCropper,
     loadImage,
     loadImageInfo,
     cropperDataFieldsWithAspectRatio,
 } from "@html_editor/utils/image_processing";
-import { IMAGE_SHAPES } from "./image_plugin";
+import { IMAGE_SHAPES } from "./image_plugin.js";
 import { _t } from "@web/core/l10n/translation";
 import {
     Component,
@@ -16,7 +17,7 @@ import {
     status,
 } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { scrollTo, closestScrollableY } from "@web/core/utils/scrolling";
+import { scrollTo, closestScrollableY } from "@web/core/utils/dom/scrolling";
 
 export const cropperAspectRatios = {
     "0/0": { label: _t("Flexible"), value: 0 },

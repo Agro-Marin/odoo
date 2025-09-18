@@ -1,18 +1,19 @@
-import { ChatWindow } from "@mail/core/common/chat_window";
+/** @odoo-module native */
+import { Action } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
+import { CHAT_HUB_COMPACT_LS } from "@mail/core/common/chat_hub_model";
+import { ChatWindow } from "@mail/core/common/chat_window";
 import { useHover, useMovable } from "@mail/utils/common/hooks";
 import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
-
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { browser } from "@web/core/browser/browser";
-import { Dropdown } from "@web/core/dropdown/dropdown";
-import { useDropdownState } from "@web/core/dropdown/dropdown_hooks";
-import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
-import { ChatBubble } from "./chat_bubble";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
-import { Action } from "@mail/core/common/action";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 
+import { ChatBubble } from "./chat_bubble.js";
 export class ChatHub extends Component {
     static components = { ActionList, ChatBubble, ChatWindow, Dropdown };
     static props = [];
@@ -46,7 +47,10 @@ export class ChatHub extends Component {
         this.onResize();
         useExternalListener(browser, "resize", this.onResize);
         useEffect(() => {
-            if (this.chatHub.folded.length && this.store.channels?.status === "not_fetched") {
+            if (
+                this.chatHub.folded.length &&
+                this.store.channels?.status === "not_fetched"
+            ) {
                 this.store.channels.fetch();
             }
         });
@@ -78,7 +82,7 @@ export class ChatHub extends Component {
                     id: "hide-all",
                     definition: {
                         name: _t("Hide all conversations"),
-                        icon: "fa fa-eye-slash",
+                        icon: "fa-regular fa-eye-slash",
                         onSelected: () => this.chatHub.hideAll(),
                     },
                     store: this.store,
@@ -92,7 +96,7 @@ export class ChatHub extends Component {
                         onSelected: () => this.chatHub.closeAll(),
                     },
                     store: this.store,
-                })
+                }),
             );
         }
         if (this.position.dragged) {
@@ -102,11 +106,11 @@ export class ChatHub extends Component {
                     id: "reset-position",
                     definition: {
                         name: _t("Reset initial position"),
-                        icon: "fa fa-undo",
+                        icon: "fa-solid fa-undo",
                         onSelected: () => this.resetPosition(),
                     },
                     store: this.store,
-                })
+                }),
             );
         }
         return actions;
@@ -169,7 +173,8 @@ export class ChatHub extends Component {
     }
 
     expand() {
-        this.chatHub.compact = false;
+        browser.localStorage.removeItem(CHAT_HUB_COMPACT_LS);
+        this.chatHub._recomputeCompact++;
         this.more.isOpen = this.chatHub.folded.length > this.chatHub.maxFolded;
         if (this.chatHub.opened.length > 0) {
             this.resetPosition();
@@ -180,7 +185,9 @@ export class ChatHub extends Component {
 export const chatHubService = {
     dependencies: ["bus.monitoring_service", "mail.store", "ui"],
     start() {
-        registry.category("main_components").add("mail.ChatHub", { Component: ChatHub });
+        registry
+            .category("main_components")
+            .add("mail.ChatHub", { Component: ChatHub });
     },
 };
 registry.category("services").add("mail.chat_hub", chatHubService);

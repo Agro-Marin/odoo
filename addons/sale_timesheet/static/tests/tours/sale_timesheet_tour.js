@@ -7,7 +7,7 @@ import { markup } from "@odoo/owl";
 registry.category("web_tour.tours").add('sale_timesheet_tour', {
     url: '/odoo',
     steps: () => [
-        ...stepUtils.goToAppSteps("sale.sale_menu_root", "Go to the Sales App"),
+        ...stepUtils.goToAppSteps("sale.menu_sale_root", "Go to the Sales App"),
         ...tourUtils.createNewSalesOrder(),
         ...tourUtils.selectCustomer("Brandon Freeman"),
         ...tourUtils.addProduct("Service Product (Prepaid Hours)"),
@@ -26,7 +26,7 @@ registry.category("web_tour.tours").add('sale_timesheet_tour', {
     trigger: '.o_field_widget[name=state] .o_arrow_button_current:contains("Sales Order")',
 },
 ...stepUtils.toggleHomeMenu(),
-...stepUtils.goToAppSteps("project.menu_main_pm", 'Go to the Project app.'),
+...stepUtils.goToAppSteps("project.menu_project_root", 'Go to the Project app.'),
 {
     trigger: 'button.o-kanban-button-new',
     content: 'Add a new project.',
@@ -373,5 +373,5 @@ registry.category("web_tour.tours").add('sale_timesheet_tour', {
     content: 'Check the kanban view of project update is rendered to be sure the user leaves the form view and the project update is created',
 },
 ...stepUtils.toggleHomeMenu(),
-...stepUtils.goToAppSteps("project.menu_main_pm", 'Go to the Project app.'),
+...stepUtils.goToAppSteps("project.menu_project_root", 'Go to the Project app.'),
 ]});

@@ -1,3 +1,5 @@
+/** @odoo-module native */
+/* @odoo-module */
 //
 // This file is meant to regroup your javascript code. You can either copy/past
 // any code that should be executed on each page loading or write your own
@@ -6,7 +8,7 @@
 // world !' message in a popup:
 //
 /*
-import { ConfirmationDialog } from '@web/core/confirmation_dialog/confirmation_dialog';
+import { ConfirmationDialog } from '@web/ui/dialog/confirmation_dialog';
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 

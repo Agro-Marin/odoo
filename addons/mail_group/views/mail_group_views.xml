@@ -85,7 +85,7 @@
                                 type="action"
                                 context="{'search_default_mail_group_id': id, 'search_default_moderation_status': 'pending_moderation'}"
                                 class="oe_stat_button"
-                                icon="fa-commenting-o"
+                                icon="fa-regular fa-comment-dots"
                                 help="Emails waiting an action for this group"
                                 invisible="not (moderation and mail_group_message_moderation_count != 0)">
                             <field name="mail_group_message_moderation_count" widget="statinfo" string="To Review"/>
@@ -119,7 +119,7 @@
                                         <field name="alias_domain_id" class="oe_inline" placeholder="e.g. mycompany.com"
                                                options="{'no_create': True, 'no_open': True}"/>
                                     </div>
-                                    <button icon="oi-arrow-right" type="action" name="%(base_setup.action_general_configuration)d"
+                                    <button icon="oi-arrow-right" type="action" name="%(web.action_general_configuration)d"
                                             string="Choose or configure a custom domain" class="p-0 btn-link"
                                             invisible="alias_domain_id"/>
                                 </div>

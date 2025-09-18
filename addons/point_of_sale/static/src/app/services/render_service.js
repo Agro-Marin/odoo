@@ -1,8 +1,8 @@
-import { registry } from "@web/core/registry";
+/** @odoo-module native */
 import { Component, onMounted, reactive, useRef, xml } from "@odoo/owl";
 import { toCanvas } from "@point_of_sale/app/utils/html-to-image";
 import { waitImages } from "@point_of_sale/utils";
-
+import { registry } from "@web/core/registry";
 class ComponentRenderer extends Component {
     static props = ["comp", "onMounted"];
     static template = xml`
@@ -66,7 +66,9 @@ export const renderService = {
             htmlToCanvas(await toHtml(component, props), options);
         const toJpeg = async (component, props, options) => {
             const canvas = await toCanvas(component, props, options);
-            return canvas.toDataURL("image/jpeg").replace("data:image/jpeg;base64,", "");
+            return canvas
+                .toDataURL("image/jpeg")
+                .replace("data:image/jpeg;base64,", "");
         };
         const whenMounted = async ({ el, container, callback }) => {
             container ||= document.querySelector(".render-container");
@@ -86,7 +88,9 @@ registry.category("services").add("renderer", renderService);
  */
 const applyWhenMounted = async ({ el, container, callback }) => {
     const elClone = el.cloneNode(true);
-    const sameClassElements = container.querySelectorAll(`.${[...el.classList].join(".")}`);
+    const sameClassElements = container.querySelectorAll(
+        `.${[...el.classList].join(".")}`,
+    );
     // Remove all elements with the same class as the one we are about to add
     sameClassElements.forEach((element) => {
         element.remove();
@@ -98,7 +102,10 @@ const applyWhenMounted = async ({ el, container, callback }) => {
 
 const sanitizeNodeText = (element) => {
     if (element.nodeType === Node.TEXT_NODE) {
-        element.textContent = element.textContent.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ""); // eslint-disable-line no-control-regex
+        element.textContent = element.textContent.replace(
+            /[\x00-\x08\x0B\x0C\x0E-\x1F]/g,
+            "",
+        );
         return;
     }
     for (const child of element.childNodes) {

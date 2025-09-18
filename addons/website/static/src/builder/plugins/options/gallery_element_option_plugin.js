@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { withSequence } from "@html_editor/utils/resource";
@@ -65,6 +66,7 @@ export class SetGalleryElementPositionAction extends BuilderAction {
             : "GalleryImageList";
 
         // Get the items to reorder.
+        activeItemEl = activeItemEl.closest("a") || activeItemEl;
         const itemEls = [];
         for (const getGalleryItems of this.getResource("get_gallery_items_handlers")) {
             itemEls.push(...getGalleryItems(activeItemEl, optionName));

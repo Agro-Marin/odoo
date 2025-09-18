@@ -7,14 +7,14 @@
         inherit_id="sale.sale_order_portal_content"
     >
         <tbody id="sale_info_table" position="inside">
-            <tr t-if="sale_order.incoterm">
+            <tr t-if="sale_order.incoterm_id">
                 <th class="pb-0">Incoterm:</th>
                 <td class="w-100 pb-0 text-wrap">
                     <p t-if="sale_order.incoterm_location">
-                        <span t-field="sale_order.incoterm.code"/> <br/>
+                        <span t-field="sale_order.incoterm_id.code"/> <br/>
                         <span t-field="sale_order.incoterm_location"/>
                     </p>
-                    <p t-else="" t-field="sale_order.incoterm.code" class="m-0"/>
+                    <p t-else="" t-field="sale_order.incoterm_id.code" class="m-0"/>
                 </td>
             </tr>
         </tbody>
@@ -37,7 +37,7 @@
                                 </a>
                                 <div t-if="picking.state == 'done'">
                                     <span class="small badge rounded-pill text-bg-success orders_label_text_align">
-                                        <i class="fa fa-fw fa-truck"/> Shipped
+                                        <i class="fa-solid fa-truck"/> Shipped
                                     </span>
                                     <a class="badge rounded-pill text-bg-secondary orders_label_text_align" target="_blank"
                                         t-att-href="'/my/picking/return/pdf/%s?%s' % (picking.id, keep_query())">
@@ -46,21 +46,21 @@
                                 </div>
                                 <span t-elif="picking.state == 'cancel'"
                                     class="small badge rounded-pill text-bg-danger orders_label_text_align">
-                                    <i class="fa fa-fw fa-times"/>Cancelled
+                                    <i class="fa-solid fa-times"/>Cancelled
                                 </span>
                                 <span t-elif="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
                                     class="small badge rounded-pill text-bg-info orders_label_text_align">
-                                    <i class="fa fa-fw fa-clock-o"/>Preparation
+                                    <i class="fa-regular fa-clock"/>Preparation
                                 </span>
                             </div>
-                            <div class="small d-lg-inline-block" t-if="picking.date_done or picking.scheduled_date">
+                            <div class="small d-lg-inline-block" t-if="picking.date_done or picking.date_planned">
                                 Date:
                                 <span class="text-muted"
                                         t-field="picking.date_done"
                                         t-options="{'date_only': True}"/>
                                 <span t-if="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
                                         class="text-muted"
-                                        t-field="picking.scheduled_date"
+                                        t-field="picking.date_planned"
                                         t-options="{'date_only': True}"/>
                             </div>
                         </div>
@@ -81,15 +81,15 @@
                             </a>
                             <span t-if="picking.state == 'done'"
                                 class="small badge rounded-pill text-bg-success orders_label_text_align">
-                                <i class="fa fa-fw fa-truck"/> Received
+                                <i class="fa-solid fa-truck"/> Received
                             </span>
                             <span t-elif="picking.state == 'cancel'"
                                 class="small badge rounded-pill text-bg-danger orders_label_text_align">
-                                <i class="fa fa-fw fa-times"/> Cancelled
+                                <i class="fa-solid fa-times"/> Cancelled
                             </span>
                             <span t-elif="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
                                 class="small badge rounded-pill text-bg-info orders_label_text_align">
-                                <i class="fa fa-fw fa-clock-o"/> Awaiting arrival
+                                <i class="fa-regular fa-clock"/> Awaiting arrival
                             </span>
                         </div>
                         <div class="small d-lg-inline-block">
@@ -99,7 +99,7 @@
                                 t-options="{'date_only': True}"/>
                             <span t-if="picking.state in ['draft', 'waiting', 'confirmed', 'assigned']"
                                 class="text-muted"
-                                t-field="picking.scheduled_date"
+                                t-field="picking.date_planned"
                                 t-options="{'date_only': True}"/>
                         </div>
                     </div>
@@ -119,25 +119,25 @@
         <td name="order_amount_total" position="before">
             <td class="text-end" name="order_delivery_status">
                 <span
-                    t-if="order.delivery_status == 'pending'"
+                    t-if="order.transfer_state == 'to do'"
                     class="badge rounded-pill text-bg-warning"
                 >
                     Not Delivered
                 </span>
                 <span
-                    t-elif="order.delivery_status == 'started'"
+                    t-elif="order.transfer_state == 'partial'"
                     class="badge rounded-pill text-bg-primary"
                 >
                     Started
                 </span>
                 <span
-                    t-elif="order.delivery_status == 'partial'"
+                    t-elif="order.transfer_state == 'partial'"
                     class="badge rounded-pill text-bg-info"
                 >
                     Partially Delivered
                 </span>
                 <span
-                    t-elif="order.delivery_status == 'full'"
+                    t-elif="order.transfer_state == 'done'"
                     class="badge rounded-pill text-bg-success"
                 >
                     Delivered

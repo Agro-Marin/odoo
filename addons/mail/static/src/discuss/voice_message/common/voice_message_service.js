@@ -1,7 +1,7 @@
+/** @odoo-module native */
 import { loadBundle } from "@web/core/assets";
 import { registry } from "@web/core/registry";
 import { memoize } from "@web/core/utils/functions";
-
 const loader = {
     loadLamejs: memoize(() => loadBundle("mail.assets_lamejs")),
 };

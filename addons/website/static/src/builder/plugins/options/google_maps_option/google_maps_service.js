@@ -1,10 +1,11 @@
+/** @odoo-module native */
 /* eslint-disable no-async-promise-executor */
 
 import { loadJS } from "@web/core/assets";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/core/user";
+import { user } from "@web/services/user";
 import { markup } from "@odoo/owl";
 
 registry.category("services").add("google_maps", {

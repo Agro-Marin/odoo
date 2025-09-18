@@ -1,10 +1,10 @@
-import { patch } from "@web/core/utils/patch";
+/** @odoo-module native */
+import { MessageConfirmDialog } from "@mail/core/common/message_confirm_dialog";
 import { Message } from "@mail/core/common/message_model";
 import { fields } from "@mail/core/common/record";
 import { _t } from "@web/core/l10n/translation";
-import { MessageConfirmDialog } from "@mail/core/common/message_confirm_dialog";
 import { Deferred } from "@web/core/utils/concurrency";
-
+import { patch } from "@web/core/utils/patch";
 patch(Message.prototype, {
     setup() {
         super.setup();
@@ -25,7 +25,7 @@ patch(Message.prototype, {
                     "You sure want this message pinned to %(conversation)s forever and ever?",
                     {
                         conversation: this.thread.prefix + this.thread.displayName,
-                    }
+                    },
                 ),
                 size: "md",
                 title: _t("Pin It"),
@@ -35,11 +35,11 @@ patch(Message.prototype, {
                         "discuss.channel",
                         "set_message_pin",
                         [this.thread.id],
-                        { message_id: this.id, pinned: true }
+                        { message_id: this.id, pinned: true },
                     );
                 },
             },
-            { onClose: () => def.resolve(false) }
+            { onClose: () => def.resolve(false) },
         );
         return def;
     },
@@ -53,7 +53,7 @@ patch(Message.prototype, {
                 confirmText: _t("Yes, remove it please"),
                 message: this,
                 prompt: _t(
-                    "Well, nothing lasts forever, but are you sure you want to unpin this message?"
+                    "Well, nothing lasts forever, but are you sure you want to unpin this message?",
                 ),
                 size: "md",
                 title: _t("Unpin Message"),
@@ -63,11 +63,11 @@ patch(Message.prototype, {
                         "discuss.channel",
                         "set_message_pin",
                         [this.thread.id],
-                        { message_id: this.id, pinned: false }
+                        { message_id: this.id, pinned: false },
                     );
                 },
             },
-            { onClose: () => def.resolve(false) }
+            { onClose: () => def.resolve(false) },
         );
         return def;
     },

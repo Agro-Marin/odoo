@@ -6,12 +6,12 @@
         <t t-if="props.record.displaySubtasks">
             <div class="subtask_list">
                 <div t-foreach="closedList" t-as="record" t-key="record.id"  class="subtask_list_row">
-                    <a t-attf-class="subtask_name_col {{ ['1_done', '1_canceled'].includes(record.data.state) ? 'text-muted opacity-50' : '' }}"
+                    <a t-attf-class="subtask_name_col {{ ['done', 'canceled'].includes(record.data.state) ? 'text-muted opacity-50' : '' }}"
                         t-att-title="record.data.display_name"
                         t-esc="record.data.display_name"
                         t-on-click.prevent="() => this.goToSubtask(record.resId)"/>
                     <Field
-                        class="`o_field_many2many_avatar_user subtask_user_widget_col d-inline-flex align-items-center justify-content-end me-1 ${['1_done', '1_canceled'].includes(record.data.state) ? 'opacity-50' : ''}`"
+                        class="`o_field_many2many_avatar_user subtask_user_widget_col d-inline-flex align-items-center justify-content-end me-1 ${['done', 'canceled'].includes(record.data.state) ? 'opacity-50' : ''}`"
                         name="'user_ids'"
                         record="record"
                         readonly="false"
@@ -33,7 +33,7 @@
                             onBlur.bind="_onBlur" />
                     </t>
                     <t t-else="">
-                        <i class="fa fa-plus my-2"/> Add Sub-task
+                        <i class="fa-solid fa-plus my-2"/> Add Sub-task
                     </t>
                 </div>
             </div>

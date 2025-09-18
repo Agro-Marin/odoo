@@ -1,10 +1,8 @@
+/** @odoo-module native */
 import { registerMessageAction } from "@mail/core/common/message_actions";
-
 import { toRaw } from "@odoo/owl";
-
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-
 registerMessageAction("set-new-message-separator", {
     condition: ({ message, thread }) =>
         thread &&
@@ -12,7 +10,7 @@ registerMessageAction("set-new-message-separator", {
         thread.eq(message.thread) &&
         !message.hasNewMessageSeparator &&
         message.persistent,
-    icon: "fa fa-eye-slash",
+    icon: "fa-regular fa-eye-slash",
     name: _t("Mark as Unread"),
     onSelected: ({ message: msg }) => {
         const message = toRaw(msg);

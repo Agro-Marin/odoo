@@ -1,9 +1,8 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { Dialog } from "@web/core/dialog/dialog";
-
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-
+import { Dialog } from "@web/ui/dialog/dialog";
 export class CallPermissionDialog extends Component {
     static components = { Dialog };
     static props = {

@@ -36,7 +36,7 @@ const notificationPatch = {
     },
     get icon() {
         if (this.notification_type === "sms") {
-            return "fa fa-mobile";
+            return "fa-solid fa-mobile-screen-button";
         }
         return super.icon;
     },

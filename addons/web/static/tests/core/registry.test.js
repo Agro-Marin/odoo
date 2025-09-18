@@ -1,7 +1,8 @@
+// @ts-check
+
 import { describe, expect, test } from "@odoo/hoot";
 import { Component } from "@odoo/owl";
 import { serverState } from "@web/../tests/web_test_helpers";
-
 import { Registry } from "@web/core/registry";
 
 describe.current.tags("headless");
@@ -105,7 +106,7 @@ test("can get ordered list of entries", () => {
     ]);
 });
 
-test("getAll and getEntries returns shallow copies", () => {
+test("getAll and getEntries return frozen cached arrays", () => {
     const registry = new Registry();
 
     registry.add("foo1", "foo1");
@@ -116,16 +117,41 @@ test("getAll and getEntries returns shallow copies", () => {
     expect(all).toEqual(["foo1"]);
     expect(entries).toEqual([["foo1", "foo1"]]);
 
-    all.push("foo2");
-    entries.push(["foo2", "foo2"]);
+    // Arrays are frozen — mutation throws in strict mode
+    expect(() => all.push("foo2")).toThrow();
+    expect(() => entries.push(["foo2", "foo2"])).toThrow();
 
-    expect(all).toEqual(["foo1", "foo2"]);
-    expect(entries).toEqual([
-        ["foo1", "foo1"],
-        ["foo2", "foo2"],
-    ]);
+    // Cached array is unchanged
     expect(registry.getAll()).toEqual(["foo1"]);
     expect(registry.getEntries()).toEqual([["foo1", "foo1"]]);
+});
+
+test("getAll and getEntries return the same cached reference", () => {
+    const registry = new Registry();
+    registry.add("a", 1);
+
+    // Same reference on repeated calls (no unnecessary copy)
+    expect(registry.getAll()).toBe(registry.getAll());
+    expect(registry.getEntries()).toBe(registry.getEntries());
+
+    // Adding invalidates cache — new reference
+    const prev = registry.getAll();
+    registry.add("b", 2);
+    expect(registry.getAll()).not.toBe(prev);
+});
+
+test("getAll/getEntries: callers can spread for mutable copy", () => {
+    const registry = new Registry();
+    registry.add("b", "b", { sequence: 2 });
+    registry.add("a", "a", { sequence: 1 });
+
+    // Spread creates a mutable copy
+    const sorted = [...registry.getAll()];
+    expect(() => sorted.reverse()).not.toThrow();
+    expect(sorted).toEqual(["b", "a"]);
+
+    // Original frozen cache unchanged
+    expect(registry.getAll()).toEqual(["a", "b"]);
 });
 
 test("can override element with sequence", () => {
@@ -156,6 +182,22 @@ test("can override element with sequence 2 ", () => {
     ]);
 });
 
+test("contains is not fooled by Object.prototype keys", () => {
+    const registry = new Registry();
+
+    // These are inherited keys on a regular {} object.
+    // With Object.create(null), they correctly return false.
+    expect(registry.contains("constructor")).toBe(false);
+    expect(registry.contains("toString")).toBe(false);
+    expect(registry.contains("hasOwnProperty")).toBe(false);
+    expect(registry.contains("__proto__")).toBe(false);
+
+    // But explicitly added keys work
+    registry.add("constructor", "my-value");
+    expect(registry.contains("constructor")).toBe(true);
+    expect(registry.get("constructor")).toBe("my-value");
+});
+
 test("can recursively open sub registry", () => {
     const registry = new Registry();
 
@@ -174,7 +216,9 @@ test("can validate the values from a schema", () => {
     expect(friendsRegistry.get("luc")).toEqual({ name: "Luc", age: 32 });
     expect(() => friendsRegistry.add("adrien", { name: 23 })).toThrow();
     expect(() => friendsRegistry.add("hubert", { age: 54 })).toThrow();
-    expect(() => friendsRegistry.add("chris", { name: "chris", city: "Namur" })).toThrow();
+    expect(() =>
+        friendsRegistry.add("chris", { name: "chris", city: "Namur" }),
+    ).toThrow();
     expect(() => friendsRegistry.addValidation({ something: Number })).toThrow();
 });
 
@@ -191,7 +235,7 @@ test("can validate subclassess", async () => {
     const schema = { component: { validate: (c) => c.prototype instanceof Component } };
     const widgetRegistry = new Registry();
     widgetRegistry.addValidation(schema);
-    class Widget extends Component {} // eslint-disable-line
+    class Widget extends Component {}
     expect(() => widgetRegistry.add("calculator", { component: Widget })).not.toThrow({
         message: "Support subclasses",
     });

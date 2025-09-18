@@ -1,7 +1,7 @@
+/** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-
 const PREVIEW_MSG_MAX_SIZE = 350; // optimal for native English speakers
 
 /**
@@ -159,7 +159,9 @@ export class OutOfFocusService {
     }
 
     get canSendNativeNotification() {
-        return Boolean(window.Notification && window.Notification.permission === "granted");
+        return Boolean(
+            window.Notification && window.Notification.permission === "granted",
+        );
     }
 }
 

@@ -8,7 +8,7 @@ let optionVariantImage;
 registry.category("web_tour.tours").add('sale_product_configurator_advanced_tour', {
     url: '/odoo',
     steps: () => [
-        ...stepUtils.goToAppSteps("sale.sale_menu_root", "Go to the Sales App"),
+        ...stepUtils.goToAppSteps("sale.menu_sale_root", "Go to the Sales App"),
         ...tourUtils.createNewSalesOrder(),
         ...tourUtils.selectCustomer("Tajine Saucisse"),
         {

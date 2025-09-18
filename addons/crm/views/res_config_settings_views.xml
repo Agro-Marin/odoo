@@ -66,7 +66,7 @@
                                 <field name="crm_auto_assignment_action"
                                     required="crm_use_auto_assignment"/>
                                 <button name="action_crm_assign_leads" type="object" class="btn-link w-auto">
-                                    <i title="Update now" role="img" aria-label="Update now" class="fa fa-fw fa-refresh"></i>
+                                    <i title="Update now" role="img" aria-label="Update now" class="fa-solid fa-arrows-rotate"></i>
                                 </button>
                             </div>
                             <div class="row mt16" invisible="not crm_use_auto_assignment or crm_auto_assignment_action == 'manual'">

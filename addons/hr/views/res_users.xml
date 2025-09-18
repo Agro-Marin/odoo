@@ -59,15 +59,15 @@
                 </xpath>
                 <xpath expr="//div[hasclass('oe_title')]" position="inside">
                     <h5 class="d-flex align-items-baseline mb-0">
-                        <i class="fa fa-envelope fa-fw me-1 text-primary" title="Work Email"/>
+                        <i class="fa-solid fa-envelope me-1 text-primary" title="Work Email"/>
                         <field name="work_email" widget="email" placeholder="Work Email" string="Work Email" class="w-75"/>
                     </h5>
                     <h5 class="d-flex align-items-baseline mb-0">
-                        <i class="fa fa-phone fa-fw me-1 text-primary" title="Work Phone"/>
+                        <i class="fa-solid fa-phone me-1 text-primary" title="Work Phone"/>
                         <field name="work_phone" widget="phone" placeholder="Work Phone" string="Work Phone" class="w-75"/>
                     </h5>
                     <h5 class="d-flex align-items-baseline mb-0">
-                        <i class="fa fa-mobile fa-fw me-1 text-primary" title="Work Mobile"/>
+                        <i class="fa-solid fa-mobile-screen-button me-1 text-primary" title="Work Mobile"/>
                         <field name="mobile_phone" widget="phone" placeholder="Work Mobile" string="Work Mobile" class="w-75"/>
                     </h5>
                 </xpath>
@@ -179,7 +179,7 @@
                     </button>
                     <button name="action_related_contact"
                         class="oe_stat_button"
-                        icon="fa-address-card-o"
+                        icon="fa-regular fa-address-card"
                         type="object"
                         help="Related Contact">
                         <div class="o_stat_info">
@@ -206,21 +206,21 @@
                 <xpath expr="//div[hasclass('oe_title')]" position="inside">
                     <h5 class="d-flex flex-wrap align-items-baseline mb-0" invisible="not employee_id">
                         <div class="w-100">
-                            <i class="fa fa-fw fa-envelope me-1 text-primary" title="Login / Email" invisible="login != work_email"/>
-                            <i class="fa fa-fw fa-key me-1 text-primary" title="Login" invisible="login == work_email"/>
+                            <i class="fa-solid fa-envelope me-1 text-primary" title="Login / Email" invisible="login != work_email"/>
+                            <i class="fa-solid fa-key me-1 text-primary" title="Login" invisible="login == work_email"/>
                             <field name="login" placeholder="Login" class="w-75"/><br/>
                         </div>
                     
-                        <i class="fa fa-envelope fa-fw me-1 text-primary" title="Work Email" invisible="login == work_email"/>
+                        <i class="fa-solid fa-envelope me-1 text-primary" title="Work Email" invisible="login == work_email"/>
                         <field name="email_domain_placeholder" invisible="1" />
                         <field name="work_email" widget="email" string="Work Email" class="w-75" options="{'placeholder_field': 'email_domain_placeholder'}" invisible="login == work_email"/>
                     </h5>
                     <h5 class="d-flex align-items-baseline mb-0" invisible="not employee_id">
-                        <i class="fa fa-phone fa-fw me-1 text-primary" title="Work Phone"/>
+                        <i class="fa-solid fa-phone me-1 text-primary" title="Work Phone"/>
                         <field name="work_phone" widget="phone" placeholder="Work Phone" string="Work Phone" class="w-75"/>
                     </h5>
                     <h5 class="d-flex align-items-baseline mb-0" invisible="not employee_id">
-                        <i class="fa fa-mobile fa-fw me-1 text-primary" title="Work Mobile"/>
+                        <i class="fa-solid fa-mobile-screen-button me-1 text-primary" title="Work Mobile"/>
                         <field name="mobile_phone" widget="phone" placeholder="Work Mobile" string="Work Mobile" class="w-75"/>
                     </h5>
                 </xpath>

@@ -6,7 +6,7 @@
         <a t-att-title="counterTitle"
            class="subtask_list_button btn-link text-dark"
            t-on-click.prevent="() => this.onClick()">
-            <span class="fa fa-check-square-o me-1"/>
+            <span class="fa-regular fa-square-check me-1"/>
             <t t-esc="counterDisplay"/>
         </a>
     </t>

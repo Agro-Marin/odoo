@@ -10,9 +10,10 @@ import { expect, test, describe } from "@odoo/hoot";
 import { xml } from "@odoo/owl";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
 
-describe.current.tags("desktop");
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { BuilderAction } from "@html_builder/core/builder_action";
+
+describe.current.tags("desktop");
 
 test("Do not set contenteditable to true on elements inside o_not_editable", async () => {
     class TestPlugin extends Plugin {
@@ -38,7 +39,7 @@ test("Media should not be replaceable if not inside a savable zone", async () =>
     await setupHTMLBuilder("", {
         headerContent: `
         <header id="top" data-anchor="true" data-name="Header">
-            <i class="fa fa-shopping-cart fa-stack target" data-oe-model="ir.ui.view" data-oe-id="786" data-oe-field="arch" data-oe-xpath="/data/xpath/li[1]/a[1]"/>
+            <i class="fa-solid fa-shopping-cart fa-stack target" data-oe-model="ir.ui.view" data-oe-id="786" data-oe-field="arch" data-oe-xpath="/data/xpath/li[1]/a[1]"/>
         </header>`,
         styleContent: `
             .fa {

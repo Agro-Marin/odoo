@@ -1,4 +1,5 @@
-import { FileModel } from "@web/core/file_viewer/file_model";
+/** @odoo-module native */
+import { FileModel } from "@web/components/file_viewer/file_model";
 
 export class StateFileModel extends FileModel {
     constructor(state) {

@@ -9,7 +9,7 @@ registry
     .add('sale_combo_configurator_preconfigure_unconfigurable_ptals', {
         url: '/odoo',
         steps: () => [
-            ...stepUtils.goToAppSteps('sale.sale_menu_root', "Open the sales app"),
+            ...stepUtils.goToAppSteps('sale.menu_sale_root', "Open the sales app"),
             ...tourUtils.createNewSalesOrder(),
             ...tourUtils.selectCustomer("Test Partner"),
             ...tourUtils.addProduct("Combo product"),

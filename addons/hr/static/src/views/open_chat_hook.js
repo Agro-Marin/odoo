@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { helpers } from "@mail/core/web/open_chat_hook";
 import { patch } from "@web/core/utils/patch";
 

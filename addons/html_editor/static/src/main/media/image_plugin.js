@@ -1,13 +1,14 @@
-import { Plugin } from "../../plugin";
+/** @odoo-module native */
+import { Plugin } from "../../plugin.js";
 import { _t } from "@web/core/l10n/translation";
 import { isImageUrl } from "@html_editor/utils/url";
-import { ImageDescription, ImageDescriptionPopover } from "./image_description";
-import { ImageToolbarDropdown } from "./image_toolbar_dropdown";
-import { createFileViewer } from "@web/core/file_viewer/file_viewer_hook";
+import { ImageDescription, ImageDescriptionPopover } from "./image_description.js";
+import { ImageToolbarDropdown } from "./image_toolbar_dropdown.js";
+import { createFileViewer } from "@web/components/file_viewer/file_viewer_hook";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { boundariesOut } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
-import { ImageTransformButton } from "./image_transform_button";
+import { ImageTransformButton } from "./image_transform_button.js";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { fillEmpty } from "@html_editor/utils/dom";
@@ -79,21 +80,21 @@ export class ImagePlugin extends Plugin {
             {
                 id: "setImageShapeCircle",
                 description: _t("Set shape: Circle"),
-                icon: "fa-circle-o",
+                icon: "fa-regular fa-circle",
                 run: () => this.setImageShape("rounded-circle", { excludeClasses: ["rounded"] }),
                 isAvailable: isHtmlContentSupported,
             },
             {
                 id: "setImageShapeShadow",
                 description: _t("Set shape: Shadow"),
-                icon: "fa-sun-o",
+                icon: "fa-regular fa-sun",
                 run: () => this.setImageShape("shadow"),
                 isAvailable: isHtmlContentSupported,
             },
             {
                 id: "setImageShapeThumbnail",
                 description: _t("Set shape: Thumbnail"),
-                icon: "fa-picture-o",
+                icon: "fa-regular fa-image",
                 run: () => this.setImageShape("img-thumbnail"),
                 isAvailable: isHtmlContentSupported,
             },
@@ -357,6 +358,10 @@ export class ImagePlugin extends Plugin {
                 description: _t("Embed the image in the document."),
                 icon: "fa-image",
                 run: () => {
+                    this.dispatchTo(
+                        "before_paste_handlers",
+                        this.dependencies.selection.getEditableSelection()
+                    );
                     const img = this.document.createElement("IMG");
                     img.setAttribute("src", url);
                     this.dependencies.dom.insert(img);

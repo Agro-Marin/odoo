@@ -1,6 +1,7 @@
+/** @odoo-module native */
 /* global google */
 
-import { GoogleMap } from "./google_map";
+import { GoogleMap } from "./google_map.js";
 import { registry } from "@web/core/registry";
 
 const GoogleMapEdit = (I) =>

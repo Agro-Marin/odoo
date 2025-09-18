@@ -5,7 +5,7 @@ registry.category("web_tour.tours").add('project_create_sol_tour', {
     url: "/odoo",
     steps: () => [
     stepUtils.showAppsMenuItem(), {
-        trigger: ".o_app[data-menu-xmlid='project.menu_main_pm']",
+        trigger: ".o_app[data-menu-xmlid='project.menu_project_root']",
         content: 'Select Project main menu.',
         run: "click",
     }, {
@@ -54,6 +54,6 @@ registry.category("web_tour.tours").add('project_create_sol_tour', {
     // Those steps are currently needed in order to prevent the following issue:
     // "Form views in edition mode are automatically saved when the page is closed, which leads to stray network requests and inconsistencies."
     ...stepUtils.toggleHomeMenu(),
-    ...stepUtils.goToAppSteps("project.menu_main_pm", 'Go to the Project app.'),
+    ...stepUtils.goToAppSteps("project.menu_project_root", 'Go to the Project app.'),
 ]});
 

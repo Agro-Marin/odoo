@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useEffect, useState } from "@odoo/owl";
 
 export function useDropdownAutoVisibility(overlayState, popoverRef) {

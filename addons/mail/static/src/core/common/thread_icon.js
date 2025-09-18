@@ -1,10 +1,10 @@
+/** @odoo-module native */
+import { Component } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 
-import { Component } from "@odoo/owl";
-import { Thread } from "./thread_model";
-import { _t } from "@web/core/l10n/translation";
-import { ImStatus } from "./im_status";
-
+import { ImStatus } from "./im_status.js";
+import { Thread } from "./thread_model.js";
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread} thread
@@ -17,7 +17,10 @@ export class ThreadIcon extends Component {
     static components = { ImStatus };
     static props = {
         thread: { type: Thread },
-        size: { optional: true, validate: (size) => ["small", "medium", "large"].includes(size) },
+        size: {
+            optional: true,
+            validate: (size) => ["small", "medium", "large"].includes(size),
+        },
         className: { type: String, optional: true },
         title: { type: Boolean, optional: true },
     };
@@ -38,7 +41,7 @@ export class ThreadIcon extends Component {
 
     get defaultChatIcon() {
         return {
-            class: "fa fa-question-circle opacity-75",
+            class: "fa-solid fa-question-circle opacity-75",
             title: _t("No IM status available"),
         };
     }

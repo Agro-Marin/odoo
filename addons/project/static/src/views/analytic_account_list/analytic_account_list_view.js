@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
 
-import { AnalyticAccountListController } from "./analytic_account_list_controller";
+import { AnalyticAccountListController } from "./analytic_account_list_controller.js";
 
 export const AnalyticAccountListView = {
     ...listView,

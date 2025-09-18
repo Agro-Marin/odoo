@@ -1,4 +1,9 @@
-import { clamp } from "@web/core/utils/numbers";
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/core/colors/colors - Predefined color palettes for charts and graph visualizations */
+
+import { clamp } from "@web/core/utils/format/numbers";
 /**
  * Lists of colors that contrast well with each other to be used in various
  * visualizations (eg. graphs/charts), both in bright and dark themes.
@@ -60,9 +65,9 @@ const COLORS_XL = [
     "#056BD9", // Blue #3
     "#155193", // Blue #4
     "#A76DBC", // Violet #1
-    "#7F4295", // Violet #1
-    "#6D2387", // Violet #1
-    "#4F1565", // Violet #1
+    "#7F4295", // Violet #2
+    "#6D2387", // Violet #3
+    "#4F1565", // Violet #4
     "#EA6175", // Red #1
     "#CE4257", // Red #2
     "#982738", // Red #3
@@ -92,7 +97,7 @@ const COLORS_XL = [
 /**
  * @param {string} colorScheme
  * @param {string} paletteName
- * @returns {array}
+ * @returns {string[]}
  */
 export function getColors(colorScheme, paletteName) {
     switch (paletteName) {
@@ -145,10 +150,11 @@ const RGB_REGEX = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i;
  * @returns {string}
  */
 export function hexToRGBA(hex, opacity) {
-    const rgb = RGB_REGEX.exec(hex)
-        .slice(1, 4)
-        .map((n) => parseInt(n, 16))
-        .join(",");
+    const match = RGB_REGEX.exec(hex);
+    if (!match) {
+        return `rgba(0,0,0,${opacity})`;
+    }
+    const rgb = match.slice(1, 4).map((n) => parseInt(n, 16)).join(",");
     return `rgba(${rgb},${opacity})`;
 }
 
@@ -177,19 +183,19 @@ export function getCustomColor(colorScheme, brightModeColor, darkModeColor) {
 export function lightenColor(color, factor) {
     factor = clamp(factor, 0, 1);
 
-    let r = parseInt(color.substring(1, 3), 16);
-    let g = parseInt(color.substring(3, 5), 16);
-    let b = parseInt(color.substring(5, 7), 16);
+    let r = parseInt(color.slice(1, 3), 16);
+    let g = parseInt(color.slice(3, 5), 16);
+    let b = parseInt(color.slice(5, 7), 16);
 
     r = Math.round(r + (255 - r) * factor);
     g = Math.round(g + (255 - g) * factor);
     b = Math.round(b + (255 - b) * factor);
 
-    r = r.toString(16).padStart(2, "0");
-    g = g.toString(16).padStart(2, "0");
-    b = b.toString(16).padStart(2, "0");
+    const rHex = r.toString(16).padStart(2, "0");
+    const gHex = g.toString(16).padStart(2, "0");
+    const bHex = b.toString(16).padStart(2, "0");
 
-    return `#${r}${g}${b}`;
+    return `#${rHex}${gHex}${bHex}`;
 }
 
 /**
@@ -201,17 +207,17 @@ export function lightenColor(color, factor) {
 export function darkenColor(color, factor) {
     factor = clamp(factor, 0, 1);
 
-    let r = parseInt(color.substring(1, 3), 16);
-    let g = parseInt(color.substring(3, 5), 16);
-    let b = parseInt(color.substring(5, 7), 16);
+    let r = parseInt(color.slice(1, 3), 16);
+    let g = parseInt(color.slice(3, 5), 16);
+    let b = parseInt(color.slice(5, 7), 16);
 
     r = Math.round(r * (1 - factor));
     g = Math.round(g * (1 - factor));
     b = Math.round(b * (1 - factor));
 
-    r = r.toString(16).padStart(2, "0");
-    g = g.toString(16).padStart(2, "0");
-    b = b.toString(16).padStart(2, "0");
+    const rHex = r.toString(16).padStart(2, "0");
+    const gHex = g.toString(16).padStart(2, "0");
+    const bHex = b.toString(16).padStart(2, "0");
 
-    return `#${r}${g}${b}`;
+    return `#${rHex}${gHex}${bHex}`;
 }

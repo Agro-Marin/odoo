@@ -1,12 +1,17 @@
+/** @odoo-module native */
+import { DISCUSS_SIDEBAR_COMPACT_LS } from "@mail/core/public_web/discuss_app_model";
 import { Component, onMounted, useSubEnv } from "@odoo/owl";
-import { ActionList } from "../common/action_list";
-import { DiscussSearch } from "./discuss_search";
-
+import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";
+import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { ResizablePanel } from "@web/core/resizable_panel/resizable_panel";
 import { useService } from "@web/core/utils/hooks";
 
-export const discussSidebarItemsRegistry = registry.category("mail.discuss_sidebar_items");
+import { ActionList } from "../common/action_list.js";
+import { DiscussSearch } from "./discuss_search.js";
+
+export const discussSidebarItemsRegistry = registry.category(
+    "mail.discuss_sidebar_items",
+);
 
 /**
  * @typedef {Object} Props
@@ -35,6 +40,11 @@ export class DiscussSidebar extends Component {
         if (!this.mounted) {
             return; // ignore resize from mount not triggered by user
         }
-        this.store.discuss.isSidebarCompact = width <= 100;
+        if (width <= 100) {
+            browser.localStorage.setItem(DISCUSS_SIDEBAR_COMPACT_LS, true);
+        } else {
+            browser.localStorage.removeItem(DISCUSS_SIDEBAR_COMPACT_LS);
+        }
+        this.store.discuss._recomputeIsSidebarCompact++;
     }
 }

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Transform a 2D point using a projective transformation matrix. Note that
  * this method is only well behaved for points that don't map to infinity!

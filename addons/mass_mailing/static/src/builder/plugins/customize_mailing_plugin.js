@@ -5,6 +5,7 @@ import { memoize } from "@web/core/utils/functions";
 import { CUSTOMIZE_MAILING_VARIABLES } from "@mass_mailing/builder/plugins/customize_mailing_variables";
 import { CUSTOMIZE_MAILING_VARIABLES_DEFAULTS } from "./customize_mailing_variables";
 import { splitSelectorAroundCommasOutsideParentheses } from "@mail/views/web/fields/html_mail_field/convert_inline";
+import { getCSSVariableValue } from "@html_editor/utils/formatting";
 
 const RE_SELECTOR_ENDS_WITH_GT_STAR = />\s*\*\s*$/;
 export const PRIORITY_STYLES = {
@@ -73,7 +74,7 @@ export class CustomizeMailingPlugin extends Plugin {
             if (previewRule.includes("> [data-snippet]")) {
                 previewRule = previewRule.replace(
                     "> [data-snippet]",
-                    ".o_snippet_preview_wrap > [data-snippet]"
+                    ".o_snippet_preview_wrap [data-snippet]"
                 );
             }
             newStyleSheet.insertRule(previewRule);
@@ -160,13 +161,14 @@ export class CustomizeMailingPlugin extends Plugin {
      * Ensure that FontAwesome icons are not impacted by font-family selectors
      */
     transformFontFamilySelector(selector) {
-        if (selector.trim().endsWith(":not(.fa)")) {
+        const FA_EXCLUDE = ":not(.fa-solid, .fa-regular, .fa-brands, .oi)";
+        if (selector.trim().endsWith(FA_EXCLUDE)) {
             return [selector];
         }
         if (!selector.endsWith("*")) {
-            return [`${selector.trim()}:not(.fa)`, `${selector.trim()} :not(.fa)`];
+            return [`${selector.trim()}${FA_EXCLUDE}`, `${selector.trim()} *${FA_EXCLUDE}`];
         } else if (RE_SELECTOR_ENDS_WITH_GT_STAR.test(selector)) {
-            return [`${selector.replace(RE_SELECTOR_ENDS_WITH_GT_STAR, "").trim()} :not(.fa)`];
+            return [`${selector.replace(RE_SELECTOR_ENDS_WITH_GT_STAR, "").trim()} *${FA_EXCLUDE}`];
         }
     }
 
@@ -188,7 +190,12 @@ export class CustomizeMailingPlugin extends Plugin {
 
 export class CustomizeMailingVariable extends BuilderAction {
     static id = "mass_mailing.CustomizeMailingVariable";
-    static dependencies = ["builderActions", "mass_mailing.CustomizeMailingPlugin", "history"];
+    static dependencies = [
+        "builderActions",
+        "color",
+        "mass_mailing.CustomizeMailingPlugin",
+        "history",
+    ];
     isApplied({ value }) {
         return this.getValue(...arguments) === value;
     }
@@ -198,8 +205,16 @@ export class CustomizeMailingVariable extends BuilderAction {
      * @param { string } params.property
      */
     getValue({ params }) {
-        return this.dependencies["mass_mailing.CustomizeMailingPlugin"].getVariableValue(
+        const variable = this.dependencies["mass_mailing.CustomizeMailingPlugin"].getVariableValue(
             params.variable
+        );
+        if (!params.variable.includes("color") || !/var\(/g.test(variable)) {
+            return variable;
+        }
+        const match = variable.match(/var\(--([\w-]+)\)/)[1];
+        return getCSSVariableValue(
+            match,
+            this.window.getComputedStyle(this.document.documentElement)
         );
     }
     apply({ params, value }) {

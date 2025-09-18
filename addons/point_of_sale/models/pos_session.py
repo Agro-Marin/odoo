@@ -8,8 +8,10 @@ import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import float_is_zero, float_compare, frozendict, plaintext2html, split_every
-from odoo.tools.constants import PREFETCH_MAX
+from itertools import batched
+
+from odoo.tools import float_is_zero, float_compare, frozendict, plaintext2html
+from odoo.libs.constants import PREFETCH_MAX
 
 _logger = logging.getLogger(__name__)
 
@@ -553,6 +555,9 @@ class PosSession(models.Model):
             check_closing_session['open_order_ids'] = open_order_ids
             return check_closing_session
 
+        future_orders = self.order_ids.filtered(lambda order: order.preset_time and order.preset_time.date() > fields.Date.today() and order.state == 'draft')
+        future_orders.session_id = False
+
         validate_result = self.action_pos_session_closing_control(bank_payment_method_diffs=bank_payment_method_diffs)
 
         # If an error is raised, the user will still be redirected to the back end to manually close the session.
@@ -758,7 +763,7 @@ class PosSession(models.Model):
             session_destination_id = picking_type.default_location_dest_id.id
 
         for order in self._get_closed_orders():
-            if order.company_id.anglo_saxon_accounting and order.is_invoiced or order.shipping_date:
+            if order._force_create_picking_real_time() or order.shipping_date:
                 continue
             destination_id = order.partner_id.property_stock_customer.id or session_destination_id
             if destination_id in lines_grouped_by_dest_location:
@@ -902,7 +907,7 @@ class PosSession(models.Model):
                         combine_receivables_pay_later[payment_method] = self._update_amounts(combine_receivables_pay_later[payment_method], {'amount': amount}, date)
 
             if not order_is_invoiced:
-                base_lines = order.with_context(linked_to_pos=True)._prepare_tax_base_line_values()
+                base_lines = order._prepare_tax_base_line_values()
                 AccountTax._add_tax_details_in_base_lines(base_lines, order.company_id)
                 AccountTax._round_base_lines_tax_details(base_lines, order.company_id)
                 AccountTax._add_accounting_data_in_base_lines_tax_details(base_lines, order.company_id, include_caba_tags=True)
@@ -962,7 +967,7 @@ class PosSession(models.Model):
                     ('product_id.categ_id.property_valuation', '=', 'real_time'),
                     ('product_id.is_storable', '=', True),
                 ])
-                for stock_moves_batch in split_every(PREFETCH_MAX, stock_moves._ids, stock_moves.browse):
+                for stock_moves_batch in (stock_moves.browse(b) for b in batched(stock_moves._ids, PREFETCH_MAX)):
                     for move in stock_moves_batch:
                         product_accounts = move.product_id._get_product_accounts()
                         exp_key = product_accounts['expense']
@@ -1121,7 +1126,7 @@ class PosSession(models.Model):
         outstanding_line = account_payment.move_id.line_ids.filtered(lambda line: line.account_id.id == source_vals['account_id'])
         new_balance = outstanding_line.balance + self._amount_converter(diff_amount, self.stop_at, False)
         new_balance_compare_to_zero = self.currency_id.compare_amounts(new_balance, 0)
-        account_payment.move_id.button_draft()
+        account_payment.move_id.action_draft()
         account_payment.move_id.write({
             'line_ids': [
                 Command.create(dest_vals),
@@ -1618,7 +1623,7 @@ class PosSession(models.Model):
             'type': 'ir.actions.act_window',
             'res_model': 'account.move.line',
             'view_mode': 'list',
-            'view_id':self.env.ref('account.view_move_line_tree').id,
+            'view_id':self.env.ref('account.view_account_move_line_list').id,
             'domain': [('id', 'in', all_related_moves.mapped('line_ids').ids)],
             'context': {
                 'journal_type':'general',

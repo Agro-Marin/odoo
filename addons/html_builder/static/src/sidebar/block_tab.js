@@ -1,15 +1,16 @@
+/** @odoo-module native */
 import { Component, onMounted, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { Tooltip } from "@web/core/tooltip/tooltip";
-import { closestScrollableY, getScrollingElement, isScrollableY } from "@web/core/utils/scrolling";
+import { Tooltip } from "@web/ui/tooltip/tooltip";
+import { closestScrollableY, getScrollingElement, isScrollableY } from "@web/core/utils/dom/scrolling";
 import { _t } from "@web/core/l10n/translation";
-import { closest } from "@web/core/utils/ui";
+import { closest } from "@web/core/utils/dom/ui";
 import { useDragAndDrop } from "@html_editor/utils/drag_and_drop";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
 import { useSnippets } from "@html_builder/snippets/snippet_service";
 import { scrollTo } from "@html_builder/utils/scrolling";
-import { Snippet } from "./snippet";
-import { CustomInnerSnippet } from "./custom_inner_snippet";
+import { Snippet } from "./snippet.js";
+import { CustomInnerSnippet } from "./custom_inner_snippet.js";
 
 /**
  * @typedef {import("@html_builder/core/drag_and_drop_plugin").DragState} DragState
@@ -480,6 +481,15 @@ export class BlockTab extends Component {
             if (cancel) {
                 this.cancelDragAndDrop();
                 return;
+            }
+            // Update `snippetEl` (and `draggedEl` of `dragState`) if it was
+            // replaced in the handler.
+            if (this.dragState.replacedSnippetEl) {
+                if (this.dragState.draggedEl === snippetEl) {
+                    this.dragState.draggedEl = this.dragState.replacedSnippetEl;
+                }
+                snippetEl = this.dragState.replacedSnippetEl;
+                delete this.dragState.replacedSnippetEl;
             }
         }
         this.env.editor.config.updateInvisibleElementsPanel();

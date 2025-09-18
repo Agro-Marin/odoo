@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 
@@ -30,6 +31,7 @@ class ImageSnippetOptionPlugin extends Plugin {
                     if (dragState.draggedEl.classList.contains("o_grid_item")) {
                         dragState.draggedEl.classList.add("o_grid_item_image");
                     }
+                    dragState.replacedSnippetEl = selectedImageEl;
                 },
             });
             onClose.then(() => {

@@ -2,7 +2,7 @@
 <templates id="template" xml:space="preserve">
     <t t-name="pos_restaurant.NumpadDropdown">
         <button class="btn btn-secondary btn-lg lh-lg" t-on-click="() => this.toggleTableSelector()">
-            <i class="fa fa-fw fa-hashtag" aria-hidden="true"/>
+            <i class="fa-solid fa-hashtag" aria-hidden="true"/>
         </button>
         <div t-if="this.pos.tableSelectorState and !this.isSmall" class="table-selector bg-light rounded d-flex flex-column z-3 shadow overflow-hidden">
             <div class="d-flex justify-content-center p-3">

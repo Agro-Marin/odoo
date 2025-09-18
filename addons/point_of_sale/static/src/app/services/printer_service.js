@@ -1,8 +1,7 @@
+/** @odoo-module native */
 import { waitImages } from "@point_of_sale/utils";
-
 import { Reactive } from "@web/core/utils/reactive";
-import { logPosMessage } from "../utils/pretty_console_log";
-
+import { logPosMessage } from "../utils/pretty_console_log.js";
 export const printerService = {
     dependencies: ["renderer"],
     start(env, { renderer }) {
@@ -52,7 +51,7 @@ export class PrinterService extends Reactive {
             logPosMessage(
                 "PrinterService",
                 "print",
-                "No printer device available and webPrintFallback is not enabled"
+                "No printer device available and webPrintFallback is not enabled",
             );
             return;
         }
@@ -66,7 +65,7 @@ export class PrinterService extends Reactive {
                 "print",
                 "Images could not be loaded correctly",
                 false,
-                [e]
+                [e],
             );
         }
         try {

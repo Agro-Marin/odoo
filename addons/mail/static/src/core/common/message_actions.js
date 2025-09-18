@@ -1,16 +1,16 @@
+/** @odoo-module native */
+import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
+import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
 import { toRaw, useComponent, useState } from "@odoo/owl";
-
+import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
+import { isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
 import { registry } from "@web/core/registry";
-import { discussComponentRegistry } from "./discuss_component_registry";
 import { Deferred } from "@web/core/utils/concurrency";
-import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
-import { useEmojiPicker } from "@web/core/emoji_picker/emoji_picker";
-import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
-import { isMobileOS } from "@web/core/browser/feature_detection";
 import { useService } from "@web/core/utils/hooks";
 
+import { discussComponentRegistry } from "./discuss_component_registry.js";
 const { DateTime } = luxon;
 
 export const messageActionsRegistry = registry.category("mail.message/actions");
@@ -55,7 +55,7 @@ registerMessageAction("reaction", {
             onSelect: (emoji) => {
                 const reaction = message.reactions.find(
                     ({ content, personas }) =>
-                        content === emoji && thread.effectiveSelf.in(personas)
+                        content === emoji && thread.effectiveSelf.in(personas),
                 );
                 if (!reaction) {
                     message.react(emoji);
@@ -75,7 +75,7 @@ registerMessageAction("reply-to", {
                 !message.isSelfAuthored)
         );
     },
-    icon: "fa fa-reply",
+    icon: "fa-solid fa-reply",
     name: _t("Reply"),
     onSelected: ({ message: msg, owner, thread: thr }) => {
         const message = toRaw(msg);
@@ -108,35 +108,36 @@ registerMessageAction("reply-to", {
 });
 registerMessageAction("toggle-star", {
     condition: ({ message }) => message.canToggleStar,
-    icon: ({ message }) => (message.starred ? "fa fa-star o-mail-Message-starred" : "fa fa-star-o"),
+    icon: ({ message }) =>
+        message.starred ? "fa-solid fa-star o-mail-Message-starred" : "fa-regular fa-star",
     name: ({ message }) => (message.starred ? _t("Remove Star") : _t("Add Star")),
     onSelected: ({ message }) => message.toggleStar(),
     sequence: 30,
 });
 registerMessageAction("mark-as-read", {
     condition: ({ store, thread }) => thread?.eq(store.inbox),
-    icon: "fa fa-check",
+    icon: "fa-solid fa-check",
     name: _t("Mark as Read"),
     onSelected: ({ message }) => message.setDone(),
     sequence: 40,
 });
 registerMessageAction("reactions", {
     condition: ({ message }) => message.reactions.length,
-    icon: "fa fa-smile-o",
+    icon: "fa-regular fa-face-smile",
     name: _t("View Reactions"),
     onSelected: ({ owner }) => owner.openReactionMenu(),
     sequence: 50,
 });
 registerMessageAction("unfollow", {
     condition: ({ message, thread }) => message.canUnfollow(thread),
-    icon: "fa fa-user-times",
+    icon: "fa-solid fa-user-times",
     name: _t("Unfollow"),
     onSelected: ({ message }) => message.unfollow(),
     sequence: 60,
 });
 registerMessageAction("edit", {
     condition: ({ message }) => message.editable,
-    icon: "fa fa-pencil",
+    icon: "fa-solid fa-pencil",
     name: _t("Edit"),
     onSelected: ({ message, owner, thread }) => {
         message.enterEditMode(thread);
@@ -146,7 +147,7 @@ registerMessageAction("edit", {
 });
 registerMessageAction("delete", {
     condition: ({ message }) => message.editable,
-    icon: "fa fa-trash",
+    icon: "fa-solid fa-trash-can",
     name: _t("Delete"),
     onSelected: async ({ message: msg, owner, store }) => {
         const message = toRaw(msg);
@@ -155,7 +156,9 @@ registerMessageAction("delete", {
             discussComponentRegistry.get("MessageConfirmDialog"),
             {
                 message,
-                prompt: _t("Are you sure you want to bid farewell to this message forever?"),
+                prompt: _t(
+                    "Are you sure you want to bid farewell to this message forever?",
+                ),
                 onConfirm: () => {
                     def.resolve(true);
                     message.remove({
@@ -163,7 +166,7 @@ registerMessageAction("delete", {
                     });
                 },
             },
-            { context: owner, onClose: () => def.resolve(false) }
+            { context: owner, onClose: () => def.resolve(false) },
         );
         return def;
     },
@@ -173,7 +176,7 @@ registerMessageAction("delete", {
 registerMessageAction("download_files", {
     condition: ({ message, store }) =>
         message.attachment_ids.length > 1 && store.self.main_user_id?.share === false,
-    icon: "fa fa-download",
+    icon: "fa-solid fa-download",
     name: _t("Download Files"),
     onSelected: ({ message }) =>
         download({
@@ -188,7 +191,7 @@ registerMessageAction("download_files", {
 registerMessageAction("toggle-translation", {
     condition: ({ message }) => message.isTranslatable(message.thread),
     icon: ({ message }) =>
-        `fa fa-language ${message.showTranslation ? "o-mail-Message-translated" : ""}`,
+        `fa-solid fa-language ${message.showTranslation ? "o-mail-Message-translated" : ""}`,
     name: ({ message }) => (message.showTranslation ? _t("Revert") : _t("Translate")),
     onSelected: ({ message }) => message.onClickToggleTranslation(),
     sequence: 100,
@@ -197,7 +200,7 @@ registerMessageAction("copy-message", {
     condition: ({ message }) => isMobileOS() && !message.isBodyEmpty,
     onSelected: ({ message }) => message.copyMessageText(),
     name: _t("Copy to Clipboard"),
-    icon: "fa fa-copy",
+    icon: "fa-solid fa-copy",
     sequence: 30,
 });
 registerMessageAction("copy-link", {
@@ -206,7 +209,7 @@ registerMessageAction("copy-link", {
         message.message_type !== "user_notification" &&
         thread &&
         (!thread.access_token || thread.hasReadAccess),
-    icon: "fa fa-link",
+    icon: "fa-solid fa-link",
     name: _t("Copy Link"),
     onSelected: ({ message }) => message.copyLink(),
     sequence: 110,
@@ -228,7 +231,10 @@ export class MessageAction extends Action {
     }
 
     get params() {
-        return Object.assign(super.params, { message: this.messageFn(), thread: this.threadFn() });
+        return Object.assign(super.params, {
+            message: this.messageFn(),
+            thread: this.threadFn(),
+        });
     }
 }
 
@@ -243,17 +249,21 @@ class UseMessageActions extends UseActions {
  */
 export function useMessageActions({ message, thread } = {}) {
     const component = useComponent();
-    const transformedActions = messageActionsRegistry
-        .getEntries()
-        .map(
-            ([id, definition]) =>
-                new MessageAction({ owner: component, id, definition, message, thread })
-        );
+    const transformedActions = messageActionsRegistry.getEntries().map(
+        ([id, definition]) =>
+            new MessageAction({
+                owner: component,
+                id,
+                definition,
+                message,
+                thread,
+            }),
+    );
     for (const action of transformedActions) {
         action.setup();
     }
     const state = useState(
-        new UseMessageActions(component, transformedActions, useService("mail.store"))
+        new UseMessageActions(component, transformedActions, useService("mail.store")),
     );
     return state;
 }
