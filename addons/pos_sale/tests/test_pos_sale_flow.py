@@ -501,7 +501,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
             'name': 'Test service product',
             'available_in_pos': True,
             'type': 'service',
-            'invoice_policy': 'order',
+            'invoice_policy': 'ordered',
             'lst_price': 50.0,
             'taxes_id': [],
         })

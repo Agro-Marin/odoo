@@ -16,7 +16,7 @@ class ProjectProject(models.Model):
             self.env['purchase.order']._read_group(
                 domain=[
                     ('project_id', 'in', self.ids),
-                    ('order_line', '!=', False),
+                    ('line_ids', '!=', False),
                 ],
                 groupby=['project_id'],
                 aggregates=['id:array_agg'],
@@ -141,7 +141,7 @@ class ProjectProject(models.Model):
         if self.account_id:
             purchase_lines = self.env['purchase.order.line'].sudo().search([
                 ('analytic_distribution', 'in', self.account_id.ids),
-                ('state', 'in', 'purchase')
+                ('state', 'in', 'done')
             ])
             purchase_order_line_invoice_line_ids = self._get_already_included_profitability_invoice_line_ids()
             with_action = with_action and (
@@ -151,7 +151,7 @@ class ProjectProject(models.Model):
             )
             if purchase_lines:
                 amount_invoiced = amount_to_invoice = 0.0
-                purchase_order_line_invoice_line_ids.extend(purchase_lines.invoice_lines.ids)
+                purchase_order_line_invoice_line_ids.extend(purchase_lines.invoice_line_ids.ids)
                 for purchase_line in purchase_lines:
                     price_subtotal = purchase_line.currency_id._convert(purchase_line.price_subtotal, self.currency_id, self.company_id)
                     # an analytic account can appear several time in an analytic distribution with different repartition percentage
@@ -160,7 +160,7 @@ class ProjectProject(models.Model):
                         if str(self.account_id.id) in ids.split(',')
                     ) / 100.
                     purchase_line_amount_to_invoice = price_subtotal * analytic_contribution
-                    invoice_lines = purchase_line.invoice_lines.filtered(lambda l: l.parent_state != 'cancel' and l.analytic_distribution and str(self.account_id.id) in l.analytic_distribution)
+                    invoice_lines = purchase_line.invoice_line_ids.filtered(lambda l: l.parent_state != 'cancel' and l.analytic_distribution and str(self.account_id.id) in l.analytic_distribution)
                     if invoice_lines:
                         invoiced_qty = sum(invoice_lines.filtered(lambda l: not l.is_refund).mapped('quantity'))
                         if invoiced_qty < purchase_line.product_qty:
@@ -180,7 +180,7 @@ class ProjectProject(models.Model):
                             else:
                                 amount_to_invoice -= cost
                     else:
-                        amount_to_invoice -= purchase_line_amount_to_invoice
+                        amount_to_invoice -= price_subtotal * analytic_contribution
 
                 costs = profitability_items['costs']
                 section_id = 'purchase_order'
