@@ -6,7 +6,7 @@
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//header/button[@name='action_rfq_send']" position="after">
+            <xpath expr="//header/button[@name='action_send_rfq']" position="after">
                 <button name="action_view_picking"
                     string="Receive" class="oe_highlight" type="object"
                     invisible="is_shipped or state != 'purchase' or incoming_picking_count == 0"
@@ -23,10 +23,10 @@
             <xpath expr="//field[@name='currency_id']" position="after">
                 <field name="is_shipped" invisible="1"/>
             </xpath>
-            <xpath expr="//field[@name='order_line']/list//field[@name='date_planned']" position="after">
+            <xpath expr="//field[@name='line_ids']/list//field[@name='date_planned']" position="after">
                 <field name="move_dest_ids" column_invisible="True"/>
             </xpath>
-            <xpath expr="//page/field[@name='order_line']/list/field[@name='product_qty']" position="after">
+            <xpath expr="//page/field[@name='line_ids']/list/field[@name='product_qty']" position="after">
                 <field name="forecasted_issue" column_invisible="True"/>
                 <button type="object" name="action_product_forecast_report" title="Forecast Report" icon="fa-area-chart" invisible="not id or not forecasted_issue or not is_storable" class="text-danger"/>
                 <button type="object" name="action_product_forecast_report" title="Forecast Report" icon="fa-area-chart" invisible="not id or forecasted_issue or not is_storable"/>
@@ -40,27 +40,27 @@
                 </div>
             </xpath>
             <xpath expr="//label[@for='receipt_reminder_email']" position="attributes">
-                <attribute name="invisible">effective_date</attribute>
+                <attribute name="invisible">date_effective</attribute>
             </xpath>
             <xpath expr="//div[@name='reminder']" position="attributes">
-                <attribute name="invisible">effective_date</attribute>
+                <attribute name="invisible">date_effective</attribute>
             </xpath>
             <xpath expr="//div[@name='reminder']" position="after">
-                <field name="effective_date" invisible="not effective_date"/>
+                <field name="date_effective" invisible="not date_effective"/>
             </xpath>
-            <xpath expr="//field[@name='order_line']/form//field[@name='invoice_lines']" position="after">
+            <xpath expr="//field[@name='line_ids']/form//field[@name='invoice_line_ids']" position="after">
                 <field name="move_ids"/>
             </xpath>
-            <field name="invoice_status" position="before">
+            <field name="invoice_state" position="before">
                 <field name="receipt_status" invisible="state != 'purchase'"/>
             </field>
-            <xpath expr="//field[@name='order_line']/form//field[@name='analytic_distribution']" position="before">
+            <xpath expr="//field[@name='line_ids']/form//field[@name='analytic_distribution']" position="before">
                 <field name="propagate_cancel" groups="base.group_no_one"/>
             </xpath>
-            <xpath expr="//field[@name='order_line']/list//field[@name='analytic_distribution']" position="before">
+            <xpath expr="//field[@name='line_ids']/list//field[@name='analytic_distribution']" position="before">
                 <field name="propagate_cancel" groups="base.group_no_one" optional="hide"/>
             </xpath>
-            <xpath expr="//field[@name='order_line']/list//field[@name='qty_received']" position="attributes">
+            <xpath expr="//field[@name='line_ids']/list//field[@name='qty_transfered']" position="attributes">
                 <attribute name="column_invisible">parent.state != 'purchase'</attribute>
                 <attribute name="readonly">product_type == 'consu'</attribute>
             </xpath>
@@ -81,7 +81,7 @@
         <field name="model">purchase.order.line</field>
         <field name="inherit_id" ref="purchase.purchase_order_line_form2"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='invoice_lines']" position="after">
+            <xpath expr="//field[@name='invoice_line_ids']" position="after">
                 <separator string="Stock Moves"/>
                 <field name="move_ids"/>
             </xpath>
@@ -93,15 +93,15 @@
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_view_tree"/>
         <field name="arch" type="xml">
-            <field name="invoice_status" position="before">
-                <field name="effective_date" column_invisible="True"/>
+            <field name="invoice_state" position="before">
+                <field name="date_effective" column_invisible="True"/>
                 <field name="receipt_status" optional="hide" widget="badge"
                 decoration-success="receipt_status=='full'"
-                decoration-danger="date_planned and (date_planned &lt; effective_date or date_planned &lt; datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and receipt_status!='full' and effective_date &lt;= date_planned)"
+                decoration-danger="date_planned and (date_planned &lt; date_effective or date_planned &lt; datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and receipt_status!='full' and date_effective &lt;= date_planned)"
                 decoration-warning="date_planned and date_planned &gt;= datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and date_planned &lt;= datetime.datetime.combine(datetime.date.today(), datetime.time(23,59,59)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and receipt_status!='full'"/>
             </field>
             <xpath expr="//field[@name='date_planned']" position="attributes">
-                <attribute name="decoration-danger">date_planned and (date_planned &lt; effective_date or date_planned &lt; datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and receipt_status!='full' and effective_date &lt;= date_planned)</attribute>
+                <attribute name="decoration-danger">date_planned and (date_planned &lt; date_effective or date_planned &lt; datetime.datetime.combine(datetime.date.today(), datetime.time(0,0,0)).to_utc().strftime('%Y-%m-%d %H:%M:%S') and receipt_status!='full' and date_effective &lt;= date_planned)</attribute>
             </xpath>
         </field>
     </record>

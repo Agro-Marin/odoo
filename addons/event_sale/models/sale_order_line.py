@@ -111,7 +111,7 @@ class SaleOrderLine(models.Model):
             return False
         return super()._use_template_name()
 
-    def _get_display_price(self):
+    def _get_price_display(self):
         if self.event_ticket_id and self.event_id:
             event_ticket = self.event_ticket_id
             company = event_ticket.company_id or self.env.company
@@ -120,4 +120,4 @@ class SaleOrderLine(models.Model):
             else:
                 price = event_ticket.price
             return self._convert_to_sol_currency(price, company.currency_id)
-        return super()._get_display_price()
+        return super()._get_price_display()

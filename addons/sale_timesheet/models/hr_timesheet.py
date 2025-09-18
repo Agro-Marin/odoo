@@ -27,7 +27,7 @@ class AccountAnalyticLine(models.Model):
             self.env['sale.order.line']._sellable_lines_domain(),
             self.env['sale.order.line']._domain_sale_line_service(),
             [
-                ('order_partner_id.commercial_partner_id', '=', unquote('commercial_partner_id')),
+                ('partner_id.commercial_partner_id', '=', unquote('commercial_partner_id')),
             ],
         ])
         return str(domain)
@@ -128,7 +128,7 @@ class AccountAnalyticLine(models.Model):
                 map_entry = self.project_id.sale_line_employee_ids.filtered(
                     lambda map_entry:
                         map_entry.employee_id == (self.employee_id or self.env.user.employee_id)
-                        and map_entry.sale_line_id.order_partner_id.commercial_partner_id == self.task_id.partner_id.commercial_partner_id
+                        and map_entry.sale_line_id.partner_id.commercial_partner_id == self.task_id.partner_id.commercial_partner_id
                 )
                 if map_entry:
                     return map_entry.sale_line_id

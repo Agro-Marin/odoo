@@ -1049,6 +1049,9 @@ class AccountAccount(models.Model):
             for vals in vals_list_for_company:
                 if 'prefix' in vals:
                     prefix, digits = vals.pop('prefix'), vals.pop('code_digits')
+                    # Handle case where prefix is False or None
+                    if not prefix:
+                        prefix = ''
                     start_code = prefix.ljust(digits - 1, '0') + '1' if len(prefix) < digits else prefix
                     vals['code'] = self.with_company(companies[0])._search_new_account_code(start_code, cache)
                     cache.add(vals['code'])

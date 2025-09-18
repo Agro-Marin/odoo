@@ -11,50 +11,107 @@ from odoo.tools.sql import SQL
 
 
 class PurchaseReport(models.Model):
-    _name = 'purchase.report'
+    _name = "purchase.report"
     _description = "Purchase Report"
     _auto = False
-    _order = 'date_order desc, price_total desc'
+    _order = "date_order desc, price_total desc"
 
-    date_order = fields.Datetime('Order Date', readonly=True)
-    state = fields.Selection([
-        ('draft', 'Draft RFQ'),
-        ('sent', 'RFQ Sent'),
-        ('to approve', 'To Approve'),
-        ('purchase', 'Purchase Order'),
-        ('cancel', 'Cancelled')
-    ], 'Status', readonly=True)
-    product_id = fields.Many2one('product.product', 'Product', readonly=True)
-    partner_id = fields.Many2one('res.partner', 'Vendor', readonly=True)
-    date_approve = fields.Datetime('Confirmation Date', readonly=True)
-    product_uom_id = fields.Many2one('uom.uom', 'Reference Unit of Measure', readonly=True)
-    company_id = fields.Many2one('res.company', 'Company', readonly=True)
-    currency_id = fields.Many2one('res.currency', 'Currency', readonly=True)
-    user_id = fields.Many2one('res.users', 'Buyer', readonly=True)
-    delay = fields.Float('Days to Confirm', digits=(16, 2), readonly=True, aggregator='avg', help="Amount of time between purchase approval and order by date.")
-    delay_pass = fields.Float('Days to Receive', digits=(16, 2), readonly=True, aggregator='avg',
-                              help="Amount of time between date planned and order by date for each purchase order line.")
-    price_total = fields.Monetary('Total', readonly=True)
-    price_average = fields.Monetary('Average Cost', readonly=True, aggregator="avg")
-    nbr_lines = fields.Integer('# of Lines', readonly=True)
-    category_id = fields.Many2one('product.category', 'Product Category', readonly=True)
-    product_tmpl_id = fields.Many2one('product.template', 'Product Template', readonly=True)
-    country_id = fields.Many2one('res.country', 'Partner Country', readonly=True)
-    fiscal_position_id = fields.Many2one('account.fiscal.position', string='Fiscal Position', readonly=True)
-    commercial_partner_id = fields.Many2one('res.partner', 'Commercial Entity', readonly=True)
-    weight = fields.Float('Gross Weight', readonly=True)
-    volume = fields.Float('Volume', readonly=True)
-    order_id = fields.Many2one('purchase.order', 'Order', readonly=True)
-    untaxed_total = fields.Monetary('Untaxed Total', readonly=True)
-    qty_ordered = fields.Float('Qty Ordered', readonly=True)
-    qty_received = fields.Float('Qty Received', readonly=True)
-    qty_billed = fields.Float('Qty Billed', readonly=True)
-    qty_to_be_billed = fields.Float('Qty to be Billed', readonly=True)
+    date_order = fields.Datetime(string="Order Date", readonly=True)
+    state = fields.Selection(
+        selection=[
+            ("draft", "Draft RFQ"),
+            ("sent", "RFQ Sent"),
+            ("to approve", "To Approve"),
+            ("purchase", "Purchase Order"),
+            ("cancel", "Cancelled"),
+        ],
+        string="Status",
+        readonly=True,
+    )
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        string="Product",
+        readonly=True,
+    )
+    partner_id = fields.Many2one(comodel_name="res.partner", string="Vendor", readonly=True)
+    date_approve = fields.Datetime(string="Confirmation Date", readonly=True)
+    product_uom_id = fields.Many2one(
+        comodel_name="uom.uom",
+        string="Reference Unit of Measure",
+        readonly=True,
+    )
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        string="Company",
+        readonly=True,
+    )
+    currency_id = fields.Many2one(
+        comodel_name="res.currency",
+        string="Currency",
+        readonly=True,
+    )
+    user_id = fields.Many2one(comodel_name="res.users", string="Buyer", readonly=True)
+    delay = fields.Float(
+        string="Days to Confirm",
+        digits=(16, 2),
+        readonly=True,
+        aggregator="avg",
+        help="Amount of time between purchase approval and order by date.",
+    )
+    delay_pass = fields.Float(
+        string="Days to Receive",
+        digits=(16, 2),
+        readonly=True,
+        aggregator="avg",
+        help="Amount of time between date planned and order by date for each purchase order line.",
+    )
+    price_total = fields.Monetary(string="Total", readonly=True)
+    price_average = fields.Monetary(string="Average Cost", readonly=True, aggregator="avg")
+    nbr_lines = fields.Integer(string="# of Lines", readonly=True)
+    category_id = fields.Many2one(
+        comodel_name="product.category",
+        string="Product Category",
+        readonly=True,
+    )
+    product_tmpl_id = fields.Many2one(
+        comodel_name="product.template",
+        string="Product Template",
+        readonly=True,
+    )
+    country_id = fields.Many2one(
+        comodel_name="res.country",
+        string="Partner Country",
+        readonly=True,
+    )
+    fiscal_position_id = fields.Many2one(
+        comodel_name="account.fiscal.position",
+        string="Fiscal Position",
+        readonly=True,
+    )
+    commercial_partner_id = fields.Many2one(
+        comodel_name="res.partner",
+        string="Commercial Entity",
+        readonly=True,
+    )
+    weight = fields.Float(string="Gross Weight", readonly=True)
+    volume = fields.Float(string="Volume", readonly=True)
+    order_id = fields.Many2one(
+        comodel_name="purchase.order",
+        string="Order",
+        readonly=True,
+    )
+    untaxed_total = fields.Monetary(string="Untaxed Total", readonly=True)
+    qty_ordered = fields.Float(string="Qty Ordered", readonly=True)
+    qty_transfered = fields.Float(string="Qty Received", readonly=True)
+    qty_billed = fields.Float(string="Qty Billed", readonly=True)
+    qty_to_be_billed = fields.Float(string="Qty to be Billed", readonly=True)
 
     @property
     def _table_query(self) -> SQL:
-        ''' Report needs to be dynamic to take into account multi-company selected + multi-currency rates '''
-        return SQL("%s %s %s %s", self._select(), self._from(), self._where(), self._group_by())
+        """Report needs to be dynamic to take into account multi-company selected + multi-currency rates"""
+        return SQL(
+            "%s %s %s %s", self._select(), self._from(), self._where(), self._group_by()
+        )
 
     def _select(self) -> SQL:
         return SQL(
@@ -86,11 +143,11 @@ class PurchaseReport(models.Model):
                     sum(p.volume * l.product_qty * line_uom.factor / product_uom.factor) as volume,
                     sum(l.price_subtotal / COALESCE(po.currency_rate, 1.0))::decimal(16,2) * account_currency_table.rate as untaxed_total,
                     sum(l.product_qty * line_uom.factor / product_uom.factor) as qty_ordered,
-                    sum(l.qty_received * line_uom.factor / product_uom.factor) as qty_received,
+                    sum(l.qty_transfered * line_uom.factor / product_uom.factor) as qty_transfered,
                     sum(l.qty_invoiced * line_uom.factor / product_uom.factor) as qty_billed,
-                    case when t.purchase_method = 'purchase'
+                    case when t.bill_policy = 'purchase'
                          then sum(l.product_qty * line_uom.factor / product_uom.factor) - sum(l.qty_invoiced * line_uom.factor / product_uom.factor)
-                         else sum(l.qty_received * line_uom.factor / product_uom.factor) - sum(l.qty_invoiced * line_uom.factor / product_uom.factor)
+                         else sum(l.qty_transfered * line_uom.factor / product_uom.factor) - sum(l.qty_invoiced * line_uom.factor / product_uom.factor)
                     end as qty_to_be_billed
             """,
         )
@@ -109,7 +166,9 @@ class PurchaseReport(models.Model):
                 left join uom_uom product_uom on (product_uom.id=t.uom_id)
                 left join %(currency_table)s ON account_currency_table.company_id = po.company_id
             """,
-            currency_table=self.env['res.currency']._get_simple_currency_table(self.env.companies),
+            currency_table=self.env["res.currency"]._get_simple_currency_table(
+                self.env.companies
+            ),
         )
 
     def _where(self) -> SQL:
@@ -141,7 +200,7 @@ class PurchaseReport(models.Model):
                 po.date_order,
                 po.state,
                 t.uom_id,
-                t.purchase_method,
+                t.bill_policy,
                 line_uom.id,
                 product_uom.factor,
                 partner.country_id,
@@ -152,11 +211,11 @@ class PurchaseReport(models.Model):
         )
 
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
-        """ This override allows us to correctly calculate the average price of products. """
-        if aggregate_spec != 'price_average:avg':
+        """This override allows us to correctly calculate the average price of products."""
+        if aggregate_spec != "price_average:avg":
             return super()._read_group_select(aggregate_spec, query)
         return SQL(
-            'SUM(%(f_price)s * %(f_qty)s) / NULLIF(SUM(%(f_qty)s), 0.0)',
-            f_qty=self._field_to_sql(self._table, 'qty_ordered', query),
-            f_price=self._field_to_sql(self._table, 'price_average', query),
+            "SUM(%(f_price)s * %(f_qty)s) / NULLIF(SUM(%(f_qty)s), 0.0)",
+            f_qty=self._field_to_sql(self._table, "qty_ordered", query),
+            f_price=self._field_to_sql(self._table, "price_average", query),
         )

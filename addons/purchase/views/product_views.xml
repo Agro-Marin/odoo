@@ -66,7 +66,7 @@
                     <attribute name="groups">purchase.group_purchase_manager</attribute>
                 </group>
                 <group name="bill" position="inside">
-                    <field name="purchase_method" widget="radio"/>
+                    <field name="bill_policy" widget="radio"/>
                 </group>
                 <group name="purchase" position="inside">
                     <group col="1">

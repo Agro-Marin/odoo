@@ -1,40 +1,55 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models, _
-
-from odoo.tools import SQL
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import SQL
 
 
 class PurchaseBillLineMatch(models.Model):
-    _name = 'purchase.bill.line.match'
+    _name = "purchase.bill.line.match"
     _description = "Purchase Line and Vendor Bill line matching view"
     _auto = False
-    _order = 'product_id, aml_id, pol_id'
+    _order = "product_id, aml_id, pol_id"
 
-    pol_id = fields.Many2one(comodel_name='purchase.order.line', readonly=True)
-    aml_id = fields.Many2one(comodel_name='account.move.line', readonly=True)
-    company_id = fields.Many2one(comodel_name='res.company', readonly=True)
-    partner_id = fields.Many2one(comodel_name='res.partner', readonly=True)
-    product_id = fields.Many2one(comodel_name='product.product', readonly=True)
+    pol_id = fields.Many2one(comodel_name="purchase.order.line", readonly=True)
+    aml_id = fields.Many2one(comodel_name="account.move.line", readonly=True)
+    company_id = fields.Many2one(comodel_name="res.company", readonly=True)
+    partner_id = fields.Many2one(comodel_name="res.partner", readonly=True)
+    product_id = fields.Many2one(comodel_name="product.product", readonly=True)
     line_qty = fields.Float(readonly=True)
-    line_uom_id = fields.Many2one(comodel_name='uom.uom', readonly=True)
+    line_uom_id = fields.Many2one(comodel_name="uom.uom", readonly=True)
     qty_invoiced = fields.Float(readonly=True)
-    qty_to_invoice = fields.Float('Qty to invoice', readonly=True)
-    purchase_order_id = fields.Many2one(comodel_name='purchase.order', readonly=True)
-    account_move_id = fields.Many2one(comodel_name='account.move', readonly=True)
+    qty_to_invoice = fields.Float(string="Qty to invoice", readonly=True)
+    purchase_order_id = fields.Many2one(comodel_name="purchase.order", readonly=True)
+    account_move_id = fields.Many2one(comodel_name="account.move", readonly=True)
     line_amount_untaxed = fields.Monetary(readonly=True)
-    currency_id = fields.Many2one(comodel_name='res.currency', readonly=True)
+    currency_id = fields.Many2one(comodel_name="res.currency", readonly=True)
     state = fields.Char(readonly=True)
 
-    product_uom_id = fields.Many2one(comodel_name='uom.uom', related='product_id.uom_id')
-    product_uom_qty = fields.Float(compute='_compute_product_uom_qty', inverse='_inverse_product_uom_qty', readonly=False)
-    product_uom_price = fields.Float(compute='_compute_product_uom_price', inverse='_inverse_product_uom_price', readonly=False)
-    billed_amount_untaxed = fields.Monetary(compute='_compute_amount_untaxed_fields', currency_field='currency_id')
-    purchase_amount_untaxed = fields.Monetary(compute='_compute_amount_untaxed_fields', currency_field='currency_id')
-    reference = fields.Char(compute='_compute_reference')
+    product_uom_id = fields.Many2one(
+        related="product_id.uom_id", comodel_name="uom.uom"
+    )
+    product_uom_qty = fields.Float(
+        compute="_compute_product_uom_qty",
+        readonly=False,
+        inverse="_inverse_product_uom_qty",
+    )
+    product_uom_price = fields.Float(
+        compute="_compute_product_uom_price",
+        readonly=False,
+        inverse="_inverse_product_uom_price",
+    )
+    billed_amount_untaxed = fields.Monetary(
+        currency_field="currency_id",
+        compute="_compute_amount_untaxed_fields",
+    )
+    purchase_amount_untaxed = fields.Monetary(
+        currency_field="currency_id",
+        compute="_compute_amount_untaxed_fields",
+    )
+    reference = fields.Char(compute="_compute_reference")
 
-    @api.onchange('product_uom_price')
+    @api.onchange("product_uom_price")
     def _inverse_product_uom_price(self):
         for line in self:
             if line.aml_id:
@@ -42,7 +57,7 @@ class PurchaseBillLineMatch(models.Model):
             else:
                 line.pol_id.price_unit = line.product_uom_price
 
-    @api.onchange('product_uom_qty')
+    @api.onchange("product_uom_qty")
     def _inverse_product_uom_qty(self):
         for line in self:
             if line.aml_id:
@@ -56,29 +71,42 @@ class PurchaseBillLineMatch(models.Model):
 
     def _compute_amount_untaxed_fields(self):
         for line in self:
-            line.billed_amount_untaxed = line.line_amount_untaxed if line.account_move_id else False
-            line.purchase_amount_untaxed = line.line_amount_untaxed if line.purchase_order_id else False
+            line.billed_amount_untaxed = (
+                line.line_amount_untaxed if line.account_move_id else False
+            )
+            line.purchase_amount_untaxed = (
+                line.line_amount_untaxed if line.purchase_order_id else False
+            )
 
     def _compute_reference(self):
         for line in self:
-            line.reference = line.purchase_order_id.display_name or line.account_move_id.display_name
+            line.reference = (
+                line.purchase_order_id.display_name or line.account_move_id.display_name
+            )
 
     def _compute_display_name(self):
         for line in self:
-            line.display_name = line.product_id.display_name or line.aml_id.name or line.pol_id.name
+            line.display_name = (
+                line.product_id.display_name or line.aml_id.name or line.pol_id.name
+            )
 
     def _compute_product_uom_qty(self):
         for line in self:
-            line.product_uom_qty = line.line_uom_id._compute_quantity(line.line_qty, line.product_uom_id)
+            line.product_uom_qty = line.line_uom_id._compute_quantity(
+                line.line_qty, line.product_uom_id
+            )
 
-    @api.depends('aml_id.price_unit', 'pol_id.price_unit')
+    @api.depends("aml_id.price_unit", "pol_id.price_unit")
     def _compute_product_uom_price(self):
         for line in self:
-            line.product_uom_price = line.aml_id.price_unit if line.aml_id else line.pol_id.price_unit
+            line.product_uom_price = (
+                line.aml_id.price_unit if line.aml_id else line.pol_id.price_unit
+            )
 
     @api.model
     def _select_po_line(self):
-        return SQL("""
+        return SQL(
+            """
             SELECT pol.id,
                    pol.id as pol_id,
                    NULL as aml_id,
@@ -99,11 +127,13 @@ class PurchaseBillLineMatch(models.Model):
              WHERE po.state = 'purchase'
                AND (pol.product_qty > pol.qty_invoiced OR pol.qty_to_invoice != 0)
                 OR ((pol.display_type = '' OR pol.display_type IS NULL) AND pol.is_downpayment AND pol.qty_invoiced > 0)
-        """)
+        """
+        )
 
     @api.model
     def _select_am_line(self):
-        return SQL("""
+        return SQL(
+            """
             SELECT -aml.id,
                    NULL as pol_id,
                    aml.id as aml_id,
@@ -125,7 +155,8 @@ class PurchaseBillLineMatch(models.Model):
                AND am.move_type in ('in_invoice', 'in_refund')
                AND aml.parent_state in ('draft', 'posted')
                AND aml.purchase_line_id IS NULL
-        """)
+        """
+        )
 
     @property
     def _table_query(self):
@@ -134,36 +165,50 @@ class PurchaseBillLineMatch(models.Model):
     def action_open_line(self):
         self.ensure_one()
         return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'account.move' if self.account_move_id else 'purchase.order',
-            'view_mode': 'form',
-            'res_id': self.account_move_id.id if self.account_move_id else self.purchase_order_id.id,
+            "type": "ir.actions.act_window",
+            "res_model": "account.move" if self.account_move_id else "purchase.order",
+            "view_mode": "form",
+            "res_id": (
+                self.account_move_id.id
+                if self.account_move_id
+                else self.purchase_order_id.id
+            ),
         }
 
     @api.model
     def _action_create_bill_from_po_lines(self, partner, po_lines):
-        """ Create a new vendor bill with the selected PO lines and returns an action to open it """
-        bill = self.env['account.move'].create({
-            'move_type': 'in_invoice',
-            'partner_id': partner.id,
-        })
+        """Create a new vendor bill with the selected PO lines and returns an action to open it"""
+        bill = self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": partner.id,
+            }
+        )
         bill._add_purchase_order_lines(po_lines)
         return bill._get_records_action()
 
     def action_match_lines(self):
         if not self.pol_id:  # we need POL(s) to either match or create bill
-            raise UserError(_("You must select at least one Purchase Order line to match or create bill."))
-        if not self.aml_id:  # select POL(s) without AML -> create a draft bill with the POL(s)
+            raise UserError(
+                _(
+                    "You must select at least one Purchase Order line to match or create bill."
+                )
+            )
+        if (
+            not self.aml_id
+        ):  # select POL(s) without AML -> create a draft bill with the POL(s)
             return self._action_create_bill_from_po_lines(self.partner_id, self.pol_id)
 
-        pol_by_product = self.pol_id.grouped('product_id')
-        aml_by_product = self.aml_id.grouped('product_id')
+        pol_by_product = self.pol_id.grouped("product_id")
+        aml_by_product = self.aml_id.grouped("product_id")
         residual_purchase_order_lines = self.pol_id
         residual_account_move_lines = self.aml_id
 
         # Match all matchable POL-AML lines and remove them from the residual group
         for product, po_line in pol_by_product.items():
-            po_line = po_line[0]  # in case of multiple POL with same product, only match the first one
+            po_line = po_line[
+                0
+            ]  # in case of multiple POL with same product, only match the first one
             matching_bill_lines = aml_by_product.get(product)
             if matching_bill_lines:
                 matching_bill_lines.purchase_line_id = po_line.id
@@ -185,19 +230,21 @@ class PurchaseBillLineMatch(models.Model):
         if len(partner) > 1:
             raise UserError(_("Please select bill lines with the same vendor."))
         context = {
-            'default_partner_id': partner.id,
-            'dialog_size': 'medium',
-            'has_products': bool(self.aml_id.product_id),
+            "default_partner_id": partner.id,
+            "dialog_size": "medium",
+            "has_products": bool(self.aml_id.product_id),
         }
         if len(self.purchase_order_id) > 1:
-            raise UserError(_("Vendor Bill lines can only be added to one Purchase Order."))
+            raise UserError(
+                _("Vendor Bill lines can only be added to one Purchase Order.")
+            )
         elif self.purchase_order_id:
-            context['default_purchase_order_id'] = self.purchase_order_id.id
+            context["default_purchase_order_id"] = self.purchase_order_id.id
         return {
-            'type': 'ir.actions.act_window',
-            'name': _("Add to Purchase Order"),
-            'res_model': 'bill.to.po.wizard',
-            'target': 'new',
-            'views': [(self.env.ref('purchase.bill_to_po_wizard_form').id, 'form')],
-            'context': context,
+            "type": "ir.actions.act_window",
+            "name": _("Add to Purchase Order"),
+            "res_model": "bill.to.po.wizard",
+            "target": "new",
+            "views": [(self.env.ref("purchase.bill_to_po_wizard_form").id, "form")],
+            "context": context,
         }

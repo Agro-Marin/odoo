@@ -26,7 +26,7 @@ class SaleOrderLine(models.Model):
     def _onchange_service_product_uom_qty(self):
         if self.state == 'sale' and self.product_id.type == 'service' and self.product_id.with_company(self._purchase_service_get_company()).service_to_purchase:
             if self.product_uom_qty < self._origin.product_uom_qty:
-                if self.product_uom_qty < self.qty_delivered:
+                if self.product_uom_qty < self.qty_transfered:
                     return {}
                 warning_mess = {
                     'title': _('Ordered quantity decreased!'),
@@ -113,8 +113,8 @@ class SaleOrderLine(models.Model):
 
     def _purchase_get_date_order(self, supplierinfo):
         """ return the ordered date for the purchase order, computed as : SO commitment date - supplier delay """
-        commitment_date = fields.Datetime.from_string(self.order_id.commitment_date or fields.Datetime.now())
-        return commitment_date - relativedelta(days=int(supplierinfo.delay))
+        date_commitment = fields.Datetime.from_string(self.order_id.date_commitment or fields.Datetime.now())
+        return date_commitment - relativedelta(days=int(supplierinfo.delay))
 
     def _purchase_service_get_company(self):
         return self.company_id

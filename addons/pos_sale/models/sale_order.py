@@ -24,19 +24,19 @@ class SaleOrder(models.Model):
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['name', 'state', 'user_id', 'order_line', 'partner_id', 'pricelist_id', 'fiscal_position_id', 'amount_total', 'amount_untaxed', 'amount_unpaid',
+        return ['name', 'state', 'user_id', 'line_ids', 'partner_id', 'pricelist_id', 'fiscal_position_id', 'amount_total', 'amount_untaxed', 'amount_unpaid',
             'picking_ids', 'partner_shipping_id', 'partner_invoice_id', 'date_order', 'write_date']
 
     def load_sale_order_from_pos(self, config_id):
-        product_ids = self.order_line.product_id.ids
+        product_ids = self.line_ids.product_id.ids
         product_tmpls = self.env['product.template'].load_product_from_pos(
             config_id,
             [('product_variant_ids.id', 'in', product_ids)]
         )
         sale_order_fields = self._load_pos_data_fields(config_id)
         sale_order_read = self.read(sale_order_fields, load=False)
-        sale_order_line_fields = self.order_line._load_pos_data_fields(config_id)
-        sale_order_line_read = self.order_line.read(sale_order_line_fields, load=False)
+        sale_order_line_fields = self.line_ids._load_pos_data_fields(config_id)
+        sale_order_line_read = self.line_ids.read(sale_order_line_fields, load=False)
         sale_order_fp_fields = self.env['account.fiscal.position']._load_pos_data_fields(config_id)
         sale_order_fp_read = self.fiscal_position_id.read(sale_order_fp_fields, load=False)
         partner_fields = self.env['res.partner']._load_pos_data_fields(config_id)
@@ -65,16 +65,16 @@ class SaleOrder(models.Model):
             'domain': [('id', 'in', linked_orders.ids)],
         }
 
-    @api.depends('order_line', 'amount_total', 'order_line.invoice_lines.parent_state', 'order_line.invoice_lines.price_total', 'order_line.pos_order_line_ids')
+    @api.depends('line_ids', 'amount_total', 'line_ids.invoice_line_ids.parent_state', 'line_ids.invoice_line_ids.price_total', 'line_ids.pos_order_line_ids')
     def _compute_amount_unpaid(self):
         for sale_order in self:
-            invoices = sale_order.order_line.invoice_lines.move_id.filtered(lambda invoice: invoice.state in ('draft', 'posted'))
+            invoices = sale_order.line_ids.invoice_line_ids.move_id.filtered(lambda invoice: invoice.state in ('draft', 'posted'))
             total_invoices_paid = sum(invoices.mapped('amount_total'))
-            pos_orders = sale_order.order_line.pos_order_line_ids.order_id
+            pos_orders = sale_order.line_ids.pos_order_line_ids.order_id
             total_pos_orders_paid = sum(pos_orders.mapped('amount_total'))
             sale_order.amount_unpaid = max(sale_order.amount_total - total_invoices_paid - total_pos_orders_paid, 0.0)
 
-    @api.depends('order_line.pos_order_line_ids')
+    @api.depends('line_ids.pos_order_line_ids')
     def _compute_amount_to_invoice(self):
         super()._compute_amount_to_invoice()
         for order in self:
@@ -82,11 +82,11 @@ class SaleOrder(models.Model):
             order_amount = sum(order.sudo().pos_order_line_ids.mapped('price_subtotal_incl'))
             order.amount_to_invoice -= order_amount
 
-    @api.depends('order_line.pos_order_line_ids')
+    @api.depends('line_ids.pos_order_line_ids')
     def _compute_amount_invoiced(self):
         super()._compute_amount_invoiced()
         for order in self:
-            if order.invoice_status == 'invoiced':
+            if order.invoice_state == 'invoiced':
                 continue
             # We need to account for the downpayment paid in POS with and without invoice
             order_amount = sum(order.sudo().pos_order_line_ids.filtered(lambda pol: pol.order_id.state in ['paid', 'done', 'invoiced'] and pol.sale_order_line_id.is_downpayment).mapped('price_subtotal_incl'))
@@ -123,18 +123,18 @@ class SaleOrderLine(models.Model):
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['discount', 'display_name', 'price_total', 'price_unit', 'product_id', 'product_uom_qty', 'qty_delivered',
+        return ['discount', 'display_name', 'price_total', 'price_unit', 'product_id', 'product_uom_qty', 'qty_transfered',
             'qty_invoiced', 'qty_to_invoice', 'display_type', 'name', 'tax_ids', 'is_downpayment', 'extra_tax_data',
             'write_date', 'product_custom_attribute_value_ids'
         ]
 
     @api.depends('pos_order_line_ids.qty', 'pos_order_line_ids.order_id.picking_ids', 'pos_order_line_ids.order_id.picking_ids.state')
-    def _compute_qty_delivered(self):
-        super()._compute_qty_delivered()
+    def _compute_qty_transfered(self):
+        super()._compute_qty_transfered()
         for sale_line in self:
             pos_lines = sale_line.sudo().pos_order_line_ids.filtered(lambda order_line: order_line.order_id.state not in ['cancel', 'draft'])
             if all(picking.state == 'done' for picking in pos_lines.order_id.picking_ids):
-                sale_line.qty_delivered += sum((self._convert_qty(sale_line, pos_line.qty, 'p2s') for pos_line in pos_lines if sale_line.product_id.type != 'service'), 0)
+                sale_line.qty_transfered += sum((self._convert_qty(sale_line, pos_line.qty, 'p2s') for pos_line in pos_lines if sale_line.product_id.type != 'service'), 0)
 
     @api.depends('pos_order_line_ids.qty')
     def _compute_qty_invoiced(self):
@@ -144,7 +144,7 @@ class SaleOrderLine(models.Model):
             sale_line.qty_invoiced += sum([self._convert_qty(sale_line, pos_line.qty, 'p2s') for pos_line in pos_lines], 0)
 
     def _get_sale_order_fields(self):
-        return ["product_id", "display_name", "price_unit", "product_uom_qty", "tax_ids", "qty_delivered", "qty_invoiced", "discount", "qty_to_invoice", "price_total", "is_downpayment"]
+        return ["product_id", "display_name", "price_unit", "product_uom_qty", "tax_ids", "qty_transfered", "qty_invoiced", "discount", "qty_to_invoice", "price_total", "is_downpayment"]
 
     def read_converted(self):
         field_names = self._get_sale_order_fields()
@@ -161,7 +161,7 @@ class SaleOrderLine(models.Model):
                     results.append(item)
                     continue
                 item['product_uom_qty'] = self._convert_qty(sale_line, item['product_uom_qty'], 's2p')
-                item['qty_delivered'] = self._convert_qty(sale_line, item['qty_delivered'], 's2p')
+                item['qty_transfered'] = self._convert_qty(sale_line, item['qty_transfered'], 's2p')
                 item['qty_invoiced'] = self._convert_qty(sale_line, item['qty_invoiced'], 's2p')
                 item['qty_to_invoice'] = self._convert_qty(sale_line, item['qty_to_invoice'], 's2p')
                 item['price_unit'] = sale_line_uom._compute_price(item['price_unit'], product_uom)

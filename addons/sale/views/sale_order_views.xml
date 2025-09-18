@@ -129,7 +129,7 @@
 
                 <field name="name" string="Number" readonly="1" decoration-bf="1"/>
                 <field name="date_order" optional="show" readonly="state in ['cancel', 'sale']"/>
-                <field name="commitment_date" optional="hide"/>
+                <field name="date_commitment" optional="hide"/>
                 <field name="expected_date" optional="hide"/>
                 <field name="partner_id" readonly="1"/>
                 <field name="user_id" widget="many2one_avatar_user" optional="show"/>
@@ -152,7 +152,7 @@
                        sum="Total Tax Included"
                        widget="monetary"
                        decoration-bf="1"
-                       decoration-info="invoice_status == 'to invoice'"
+                       decoration-info="invoice_state == 'to invoice'"
                        optional="show"/>
                 <field name="tag_ids"
                       widget="many2many_tags"
@@ -164,14 +164,14 @@
                     decoration-primary="state == 'sent'"
                     widget="badge"
                     optional="hide"/>
-                <field name="invoice_status"
-                    decoration-success="invoice_status == 'invoiced'"
-                    decoration-info="invoice_status == 'to invoice'"
-                    decoration-warning="invoice_status == 'upselling'"
+                <field name="invoice_state"
+                    decoration-success="invoice_state == 'invoiced'"
+                    decoration-info="invoice_state == 'to invoice'"
+                    decoration-warning="invoice_state == 'upselling'"
                     widget="badge"
                     optional="show"/>
                 <field name="client_order_ref" optional="hide"/>
-                <field name="validity_date" optional="hide"/>
+                <field name="date_validity" optional="hide"/>
             </list>
         </field>
     </record>
@@ -219,7 +219,7 @@
             <field name="state" position="attributes">
                 <attribute name="optional">show</attribute>
             </field>
-            <field name="invoice_status" position="attributes">
+            <field name="invoice_state" position="attributes">
                 <attribute name="optional">hide</attribute>
             </field>
         </field>
@@ -276,7 +276,7 @@
                     type="action"
                     class="btn-primary"
                     data-hotkey="q"
-                    invisible="invoice_status != 'to invoice'"/>
+                    invisible="invoice_state != 'to invoice'"/>
                 <button
                     string="Create Invoice"
                     id="create_invoice_percentage"
@@ -284,11 +284,11 @@
                     type="action"
                     context="{'default_advance_payment_method': 'percentage'}"
                     data-hotkey="q"
-                    invisible="invoice_status != 'no' or state != 'sale'"/>
+                    invisible="invoice_state != 'no' or state != 'sale'"/>
                 <button
                     string="Send"
                     id="quotation_send_primary"
-                    name="action_quotation_send"
+                    name="action_send_quotation"
                     type="object"
                     context="{'validate_analytic': True, 'check_document_layout': True}"
                     class="btn-primary"
@@ -297,7 +297,7 @@
                 <button
                     string="Send PRO-FORMA Invoice"
                     id="send_proforma_primary"
-                    name="action_quotation_send"
+                    name="action_send_quotation"
                     type="object"
                     context="{'proforma': True, 'validate_analytic': True}"
                     class="btn-primary"
@@ -328,7 +328,7 @@
                 <button
                     string="Send PRO-FORMA Invoice"
                     id="send_proforma"
-                    name="action_quotation_send"
+                    name="action_send_quotation"
                     type="object"
                     context="{'proforma': True, 'validate_analytic': True}"
                     invisible="state == 'draft' or invoice_count &gt;= 1"
@@ -336,7 +336,7 @@
                 <button
                     string="Send"
                     id="quotation_send"
-                    name="action_quotation_send"
+                    name="action_send_quotation"
                     type="object"
                     context="{'validate_analytic': True, 'check_document_layout': True}"
                     data-hotkey="g"
@@ -445,7 +445,7 @@
                               readonly="state == 'cancel' or locked"/>
                     </group>
                     <group name="order_details">
-                        <field name="validity_date" invisible="state == 'sale'" readonly="state in ['cancel', 'sale']"/>
+                        <field name="date_validity" invisible="state == 'sale'" readonly="state in ['cancel', 'sale']"/>
                         <div class="o_td_label" groups="base.group_no_one" invisible="state in ['sale', 'cancel']">
                             <label for="date_order" string="Quotation Date"/>
                         </div>
@@ -495,7 +495,7 @@
                 <notebook>
                     <page string="Order Lines" name="order_lines">
                         <field
-                            name="order_line"
+                            name="line_ids"
                             widget="sol_o2m"
                             mode="list,kanban"
                             readonly="state == 'cancel' or locked"
@@ -539,9 +539,9 @@
                                                 readonly="product_uom_readonly"
                                                 required="not display_type and not is_downpayment"/>
                                         </div>
-                                        <label for="qty_delivered" string="Delivered" invisible="parent.state != 'sale'"/>
+                                        <label for="qty_transfered" string="Delivered" invisible="parent.state != 'sale'"/>
                                         <div name="delivered_qty" invisible="parent.state != 'sale'">
-                                            <field name="qty_delivered" readonly="qty_delivered_method != 'manual'"/>
+                                            <field name="qty_transfered" readonly="qty_transfered_method != 'manual'"/>
                                         </div>
                                         <label for="qty_invoiced" string="Invoiced" invisible="parent.state != 'sale'"/>
                                         <div name="invoiced_qty" invisible="parent.state != 'sale'">
@@ -577,8 +577,8 @@
                                 <label for="name" string="Note" invisible="display_type != 'line_note'"/>
                                 <field name="name"/>
                                 <div name="invoice_lines" groups="base.group_no_one" invisible="display_type">
-                                    <label for="invoice_lines"/>
-                                    <field name="invoice_lines"/>
+                                    <label for="invoice_line_ids"/>
+                                    <field name="invoice_line_ids"/>
                                 </div>
                             </form>
                             <list
@@ -665,22 +665,22 @@
                                     groups="analytic.group_analytic_accounting"/>
                                 <field
                                     name="product_uom_qty"
-                                    decoration-info="(not display_type and invoice_status == 'to invoice')"
-                                    decoration-bf="(not display_type and invoice_status == 'to invoice')"
+                                    decoration-info="(not display_type and invoice_state == 'to invoice')"
+                                    decoration-bf="(not display_type and invoice_state == 'to invoice')"
                                     readonly="is_downpayment"/>
                                 <field
-                                    name="qty_delivered"
+                                    name="qty_transfered"
                                     string="Delivered"
-                                    decoration-info="(not display_type and invoice_status == 'to invoice')"
-                                    decoration-bf="(not display_type and invoice_status == 'to invoice')"
+                                    decoration-info="(not display_type and invoice_state == 'to invoice')"
+                                    decoration-bf="(not display_type and invoice_state == 'to invoice')"
                                     column_invisible="parent.state != 'sale'"
-                                    readonly="qty_delivered_method != 'manual' or is_downpayment"
+                                    readonly="qty_transfered_method != 'manual' or is_downpayment"
                                     optional="show"/>
                                 <field
                                     name="qty_invoiced"
                                     string="Invoiced"
-                                    decoration-info="(not display_type and invoice_status == 'to invoice')"
-                                    decoration-bf="(not display_type and invoice_status == 'to invoice')"
+                                    decoration-info="(not display_type and invoice_state == 'to invoice')"
+                                    decoration-bf="(not display_type and invoice_state == 'to invoice')"
                                     column_invisible="parent.state != 'sale'"
                                     optional="show"/>
                                 <field
@@ -872,14 +872,14 @@
                                 <field name="preferred_payment_method_line_id"/>
                                 <field name="partner_invoice_id" groups="!account.group_delivery_invoice_address" invisible="1"/>
                                 <field name="journal_id" groups="base.group_no_one" readonly="invoice_count != 0 and state == 'sale'"/>
-                                <field name="invoice_status" invisible="state != 'sale'" groups="base.group_no_one"/>
+                                <field name="invoice_state" invisible="state != 'sale'" groups="base.group_no_one"/>
                                 <!-- test_event_configurator -->
-                                <field name="invoice_status" invisible="1" groups="!base.group_no_one"/>
+                                <field name="invoice_state" invisible="1" groups="!base.group_no_one"/>
                             </group>
                             <group name="sale_shipping" string="Shipping">
-                                <label for="commitment_date" string="Delivery Date"/>
-                                <div name="commitment_date_div" class="o_row">
-                                    <field name="commitment_date" readonly="state == 'cancel' or locked"/>
+                                <label for="date_commitment" string="Delivery Date"/>
+                                <div name="date_commitment_div" class="o_row">
+                                    <field name="date_commitment" readonly="state == 'cancel' or locked"/>
                                     <span name="expected_date_span" invisible="not expected_date" class="text-muted">Expected: <field name="expected_date" class="oe_inline"/></span>
                                 </div>
                             </group>
@@ -917,7 +917,7 @@
                 <field name="partner_id" operator="child_of"/>
                 <field name="user_id"/>
                 <field name="team_id" string="Sales Team"/>
-                <field name="order_line" string="Product" filter_domain="[('order_line.product_id', 'ilike', self)]"/>
+                <field name="line_ids" string="Product" filter_domain="[('order_line.product_id', 'ilike', self)]"/>
                 <field name="activity_user_id" string="Activities of"/>
                 <field name="activity_type_id" string="Activity type"/>
                 <!-- We only allow to search on the following sale order line fields (product, name) because the other fields, such as price, quantity, ...
@@ -973,8 +973,8 @@
             <filter name="my_sale_orders_filter" position="after">
                 <filter invisible="1" string="Sales Orders" name="sales" domain="[('state', '=', 'sale')]"/>
                 <separator/>
-                <filter string="To Invoice" name="to_invoice" domain="[('invoice_status','=','to invoice')]" />
-                <filter string="To Upsell" name="upselling" domain="[('invoice_status','=','upselling')]" />
+                <filter string="To Invoice" name="to_invoice" domain="[('invoice_state','=','to invoice')]" />
+                <filter string="To Upsell" name="upselling" domain="[('invoice_state','=','upselling')]" />
                 <separator/>
                 <filter string="Order Date" name="order_date" date="date_order"/>
             </filter>
@@ -1151,7 +1151,7 @@
         <field name="res_model">sale.order</field>
         <field name="view_mode">list,form,calendar,graph,pivot,kanban,activity</field>
         <field name="context">{'create': False}</field>
-        <field name="domain">[('invoice_status','=','to invoice')]</field>
+        <field name="domain">[('invoice_state','=','to invoice')]</field>
         <field name="search_view_id" ref="view_sales_order_filter"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
@@ -1167,7 +1167,7 @@
         <field name="name">Orders to Upsell</field>
         <field name="res_model">sale.order</field>
         <field name="view_mode">list,form,calendar,graph,pivot,kanban,activity</field>
-        <field name="domain">[('invoice_status','=','upselling')]</field>
+        <field name="domain">[('invoice_state','=','upselling')]</field>
         <field name="context">{'create': False}</field>
         <field name="search_view_id" ref="view_sales_order_filter"/>
         <field name="help" type="html">
@@ -1212,7 +1212,7 @@
         <field name="state">code</field>
         <field name="code">
             if records:
-                action = records.with_context(hide_default_template=True).action_quotation_send()
+                action = records.with_context(hide_default_template=True).action_send_quotation()
         </field>
     </record>
 
