@@ -442,7 +442,7 @@ class AccountPayment(models.Model):
     def _get_method_codes_needing_bank_account(self):
         return []
 
-    def action_open_business_doc(self):
+    def action_view_business_doc(self):
         return {
             'name': _("Payment"),
             'type': 'ir.actions.act_window',

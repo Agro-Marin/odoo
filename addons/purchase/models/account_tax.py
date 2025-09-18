@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from odoo import models
 
 
@@ -13,8 +11,9 @@ class AccountTax(models.Model):
         taxes_to_compute -= used_taxes
 
         if taxes_to_compute:
-            self.env['purchase.order.line'].flush_model(['tax_ids'])
-            self.env.cr.execute("""
+            self.env["purchase.order.line"].flush_model(["tax_ids"])
+            self.env.cr.execute(
+                """
                 SELECT id
                 FROM account_tax
                 WHERE EXISTS(
@@ -23,7 +22,9 @@ class AccountTax(models.Model):
                     WHERE account_tax_id IN %s
                     AND account_tax.id = pur.account_tax_id
                 )
-            """, [tuple(taxes_to_compute)])
+                """,
+                [tuple(taxes_to_compute)],
+            )
 
             used_taxes.update([tax[0] for tax in self.env.cr.fetchall()])
 

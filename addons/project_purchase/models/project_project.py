@@ -16,7 +16,7 @@ class ProjectProject(models.Model):
             self.env['purchase.order']._read_group(
                 domain=[
                     ('project_id', 'in', self.ids),
-                    ('order_line', '!=', False),
+                    ('line_ids', '!=', False),
                 ],
                 groupby=['project_id'],
                 aggregates=['id:array_agg'],
@@ -151,10 +151,10 @@ class ProjectProject(models.Model):
             )
             if purchase_lines:
                 amount_invoiced = amount_to_invoice = 0.0
-                purchase_order_line_invoice_line_ids.extend(purchase_lines.invoice_lines.ids)
+                purchase_order_line_invoice_line_ids.extend(purchase_lines.invoice_line_ids.ids)
                 for purchase_line in purchase_lines:
-                    if purchase_line.invoice_lines:
-                        for line in purchase_line.invoice_lines:
+                    if purchase_line.invoice_line_ids:
+                        for line in purchase_line.invoice_line_ids:
                             price_subtotal = line.currency_id._convert(line.price_subtotal, self.currency_id, self.company_id)
                             if not line.analytic_distribution:
                                 continue

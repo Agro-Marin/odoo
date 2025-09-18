@@ -3468,8 +3468,8 @@ class AccountMoveLine(models.Model):
         action['domain'] = [('id', 'in', ids)]
         return clean_action(action, self.env)
 
-    def action_open_business_doc(self):
-        return self.move_id.action_open_business_doc()
+    def action_view_business_doc(self):
+        return self.move_id.action_view_business_doc()
 
     def action_automatic_entry(self, default_action=None):
         action = self.env['ir.actions.act_window']._for_xml_id('account.account_automatic_entry_wizard_action')

@@ -90,7 +90,7 @@ class PurchaseOrder(models.Model):
                 name=name, product_qty=product_qty, price_unit=line.price_unit,
                 taxes_ids=taxes_ids)
             order_lines.append((0, 0, order_line_values))
-        self.order_line = order_lines
+        self.line_ids = order_lines
 
     def button_confirm(self):
         if self.alternative_po_ids and not self.env.context.get('skip_alternative_check', False):
@@ -194,7 +194,7 @@ class PurchaseOrder(models.Model):
         product_to_best_price_unit = defaultdict(lambda: self.env['purchase.order.line'])
         po_alternatives = self | self.alternative_po_ids
 
-        for line in po_alternatives.order_line:
+        for line in po_alternatives.line_ids:
             if not line.product_qty or not line.price_total_cc or line.state in ['cancel', 'purchase']:
                 continue
 
@@ -303,7 +303,7 @@ class PurchaseOrderLine(models.Model):
         return False
 
     def action_choose(self):
-        order_lines = (self.order_id | self.order_id.alternative_po_ids).mapped('order_line')
+        order_lines = (self.order_id | self.order_id.alternative_po_ids).mapped('line_ids')
         order_lines = order_lines.filtered(lambda l: l.product_qty and l.product_id.id in self.product_id.ids and l.id not in self.ids)
         if order_lines:
             return order_lines.action_clear_quantities()

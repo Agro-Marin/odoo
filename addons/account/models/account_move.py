@@ -535,50 +535,50 @@ class AccountMove(models.Model):
     )
     amount_untaxed = fields.Monetary(
         string='Untaxed Amount',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         tracking=True,
     )
     amount_tax = fields.Monetary(
         string='Tax',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
     )
     amount_total = fields.Monetary(
         string='Total',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         inverse='_inverse_amount_total',
     )
     amount_residual = fields.Monetary(
         string='Amount Due',
-        compute='_compute_amount', store=True,
+        compute='_compute_amounts', store=True,
     )
     amount_untaxed_signed = fields.Monetary(
         string='Untaxed Amount Signed',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='company_currency_id',
     )
     amount_untaxed_in_currency_signed = fields.Monetary(
         string="Untaxed Amount Signed Currency",
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='currency_id',
     )
     amount_tax_signed = fields.Monetary(
         string='Tax Signed',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='company_currency_id',
     )
     amount_total_signed = fields.Monetary(
         string='Total Signed',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='company_currency_id',
     )
     amount_total_in_currency_signed = fields.Monetary(
         string='Total in Currency Signed',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='currency_id',
     )
     amount_residual_signed = fields.Monetary(
         string='Amount Due Signed',
-        compute='_compute_amount', store=True,
+        compute='_compute_amounts', store=True,
         currency_field='company_currency_id',
     )
     tax_totals = fields.Binary(
@@ -1155,7 +1155,7 @@ class AccountMove(models.Model):
         'line_ids.payment_id.state',
         'line_ids.full_reconcile_id',
         'state')
-    def _compute_amount(self):
+    def _compute_amounts(self):
         for move in self:
             total_untaxed, total_untaxed_currency = 0.0, 0.0
             total_tax, total_tax_currency = 0.0, 0.0
@@ -2428,7 +2428,7 @@ class AccountMove(models.Model):
 
                             if not move.currency_id.is_zero(delta_amount):
                                 first_tax_line.amount_currency -= delta_amount * sign
-            self._compute_amount()
+            self._compute_amounts()
 
     def _inverse_amount_total(self):
         for move in self:
@@ -5615,7 +5615,7 @@ class AccountMove(models.Model):
     def open_reconcile_view(self):
         return self.line_ids.open_reconcile_view()
 
-    def action_open_business_doc(self):
+    def action_view_business_doc(self):
         self.ensure_one()
         if self.origin_payment_id:
             name = _("Payment")
