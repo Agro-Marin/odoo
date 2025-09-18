@@ -107,8 +107,8 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         // or if the line cannot be edited (e.g. locked SO)
         return (
             this.props.readonlyField ||
-            (this.props.record.model.root.activeFields.order_line &&
-                this.props.record.model.root._isReadonly("order_line"))
+            (this.props.record.model.root.activeFields.line_ids &&
+                this.props.record.model.root._isReadonly("line_ids"))
         );
     }
     get hasConfigurationButton() {
@@ -269,20 +269,20 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
                             [applyProduct(this.props.record, mainProduct)]: []
                     ),
                     ...optionalProducts.map(async product => {
-                        const line = await saleOrderRecord.data.order_line.addNewRecord({
+                        const line = await saleOrderRecord.data.line_ids.addNewRecord({
                             position: 'bottom', mode: 'readonly'
                         });
                         await applyProduct(line, product);
                     }),
                 ]);
                 this._onProductUpdate();
-                saleOrderRecord.data.order_line.leaveEditMode();
+                saleOrderRecord.data.line_ids.leaveEditMode();
             },
             discard: () => {
                 if (!selectedComboItems.length) {
                     // Don't delete the main product if it's a combo product as it has been added
                     // from combo configurator
-                    saleOrderRecord.data.order_line.delete(this.props.record);
+                    saleOrderRecord.data.line_ids.delete(this.props.record);
                 }
             },
             ...this._getAdditionalDialogProps(),
@@ -336,7 +336,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
                     hasOptionalProducts
                 );
             },
-            discard: () => saleOrder.order_line.delete(comboLineRecord),
+            discard: () => saleOrder.line_ids.delete(comboLineRecord),
             ...this._getAdditionalDialogProps(),
         });
     }
@@ -344,7 +344,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
     async handleComboSave(comboProductData, selectedComboItems, edit, hasOptionalProducts) {
         const saleOrder = this.props.record.model.root.data;
         const comboLineRecord = this.props.record;
-        saleOrder.order_line.leaveEditMode();
+        saleOrder.line_ids.leaveEditMode();
         const comboLineValues = {
             product_uom_qty: comboProductData.quantity,
             selected_combo_items: JSON.stringify(
@@ -356,7 +356,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         }
         await comboLineRecord.update(comboLineValues);
         // Ensure that the order lines are sorted according to their sequence.
-        await saleOrder.order_line._sort();
+        await saleOrder.line_ids._sort();
 
         if (hasOptionalProducts && !edit) {
             const selectedComboProducts = selectedComboItems.map(

@@ -103,8 +103,8 @@
                 <div t-if="task.sale_line_id.untaxed_amount_invoiced > 0"><strong>Invoiced:</strong>
                     <span t-field="task.sale_line_id.untaxed_amount_invoiced"/>
                 </div>
-                <div name="amount_due" t-if="task.sale_line_id.untaxed_amount_to_invoice > 0"><strong>Amount Due:</strong>
-                    <span t-field="task.sale_line_id.untaxed_amount_to_invoice"/>
+                <div name="amount_due" t-if="task.sale_line_id.amount_to_invoice_taxexc > 0"><strong>Amount Due:</strong>
+                    <span t-field="task.sale_line_id.amount_to_invoice_taxexc"/>
                 </div>
             </t>
         </xpath>

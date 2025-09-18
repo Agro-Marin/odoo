@@ -5,11 +5,11 @@ from odoo import api, models
 
 
 class ReportStockReport_Stock_Rule(models.AbstractModel):
-    _inherit = 'report.stock.report_stock_rule'
+    _inherit = "report.stock.report_stock_rule"
 
     @api.model
     def _get_routes(self, data):
         res = super()._get_routes(data)
-        if data.get('so_route_ids'):
-            res = self.env['stock.route'].browse(data['so_route_ids']) | res
+        if data.get("so_route_ids"):
+            res = self.env["stock.route"].browse(data["so_route_ids"]) | res
         return res

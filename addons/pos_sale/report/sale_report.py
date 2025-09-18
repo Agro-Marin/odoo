@@ -27,11 +27,11 @@ class SaleReport(models.Model):
         select_ = f"""
             -MIN(l.id) AS id,
             l.product_id AS product_id,
-            NULL AS line_invoice_status,
+            NULL AS line_invoice_state,
             t.uom_id AS product_uom_id,
             SUM(l.qty) AS product_uom_qty,
-            SUM(l.qty_delivered) AS qty_delivered,
-            SUM(l.qty - l.qty_delivered) AS qty_to_deliver,
+            SUM(l.qty_transfered) AS qty_transfered,
+            SUM(l.qty - l.qty_transfered) AS qty_to_deliver,
             CASE WHEN pos.account_move IS NOT NULL THEN SUM(l.qty) ELSE 0 END AS qty_invoiced,
             CASE WHEN pos.account_move IS NULL THEN SUM(l.qty) ELSE 0 END AS qty_to_invoice,
             AVG(l.price_unit)
@@ -58,7 +58,7 @@ class SaleReport(models.Model):
             pos.name AS name,
             pos.date_order AS date,
             (CASE WHEN pos.state = 'done' THEN 'sale' ELSE pos.state END) AS state,
-            NULL as invoice_status,
+            NULL as invoice_state,
             pos.partner_id AS partner_id,
             pos.user_id AS user_id,
             pos.company_id AS company_id,

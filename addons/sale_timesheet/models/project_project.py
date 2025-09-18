@@ -145,7 +145,7 @@ class ProjectProject(models.Model):
                 continue
             if project.allow_billable and project.allow_timesheets and project.pricing_type != 'task_rate':
                 sol = project.sale_line_id or project.sale_line_employee_ids.sale_line_id[:1]
-                project.partner_id = sol.order_partner_id
+                project.partner_id = sol.partner_id
         super(ProjectProject, self - billable_projects)._compute_partner_id()
 
     @api.depends('partner_id')
@@ -156,7 +156,7 @@ class ProjectProject(models.Model):
             SaleOrderLine = self.env['sale.order.line']
             sol = SaleOrderLine.search(Domain.AND([
                 SaleOrderLine._domain_sale_line_service(),
-                [('order_partner_id', 'child_of', project.partner_id.commercial_partner_id.id), ('remaining_hours', '>', 0)],
+                [('partner_id', 'child_of', project.partner_id.commercial_partner_id.id), ('remaining_hours', '>', 0)],
             ]), limit=1)
             project.sale_line_id = sol or project.sale_line_employee_ids.sale_line_id[:1]  # get the first SOL containing in the employee mappings if no sol found in the search
 

@@ -6,16 +6,21 @@ from odoo import fields, models
 class AccountAnalyticLine(models.Model):
     _inherit = "account.analytic.line"
 
-    so_line = fields.Many2one('sale.order.line', string='Sales Order Item', domain=[('qty_delivered_method', '=', 'analytic')], index='btree_not_null')
+    so_line = fields.Many2one(
+        comodel_name="sale.order.line",
+        string="Sales Order Item",
+        domain=[("qty_transfered_method", "=", "analytic")],
+        index="btree_not_null",
+    )
 
 
 class AccountAnalyticApplicability(models.Model):
-    _inherit = 'account.analytic.applicability'
+    _inherit = "account.analytic.applicability"
     _description = "Analytic Plan's Applicabilities"
 
     business_domain = fields.Selection(
         selection_add=[
-            ('sale_order', 'Sale Order'),
+            ("sale_order", "Sale Order"),
         ],
-        ondelete={'sale_order': 'cascade'},
+        ondelete={"sale_order": "cascade"},
     )

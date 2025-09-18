@@ -53,7 +53,7 @@
             </field>
             <field name="company_id" position="replace"/>
             <field name="batch_id" position="replace"/>
-            <field name="scheduled_date" position="attributes">
+            <field name="date_planned" position="attributes">
                 <attribute name="optional">hide</attribute>
             </field>
             <field name="priority" position="attributes">

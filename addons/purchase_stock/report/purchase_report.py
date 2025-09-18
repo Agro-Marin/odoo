@@ -8,25 +8,35 @@ from odoo.tools import SQL
 class PurchaseReport(models.Model):
     _inherit = "purchase.report"
 
-    picking_type_id = fields.Many2one('stock.warehouse', 'Warehouse', readonly=True)
-    effective_date = fields.Datetime(string="Effective Date")
-    days_to_arrival = fields.Float('Effective Days To Arrival', digits=(16, 2), readonly=True, aggregator='avg')
+    picking_type_id = fields.Many2one(
+        comodel_name="stock.warehouse",
+        string="Warehouse",
+        readonly=True,
+    )
+    date_effective = fields.Datetime(string="Effective Date")
+    days_to_arrival = fields.Float(
+        string="Effective Days To Arrival",
+        digits=(16, 2),
+        readonly=True,
+        aggregator="avg",
+    )
 
     def _select(self) -> SQL:
         return SQL(
             """
                 %s,
-                spt.warehouse_id as picking_type_id, po.effective_date as effective_date,
+                spt.warehouse_id as picking_type_id, po.date_effective as date_effective,
                 extract(
                     epoch from age(
                         l.date_planned,
                         COALESCE(
-                            order_effective_date.date_done,
+                            order_date_effective.date_done,
                             po.date_order
                         )
                     )
                 )/(24*60*60)::decimal(16,2) as days_to_arrival
-            """, super()._select()
+            """,
+            super()._select(),
         )
 
     def _from(self) -> SQL:
@@ -51,10 +61,14 @@ class PurchaseReport(models.Model):
                         AND picking.date_done IS NOT NULL
                     GROUP BY
                         purchase.id
-                ) order_effective_date
-                    ON order_effective_date.purchase_id = l.order_id
-            """, super()._from()
+                ) order_date_effective
+                    ON order_date_effective.purchase_id = l.order_id
+            """,
+            super()._from(),
         )
 
     def _group_by(self) -> SQL:
-        return SQL("%s, spt.warehouse_id, effective_date, order_effective_date.date_done", super()._group_by())
+        return SQL(
+            "%s, spt.warehouse_id, date_effective, order_date_effective.date_done",
+            super()._group_by(),
+        )

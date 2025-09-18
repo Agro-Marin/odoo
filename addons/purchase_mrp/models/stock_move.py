@@ -20,7 +20,7 @@ class StockMove(models.Model):
             return super()._get_price_unit()
         line = self.purchase_line_id
         # price_unit here with uom of product
-        kit_price_unit = line._get_gross_price_unit()
+        kit_price_unit = line._get_price_unit_gross()
         bom_line = self.bom_line_id
         bom = bom_line.bom_id
         if line.currency_id != self.company_id.currency_id:

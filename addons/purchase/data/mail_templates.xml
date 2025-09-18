@@ -8,19 +8,19 @@
                 <li><t t-esc="line.product_id.display_name"/>:</li>
                 Ordered Quantity: <t t-esc="line.product_qty" /> -&gt; <t t-esc="float(product_qty)"/><br/>
                 <t t-if='line.order_id.product_id.type != "consu"'>
-                    Received Quantity: <t t-esc="line.qty_received" /><br/>
+                    Received Quantity: <t t-esc="line.qty_transfered" /><br/>
                 </t>
                 Billed Quantity: <t t-esc="line.qty_invoiced"/>
             </ul>
         </div>
     </template>
 
-    <template id="track_po_line_qty_received_template">
+    <template id="track_po_line_qty_transfered_template">
         <div>
             <strong>The received quantity has been updated.</strong>
             <ul>
                 <li><t t-esc="line.product_id.display_name"/>:</li>
-                Received Quantity: <t t-esc="line.qty_received" /> -&gt; <t t-esc="float(qty_received)"/><br/>
+                Received Quantity: <t t-esc="line.qty_transfered" /> -&gt; <t t-esc="float(qty_transfered)"/><br/>
             </ul>
         </div>
     </template>
