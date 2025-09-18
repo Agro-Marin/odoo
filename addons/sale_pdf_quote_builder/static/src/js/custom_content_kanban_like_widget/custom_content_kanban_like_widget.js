@@ -79,7 +79,7 @@ export class CustomContentKanbanLikeWidget extends Component {
     }
 
     async saveProductDocument(lineId, docId, isSelected) {
-        const sol = this.props.record.data.order_line.records.find(
+        const sol = this.props.record.data.line_ids.records.find(
             sol => sol.resId === lineId
         );
         sol._noUpdateParent = true; // Ensure that no rpc will be made to save the changes
@@ -90,7 +90,7 @@ export class CustomContentKanbanLikeWidget extends Component {
             // save is needed to ensure that no onChange call will be made
             await sol.update({product_document_ids: [x2ManyCommands.unlink(docId)]}, { save: true });
         }
-        await this.props.record.data.order_line._onUpdate({withoutOnchange: true});
+        await this.props.record.data.line_ids._onUpdate({withoutOnchange: true});
         this.updateJson();
     };
 
