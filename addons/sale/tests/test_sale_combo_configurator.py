@@ -91,22 +91,22 @@ class TestSaleComboConfigurator(HttpCase, SaleCommon):
         order = self.env['sale.order'].search([('partner_id.name', '=', 'Test Partner')], limit=1)
         self.assertTrue(order, "A new Sale order should be created.")
         self.assertEqual(
-            order.order_line[0].product_template_id,
+            order.line_ids[0].product_template_id,
             combo_product,
             "The main combo product should be added",
         )
         self.assertEqual(
-            order.order_line[1].product_template_id.name,
+            order.line_ids[1].product_template_id.name,
             'Product A1',
             "Product A1 should be added as a part of this combo",
         )
         self.assertEqual(
-            order.order_line[2].product_template_id.name,
+            order.line_ids[2].product_template_id.name,
             'Product B2',
             "Product B2 should be added as a part of this combo",
         )
         self.assertEqual(
-            order.order_line[3].product_template_id,
+            order.line_ids[3].product_template_id,
             optional_product,
             "Optional product should be added as a part of this combo",
         )

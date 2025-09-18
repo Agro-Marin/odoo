@@ -14,17 +14,17 @@ class TestValuationReconciliationCommon(ValuationReconciliationTestCommon):
         cls.other_currency = cls.setup_other_currency('EUR')
 
         # Set the invoice_policy to delivery to have an accurate COGS entry.
-        cls.test_product_delivery.invoice_policy = 'delivery'
+        cls.test_product_delivery.invoice_policy = 'transferred'
 
     def _create_sale(self, product, date, quantity=1.0):
         order = self.env['sale.order'].sudo().create({
             'partner_id': self.partner_a.id,
             'currency_id': self.other_currency.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'name': product.name,
                     'product_id': product.id,
-                    'product_uom_qty': quantity,
+                    'product_qty': quantity,
                     'product_uom_id': product.uom_id.id,
                     'price_unit': 66.0,
                 })],
@@ -46,7 +46,7 @@ class TestValuationReconciliationCommon(ValuationReconciliationTestCommon):
                 'quantity': quantity,
                 'discount': 0.0,
                 'product_id': product.id,
-                'sale_line_ids': [(6, 0, sale_order.order_line.ids)],
+                'sale_line_ids': [(6, 0, sale_order.line_ids.ids)],
             })],
         })
 
@@ -191,11 +191,11 @@ class TestValuationReconciliation(TestValuationReconciliationCommon):
         so = self.env['sale.order'].sudo().create({
             'partner_id': self.partner_a.id,
             'currency_id': self.other_currency.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'name': product.name,
                     'product_id': product.id,
-                    'product_uom_qty': 2,
+                    'product_qty': 2,
                     'product_uom_id': product.uom_id.id,
                     'price_unit': 10.0,
                 }) for product in 2 * [product_1] + [product_2]],
@@ -219,7 +219,7 @@ class TestValuationReconciliation(TestValuationReconciliationCommon):
                 'discount': 0.0,
                 'product_id': line.product_id.id,
                 'sale_line_ids': [(6, 0, line.ids)],
-            }) for line in so.order_line],
+            }) for line in so.line_ids],
         })
 
         so.invoice_ids += inv

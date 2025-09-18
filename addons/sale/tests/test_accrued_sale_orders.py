@@ -18,15 +18,15 @@ class TestAccruedSaleOrders(TestSaleCommon):
 
         cls.other_currency = cls.setup_other_currency('EUR')
         cls.alt_inc_account = cls.company_data['default_account_revenue'].copy()
-        # set 'invoice_policy' to 'delivery' to take 'qty_delivered' into account when computing 'untaxed_amount_to_invoice'
-        # set 'type' to 'service' to allow manualy set 'qty_delivered' even with sale_stock installed
+        # set 'invoice_policy' to 'transferred' to take 'qty_transferred' into account when computing 'amount_taxexc_to_invoice'
+        # set 'type' to 'service' to allow manualy set 'qty_transferred' even with sale_stock installed
         cls.product_a.update({
             'type': 'service',
-            'invoice_policy': 'delivery',
+            'invoice_policy': 'transferred',
         })
         cls.product_b.update({
             'type': 'service',
-            'invoice_policy': 'delivery',
+            'invoice_policy': 'transferred',
             'property_account_income_id': cls.alt_inc_account.id,
         })
         cls.default_plan = cls.env['account.analytic.plan'].create({'name': 'Default'})
@@ -42,11 +42,11 @@ class TestAccruedSaleOrders(TestSaleCommon):
         })
         cls.sale_order = cls.env['sale.order'].with_context(tracking_disable=True).create({
             'partner_id': cls.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': cls.product_a.name,
                     'product_id': cls.product_a.id,
-                    'product_uom_qty': 10.0,
+                    'product_qty': 10.0,
                     'price_unit': cls.product_a.list_price,
                     'tax_ids': False,
                     'analytic_distribution': {
@@ -57,7 +57,7 @@ class TestAccruedSaleOrders(TestSaleCommon):
                 Command.create({
                     'name': cls.product_b.name,
                     'product_id': cls.product_b.id,
-                    'product_uom_qty': 10.0,
+                    'product_qty': 10.0,
                     'price_unit': cls.product_b.list_price,
                     'tax_ids': False,
                     'analytic_distribution': {
@@ -85,7 +85,7 @@ class TestAccruedSaleOrders(TestSaleCommon):
             self.wizard.create_entries()
 
         # 5 qty of each product invoiceable
-        self.sale_order.order_line.qty_delivered = 5
+        self.sale_order.line_ids.qty_transferred = 5
         # Call accrual wizard at today date because calling in the past will
         # re-compute delivred and invoiced quantities for this date and thus
         # generate nothing since there was no delivered quantity at this time.
@@ -110,8 +110,8 @@ class TestAccruedSaleOrders(TestSaleCommon):
 
     def test_multi_currency_accrued_order(self):
         # 5 qty of each product billeable
-        self.sale_order.order_line.qty_delivered = 5
-        # self.sale_order.order_line.product_uom_qty = 5
+        self.sale_order.line_ids.qty_transferred = 5
+        # self.sale_order.line_ids.product_uom_qty = 5
         # set currency != company currency
         self.sale_order.currency_id = self.other_currency
         self.assertRecordValues(self.env['account.move'].search(self.wizard.create_entries()['domain']).line_ids, [
@@ -126,7 +126,7 @@ class TestAccruedSaleOrders(TestSaleCommon):
         ])
 
     def test_analytic_account_accrued_order(self):
-        self.sale_order.order_line.qty_delivered = 10
+        self.sale_order.line_ids.qty_transferred = 10
 
         self.assertRecordValues(self.env['account.move'].search(self.wizard.create_entries()['domain']).line_ids, [
             # reverse move lines
@@ -141,7 +141,7 @@ class TestAccruedSaleOrders(TestSaleCommon):
         ])
 
     def test_product_name_in_accrued_revenue_entry(self):
-        self.sale_order.order_line.qty_delivered = 5
+        self.sale_order.line_ids.qty_transferred = 5
 
         so_context = {
             'active_model': 'sale.order',

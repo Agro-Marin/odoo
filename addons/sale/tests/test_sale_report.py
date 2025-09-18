@@ -80,8 +80,8 @@ class TestSaleReportCurrencyRate(SaleCommon):
                         'partner_id': self.partner.id,
                         'pricelist_id': pricelist.id,
                         'date_order': date,
-                        'order_line': [Command.create(
-                            {'product_id': self.product.id, 'product_uom_qty': qty}
+                        'line_ids': [Command.create(
+                            {'product_id': self.product.id, 'product_qty': qty}
                         )],
                     })
                     sale_orders |= order
@@ -130,7 +130,7 @@ class TestSaleReportCurrencyRate(SaleCommon):
         """Checks that downpayment lines are used in the calculation of amounts invoiced and to invoice"""
         order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.product.id,
             })]
         })
@@ -142,12 +142,12 @@ class TestSaleReportCurrencyRate(SaleCommon):
         })
         downpayment.create_invoices()
         order.invoice_ids.action_post()
-        order.order_line.flush_recordset()
+        order.line_ids.flush_recordset()
 
         amount_line = self.env['sale.report'].formatted_read_group(
             [('order_reference', '=', f'sale.order,{order.id}')],
-            aggregates=['untaxed_amount_to_invoice:sum', 'untaxed_amount_invoiced:sum'],
+            aggregates=['amount_taxexc_to_invoice:sum', 'amount_taxexc_invoiced:sum'],
         )[0]
 
-        self.assertEqual(float_compare(amount_line['untaxed_amount_invoiced:sum'], 200, precision_rounding=order.currency_id.rounding), 0)
-        self.assertEqual(float_compare(amount_line['untaxed_amount_to_invoice:sum'], self.product.lst_price - 200, precision_rounding=order.currency_id.rounding), 0)
+        self.assertEqual(float_compare(amount_line['amount_taxexc_invoiced:sum'], 200, precision_rounding=order.currency_id.rounding), 0)
+        self.assertEqual(float_compare(amount_line['amount_taxexc_to_invoice:sum'], self.product.lst_price - 200, precision_rounding=order.currency_id.rounding), 0)

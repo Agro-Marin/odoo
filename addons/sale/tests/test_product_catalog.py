@@ -122,10 +122,10 @@ class TestProductCatalog(HttpCase, SaleCommon):
         )
 
     def test_data(self):
-        self.empty_order.order_line = [
+        self.empty_order.line_ids = [
             Command.create({
                 'product_id': self.service_product.id,
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
             })
         ]
 
@@ -153,12 +153,12 @@ class TestProductCatalog(HttpCase, SaleCommon):
             'group_product_pricelist': True,
             'group_discount_per_so_line': True,
         }).execute()
-        self.empty_order.order_line = [
+        self.empty_order.line_ids = [
             Command.create({
                 'product_id': self.product.id,
             })
         ]
-        sol = self.empty_order.order_line
+        sol = self.empty_order.line_ids
         self.assertEqual(sol.price_unit, self.product.lst_price)
         self.assertEqual(sol.discount, 50)
 
@@ -173,12 +173,12 @@ class TestProductCatalog(HttpCase, SaleCommon):
         )
 
     def test_update(self):
-        self.assertFalse(self.empty_order.order_line)
+        self.assertFalse(self.empty_order.line_ids)
 
         # Add product to order
         product = self.service_product
         update_data = self.request_update_order_line_info(product=product)
-        sol = self.empty_order.order_line
+        sol = self.empty_order.line_ids
         self.assertEqual(sol.product_id, product)
         self.assertEqual(sol.product_uom_qty, 1.0)
         self.assertEqual(update_data, sol.price_unit)
@@ -195,11 +195,11 @@ class TestProductCatalog(HttpCase, SaleCommon):
         # Add first item --> no discount
         product = self.service_product
         update_data = self.request_update_order_line_info(product=product)
-        sol = self.empty_order.order_line
+        sol = self.empty_order.line_ids
         self.assertRecordValues(
             sol, [{
                 'product_id': product.id,
-                'product_uom_qty': 1.0,
+                'product_qty': 1.0,
                 'price_unit': product.lst_price,
                 'discount': 0.0,
             }]
@@ -211,7 +211,7 @@ class TestProductCatalog(HttpCase, SaleCommon):
         self.assertRecordValues(
             sol, [{
                 'product_id': product.id,
-                'product_uom_qty': 2.0,
+                'product_qty': 2.0,
                 'price_unit': product.lst_price / 2,
                 'discount': 0.0,
             }]
@@ -228,7 +228,7 @@ class TestProductCatalog(HttpCase, SaleCommon):
         self.assertRecordValues(
             sol, [{
                 'product_id': product.id,
-                'product_uom_qty': 3.0,
+                'product_qty': 3.0,
                 'price_unit': product.lst_price,
                 'discount': 50.0,
             }]

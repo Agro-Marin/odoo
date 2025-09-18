@@ -57,7 +57,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
             'partner_id': self.partner_a.id,
             'partner_invoice_id': self.partner_a.id,
             'partner_shipping_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.company_data_2['product_order_no'].id,
                 'price_unit': 1000.0,
             })],
@@ -80,10 +80,10 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
         # Create and confirm a SO to reach (but not exceed) partner_a's credit limit.
         sale_order = self.empty_order
         sale_order.write({
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': self.company_data['product_order_no'].name,
                 'product_id': self.company_data['product_order_no'].id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
                 'price_unit': 1000.0,
                 'tax_ids': False,
             })]
@@ -142,7 +142,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
         credit_note.action_post()
 
         # Check that the credit note is accounted for correctly for the amount_to_invoice
-        self.assertEqual(sale_order.amount_to_invoice, sale_order.amount_total)
+        self.assertEqual(sale_order.amount_taxinc_to_invoice, sale_order.amount_total)
 
     def test_credit_limit_multicurrency(self):
         self.partner_a.credit_limit = 50
@@ -155,10 +155,10 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
         order = self.empty_order
         order.write({
             'pricelist_id': self.buck_pricelist.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.company_data['product_order_no'].id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                     'price_unit': 45.0,
                     'tax_ids': False,
                 })
@@ -168,10 +168,10 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
         self.assertEqual(order.partner_credit_warning, '')
 
         order.write({
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.company_data['product_order_no'].id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                     'price_unit': 65.0,
                     'tax_ids': False,
                 })
@@ -217,7 +217,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
         # Create and confirm a SO to reach (but not exceed) partner_a's credit limit.
         sale_order = self.empty_order
         sale_order.write({
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.company_data['product_order_no'].id,
                 'price_unit': 1000.0,
             })]
@@ -279,7 +279,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
 
         # Create 2 SOs
         self.empty_order.write({
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'product_id': self.company_data['product_order_no'].id,
                 'price_unit': 1000.0,
             })]
@@ -304,7 +304,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
 
         # Invoice 1 of the SOs.
         sale_order = sale_orders[0]
-        self.assertEqual(sale_order.amount_to_invoice, 1000.0)
+        self.assertEqual(sale_order.amount_taxinc_to_invoice, 1000.0)
         invoice = sale_order._create_invoices(final=True)
         self.partner_a.invalidate_recordset(['credit', 'credit_to_invoice'])
         self.assertEqual(invoice.amount_total, 1000.0)
@@ -340,14 +340,14 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
         order.sudo().partner_id.credit_limit = self.product_a.list_price
 
         with Form(order) as order_form:
-            with order_form.order_line.new() as sol:
+            with order_form.line_ids.new() as sol:
                 sol.product_id = self.product_a
                 sol.tax_ids.clear()
             self.assertFalse(
                 order_form.partner_credit_warning,
                 "No credit warning should be displayed (yet)",
             )
-            with order_form.order_line.edit(0) as sol:
+            with order_form.line_ids.edit(0) as sol:
                 sol.tax_ids.add(self.tax_sale_a)
             self.assertTrue(
                 order_form.partner_credit_warning,
@@ -371,7 +371,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
         invoice_partner = company_a.child_ids.filtered(lambda p: p.type == 'invoice')
 
         order = self.empty_order
-        order.order_line = [Command.create({
+        order.line_ids = [Command.create({
             'product_id': self.company_data['product_order_no'].id,
             'price_unit': 600.0,
             'tax_ids': False,

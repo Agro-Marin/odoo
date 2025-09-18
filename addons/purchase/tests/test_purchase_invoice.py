@@ -23,7 +23,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
             'list_price': 280.0,
             'type': 'consu',
             'uom_id': uom_unit.id,
-            'purchase_method': 'purchase',
+            'bill_policy': 'ordered',
             'default_code': 'PROD_ORDER',
             'taxes_id': False,
         })
@@ -33,7 +33,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
             'list_price': 290.0,
             'type': 'consu',
             'uom_id': uom_unit.id,
-            'purchase_method': 'purchase',
+            'bill_policy': 'ordered',
             'default_code': 'PROD_ORDER',
             'taxes_id': False,
         })
@@ -43,7 +43,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
             'list_price': 280.0,
             'type': 'consu',
             'uom_id': uom_unit.id,
-            'purchase_method': 'purchase',
+            'bill_policy': 'ordered',
             'default_code': 'PROD_ORDER_VAR_NAME',
             'taxes_id': False,
         })
@@ -53,7 +53,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
             'list_price': 180.0,
             'type': 'service',
             'uom_id': uom_unit.id,
-            'purchase_method': 'receive',
+            'bill_policy': 'transferred',
             'default_code': 'SERV_DEL',
             'taxes_id': False,
         })
@@ -63,7 +63,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
             'list_price': 90.0,
             'type': 'service',
             'uom_id': uom_hour.id,
-            'purchase_method': 'purchase',
+            'bill_policy': 'ordered',
             'default_code': 'PRE-PAID',
             'taxes_id': False,
         })
@@ -73,7 +73,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
             'list_price': 70.0,
             'type': 'consu',
             'uom_id': uom_unit.id,
-            'purchase_method': 'receive',
+            'bill_policy': 'transferred',
             'default_code': 'PROD_DEL',
             'taxes_id': False,
         })
@@ -88,7 +88,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
         po_form.partner_ref = 'my_match_reference'
 
         for product in (products or []):
-            with po_form.order_line.new() as line_form:
+            with po_form.line_ids.new() as line_form:
                 line_form.product_id = product
                 line_form.product_qty = 1
                 line_form.product_uom_id = product.uom_id
@@ -101,7 +101,7 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
         rslt = po_form.save()
 
         if confirm:
-            rslt.button_confirm()
+            rslt.action_confirm()
 
         return rslt
 
@@ -134,28 +134,30 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             'order_id': purchase_order.id,
             'tax_ids': False,
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
 
-        self.assertEqual(purchase_order.invoice_status, "no")
-        for line in purchase_order.order_line:
+        self.assertEqual(purchase_order.invoice_state, "no")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 0.0)
 
-        purchase_order.order_line.qty_received = 5
-        self.assertEqual(purchase_order.invoice_status, "to invoice")
-        for line in purchase_order.order_line:
+        purchase_order.line_ids.qty_transferred = 5
+        self.assertEqual(purchase_order.invoice_state, "to do")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 5)
             self.assertEqual(line.qty_invoiced, 0.0)
 
-        purchase_order.action_create_invoice()
-        self.assertEqual(purchase_order.invoice_status, "invoiced")
-        for line in purchase_order.order_line:
+        invoice = purchase_order.create_invoice()
+        invoice.invoice_date = fields.Date.today()
+        invoice.action_post()
+        self.assertEqual(purchase_order.invoice_state, "done")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 5)
 
-        purchase_order.invoice_ids.button_cancel()
-        self.assertEqual(purchase_order.invoice_status, "to invoice")
-        for line in purchase_order.order_line:
+        purchase_order.invoice_ids.action_cancel()
+        self.assertEqual(purchase_order.invoice_state, "to do")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 5)
             self.assertEqual(line.qty_invoiced, 0.0)
 
@@ -184,22 +186,24 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             'order_id': purchase_order.id,
             'tax_ids': False,
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
 
-        self.assertEqual(purchase_order.invoice_status, "to invoice")
-        for line in purchase_order.order_line:
+        self.assertEqual(purchase_order.invoice_state, "to do")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 10)
             self.assertEqual(line.qty_invoiced, 0.0)
 
-        purchase_order.order_line.qty_received = 5
-        self.assertEqual(purchase_order.invoice_status, "to invoice")
-        for line in purchase_order.order_line:
+        purchase_order.line_ids.qty_transferred = 5
+        self.assertEqual(purchase_order.invoice_state, "to do")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 10)
             self.assertEqual(line.qty_invoiced, 0.0)
 
-        purchase_order.action_create_invoice()
-        self.assertEqual(purchase_order.invoice_status, "invoiced")
-        for line in purchase_order.order_line:
+        invoice = purchase_order.create_invoice()
+        invoice.invoice_date = fields.Date.today()
+        invoice.action_post()
+        self.assertEqual(purchase_order.invoice_state, "done")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 10)
 
@@ -228,23 +232,27 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             'order_id': purchase_order.id,
             'tax_ids': False,
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
 
-        purchase_order.order_line.qty_received = 10
-        purchase_order.action_create_invoice()
-        self.assertEqual(purchase_order.invoice_status, "invoiced")
-        for line in purchase_order.order_line:
+        purchase_order.line_ids.qty_transferred = 10
+        invoice = purchase_order.create_invoice()
+        invoice.invoice_date = fields.Date.today()
+        invoice.action_post()
+        self.assertEqual(purchase_order.invoice_state, "done")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 10)
 
-        purchase_order.order_line.qty_received = 5
-        self.assertEqual(purchase_order.invoice_status, "to invoice")
-        for line in purchase_order.order_line:
+        purchase_order.line_ids.qty_transferred = 5
+        self.assertEqual(purchase_order.invoice_state, "to do")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, -5)
             self.assertEqual(line.qty_invoiced, 10)
-        purchase_order.action_create_invoice()
-        self.assertEqual(purchase_order.invoice_status, "invoiced")
-        for line in purchase_order.order_line:
+        refund = purchase_order.create_invoice()
+        refund.invoice_date = fields.Date.today()
+        refund.action_post()
+        self.assertEqual(purchase_order.invoice_state, "done")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 5)
 
@@ -273,18 +281,20 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             'order_id': purchase_order.id,
             'tax_ids': False,
         })
-        purchase_order.button_confirm()
+        purchase_order.action_confirm()
 
-        purchase_order.order_line.qty_received = 10
-        purchase_order.action_create_invoice()
-        self.assertEqual(purchase_order.invoice_status, "invoiced")
-        for line in purchase_order.order_line:
+        purchase_order.line_ids.qty_transferred = 10
+        invoice = purchase_order.create_invoice()
+        invoice.invoice_date = fields.Date.today()
+        invoice.action_post()
+        self.assertEqual(purchase_order.invoice_state, "done")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 10)
 
-        purchase_order.order_line.qty_received = 5
-        self.assertEqual(purchase_order.invoice_status, "invoiced")
-        for line in purchase_order.order_line:
+        purchase_order.line_ids.qty_transferred = 5
+        self.assertEqual(purchase_order.invoice_state, "done")
+        for line in purchase_order.line_ids:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 10)
 
@@ -294,7 +304,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         currency, the amount of each AML is converted to the bill's currency
         """
         PurchaseOrderLine = self.env['purchase.order.line']
-        PurchaseBillUnion = self.env['purchase.bill.union']
+        PurchaseBillUnion = self.env['purchase.bill.match']
         ResCurrencyRate = self.env['res.currency.rate']
         usd = self.env.ref('base.USD')
         eur = self.env.ref('base.EUR')
@@ -317,8 +327,8 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 'order_id': po.id,
                 'tax_ids': False,
             })
-            po.button_confirm()
-            pol_prod_order.write({'qty_received': 1})
+            po.action_confirm()
+            pol_prod_order.write({'qty_transferred': 1})
             purchase_orders.append(po)
 
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
@@ -351,7 +361,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
 
         po = self.env['purchase.order'].with_context(tracking_disable=True).create({
             'partner_id': self.partner_a.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'name': self.product_a.name,
                 'product_id': self.product_a.id,
                 'product_qty': 12,
@@ -360,11 +370,11 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 'tax_ids': False,
             })]
         })
-        po.button_confirm()
-        po.order_line.qty_received = 12
+        po.action_confirm()
+        po.line_ids.qty_transferred = 12
 
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
-        move_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-po.id)
+        move_form.purchase_vendor_bill_id = self.env['purchase.bill.match'].browse(-po.id)
         move = move_form.save()
 
         self.assertEqual(move.amount_total, 0.01)
@@ -387,7 +397,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
 
         po_form = Form(self.env['purchase.order'].with_context(tracking_disable=True))
         po_form.partner_id = self.partner_a
-        with po_form.order_line.new() as po_line_form:
+        with po_form.line_ids.new() as po_line_form:
             po_line_form.name = self.product_order.name
             po_line_form.product_id = self.product_order
             po_line_form.product_qty = 1.0
@@ -395,10 +405,10 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             po_line_form.analytic_distribution = analytic_distribution_manual
 
         purchase_order = po_form.save()
-        purchase_order.button_confirm()
-        purchase_order.action_create_invoice()
+        purchase_order.action_confirm()
+        purchase_order.create_invoice()
 
-        aml = self.env['account.move.line'].search([('purchase_line_id', '=', purchase_order.order_line.id)])
+        aml = self.env['account.move.line'].search([('purchase_line_ids', '=', purchase_order.line_ids.id)])
         self.assertRecordValues(aml, [{'analytic_distribution': analytic_distribution_manual}])
 
     def test_purchase_order_analytic_account_product_change(self):
@@ -424,11 +434,11 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         po_form = Form(self.env['purchase.order'].with_context(tracking_disable=True))
         partner = self.env['res.partner'].create({'name': 'Test Partner'})
         po_form.partner_id = partner
-        with po_form.order_line.new() as po_line_form:
+        with po_form.line_ids.new() as po_line_form:
             po_line_form.name = super_product.name
             po_line_form.product_id = super_product
         purchase_order = po_form.save()
-        purchase_order_line = purchase_order.order_line
+        purchase_order_line = purchase_order.line_ids
 
         self.assertEqual(purchase_order_line.analytic_distribution, {str(analytic_account_super.id): 100}, "The analytic account should be set to 'Super Account'")
         purchase_order_line.write({'product_id': great_product.id})
@@ -443,7 +453,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             'order_id': po_no_analytic_distribution.id,
             'analytic_distribution': False,
         })
-        po_no_analytic_distribution.button_confirm()
+        po_no_analytic_distribution.action_confirm()
         self.assertFalse(pol_no_analytic_distribution.analytic_distribution, "The compute should not overwrite what the user has set.")
 
     def test_purchase_order_to_invoice_analytic_rule_with_account_prefix(self):
@@ -479,12 +489,12 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             'name': 'test',
             'product_id': self.product_a.id
         })
-        self.assertFalse(po.order_line.analytic_distribution, "There should be no analytic set.")
+        self.assertFalse(po.line_ids.analytic_distribution, "There should be no analytic set.")
         # Add another analytic account to the line. It should be passed to the invoice
-        po.order_line.analytic_distribution = analytic_distribution_manual
-        po.button_confirm()
-        po.order_line.qty_received = 1
-        po.action_create_invoice()
+        po.line_ids.analytic_distribution = analytic_distribution_manual
+        po.action_confirm()
+        po.line_ids.qty_transferred = 1
+        po.create_invoice()
         self.assertRecordValues(po.invoice_ids.invoice_line_ids, [{
             'analytic_distribution': analytic_distribution_model.analytic_distribution | analytic_distribution_manual
         }])
@@ -507,13 +517,12 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 }) for sequence_number in range(10, 13)]
             purchase_order = self.env['purchase.order'].with_context(tracking_disable=True).create({
                 'partner_id': self.partner_a.id,
-                'order_line': pol_vals,
+                'line_ids': pol_vals,
             })
-            purchase_order.button_confirm()
+            purchase_order.action_confirm()
             purchase_orders |= purchase_order
 
-        action = purchase_orders.action_create_invoice()
-        invoice = self.env['account.move'].browse(action['res_id'])
+        invoice = purchase_orders.create_invoice()
 
         expected_purchase = [
             purchase_orders[0], purchase_orders[0], purchase_orders[0],
@@ -521,7 +530,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             purchase_orders[2], purchase_orders[2], purchase_orders[2],
         ]
         for line in invoice.invoice_line_ids.sorted('sequence'):
-            self.assertEqual(line.purchase_order_id, expected_purchase.pop(0))
+            self.assertEqual(line.purchase_line_ids.order_id[:1], expected_purchase.pop(0))
 
     def test_sequence_autocomplete_invoice(self):
         """Test if the invoice lines are sequenced by purchase order when using the autocomplete
@@ -541,13 +550,13 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 }) for sequence_number in range(10, 13)]
             purchase_order = self.env['purchase.order'].with_context(tracking_disable=True).create({
                 'partner_id': self.partner_a.id,
-                'order_line': pol_vals,
+                'line_ids': pol_vals,
             })
-            purchase_order.button_confirm()
+            purchase_order.action_confirm()
             purchase_orders |= purchase_order
 
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
-        PurchaseBillUnion = self.env['purchase.bill.union']
+        PurchaseBillUnion = self.env['purchase.bill.match']
         move_form.purchase_vendor_bill_id = PurchaseBillUnion.browse(-purchase_orders[0].id)
         move_form.purchase_vendor_bill_id = PurchaseBillUnion.browse(-purchase_orders[1].id)
         move_form.purchase_vendor_bill_id = PurchaseBillUnion.browse(-purchase_orders[2].id)
@@ -559,7 +568,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             purchase_orders[2], purchase_orders[2], purchase_orders[2],
         ]
         for line in invoice.invoice_line_ids.sorted('sequence'):
-            self.assertEqual(line.purchase_order_id, expected_purchase.pop(0))
+            self.assertEqual(line.purchase_line_ids.order_id[:1], expected_purchase.pop(0))
 
     def test_partial_billing_interaction_with_invoicing_switch_threshold(self):
         """ Let's say you create a partial bill 'B' for a given PO. Now if you change the
@@ -571,7 +580,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
 
         purchase_order = self.env['purchase.order'].with_context(tracking_disable=True).create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': self.product_deliver.name,
                     'product_id': self.product_deliver.id,
@@ -582,11 +591,11 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 }),
             ],
         })
-        line = purchase_order.order_line[0]
+        line = purchase_order.line_ids[0]
 
-        purchase_order.button_confirm()
-        line.qty_received = 10
-        purchase_order.action_create_invoice()
+        purchase_order.action_confirm()
+        line.qty_transferred = 10
+        purchase_order.create_invoice()
 
         invoice = purchase_order.invoice_ids
         invoice.invoice_date = invoice.date
@@ -601,7 +610,7 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         invoice.invalidate_model(fnames=['payment_state'])
 
         self.assertEqual(line.qty_invoiced, 10)
-        line.qty_received = 15
+        line.qty_transferred = 15
         self.assertEqual(line.qty_invoiced, 10)
 
     def test_on_change_quantity_price_unit(self):
@@ -619,11 +628,11 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         supplierinfo = self.env["product.supplierinfo"].create(supplierinfo_vals)
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.partner_a
-        with po_form.order_line.new() as po_line_form:
+        with po_form.line_ids.new() as po_line_form:
             po_line_form.product_id = self.product_order
             po_line_form.product_qty = 1
         po = po_form.save()
-        po_line = po.order_line[0]
+        po_line = po.line_ids[0]
 
         self.assertEqual(10.0, po_line.price_unit, "Unit price should be set to 10.0 for 1 quantity")
 
@@ -632,25 +641,25 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         po_line.write({'product_qty': 2})
         self.assertEqual(20.0, po_line.price_unit, "Unit price should be set to 20.0 for 2 quantity")
 
-        po.button_confirm()
+        po.action_confirm()
 
         # Ensure price unit is updated when changing quantity on a confirmed PO
         supplierinfo.write({'min_qty': 3, 'price': 30.0})
         po_line.write({'product_qty': 3})
         self.assertEqual(30.0, po_line.price_unit, "Unit price should be set to 30.0 for 3 quantity")
 
-        po.action_create_invoice()
+        po.create_invoice()
 
         # Ensure price unit is NOT updated when changing quantity on PO confirmed and line linked to an invoice line
         supplierinfo.write({'min_qty': 4, 'price': 40.0})
         po_line.write({'product_qty': 4})
         self.assertEqual(30.0, po_line.price_unit, "Unit price should be set to 30.0 for 3 quantity")
 
-        with po_form.order_line.new() as po_line_form:
+        with po_form.line_ids.new() as po_line_form:
             po_line_form.product_id = self.product_order
             po_line_form.product_qty = 1
         po = po_form.save()
-        po_line = po.order_line[1]
+        po_line = po.line_ids[1]
 
         self.assertEqual(235.0, po_line.price_unit, "Unit price should be reset to 235.0 since the supplier supplies minimum of 4 quantities")
 
@@ -691,27 +700,27 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
 
         po_form = Form(self.env['purchase.order'])
         po_form.partner_id = self.partner_a
-        with po_form.order_line.new() as po_line_form:
+        with po_form.line_ids.new() as po_line_form:
             po_line_form.product_id = self.product_order
             po_line_form.product_qty = 1
         po = po_form.save()
-        po_line = po.order_line[0]
+        po_line = po.line_ids[0]
         self.assertEqual(120.0, po_line.price_unit)
         self.assertEqual(20, po_line.discount)
-        self.assertEqual(96.0, po_line.price_unit_discounted)
+        self.assertEqual(96.0, po_line.price_unit_discounted_taxexc)
         self.assertEqual(96.0, po_line.price_subtotal)
 
         # Increase the PO line quantity: it should take another price if min. qty. is reached.
         po_form = Form(po)
-        with po_form.order_line.edit(0) as po_line_form:
+        with po_form.line_ids.edit(0) as po_line_form:
             po_line_form.product_uom_id = uom_dozen
             po_line_form.product_qty = 3
         po = po_form.save()
-        po_line = po.order_line[0]
+        po_line = po.line_ids[0]
 
         self.assertEqual(1680.0, po_line.price_unit, "140.0 * 12 = 1680.0")
         self.assertEqual(50, po_line.discount)
-        self.assertEqual(840.0, po_line.price_unit_discounted, "1680.0 * 0.5 = 840.0")
+        self.assertEqual(840.0, po_line.price_unit_discounted_taxexc, "1680.0 * 0.5 = 840.0")
         self.assertEqual(2520.0, po_line.price_subtotal, "840.0 * 3 = 2520.0")
 
     def test_invoice_line_name_has_product_name(self):
@@ -759,9 +768,9 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         })
 
         # Invoice the purchase order
-        po.button_confirm()
-        po.order_line.qty_received = 4
-        po.action_create_invoice()
+        po.action_confirm()
+        po.line_ids.qty_transferred = 4
+        po.create_invoice()
         inv = po.invoice_ids
 
         # Check the invoice line names
@@ -800,11 +809,11 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
 
         invoice._find_and_set_purchase_orders(
             ['my_match_reference'], invoice.partner_id.id, invoice.amount_total, from_ocr=True)
-        additional_unmatch_po_line = po.order_line.filtered(lambda l: l.product_id == self.service_order)
+        additional_unmatch_po_line = po.line_ids.filtered(lambda l: l.product_id == self.service_order)
 
         self.assertTrue(invoice.id in po.invoice_ids.ids)
-        self.assertTrue(additional_unmatch_po_line.id in invoice.line_ids.purchase_line_id.ids)
-        self.assertTrue(invoice.line_ids.filtered(lambda l: l.purchase_line_id == additional_unmatch_po_line).quantity == 0)
+        self.assertTrue(additional_unmatch_po_line.id in invoice.line_ids.purchase_line_ids.ids)
+        self.assertTrue(invoice.line_ids.filtered(lambda l: l.purchase_line_ids == additional_unmatch_po_line).quantity == 0)
 
     def test_subset_match_from_edi_full(self):
         """An invoice totally matches a purchase order line by line
@@ -819,7 +828,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         invoice_lines = invoice.line_ids.filtered(lambda l: l.price_unit)
         self.assertEqual(len(invoice_lines), 2)
         for line in invoice_lines:
-            self.assertTrue(line.purchase_line_id in po.order_line)
+            self.assertTrue(line.purchase_line_ids & po.line_ids)
         self.assertEqual(invoice.amount_total, po.amount_total)
 
     def test_subset_match_from_edi_partial_po(self):
@@ -834,8 +843,8 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         self.assertTrue(invoice.id in po.invoice_ids.ids)
         invoice_lines = invoice.line_ids.filtered(lambda l: l.price_unit)
         self.assertEqual(len(invoice_lines), 2)
-        for line in po.order_line:
-            self.assertTrue(line in invoice_lines.purchase_line_id)
+        for line in po.line_ids:
+            self.assertTrue(line in invoice_lines.purchase_line_ids)
 
     def test_subset_match_from_edi_partial_inv(self):
         """An invoice totally matches some purchase order line
@@ -850,7 +859,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         invoice_lines = invoice.line_ids.filtered(lambda l: l.price_unit)
         self.assertEqual(len(invoice_lines), 1)
         for line in invoice_lines:
-            self.assertTrue(line.purchase_line_id in po.order_line)
+            self.assertTrue(line.purchase_line_ids & po.line_ids)
 
     def test_subset_match_from_edi_same_unit_price(self):
         """An invoice matches some purchase order line by unit price
@@ -865,7 +874,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         invoice_lines = invoice.line_ids.filtered(lambda l: l.price_unit)
         self.assertEqual(len(invoice_lines), 1)
         for line in invoice_lines:
-            self.assertTrue(line.purchase_line_id in po.order_line)
+            self.assertTrue(line.purchase_line_ids & po.line_ids)
 
     def test_subset_match_from_edi_and_diff_unit_price(self):
         """An invoice matches some purchase order line but not another one because of a unit price difference
@@ -881,9 +890,9 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         self.assertEqual(len(invoice_lines), 2)
         for line in invoice_lines:
             if (line.product_id == self.product_order):
-                self.assertTrue(line.purchase_line_id in po.order_line)
+                self.assertTrue(line.purchase_line_ids & po.line_ids)
             else:
-                self.assertFalse(line.purchase_line_id in po.order_line)
+                self.assertFalse(line.purchase_line_ids & po.line_ids)
 
     def test_subset_not_match_non_invoice_lines(self):
         """Test that a purchase line with a line of 0 as unit price won't match
@@ -896,7 +905,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             'list_price': 0.0,
             'type': 'consu',
             'uom_id': uom_unit.id,
-            'purchase_method': 'purchase',
+            'bill_policy': 'ordered',
             'default_code': 'PROD_ORDER',
             'taxes_id': False,
         })
@@ -941,12 +950,15 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         self.env['account.move.line'].flush_model()  # necessary to get the bill lines
         match_lines = self.env['purchase.bill.line.match'].search([('partner_id', '=', self.partner_a.id)])
 
-        expected_ids = po.order_line.ids + [-lid for lid in bill.invoice_line_ids.ids]
+        expected_ids = po.line_ids.ids + [-lid for lid in bill.invoice_line_ids.ids]
         self.assertListEqual(match_lines.ids, expected_ids)
 
         match_lines.action_match_lines()
-        self.assertEqual(bill.invoice_line_ids.purchase_line_id, po.order_line)
-        self.assertEqual(po.order_line.qty_invoiced, bill.invoice_line_ids.quantity)
+        self.assertEqual(bill.invoice_line_ids.purchase_line_ids, po.line_ids)
+        # Post the bill to have qty_invoiced computed (only posted invoices are counted)
+        bill.invoice_date = fields.Date.today()
+        bill.action_post()
+        self.assertEqual(po.line_ids.qty_invoiced, bill.invoice_line_ids.quantity)
 
     def test_manual_matching_restrict_no_pol(self):
         """ raises when there's no POL found """
@@ -961,10 +973,10 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             self.product_order_other_price,
             self.product_order_var_name
         ])
-        po.order_line[0].product_qty = 2
-        po.order_line[0].qty_received = 2
-        po.order_line[1].qty_received = 1
-        po.order_line[2].qty_received = 1
+        po.line_ids[0].product_qty = 2
+        po.line_ids[0].qty_transferred = 2
+        po.line_ids[1].qty_transferred = 1
+        po.line_ids[2].qty_transferred = 1
 
         bill_1 = self.init_invoice(move_type='in_invoice', partner=self.partner_a, products=[self.product_order, self.product_order_other_price])
         bill_2 = self.init_invoice(move_type='in_invoice', partner=self.partner_a, products=[self.product_order, self.product_order_var_name])
@@ -973,17 +985,17 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         match_lines = self.env['purchase.bill.line.match'].search([('partner_id', '=', self.partner_a.id)])
         match_lines.action_match_lines()  # Match by product and leave residual bill and po lines unmatched because multiple bills
 
-        self.assertEqual(po.order_line[0], bill_1.invoice_line_ids[0].purchase_line_id)
-        self.assertEqual(po.order_line[0], bill_2.invoice_line_ids[0].purchase_line_id)
-        self.assertEqual(po.order_line[1], bill_1.invoice_line_ids[1].purchase_line_id)
-        self.assertFalse(bill_2.invoice_line_ids[1].purchase_line_id)
-        self.assertFalse(self.env['account.move.line'].search([('purchase_line_id', '=', po.order_line[2].id)]))
+        self.assertIn(po.line_ids[0], bill_1.invoice_line_ids[0].purchase_line_ids)
+        self.assertIn(po.line_ids[0], bill_2.invoice_line_ids[0].purchase_line_ids)
+        self.assertIn(po.line_ids[1], bill_1.invoice_line_ids[1].purchase_line_ids)
+        self.assertFalse(bill_2.invoice_line_ids[1].purchase_line_ids)
+        self.assertFalse(self.env['account.move.line'].search([('purchase_line_ids', '=', po.line_ids[2].id)]))
         self.env['purchase.order.line'].flush_model()
         match_lines = self.env['purchase.bill.line.match'].search([('partner_id', '=', self.partner_a.id)])
         self.assertEqual(len(match_lines), 2)
 
         match_lines.action_match_lines()  # Can't match by product but delete residual bill line and create new bill line for residual po line as only one bill
-        self.assertEqual(po.order_line[2], bill_2.invoice_line_ids[1].purchase_line_id)
+        self.assertIn(po.line_ids[2], bill_2.invoice_line_ids[1].purchase_line_ids)
         self.env['purchase.order.line'].flush_model()
         match_lines = self.env['purchase.bill.line.match'].search([('partner_id', '=', self.partner_a.id)])
         self.assertEqual(len(match_lines), 0)
@@ -1018,7 +1030,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         match_lines.action_match_lines()
 
         self.env.flush_all()
-        self.assertEqual(bill.invoice_line_ids.purchase_line_id, (po_1 + po_2 + po_3).order_line)
+        self.assertEqual(bill.invoice_line_ids.purchase_line_ids, (po_1 + po_2 + po_3).line_ids)
         self.assertRecordValues(bill.invoice_line_ids, [
             {'product_id': self.product_order.id},
             {'product_id': self.service_order.id},
@@ -1041,10 +1053,10 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         action = wizard.action_add_to_po()
         po = self.env['purchase.order'].browse(action['res_id'])
         self.assertEqual(po.partner_id, self.partner_a)
-        self.assertTrue(po.order_line.tax_ids)
-        self.assertEqual(po.order_line.tax_ids, bill.invoice_line_ids.tax_ids)
-        self.assertEqual(po.order_line.product_id, bill.invoice_line_ids.product_id)
-        self.assertEqual(po.order_line.product_id, self.product_order_var_name + self.service_deliver)
+        self.assertTrue(po.line_ids.tax_ids)
+        self.assertEqual(po.line_ids.tax_ids, bill.invoice_line_ids.tax_ids)
+        self.assertEqual(po.line_ids.product_id, bill.invoice_line_ids.product_id)
+        self.assertEqual(po.line_ids.product_id, self.product_order_var_name + self.service_deliver)
 
         bill_2 = self.init_invoice('in_invoice', partner=self.partner_a, products=[self.product_order_other_price], post=False)
         bill_2.invoice_line_ids.write({
@@ -1065,9 +1077,9 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
 
         action = wizard.action_add_to_po()
         self.assertEqual(action['res_id'], po.id)
-        self.assertEqual(len(po.order_line), 3)
-        self.assertEqual(po.order_line[-1:].product_id, self.product_order_other_price)
-        self.assertListEqual(po.order_line.mapped('price_total'), (bill + bill_2).invoice_line_ids.mapped('price_total'))
+        self.assertEqual(len(po.line_ids), 3)
+        self.assertEqual(po.line_ids[-1:].product_id, self.product_order_other_price)
+        self.assertListEqual(po.line_ids.mapped('price_total'), (bill + bill_2).invoice_line_ids.mapped('price_total'))
 
     def test_onchange_partner_currency(self):
         """
@@ -1157,8 +1169,8 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
 
     def test_invoice_user_id_on_bill(self):
         """
-        Test that the invoice_user_id field is False when creating a vendor bill from a PO
-        or when using Auto-Complete feature of a vendor bill.
+        Test that the invoice_user_id field is set to the PO's user when creating a vendor bill
+        from a PO or when using Auto-Complete feature of a vendor bill.
         """
         group_purchase_user = self.env.ref('purchase.group_purchase_user')
         group_employee = self.env.ref('base.group_user')
@@ -1172,7 +1184,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         po1 = self.env['purchase.order'].with_context(tracking_disable=True).create({
             'partner_id': self.partner_a.id,
             'user_id': purchase_user.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product_order.id,
                     'product_qty': 1.0,
@@ -1182,18 +1194,18 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             ]
         })
         po2 = po1.copy()
-        po1.button_confirm()
-        po2.button_confirm()
+        po1.action_confirm()
+        po2.action_confirm()
         # creating bill from PO
-        po1.order_line.qty_received = 1
-        po1.action_create_invoice()
+        po1.line_ids.qty_transferred = 1
+        po1.create_invoice()
         invoice1 = po1.invoice_ids
-        self.assertFalse(invoice1.invoice_user_id)
+        self.assertEqual(invoice1.invoice_user_id, purchase_user)
         # creating bill with Auto_complete feature
         move_form = Form(self.env['account.move'].with_context(default_move_type='in_invoice'))
-        move_form.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-po2.id)
+        move_form.purchase_vendor_bill_id = self.env['purchase.bill.match'].browse(-po2.id)
         invoice2 = move_form.save()
-        self.assertFalse(invoice2.invoice_user_id)
+        self.assertEqual(invoice2.invoice_user_id, purchase_user)
 
     def test_create_invoice_from_multiple_purchase_orders(self):
         """ Test that invoices can be created from purchase orders with different
@@ -1202,7 +1214,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         purchase_orders = self.env['purchase.order'].with_context(tracking_disable=True).create([
             {
                 'partner_id': self.partner_a.id,
-                'order_line': [
+                'line_ids': [
                     Command.create({
                         'product_id': self.product_order.id,
                         'product_qty': 1.0,
@@ -1213,7 +1225,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             },
             {
                 'partner_id': self.partner_b.id,
-                'order_line': [
+                'line_ids': [
                     Command.create({
                         'product_id': self.product_deliver.id,
                         'product_qty': 2.0,
@@ -1223,8 +1235,8 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
                 ],
             },
         ])
-        purchase_orders.button_confirm()
-        purchase_orders.action_create_invoice()
+        purchase_orders.action_confirm()
+        purchase_orders.create_invoice()
 
         self.assertEqual(len(purchase_orders.invoice_ids), 2, "Each PO should generate one invoice")
         self.assertEqual(
@@ -1251,9 +1263,9 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
 
     def test_po_matching_credit_note(self):
         po = self.init_purchase(partner=self.partner_a, products=[self.product_deliver])
-        pol = po.order_line
+        pol = po.line_ids
         pol.product_qty = 3
-        po.button_confirm()
+        po.action_confirm()
 
         bill = self.init_invoice(move_type='in_invoice', partner=self.partner_a, products=[self.product_deliver])
         bill.invoice_line_ids.quantity = 3
@@ -1262,7 +1274,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         match_lines.action_match_lines()
 
         bill.action_post()
-        pol.qty_received = 2
+        pol.qty_transferred = 2
 
         credit_note = self.init_invoice(move_type='in_refund', partner=self.partner_a, amounts=[0])
 

@@ -30,14 +30,14 @@ class SaleCommon(
                 'partner_id': cls.partner.id,
             }, {
                 'partner_id': cls.partner.id,
-                'order_line': [
+                'line_ids': [
                     Command.create({
                         'product_id': cls.product.id,
-                        'product_uom_qty': 5.0,
+                        'product_qty': 5.0,
                     }),
                     Command.create({
                         'product_id': cls.service_product.id,
-                        'product_uom_qty': 12.5,
+                        'product_qty': 12.5,
                     })
                 ]
             },
@@ -46,11 +46,13 @@ class SaleCommon(
     @classmethod
     def _enable_discounts(cls):
         cls.env.user.group_ids += cls.group_discount_per_so_line
+        # Also add to SUPERUSER for _is_feature_enabled() check
+        cls.env['res.users'].sudo().browse(1).group_ids += cls.group_discount_per_so_line
 
     def _create_so(self, **values):
         default_values = {
             'partner_id': self.partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                 }),
@@ -88,7 +90,7 @@ class TestSaleCommon(AccountTestInvoicingCommon):
                 'type': 'service',
                 'uom_id': cls.uom_unit.id,
                 'default_code': 'SERV_DEL',
-                'invoice_policy': 'delivery',
+                'invoice_policy': 'transferred',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],
                 'company_id': company.id,
@@ -102,7 +104,7 @@ class TestSaleCommon(AccountTestInvoicingCommon):
                 'uom_id': cls.uom_hour.id,
                 'description': 'Example of product to invoice on order',
                 'default_code': 'PRE-PAID',
-                'invoice_policy': 'order',
+                'invoice_policy': 'ordered',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],
                 'company_id': company.id,
@@ -116,7 +118,7 @@ class TestSaleCommon(AccountTestInvoicingCommon):
                 'weight': 0.01,
                 'uom_id': cls.uom_unit.id,
                 'default_code': 'FURN_9999',
-                'invoice_policy': 'order',
+                'invoice_policy': 'ordered',
                 'expense_policy': 'cost',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],
@@ -131,7 +133,7 @@ class TestSaleCommon(AccountTestInvoicingCommon):
                 'weight': 0.01,
                 'uom_id': cls.uom_unit.id,
                 'default_code': 'FURN_7777',
-                'invoice_policy': 'delivery',
+                'invoice_policy': 'transferred',
                 'expense_policy': 'cost',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],
@@ -146,7 +148,7 @@ class TestSaleCommon(AccountTestInvoicingCommon):
                 'weight': 0.01,
                 'uom_id': cls.uom_unit.id,
                 'default_code': 'FURN_9999',
-                'invoice_policy': 'order',
+                'invoice_policy': 'ordered',
                 'expense_policy': 'sales_price',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],
@@ -161,7 +163,7 @@ class TestSaleCommon(AccountTestInvoicingCommon):
                 'weight': 0.01,
                 'uom_id': cls.uom_unit.id,
                 'default_code': 'FURN_7777',
-                'invoice_policy': 'delivery',
+                'invoice_policy': 'transferred',
                 'expense_policy': 'sales_price',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],
@@ -176,7 +178,7 @@ class TestSaleCommon(AccountTestInvoicingCommon):
                 'weight': 0.01,
                 'uom_id': cls.uom_unit.id,
                 'default_code': 'FURN_9999',
-                'invoice_policy': 'order',
+                'invoice_policy': 'ordered',
                 'expense_policy': 'no',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],
@@ -191,7 +193,7 @@ class TestSaleCommon(AccountTestInvoicingCommon):
                 'weight': 0.01,
                 'uom_id': cls.uom_unit.id,
                 'default_code': 'FURN_7777',
-                'invoice_policy': 'delivery',
+                'invoice_policy': 'transferred',
                 'expense_policy': 'no',
                 'taxes_id': [(6, 0, [])],
                 'supplier_taxes_id': [(6, 0, [])],
@@ -228,13 +230,13 @@ class TestTaxCommonSale(TestSaleCommon, TestTaxCommon):
             'currency_id': currency.id,
             'partner_id': self.partner_a.id,
             'pricelist_id': self.foreign_currency_pricelist.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': str(i),
                     'product_id': (base_line['product_id'] or self.product_a).id,
                     'price_unit': base_line['price_unit'],
                     'discount': base_line['discount'],
-                    'product_uom_qty': base_line['quantity'],
+                    'product_qty': base_line['quantity'],
                     'tax_ids': [Command.set(base_line['tax_ids'].ids)],
                 })
                 for i, base_line in enumerate(document['lines'])

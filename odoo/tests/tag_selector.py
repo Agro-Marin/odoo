@@ -30,7 +30,10 @@ class TagsSelector(object):
         for filter_spec in filter_specs:
             match = self.filter_spec_re.match(filter_spec)
             if not match:
-                _logger.error('Invalid tag %s', filter_spec)
+                if filter_spec.endswith('.js'):
+                    _logger.debug('Ignoring JavaScript file path as test tag: %s (only .py files are supported)', filter_spec)
+                else:
+                    _logger.error('Invalid tag %s', filter_spec)
                 continue
 
             sign, tag, file_path, module, klass, method, parameters = match.groups()

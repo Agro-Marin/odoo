@@ -43,7 +43,7 @@ async function applyProduct(record, product) {
     // updated in parallel (for performance).
     const update_values = {
         product_id: { id: product.id, display_name: product.display_name },
-        product_uom_qty: product.quantity,
+        product_qty: product.quantity,
         product_no_variant_attribute_value_ids: [x2ManyCommands.set(noVariantPTAVIds)],
         product_custom_attribute_value_ids: customAttributesCommands,
     }
@@ -105,8 +105,8 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         // or if the line cannot be edited (e.g. locked SO)
         return (
             this.props.readonlyField ||
-            (this.props.record.model.root.activeFields.order_line &&
-                this.props.record.model.root._isReadonly("order_line"))
+            (this.props.record.model.root.activeFields.line_ids &&
+                this.props.record.model.root._isReadonly("line_ids"))
         );
     }
     get hasConfigurationButton() {
@@ -149,7 +149,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
     }
 
     get translatedProductName() {
-        return this.props.record.data.translated_product_name;
+        return this.props.record.data.product_name_translated;
     }
 
     parseLabel(value) {
@@ -164,7 +164,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         const value = p.value && { ...p.value };
         if (this.isCombo && value && value.display_name) {
             // Show the product quantity next to the product name for combo lines.
-            value.display_name = `${value.display_name} x ${this.props.record.data.product_uom_qty}`;
+            value.display_name = `${value.display_name} x ${this.props.record.data.product_qty}`;
         }
         return {
             ...p,
@@ -250,7 +250,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
             productTemplateId: saleOrderLine.product_template_id.id,
             ptavIds: ptavIds,
             customPtavs: customPtavs,
-            quantity: saleOrderLine.product_uom_qty,
+            quantity: saleOrderLine.product_qty,
             productUOMId: saleOrderLine.product_uom_id.id,
             companyId: saleOrderRecord.data.company_id.id,
             pricelistId: saleOrderRecord.data.pricelist_id.id,
@@ -267,7 +267,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
                             [applyProduct(this.props.record, mainProduct)]: []
                     ),
                     ...optionalProducts.map(async product => {
-                        const line = await saleOrderRecord.data.order_line.addNewRecord({
+                        const line = await saleOrderRecord.data.line_ids.addNewRecord({
                             position: 'bottom', mode: 'readonly'
                         });
                         const productData = this._prepareNewLineData(line, product);
@@ -275,13 +275,13 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
                     }),
                 ]);
                 this._onProductUpdate();
-                saleOrderRecord.data.order_line.leaveEditMode();
+                saleOrderRecord.data.line_ids.leaveEditMode();
             },
             discard: () => {
                 if (!selectedComboItems.length) {
                     // Don't delete the main product if it's a combo product as it has been added
                     // from combo configurator
-                    saleOrderRecord.data.order_line.delete(this.props.record);
+                    saleOrderRecord.data.line_ids.delete(this.props.record);
                 }
             },
             ...this._getAdditionalDialogProps(),
@@ -300,7 +300,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         const { combos, ...remainingData } = await rpc('/sale/combo_configurator/get_data', {
             product_tmpl_id: comboLineRecord.data.product_template_id.id,
             currency_id: comboLineRecord.data.currency_id.id,
-            quantity: comboLineRecord.data.product_uom_qty,
+            quantity: comboLineRecord.data.product_qty,
             date: serializeDateTime(saleOrder.date_order),
             company_id: saleOrder.company_id.id,
             pricelist_id: saleOrder.pricelist_id.id,
@@ -335,7 +335,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
                     hasOptionalProducts
                 );
             },
-            discard: () => saleOrder.order_line.delete(comboLineRecord),
+            discard: () => saleOrder.line_ids.delete(comboLineRecord),
             ...this._getAdditionalDialogProps(),
         });
     }
@@ -343,9 +343,9 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
     async handleComboSave(comboProductData, selectedComboItems, edit, hasOptionalProducts) {
         const saleOrder = this.props.record.model.root.data;
         const comboLineRecord = this.props.record;
-        saleOrder.order_line.leaveEditMode();
+        saleOrder.line_ids.leaveEditMode();
         const comboLineValues = {
-            product_uom_qty: comboProductData.quantity,
+            product_qty: comboProductData.quantity,
             selected_combo_items: JSON.stringify(
                 selectedComboItems.map(serializeComboItem)
             ),
@@ -355,7 +355,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         }
         await comboLineRecord.update(comboLineValues);
         // Ensure that the order lines are sorted according to their sequence.
-        await saleOrder.order_line._sort();
+        await saleOrder.line_ids._sort();
 
         if (hasOptionalProducts && !edit) {
             const selectedComboProducts = selectedComboItems.map(
@@ -459,7 +459,7 @@ export const saleOrderLineProductField = {
         { name: 'product_type', type: 'selection' },
         { name: 'service_tracking', type: 'selection' },
         { name: 'product_template_attribute_value_ids', type: 'many2many' },
-        { name: 'translated_product_name', type: 'char' },
+        { name: 'product_name_translated', type: 'char' },
     ],
 };
 

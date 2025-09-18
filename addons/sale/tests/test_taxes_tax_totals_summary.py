@@ -69,7 +69,7 @@ class TestTaxesTaxTotalsSummarySale(TestTaxCommonSale, TestTaxesTaxTotalsSummary
             with self.subTest(test_index=test_index):
                 sale_order = self.convert_document_to_sale_order(document)
                 self.assert_sale_order_tax_totals_summary(sale_order, expected_values)
-                self.assertRecordValues(sale_order.order_line, [{
+                self.assertRecordValues(sale_order.line_ids, [{
                     'price_subtotal': expected_values['total_amount_currency'],
                     'price_total': expected_values['total_amount_currency'],
                 }])
@@ -79,7 +79,7 @@ class TestTaxesTaxTotalsSummarySale(TestTaxCommonSale, TestTaxesTaxTotalsSummary
             with self.subTest(test_index=test_index):
                 sale_order = self.convert_document_to_sale_order(document)
                 self.assert_sale_order_tax_totals_summary(sale_order, expected_values)
-                self.assertRecordValues(sale_order.order_line, [{
+                self.assertRecordValues(sale_order.line_ids, [{
                     'price_subtotal': expected_values['total_amount_currency'],
                     'price_total': expected_values['total_amount_currency'],
                 }])
@@ -113,7 +113,7 @@ class TestTaxesTaxTotalsSummarySale(TestTaxCommonSale, TestTaxesTaxTotalsSummary
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
             'payment_term_id': early_payment_term.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                     'price_unit': 100,
@@ -154,7 +154,7 @@ class TestTaxesTaxTotalsSummarySale(TestTaxCommonSale, TestTaxesTaxTotalsSummary
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
             'payment_term_id': early_payment_term.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                     'price_unit': 100,
@@ -196,7 +196,7 @@ class TestTaxesTaxTotalsSummarySale(TestTaxCommonSale, TestTaxesTaxTotalsSummary
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
             'payment_term_id': early_payment_term.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                     'price_unit': 100,

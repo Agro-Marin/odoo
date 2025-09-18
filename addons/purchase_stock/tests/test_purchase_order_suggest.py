@@ -176,20 +176,20 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
 
         # Use suggest to generate PO lines and check their values.
         self.actionAddAll(po, based_on='30_days', days=30, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': self.product_1.id, 'product_qty': 20},
             {'product_id': product_2.id, 'product_qty': 10},
             {'product_id': product_3.id, 'product_qty': 10},
         ])
         # Regenerate PO lines for 3 months (existing lines qty must be updated.)
         self.actionAddAll(po, based_on='three_months', days=30, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': self.product_1.id, 'product_qty': 9},
             {'product_id': product_2.id, 'product_qty': 4},
             {'product_id': product_3.id, 'product_qty': 7},
         ])
         self.actionAddAll(po, based_on='three_months', days=90, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': self.product_1.id, 'product_qty': 25},
             {'product_id': product_2.id, 'product_qty': 10},
             {'product_id': product_3.id, 'product_qty': 20},
@@ -218,12 +218,12 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
         delivery_1 = self._create_and_process_delivery_at_date(
             [(product_4, 6)], today, to_validate=False
         )
-        delivery_1.scheduled_date = today + relativedelta(days=3)
+        delivery_1.date_planned = today + relativedelta(days=3)
 
         delivery_2 = self._create_and_process_delivery_at_date(
             [(product_5, 10)], today, to_validate=False
         )
-        delivery_2.scheduled_date = today + relativedelta(days=5)
+        delivery_2.date_planned = today + relativedelta(days=5)
 
         self._create_and_process_delivery_at_date(
             [(product_6, 10)], today
@@ -261,24 +261,24 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
 
         # Use suggest wizard to generate PO lines and check their values.
         self.actionAddAll(po, based_on='actual_demand', days=30, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': product_4.id, 'product_qty': 5},
             {'product_id': product_5.id, 'product_qty': 8},
         ])
 
         self.actionAddAll(po, based_on='actual_demand', days=30, factor=200)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': product_4.id, 'product_qty': 10},
             {'product_id': product_5.id, 'product_qty': 16},
         ])
 
         self.actionAddAll(po, based_on='actual_demand', days=4, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': product_4.id, 'product_qty': 5},
         ])
 
         self.actionAddAll(po, based_on='actual_demand', days=4, factor=50)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': product_4.id, 'product_qty': 3},
         ])
 
@@ -343,16 +343,16 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
 
         # Use suggest wizard to generate PO lines and check their values.
         self.actionAddAll(po, based_on='30_days', days=30, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': consu.id, 'product_qty': 20},
         ])
         # Regenerate PO lines for 3 months (existing lines qty must be updated.)
         self.actionAddAll(po, based_on='three_months', days=30, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': consu.id, 'product_qty': 9},
         ])
         self.actionAddAll(po, based_on='three_months', days=90, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': consu.id, 'product_qty': 25},
         ])
 
@@ -369,7 +369,7 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
         # Check estimed price no forecast quantity.
         self.assertEstimatedPrice(po, 1200)
         self.actionAddAll(po, based_on='30_days', days=30, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': self.product_1.id, 'product_qty': 12},
         ])
 
@@ -391,7 +391,7 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
         # Check estimed price deduce the forecast quantity.
         self.assertEstimatedPrice(po, 600, days=30)
         self.actionAddAll(po, based_on='30_days', days=30, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': self.product_1.id, 'product_qty': 6},
         ])
 
@@ -412,13 +412,13 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
         delivery = self._create_and_process_delivery_at_date(
             [(product_ad, 12)], today, to_validate=False
         )
-        delivery.scheduled_date = today + relativedelta(days=3)
+        delivery.date_planned = today + relativedelta(days=3)
 
         # Create a new PO for the vendor then check suggest wizard estimed price.
         po = self.env['purchase.order'].create({'partner_id': self.partner_1.id})
         self.assertEstimatedPrice(po, 275, based_on='actual_demand', days=4)
         self.actionAddAll(po, based_on='actual_demand', days=30, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': product_ad.id, 'product_qty': 5},
         ])
 
@@ -440,7 +440,7 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
 
         self.assertEstimatedPrice(po, 55, based_on='actual_demand', days=4)
         self.actionAddAll(po, based_on='actual_demand', days=30, factor=100)
-        self.assertRecordValues(po.order_line, [
+        self.assertRecordValues(po.line_ids, [
             {'product_id': product_ad.id, 'product_qty': 1},
         ])
 
@@ -467,12 +467,12 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
         self.assertEstimatedPrice(po_1, 1000, warehouse=self.warehouse_1)
         # Generate PO line for qty demand based on one specific warehouse.
         self.actionAddAll(po_1, based_on='30_days', days=30, factor=100, warehouse=main_warehouse)
-        self.assertRecordValues(po_1.order_line, [
+        self.assertRecordValues(po_1.line_ids, [
             {'product_id': self.product_1.id, 'product_qty': 5},
         ])
         # Generate PO line for qty demand based on other warehouse
         self.actionAddAll(po_1, based_on='30_days', days=30, factor=100, warehouse=self.warehouse_1)
-        self.assertRecordValues(po_1.order_line, [
+        self.assertRecordValues(po_1.line_ids, [
             {'product_id': self.product_1.id, 'product_qty': 10},
         ])
 
@@ -484,7 +484,7 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
         self.assertEstimatedPrice(po_2, 1000, warehouse=self.warehouse_1)
         # Generate PO line for qty demand based on one specific warehouse.
         self.actionAddAll(po_2, based_on='30_days', days=30, factor=100, warehouse=self.warehouse_1)
-        self.assertRecordValues(po_2.order_line, [
+        self.assertRecordValues(po_2.line_ids, [
             {'product_id': self.product_1.id, 'product_qty': 10},
         ])
 
@@ -507,12 +507,12 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
         delivery_1 = self._create_and_process_delivery_at_date(
             [(product_ad, 10)], today, to_validate=False, warehouse=main_warehouse
         )
-        delivery_1.scheduled_date = today + relativedelta(days=3)
+        delivery_1.date_planned = today + relativedelta(days=3)
 
         delivery_2 = self._create_and_process_delivery_at_date(
             [(product_ad, 9)], today, to_validate=False, warehouse=self.warehouse_1
         )
-        delivery_2.scheduled_date = today + relativedelta(days=5)
+        delivery_2.date_planned = today + relativedelta(days=5)
 
         context = {
             'to_date': fields.Datetime.now() + relativedelta(days=6),
@@ -539,12 +539,12 @@ class TestPurchaseOrderSuggest(PurchaseTestCommon, HttpCase):
 
         # Generate PO line for qty demand based on 1st warehouse.
         self.actionAddAll(po_1, based_on='actual_demand', days=30, factor=100, warehouse=self.warehouse_1)
-        self.assertRecordValues(po_1.order_line, [
+        self.assertRecordValues(po_1.line_ids, [
             {'product_id': product_ad.id, 'product_qty': 4},
         ])
         # Generate PO line for qty demand based on 2nd specific warehouse.
         self.actionAddAll(po_1, based_on='actual_demand', days=30, factor=100, warehouse=main_warehouse)
-        self.assertRecordValues(po_1.order_line, [
+        self.assertRecordValues(po_1.line_ids, [
             {'product_id': product_ad.id, 'product_qty': 3},
         ])
 

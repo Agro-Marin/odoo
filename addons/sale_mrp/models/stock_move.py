@@ -12,5 +12,5 @@ class StockMove(models.Model):
             product = self.product_id.with_company(order_line.company_id)
             bom = product.env['mrp.bom']._bom_find(product, company_id=self.company_id.id, bom_type='phantom')[product]
             if bom:
-                return self._get_kit_price_unit(product, bom, order_line.qty_delivered)
+                return self._get_kit_price_unit(product, bom, order_line.qty_transferred)
         return super()._get_price_unit()

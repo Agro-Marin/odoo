@@ -154,7 +154,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         tx = self._create_transaction(flow='redirect', sale_order_ids=[self.sale_order.id], state='done')
         tx._post_process()
 
-        self.assertEqual(self.sale_order.state, 'sale')
+        self.assertEqual(self.sale_order.state, 'done')
 
     def test_auto_confirm_and_auto_invoice(self):
         """
@@ -177,7 +177,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         ):
             tx._post_process()
 
-        self.assertEqual(self.sale_order.state, 'sale')
+        self.assertEqual(self.sale_order.state, 'done')
         self.assertTrue(tx.invoice_ids)
         self.assertTrue(self.sale_order.invoice_ids)
         self.assertEqual(len(self._new_mails), 2)
@@ -213,7 +213,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         ):
             tx._post_process()
 
-        self.assertEqual(self.sale_order.state, 'sale')
+        self.assertEqual(self.sale_order.state, 'done')
         self.assertTrue(tx.invoice_ids)
         self.assertTrue(self.sale_order.invoice_ids)
         self.assertEqual(len(self._new_mails), 2)
@@ -252,7 +252,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         ):
             tx._post_process()
 
-        self.assertEqual(self.sale_order.state, 'sale')
+        self.assertEqual(self.sale_order.state, 'done')
         self.assertTrue(tx.invoice_ids)
         self.assertTrue(self.sale_order.invoice_ids)
         self.assertEqual(len(self._new_mails), 2)
@@ -261,8 +261,9 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
     def test_auto_done_and_auto_invoice(self):
         # Set automatic invoice
         self.env['ir.config_parameter'].sudo().set_param('sale.automatic_invoice', 'True')
-        # Lock the sale orders when confirmed
-        self.group_user.implied_ids += self.env.ref('sale.group_auto_done_setting')
+        # Lock the sale orders when confirmed - add group directly to the sale order's
+        # create_uid (not to implied_ids, as that doesn't properly invalidate caches)
+        self.sale_order.create_uid.group_ids += self.env.ref('sale.group_auto_done_setting')
 
         # Create the payment
         self.amount = self.sale_order.amount_total
@@ -270,7 +271,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         with mute_logger('odoo.addons.sale.models.payment_transaction'):
             tx._post_process()
 
-        self.assertEqual(self.sale_order.state, 'sale')
+        self.assertEqual(self.sale_order.state, 'done')
         self.assertTrue(self.sale_order.locked)
         self.assertTrue(tx.invoice_ids)
         self.assertTrue(self.sale_order.invoice_ids)
@@ -382,7 +383,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         msg = "The payment should now be reconciled."
         self.assertTrue(partial_tx_done.payment_id.is_reconciled, msg=msg)
 
-        self.sale_order.order_line[0].product_uom_qty += 2
+        self.sale_order.line_ids[0].product_qty += 2
         self.sale_order._create_invoices()
 
         second_invoice = self.sale_order.invoice_ids - first_invoice
@@ -404,7 +405,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         with mute_logger('odoo.addons.sale.models.payment_transaction'):
             tx._post_process()
 
-        self.assertTrue(self.sale_order.state == 'sale')
+        self.assertTrue(self.sale_order.state == 'done')
 
     def test_downpayment_automatic_invoice(self):
         """
@@ -445,7 +446,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.amount = self.sale_order.amount_total / 2
 
         with patch(
-            'odoo.addons.sale.models.sale_order.SaleOrder._send_order_notification_mail',
+            'odoo.addons.sale.models.sale_order.SaleOrder._send_mail_order_notification',
         ) as notification_mail_mock:
             tx_pending = self._create_transaction(
                 flow='direct',
@@ -480,7 +481,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
                 .get_param("sale.default_confirmation_template", self.env.ref("sale.mail_template_sale_confirmation").id)
             )
             notification_mail_mock.assert_called_with(self.env["mail.template"].browse(order_confirmation_mail_template_id))
-            self.assertEqual(self.sale_order.state, 'sale')
+            self.assertEqual(self.sale_order.state, 'done')
 
     def test_automatic_invoice_mail_author(self):
         self.env['ir.config_parameter'].sudo().set_param('sale.automatic_invoice', 'True')
@@ -497,9 +498,9 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         sale_order = self.env['sale.order'].with_user(portal_user).sudo().create({
             'partner_id': portal_user.partner_id.id,
             'user_id': self.sale_user.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': self.product_a.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
                 'price_unit': 100.0,
             })],
         })
