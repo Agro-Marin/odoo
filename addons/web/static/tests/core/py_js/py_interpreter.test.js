@@ -1,5 +1,6 @@
-import { describe, expect, test } from "@odoo/hoot";
+// @ts-check
 
+import { describe, expect, test } from "@odoo/hoot";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 
 describe.current.tags("headless");
@@ -104,15 +105,19 @@ describe("boolean properties", () => {
 
     test("get value from context", () => {
         expect(evaluateExpr("foo == 'foo' or foo == 'bar'", { foo: "bar" })).toBe(true);
-        expect(evaluateExpr("foo == 'foo' and bar == 'bar'", { foo: "foo", bar: "bar" })).toBe(
-            true
-        );
+        expect(
+            evaluateExpr("foo == 'foo' and bar == 'bar'", { foo: "foo", bar: "bar" }),
+        ).toBe(true);
     });
 
     test("should be lazy", () => {
         // second clause should nameerror if evaluated
-        expect(() => evaluateExpr("foo == 'foo' and bar == 'bar'", { foo: "foo" })).toThrow();
-        expect(evaluateExpr("foo == 'foo' and bar == 'bar'", { foo: "bar" })).toBe(false);
+        expect(() =>
+            evaluateExpr("foo == 'foo' and bar == 'bar'", { foo: "foo" }),
+        ).toThrow();
+        expect(evaluateExpr("foo == 'foo' and bar == 'bar'", { foo: "bar" })).toBe(
+            false,
+        );
         expect(evaluateExpr("foo == 'foo' or bar == 'bar'", { foo: "foo" })).toBe(true);
     });
 
@@ -208,9 +213,12 @@ describe("comparisons", () => {
     });
 
     test("should compare strings", () => {
-        expect(evaluateExpr("date >= current", { date: "2010-06-08", current: "2010-06-05" })).toBe(
-            true
-        );
+        expect(
+            evaluateExpr("date >= current", {
+                date: "2010-06-08",
+                current: "2010-06-05",
+            }),
+        ).toBe(true);
         expect(evaluateExpr('state >= "cancel"', { state: "cancel" })).toBe(true);
         expect(evaluateExpr('state >= "cancel"', { state: "open" })).toBe(true);
     });
@@ -283,7 +291,9 @@ describe("conversions", () => {
     test("to bool", () => {
         expect(evaluateExpr("bool('')")).toBe(false);
         expect(evaluateExpr("bool('foo')")).toBe(true);
-        expect(evaluateExpr("bool(date_deadline)", { date_deadline: "2008" })).toBe(true);
+        expect(evaluateExpr("bool(date_deadline)", { date_deadline: "2008" })).toBe(
+            true,
+        );
         expect(evaluateExpr("bool(s)", { s: "" })).toBe(false);
     });
 });
@@ -435,25 +445,31 @@ describe("sets", () => {
 
     test("set intersection", () => {
         expect(evaluateExpr("set([1,2,3]).intersection()")).toEqual(new Set([1, 2, 3]));
-        expect(evaluateExpr("set([1,2,3]).intersection(set([2,3]))")).toEqual(new Set([2, 3]));
-        expect(evaluateExpr("set([1,2,3]).intersection([2,3])")).toEqual(new Set([2, 3]));
+        expect(evaluateExpr("set([1,2,3]).intersection(set([2,3]))")).toEqual(
+            new Set([2, 3]),
+        );
+        expect(evaluateExpr("set([1,2,3]).intersection([2,3])")).toEqual(
+            new Set([2, 3]),
+        );
         expect(evaluateExpr("set([1,2,3]).intersection(r)", { r: [2, 3] })).toEqual(
-            new Set([2, 3])
+            new Set([2, 3]),
         );
-        expect(evaluateExpr("r.intersection([2,3])", { r: new Set([1, 2, 3, 2]) })).toEqual(
-            new Set([2, 3])
-        );
+        expect(
+            evaluateExpr("r.intersection([2,3])", { r: new Set([1, 2, 3, 2]) }),
+        ).toEqual(new Set([2, 3]));
 
-        expect(evaluateExpr("set(foo_ids).intersection([2,3])", { foo_ids: [1, 2] })).toEqual(
-            new Set([2])
-        );
-        expect(evaluateExpr("set(foo_ids).intersection([2,3])", { foo_ids: [1] })).toEqual(
-            new Set()
-        );
-        expect(evaluateExpr("set([foo_id]).intersection([2,3])", { foo_id: 1 })).toEqual(new Set());
-        expect(evaluateExpr("set([foo_id]).intersection([2,3])", { foo_id: 2 })).toEqual(
-            new Set([2])
-        );
+        expect(
+            evaluateExpr("set(foo_ids).intersection([2,3])", { foo_ids: [1, 2] }),
+        ).toEqual(new Set([2]));
+        expect(
+            evaluateExpr("set(foo_ids).intersection([2,3])", { foo_ids: [1] }),
+        ).toEqual(new Set());
+        expect(
+            evaluateExpr("set([foo_id]).intersection([2,3])", { foo_id: 1 }),
+        ).toEqual(new Set());
+        expect(
+            evaluateExpr("set([foo_id]).intersection([2,3])", { foo_id: 2 }),
+        ).toEqual(new Set([2]));
 
         expect(() => evaluateExpr("set([]).intersection([], [])")).toThrow(); // valid but not supported by py_js
         expect(() => evaluateExpr("set([]).intersection([], [], [])")).toThrow(); // valid but not supported by py_js
@@ -461,23 +477,29 @@ describe("sets", () => {
 
     test("set difference", () => {
         expect(evaluateExpr("set([1,2,3]).difference()")).toEqual(new Set([1, 2, 3]));
-        expect(evaluateExpr("set([1,2,3]).difference(set([2,3]))")).toEqual(new Set([1]));
+        expect(evaluateExpr("set([1,2,3]).difference(set([2,3]))")).toEqual(
+            new Set([1]),
+        );
         expect(evaluateExpr("set([1,2,3]).difference([2,3])")).toEqual(new Set([1]));
-        expect(evaluateExpr("set([1,2,3]).difference(r)", { r: [2, 3] })).toEqual(new Set([1]));
-        expect(evaluateExpr("r.difference([2,3])", { r: new Set([1, 2, 3, 2, 4]) })).toEqual(
-            new Set([1, 4])
+        expect(evaluateExpr("set([1,2,3]).difference(r)", { r: [2, 3] })).toEqual(
+            new Set([1]),
         );
+        expect(
+            evaluateExpr("r.difference([2,3])", { r: new Set([1, 2, 3, 2, 4]) }),
+        ).toEqual(new Set([1, 4]));
 
-        expect(evaluateExpr("set(foo_ids).difference([2,3])", { foo_ids: [1, 2] })).toEqual(
-            new Set([1])
-        );
-        expect(evaluateExpr("set(foo_ids).difference([2,3])", { foo_ids: [1] })).toEqual(
-            new Set([1])
-        );
+        expect(
+            evaluateExpr("set(foo_ids).difference([2,3])", { foo_ids: [1, 2] }),
+        ).toEqual(new Set([1]));
+        expect(
+            evaluateExpr("set(foo_ids).difference([2,3])", { foo_ids: [1] }),
+        ).toEqual(new Set([1]));
         expect(evaluateExpr("set([foo_id]).difference([2,3])", { foo_id: 1 })).toEqual(
-            new Set([1])
+            new Set([1]),
         );
-        expect(evaluateExpr("set([foo_id]).difference([2,3])", { foo_id: 2 })).toEqual(new Set());
+        expect(evaluateExpr("set([foo_id]).difference([2,3])", { foo_id: 2 })).toEqual(
+            new Set(),
+        );
 
         expect(() => evaluateExpr("set([]).difference([], [])")).toThrow(); // valid but not supported by py_js
         expect(() => evaluateExpr("set([]).difference([], [], [])")).toThrow(); // valid but not supported by py_js
@@ -485,25 +507,237 @@ describe("sets", () => {
 
     test("set union", () => {
         expect(evaluateExpr("set([1,2,3]).union()")).toEqual(new Set([1, 2, 3]));
-        expect(evaluateExpr("set([1,2,3]).union(set([2,3,4]))")).toEqual(new Set([1, 2, 3, 4]));
-        expect(evaluateExpr("set([1,2,3]).union([2,4])")).toEqual(new Set([1, 2, 3, 4]));
-        expect(evaluateExpr("set([1,2,3]).union(r)", { r: [2, 4] })).toEqual(new Set([1, 2, 3, 4]));
+        expect(evaluateExpr("set([1,2,3]).union(set([2,3,4]))")).toEqual(
+            new Set([1, 2, 3, 4]),
+        );
+        expect(evaluateExpr("set([1,2,3]).union([2,4])")).toEqual(
+            new Set([1, 2, 3, 4]),
+        );
+        expect(evaluateExpr("set([1,2,3]).union(r)", { r: [2, 4] })).toEqual(
+            new Set([1, 2, 3, 4]),
+        );
         expect(evaluateExpr("r.union([2,3])", { r: new Set([1, 2, 2, 4]) })).toEqual(
-            new Set([1, 2, 4, 3])
+            new Set([1, 2, 4, 3]),
         );
 
         expect(evaluateExpr("set(foo_ids).union([2,3])", { foo_ids: [1, 2] })).toEqual(
-            new Set([1, 2, 3])
+            new Set([1, 2, 3]),
         );
         expect(evaluateExpr("set(foo_ids).union([2,3])", { foo_ids: [1] })).toEqual(
-            new Set([1, 2, 3])
+            new Set([1, 2, 3]),
         );
         expect(evaluateExpr("set([foo_id]).union([2,3])", { foo_id: 1 })).toEqual(
-            new Set([1, 2, 3])
+            new Set([1, 2, 3]),
         );
-        expect(evaluateExpr("set([foo_id]).union([2,3])", { foo_id: 2 })).toEqual(new Set([2, 3]));
+        expect(evaluateExpr("set([foo_id]).union([2,3])", { foo_id: 2 })).toEqual(
+            new Set([2, 3]),
+        );
 
         expect(() => evaluateExpr("set([]).union([], [])")).toThrow(); // valid but not supported by py_js
         expect(() => evaluateExpr("set([]).union([], [], [])")).toThrow(); // valid but not supported by py_js
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Tests for audit improvements (builtins, security, operators, cache)
+// ---------------------------------------------------------------------------
+
+describe("builtins — len", () => {
+    test("len of list", () => {
+        expect(evaluateExpr("len([1, 2, 3])")).toBe(3);
+        expect(evaluateExpr("len([])")).toBe(0);
+    });
+    test("len of string", () => {
+        expect(evaluateExpr('len("hello")')).toBe(5);
+        expect(evaluateExpr('len("")')).toBe(0);
+    });
+    test("len of dict", () => {
+        expect(evaluateExpr("len({'a': 1, 'b': 2})")).toBe(2);
+    });
+    test("len of set", () => {
+        expect(evaluateExpr("len(set([1, 2, 3]))")).toBe(3);
+    });
+    test("len of non-collection throws", () => {
+        expect(() => evaluateExpr("len(42)")).toThrow();
+    });
+});
+
+describe("builtins — abs", () => {
+    test("abs of positive", () => {
+        expect(evaluateExpr("abs(5)")).toBe(5);
+    });
+    test("abs of negative", () => {
+        expect(evaluateExpr("abs(-5)")).toBe(5);
+    });
+    test("abs of zero", () => {
+        expect(evaluateExpr("abs(0)")).toBe(0);
+    });
+    test("abs of float", () => {
+        expect(evaluateExpr("abs(-3.14)")).toBeCloseTo(3.14);
+    });
+});
+
+describe("builtins — int", () => {
+    test("int from string", () => {
+        expect(evaluateExpr('int("42")')).toBe(42);
+        expect(evaluateExpr('int("-7")')).toBe(-7);
+        expect(evaluateExpr('int("+3")')).toBe(3);
+    });
+    test("int from float (truncates toward zero)", () => {
+        expect(evaluateExpr("int(3.9)")).toBe(3);
+        expect(evaluateExpr("int(-3.9)")).toBe(-3);
+    });
+    test("int from boolean", () => {
+        expect(evaluateExpr("int(True)")).toBe(1);
+        expect(evaluateExpr("int(False)")).toBe(0);
+    });
+    test("int rejects non-integer strings", () => {
+        expect(() => evaluateExpr('int("42abc")')).toThrow(/invalid literal/);
+        expect(() => evaluateExpr('int("abc")')).toThrow(/invalid literal/);
+        expect(() => evaluateExpr('int("")')).toThrow(/invalid literal/);
+    });
+});
+
+describe("builtins — float", () => {
+    test("float from string", () => {
+        expect(evaluateExpr('float("3.14")')).toBeCloseTo(3.14);
+        expect(evaluateExpr('float("-2.5")')).toBe(-2.5);
+    });
+    test("float from int", () => {
+        expect(evaluateExpr("float(42)")).toBe(42);
+    });
+    test("float from boolean", () => {
+        expect(evaluateExpr("float(True)")).toBe(1.0);
+        expect(evaluateExpr("float(False)")).toBe(0.0);
+    });
+    test("float rejects empty string", () => {
+        expect(() => evaluateExpr('float("")')).toThrow(/could not convert/);
+    });
+    test("float rejects non-numeric string", () => {
+        expect(() => evaluateExpr('float("abc")')).toThrow(/could not convert/);
+    });
+});
+
+describe("builtins — str", () => {
+    test("str from number", () => {
+        expect(evaluateExpr("str(42)")).toBe("42");
+        expect(evaluateExpr("str(3.14)")).toBe("3.14");
+    });
+    test("str from boolean", () => {
+        expect(evaluateExpr("str(True)")).toBe("True");
+        expect(evaluateExpr("str(False)")).toBe("False");
+    });
+    test("str from None", () => {
+        expect(evaluateExpr("str(None)")).toBe("None");
+    });
+});
+
+describe("builtins — round", () => {
+    test("round to integer", () => {
+        expect(evaluateExpr("round(3.7)")).toBe(4);
+        expect(evaluateExpr("round(3.2)")).toBe(3);
+    });
+    test("round with ndigits", () => {
+        expect(evaluateExpr("round(3.14159, 2)")).toBeCloseTo(3.14);
+        expect(evaluateExpr("round(1234.5, -2)")).toBe(1200);
+    });
+});
+
+describe("security — blocked properties", () => {
+    test("bracket access to constructor is blocked", () => {
+        expect(() => evaluateExpr('a["constructor"]', { a: {} })).toThrow(/forbidden/);
+    });
+    test("bracket access to __proto__ is blocked", () => {
+        expect(() => evaluateExpr('a["__proto__"]', { a: {} })).toThrow(/forbidden/);
+    });
+    test("bracket access to prototype is blocked", () => {
+        expect(() => evaluateExpr('a["prototype"]', { a: {} })).toThrow(/forbidden/);
+    });
+    test("dot access to constructor is blocked", () => {
+        expect(() => evaluateExpr("a.constructor", { a: {} })).toThrow(/forbidden/);
+    });
+    test("dot access to __proto__ is blocked", () => {
+        expect(() => evaluateExpr("a.__proto__", { a: {} })).toThrow(/forbidden/);
+    });
+    test("legitimate property access still works", () => {
+        expect(evaluateExpr("a.name", { a: { name: "test" } })).toBe("test");
+        expect(evaluateExpr('a["name"]', { a: { name: "test" } })).toBe("test");
+    });
+});
+
+describe("security — recursion depth limit", () => {
+    test("deeply nested expression throws", () => {
+        // Parenthesized expressions are flattened by the parser, so
+        // ((((1)))) → AST {type:0, value:1} with no nesting.
+        // Ternaries short-circuit on True, never recursing deeply.
+        // Use chained `and` which produces a left-recursive AST tree:
+        // (((True and True) and True) and ... and 1) — each level
+        // requires evaluating its left subtree first, reaching MAX_EVAL_DEPTH.
+        const depth = 150;
+        const expr = "True and ".repeat(depth) + "1";
+        expect(() => evaluateExpr(expr)).toThrow(/depth/i);
+    });
+});
+
+describe("operators — is / is not", () => {
+    test("is None", () => {
+        expect(evaluateExpr("x is None", { x: null })).toBe(true);
+        expect(evaluateExpr("x is None", { x: 0 })).toBe(false);
+        expect(evaluateExpr("x is None", { x: "" })).toBe(false);
+    });
+    test("is not None", () => {
+        expect(evaluateExpr("x is not None", { x: null })).toBe(false);
+        expect(evaluateExpr("x is not None", { x: 42 })).toBe(true);
+    });
+});
+
+describe("operators — division by zero", () => {
+    test("/ by zero throws", () => {
+        expect(() => evaluateExpr("1 / 0")).toThrow(/ZeroDivisionError/);
+    });
+    test("% by zero throws", () => {
+        expect(() => evaluateExpr("5 % 0")).toThrow(/ZeroDivisionError/);
+    });
+    test("// by zero throws", () => {
+        expect(() => evaluateExpr("5 // 0")).toThrow(/ZeroDivisionError/);
+    });
+    test("non-zero division works", () => {
+        expect(evaluateExpr("10 / 3")).toBeCloseTo(3.333, { margin: 1e-3 });
+        expect(evaluateExpr("10 % 3")).toBe(1);
+        expect(evaluateExpr("10 // 3")).toBe(3);
+    });
+});
+
+describe("operators — bitwise", () => {
+    test("bitwise or", () => {
+        expect(evaluateExpr("5 | 3")).toBe(7);
+    });
+    test("bitwise and", () => {
+        expect(evaluateExpr("5 & 3")).toBe(1);
+    });
+    test("bitwise xor", () => {
+        expect(evaluateExpr("5 ^ 3")).toBe(6);
+    });
+    test("bitwise not", () => {
+        expect(evaluateExpr("~0")).toBe(-1);
+        expect(evaluateExpr("~5")).toBe(-6);
+    });
+    test("left shift", () => {
+        expect(evaluateExpr("1 << 3")).toBe(8);
+    });
+    test("right shift", () => {
+        expect(evaluateExpr("8 >> 2")).toBe(2);
+    });
+});
+
+describe("in operator — Object.hasOwn", () => {
+    test("'in' checks own properties only (not prototype)", () => {
+        // toString exists on Object.prototype but not as own property
+        expect(evaluateExpr('"toString" in a', { a: {} })).toBe(false);
+        expect(evaluateExpr('"toString" in a', { a: { toString: 1 } })).toBe(true);
+    });
+    test("'in' works for Set membership", () => {
+        expect(evaluateExpr("1 in s", { s: new Set([1, 2, 3]) })).toBe(true);
+        expect(evaluateExpr("4 in s", { s: new Set([1, 2, 3]) })).toBe(false);
     });
 });

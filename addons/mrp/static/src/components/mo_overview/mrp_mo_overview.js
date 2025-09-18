@@ -1,12 +1,13 @@
+/** @odoo-module native */
 import { Component, EventBus, onWillStart, useSubEnv, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
-import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line";
-import { MoOverviewDisplayFilter } from "../mo_overview_display_filter/mrp_mo_overview_display_filter";
-import { MoOverviewComponentsBlock } from "../mo_overview_components_block/mrp_mo_overview_components_block";
-import { formatMonetary } from "@web/views/fields/formatters";
+import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
+import { MoOverviewDisplayFilter } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
+import { MoOverviewComponentsBlock } from "../mo_overview_components_block/mrp_mo_overview_components_block.js";
+import { formatMonetary } from "@web/fields/formatters";
 
 export class MoOverview extends Component {
     static components = {

@@ -1,9 +1,8 @@
+/** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { DiscussApp } from "@mail/core/public_web/discuss_app_model";
-
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
-
 const discussAppPatch = {
     setup() {
         super.setup(...arguments);
@@ -20,7 +19,7 @@ const discussAppPatch = {
                     addTitle: _t("Add or join a channel"),
                     canView: true,
                     extraClass: "o-mail-DiscussSidebarCategory-channel",
-                    icon: "fa fa-hashtag",
+                    icon: "fa-solid fa-hashtag",
                     id: "channels",
                     name: _t("Channels"),
                     sequence: 10,

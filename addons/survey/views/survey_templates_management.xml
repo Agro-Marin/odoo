@@ -105,7 +105,7 @@
         </div>
         <div groups="survey.group_survey_user" t-if="survey.scoring_type != 'no_scoring' and survey.scoring_max_obtainable &lt;= 0"
             t-ignore="true" class="alert alert-warning p-2 border-0 rounded-0 d-print-none css_editable_mode_hidden mb-0 text-center">
-            <i class="fa fa-exclamation-triangle"/> It is currently not possible to pass this assessment because no question is configured to give any points.
+            <i class="fa-solid fa-exclamation-triangle"/> It is currently not possible to pass this assessment because no question is configured to give any points.
         </div>
     </template>
 

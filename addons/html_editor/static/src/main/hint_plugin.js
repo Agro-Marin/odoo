@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { isEditorTab, isEmptyBlock, isProtected } from "@html_editor/utils/dom_info";
 import { removeClass } from "@html_editor/utils/dom";
 import { descendants, selectElements } from "@html_editor/utils/dom_traversal";
-import { closestBlock } from "../utils/blocks";
+import { closestBlock } from "../utils/blocks.js";
 
 /**
  * @typedef {import("@html_editor/editor").EditorContext} EditorContext

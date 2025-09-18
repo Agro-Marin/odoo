@@ -1,6 +1,13 @@
-import { Component, onMounted, onPatched, status, useExternalListener, useRef } from "@odoo/owl";
+/** @odoo-module native */
+import {
+    Component,
+    onMounted,
+    onPatched,
+    status,
+    useExternalListener,
+    useRef,
+} from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-
 /**
  * @typedef {Object} Props
  * @property {import("models").RtcSession} session

@@ -12,7 +12,7 @@
                         onInvalid="() => this.setMultiCreateTimeRange({start: null})"
                         showSeconds="false"
                     />
-                    <i class="fa fa-arrow-right"/>
+                    <i class="fa-solid fa-arrow-right"/>
                     <TimePicker
                         inputCssClass="'o_input'"
                         value="this.multiCreateData.timeRange.end"

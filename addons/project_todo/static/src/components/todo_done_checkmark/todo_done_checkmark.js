@@ -1,6 +1,6 @@
 import { useState, onRendered, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { StateSelectionField, stateSelectionField } from "@web/views/fields/state_selection/state_selection_field";
+import { StateSelectionField, stateSelectionField } from "@web/fields/selection/state_selection/state_selection_field";
 
 export class TodoDoneCheckmark extends StateSelectionField {
     static template = "project_todo.TodoDoneCheckmark";
@@ -16,11 +16,11 @@ export class TodoDoneCheckmark extends StateSelectionField {
         });
         onMounted(() => {
             const fieldValue = this.props.record.data[this.props.name]
-            this.notDoneState = fieldValue == '1_done' ? '01_in_progress' : fieldValue;
+            this.notDoneState = fieldValue == 'done' ? 'in_progress' : fieldValue;
         });
         onRendered(() => {
             if (!this.stateDone.notReloadState) {
-                this.stateDone.isDone = this.props.record.data[this.props.name] == '1_done';
+                this.stateDone.isDone = this.props.record.data[this.props.name] == 'done';
             }
         });
     }
@@ -46,7 +46,7 @@ export class TodoDoneCheckmark extends StateSelectionField {
      * @param {InputEvent} ev
      */
     async onDoneToggled(ev) {
-        const value = this.props.record.data[this.props.name] != '1_done' ? '1_done' : this.notDoneState;
+        const value = this.props.record.data[this.props.name] != 'done' ? 'done' : this.notDoneState;
         if (['kanban', 'list'].includes(this.props.viewType)) {
             await super.updateRecord(value);
         }

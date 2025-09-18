@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ProductCatalogKanbanController } from "@product/product_catalog/kanban_controller";
 import { useSubEnv, useEnv } from "@odoo/owl";
 import { useDebounced } from "@web/core/utils/timing";

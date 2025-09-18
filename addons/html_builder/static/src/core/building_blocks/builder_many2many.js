@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import {
@@ -5,9 +6,9 @@ import {
     getAllActionsAndOperations,
     useBuilderComponent,
     useDomState,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
-import { BasicMany2Many } from "./basic_many2many";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
+import { BasicMany2Many } from "./basic_many2many.js";
 
 export class BuilderMany2Many extends Component {
     static template = "html_builder.BuilderMany2Many";

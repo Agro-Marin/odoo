@@ -7,19 +7,19 @@
                 <t t-esc="this.message" />
             </span>
             <span t-if="connectionInfo.status === 'connected' and !this.message" class="js_connected text-success">
-                <i class="fa fa-fw fa-sitemap" role="img" aria-label="Proxy Connected"
+                <i class="fa-solid fa-sitemap" role="img" aria-label="Proxy Connected"
                    title="Proxy Connected"></i>
             </span>
             <span t-if="connectionInfo.status === 'connecting'" class="js_connecting">
-                <i class="fa fa-fw fa-spin fa-circle-o-notch" role="img" aria-label="Connecting to Proxy"
+                <i class="fa-solid fa-circle-notch fa-spin" role="img" aria-label="Connecting to Proxy"
                    title="Connecting to Proxy"></i>
             </span>
             <span t-elif="connectionInfo.status === 'disconnected'" class="js_disconnected text-danger">
-                <i class="fa fa-fw fa-sitemap" role="img" aria-label="Proxy Disconnected"
+                <i class="fa-solid fa-sitemap" role="img" aria-label="Proxy Disconnected"
                    title="Proxy Disconnected"></i>
             </span>
             <span t-elif="connectionInfo.status === 'warning' or this.message" class="js_warning text-warning">
-                <i class="fa fa-fw fa-sitemap" role="img" aria-label="Proxy Warning"
+                <i class="fa-solid fa-sitemap" role="img" aria-label="Proxy Warning"
                    title="Proxy Warning"></i>
             </span>
         </button>

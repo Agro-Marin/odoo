@@ -1,8 +1,13 @@
-import { Component } from "@odoo/owl";
-import { useDropdownCloser } from "@web/core/dropdown/dropdown_hooks";
-import { pick } from "@web/core/utils/objects";
-import { debounce as debounceFn } from "@web/core/utils/timing";
+// @ts-check
+/** @odoo-module native */
 
+/** @module @web/views/view_button/view_button - Renders arch button elements with debouncing, tooltips, and Bootstrap class resolution */
+
+import { Component } from "@odoo/owl";
+import { useDropdownCloser } from "@web/components/dropdown/dropdown_hooks";
+import { registry } from "@web/core/registry";
+import { pick } from "@web/core/utils/collections/objects";
+import { debounce as debounceFn } from "@web/core/utils/timing";
 const explicitRankClasses = [
     "btn-primary",
     "btn-secondary",
@@ -18,11 +23,34 @@ const odooToBootstrapClasses = {
     oe_link: "btn-link",
 };
 
+/**
+ * Parse an icon string into a tag/class descriptor for Font Awesome, OdooIcon, or image sources.
+ *
+ * Accepts both FA7 full class syntax ("fa-solid fa-edit") and legacy bare-name syntax
+ * ("fa-edit"). Bare names are normalized to "fa-solid" (solid style default).
+ *
+ * @param {string} iconString - icon identifier (e.g. "fa-solid fa-save", "fa-save", "oi-settings", or an image URL)
+ * @returns {{ tag: string, class?: string, src?: string }}
+ */
 function iconFromString(iconString) {
     const icon = {};
-    if (iconString.startsWith("fa-")) {
+    if (
+        iconString.startsWith("fa-solid ") ||
+        iconString.startsWith("fa-regular ") ||
+        iconString.startsWith("fa-brands ")
+    ) {
+        // FA7 full class syntax — use directly
         icon.tag = "i";
-        icon.class = `o_button_icon fa fa-fw ${iconString}`;
+        icon.class = `o_button_icon ${iconString}`;
+    } else if (iconString.startsWith("fa-")) {
+        // Legacy bare name — apply style based on FA4 outline convention
+        icon.tag = "i";
+        if (iconString.endsWith("-o")) {
+            // FA4 outline suffix (e.g. "fa-star-o") → FA7 regular style, strip -o
+            icon.class = `o_button_icon fa-regular ${iconString.slice(0, -2)}`;
+        } else {
+            icon.class = `o_button_icon fa-solid ${iconString}`;
+        }
     } else if (iconString.startsWith("oi-")) {
         icon.tag = "i";
         icon.class = `o_button_icon oi oi-fw ${iconString}`;
@@ -33,6 +61,7 @@ function iconFromString(iconString) {
     return icon;
 }
 
+/** Renders a button from a view arch (`<button>` or `<a>` tag) with debouncing, tooltips, and Bootstrap class resolution. */
 export class ViewButton extends Component {
     static template = "web.views.ViewButton";
     static props = [
@@ -108,7 +137,9 @@ export class ViewButton extends Component {
     }
 
     /**
+     * Delegate to a custom onClick prop or the environment's onClickViewButton handler.
      * @param {MouseEvent} ev
+     * @param {boolean} [newWindow] - open the resulting action in a new window
      */
     onClick(ev, newWindow) {
         if (this.props.tag === "a") {
@@ -119,7 +150,7 @@ export class ViewButton extends Component {
             return this.props.onClick();
         }
 
-        this.env.onClickViewButton({
+        return this.env.onClickViewButton({
             clickParams: this.clickParams,
             getResParams: () =>
                 pick(
@@ -128,13 +159,17 @@ export class ViewButton extends Component {
                     "evalContext",
                     "resModel",
                     "resId",
-                    "resIds"
+                    "resIds",
                 ),
             beforeExecute: () => this.dropdownControl.close(),
             newWindow,
         });
     }
 
+    /**
+     * Build the CSS class string, mapping Odoo legacy classes to Bootstrap and applying default rank.
+     * @returns {string}
+     */
     getClassName() {
         const classNames = [];
         let hasExplicitRank = false;
@@ -162,3 +197,5 @@ export class ViewButton extends Component {
         return classNames.join(" ");
     }
 }
+
+registry.category("shared_components").add("ViewButton", ViewButton);

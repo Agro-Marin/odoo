@@ -330,7 +330,7 @@ class CardCampaign(models.Model):
         if not self.card_template_id.body:
             return ''
 
-        image_bytes = self.env['ir.actions.report']._run_wkhtmltoimage(
+        image_bytes = self.env['ir.actions.report']._render_html_to_image(
             [self._render_field('body_html', record.ids, add_context={'card_campaign': self})[record.id]],
             *TEMPLATE_DIMENSIONS
         )[0]

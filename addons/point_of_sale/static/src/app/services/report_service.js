@@ -1,8 +1,8 @@
+/** @odoo-module native */
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { user } from "@web/core/user";
+import { user } from "@web/services/user";
 import { downloadReport } from "@web/webclient/actions/reports/utils";
-
 export const reportService = {
     dependencies: ["ui", "orm", "pos"],
     start(env, { ui, orm, pos }) {
@@ -20,7 +20,7 @@ export const reportService = {
                         rpc,
                         { ...reportAction, context: { active_ids } },
                         "pdf",
-                        user.context
+                        user.context,
                     );
                 } finally {
                     ui.unblock();

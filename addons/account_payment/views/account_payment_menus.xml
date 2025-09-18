@@ -3,20 +3,20 @@
 
     <menuitem action="payment.action_payment_provider"
         id="payment_provider_menu"
-        parent="account.root_payment_menu"
+        parent="account.menu_account_payment"
         sequence="10"/>
     <menuitem action="payment.action_payment_method"
         id="payment_method_menu"
-        parent="account.root_payment_menu"
+        parent="account.menu_account_payment"
         sequence="15"/>
     <menuitem action="payment.action_payment_token"
         id="payment_token_menu"
-        parent="account.root_payment_menu"
+        parent="account.menu_account_payment"
         groups="base.group_no_one"
         sequence="20"/>
     <menuitem action="payment.action_payment_transaction"
         id="payment_transaction_menu"
-        parent="account.root_payment_menu"
+        parent="account.menu_account_payment"
         groups="base.group_no_one"
         sequence="25"/>
 

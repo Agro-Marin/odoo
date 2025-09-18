@@ -20,8 +20,8 @@ patch(MessagingMenu.prototype, {
                     0
                 ),
                 id: "livechat",
-                icon: "fa fa-commenting-o",
-                activeIcon: "fa fa-commenting",
+                icon: "fa-regular fa-comment-dots",
+                activeIcon: "fa-solid fa-comment-dots",
                 label: _t("Live Chats"),
                 sequence: 60,
             });

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Record } from "@mail/model/record";
 
 export class MailTemplate extends Record {

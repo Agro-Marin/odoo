@@ -7,7 +7,14 @@
     'category': 'Sales/Point of Sale',
     'sequence': 40,
     'summary': 'Handle checkouts and payments for shops and restaurants.',
-    'depends': ['resource', 'stock_account', 'barcodes', 'html_editor', 'digest', 'phone_validation', 'partner_autocomplete', 'iot_base', 'google_address_autocomplete'],
+    'depends': [
+        'resource',
+        'stock_account',
+        'phone_validation',
+        'partner_autocomplete',
+        'iot_base',
+        'google_address_autocomplete',
+    ],
     'uninstall_hook': 'uninstall_hook',
     'data': [
         'security/point_of_sale_security.xml',
@@ -84,6 +91,7 @@
             'point_of_sale/static/src/app/hooks/hooks.js',
             'point_of_sale/static/src/backend/many2many_placeholder_list_view/*',
             'point_of_sale/static/src/backend/test_epos/*',
+            'point_of_sale/static/src/app/utils/init_lna.js',
         ],
         "web.assets_web_dark": [
             'point_of_sale/static/src/scss/pos_dashboard.dark.scss',
@@ -104,8 +112,8 @@
             ('remove', 'point_of_sale/static/src/**/*.css'),
 
             # Adding error handler back since they are removed in the prod bundle
-            'web/static/src/core/errors/error_handlers.js',
-            'web/static/src/core/dialog/dialog.scss',
+            'web/static/src/components/errors/error_handlers.js',
+            'web/static/src/ui/dialog/dialog.scss',
         ],
         'web.assets_unit_tests': [
             'point_of_sale/static/tests/unit/**/*',
@@ -122,9 +130,12 @@
             ("include", "web._assets_bootstrap_backend"),
             ('include', 'web._assets_core'),
             ("remove", "web/static/src/core/browser/router.js"),
-            ("remove", "web/static/src/core/debug/**/*"),
-            "web/static/src/libs/fontawesome/css/font-awesome.css",
-            "web/static/src/views/fields/formatters.js",
+            ("remove", "web/static/src/services/debug/**/*"),
+            "web/static/src/libs/fontawesome7/css/fontawesome.css",
+            "web/static/src/libs/fontawesome7/css/solid.css",
+            "web/static/src/libs/fontawesome7/css/regular.css",
+            "web/static/src/libs/fontawesome7/css/brands.css",
+            "web/static/src/fields/formatters.js",
             "web/static/lib/odoo_ui_icons/*",
             "point_of_sale/static/src/utils.js",
             'bus/static/src/services/bus_service.js',
@@ -155,7 +166,7 @@
 
             ('include', 'point_of_sale.base_app'),
 
-            'web/static/src/core/colorlist/colorlist.scss',
+            'web/static/src/components/colorlist/colorlist.scss',
             'web/static/src/webclient/webclient_layout.scss',
 
             'web/static/src/webclient/icons.scss',
@@ -163,13 +174,13 @@
             # scss variables and utilities
             'point_of_sale/static/src/scss/pos_variables_extra.scss',
             'web/static/src/scss/bootstrap_overridden.scss',
-            'web/static/src/scss/fontawesome_overridden.scss',
+            'web/static/src/scss/rtl_icon_flip.scss',
             'web/static/fonts/fonts.scss',
             "web/static/src/scss/ui.scss",
 
-            ('remove', 'web/static/src/core/errors/error_handlers.js'), # error handling in PoS is different from the webclient
-            ('remove', '/web/static/src/core/dialog/dialog.scss'),
-            'web/static/src/core/currency.js',
+            ('remove', 'web/static/src/components/errors/error_handlers.js'), # error handling in PoS is different from the webclient
+            ('remove', '/web/static/src/ui/dialog/dialog.scss'),
+            'web/static/src/services/currency.js',
             # barcode scanner
             'barcodes/static/src/barcode_service.js',
             'barcodes/static/src/js/barcode_parser.js',
@@ -191,8 +202,9 @@
 
             'mail/static/src/core/common/sound_effects_service.js',
             "web/static/src/core/browser/router.js",
-            "web/static/src/core/debug/**/*",
+            "web/static/src/services/debug/**/*",
             'web/static/src/model/**/*',
+            'web/static/src/fields/**/*',
             'web/static/src/views/**/*',
             'web/static/src/search/**/*',
             'web/static/src/webclient/actions/**/*',

@@ -30,12 +30,12 @@
             margin-bottom: 2rem;
         }
         .o_survey_question_page {
-            page-break-inside: avoid;
+            break-inside: avoid;
         }
         .o_survey_results_question_wrapper {
             .o_survey_results_question_header, .o_survey_question_description {
-                page-break-inside: avoid;
-                page-break-after: avoid;
+                break-inside: avoid;
+                break-after: avoid;
             }
         }
         .o_survey_results_question_wrapper:has(div.collapsed) {

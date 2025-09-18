@@ -1,4 +1,5 @@
-import { DIRECTIONS } from "./position";
+/** @odoo-module native */
+import { DIRECTIONS } from "./position.js";
 
 export const closestPath = function* (node) {
     while (node) {
@@ -84,7 +85,7 @@ export function closestElement(node, predicate = "*") {
         element = element?.closest(predicate);
     }
     if ((editable && editable.contains(element)) || !node.isConnected) {
-        return element;
+        return element || null;
     }
     return null;
 }

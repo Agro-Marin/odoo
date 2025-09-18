@@ -8,6 +8,7 @@ from odoo.tools.translate import _
 
 
 class ProjectProject(models.Model):
+    _name = 'project.project'
     _inherit = "project.project"
 
     allow_timesheets = fields.Boolean(
@@ -91,7 +92,7 @@ class ProjectProject(models.Model):
              WHERE Project.allocated_hours > 0
                AND Project.allow_timesheets = TRUE
                AND Task.parent_id IS NULL
-               AND Task.state IN ('01_in_progress', '02_changes_requested', '03_approved', '04_waiting_normal')
+               AND Task.state IN ('in_progress', 'changes_requested', 'approved', 'waiting')
           GROUP BY Project.id
             HAVING Project.allocated_hours - SUM(Task.effective_hours) < 0
         )""")

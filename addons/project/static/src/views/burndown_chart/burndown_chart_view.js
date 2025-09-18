@@ -1,7 +1,8 @@
-import { BurndownChartModel } from "./burndown_chart_model";
+/** @odoo-module native */
+import { BurndownChartModel } from "./burndown_chart_model.js";
 import { graphView } from "@web/views/graph/graph_view";
 import { registry } from "@web/core/registry";
-import { BurndownChartSearchModel } from "./burndown_chart_search_model";
+import { BurndownChartSearchModel } from "./burndown_chart_search_model.js";
 
 const viewRegistry = registry.category("views");
 

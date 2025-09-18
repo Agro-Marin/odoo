@@ -6,7 +6,7 @@
         </xpath>
         <xpath expr="//div[hasclass('invoice_main')]" position="after">
             <div t-if="o.l10n_ch_is_qr_valid">
-                <div style="page-break-after: always"/>
+                <div style="break-after: page"/>
                 <br/>
             </div>
         </xpath>

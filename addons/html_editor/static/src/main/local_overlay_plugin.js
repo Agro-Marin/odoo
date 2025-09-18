@@ -1,4 +1,5 @@
-import { Plugin } from "../plugin";
+/** @odoo-module native */
+import { Plugin } from "../plugin.js";
 
 /**
  * @typedef { Object } LocalOverlayShared
@@ -38,10 +39,12 @@ export class LocalOverlayPlugin extends Plugin {
     }
 
     destroy() {
-        for (const container of this.localOverlays) {
-            container.remove();
+        if (this.localOverlays) {
+            for (const container of this.localOverlays) {
+                container.remove();
+            }
+            this.localOverlays.clear();
         }
-        this.localOverlays.clear();
         super.destroy();
     }
 }

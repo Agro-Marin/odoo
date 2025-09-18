@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { readonlySyntaxHighlightingEmbedding } from "@html_editor/others/embedded_components/core/syntax_highlighting/readonly_syntax_highlighting";
 import { readonlyFileEmbedding } from "@html_editor/others/embedded_components/core/file/readonly_file";
 import { readonlyTableOfContentEmbedding } from "@html_editor/others/embedded_components/core/table_of_content/table_of_content";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ColorUIPlugin as EditorColorUIPlugin } from "@html_editor/main/font/color_ui_plugin";
 import { getAllUsedColors } from "@html_builder/utils/utils_css";
 

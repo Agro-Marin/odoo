@@ -22,10 +22,10 @@
                                 </div>
                                 <div class="col-12 col-lg-6">
                                     <ul class="list-group list-group-flush text-start">
-                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa fa-check-circle-o"/>  Complete CRM for any team</li>
-                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa fa-check-circle-o"/>  Access all modules</li>
-                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa fa-check-circle-o"/>  Limited Customization</li>
-                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa fa-check-circle-o"/>  Email support</li>
+                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa-regular fa-circle-check"/>  Complete CRM for any team</li>
+                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa-regular fa-circle-check"/>  Access all modules</li>
+                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa-regular fa-circle-check"/>  Limited Customization</li>
+                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa-regular fa-circle-check"/>  Email support</li>
                                     </ul>
                                 </div>
                             </div>
@@ -50,11 +50,11 @@
                                 </div>
                                 <div class="col-12 col-lg-6">
                                     <ul class="list-group list-group-flush text-start">
-                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa fa-check-circle-o"/>  PaaS Access</li>
-                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa fa-check-circle-o"/>  Unlimited CRM support</li>
-                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa fa-check-circle-o"/>  All modules &amp; features</li>
-                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa fa-check-circle-o"/>  Unlimited customization</li>
-                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa fa-check-circle-o"/>  24/7 Support</li>
+                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa-regular fa-circle-check"/>  PaaS Access</li>
+                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa-regular fa-circle-check"/>  Unlimited CRM support</li>
+                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa-regular fa-circle-check"/>  All modules &amp; features</li>
+                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa-regular fa-circle-check"/>  Unlimited customization</li>
+                                        <li class="list-group-item px-0 bg-transparent text-reset"><span class="fa-regular fa-circle-check"/>  24/7 Support</li>
                                     </ul>
                                 </div>
                             </div>

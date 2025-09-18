@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Sidebar } from "@portal/interactions/sidebar";
 import { registry } from "@web/core/registry";
 
-import { scrollTo } from "@web/core/utils/scrolling";
+import { scrollTo } from "@web/core/utils/dom/scrolling";
 
 export class AccountSidebar extends Sidebar {
     static selector = ".o_portal_invoice_sidebar";

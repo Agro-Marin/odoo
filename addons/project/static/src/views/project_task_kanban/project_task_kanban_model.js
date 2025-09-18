@@ -1,15 +1,16 @@
+/** @odoo-module native */
 import { RelationalModel } from "@web/model/relational_model/relational_model";
-import { Record } from "@web/model/relational_model/record";
+import { RelationalRecord } from "@web/model/relational_model/record";
 import { makeActiveField } from "@web/model/relational_model/utils";
-import { ProjectTaskRelationalModel } from "../project_task_relational_model";
+import { ProjectTaskRelationalModel } from "../project_task_relational_model.js";
 
 export class ProjectTaskKanbanDynamicGroupList extends RelationalModel.DynamicGroupList {
     get isGroupedByStage() {
-        return !!this.groupByField && this.groupByField.name === "stage_id";
+        return !!this.groupByField && this.groupByField.name === "step_id";
     }
 }
 
-export class ProjectTaskRecord extends Record {
+export class ProjectTaskRecord extends RelationalRecord {
     setup() {
         super.setup(...arguments);
         this.displaySubtasks = false;

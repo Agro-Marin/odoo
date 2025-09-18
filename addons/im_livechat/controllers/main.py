@@ -7,7 +7,7 @@ from pytz import timezone
 
 from odoo import http, _
 from odoo.http import content_disposition, request
-from odoo.addons.base.models.ir_qweb_fields import nl2br
+from odoo.libs.text.html import nl2br
 from odoo.addons.mail.tools.discuss import add_guest_to_context, Store
 
 
@@ -47,7 +47,8 @@ class LivechatController(http.Controller):
 
     @http.route('/im_livechat/font-awesome', type='http', auth='none', cors="*")
     def fontawesome(self, **kwargs):
-        return http.Stream.from_path('web/static/src/libs/fontawesome/fonts/fontawesome-webfont.woff2').get_response()
+        """Serve FA7 solid webfont for cross-origin livechat embeds."""
+        return http.Stream.from_path('web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2').get_response()
 
     @http.route('/im_livechat/odoo_ui_icons', type='http', auth='none', cors="*")
     def odoo_ui_icons(self, **kwargs):

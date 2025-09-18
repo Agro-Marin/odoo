@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { useEnv } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { AccountProductCatalogSearchPanel } from "@account/components/product_catalog/search/search_panel";
-import { TimePeriodSelectionField } from "./time_period_selection_fields";
-import { formatMonetary } from "@web/views/fields/formatters";
-import { clamp } from "@web/core/utils/numbers";
+import { TimePeriodSelectionField } from "./time_period_selection_fields.js";
+import { formatMonetary } from "@web/fields/formatters";
+import { clamp } from "@web/core/utils/format/numbers";
 
 export class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSearchPanel {
     static template = "purchase_stock.ProductCatalogSearchPanel";

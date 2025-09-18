@@ -133,10 +133,10 @@ test("should not preserve image styles when replacing an image with an icon", as
     await animationFrame();
     await click(".nav-link:contains('Icons')");
     await animationFrame();
-    await click(".fa-glass");
+    await click(".fa-martini-glass-empty");
     await animationFrame();
     expect(getContent(el).replace(/<img.*?>/, "<img>")).toBe(
-        `<p>\ufeff[<span class="fa fa-glass" style="" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" style="" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
 });
 

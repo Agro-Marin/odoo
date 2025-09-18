@@ -1,4 +1,5 @@
-import { formatFloat, formatFloatTime, formatMonetary } from "@web/views/fields/formatters";
+/** @odoo-module native */
+import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
 import { Component } from "@odoo/owl";
 
 export class BomOverviewSpecialLine extends Component {

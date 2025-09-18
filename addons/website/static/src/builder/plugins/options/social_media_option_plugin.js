@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { ICON_SELECTOR } from "@html_editor/utils/dom_info";
@@ -5,7 +6,7 @@ import { fonts } from "@html_editor/utils/fonts";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { renderToFragment } from "@web/core/utils/render";
-import { SocialMediaLinks } from "./social_media_links";
+import { SocialMediaLinks } from "./social_media_links.js";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { SNIPPET_SPECIFIC, TITLE_LAYOUT_SIZE } from "@html_builder/utils/option_sequence";
 import { BuilderAction } from "@html_builder/core/builder_action";

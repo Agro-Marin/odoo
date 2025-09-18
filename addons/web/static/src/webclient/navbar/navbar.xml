@@ -102,7 +102,7 @@
   </t>
 
   <t t-name="web.NavBar.AppsMenu.Sidebar">
-    <i class="fa fa-bars" aria-hidden="true"/>
+    <i class="fa-solid fa-bars" aria-hidden="true"/>
     <t t-portal="'body'">
       <Transition name="'o-app-menu-sidebar'" visible="state.isAppMenuSidebarOpened" leaveDuration="200" t-slot-scope="transition">
         <div class="o_app_menu_sidebar position-fixed top-0 bottom-0 end-100 d-flex flex-column flex-nowrap" t-att-class="transition.className" t-on-touchstart.stop="_onSwipeStart" t-on-touchend.stop="_onSwipeEnd">
@@ -234,7 +234,7 @@
     <div class="o_menu_sections_more">
       <Dropdown>
         <button title="More Menu" t-att-data-hotkey="hotkey">
-          <i class="fa fa-plus"/>
+          <i class="fa-solid fa-plus"/>
         </button>
 
         <t t-set-slot="content">

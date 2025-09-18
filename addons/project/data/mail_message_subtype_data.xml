@@ -9,10 +9,10 @@
         <field name="description">Task Created</field>
     </record>
     <record id="mt_task_stage" model="mail.message.subtype">
-        <field name="name">Stage Changed</field>
+        <field name="name">Step Changed</field>
         <field name="res_model">project.task</field>
         <field name="default" eval="False"/>
-        <field name="description">Stage changed</field>
+        <field name="description">Workflow step changed</field>
     </record>
     <!-- new state subtypes-->
     <record id="mt_task_in_progress" model="mail.message.subtype">
@@ -75,7 +75,7 @@
     </record>
     <!-- Project-related subtypes for messaging / Chatter -->
     <record id="mt_project_stage_change" model="mail.message.subtype">
-        <field name="name">Project Stage Changed</field>
+        <field name="name">Project Phase Changed</field>
         <field name="sequence">9</field>
         <field name="res_model">project.project</field>
         <field name="default" eval="False"/>
@@ -90,7 +90,7 @@
         <field name="relation_field">project_id</field>
     </record>
     <record id="mt_project_task_stage" model="mail.message.subtype">
-        <field name="name">Task Stage Changed</field>
+        <field name="name">Task Step Changed</field>
         <field name="sequence">16</field>
         <field name="res_model">project.project</field>
         <field name="default" eval="False"/>

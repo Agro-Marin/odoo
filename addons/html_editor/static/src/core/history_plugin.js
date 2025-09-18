@@ -1,12 +1,13 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { Plugin } from "../plugin";
-import { childNodes, descendants, getCommonAncestor } from "../utils/dom_traversal";
+import { Plugin } from "../plugin.js";
+import { childNodes, descendants, getCommonAncestor } from "../utils/dom_traversal.js";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { withSequence } from "@html_editor/utils/resource";
 import { Deferred } from "@web/core/utils/concurrency";
 import { toggleClass } from "@html_editor/utils/dom";
-import { omit, pick } from "@web/core/utils/objects";
-import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking";
+import { omit, pick } from "@web/core/utils/collections/objects";
+import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
 
 /**
  * @typedef { import("./selection_plugin").EditorSelection } EditorSelection

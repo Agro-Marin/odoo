@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
 import { renderToElement } from "@web/core/utils/render";
@@ -17,7 +18,7 @@ export class TableOfContentPlugin extends Plugin {
                 id: "insertTableOfContent",
                 title: _t("Table of Contents"),
                 description: _t("Highlight the structure (headings)"),
-                icon: "fa-bookmark",
+                icon: "fa-solid fa-bookmark",
                 run: this.insertTableOfContent.bind(this),
                 isAvailable: isHtmlContentSupported,
             },

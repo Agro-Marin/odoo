@@ -18,7 +18,7 @@ class ProjectTaskBurndownChartReport extends models.Model {
 
     date = fields.Date();
     project_id = fields.Many2one({ relation: "project.project" });
-    stage_id = fields.Many2one({ relation: "project.task.type" });
+    step_id = fields.Many2one({ relation: "project.workflow.step" });
     is_closed = fields.Selection({
         string: "Burnup chart",
         selection: [
@@ -36,7 +36,7 @@ class ProjectTaskBurndownChartReport extends models.Model {
         {
             id: 1,
             project_id: 1,
-            stage_id: 1,
+            step_id: 1,
             is_closed: "open",
             date: "2020-01-01",
             nb_tasks: 10,
@@ -44,7 +44,7 @@ class ProjectTaskBurndownChartReport extends models.Model {
         {
             id: 2,
             project_id: 1,
-            stage_id: 2,
+            step_id: 2,
             is_closed: "open",
             date: "2020-02-01",
             nb_tasks: 5,
@@ -52,7 +52,7 @@ class ProjectTaskBurndownChartReport extends models.Model {
         {
             id: 3,
             project_id: 1,
-            stage_id: 3,
+            step_id: 3,
             is_closed: "closed",
             date: "2020-03-01",
             nb_tasks: 2,
@@ -77,7 +77,7 @@ const mountViewParams = {
     arch: `
         <graph type="line" js_class="burndown_chart">
             <field name="date" string="Date" interval="month"/>
-            <field name="stage_id"/>
+            <field name="step_id"/>
             <field name="is_closed"/>
             <field name="nb_tasks" type="measure"/>
         </graph>
@@ -91,7 +91,7 @@ async function mountViewWithSearch(mountViewContext = null) {
         searchViewArch: `
             <search string="Burndown Chart">
                 <filter name="date" context="{'group_by': 'date'}"/>
-                <filter name="stage" context="{'group_by': 'stage_id'}"/>
+                <filter name="stage" context="{'group_by': 'step_id'}"/>
                 <filter name="is_closed" context="{'group_by': 'is_closed'}"/>
             </search>
         `,

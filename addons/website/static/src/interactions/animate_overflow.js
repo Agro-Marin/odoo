@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
-import { getScrollingElement } from "@web/core/utils/scrolling";
+import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 
 export class AnimateOverflow extends Interaction {
     static selector = "#wrapwrap";

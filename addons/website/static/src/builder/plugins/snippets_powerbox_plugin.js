@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
 import { withSequence } from "@html_editor/utils/resource";
@@ -22,7 +23,7 @@ class SnippetsPowerboxPlugin extends Plugin {
                 id: "s_rating",
                 title: _t("Rating"),
                 description: _t("Insert a rating snippet"),
-                icon: "fa-star-half-o",
+                icon: "fa-regular fa-star-half-stroke",
                 run: this.insertSnippet.bind(this, "s_rating"),
                 isAvailable: isHtmlContentSupported,
             },
@@ -38,7 +39,7 @@ class SnippetsPowerboxPlugin extends Plugin {
                 id: "s_share",
                 title: _t("Share"),
                 description: _t("Insert a share snippet"),
-                icon: "fa-share-square-o",
+                icon: "fa-regular fa-share-from-square",
                 run: this.insertSnippet.bind(this, "s_share"),
                 isAvailable: isHtmlContentSupported,
             },

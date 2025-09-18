@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useOptionsSubEnv } from "@html_builder/utils/utils";
 import { Img } from "@html_builder/core/img";

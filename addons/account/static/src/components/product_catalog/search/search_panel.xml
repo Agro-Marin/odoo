@@ -9,7 +9,7 @@
         <section position="before">
             <section t-if="showSections" class="o_search_panel_sections mt-5">
                 <header class="d-flex align-items-center cursor-default gap-2 mb-3">
-                    <i class="fa fa-filter"/>
+                    <i class="fa-solid fa-filter"/>
                     <span class="text-uppercase fw-bold">Sections</span>
                     <div class="d-flex align-items-center ms-auto">
                         <span class="me-2">Filter</span>
@@ -47,7 +47,7 @@
                             />
                             <i
                                 t-else=""
-                                class="fa fa-pencil"
+                                class="fa-solid fa-pencil"
                                 t-on-click="() => this.enableSectionInput('top')"
                             />
                             <input

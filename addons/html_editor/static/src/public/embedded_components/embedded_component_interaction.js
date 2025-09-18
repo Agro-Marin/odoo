@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { TableOfContentManager } from "@html_editor/others/embedded_components/core/table_of_content/table_of_content_manager";
 import { Component, onMounted, onWillDestroy, useSubEnv, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";

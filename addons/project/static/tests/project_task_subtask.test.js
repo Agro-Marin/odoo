@@ -19,7 +19,7 @@ beforeEach(() => {
             closed_subtask_count: 1,
             subtask_count: 4,
             user_ids: [7],
-            state: "01_in_progress",
+            state: "in_progress",
         },
         {
             id: 2,
@@ -29,7 +29,7 @@ beforeEach(() => {
             child_ids: [],
             closed_subtask_count: 0,
             subtask_count: 0,
-            state: "03_approved",
+            state: "approved",
         },
         {
             id: 3,
@@ -39,7 +39,7 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 0,
             child_ids: [],
-            state: "02_changes_requested",
+            state: "changes_requested",
         },
         {
             id: 4,
@@ -49,7 +49,7 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 0,
             child_ids: [],
-            state: "1_done",
+            state: "done",
         },
         {
             id: 5,
@@ -57,7 +57,7 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 1,
             child_ids: [6],
-            state: "03_approved",
+            state: "approved",
         },
         {
             id: 6,
@@ -66,7 +66,7 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 0,
             child_ids: [],
-            state: "1_canceled",
+            state: "canceled",
         },
         {
             id: 7,
@@ -76,7 +76,7 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 0,
             child_ids: [],
-            state: "01_in_progress",
+            state: "in_progress",
             user_ids: [7],
         },
         {
@@ -224,7 +224,7 @@ test("project.task (kanban): check subtask creation", async () => {
             const newSubtaskId = MockServer.env["project.task"].create({
                 name: display_name,
                 parent_id,
-                state: "01_in_progress",
+                state: "in_progress",
                 sequence: sequence,
             });
             MockServer.env["project.task"].write(parent_id, {

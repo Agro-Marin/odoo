@@ -15,7 +15,7 @@
                 Add
             </button>
             <button t-if="this.props.reactive.nbSelected > 0" class="btn btn-secondary" data-tooltip="Delete" t-on-click="() => this.onDelete()">
-                <i class="fa fa-trash text-danger"/>
+                <i class="fa-solid fa-trash-can text-danger"/>
             </button>
         </div>
     </t>

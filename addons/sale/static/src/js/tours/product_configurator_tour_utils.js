@@ -1,3 +1,4 @@
+/** @odoo-module native */
 function productSelector(productName) {
     return `
         table.o_sale_product_configurator_table

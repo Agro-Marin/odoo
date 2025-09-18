@@ -1,3 +1,14 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/views/standard_view_props - Shared OWL props validation shape for all standard view controllers */
+
+/**
+ * OWL props validation shape shared by all standard view controllers.
+ *
+ * Each view (list, kanban, form, etc.) uses these as the base `static props`
+ * so the framework validates the same core set of props everywhere.
+ */
 export const standardViewProps = {
     info: {
         type: Object,

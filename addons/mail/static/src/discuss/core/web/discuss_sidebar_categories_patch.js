@@ -1,8 +1,9 @@
-import { patch } from "@web/core/utils/patch";
-import { DiscussSidebarCategory } from "../public_web/discuss_sidebar_categories";
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
+import { patch } from "@web/core/utils/patch";
 
+import { DiscussSidebarCategory } from "../public_web/discuss_sidebar_categories.js";
 /** @type {import("@mail/discuss/core/public_web/discuss_sidebar_categories").DiscussSidebarCategory} */
 const DiscussSidebarCategoryPatch = {
     setup() {
@@ -33,7 +34,7 @@ const DiscussSidebarCategoryPatch = {
             actions.push({
                 onSelect: () => this.open(),
                 label: _t("View or join channels"),
-                icon: "fa fa-cog",
+                icon: "fa-solid fa-cog",
             });
         }
         return actions;

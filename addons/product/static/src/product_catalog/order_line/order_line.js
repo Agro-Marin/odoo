@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { formatFloat, formatMonetary } from "@web/views/fields/formatters";
+import { formatFloat, formatMonetary } from "@web/fields/formatters";
 
 export class ProductCatalogOrderLine extends Component {
     static template = "product.ProductCatalogOrderLine";

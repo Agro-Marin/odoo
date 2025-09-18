@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { listView } from "@web/views/list/list_view";
-import { InventoryReportListModel } from "./inventory_report_list_model";
+import { InventoryReportListModel } from "./inventory_report_list_model.js";
 import { registry } from "@web/core/registry";
 
 export const InventoryReportListView = {

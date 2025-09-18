@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { BEGIN } from "@html_builder/utils/option_sequence";
-import { EmbedCodeOptionDialog } from "./embed_code_option_dialog";
+import { EmbedCodeOptionDialog } from "./embed_code_option_dialog.js";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";

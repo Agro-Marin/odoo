@@ -1,3 +1,4 @@
+/** @odoo-module native */
 const MAX_SAMPLES = 1152;
 
 export class Mp3Encoder {
@@ -17,7 +18,11 @@ export class Mp3Encoder {
         };
         Object.assign(this.config, config);
         // eslint-disable-next-line no-undef
-        this.mp3Encoder = new lamejs.Mp3Encoder(1, this.config.sampleRate, this.config.bitRate);
+        this.mp3Encoder = new lamejs.Mp3Encoder(
+            1,
+            this.config.sampleRate,
+            this.config.bitRate,
+        );
         this.samplesMono = null;
         this.clearBuffer();
     }

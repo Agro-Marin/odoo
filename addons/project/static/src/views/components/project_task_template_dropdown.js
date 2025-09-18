@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { Dropdown } from "@web/core/dropdown/dropdown";
-import { DropdownItem } from "@web/core/dropdown/dropdown_item";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 
-import { ProjectTemplateButtons } from "./project_template_buttons";
+import { ProjectTemplateButtons } from "./project_template_buttons.js";
 
 export class ProjectTaskTemplateDropdown extends Component {
     static template = "project.TemplateDropdown";
@@ -32,7 +33,7 @@ export class ProjectTaskTemplateDropdown extends Component {
         },
     };
     static defaultProps = {
-        hotkey: "r",
+        hotkey: "c",
         projectId: null,
     };
 

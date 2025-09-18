@@ -47,7 +47,8 @@
                     @include o-position-absolute(2px, 3px);
                     display: inline-block;
                     content: "\f00c";
-                    font-family: FontAwesome;
+                    font-family: "Font Awesome 7 Free";
+                    font-weight: 900;
                     color: white;
                     font-size: 12px;
                 }

@@ -1,7 +1,6 @@
+/** @odoo-module native */
 import { NotificationMessage } from "@mail/core/common/notification_message";
-
 import { patch } from "@web/core/utils/patch";
-
 patch(NotificationMessage.prototype, {
     /**
      * @override

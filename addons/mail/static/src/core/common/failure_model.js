@@ -1,8 +1,7 @@
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { markRaw } from "@odoo/owl";
-
 import { _t } from "@web/core/l10n/translation";
-
 export class Failure extends Record {
     static nextId = markRaw({ value: 1 });
     static id = "id";

@@ -1,3 +1,8 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/core/utils/search - Fuzzy text search with consecutive-letter scoring and normalized matching */
+
 import { normalize } from "@web/core/l10n/utils";
 
 /**
@@ -112,12 +117,10 @@ export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
     const maxNbrCorrection = Math.round(pattern.length / errorRatio);
     const results = [];
     list.forEach((candidate) => {
-        let score = -1;
         if (candidate.includes(pattern)) {
-            score = 0;
-            results.push({ score, elem: pattern });
+            results.push({ score: 0, elem: candidate });
         } else {
-            score = getLevenshteinScore(pattern, candidate);
+            const score = getLevenshteinScore(pattern, candidate);
             if (score >= 0 && score <= maxNbrCorrection) {
                 results.push({ score, elem: candidate });
             }
@@ -127,42 +130,42 @@ export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
     return results.map((r) => r.elem);
 }
 
-
 /**
  * Computes the Levenshtein distance between two strings.
+ * Uses a two-row approach: O(min(a,b)) memory instead of O(a*b).
  *
  * @param {string} a
  * @param {string} b
  * @returns {number} The Levenshtein distance between `a` and `b`.
  */
 function getLevenshteinScore(a, b) {
-    let aLength = a.length;
-    let bLength = b.length;
-
-    let distanceMatrix = [];
-    for (let i = 0; i <= aLength; i++) {
-        distanceMatrix[i] = [];
-        for (let j = 0; j <= bLength; j++) {
-            distanceMatrix[i][j] = 0;
-        }
+    const aLen = a.length;
+    const bLen = b.length;
+    if (aLen === 0) {
+        return bLen;
     }
-
-    for (let i = 0; i <= aLength; i++) {
-        for (let j = 0; j <= bLength; j++) {
-            if (Math.min(i, j) === 0) {
-                distanceMatrix[i][j] = Math.max(i, j);
+    if (bLen === 0) {
+        return aLen;
+    }
+    // Ensure b is the shorter string so the row arrays are minimal.
+    if (aLen < bLen) {
+        return getLevenshteinScore(b, a);
+    }
+    let prev = new Array(bLen + 1);
+    let curr = new Array(bLen + 1);
+    for (let j = 0; j <= bLen; j++) {
+        prev[j] = j;
+    }
+    for (let i = 1; i <= aLen; i++) {
+        curr[0] = i;
+        for (let j = 1; j <= bLen; j++) {
+            if (a[i - 1] === b[j - 1]) {
+                curr[j] = prev[j - 1];
             } else {
-                if (a[i - 1] === b[j - 1]) {
-                    distanceMatrix[i][j] = distanceMatrix[i - 1][j - 1];
-                } else {
-                    distanceMatrix[i][j] = Math.min(
-                        distanceMatrix[i - 1][j] + 1,
-                        distanceMatrix[i][j - 1] + 1,
-                        distanceMatrix[i - 1][j - 1] + 1
-                    );
-                }
+                curr[j] = 1 + Math.min(prev[j], curr[j - 1], prev[j - 1]);
             }
         }
+        [prev, curr] = [curr, prev];
     }
-    return distanceMatrix[aLength][bLength];
+    return prev[bLen];
 }

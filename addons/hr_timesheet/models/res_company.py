@@ -53,7 +53,7 @@ class ResCompany(models.Model):
                 'name': _('Internal'),
                 'allow_timesheets': True,
                 'company_id': company.id,
-                'type_ids': type_ids,
+                'workflow_step_ids': type_ids,
                 'task_ids': [(0, 0, {
                     'name': name,
                     'company_id': company.id,

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
@@ -6,7 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
-import { TranslateWebpageOption } from "./translate_webpage_option";
+import { TranslateWebpageOption } from "./translate_webpage_option.js";
 
 /**
  * @typedef { Object } CustomizeTranslationTabShared

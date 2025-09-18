@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // This file is just a "static" class to store the options for the DataService class.
 // We are now able to override options from others modules
 export class DataServiceOptions {
@@ -12,7 +13,8 @@ export class DataServiceOptions {
             },
             "pos.order.line": {
                 key: "uuid",
-                condition: (record) => record.order_id?.finalized && record.order_id.isSynced,
+                condition: (record) =>
+                    record.order_id?.finalized && record.order_id.isSynced,
             },
             "pos.payment": {
                 key: "uuid",
@@ -22,7 +24,8 @@ export class DataServiceOptions {
             "product.attribute.custom.value": {
                 key: "id",
                 condition: (record) =>
-                    record.order_id?.finalized && typeof record.order_id.id === "number",
+                    record.order_id?.finalized &&
+                    typeof record.order_id.id === "number",
             },
         };
     }

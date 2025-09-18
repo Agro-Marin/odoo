@@ -39,7 +39,7 @@
     margin-left: -3mm;
     margin-right: -3mm;
     overflow: hidden;
-    page-break-before: always;
+    break-before: page;
     padding: 1mm 0mm 0mm;
 
     &.o_label_dymo {

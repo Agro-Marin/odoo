@@ -1,6 +1,6 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { Base } from "./related_models";
-
+import { Base } from "./related_models.js";
 export class ResPartner extends Base {
     static pythonModel = "res.partner";
 
@@ -27,7 +27,9 @@ export class ResPartner extends Base {
 
     exactMatch(searchWord) {
         const fields = ["barcode"];
-        return fields.some((field) => this[field] && this[field].toLowerCase() === searchWord);
+        return fields.some(
+            (field) => this[field] && this[field].toLowerCase() === searchWord,
+        );
     }
 }
 registry.category("pos_available_models").add(ResPartner.pythonModel, ResPartner);

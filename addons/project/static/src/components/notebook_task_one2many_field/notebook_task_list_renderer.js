@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { useState } from "@odoo/owl";
 
 import { _t } from "@web/core/l10n/translation";
 
-import { TaskListRenderer } from "../task_list_renderer";
+import { TaskListRenderer } from "../task_list_renderer.js";
 
 export class NotebookTaskListRenderer extends TaskListRenderer {
     static rowsTemplate = "project.NotebookTaskListRenderer.Rows";

@@ -108,7 +108,7 @@
                             <label for="lot_id" invisible="tracking not in ['serial', 'lot']"/>
                             <div class="o_row" invisible="tracking not in ['serial', 'lot']">
                                 <field name="lot_id" context="{'default_product_id': product_id}" groups="stock.group_production_lot" invisible="tracking not in ['serial', 'lot']" readonly="state == 'done'" required="state=='done' and tracking in ['serial', 'lot']"/>
-                                <button name="action_generate_serial" type="object" class="btn btn-primary fa fa-plus-square-o" aria-label="Creates a new serial/lot number" title="Creates a new serial/lot number" role="img" invisible="lot_id"/>
+                                <button name="action_generate_serial" type="object" class="btn btn-primary fa-regular fa-square-plus" aria-label="Creates a new serial/lot number" title="Creates a new serial/lot number" role="img" invisible="lot_id"/>
                             </div>
                             <label for="product_qty" invisible="not product_id" groups="base.group_no_one"/>
                             <div class="o_row" invisible="not product_id" groups="base.group_no_one">
@@ -163,7 +163,7 @@
                                 <field name="date" optional="hide"/>
                                 <field name="date_deadline" optional="hide"/>
                                 <field name="product_uom_qty" string="Demand" readonly="state in ('done', 'cancel')"/>
-                                <field name="forecast_expected_date" column_invisible="True"/>
+                                <field name="date_planned_forecast" column_invisible="True"/>
                                 <field name="product_qty" readonly="1" column_invisible="True"/>
                                 <field name="quantity" string="Quantity" readonly="not product_id"/>
                                 <field name="product_uom" readonly="state != 'draft' and not additional" options="{'no_open': True, 'no_create': True}" widget="many2one_uom"/>

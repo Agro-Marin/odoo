@@ -1,7 +1,9 @@
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 
-import { _t } from "@web/core/l10n/translation";
+import { LIVECHAT_INFO_DEFAULT_OPEN_LS } from "@im_livechat/core/public_web/discuss_app_model_patch";
 import { LivechatChannelInfoList } from "@im_livechat/core/web/livechat_channel_info_list";
+
+import { _t } from "@web/core/l10n/translation";
 
 registerThreadAction("livechat-info", {
     actionPanelComponent: LivechatChannelInfoList,
@@ -10,14 +12,16 @@ registerThreadAction("livechat-info", {
         store.self_partner?.main_user_id?.share === false &&
         !owner.isDiscussSidebarChannelActions,
     panelOuterClass: "o-livechat-ChannelInfoList bg-inherit",
-    icon: "fa fa-fw fa-info",
+    icon: "fa-solid fa-info",
     name: _t("Information"),
     open: ({ store }) => {
         store.discuss.isLivechatInfoPanelOpenByDefault = true;
+        localStorage.removeItem(LIVECHAT_INFO_DEFAULT_OPEN_LS);
     },
     close: ({ action, store }) => {
         if (action.condition) {
             store.discuss.isLivechatInfoPanelOpenByDefault = false;
+            localStorage.setItem(LIVECHAT_INFO_DEFAULT_OPEN_LS, "false");
         }
     },
     sequence: 10,
@@ -59,7 +63,7 @@ registerThreadAction("join-livechat-needing-help", {
         thread?.livechat_status === "need_help" &&
         !thread?.self_member_id &&
         !owner.isDiscussSidebarChannelActions,
-    icon: "fa fa-fw fa-sign-in",
+    icon: "fa-solid fa-right-to-bracket",
     name: _t("Join Chat"),
     nameClass: "text-success",
     open: async ({ store, thread }) => {

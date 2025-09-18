@@ -1,4 +1,5 @@
-import { NoBackdropPopup } from "./no_backdrop_popup";
+/** @odoo-module native */
+import { NoBackdropPopup } from "./no_backdrop_popup.js";
 import { registry } from "@web/core/registry";
 
 export const NoBackdropPopupEdit = (I) =>

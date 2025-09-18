@@ -3,8 +3,8 @@
     $scroll-button-height: 36px;
 
     .o_we_file_selector_control_panel {
-        top: -$modal-inner-padding;
-        background-color: $modal-content-bg;
+        top: -$o-horizontal-padding;
+        background-color: $o-view-background-color;
     }
 
     .o_we_existing_attachments {
@@ -37,7 +37,7 @@
     }
 
     .o_we_load_more {
-        scroll-margin: $modal-inner-padding;
+        scroll-margin: $o-horizontal-padding;
 
         &.o_hide_loading > * {
             display: none;

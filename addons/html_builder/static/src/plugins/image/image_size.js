@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getImageSrc } from "@html_editor/utils/image";
 import { getDataURLBinarySize } from "@html_editor/utils/image_processing";

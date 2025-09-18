@@ -3,17 +3,10 @@
     <t t-name="website_livechat.LivechatChannelInfoList" t-inherit="im_livechat.LivechatChannelInfoList" t-inherit-mode="extension">
         <xpath expr="//t[@t-name='extra_infos']" position="inside">
             <t t-set="visitor" t-value="props.thread.livechat_visitor_id"/>
-            <div t-if="props.thread.showCorrespondentCountry or visitor?.lang_id">
-                <h6 class="pt-3" t-out="countryLanguageLabel"/>
-                <div class="d-flex bg-inherit align-items-center gap-1">
-                    <img t-if="props.thread.showCorrespondentCountry" class="o_country_flag" t-att-src="props.thread.correspondentCountry.flagUrl" t-att-title="props.thread.correspondentCountry.code or props.thread.correspondentCountry.name" aria-label="Country"/>
-                    <span t-if="visitor?.lang_id" title="Language" t-esc="visitor.lang_id.name"/>
-                </div>
-            </div>
             <div t-if="visitor?.pageVisitHistoryText" class="d-flex flex-column bg-inherit gap-1">
                 <h6 class="pt-3">Recent page views</h6>
                 <div t-if="visitor.website_id">
-                    <i class="me-1 fa fa-globe" aria-label="Website"/>
+                    <i class="me-1 fa-solid fa-earth-americas" aria-label="Website"/>
                     <span t-esc="visitor.website_id.name"/>
                 </div>
                 <span t-esc="visitor.pageVisitHistoryText"/>
@@ -33,7 +26,7 @@
                             'rounded-bottom-0 border-bottom': !thread_last,
                         }"
                     >
-                        <i class="fa fa-external-link opacity-75"/>
+                        <i class="fa-solid fa-up-right-from-square opacity-75"/>
                         <span class="ms-1 fw-bold" t-esc="thread.displayName"/>
                         <span t-if="thread.livechat_end_dt" class="o-xsmaller text-muted" t-out="CLOSED_ON_TEXT(thread)"/>
                     </a>

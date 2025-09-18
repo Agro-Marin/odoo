@@ -1,6 +1,7 @@
-import { Plugin } from "../plugin";
-import { isProtecting, isUnprotecting } from "../utils/dom_info";
-import { childNodes } from "../utils/dom_traversal";
+/** @odoo-module native */
+import { Plugin } from "../plugin.js";
+import { isProtecting, isUnprotecting } from "../utils/dom_info.js";
+import { childNodes } from "../utils/dom_traversal.js";
 import { withSequence } from "@html_editor/utils/resource";
 
 const PROTECTED_SELECTOR = `[data-oe-protected="true"],[data-oe-protected=""]`;

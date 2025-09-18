@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { isElement, isTextNode } from "@html_editor/utils/dom_info";
 import {
     Component,

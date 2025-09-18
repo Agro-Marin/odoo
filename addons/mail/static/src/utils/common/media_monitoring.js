@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // Broad human voice range of frequencies in hz.
 const HUMAN_VOICE_FREQUENCY_RANGE = [80, 1000];
 
@@ -34,7 +35,11 @@ export async function monitorAudio(track, processorOptions) {
 
     let processor;
     try {
-        processor = await _loadAudioWorkletProcessor(source, audioContext, processorOptions);
+        processor = await _loadAudioWorkletProcessor(
+            source,
+            audioContext,
+            processorOptions,
+        );
     } catch {
         // In case Worklets are not supported by the browser (eg: Safari)
         processor = _loadScriptProcessor(source, audioContext, processorOptions);
@@ -75,7 +80,7 @@ function _loadScriptProcessor(
         onThreshold,
         onTic,
         volumeThreshold = 0.3,
-    } = {}
+    } = {},
 ) {
     // audio setup
     const bitSize = 1024;
@@ -108,7 +113,7 @@ function _loadScriptProcessor(
         const normalizedVolume = getFrequencyAverage(
             analyser,
             frequencyRange[0],
-            frequencyRange[1]
+            frequencyRange[1],
         );
         if (normalizedVolume >= volumeThreshold) {
             activityBuffer = minimumActiveCycles;
@@ -149,20 +154,24 @@ async function _loadAudioWorkletProcessor(
         onTic,
         volumeThreshold = 0.3,
         normalizationParameters = { boost: 1, shift: 0.6 },
-    } = {}
+    } = {},
 ) {
     await audioContext.resume();
     // Safari does not support Worklet.addModule
     await audioContext.audioWorklet.addModule("/mail/rtc/audio_worklet_processor_v2");
-    const thresholdProcessor = new window.AudioWorkletNode(audioContext, "audio-processor", {
-        processorOptions: {
-            minimumActiveCycles,
-            volumeThreshold,
-            frequencyRange,
-            normalizationParameters,
-            postAllTics: !!onTic,
+    const thresholdProcessor = new window.AudioWorkletNode(
+        audioContext,
+        "audio-processor",
+        {
+            processorOptions: {
+                minimumActiveCycles,
+                volumeThreshold,
+                frequencyRange,
+                normalizationParameters,
+                postAllTics: !!onTic,
+            },
         },
-    });
+    );
     source.connect(thresholdProcessor);
     thresholdProcessor.port.onmessage = (event) => {
         const { isAboveThreshold, volume } = event.data;
@@ -190,8 +199,16 @@ function getFrequencyAverage(analyser, lowerFrequency, higherFrequency) {
     const frequencies = new window.Uint8Array(analyser.frequencyBinCount);
     analyser.getByteFrequencyData(frequencies);
     const sampleRate = analyser.context.sampleRate;
-    const startIndex = _getFrequencyIndex(lowerFrequency, sampleRate, analyser.frequencyBinCount);
-    const endIndex = _getFrequencyIndex(higherFrequency, sampleRate, analyser.frequencyBinCount);
+    const startIndex = _getFrequencyIndex(
+        lowerFrequency,
+        sampleRate,
+        analyser.frequencyBinCount,
+    );
+    const endIndex = _getFrequencyIndex(
+        higherFrequency,
+        sampleRate,
+        analyser.frequencyBinCount,
+    );
     const count = endIndex - startIndex;
     let sum = 0;
     for (let index = startIndex; index < endIndex; index++) {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // Supported file types we need extract on paste
 const supportedFileTypes = ["text/xml", "application/pdf"];
 

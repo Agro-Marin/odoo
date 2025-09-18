@@ -175,7 +175,10 @@ export async function setupHootUI() {
 
         container.shadowRoot.append(
             createStyleElement(colorStyleContent),
-            createLinkElement("/web/static/src/libs/fontawesome/css/font-awesome.css"),
+            createLinkElement("/web/static/src/libs/fontawesome7/css/fontawesome.css"),
+            createLinkElement("/web/static/src/libs/fontawesome7/css/solid.css"),
+            createLinkElement("/web/static/src/libs/fontawesome7/css/regular.css"),
+            createLinkElement("/web/static/src/libs/fontawesome7/css/brands.css"),
             prismStyleLink,
             // Hoot-specific style is loaded last to take priority over other stylesheets
             createLinkElement("/web/static/lib/hoot/ui/hoot_style.css")

@@ -1,12 +1,14 @@
-import { Component, useEffect, whenReady, useRef } from "@odoo/owl";
+/** @odoo-module native */
+import { Component, useEffect, useRef, whenReady } from "@odoo/owl";
 import { OdooLogo } from "@point_of_sale/app/components/odoo_logo/odoo_logo";
 import { useSingleDialog } from "@point_of_sale/customer_display/utils";
-import { MainComponentsContainer } from "@web/core/main_components_container";
-import { session } from "@web/session";
+import { MainComponentsContainer } from "@web/components/main_components_container";
+import { TagsList } from "@web/components/tags_list/tags_list";
 import { useService } from "@web/core/utils/hooks";
 import { mountComponent } from "@web/env";
-import { TagsList } from "@web/core/tags_list/tags_list";
-import { CustomerFacingQR } from "./customer_facing_qr";
+import { session } from "@web/session";
+
+import { CustomerFacingQR } from "./customer_facing_qr.js";
 
 export class CustomerDisplay extends Component {
     static template = "point_of_sale.CustomerDisplay";
@@ -34,7 +36,7 @@ export class CustomerDisplay extends Component {
                     singleDialog.close();
                 }
             },
-            () => [this.order.qrPaymentData]
+            () => [this.order.qrPaymentData],
         );
     }
 

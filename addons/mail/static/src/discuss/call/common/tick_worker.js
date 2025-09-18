@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* eslint-env worker */
 /* eslint-disable no-restricted-globals */
 
@@ -19,13 +20,16 @@ function startProcessing(fps) {
         return;
     }
     isRunning = true;
-    intervalId = setInterval(() => {
-        if (awaitingTock) {
-            return;
-        }
-        awaitingTock = true;
-        self.postMessage({ command: "tick" });
-    }, Math.floor(1000 / (fps || 30)));
+    intervalId = setInterval(
+        () => {
+            if (awaitingTock) {
+                return;
+            }
+            awaitingTock = true;
+            self.postMessage({ command: "tick" });
+        },
+        Math.floor(1000 / (fps || 30)),
+    );
 }
 
 self.onmessage = (e) => {

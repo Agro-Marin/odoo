@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
-} from "@web/views/fields/many2many_tags/many2many_tags_field";
+} from "@web/fields/relational/many2many_tags/many2many_tags_field";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 

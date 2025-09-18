@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { fuzzyLookup } from "@web/core/utils/search";
-import { Plugin } from "../../plugin";
+import { Plugin } from "../../plugin.js";
 
 /**
  * @typedef {import("./powerbox_plugin").PowerboxCategory} CommandGroup

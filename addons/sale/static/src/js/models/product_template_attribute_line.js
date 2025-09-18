@@ -1,4 +1,5 @@
-import { ProductTemplateAttributeValue } from './product_template_attribute_value';
+/** @odoo-module native */
+import { ProductTemplateAttributeValue } from './product_template_attribute_value.js';
 
 export class ProductTemplateAttributeLine {
     /**

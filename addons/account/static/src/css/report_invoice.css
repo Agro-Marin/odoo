@@ -3,18 +3,15 @@
 }
 
 .avoid-page-break-inside {
-    page-break-inside: avoid;
+    break-inside: avoid;
 }
 
-.justify-text {
-    text-align:justify;
-    text-justify:inter-word;
-}
+/* .justify-text moved to web/report.scss — shared across all report modules */
 
 #qrcode_odoo_logo {
-    -webkit-transform:translate(-50%,-50%);
-    height:18%;
-    width:18%;
+    transform: translate(-50%, -50%);
+    height: 18%;
+    width: 18%;
     border-color: white !important;
 }
 

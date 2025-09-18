@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { Base } from "./related_models";
+import { Base } from "./related_models.js";
 const { DateTime } = luxon;
 
 export class PosPayment extends Base {
@@ -35,7 +36,8 @@ export class PosPayment extends Base {
 
     isDone() {
         return this.getPaymentStatus()
-            ? this.getPaymentStatus() === "done" || this.getPaymentStatus() === "reversed"
+            ? this.getPaymentStatus() === "done" ||
+                  this.getPaymentStatus() === "reversed"
             : true;
     }
 
@@ -55,7 +57,7 @@ export class PosPayment extends Base {
         this.setPaymentStatus("waiting");
 
         return this.handlePaymentResponse(
-            await this.payment_method_id.payment_terminal.sendPaymentRequest(this.uuid)
+            await this.payment_method_id.payment_terminal.sendPaymentRequest(this.uuid),
         );
     }
 
@@ -63,7 +65,8 @@ export class PosPayment extends Base {
         if (isPaymentSuccessful) {
             this.setPaymentStatus("done");
             if (this.payment_method_id.payment_method_type !== "qr_code") {
-                this.can_be_reversed = this.payment_method_id.payment_terminal.supports_reversals;
+                this.can_be_reversed =
+                    this.payment_method_id.payment_terminal.supports_reversals;
             }
         } else {
             this.setPaymentStatus("retry");

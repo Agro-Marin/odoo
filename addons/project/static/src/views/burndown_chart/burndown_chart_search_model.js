@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { SearchModel } from "@web/search/search_model";
@@ -18,7 +19,7 @@ export class BurndownChartSearchModel extends SearchModel {
      */
     async load(config) {
         await super.load(...arguments);
-        // Store date and stage_id searchItemId in the SearchModel for reuse in other functions.
+        // Store date and step_id searchItemId in the SearchModel for reuse in other functions.
         for (const searchItem of Object.values(this.searchItems)) {
             if (['dateGroupBy', 'groupBy'].includes(searchItem.type)) {
                 if (this.stageIdSearchItemId && this.dateSearchItemId && this.isClosedSearchItemId) {
@@ -28,7 +29,7 @@ export class BurndownChartSearchModel extends SearchModel {
                     case 'date':
                         this.dateSearchItemId = searchItem.id;
                         break;
-                    case 'stage_id':
+                    case 'step_id':
                         this.stageIdSearchItemId = searchItem.id;
                         break;
                     case 'is_closed':
@@ -108,7 +109,7 @@ export class BurndownChartSearchModel extends SearchModel {
      * @override
      */
     async _notify() {
-        // Ensure that we always group by date first and by stage_id/is_closed second
+        // Ensure that we always group by date first and by step_id/is_closed second
         let stageIdIndex = -1;
         let dateIndex = -1;
         let isClosedIndex = -1;

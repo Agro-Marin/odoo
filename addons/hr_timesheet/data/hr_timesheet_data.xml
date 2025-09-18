@@ -17,7 +17,7 @@
         name="_init_data_analytic_account"
         eval="[]"/>
 
-    <record id="internal_project_default_stage" model="project.task.type">
+    <record id="internal_project_default_stage" model="project.workflow.step">
         <field name="sequence">1</field>
         <field name="name">Internal</field>
     </record>

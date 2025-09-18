@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { rpc } from "@web/core/network/rpc";
-import { pick } from "@web/core/utils/objects";
+import { pick } from "@web/core/utils/collections/objects";
 import { loadBundle } from "@web/core/assets";
-import { getImageSrc } from "./image";
+import { getImageSrc } from "./image.js";
 
 // Fields returned by cropperjs 'getData' method, also need to be passed when
 // initializing the cropper to reuse the previous crop.

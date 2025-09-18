@@ -1,5 +1,13 @@
+// @ts-check
+
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { edit, keyDown, press, queryAllAttributes, queryAllTexts } from "@odoo/hoot-dom";
+import {
+    edit,
+    keyDown,
+    press,
+    queryAllAttributes,
+    queryAllTexts,
+} from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import {
     contains,
@@ -7,9 +15,8 @@ import {
     patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
-
 import { cookie } from "@web/core/browser/cookie";
-import { user } from "@web/core/user";
+import { user } from "@web/services/user";
 import { SwitchCompanyMenu } from "@web/webclient/switch_company_menu/switch_company_menu";
 
 const ORIGINAL_TOGGLE_DELAY = SwitchCompanyMenu.toggleDelay;
@@ -22,13 +29,14 @@ async function createSwitchCompanyMenu(options = { toggleDelay: 0 }) {
 function patchUserActiveCompanies(cids) {
     patchWithCleanup(
         user.activeCompanies,
-        cids.map((cid) => serverState.companies.find((company) => company.id === cid))
+        cids.map((cid) => serverState.companies.find((company) => company.id === cid)),
     );
 }
 
 describe.current.tags("desktop");
 
-const clickConfirm = () => contains(".o_switch_company_menu_buttons button:first").click();
+const clickConfirm = () =>
+    contains(".o_switch_company_menu_buttons button:first").click();
 
 const openCompanyMenu = () => contains(".dropdown-toggle").click();
 
@@ -59,10 +67,10 @@ test("basic rendering", async () => {
 
     expect("[data-company-id] [role=menuitemcheckbox]").toHaveCount(5);
     expect(".log_into").toHaveCount(5);
-    expect(".fa-check-square").toHaveCount(1);
-    expect(".fa-square-o").toHaveCount(4);
-    expect(".dropdown-item:has(.fa-check-square)").toHaveText("Hermit");
-    expect(".dropdown-item:has(.fa-square-o):eq(0)").toHaveText("Herman's");
+    expect(".fa-square-check").toHaveCount(1);
+    expect(".fa-regular.fa-square").toHaveCount(4);
+    expect(".dropdown-item:has(.fa-square-check)").toHaveText("Hermit");
+    expect(".dropdown-item:has(.fa-regular.fa-square):eq(0)").toHaveText("Herman's");
     expect(".dropdown-menu").toHaveText("Hermit\nHerman's\nHeroes TM\nHercules\nHulk");
 });
 
@@ -80,11 +88,11 @@ test("companies can be toggled: toggle a second company", async () => {
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(4);
-    expect(queryAllAttributes("[data-company-id] [role=menuitemcheckbox]", "aria-checked")).toEqual(
-        ["true", "false", "false", "false", "false"]
-    );
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
+    expect(
+        queryAllAttributes("[data-company-id] [role=menuitemcheckbox]", "aria-checked"),
+    ).toEqual(["true", "false", "false", "false", "false"]);
     expect(queryAllAttributes("[data-company-id] .log_into", "aria-pressed")).toEqual([
         "true",
         "false",
@@ -102,11 +110,11 @@ test("companies can be toggled: toggle a second company", async () => {
      */
     await toggleCompany(1);
     expect(".dropdown-menu").toHaveCount(1, { message: "dropdown is still opened" });
-    expect("[data-company-id] .fa-check-square").toHaveCount(2);
-    expect("[data-company-id] .fa-square-o").toHaveCount(3);
-    expect(queryAllAttributes("[data-company-id] [role=menuitemcheckbox]", "aria-checked")).toEqual(
-        ["true", "true", "false", "false", "false"]
-    );
+    expect("[data-company-id] .fa-square-check").toHaveCount(2);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(3);
+    expect(
+        queryAllAttributes("[data-company-id] [role=menuitemcheckbox]", "aria-checked"),
+    ).toEqual(["true", "true", "false", "false", "false"]);
     expect(queryAllAttributes("[data-company-id] .log_into", "aria-pressed")).toEqual([
         "true",
         "false",
@@ -132,8 +140,8 @@ test("can toggle multiple companies at once", async () => {
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(4);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
     /**
      *   [ ] Hermit          -> toggle all
@@ -146,8 +154,8 @@ test("can toggle multiple companies at once", async () => {
     await toggleCompany(1);
     await toggleCompany(2);
     expect(".dropdown-menu").toHaveCount(1, { message: "dropdown is still opened" });
-    expect("[data-company-id] .fa-check-square").toHaveCount(4);
-    expect("[data-company-id] .fa-square-o").toHaveCount(1);
+    expect("[data-company-id] .fa-square-check").toHaveCount(4);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
 
     expect.verifySteps([]);
     await clickConfirm();
@@ -170,8 +178,8 @@ test("single company selected: toggling it off will keep it", async () => {
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(4);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
     /**
      *   [x] **Hermit**  -> toggle off
@@ -188,8 +196,8 @@ test("single company selected: toggling it off will keep it", async () => {
     expect(user.activeCompany.id).toBe(3);
 
     await openCompanyMenu();
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(4);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 });
 
 test("single company mode: companies can be logged in", async () => {
@@ -206,8 +214,8 @@ test("single company mode: companies can be logged in", async () => {
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(4);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
     /**
      *   [ ] Hermit
@@ -236,8 +244,8 @@ test("multi company mode: log into a non selected company", async () => {
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(2);
-    expect("[data-company-id] .fa-square-o").toHaveCount(3);
+    expect("[data-company-id] .fa-square-check").toHaveCount(2);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(3);
 
     /**
      *   [x] Hermit
@@ -266,8 +274,8 @@ test("multi company mode: log into an already selected company", async () => {
     expect(user.activeCompany.id).toBe(2);
     await openCompanyMenu();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(2);
-    expect("[data-company-id] .fa-square-o").toHaveCount(3);
+    expect("[data-company-id] .fa-square-check").toHaveCount(2);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(3);
 
     /**
      *   [ ] Hermit
@@ -295,8 +303,8 @@ test("companies can be logged in even if some toggled within delay", async () =>
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(4);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
     /**
      *   [ ] Hermit         -> toggled
@@ -341,8 +349,8 @@ test("single company mode: from company loginto branch", async () => {
     expect(user.activeCompany.id).toBe(3);
     await contains(".dropdown-toggle").click();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(4);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
     /**
      *   [ ] Hermit
@@ -370,8 +378,8 @@ test("single company mode: from branch loginto company", async () => {
     expect(user.activeCompany.id).toBe(1);
     await contains(".dropdown-toggle").click();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(3);
-    expect("[data-company-id] .fa-square-o").toHaveCount(2);
+    expect("[data-company-id] .fa-square-check").toHaveCount(3);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
     /**
      *   [x] Hermit    -> log into
@@ -399,8 +407,8 @@ test("single company mode: from leaf (only one company in branch selected) login
     expect(user.activeCompany.id).toBe(1);
     await contains(".dropdown-toggle").click();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(4);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
     /**
      *   [ ] Hermit
@@ -428,8 +436,8 @@ test("multi company mode: switching company doesn't deselect already selected on
     expect(user.activeCompany.id).toBe(1);
     await contains(".dropdown-toggle").click();
     expect("[data-company-id]").toHaveCount(5);
-    expect("[data-company-id] .fa-check-square").toHaveCount(4);
-    expect("[data-company-id] .fa-square-o").toHaveCount(1);
+    expect("[data-company-id] .fa-square-check").toHaveCount(4);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
 
     /**
      *   [ ] Hermit
@@ -469,7 +477,13 @@ test("show search input when more that 10 companies & search filters items but i
         { id: 1, name: "Heroes TM", sequence: 3, parent_id: false, child_ids: [4, 5] },
         { id: 4, name: "Hercules", sequence: 4, parent_id: 1, child_ids: [] },
         { id: 5, name: "Hulk", sequence: 5, parent_id: 1, child_ids: [] },
-        { id: 6, name: "Random Company a", sequence: 6, parent_id: false, child_ids: [7, 8] },
+        {
+            id: 6,
+            name: "Random Company a",
+            sequence: 6,
+            parent_id: false,
+            child_ids: [7, 8],
+        },
         { id: 7, name: "Random Company aa", sequence: 7, parent_id: 6, child_ids: [] },
         { id: 8, name: "Random Company ab", sequence: 8, parent_id: 6, child_ids: [] },
         { id: 9, name: "Random d", sequence: 9, parent_id: false, child_ids: [] },
@@ -517,7 +531,13 @@ test("navigation with search input", async () => {
         { id: 1, name: "Heroes TM", sequence: 3, parent_id: false, child_ids: [4, 5] },
         { id: 4, name: "Hercules", sequence: 4, parent_id: 1, child_ids: [] },
         { id: 5, name: "Hulk", sequence: 5, parent_id: 1, child_ids: [] },
-        { id: 6, name: "Random Company a", sequence: 6, parent_id: false, child_ids: [7, 8] },
+        {
+            id: 6,
+            name: "Random Company a",
+            sequence: 6,
+            parent_id: false,
+            child_ids: [7, 8],
+        },
         { id: 7, name: "Random Company aa", sequence: 7, parent_id: 6, child_ids: [] },
         { id: 8, name: "Random Company ab", sequence: 8, parent_id: 6, child_ids: [] },
         { id: 9, name: "Random d", sequence: 9, parent_id: false, child_ids: [] },
@@ -567,8 +587,8 @@ test("navigation with search input", async () => {
             expect(
                 queryAllAttributes(
                     ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
-                    "data-company-id"
-                ).map(Number)
+                    "data-company-id",
+                ).map(Number),
             ).toEqual(selectedCompanies);
         }
     }
@@ -590,22 +610,32 @@ test("select and de-select all", async () => {
     await animationFrame();
 
     // One company is selected, there should be a check box with minus inside
-    expect("[role=menuitemcheckbox][title='Deselect all'] i").toHaveClass("fa-minus-square-o");
+    expect("[role=menuitemcheckbox][title='Deselect all'] i").toHaveClass(
+        "fa-regular fa-square-minus",
+    );
 
     await contains("[role=menuitemcheckbox][title='Deselect all']").click();
     // No company is selected, there should be a empty check box
-    expect("[role=menuitemcheckbox][title='Select all'] i").toHaveClass("fa-square-o");
-    expect(".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])").toHaveCount(0);
+    expect("[role=menuitemcheckbox][title='Select all'] i").toHaveClass("fa-regular fa-square");
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
+    ).toHaveCount(0);
 
     await contains("[role=menuitemcheckbox][title='Select all']").click();
     // All companies are selected, there should be a checked check box
-    expect("[role=menuitemcheckbox][title='Deselect all'] i").toHaveClass("fa-check-square");
-    expect(".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])").toHaveCount(5);
+    expect("[role=menuitemcheckbox][title='Deselect all'] i").toHaveClass(
+        "fa-solid fa-square-check",
+    );
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
+    ).toHaveCount(5);
 
     await contains("[role=menuitemcheckbox][title='Deselect all']").click();
     // No company is selected, there should be a empty check box
-    expect("[role=menuitemcheckbox][title='Select all'] i").toHaveClass("fa-square-o");
-    expect(".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])").toHaveCount(0);
+    expect("[role=menuitemcheckbox][title='Select all'] i").toHaveClass("fa-regular fa-square");
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
+    ).toHaveCount(0);
 });
 
 test("de-select only changes visible companies", async () => {
@@ -615,7 +645,9 @@ test("de-select only changes visible companies", async () => {
     // Show search
     await edit(" ");
     await toggleCompany(4);
-    expect(".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])").toHaveCount(2);
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
+    ).toHaveCount(2);
 
     // Show search
     await contains("input").edit("m");
@@ -623,26 +655,34 @@ test("de-select only changes visible companies", async () => {
 
     // One company is selected, unselect all
     await contains("[role=menuitemcheckbox][title='Deselect all']").click();
-    expect(".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])").toHaveCount(0);
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
+    ).toHaveCount(0);
 
     // Hidden company is still selected
     await contains("input").clear();
     await animationFrame();
-    expect(".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])").toHaveCount(1);
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
+    ).toHaveCount(1);
 
     // Filter and select all visible companies
     await contains("input").edit("m");
     await animationFrame();
     await contains("[role=menuitemcheckbox][title='Select all']").click();
-    expect(".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])").toHaveCount(3);
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
+    ).toHaveCount(3);
 
     // Hidden company is unchanged
     await contains("input").clear();
     await animationFrame();
-    expect(".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])").toHaveCount(4);
-    expect(".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=false])").toHaveCount(
-        1
-    );
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
+    ).toHaveCount(4);
+    expect(
+        ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=false])",
+    ).toHaveCount(1);
 });
 
 test("disallowed companies in between allowed companies are not enabled", async () => {
@@ -653,7 +693,10 @@ test("disallowed companies in between allowed companies are not enabled", async 
         { id: 3, name: "Child B", sequence: 3, parent_id: 2, child_ids: [] },
     ];
 
-    patchWithCleanup(user.allowedCompanies, [serverState.companies[0], serverState.companies[2]]);
+    patchWithCleanup(user.allowedCompanies, [
+        serverState.companies[0],
+        serverState.companies[2],
+    ]);
 
     await createSwitchCompanyMenu();
 
@@ -666,8 +709,8 @@ test("disallowed companies in between allowed companies are not enabled", async 
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
     expect("[data-company-id]").toHaveCount(3);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(2);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
     /**
      *   [x] Parent -> toggle
@@ -679,6 +722,6 @@ test("disallowed companies in between allowed companies are not enabled", async 
 
     await openCompanyMenu();
     await toggleCompany(0);
-    expect("[data-company-id] .fa-check-square").toHaveCount(0);
-    expect("[data-company-id] .fa-square-o").toHaveCount(3);
+    expect("[data-company-id] .fa-square-check").toHaveCount(0);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(3);
 });

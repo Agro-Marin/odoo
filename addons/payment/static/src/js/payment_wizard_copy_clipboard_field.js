@@ -1,12 +1,12 @@
-/** @odoo-module **/
+/** @odoo-module native */
 
 import { registry } from "@web/core/registry";
 import {
     copyClipboardButtonField,
     CopyClipboardButtonField,
-} from "@web/views/fields/copy_clipboard/copy_clipboard_field";
+} from "@web/fields/basic/copy_clipboard/copy_clipboard_field";
 
-import { CopyButton } from "@web/core/copy_button/copy_button";
+import { CopyButton } from "@web/components/copy_button/copy_button";
 
 class PaymentWizardCopyButton extends CopyButton {
     async onClick() {

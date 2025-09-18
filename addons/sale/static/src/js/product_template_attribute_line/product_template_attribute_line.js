@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { Component } from "@odoo/owl";
-import { formatCurrency } from "@web/core/currency";
-import { BadgeExtraPrice } from "../badge_extra_price/badge_extra_price";
-import { getSelectedCustomPtav } from "../sale_utils";
+import { formatCurrency } from "@web/services/currency";
+import { BadgeExtraPrice } from "../badge_extra_price/badge_extra_price.js";
+import { getSelectedCustomPtav } from "../sale_utils.js";
 
 export class ProductTemplateAttributeLine extends Component {
     static components = { BadgeExtraPrice };

@@ -1,9 +1,8 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
-
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { CharField } from "@web/views/fields/char/char_field";
-
+import { CharField } from "@web/fields/basic/char/char_field";
 export class ShortcutCharField extends Component {
     static template = "mail.ShortcutCharField";
     static components = { CharField };

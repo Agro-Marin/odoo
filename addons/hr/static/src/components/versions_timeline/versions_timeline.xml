@@ -9,7 +9,7 @@
                     title="New Employee Record"
                     t-on-click="onClickDateTimePickerBtn"
                     class="btn btn-primary">
-                    <i class="fa fa-plus"/>
+                    <i class="fa-solid fa-plus"/>
                 </button>
             </div>
         </div>

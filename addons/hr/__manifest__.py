@@ -11,11 +11,9 @@
         'static/src/img/default_image.png',
     ],
     'depends': [
-        'base_setup',
         'digest',
         'phone_validation',
         'resource_mail',
-        'web',
     ],
     'data': [
         'security/hr_security.xml',
@@ -39,13 +37,13 @@
         'views/hr_employee_views.xml',
         'views/hr_department_views.xml',
         'views/hr_work_location_views.xml',
-        'views/hr_views.xml',
         'views/res_config_settings_views.xml',
         'views/res_partner_views.xml',
         'views/res_partner_bank_views.xml',
         'views/discuss_channel_views.xml',
         'views/res_users.xml',
         'views/hr_templates.xml',
+        'views/hr_menus.xml',
         'data/hr_data.xml',
     ],
     'demo': [

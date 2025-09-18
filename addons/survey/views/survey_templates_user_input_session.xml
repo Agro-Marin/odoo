@@ -57,7 +57,7 @@
                 <div class="o_survey_session_open_link d-flex flex-column flex-md-row align-items-center gap-3 gap-md-0 justify-content-between px-5 py-4 rounded-3 bg-black">
                     <div class="fs-5 o_survey_session_copy">
                         <span class="text-info o_survey_session_copy_url" t-out="survey.session_link"/>
-                        <i class="fa fa-copy"/>
+                        <i class="fa-solid fa-copy"/>
                     </div>
                     <a role="button" class="o_survey_session_navigation_next btn btn-lg btn-primary w-100 w-md-auto">
                         <span class="o_survey_session_navigation_next_label">Start</span>
@@ -177,8 +177,8 @@
                             <span t-else="">Leaderboard</span>
                         </h1>
                         <div t-att-class="'o_survey_leaderboard_buttons fw-bold %s' % 'd-none' if not is_last_question else 'ms-2'">
-                            <a href="#" role="button" class="o_survey_session_close btn btn-primary mt-1"><i class="fa fa-close"/> Close</a>
-                            <a href="#" role="button" class="o_survey_session_close btn btn-primary mt-1" t-att-data-show-results="True"><i class="fa fa-bar-chart"/> Results</a>
+                            <a href="#" role="button" class="o_survey_session_close btn btn-primary mt-1"><i class="fa-solid fa-xmark"/> Close</a>
+                            <a href="#" role="button" class="o_survey_session_close btn btn-primary mt-1" t-att-data-show-results="True"><i class="fa-solid fa-chart-column"/> Results</a>
                         </div>
                     </div>
                     <div class="justify-content-center d-flex flex-column flex-grow-1 mt-5 mb-5 pb-5 o_survey_session_leaderboard_container"/>

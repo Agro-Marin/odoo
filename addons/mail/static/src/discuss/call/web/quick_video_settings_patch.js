@@ -1,8 +1,9 @@
-import { useService } from "@web/core/utils/hooks";
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
+import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
-import { QuickVideoSettings } from "../common/quick_video_settings";
 
+import { QuickVideoSettings } from "../common/quick_video_settings.js";
 patch(QuickVideoSettings.prototype, {
     setup() {
         super.setup();

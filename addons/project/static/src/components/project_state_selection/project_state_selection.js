@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { registry } from '@web/core/registry';
 import {
     StateSelectionField,
     stateSelectionField,
-} from "@web/views/fields/state_selection/state_selection_field";
+} from "@web/fields/selection/state_selection/state_selection_field";
 
-import { STATUS_COLORS, STATUS_COLOR_PREFIX } from '../../utils/project_utils';
+import { STATUS_COLORS, STATUS_COLOR_PREFIX } from '../../utils/project_utils.js';
 
 export class ProjectStateSelectionField extends StateSelectionField {
     setup() {

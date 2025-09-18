@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { fileEmbedding } from "@html_editor/others/embedded_components/backend/file/file";
 import { captionEmbedding } from "@html_editor/others/embedded_components/backend/caption/caption";
 import { readonlyFileEmbedding } from "@html_editor/others/embedded_components/core/file/readonly_file";
@@ -9,7 +10,7 @@ import { toggleBlockEmbedding } from "@html_editor/others/embedded_components/co
 import { videoEmbedding } from "@html_editor/others/embedded_components/backend/video/video";
 import { readonlyVideoEmbedding } from "@html_editor/others/embedded_components/core/video/readonly_video";
 import { syntaxHighlightingEmbedding } from "@html_editor/others/embedded_components/backend/syntax_highlighting/syntax_highlighting";
-import { readonlySyntaxHighlightingEmbedding } from "./core/syntax_highlighting/readonly_syntax_highlighting";
+import { readonlySyntaxHighlightingEmbedding } from "./core/syntax_highlighting/readonly_syntax_highlighting.js";
 
 export const MAIN_EMBEDDINGS = [
     fileEmbedding,

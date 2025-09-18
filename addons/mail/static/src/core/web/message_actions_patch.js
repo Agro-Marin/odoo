@@ -1,9 +1,9 @@
-import { getNonEditableMentions, parseEmail } from "@mail/utils/common/format";
+/** @odoo-module native */
 import { registerMessageAction } from "@mail/core/common/message_actions";
+import { getNonEditableMentions, parseEmail } from "@mail/utils/common/format";
 import { _t } from "@web/core/l10n/translation";
-import { renderToMarkup } from "@web/core/utils/render";
 import { rpc } from "@web/core/network/rpc";
-
+import { renderToMarkup } from "@web/core/utils/render";
 export function messageActionOpenFullComposer(title, context, component) {
     const message = component.props.message;
     const thread = component.props.thread;
@@ -29,7 +29,7 @@ export function messageActionOpenFullComposer(title, context, component) {
 
 registerMessageAction("reply-all", {
     condition: ({ message, thread }) => message.canReplyAll(thread),
-    icon: "fa fa-reply",
+    icon: "fa-solid fa-reply",
     name: _t("Reply All"),
     onSelected: async ({ message, owner, thread }) => {
         const recipients = await rpc("/mail/thread/recipients", {
@@ -63,7 +63,7 @@ registerMessageAction("reply-all", {
 });
 registerMessageAction("forward", {
     condition: ({ message, thread }) => message.canForward(thread),
-    icon: "fa fa-share",
+    icon: "fa-solid fa-share",
     name: _t("Forward"),
     onSelected: async ({ message, owner, store }) => {
         const emailFrom = message.author_id?.email || message.email_from;
@@ -86,7 +86,7 @@ registerMessageAction("forward", {
             [attachmentIds],
             {
                 default: { res_model: "mail.compose.message", res_id: 0 },
-            }
+            },
         );
         const context = {
             default_attachment_ids: newAttachmentIds,

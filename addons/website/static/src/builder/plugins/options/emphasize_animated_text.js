@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { CheckBox } from "@web/core/checkbox/checkbox";
+import { CheckBox } from "@web/components/checkbox/checkbox";
 import { useBus } from "@web/core/utils/hooks";
 
 export class EmphasizeAnimatedText extends Component {

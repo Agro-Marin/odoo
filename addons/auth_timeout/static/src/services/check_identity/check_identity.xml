@@ -48,7 +48,7 @@
     <!-- TOTP Mail -->
     <t t-name="auth_timeout.CheckIdentityFormTOTPMail">
         <div class="text-center">
-            <i class="fa fa-3x fa-envelope" aria-hidden="true"/>
+            <i class="fa-solid fa-envelope fa-3x" aria-hidden="true"/>
             <h3>Authentication code via email</h3>
         </div>
         <div>
@@ -64,7 +64,7 @@
     <!-- TOTP App -->
     <t t-name="auth_timeout.CheckIdentityFormTOTP">
         <div class="text-center">
-            <i class="fa fa-3x fa-mobile" aria-hidden="true"/>
+            <i class="fa-solid fa-mobile-screen-button fa-3x" aria-hidden="true"/>
             <h3>Authentication code</h3>
         </div>
         <input name="token" inputmode="numeric" pattern="[0-9]+" class="form-control" placeholder="XXXXXX"/>
@@ -81,7 +81,7 @@
     <t t-name="auth_timeout.CheckIdentityFormWebAuthN">
         <input type="hidden" name="webauthn_response"/>
         <div class="text-center">
-            <i class="fa fa-3x fa-shield" aria-hidden="true"/>
+            <i class="fa-solid fa-shield fa-3x" aria-hidden="true"/>
             <h3>Passkey</h3>
         </div>
         <div>

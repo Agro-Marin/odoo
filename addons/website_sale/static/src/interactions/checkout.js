@@ -590,7 +590,7 @@ export class Checkout extends Interaction {
      */
     _createLoadingElement() {
         const loadingElement = document.createElement('i');
-        loadingElement.classList.add('fa', 'fa-circle-o-notch', 'fa-spin', 'center');
+        loadingElement.classList.add('fa-solid', 'fa-circle-notch', 'fa-spin', 'center');
         return loadingElement;
     }
 

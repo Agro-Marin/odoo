@@ -1,4 +1,5 @@
-import { DependencyManager } from "../core/dependency_manager";
+/** @odoo-module native */
+import { DependencyManager } from "../core/dependency_manager.js";
 import { useSubEnv } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 

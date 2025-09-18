@@ -3,8 +3,8 @@
 
 {
     'name': "Project - SMS",
-    'summary': 'Send text messages when project/task stage move',
-    'description': "Send text messages when project/task stage move",
+    'summary': 'Send text messages when project/task phase or step changes',
+    'description': "Send text messages when project phase or task workflow step changes",
     'category': 'Services/Project',
     'version': '1.1',
     'depends': ['project', 'sms'],

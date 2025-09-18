@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { MEDIA_SELECTOR, isProtected } from "@html_editor/utils/dom_info";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { shouldEditableMediaBeEditable } from "@html_builder/utils/utils_css";
 import { _t } from "@web/core/l10n/translation";
-import { Tooltip } from "@web/core/tooltip/tooltip";
+import { Tooltip } from "@web/ui/tooltip/tooltip";
 
 /**
  * @typedef { Object } MediaWebsiteShared
@@ -115,7 +116,7 @@ export class MediaWebsitePlugin extends Plugin {
         setTimeout(this.removeCurrentTooltip, 1500);
     }
 
-    async onSnippetDropped({ snippetEl }) {
+    async onSnippetDropped({ snippetEl, dragState }) {
         if (!snippetEl.matches(".media_iframe_video")) {
             return;
         }
@@ -127,6 +128,7 @@ export class MediaWebsitePlugin extends Plugin {
                     isVideoSelected = true;
                     snippetEl.insertAdjacentElement("afterend", selectedVideoEl);
                     snippetEl.remove();
+                    dragState.replacedSnippetEl = selectedVideoEl;
                 },
             });
             onClose.then(() => {

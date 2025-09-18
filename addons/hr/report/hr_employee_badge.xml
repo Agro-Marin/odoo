@@ -7,7 +7,7 @@
         <field name="report_name">hr.print_employee_badge</field>
         <field name="report_file">hr.print_employee_badge</field>
         <field name="paperformat_id" ref="hr.paperformat_hr_employee_badge"/>
-        <field name="print_report_name">'Badge - %s' % (object.name).replace('/', '')</field>
+        <field name="print_report_name">f'Badge - {object.name}'.replace('/', '')</field>
         <field name="binding_model_id" ref="model_hr_employee"/>
         <field name="binding_type">report</field>
     </record>
@@ -17,7 +17,7 @@
             <div class="page">
                 <div class="oe_structure"></div>
                 <t t-foreach="docs" t-as="employee">
-                    <div style="display: inline-block; page-break-inside: avoid; width: 243pt; height: 153pt; border: 1pt solid black; border-radius:8pt; margin:5pt; padding: 2pt;">
+                    <div style="display: inline-block; break-inside: avoid; width: 243pt; height: 153pt; border: 1pt solid black; border-radius:8pt; margin:5pt; padding: 2pt;">
                         <div class="oe_structure"></div>
                         <table style="width: 100%; height: 100%; border-spacing: 4pt; border-collapse: separate;" class="table-borderless">
                             <tr>

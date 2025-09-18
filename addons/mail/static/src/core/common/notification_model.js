@@ -1,7 +1,6 @@
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
-
 import { _t } from "@web/core/l10n/translation";
-
 export class Notification extends Record {
     static _name = "mail.notification";
     static id = "id";
@@ -30,7 +29,7 @@ export class Notification extends Record {
                 (f) =>
                     f.resModel === thread?.model &&
                     f.type === this.notification_type &&
-                    (f.resModel !== "discuss.channel" || f.resIds.has(thread?.id))
+                    (f.resModel !== "discuss.channel" || f.resIds.has(thread?.id)),
             );
             return this.isFailure
                 ? {
@@ -89,9 +88,9 @@ export class Notification extends Record {
 
     get icon() {
         if (this.isFailure) {
-            return "fa fa-envelope";
+            return "fa-solid fa-envelope";
         }
-        return "fa fa-envelope-o";
+        return "fa-regular fa-envelope";
     }
 
     get label() {
@@ -100,29 +99,29 @@ export class Notification extends Record {
 
     get isFollowerNotification() {
         return this.mail_message_id.thread.followers.some(
-            (follower) => follower.partner_id.id === this.res_partner_id.id
+            (follower) => follower.partner_id.id === this.res_partner_id.id,
         );
     }
 
     get statusIcon() {
         switch (this.notification_status) {
             case "process":
-                return "fa fa-hourglass-half";
+                return "fa-solid fa-hourglass-half";
             case "pending":
-                return "fa fa-paper-plane-o";
+                return "fa-regular fa-paper-plane";
             case "sent":
-                return "fa fa-check";
+                return "fa-solid fa-check";
             case "bounce":
-                return "fa fa-exclamation";
+                return "fa-solid fa-exclamation";
             case "exception":
-                return "fa fa-times text-danger";
+                return "fa-solid fa-times text-danger";
             case "ready":
-                return "fa fa-send-o";
+                return "fa-regular fa-paper-plane";
             case "canceled":
                 if (this.autoCanceledFailureType) {
-                    return "fa fa-remove";
+                    return "fa-solid fa-xmark";
                 }
-                return "fa fa-trash-o";
+                return "fa-regular fa-trash-can";
         }
         return "";
     }

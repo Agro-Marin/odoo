@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { ColorSelector } from "@html_editor/main/font/color_selector";
 import { Component, useComponent, useRef } from "@odoo/owl";
 import {
     useColorPicker,
     DEFAULT_COLORS,
     DEFAULT_THEME_COLOR_VARS,
-} from "@web/core/color_picker/color_picker";
-import { BuilderComponent } from "./builder_component";
+} from "@web/components/color_picker/color_picker";
+import { BuilderComponent } from "./builder_component.js";
 import {
     basicContainerBuilderComponentProps,
     getAllActionsAndOperations,
@@ -13,8 +14,8 @@ import {
     useBuilderComponent,
     useDomState,
     useHasPreview,
-} from "../utils";
-import { isCSSColor, isColorGradient } from "@web/core/utils/colors";
+} from "../utils.js";
+import { isCSSColor, isColorGradient } from "@web/core/utils/format/colors";
 import { getAllUsedColors } from "@html_builder/utils/utils_css";
 
 // TODO replace by useInputBuilderComponent after extract unit by AGAU

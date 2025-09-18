@@ -1,4 +1,5 @@
 from . import common
+from . import test_ir_http
 from . import test_assetsbundle
 from . import test_bus_gc
 from . import test_health

@@ -1,13 +1,14 @@
-import { Many2XAutocomplete } from "@web/views/fields/relational_utils";
+/** @odoo-module native */
+import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
-} from "@web/views/fields/many2many_tags/many2many_tags_field";
+} from "@web/fields/relational/many2many_tags/many2many_tags_field";
 import { registry } from "@web/core/registry";
 
 export class Many2XBarcodeTagsAutocomplete extends Many2XAutocomplete {
     onQuickCreateError(error, request) {
-        if (error.data?.debug && error.data.debug.includes("psycopg2.errors.UniqueViolation")) {
+        if (error.data?.debug && error.data.debug.includes("psycopg.errors.UniqueViolation")) {
             throw error;
         }
         super.onQuickCreateError(error, request);

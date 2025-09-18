@@ -1,62 +1,59 @@
-# -*- coding: utf-8 -*-
-
 import logging
+from typing import Any
 
 import odoo.release
-import odoo.tools
 from odoo.exceptions import AccessDenied
 from odoo.modules.registry import Registry
-from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
 
-RPC_VERSION_1 = {
-        'server_version': odoo.release.version,
-        'server_version_info': odoo.release.version_info,
-        'server_serie': odoo.release.serie,
-        'protocol_version': 1,
+RPC_VERSION_1: dict[str, Any] = {
+    "server_version": odoo.release.version,
+    "server_version_info": odoo.release.version_info,
+    "server_serie": odoo.release.serie,
+    "protocol_version": 1,
 }
 
-def exp_login(db, login, password):
+
+def exp_login(db: str, login: str, password: str) -> int | bool:
+    """Authenticate via login/password and return the user id or False."""
     return exp_authenticate(db, login, password, None)
 
-def exp_authenticate(db, login, password, user_agent_env):
+
+def exp_authenticate(
+    db: str,
+    login: str,
+    password: str,
+    user_agent_env: dict | None,
+) -> int | bool:
+    """Authenticate a user and return the uid, or False on failure."""
     if not user_agent_env:
         user_agent_env = {}
     with Registry(db).cursor() as cr:
         env = odoo.api.Environment(cr, None, {})
         env.transaction.default_env = env  # force default_env
         try:
-            credential = {'login': login, 'password': password, 'type': 'password'}
-            return env['res.users'].authenticate(credential, {**user_agent_env, 'interactive': False})['uid']
+            credential = {
+                "login": login,
+                "password": password,
+                "type": "password",
+            }
+            return env["res.users"].authenticate(
+                credential, {**user_agent_env, "interactive": False}
+            )["uid"]
         except AccessDenied:
             return False
 
-def exp_version():
+
+def exp_version() -> dict[str, Any]:
+    """Return the RPC version information dict."""
     return RPC_VERSION_1
 
-def exp_about(extended=False):
-    """Return information about the OpenERP Server.
 
-    @param extended: if True then return version info
-    @return string if extended is False else tuple
-    """
-
-    info = _('See http://openerp.com')
-
-    if extended:
-        return info, odoo.release.version
-    return info
-
-def exp_set_loglevel(loglevel, logger=None):
-    # TODO Previously, the level was set on the now deprecated
-    # `odoo.netsvc.Logger` class.
-    return True
-
-def dispatch(method, params):
+def dispatch(method: str, params: list | tuple) -> Any:
+    """Dispatch a common-service RPC call to the matching ``exp_*`` function."""
     g = globals()
-    exp_method_name = 'exp_' + method
+    exp_method_name = f"exp_{method}"
     if exp_method_name in g:
         return g[exp_method_name](*params)
-    else:
-        raise Exception("Method not found: %s" % method)
+    raise Exception(f"Method not found: {method}")

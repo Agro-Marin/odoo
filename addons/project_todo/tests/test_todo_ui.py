@@ -20,7 +20,7 @@ class TestTodoUi(HttpCaseWithUserDemo):
         """
         self.env.user.tz = "UTC"
         project = self.env['project.project'].create([{'name': 'Test project'}])
-        stage = self.env['project.task.type'].create([{
+        stage = self.env['project.workflow.step'].create([{
             'name': 'Test Stage',
             'project_ids': project.ids,
         }])
@@ -30,7 +30,7 @@ class TestTodoUi(HttpCaseWithUserDemo):
         }, {
             'name': 'New Task!',
             'project_id': project.id,
-            'stage_id': stage.id,
+            'step_id': stage.id,
             'child_ids': [
                 Command.create({
                     'name': 'New Sub-Task!',

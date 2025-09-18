@@ -1,6 +1,6 @@
+/** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-
 export const composerService = {
     dependencies: ["mail.store", "legacy_multi_tab"],
     /**
@@ -10,7 +10,10 @@ export const composerService = {
      */
     start(env, { legacy_multi_tab }) {
         const state = reactive({
-            htmlEnabled: legacy_multi_tab.getSharedValue("mail.html_composer.enabled", false),
+            htmlEnabled: legacy_multi_tab.getSharedValue(
+                "mail.html_composer.enabled",
+                false,
+            ),
             setHtmlComposer() {
                 if (state.htmlEnabled) {
                     return;

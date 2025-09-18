@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Store } from "@mail/core/common/store_service";
 
 import { deserializeDateTime, formatDateTime } from "@web/core/l10n/dates";

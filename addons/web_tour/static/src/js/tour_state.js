@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { browser } from "@web/core/browser/browser";
 
 const CURRENT_TOUR_LOCAL_STORAGE = "current_tour";

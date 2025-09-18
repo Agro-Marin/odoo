@@ -1,17 +1,17 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, models
 
 
 class ProjectProject(models.Model):
+    """Send SMS notifications when project phase changes."""
+
+    _name = 'project.project'
     _inherit = "project.project"
 
     def _send_sms(self):
         for project in self.sudo():
-            if project.partner_id and project.stage_id and project.stage_id.sms_template_id:
+            if project.partner_id and project.phase_id and project.phase_id.sms_template_id:
                 project.with_env(self.env)._message_sms_with_template(
-                    template=project.stage_id.sms_template_id,
+                    template=project.phase_id.sms_template_id,
                     partner_ids=project.partner_id.ids,
                 )
 
@@ -23,6 +23,6 @@ class ProjectProject(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        if 'stage_id' in vals:
+        if 'phase_id' in vals:
             self._send_sms()
         return res

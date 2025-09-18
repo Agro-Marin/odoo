@@ -1,8 +1,7 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
-
-import { Dialog } from "@web/core/dialog/dialog";
 import { useService } from "@web/core/utils/hooks";
-
+import { Dialog } from "@web/ui/dialog/dialog";
 /**
  * @typedef {Object} Props
  * @property {import("models").LinkPreview} linkPreview

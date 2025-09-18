@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { ancestors } from "@html_editor/utils/dom_traversal";
 import { throttleForAnimation } from "@web/core/utils/timing";
-import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/scrolling";
+import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/dom/scrolling";
 import { useComponent, useEffect } from "@odoo/owl";
 
 /**

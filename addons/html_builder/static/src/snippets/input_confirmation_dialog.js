@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { useState } from "@odoo/owl";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 export class InputConfirmationDialog extends ConfirmationDialog {
     static template = "html_builder.InputConfirmationDialog";

@@ -34,7 +34,7 @@ test("should add an icon from the media modal dialog", async () => {
     await contains(".o-we-command").click();
     await contains(".modal .modal-body .nav-item:nth-child(3) a").click();
     await contains(".modal .modal-body .fa-heart").click();
-    expect(p).toHaveInnerHTML(`x<span class="fa fa-heart" contenteditable="false">\u200b</span>`);
+    expect(p).toHaveInnerHTML(`x<span class="fa-solid fa-heart" contenteditable="false">\u200b</span>`);
 });
 
 test("should delete text forward", async () => {
@@ -285,5 +285,20 @@ describe("font types", () => {
         await waitFor(".o-we-toolbar");
         await expandToolbar();
         expect(".o-we-toolbar .btn[name='font']").toHaveCount(0);
+    });
+
+    test("should cleanup whitespace after last element removal", async () => {
+        const { getEditor } = await setupHTMLBuilder(`
+            <section class="test_snippet" data-snippet="s_test" data-name="Test">
+                <p>Content to remove</p>
+            </section>
+        `);
+        const editor = getEditor();
+        const emptyStructureEl = editor.editable.querySelector(".oe_empty");
+        // The snippet is surrounded by new line text nodes.
+        expect(emptyStructureEl.childNodes.length).toBe(3);
+        await contains(":iframe .test_snippet").click();
+        await contains(".overlay .oe_snippet_remove").click();
+        expect(emptyStructureEl.childNodes.length).toBe(0);
     });
 });

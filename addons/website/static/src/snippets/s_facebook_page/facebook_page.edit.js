@@ -1,4 +1,5 @@
-import { FacebookPage } from "./facebook_page";
+/** @odoo-module native */
+import { FacebookPage } from "./facebook_page.js";
 import { registry } from "@web/core/registry";
 
 const FacebookPageEdit = (I) =>

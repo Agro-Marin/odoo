@@ -16,7 +16,7 @@
 <template name="Buy Course To Download Resource" id="slide_aside_training_category_buy_course" inherit_id="website_slides.slide_aside_training_category">
     <xpath expr="//div[hasclass('o_wslides_js_course_join') and hasclass('o_wslides_no_access')]" position="inside">
         <li t-elif="aside_slide.channel_id.enroll == 'payment'" class="text-decoration-none small">
-            <i class="fa fa-download me-1"/>
+            <i class="fa-solid fa-download me-1"/>
             <t t-call="website_sale_slides.course_buy_course_link">
                 <t t-set="for_resources" t-value="1"/>
                 <t t-set="slide" t-value="aside_slide"/>
@@ -69,7 +69,7 @@
 <template name="Buy Course To Download Resource Fullscreen" id="slide_fullscreen_sidebar_category_buy_course" inherit_id="website_slides.slide_fullscreen_sidebar_category">
     <xpath expr="//div[hasclass('o_wslides_js_course_join') and hasclass('o_wslides_no_access')]" position="inside">
         <li t-elif="slide.channel_id.enroll == 'payment'" class="o_wslides_fs_slide_link mb-1">
-            <i class="fa fa-download me-1"/>
+            <i class="fa-solid fa-download me-1"/>
             <t t-call="website_sale_slides.course_buy_course_link">
                 <t t-set="for_resources" t-value="1"/>
             </t>
@@ -187,7 +187,7 @@
                     role="button"
                     class="btn btn-primary d-block"
                 >
-                    <i class="fa fa-shopping-cart"></i> Add to Cart
+                    <i class="fa-solid fa-shopping-cart"></i> Add to Cart
                 </a>
                 <!-- Hook for wishlist -->
                 <div id="product_option_block"/>
@@ -207,7 +207,7 @@
             role="button"
             class="btn btn-primary d-block o_we_buy_now mb-1"
         >
-            <i class="fa fa-bolt"></i> Buy Now
+            <i class="fa-solid fa-bolt"></i> Buy Now
         </a>
     </xpath>
     <xpath expr="//form//a[@id='add_to_cart']" position="attributes">

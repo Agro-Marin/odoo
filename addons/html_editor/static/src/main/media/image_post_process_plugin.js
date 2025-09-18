@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     activateCropper,
     getAspectRatio,
@@ -9,7 +10,7 @@ import {
     loadImageDataURL,
     loadImageInfo,
 } from "@html_editor/utils/image_processing";
-import { Plugin } from "../../plugin";
+import { Plugin } from "../../plugin.js";
 import { getAffineApproximation, getProjective } from "@html_editor/utils/perspective_utils";
 
 export const DEFAULT_IMAGE_QUALITY = "92";

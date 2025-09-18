@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useEffect } from "@odoo/owl";
 import wUtils from "@website/js/utils";
 import { Plugin } from "@html_editor/plugin";

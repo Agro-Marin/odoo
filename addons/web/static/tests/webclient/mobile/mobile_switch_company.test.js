@@ -1,3 +1,5 @@
+// @ts-check
+
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
@@ -7,9 +9,8 @@ import {
     patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
-
 import { cookie } from "@web/core/browser/cookie";
-import { user } from "@web/core/user";
+import { user } from "@web/services/user";
 import { MobileSwitchCompanyMenu } from "@web/webclient/burger_menu/mobile_switch_company_menu/mobile_switch_company_menu";
 
 const ORIGINAL_TOGGLE_DELAY = MobileSwitchCompanyMenu.toggleDelay;
@@ -22,13 +23,14 @@ async function createSwitchCompanyMenu(options = { toggleDelay: 0 }) {
 function patchUserActiveCompanies(cids) {
     patchWithCleanup(
         user.activeCompanies,
-        cids.map((cid) => serverState.companies.find((company) => company.id === cid))
+        cids.map((cid) => serverState.companies.find((company) => company.id === cid)),
     );
 }
 
 describe.current.tags("mobile");
 
-const clickConfirm = () => contains(".o_switch_company_menu_buttons button:first").click();
+const clickConfirm = () =>
+    contains(".o_switch_company_menu_buttons button:first").click();
 
 /**
  * @param {number} index
@@ -51,19 +53,21 @@ test("basic rendering", async () => {
     expect(".o_burger_menu_companies").toHaveClass("o_burger_menu_companies");
     expect("[data-company-id]").toHaveCount(3);
     expect(".log_into").toHaveCount(3);
-    expect(".fa-check-square").toHaveCount(1);
-    expect(".fa-square-o").toHaveCount(2);
+    expect(".fa-square-check").toHaveCount(1);
+    expect(".fa-regular.fa-square").toHaveCount(2);
 
     expect(".o_switch_company_item:eq(0)").toHaveText("Hermit");
     expect(".o_switch_company_item:eq(0)").toHaveClass("alert-secondary");
     expect(".o_switch_company_item:eq(1)").toHaveText("Herman's");
     expect(".o_switch_company_item:eq(2)").toHaveText("Heroes TM");
 
-    expect(".o_switch_company_item i:eq(0)").toHaveClass("fa-check-square");
-    expect(".o_switch_company_item i:eq(1)").toHaveClass("fa-square-o");
-    expect(".o_switch_company_item i:eq(2)").toHaveClass("fa-square-o");
+    expect(".o_switch_company_item i:eq(0)").toHaveClass("fa-solid fa-square-check");
+    expect(".o_switch_company_item i:eq(1)").toHaveClass("fa-regular fa-square");
+    expect(".o_switch_company_item i:eq(2)").toHaveClass("fa-regular fa-square");
 
-    expect(".o_burger_menu_companies").toHaveText("Companies\nHermit\nHerman's\nHeroes TM");
+    expect(".o_burger_menu_companies").toHaveText(
+        "Companies\nHermit\nHerman's\nHeroes TM",
+    );
 });
 
 test("companies can be toggled: toggle a second company", async () => {
@@ -77,8 +81,8 @@ test("companies can be toggled: toggle a second company", async () => {
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     expect("[data-company-id]").toHaveCount(3);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(2);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
     /**
      *   [x] **Company 1**
@@ -86,8 +90,8 @@ test("companies can be toggled: toggle a second company", async () => {
      *   [ ] Company 3
      */
     await toggleCompany(1);
-    expect("[data-company-id] .fa-check-square").toHaveCount(2);
-    expect("[data-company-id] .fa-square-o").toHaveCount(1);
+    expect("[data-company-id] .fa-square-check").toHaveCount(2);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
     await clickConfirm();
     expect(cookie.get("cids")).toEqual("1-2");
 });
@@ -102,8 +106,8 @@ test("can toggle multiple companies at once", async () => {
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     expect("[data-company-id]").toHaveCount(3);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(2);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
     /**
      *   [ ] **Company 1**  -> toggle all
@@ -113,8 +117,8 @@ test("can toggle multiple companies at once", async () => {
     await toggleCompany(0);
     await toggleCompany(1);
     await toggleCompany(2);
-    expect("[data-company-id] .fa-check-square").toHaveCount(2);
-    expect("[data-company-id] .fa-square-o").toHaveCount(1);
+    expect("[data-company-id] .fa-square-check").toHaveCount(2);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
 
     expect.verifySteps([]);
     await clickConfirm();
@@ -134,8 +138,8 @@ test("single company selected: toggling it off will keep it", async () => {
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     expect("[data-company-id]").toHaveCount(3);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(2);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
     /**
      *   [ ] **Company 1**  -> toggle off
@@ -147,8 +151,8 @@ test("single company selected: toggling it off will keep it", async () => {
     expect(cookie.get("cids")).toEqual("1");
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(2);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 });
 
 test("single company mode: companies can be logged in", async () => {
@@ -162,8 +166,8 @@ test("single company mode: companies can be logged in", async () => {
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     expect("[data-company-id]").toHaveCount(3);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(2);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
     /**
      *   [ ] **Company 1**
@@ -186,8 +190,8 @@ test("multi company mode: log into a non selected company", async () => {
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3, 1]);
     expect(user.activeCompany.id).toBe(3);
     expect("[data-company-id]").toHaveCount(3);
-    expect("[data-company-id] .fa-check-square").toHaveCount(2);
-    expect("[data-company-id] .fa-square-o").toHaveCount(1);
+    expect("[data-company-id] .fa-square-check").toHaveCount(2);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
 
     /**
      *   [x] Company 1
@@ -210,8 +214,8 @@ test("multi company mode: log into an already selected company", async () => {
     expect(user.activeCompanies.map((c) => c.id)).toEqual([2, 3]);
     expect(user.activeCompany.id).toBe(2);
     expect("[data-company-id]").toHaveCount(3);
-    expect("[data-company-id] .fa-check-square").toHaveCount(2);
-    expect("[data-company-id] .fa-square-o").toHaveCount(1);
+    expect("[data-company-id] .fa-square-check").toHaveCount(2);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
 
     /**
      *   [ ] Company 1
@@ -233,8 +237,8 @@ test("companies can be logged in even if some toggled within delay", async () =>
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     expect("[data-company-id]").toHaveCount(3);
-    expect("[data-company-id] .fa-check-square").toHaveCount(1);
-    expect("[data-company-id] .fa-square-o").toHaveCount(2);
+    expect("[data-company-id] .fa-square-check").toHaveCount(1);
+    expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
     /**
      *   [ ] **Company 1**  -> toggled
@@ -269,7 +273,13 @@ test("Show search input when more that 10 companies & search filters items but i
         { id: 1, name: "Heroes TM", sequence: 3, parent_id: false, child_ids: [4, 5] },
         { id: 4, name: "Hercules", sequence: 4, parent_id: 1, child_ids: [] },
         { id: 5, name: "Hulk", sequence: 5, parent_id: 1, child_ids: [] },
-        { id: 6, name: "Random Company a", sequence: 6, parent_id: false, child_ids: [7, 8] },
+        {
+            id: 6,
+            name: "Random Company a",
+            sequence: 6,
+            parent_id: false,
+            child_ids: [7, 8],
+        },
         { id: 7, name: "Random Company aa", sequence: 7, parent_id: 6, child_ids: [] },
         { id: 8, name: "Random Company ab", sequence: 8, parent_id: 6, child_ids: [] },
         { id: 9, name: "Random d", sequence: 9, parent_id: false, child_ids: [] },

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Activity } from "@mail/core/common/activity_model";
 import { assignIn } from "@mail/utils/common/misc";
 import { patch } from "@web/core/utils/patch";

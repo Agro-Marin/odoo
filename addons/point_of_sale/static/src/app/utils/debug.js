@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Builds a simplified representation of an object, managing complex structures and circular references up to a defined maximum depth.
  * This function is useful for visualizing objects that would otherwise cause errors when converting to a string, such as using `JSON.stringify`
@@ -85,7 +86,13 @@ function compareObjects(obj1, obj2, visited = new Map(), depth = 0, maxDepth = 1
         const val2 = obj2[key];
         if (typeof val1 !== typeof val2 || val1 !== val2) {
             if (val1 && val2 && typeof val1 === "object" && typeof val2 === "object") {
-                const subDiff = compareObjects(val1, val2, visited, depth + 1, maxDepth);
+                const subDiff = compareObjects(
+                    val1,
+                    val2,
+                    visited,
+                    depth + 1,
+                    maxDepth,
+                );
                 if (Object.keys(subDiff).length > 0) {
                     differences[key] = subDiff;
                 }

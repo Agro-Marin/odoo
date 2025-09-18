@@ -1,15 +1,16 @@
-import { useDateTimePicker } from "@web/core/datetime/datetime_picker_hook";
+/** @odoo-module native */
+import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { Component, useState } from "@odoo/owl";
 import { effect } from "@web/core/utils/reactive";
 import { ConversionError, formatDate, formatDateTime, parseDateTime } from "@web/core/l10n/dates";
-import { pick } from "@web/core/utils/objects";
+import { pick } from "@web/core/utils/collections/objects";
 import {
     basicContainerBuilderComponentProps,
     useBuilderComponent,
     useInputBuilderComponent,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
-import { BuilderTextInputBase, textInputBasePassthroughProps } from "./builder_text_input_base";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
+import { BuilderTextInputBase, textInputBasePassthroughProps } from "./builder_text_input_base.js";
 
 const { DateTime } = luxon;
 

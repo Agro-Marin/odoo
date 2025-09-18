@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 import { isElementInViewport } from "@html_builder/utils/utils";
-import { isRemovable } from "./remove_plugin";
+import { isRemovable } from "./remove_plugin.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 
 /**
@@ -18,7 +19,8 @@ import { BuilderAction } from "@html_builder/core/builder_action";
  * Called on the original element before clone.
  */
 
-const clonableSelector = "a.btn:not(.oe_unremovable)";
+const clonableSelector =
+    "a.btn:not(.oe_unremovable, .js_subscribe_btn, .s_website_form_send, .s_website_form_submit)";
 
 export function isClonable(el) {
     // TODO and isDraggable
@@ -54,7 +56,7 @@ export class ClonePlugin extends Plugin {
         this.overlayTarget = target;
         const disabledReason = this.dependencies.builderOptions.getCloneDisabledReason(target);
         buttons.push({
-            class: "o_snippet_clone fa fa-clone",
+            class: "o_snippet_clone fa-regular fa-clone",
             title: _t("Duplicate"),
             disabledReason,
             handler: async () => {

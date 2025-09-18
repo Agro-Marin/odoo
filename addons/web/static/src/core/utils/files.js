@@ -1,14 +1,20 @@
-import { humanNumber } from "@web/core/utils/numbers";
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/core/utils/files - File size validation and upload hook for multipart form submissions */
+
+import { _t } from "@web/core/l10n/translation";
+import { humanNumber } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";
-import { _t } from "@web/core/l10n/translation";
+
+/** @import { Services } from "services" */
 
 export const DEFAULT_MAX_FILE_SIZE = 128 * 1024 * 1024;
 
 /**
- * @param {Services["notification"]} notificationService
- * @param {File} file
- * @param {Number} maxUploadSize
+ * @param {number} fileSize
+ * @param {{ add: (message: string, options?: any) => () => void }} notificationService
  * @returns {boolean}
  */
 export function checkFileSize(fileSize, notificationService) {
@@ -17,11 +23,14 @@ export function checkFileSize(fileSize, notificationService) {
         notificationService.add(
             _t(
                 "The selected file (%(size)sB) is larger than the maximum allowed file size (%(maxSize)sB).",
-                { size: humanNumber(fileSize), maxSize: humanNumber(maxUploadSize) }
+                {
+                    size: humanNumber(fileSize),
+                    maxSize: humanNumber(maxUploadSize),
+                },
             ),
             {
                 type: "danger",
-            }
+            },
         );
         return false;
     }
@@ -40,9 +49,14 @@ export function useFileUploader() {
      * @param {Object} params
      */
     return async (route, params) => {
-        if ((params.ufile && params.ufile.length) || params.file) {
-            const fileSize = (params.ufile && params.ufile[0].size) || params.file.size;
-            if (!checkFileSize(fileSize, notification)) {
+        if (params.ufile && params.ufile.length) {
+            for (const file of params.ufile) {
+                if (!checkFileSize(file.size, notification)) {
+                    return null;
+                }
+            }
+        } else if (params.file) {
+            if (!checkFileSize(params.file.size, notification)) {
                 return null;
             }
         }
@@ -57,7 +71,9 @@ export function useFileUploader() {
 
 export function resizeBlobImg(blob, params = {}) {
     if (!blob.type || !blob.type.startsWith("image/")) {
-        return Promise.reject(new Error(_t("The file is not an image, resizing is not possible")));
+        return Promise.reject(
+            new Error(_t("The file is not an image, resizing is not possible")),
+        );
     }
     const { width, height, offsetX, offsetY } = {
         width: 256,
@@ -68,16 +84,18 @@ export function resizeBlobImg(blob, params = {}) {
     };
     return new Promise((resolve, reject) => {
         const img = new Image();
+        const objectUrl = URL.createObjectURL(blob);
         img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
             if (width < img.width || height < img.height) {
                 const canvas = document.createElement("canvas");
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext("2d");
                 ctx.imageSmoothingQuality = "high";
-                ctx.mozImageSmoothingEnabled = true;
-                ctx.webkitImageSmoothingEnabled = true;
-                ctx.msImageSmoothingEnabled = true;
+                /** @type {any} */ (ctx).mozImageSmoothingEnabled = true;
+                /** @type {any} */ (ctx).webkitImageSmoothingEnabled = true;
+                /** @type {any} */ (ctx).msImageSmoothingEnabled = true;
                 ctx.imageSmoothingEnabled = true;
 
                 // Keep src image's aspect ratio
@@ -91,15 +109,26 @@ export function resizeBlobImg(blob, params = {}) {
                 const dx = Math.round((width - dWidth) * offsetX);
                 const dy = Math.round((height - dHeight) * offsetY);
 
-                ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dWidth, dHeight);
+                ctx.drawImage(
+                    img,
+                    0,
+                    0,
+                    img.width,
+                    img.height,
+                    dx,
+                    dy,
+                    dWidth,
+                    dHeight,
+                );
                 canvas.toBlob(resolve);
             } else {
                 resolve(blob);
             }
         };
         img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
             reject(new Error(_t("The resizing of the image failed")));
         };
-        img.src = URL.createObjectURL(blob);
+        img.src = objectUrl;
     });
 }

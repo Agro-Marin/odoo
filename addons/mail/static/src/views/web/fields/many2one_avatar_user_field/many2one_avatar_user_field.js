@@ -1,15 +1,16 @@
+/** @odoo-module native */
 import { useAssignUserCommand } from "@mail/views/web/fields/assign_user_command_hook";
-
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { computeM2OProps, Many2One } from "@web/views/fields/many2one/many2one";
+import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     buildM2OFieldDescription,
     extractM2OFieldProps,
     Many2OneField,
-} from "@web/views/fields/many2one/many2one_field";
-import { Avatar } from "../avatar/avatar";
-import { Many2XAvatarUserAutocomplete } from "../avatar_autocomplete/avatar_many2x_autocomplete";
+} from "@web/fields/relational/many2one/many2one_field";
+
+import { Avatar } from "../avatar/avatar.js";
+import { Many2XAvatarUserAutocomplete } from "../avatar_autocomplete/avatar_many2x_autocomplete.js";
 
 export class Many2OneAvatarUser extends Many2One {
     static components = {
@@ -53,9 +54,10 @@ export const many2OneAvatarUserField = {
         return {
             ...extractM2OFieldProps(staticInfo, dynamicInfo),
             withCommand: ["form", "list"].includes(staticInfo.viewType),
-            canOpen: "no_open" in staticInfo.options
-                ? !staticInfo.options.no_open
-                : staticInfo.viewType === "form",
+            canOpen:
+                "no_open" in staticInfo.options
+                    ? !staticInfo.options.no_open
+                    : staticInfo.viewType === "form",
         };
     },
     listViewWidth: [110],

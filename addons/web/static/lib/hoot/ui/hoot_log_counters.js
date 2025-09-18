@@ -26,7 +26,7 @@ export class HootLogCounters extends Component {
                 class="flex items-center gap-1 text-rose"
                 t-attf-title="{{ props.logs.error }} error log(s) (check the console)"
             >
-                <i class="fa fa-times-circle" />
+                <i class="fa-solid fa-times-circle" />
                 <strong t-esc="props.logs.error" />
             </span>
         </t>
@@ -35,7 +35,7 @@ export class HootLogCounters extends Component {
                 class="flex items-center gap-1 text-amber"
                 t-attf-title="{{ props.logs.warn }} warning log(s) (check the console)"
             >
-                <i class="fa fa-exclamation-triangle" />
+                <i class="fa-solid fa-exclamation-triangle" />
                 <strong t-esc="props.logs.warn" />
             </span>
         </t>

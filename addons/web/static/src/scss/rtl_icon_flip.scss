@@ -1,0 +1,73 @@
+// RTL directional icon flip rules — FA7 native class syntax.
+//
+// Each directional icon that changes visual meaning between LTR and RTL
+// is flipped 180° so it points in the correct logical direction.
+//
+// Selectors use FA7 native style classes (.fa-solid, .fa-regular) on the
+// element and the icon name class (.fa-icon-name) on the same element.
+//
+// Phase history:
+//   Phase 2: Created with FA4 class names (.fa + .fa-icon-name) for shim compat.
+//   Phase 4: Rewritten with FA7 class names (.fa-solid/.fa-regular + .fa-icon-name).
+
+// ── Solid directional icons ──────────────────────────────────────────────────
+
+.o_rtl {
+    // Alignment
+    .fa-solid.fa-align-right,
+    .fa-solid.fa-align-left,
+
+    // Chevrons
+    .fa-solid.fa-chevron-right,
+    .fa-solid.fa-chevron-left,
+    .fa-solid.fa-chevron-circle-right,
+    .fa-solid.fa-chevron-circle-left,
+
+    // Arrows
+    .fa-solid.fa-arrow-right,
+    .fa-solid.fa-arrow-left,
+    .fa-solid.fa-arrow-circle-right,
+    .fa-solid.fa-arrow-circle-left,
+    .fa-solid.fa-right-long,           // FA7: was fa-long-arrow-right
+    .fa-solid.fa-left-long,            // FA7: was fa-long-arrow-left
+    .fa-solid.fa-turn-up,              // FA7: was fa-level-up
+    .fa-solid.fa-turn-down,            // FA7: was fa-level-down
+
+    // Carets
+    .fa-solid.fa-caret-right,
+    .fa-solid.fa-caret-left,
+    .fa-solid.fa-square-caret-right,   // FA7: was fa-toggle-right / fa-caret-square-o-right
+    .fa-solid.fa-square-caret-left,    // FA7: was fa-toggle-left / fa-caret-square-o-left
+
+    // Angle brackets
+    .fa-solid.fa-angle-double-right,
+    .fa-solid.fa-angle-double-left,
+    .fa-solid.fa-angle-right,
+    .fa-solid.fa-angle-left,
+    .fa-solid.fa-angles-right,         // FA7 addition
+    .fa-solid.fa-angles-left,          // FA7 addition
+
+    // Quotes
+    .fa-solid.fa-quote-right,
+    .fa-solid.fa-quote-left,
+
+    // Rotation controls
+    .fa-solid.fa-arrow-rotate-right,   // FA7: was fa-rotate-right
+    .fa-solid.fa-arrow-rotate-left,    // FA7: was fa-rotate-left
+
+    // ── Regular (outline) directional icons ─────────────────────────────────
+
+    // Outline carets (Regular style)
+    .fa-regular.fa-square-caret-right, // FA7: was fa-caret-square-o-right
+    .fa-regular.fa-square-caret-left,  // FA7: was fa-caret-square-o-left
+
+    // Outline circle-arrows (Regular style)
+    .fa-regular.fa-circle-arrow-right, // FA7: was fa-arrow-circle-o-right
+    .fa-regular.fa-circle-arrow-left,  // FA7: was fa-arrow-circle-o-left
+
+    // Pointing hands (Regular style — was fa-hand-o-right/left in FA4)
+    .fa-regular.fa-hand-point-right,
+    .fa-regular.fa-hand-point-left {
+        transform: rotate(180deg);
+    }
+}

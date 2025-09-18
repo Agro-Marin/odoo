@@ -1,5 +1,6 @@
-import { Plugin } from "../plugin";
-import { closestBlock, isBlock } from "../utils/blocks";
+/** @odoo-module native */
+import { Plugin } from "../plugin.js";
+import { closestBlock, isBlock } from "../utils/blocks.js";
 import {
     isAllowedContent,
     isButton,
@@ -17,8 +18,8 @@ import {
     nextLeaf,
     previousLeaf,
     isEmptyBlock,
-} from "../utils/dom_info";
-import { getState, isFakeLineBreak, observeMutations, prepareUpdate } from "../utils/dom_state";
+} from "../utils/dom_info.js";
+import { getState, isFakeLineBreak, observeMutations, prepareUpdate } from "../utils/dom_state.js";
 import {
     childNodes,
     closestElement,
@@ -28,7 +29,7 @@ import {
     getCommonAncestor,
     lastLeaf,
     findFurthest,
-} from "../utils/dom_traversal";
+} from "../utils/dom_traversal.js";
 import {
     DIRECTIONS,
     childNodeIndex,
@@ -37,8 +38,8 @@ import {
     nodeSize,
     rightPos,
     startPos,
-} from "../utils/position";
-import { CTYPES } from "../utils/content_types";
+} from "../utils/position.js";
+import { CTYPES } from "../utils/content_types.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { compareListTypes } from "@html_editor/main/list/utils";
 import { hasTouch, isBrowserChrome, isMacOS } from "@web/core/browser/feature_detection";
@@ -659,10 +660,13 @@ export class DeletePlugin extends Plugin {
             for (const child of [...node.childNodes]) {
                 remove(child);
             }
-            if (this.isUnremovable(node, root)) {
+            if (
+                this.isUnremovable(node, root) ||
+                !this.dependencies.selection.isNodeEditable(node)
+            ) {
                 return false;
             }
-            if (node.hasChildNodes()) {
+            if (node.hasChildNodes() && node.isContentEditable) {
                 node.before(...node.childNodes);
                 node.remove();
                 return false;
@@ -947,7 +951,7 @@ export class DeletePlugin extends Plugin {
      */
     includeEmptyInlineStart(range) {
         const element = closestElement(range.startContainer);
-        if (this.isEmptyInline(element)) {
+        if (element && this.isEmptyInline(element)) {
             range.setStartBefore(element);
         }
         return range;
@@ -959,7 +963,7 @@ export class DeletePlugin extends Plugin {
      */
     includeEmptyInlineEnd(range) {
         const element = closestElement(range.endContainer);
-        if (this.isEmptyInline(element)) {
+        if (element && this.isEmptyInline(element)) {
             range.setEndAfter(element);
         }
         return range;

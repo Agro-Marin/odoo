@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
@@ -6,7 +7,7 @@ export class InventoryReportListModel extends RelationalModel {
     /**
      * Override
      */
-    setup(params, { action, dialog, notification, rpc, user, view, company }) {
+    setup(params) {
         // model has not created any record yet
         this._lastCreatedRecordId;
         return super.setup(...arguments);
@@ -29,7 +30,7 @@ export class InventoryReportListModel extends RelationalModel {
 
         const justCreated = reloadedRecord.id == this._lastCreatedRecordId;
         if (justCreated && serverValues.create_date !== serverValues.write_date) {
-            this.notification.add(
+            this.env.services.notification.add(
                 _t(
                     "You tried to create a record that already exists. The existing record was modified instead."
                 ),

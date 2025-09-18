@@ -52,7 +52,7 @@
                             <field name="contact_count" string="Recipients" widget="statinfo"/>
                         </button>
                         <button name="action_view_mailings"
-                                type="object" icon="fa-envelope-o" class="oe_stat_button">
+                                type="object" icon="fa-regular fa-envelope" class="oe_stat_button">
                             <field name="mailing_count" string="Mailings" widget="statinfo"/>
                         </button>
                         <button name="action_view_contacts_bouncing"
@@ -60,7 +60,7 @@
                                 <field name="contact_pct_bounce" widget="statinfo" string="% Bounce"/>
                         </button>
                         <button name="action_view_contacts_opt_out"
-                                type="object" icon="fa-bell-slash-o" class="oe_stat_button">
+                                type="object" icon="fa-regular fa-bell-slash" class="oe_stat_button">
                                 <field name="contact_pct_opt_out" widget="statinfo" string="% Opt-out"/>
                         </button>
                         <button name="action_view_contacts_blacklisted"
@@ -135,7 +135,7 @@
                                     <field name="contact_count_email" class="fw-normal"/>
                                     <br/>
                                     <span class="text-muted">
-                                        <i class="fa fa-envelope-o"/> Contacts
+                                        <i class="fa-regular fa-envelope"/> Contacts
                                     </span>
                                 </a>
                                 <a class="me-sm-0 me-3 fs-4 fw-light lh-1 text-truncate" tabindex="-1"

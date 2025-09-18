@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { shouldPreventGifTransformation } from "@html_editor/main/media/image_post_process_plugin";
 import { loadImageInfo, isWebGLEnabled } from "@html_editor/utils/image_processing";

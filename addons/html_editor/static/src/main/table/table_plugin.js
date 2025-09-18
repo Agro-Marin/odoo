@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { isBlock } from "@html_editor/utils/blocks";
@@ -30,7 +31,7 @@ import { withSequence } from "@html_editor/utils/resource";
 import { findInSelection } from "@html_editor/utils/selection";
 import { getColumnIndex, getRowIndex, getTableCells } from "@html_editor/utils/table";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
-import { getActiveHotkey } from "@web/core/hotkeys/hotkey_service";
+import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 export const BORDER_SENSITIVITY = 5;
@@ -954,6 +955,7 @@ export class TablePlugin extends Plugin {
             return;
         }
         if (!selectionData.documentSelectionIsInEditable) {
+            this.deselectTable();
             return;
         }
         const selection = selectionData.editableSelection;

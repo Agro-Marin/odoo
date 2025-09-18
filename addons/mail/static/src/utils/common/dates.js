@@ -1,3 +1,4 @@
+/** @odoo-module native */
 const { DateTime } = luxon;
 
 /**
@@ -19,7 +20,7 @@ export function getMsToTomorrow() {
         now.getDate() + 1, // the next day
         0,
         0,
-        0 // at 00:00:00 hours
+        0, // at 00:00:00 hours
     );
     return night.getTime() - now.getTime();
 }

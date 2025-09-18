@@ -1,9 +1,8 @@
+/** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { discussSidebarChannelIndicatorsRegistry } from "@mail/discuss/core/public_web/discuss_sidebar_categories";
-
 import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-
 /**
  * @typedef {Object} Props
  * @property {import(models").Thread} thread
@@ -21,4 +20,7 @@ export class DiscussSidebarCallIndicator extends Component {
     }
 }
 
-discussSidebarChannelIndicatorsRegistry.add("call-indicator", DiscussSidebarCallIndicator);
+discussSidebarChannelIndicatorsRegistry.add(
+    "call-indicator",
+    DiscussSidebarCallIndicator,
+);

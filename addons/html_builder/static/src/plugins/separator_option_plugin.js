@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { BorderConfigurator } from "./border_configurator_option";
+import { BorderConfigurator } from "./border_configurator_option.js";
 
 class SeparatorOptionPlugin extends Plugin {
     static id = "separatorOption";

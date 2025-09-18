@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
@@ -22,6 +23,7 @@ export class SetupEditorPlugin extends Plugin {
         clean_for_save_handlers: this.cleanForSave.bind(this),
         closest_savable_providers: withSequence(10, (el) => el.closest(".o_editable")),
         unremovable_node_predicates: (node) => node.classList?.contains("o_editable"),
+        on_removed_handlers: this.cleanupEmptyStructures.bind(this),
     };
 
     setup() {
@@ -97,5 +99,22 @@ export class SetupEditorPlugin extends Plugin {
             editablesAreaEls.unshift(editableEl);
         }
         return editablesAreaEls;
+    }
+
+    /**
+     * Cleans up whitespace-only text nodes in empty structures.
+     * Ensures `.oe_empty` elements are truly empty after snippet removal.
+     */
+    cleanupEmptyStructures() {
+        if (!this.editable) {
+            return;
+        }
+
+        const emptyStructureEls = this.editable.querySelectorAll(".oe_empty");
+        for (const emptyEl of emptyStructureEls) {
+            if (emptyEl.children.length === 0) {
+                emptyEl.replaceChildren();
+            }
+        }
     }
 }

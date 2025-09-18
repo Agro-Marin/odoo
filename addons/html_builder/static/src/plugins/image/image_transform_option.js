@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { useImageTransform } from "@html_editor/main/media/image_transform_button";
 import { onWillDestroy } from "@odoo/owl";

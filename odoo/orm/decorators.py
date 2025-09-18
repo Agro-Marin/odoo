@@ -1,59 +1,16 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-"""The Odoo API module defines method decorators.
-"""
-from __future__ import annotations
-
 import logging
 import typing
 import warnings
-from collections.abc import Mapping
+from collections.abc import Callable, Collection, Mapping
 from functools import wraps
 
-try:
-    # available since python 3.13
-    from warnings import deprecated
-except ImportError:
-    # simplified version
-    class deprecated:
-        def __init__(
-            self,
-            message: str,
-            /,
-            *,
-            category: type[Warning] | None = DeprecationWarning,
-            stacklevel: int = 1,
-        ) -> None:
-            self.message = message
-            self.category = category
-            self.stacklevel = stacklevel
-
-        def __call__(self, obj, /):
-            message = self.message
-            category = self.category
-            stacklevel = self.stacklevel
-            if category is None:
-                obj.__deprecated__ = message
-                return obj
-            if callable(obj):
-                @wraps(obj)
-                def wrapper(*args, **kwargs):
-                    warnings.warn(message, category=category, stacklevel=stacklevel + 1)
-                    return obj(*args, **kwargs)
-
-                obj.__deprecated__ = wrapper.__deprecated__ = message
-                return wrapper
-            raise TypeError(f"@deprecated decorator cannot be applied to {obj!r}")
+C = typing.TypeVar("C", bound=Callable)
+Decorator = Callable[[C], C]
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Collection
-    from .types import BaseModel, ValuesType
+    from ._typing import BaseModel, ValuesType
 
-    T = typing.TypeVar('T')
-    C = typing.TypeVar("C", bound=Callable)
-    Decorator = Callable[[C], C]
-
-_logger = logging.getLogger('odoo.api')
+_logger = logging.getLogger("odoo.api")
 
 
 # The following attributes are used, and reflected on wrapping methods:
@@ -66,9 +23,11 @@ _logger = logging.getLogger('odoo.api')
 #  - method._api_*: decorator function, used for re-applying decorator
 #
 
-def attrsetter(attr, value) -> Decorator:
-    """ Return a function that sets ``attr`` on its argument and returns it. """
-    def setter(method):
+
+def attrsetter(attr: str, value: object) -> Decorator:
+    """Return a function that sets ``attr`` on its argument and returns it."""
+
+    def setter(method: C) -> C:
         setattr(method, attr, value)
         return method
 
@@ -76,30 +35,43 @@ def attrsetter(attr, value) -> Decorator:
 
 
 @typing.overload
-def constrains(func: Callable[[BaseModel], Collection[str]], /) -> Decorator:
-    ...
+def constrains(
+    func: Callable[[BaseModel], Collection[str]], /, *, sudo: bool = True
+) -> Decorator: ...
 
 
 @typing.overload
-def constrains(*args: str) -> Decorator:
-    ...
+def constrains(*args: str, sudo: bool = True) -> Decorator: ...
 
 
-def constrains(*args) -> Decorator:
+def constrains(*args, sudo: bool = True) -> Decorator:
     """Decorate a constraint checker.
 
     Each argument must be a field name used in the check::
 
-        @api.constrains('name', 'description')
+        @api.constrains("name", "description")
         def _check_description(self):
             for record in self:
                 if record.name == record.description:
-                    raise ValidationError("Fields name and description must be different")
+                    raise ValidationError(
+                        "Fields name and description must be different"
+                    )
 
     Invoked on the records on which one of the named fields has been modified.
 
     Should raise :exc:`~odoo.exceptions.ValidationError` if the
     validation failed.
+
+    :param sudo: whether the constraint runs as superuser (default ``True``).
+        Set to ``False`` for constraints that should respect the current
+        user's access rights, enabling user-aware validation::
+
+            @api.constrains("partner_id", sudo=False)
+            def _check_partner_access(self):
+                # self.env.su is False here — record rules apply
+                for record in self:
+                    if not record.partner_id.has_group("base.group_user"):
+                        raise ValidationError("Partner must be an internal user")
 
     .. warning::
 
@@ -120,7 +92,13 @@ def constrains(*args) -> Decorator:
     """
     if args and callable(args[0]):
         args = args[0]
-    return attrsetter('_constrains', args)
+
+    def decorator(method: C) -> C:
+        method._constrains = args
+        method._constrains_sudo = sudo
+        return method
+
+    return decorator
 
 
 def ondelete(*, at_uninstall: bool) -> Decorator:
@@ -154,6 +132,7 @@ def ondelete(*, at_uninstall: bool) -> Decorator:
             if any(user.active for user in self):
                 raise UserError("Can't delete an active user!")
 
+
         # same as above but with _unlink_except_* as method name
         @api.ondelete(at_uninstall=False)
         def _unlink_except_active_user(self):
@@ -179,7 +158,7 @@ def ondelete(*, at_uninstall: bool) -> Decorator:
         will break a lot of basic behavior. In this case, ``at_uninstall``
         should be set to ``True``.
     """
-    return attrsetter('_ondelete', at_uninstall)
+    return attrsetter("_ondelete", at_uninstall)
 
 
 def onchange(*args: str) -> Decorator:
@@ -192,14 +171,18 @@ def onchange(*args: str) -> Decorator:
 
     Each argument must be a field name::
 
-        @api.onchange('partner_id')
+        @api.onchange("partner_id")
         def _onchange_partner(self):
             self.message = "Dear %s" % (self.partner_id.name or "")
 
     .. code-block:: python
 
         return {
-            'warning': {'title': "Warning", 'message': "What is this?", 'type': 'notification'},
+            "warning": {
+                "title": "Warning",
+                "message": "What is this?",
+                "type": "notification",
+            },
         }
 
     If the type is set to notification, the warning will be displayed in a notification.
@@ -228,59 +211,64 @@ def onchange(*args: str) -> Decorator:
         itself via onchange. This is a webclient limitation - see `#2693 <https://github.com/odoo/odoo/issues/2693>`_.
 
     """
-    return attrsetter('_onchange', args)
+    return attrsetter("_onchange", args)
 
 
 @typing.overload
-def depends(func: Callable[[BaseModel], Collection[str]], /) -> Decorator:
-    ...
+def depends(func: Callable[[BaseModel], Collection[str]], /) -> Decorator: ...
 
 
 @typing.overload
-def depends(*args: str) -> Decorator:
-    ...
+def depends(*args: str) -> Decorator: ...
 
 
 def depends(*args) -> Decorator:
-    """ Return a decorator that specifies the field dependencies of a "compute"
-        method (for new-style function fields). Each argument must be a string
-        that consists in a dot-separated sequence of field names::
+    """Return a decorator that specifies the field dependencies of a "compute"
+    method (for new-style function fields). Each argument must be a string
+    that consists in a dot-separated sequence of field names::
 
-            pname = fields.Char(compute='_compute_pname')
+        pname = fields.Char(compute="_compute_pname")
 
-            @api.depends('partner_id.name', 'partner_id.is_company')
-            def _compute_pname(self):
-                for record in self:
-                    if record.partner_id.is_company:
-                        record.pname = (record.partner_id.name or "").upper()
-                    else:
-                        record.pname = record.partner_id.name
 
-        One may also pass a single function as argument. In that case, the
-        dependencies are given by calling the function with the field's model.
+        @api.depends("partner_id.name", "partner_id.is_company")
+        def _compute_pname(self):
+            for record in self:
+                if record.partner_id.is_company:
+                    record.pname = (record.partner_id.name or "").upper()
+                else:
+                    record.pname = record.partner_id.name
+
+    One may also pass a single function as argument. In that case, the
+    dependencies are given by calling the function with the field's model.
     """
     if args and callable(args[0]):
         args = args[0]
-    elif any('id' in arg.split('.') for arg in args):
-        raise NotImplementedError("Compute method cannot depend on field 'id'.")
-    return attrsetter('_depends', args)
+    elif any("id" in arg.split(".") for arg in args):
+        msg = "Compute method cannot depend on field 'id'."
+        raise NotImplementedError(msg)
+    return attrsetter("_depends", args)
 
 
 def depends_context(*args: str) -> Decorator:
-    """ Return a decorator that specifies the context dependencies of a
+    """Return a decorator that specifies the context dependencies of a
     non-stored "compute" method.  Each argument is a key in the context's
     dictionary::
 
-        price = fields.Float(compute='_compute_product_price')
+        price = fields.Float(compute="_compute_product_price")
 
-        @api.depends_context('pricelist')
+
+        @api.depends_context("pricelist")
         def _compute_product_price(self):
             for product in self:
-                if product.env.context.get('pricelist'):
-                    pricelist = self.env['product.pricelist'].browse(product.env.context['pricelist'])
+                if product.env.context.get("pricelist"):
+                    pricelist = self.env["product.pricelist"].browse(
+                        product.env.context["pricelist"]
+                    )
                 else:
-                    pricelist = self.env['product.pricelist'].get_default_pricelist()
-                product.price = pricelist._get_products_price(product).get(product.id, 0.0)
+                    pricelist = self.env["product.pricelist"].get_default_pricelist()
+                product.price = pricelist._get_products_price(product).get(
+                    product.id, 0.0
+                )
 
     All dependencies must be hashable.  The following keys have special
     support:
@@ -289,10 +277,10 @@ def depends_context(*args: str) -> Decorator:
     * `uid` (current user id and superuser flag),
     * `active_test` (value in env.context or value in field.context).
     """
-    return attrsetter('_depends_context', args)
+    return attrsetter("_depends_context", args)
 
 
-def autovacuum(method: C) -> C:
+def autovacuum[C: Callable](method: C) -> C:
     """
     Decorate a method so that it is called by the daily vacuum cron job (model
     ``ir.autovacuum``).  This is typically used for garbage-collection-like
@@ -301,63 +289,93 @@ def autovacuum(method: C) -> C:
     A return value can be a tuple (done, remaining) which have simular meaning
     as in :meth:`~odoo.addons.base.models.ir_cron.IrCron._commit_progress`.
     """
-    assert method.__name__.startswith('_'), "%s: autovacuum methods must be private" % method.__name__
+    assert method.__name__.startswith("_"), (
+        f"{method.__name__}: autovacuum methods must be private"
+    )
     method._autovacuum = True  # type: ignore
     return method
 
 
-def model(method: C) -> C:
-    """ Decorate a record-style method where ``self`` is a recordset, but its
-        contents is not relevant, only the model is. Such a method::
+def model[C: Callable](method: C) -> C:
+    """Decorate a record-style method where ``self`` is a recordset, but its
+    contents is not relevant, only the model is. Such a method::
 
-            @api.model
-            def method(self, args):
-                ...
+        @api.model
+        def method(self, args): ...
 
     """
-    if method.__name__ == 'create':
+    if method.__name__ == "create":
         return model_create_multi(method)  # type: ignore
     method._api_model = True  # type: ignore
     return method
 
 
-def private(method: C) -> C:
-    """ Decorate a record-style method to indicate that the method cannot be
-        called using RPC. Example::
+def private[C: Callable](method: C) -> C:
+    """Decorate a record-style method to indicate that the method cannot be
+    called using RPC. Example::
 
-            @api.private
-            def method(self, args):
-                ...
+        @api.private
+        def method(self, args): ...
 
-        If you have business methods that should not be called over RPC, you
-        should prefix them with "_". This decorator may be used in case of
-        existing public methods that become non-RPC callable or for ORM
-        methods.
+    If you have business methods that should not be called over RPC, you
+    should prefix them with "_". This decorator may be used in case of
+    existing public methods that become non-RPC callable or for ORM
+    methods.
     """
     method._api_private = True  # type: ignore
     return method
 
 
-def readonly(method: C) -> C:
-    """ Decorate a record-style method where ``self.env.cr`` can be a
-        readonly cursor when called trough a rpc call.
+def readonly[C: Callable](method: C) -> C:
+    """Decorate a record-style method where ``self.env.cr`` can be a
+    readonly cursor when called trough a rpc call.
 
-            @api.readonly
-            def method(self, args):
-                ...
+        @api.readonly
+        def method(self, args):
+            ...
     """
     method._readonly = True  # type: ignore
     return method
 
 
-def model_create_multi(method: Callable[[T, list[ValuesType]], T]) -> Callable[[T, list[ValuesType] | ValuesType], T]:
-    """ Decorate a method that takes a list of dictionaries and creates multiple
-        records. The method may be called with either a single dict or a list of
-        dicts::
+def deprecated(reason: str) -> Decorator:
+    """Mark a method as deprecated, emitting a warning on first call.
 
-            record = model.create(vals)
-            records = model.create([vals, ...])
+    Usage::
+
+        @api.deprecated("Since 19.0, use new_method instead")
+        def old_method(self): ...
+
+    :param reason: human-readable deprecation message
     """
+
+    def decorator(method: C) -> C:
+        @wraps(method)
+        def wrapper(*args: object, **kwargs: object) -> object:
+            warnings.warn(
+                f"Call to deprecated method {method.__qualname__}: {reason}",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return method(*args, **kwargs)
+
+        wrapper._deprecated = reason
+        return wrapper  # type: ignore[return-value]
+
+    return decorator
+
+
+def model_create_multi[T](
+    method: Callable[[T, list[ValuesType]], T],
+) -> Callable[[T, list[ValuesType] | ValuesType], T]:
+    """Decorate a method that takes a list of dictionaries and creates multiple
+    records. The method may be called with either a single dict or a list of
+    dicts::
+
+        record = model.create(vals)
+        records = model.create([vals, ...])
+    """
+
     @wraps(method)
     def create(self: T, vals_list: list[ValuesType] | ValuesType) -> T:
         if isinstance(vals_list, Mapping):

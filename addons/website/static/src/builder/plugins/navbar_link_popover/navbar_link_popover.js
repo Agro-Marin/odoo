@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LinkPopover } from "@html_editor/main/link/link_popover";
 
 export class NavbarLinkPopover extends LinkPopover {

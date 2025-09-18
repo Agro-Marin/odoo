@@ -31,12 +31,12 @@
 
             <div class="col-sm-12 row m-0 p-0">
                 <div t-if="company_type" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-building text-primary"/>
+                    <i class="fa-solid fa-building me-2 text-primary"/>
                     <b>Company type</b>
                 </div>
                 <div t-if="company_type" class="my-1 col-sm-9" t-esc="company_type" />
                 <div t-if="founded_year" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-calendar text-primary"/>
+                    <i class="fa-solid fa-calendar-days me-2 text-primary"/>
                     <b>Founded</b>
                 </div>
                 <div t-if="founded_year" class="my-1 col-sm-9" t-esc="founded_year" />
@@ -46,7 +46,7 @@
                 <t t-if="industry_group" t-set="sectors" t-value="sectors + [industry_group]" />
                 <t t-if="sub_industry" t-set="sectors" t-value="sectors + [sub_industry]" />
                 <div t-if="sectors" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-industry text-primary"/>
+                    <i class="fa-solid fa-industry me-2 text-primary"/>
                     <b>Sectors</b>
                 </div>
                 <div t-if="sectors" class="my-1 col-sm-9">
@@ -55,19 +55,19 @@
                     </t>
                 </div>
                 <div t-if="employees" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-users text-primary"/>
+                    <i class="fa-solid fa-users me-2 text-primary"/>
                     <b>Employees</b>
                 </div>
                 <div t-if="employees" class="my-1 col-sm-9" t-esc="'%.0f' % employees" />
                 <div t-if="estimated_annual_revenue" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-money text-primary"/>
+                    <i class="fa-solid fa-money-bill-1 me-2 text-primary"/>
                     <b>Estimated revenue</b>
                 </div>
                 <div t-if="estimated_annual_revenue" class="my-1 col-sm-9">
                     <span t-esc="estimated_annual_revenue" /><span> per year</span>
                 </div>
                 <div t-if="phone_numbers" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-phone text-primary"/>
+                    <i class="fa-solid fa-phone me-2 text-primary"/>
                     <b>Phone</b>
                 </div>
                 <div t-if="phone_numbers" class="col-sm-9">
@@ -76,7 +76,7 @@
                     </t>
                 </div>
                 <div t-if="email" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-envelope text-primary"/>
+                    <i class="fa-solid fa-envelope me-2 text-primary"/>
                     <b>Email</b>
                 </div>
                 <div t-if="email" class="col-sm-9">
@@ -85,12 +85,12 @@
                     </t>
                 </div>
                 <div t-if="timezone" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-globe text-primary"/>
+                    <i class="fa-solid fa-earth-americas me-2 text-primary"/>
                     <b>Timezone</b>
                 </div>
                 <div t-if="timezone" class="my-1 col-sm-9" t-esc="timezone.replace('_', ' ')" />
                 <div t-if="tech" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-cube text-primary"/>
+                    <i class="fa-solid fa-cube me-2 text-primary"/>
                     <b>Technologies Used</b>
                 </div>
                 <div t-if="tech" class="my-1 col-sm-9">
@@ -99,7 +99,7 @@
                     </t>
                 </div>
                 <div t-if="twitter_bio" class="d-flex my-1 p-0 col-sm-3">
-                    <i class="fa fa-fw me-2 fa-twitter text-primary"/>
+                    <i class="fa-solid fa-twitter me-2 text-primary"/>
                     <b>X</b>
                 </div>
                 <div t-if="twitter_bio" class="my-1 col-sm-9">
@@ -111,6 +111,94 @@
                         <div t-if="twitter_followers" class="text-nowrap"><t t-esc="twitter_followers"/> followers</div>
                     </div>
                     <div t-esc="twitter_bio" class="mt-1"/>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="enrich_company_by_dnb">
+        <div class="o_partner_autocomplete_enrich_info p-3 mt-3 mb-3 me-5">
+            <div class="row p-0 m-0">
+            <div class="col-sm-10 p-0">
+                <h4 class="me-3 align-middle" t-att-style="logo and 'margin-top:25px' or ''" t-out="name"/>
+            </div>
+            <div t-if="logo" class="col-sm-2 p-0 text-center text-md-end order-first order-md-last">
+                <img t-attf-src="data:image/png;base64, {{logo}}" alt="" style="max-width: 80px;"/>
+            </div>
+            </div>
+            <hr/>
+
+            <div class="col-sm-12 row m-0 p-0">
+                <div t-if="company_type" class="d-flex my-1 p-0 col-sm-3">
+                    <i class="fa-solid fa-building me-2 mt-1 text-primary"/>
+                    <b>Type</b>
+                </div>
+                <div t-if="company_type" class="my-1 col-sm-9" t-out="company_type" />
+                <div t-if="vat" class="d-flex my-1 p-0 col-sm-3">
+                    <i class="fa-solid fa-folder me-2 mt-1 text-primary"/>
+                    <b>Tax ID</b>
+                </div>
+                <div t-if="vat" class="my-1 col-sm-9" t-out="vat" />
+                <t t-set="sectors" t-value="[]" />
+                <t t-if="sector_primary" t-set="sectors" t-value="sectors + [sector_primary]" />
+                <t t-if="industry" t-set="sectors" t-value="sectors + [industry]" />
+                <t t-if="industry_group" t-set="sectors" t-value="sectors + [industry_group]" />
+                <t t-if="sub_industry" t-set="sectors" t-value="sectors + [sub_industry]" />
+                <div class="d-flex my-1 p-0 col-sm-3">
+                    <i class="fa-solid fa-address-card me-2 text-primary mt-1"/>
+                    <b>Address</b>
+                </div>
+                <div class="my-1 col-sm-9">
+                    <div class="o_address_format">
+                        <div t-if="street" class="o_address_street" t-out="street"/>
+                        <div t-if="street2"  class="o_address_street" t-out="street2"/>
+                        <span t-if="city" t-out="city"/>
+                        <span t-if="state" toutc="state"/>
+                        <span t-if="zip_code" t-out="zip_code"/>
+                        <div t-if="country" class="o_address_country" t-out="country"/>
+                    </div>
+                </div>
+                <div t-if="employees" class="d-flex my-1 p-0 col-sm-3">
+                    <i class="fa-solid fa-users me-2 text-primary"/>
+                    <b>Employees</b>
+                </div>
+                <div t-if="employees" class="my-1 col-sm-9" t-out="'%.0f' % employees" />
+                <div t-if="estimated_annual_revenue" class="d-flex my-1 p-0 col-sm-3">
+                    <i class="fa-solid fa-money-bill-1 me-2 mt-1 text-primary"/>
+                    <b>Estimated revenue</b>
+                </div>
+                <div t-if="estimated_annual_revenue" class="my-1 col-sm-9">
+                    <span t-out="estimated_annual_revenue" /><span> per year</span>
+                </div>
+                <div t-if="phone" class="d-flex p-0 my-1 col-sm-3">
+                    <i class="fa-solid fa-phone me-2 mt-1 text-primary"/>
+                    <b>Phone</b>
+                </div>
+                 <div t-if="phone" class="col-sm-9 my-1">
+                    <a t-attf-href="tel:{{phone}}" t-out="phone"/>
+                </div>
+                <div t-if="email" class="d-flex my-1 p-0 col-sm-3">
+                    <i class="fa-solid fa-envelope me-2 text-primary" style="margin-top: 3px;"/>
+                    <b>Email</b>
+                </div>
+                <div t-if="email" class="col-sm-9 my-1">
+                    <a target="_top" t-attf-href="mailto:{{email}}" t-out="email"/>
+                </div>
+                 <div t-if="website" class="d-flex my-1 p-0 col-sm-3">
+                    <i class="fa-solid fa-earth-americas me-2 mt-1 text-primary"/>
+                    <b>Website</b>
+                </div>
+                <div t-if="website" class="my-1 col-sm-9">
+                    <a target="_blank" t-attf-href="{{website}}" t-out="website"/>
+                </div>
+                 <div t-if="tags" class="d-flex my-1 p-0 col-sm-3">
+                    <i class="fa-solid fa-industry me-2 text-primary"/>
+                    <b>Industries</b>
+                </div>
+                 <div t-if="tags" class="col-sm-9">
+                    <t t-foreach="tags" t-as="tag_item">
+                        <label t-out="tag_item[1]" class="o_tag o_tag_color_7"  style="font-weight:normal; padding: 2px 10px; margin: 1px 0px; border-radius: 13px; display: inline-block;"/>
+                    </t>
                 </div>
             </div>
         </div>

@@ -1,8 +1,8 @@
+/** @odoo-module native */
 import { DiscussSearch } from "@mail/core/public_web/discuss_search";
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
-import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
-
+import { patch } from "@web/core/utils/patch";
 Object.assign(MessagingMenu.components, { DiscussSearch });
 
 patch(MessagingMenu.prototype, {

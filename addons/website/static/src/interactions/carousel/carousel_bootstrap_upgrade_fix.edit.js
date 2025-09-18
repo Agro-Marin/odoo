@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CarouselBootstrapUpgradeFix } from "@website/interactions/carousel/carousel_bootstrap_upgrade_fix";
 import { registry } from "@web/core/registry";
 import { withHistory } from "@website/core/website_edit_service";

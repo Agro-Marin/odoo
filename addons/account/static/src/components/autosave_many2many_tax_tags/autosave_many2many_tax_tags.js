@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { useRecordObserver } from "@web/model/relational_model/utils";
+import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import {
     Many2ManyTaxTagsField,
     many2ManyTaxTagsField

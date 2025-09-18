@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -9,14 +10,14 @@ registry.category("web_tour.tours").add("sale_tour", {
         stepUtils.showAppsMenuItem(),
         {
             isActive: ["community"],
-            trigger: ".o_app[data-menu-xmlid='sale.sale_menu_root']",
+            trigger: ".o_app[data-menu-xmlid='sale.menu_sale_root']",
             content: _t("Let’s create a beautiful quotation in a few clicks ."),
             tooltipPosition: "right",
             run: "click",
         },
         {
             isActive: ["enterprise"],
-            trigger: ".o_app[data-menu-xmlid='sale.sale_menu_root']",
+            trigger: ".o_app[data-menu-xmlid='sale.menu_sale_root']",
             content: _t("Let’s create a beautiful quotation in a few clicks ."),
             tooltipPosition: "bottom",
             run: "click",
@@ -83,7 +84,7 @@ registry.category("web_tour.tours").add("sale_tour", {
         },
         {
             isActive: ["auto", "mobile"],
-            trigger: ".o_statusbar_buttons button[name='action_quotation_send']",
+            trigger: ".o_statusbar_buttons button[name='action_send_quotation']",
         },
         ...stepUtils.statusbarButtonsSteps(
             "Send",

@@ -6,6 +6,7 @@ from odoo.tools import html2plaintext
 
 
 class ProjectTask(models.Model):
+    _name = 'project.task'
     _inherit = 'project.task'
 
     @api.model_create_multi

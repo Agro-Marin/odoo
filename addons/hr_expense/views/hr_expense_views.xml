@@ -150,7 +150,7 @@
                         <button name="action_open_split_expense"
                             type="object"
                             class="oe_stat_button"
-                            icon="fa-file-text-o"
+                            icon="fa-regular fa-file-lines"
                             invisible="not split_expense_origin_id"
                             string="Split"
                         />
@@ -523,7 +523,7 @@
             <field name="arch" type="xml">
                 <xpath expr="//group[@name='group_filters']" position='after'>
                     <searchpanel>
-                        <field name="state" expand="1" select="multi" icon="fa-check-square-o" enable_counters="1"/>
+                        <field name="state" expand="1" select="multi" icon="fa-regular fa-square-check" enable_counters="1"/>
                         <field name="employee_id"  limit="20" hierarchize="0" select="one" icon="fa-users"/>
                         <field name="company_id" expand="1" icon="fa-building" groups="base.group_multi_company"/>
                     </searchpanel>

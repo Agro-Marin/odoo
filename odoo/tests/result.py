@@ -9,27 +9,29 @@ import re
 import sys
 import time
 import traceback
+from typing import TYPE_CHECKING, Any, NamedTuple
 
-from typing import NamedTuple
-
+from .. import db
 from . import case
-from .. import sql_db
+
+if TYPE_CHECKING:
+    import types
+    from collections.abc import Generator
 
 __unittest = True
 
-STDOUT_LINE = '\nStdout:\n%s'
-STDERR_LINE = '\nStderr:\n%s'
+ODOO_TEST_MAX_FAILED_TESTS = max(
+    1, int(os.environ.get("ODOO_TEST_MAX_FAILED_TESTS", sys.maxsize))
+)
 
-ODOO_TEST_MAX_FAILED_TESTS = max(1, int(os.environ.get('ODOO_TEST_MAX_FAILED_TESTS', sys.maxsize)))
-
-stats_logger = logging.getLogger('odoo.tests.stats')
+stats_logger = logging.getLogger("odoo.tests.stats")
 
 
 class Stat(NamedTuple):
     time: float = 0.0
     queries: int = 0
 
-    def __add__(self, other: 'Stat') -> 'Stat':
+    def __add__(self, other: Stat) -> Stat:
         if other == 0:
             return self
 
@@ -41,8 +43,10 @@ class Stat(NamedTuple):
             self.queries + other.queries,
         )
 
+
 _logger = logging.getLogger(__name__)
-_TEST_ID = re.compile(r"""
+_TEST_ID = re.compile(
+    r"""
 ^
 odoo\.addons\.
 (?P<module>[^.]+)
@@ -51,10 +55,12 @@ odoo\.addons\.
 \.
 (?P<method>[^.]+)
 $
-""", re.VERBOSE)
+""",
+    re.VERBOSE,
+)
 
 
-class OdooTestResult(object):
+class OdooTestResult:
     """
     This class in inspired from TextTestResult and modifies TestResult
     Instead of using a stream, we are using the logger.
@@ -71,7 +77,13 @@ class OdooTestResult(object):
     _previousTestClass = None
     _moduleSetUpFailed = False
 
-    def __init__(self, stream=None, descriptions=None, verbosity=None, global_report=None):
+    def __init__(
+        self,
+        stream: Any = None,
+        descriptions: Any = None,
+        verbosity: Any = None,
+        global_report: OdooTestResult | None = None,
+    ) -> None:
         self.failures_count = 0
         self.errors_count = 0
         self.testsRun = 0
@@ -84,43 +96,53 @@ class OdooTestResult(object):
         self.had_failure = False
         self.stats = collections.defaultdict(Stat)
         self.global_report = global_report
-        self.shouldStop = self.global_report and self.global_report.shouldStop or False
+        self.shouldStop = (
+            self.global_report and self.global_report.shouldStop
+        ) or False
 
-    def total_errors_count(self):
+    def total_errors_count(self) -> int:
+        """Return the combined error and failure count, including any global report."""
         result = self.errors_count + self.failures_count
         if self.global_report:
             result += self.global_report.total_errors_count()
         return result
 
-    def _checkShouldStop(self):
+    def _checkShouldStop(self) -> None:
         if self.total_errors_count() >= ODOO_TEST_MAX_FAILED_TESTS:
             global_report = self.global_report or self
             if not global_report.shouldStop:
                 _logger.error(
                     "Test suite halted: max failed tests already reached (%s). "
-                    "Remaining tests will be skipped.", ODOO_TEST_MAX_FAILED_TESTS)
+                    "Remaining tests will be skipped.",
+                    ODOO_TEST_MAX_FAILED_TESTS,
+                )
                 global_report.shouldStop = True
             self.shouldStop = True
 
-    def printErrors(self):
-        "Called by TestRunner after test run"
+    def printErrors(self) -> None:
+        """Called by TestRunner after test run."""
 
-    def startTest(self, test):
-        "Called when the given test is about to be run"
+    def startTest(self, test: case.TestCase) -> None:
+        """Called when the given test is about to be run."""
         self.testsRun += 1
-        self.log(logging.INFO, 'Starting %s ...', self.getDescription(test), test=test)
-        self.time_start = time.time()
-        self.queries_start = sql_db.sql_counter
+        self.log(
+            logging.INFO,
+            "Starting %s ...",
+            self.getDescription(test),
+            test=test,
+        )
+        self.time_start = time.monotonic()
+        self.queries_start = db.sql_counter
 
-    def stopTest(self, test):
-        """Called when the given test has been run"""
+    def stopTest(self, test: case.TestCase) -> None:
+        """Called when the given test has been run."""
         if stats_logger.isEnabledFor(logging.INFO):
             self.stats[test.id()] = Stat(
-                time=time.time() - self.time_start,
-                queries=sql_db.sql_counter - self.queries_start,
+                time=time.monotonic() - self.time_start,
+                queries=db.sql_counter - self.queries_start,
             )
 
-    def addError(self, test, err):
+    def addError(self, test: case.TestCase, err: tuple) -> None:
         """Called when an error has occurred. 'err' is a tuple of values as
         returned by sys.exc_info().
         """
@@ -131,7 +153,7 @@ class OdooTestResult(object):
         self.logError("ERROR", test, err)
         self._checkShouldStop()
 
-    def addFailure(self, test, err):
+    def addFailure(self, test: case.TestCase, err: tuple) -> None:
         """Called when an error has occurred. 'err' is a tuple of values as
         returned by sys.exc_info()."""
         if self._soft_fail:
@@ -141,29 +163,37 @@ class OdooTestResult(object):
         self.logError("FAIL", test, err)
         self._checkShouldStop()
 
-    def addSubTest(self, test, subtest, err):
+    def addSubTest(
+        self, test: case.TestCase, subtest: case.TestCase, err: tuple | None
+    ) -> None:
         if err is not None:
             if issubclass(err[0], test.failureException):
                 self.addFailure(subtest, err)
             else:
                 self.addError(subtest, err)
 
-    def addSuccess(self, test):
-        "Called when a test has completed successfully"
+    def addSuccess(self, test: case.TestCase) -> None:
+        """Called when a test has completed successfully."""
 
-    def addSkip(self, test, reason):
+    def addSkip(self, test: case.TestCase, reason: str) -> None:
         """Called when a test is skipped."""
         self.skipped += 1
-        self.log(logging.INFO, 'skipped %s : %s', self.getDescription(test), reason, test=test)
+        self.log(
+            logging.INFO,
+            "skipped %s : %s",
+            self.getDescription(test),
+            reason,
+            test=test,
+        )
 
-    def wasSuccessful(self):
+    def wasSuccessful(self) -> bool:
         """Tells whether or not this result was a success."""
         # The hasattr check is for test_result's OldResult test.  That
         # way this method works on objects that lack the attribute.
         # (where would such result intances come from? old stored pickles?)
         return self.failures_count == self.errors_count == 0
 
-    def _exc_info_to_string(self, err, test):
+    def _exc_info_to_string(self, err: tuple, test: case.TestCase) -> str:
         """Converts a sys.exc_info()-style tuple of values into a string."""
         exctype, value, tb = err
         # Skip test runner traceback levels
@@ -176,15 +206,16 @@ class OdooTestResult(object):
         else:
             length = None
         tb_e = traceback.TracebackException(
-            exctype, value, tb, limit=length, capture_locals=self.tb_locals)
+            exctype, value, tb, limit=length, capture_locals=self.tb_locals
+        )
         msgLines = list(tb_e.format())
 
-        return ''.join(msgLines)
+        return "".join(msgLines)
 
-    def _is_relevant_tb_level(self, tb):
-        return '__unittest' in tb.tb_frame.f_globals
+    def _is_relevant_tb_level(self, tb: types.TracebackType) -> bool:
+        return "__unittest" in tb.tb_frame.f_globals
 
-    def _count_relevant_tb_levels(self, tb):
+    def _count_relevant_tb_levels(self, tb: types.TracebackType | None) -> int:
         length = 0
         while tb and not self._is_relevant_tb_level(tb):
             length += 1
@@ -195,11 +226,11 @@ class OdooTestResult(object):
         return f"<{self.__class__.__module__}.{self.__class__.__qualname__} run={self.testsRun} errors={self.errors_count} failures={self.failures_count}>"
 
     def __str__(self):
-        return f'{self.failures_count} failed, {self.errors_count} error(s) of {self.testsRun} tests'
-
+        return f"{self.failures_count} failed, {self.errors_count} error(s) of {self.testsRun} tests"
 
     @contextlib.contextmanager
-    def soft_fail(self):
+    def soft_fail(self) -> Generator[None]:
+        """Context manager: failures inside do not increment counters but set had_failure."""
         self.had_failure = False
         self._soft_fail = True
         try:
@@ -208,8 +239,8 @@ class OdooTestResult(object):
             self._soft_fail = False
             self.had_failure = False
 
-    def update(self, other):
-        """ Merges an other test result into this one, only updates contents
+    def update(self, other: OdooTestResult) -> None:
+        """Merges an other test result into this one, only updates contents
 
         :type other: OdooTestResult
         """
@@ -219,7 +250,17 @@ class OdooTestResult(object):
         self.skipped += other.skipped
         self.stats.update(other.stats)
 
-    def log(self, level, msg, *args, test=None, exc_info=None, extra=None, stack_info=False, caller_infos=None):
+    def log(
+        self,
+        level: int,
+        msg: str,
+        *args: Any,
+        test: case.TestCase | None = None,
+        exc_info: Any = None,
+        extra: dict | None = None,
+        stack_info: bool = False,
+        caller_infos: tuple | None = None,
+    ) -> None:
         """
         ``test`` is the running test case, ``caller_infos`` is
         (fn, lno, func, sinfo) (logger.findCaller format), see logger.log for
@@ -233,15 +274,27 @@ class OdooTestResult(object):
             caller_infos = caller_infos or logger.findCaller(stack_info)
         except ValueError:
             caller_infos = "(unknown file)", 0, "(unknown function)", None
-        (fn, lno, func, sinfo) = caller_infos
+        fn, lno, func, sinfo = caller_infos
         # using logger.log makes it difficult to spot-replace findCaller in
         # order to provide useful location information (the problematic spot
         # inside the test function), so use lower-level functions instead
         if logger.isEnabledFor(level):
-            record = logger.makeRecord(logger.name, level, fn, lno, msg, args, exc_info, func, extra, sinfo)
+            record = logger.makeRecord(
+                logger.name,
+                level,
+                fn,
+                lno,
+                msg,
+                args,
+                exc_info,
+                func,
+                extra,
+                sinfo,
+            )
             logger.handle(record)
 
-    def log_stats(self):
+    def log_stats(self) -> None:
+        """Log per-module timing and query statistics."""
         if not stats_logger.isEnabledFor(logging.INFO):
             return
 
@@ -250,56 +303,78 @@ class OdooTestResult(object):
         counts = collections.Counter()
         for test, stat in self.stats.items():
             r = _TEST_ID.match(test)
-            if not r: # upgrade has tests at weird paths, ignore them
+            if not r:  # upgrade has tests at weird paths, ignore them
                 continue
 
-            stats_tree[r['module']] += stat
-            counts[r['module']] += 1
+            stats_tree[r["module"]] += stat
+            counts[r["module"]] += 1
             if details:
-                stats_tree['%(module)s.%(class)s' % r] += stat
-                stats_tree['%(module)s.%(class)s.%(method)s' % r] += stat
+                stats_tree[f"{r['module']}.{r['class']}"] += stat
+                stats_tree[f"{r['module']}.{r['class']}.{r['method']}"] += stat
 
         if details:
-            stats_logger.debug('Detailed Tests Report:\n%s', ''.join(
-                f'\t{test}: {stats.time:.2f}s {stats.queries} queries\n'
-                for test, stats in sorted(stats_tree.items())
-            ))
+            stats_logger.debug(
+                "Detailed Tests Report:\n%s",
+                "".join(
+                    f"\t{test}: {stats.time:.2f}s {stats.queries} queries\n"
+                    for test, stats in sorted(stats_tree.items())
+                ),
+            )
         else:
             for module, stat in sorted(stats_tree.items()):
                 stats_logger.info(
                     "%s: %d tests %.2fs %d queries",
-                    module, counts[module],
-                    stat.time, stat.queries
+                    module,
+                    counts[module],
+                    stat.time,
+                    stat.queries,
                 )
 
-    def getDescription(self, test):
+    def getDescription(self, test: case.TestCase) -> str:
         if isinstance(test, case._SubTest):
-            return 'Subtest %s.%s %s' % (test.test_case.__class__.__qualname__, test.test_case._testMethodName, test._subDescription())
+            tc = test.test_case
+            return (
+                f"Subtest {tc.__class__.__qualname__}"
+                f".{tc._testMethodName} {test._subDescription()}"
+            )
         if isinstance(test, case.TestCase):
-            # since we have the module name in the logger, this will avoid to duplicate module info in log line
-            # we only apply this for TestCase since we can receive error handler or other special case
-            return "%s.%s" % (test.__class__.__qualname__, test._testMethodName)
+            # Module name is already in the logger — avoid duplicating it.
+            # Only for TestCase; we can receive _ErrorHolder or other special cases.
+            return f"{test.__class__.__qualname__}.{test._testMethodName}"
         return str(test)
 
     @contextlib.contextmanager
-    def collectStats(self, test_id):
-        queries_before = sql_db.sql_counter
-        time_start = time.time()
+    def collectStats(self, test_id: str) -> Generator[None]:
+        """Context manager that accumulates timing and query stats for the given test id."""
+        queries_before = db.sql_counter
+        time_start = time.monotonic()
 
         yield
 
         self.stats[test_id] += Stat(
-            time=time.time() - time_start,
-            queries=sql_db.sql_counter - queries_before,
+            time=time.monotonic() - time_start,
+            queries=db.sql_counter - queries_before,
         )
 
-    def logError(self, flavour, test, error):
+    def logError(self, flavour: str, test: case.TestCase, error: tuple) -> None:
         err = self._exc_info_to_string(error, test)
         caller_infos = self.getErrorCallerInfo(error, test)
-        self.log(logging.INFO, '=' * 70, test=test, caller_infos=caller_infos)  # keep this as info !!!!!!
-        self.log(logging.ERROR, "%s: %s\n%s", flavour, self.getDescription(test), err, test=test, caller_infos=caller_infos)
+        self.log(
+            logging.INFO, "=" * 70, test=test, caller_infos=caller_infos
+        )  # keep this as info !!!!!!
+        self.log(
+            logging.ERROR,
+            "%s: %s\n%s",
+            flavour,
+            self.getDescription(test),
+            err,
+            test=test,
+            caller_infos=caller_infos,
+        )
 
-    def getErrorCallerInfo(self, error, test):
+    def getErrorCallerInfo(
+        self, error: tuple, test: case.TestCase
+    ) -> tuple[str, int, str, None] | None:
         """
         :param error: A tuple (exctype, value, tb) as returned by sys.exc_info().
         :param test: A TestCase that created this error.
@@ -308,7 +383,7 @@ class OdooTestResult(object):
 
         # only handle TestCase here. test can be an _ErrorHolder in some case (setup/teardown class errors)
         if not isinstance(test, case.TestCase):
-            return
+            return None
 
         _, _, error_traceback = error
 
@@ -331,7 +406,7 @@ class OdooTestResult(object):
         #
         while error_traceback:
             code = error_traceback.tb_frame.f_code
-            if code.co_name in (test._testMethodName, 'setUp', 'tearDown'):
+            if code.co_name in (test._testMethodName, "setUp", "tearDown"):
                 method_tb = error_traceback
             if code.co_filename == filename:
                 file_tb = error_traceback
@@ -344,3 +419,4 @@ class OdooTestResult(object):
             filename = code.co_filename
             method = test._testMethodName
             return (filename, lineno, method, None)
+        return None

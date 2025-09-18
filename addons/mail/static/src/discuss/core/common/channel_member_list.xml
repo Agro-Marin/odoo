@@ -45,9 +45,9 @@
             </div>
             <span class="ms-auto">
                 <span t-if="member.in(props.thread.invited_member_ids)" class="p-1 oi oi-user-plus opacity-75"/>
-                <span t-if="member.rtcSession?.is_muted and !member.rtcSession?.is_deaf" class="p-1 fa fa-microphone-slash opacity-75"/>
-                <span t-elif="member.rtcSession?.is_deaf" class="p-1 fa fa-deaf opacity-75"/>
-                <span t-if="member.rtcSession?.raisingHand" class="p-1 fa fa-hand-paper-o"/>
+                <span t-if="member.rtcSession?.is_muted and !member.rtcSession?.is_deaf" class="p-1 fa-solid fa-microphone-slash opacity-75"/>
+                <span t-elif="member.rtcSession?.is_deaf" class="p-1 fa-solid fa-deaf opacity-75"/>
+                <span t-if="member.rtcSession?.raisingHand" class="p-1 fa-regular fa-hand"/>
             </span>
 
         </div>

@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { cookie } from "@web/core/browser/cookie";
 
 import { markup } from "@odoo/owl";
-import { omit } from "@web/core/utils/objects";
+import { omit } from "@web/core/utils/collections/objects";
 import { stepUtils } from "@web_tour/tour_utils";
 
 export function addMedia(position = "right") {
@@ -430,7 +431,7 @@ export function insertSnippet(snippet, { position = "bottom", ignoreLoading = fa
 
     if (!ignoreLoading) {
         insertSnippetSteps.push({
-            trigger: ":iframe:not(:has(.o_loading_screen))",
+            trigger: ".o_website_preview :iframe:not(:has(.o_loading_screen))",
         });
     }
 

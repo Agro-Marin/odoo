@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Checks whether the 2 provided sale order lines are linked.
  *
@@ -24,7 +25,7 @@ export function areSaleOrderLinesLinked(linkingSaleOrderLine, linkedSaleOrderLin
 export function getLinkedSaleOrderLines(saleOrderLine) {
     const saleOrder = saleOrderLine.model.root;
     // TODO(loti): this leaves out any combo items that are on another page.
-    return saleOrder.data.order_line.records.filter(
+    return saleOrder.data.line_ids.records.filter(
         record => areSaleOrderLinesLinked(record, saleOrderLine)
     );
 }

@@ -1,6 +1,6 @@
 import { AttendeeCalendarCommonRenderer } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_renderer";
 import { AttendeeCalendarRenderer } from "@calendar/views/attendee_calendar/attendee_calendar_renderer";
-import { user } from "@web/core/user";
+import { user } from "@web/services/user";
 import { patch } from "@web/core/utils/patch";
 import { renderToString } from "@web/core/utils/render";
 import { onPatched } from "@odoo/owl";
@@ -125,8 +125,8 @@ patch(AttendeeCalendarCommonRenderer.prototype, {
             multiCalendar,
             showLine,
             iconMap: {
-                "office": "fa-building",
-                "home": "fa-home",
+                "office": "fa-solid fa-building",
+                "home": "fa-solid fa-house",
             },
         }
     }

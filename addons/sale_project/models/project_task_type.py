@@ -1,15 +1,17 @@
 from odoo import api, fields, models
 
 
-class ProjectTaskType(models.Model):
-    _inherit = 'project.task.type'
+class ProjectWorkflowStep(models.Model):
+    """Add rating visibility based on billable projects."""
+
+    _inherit = 'project.workflow.step'
 
     show_rating_active = fields.Boolean(compute='_compute_show_rating_active', export_string_translation=False)
 
     @api.depends('project_ids.allow_billable')
     def _compute_show_rating_active(self):
-        for stage in self:
-            stage.show_rating_active = any(stage.project_ids.mapped('allow_billable'))
+        for step in self:
+            step.show_rating_active = any(step.project_ids.mapped('allow_billable'))
 
     @api.onchange('project_ids')
     def _onchange_project_ids(self):

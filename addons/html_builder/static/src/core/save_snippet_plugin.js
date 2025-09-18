@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { escapeTextNodes } from "@html_builder/utils/escaping";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
@@ -6,7 +7,8 @@ import { _t } from "@web/core/l10n/translation";
 
 const savableSelector = "[data-snippet], a.btn";
 // TODO `so_submit_button_selector` ?
-const savableExclude = ".o_no_save, .s_donation_donate_btn, .s_website_form_send";
+const savableExclude =
+    ".o_no_save, .s_donation_donate_btn, .s_website_form_send, .js_subscribe_btn";
 
 // Checks if the element can be saved as a custom snippet.
 function isSavable(el) {
@@ -30,7 +32,7 @@ export class SaveSnippetPlugin extends Plugin {
 
         return [
             {
-                class: "fa fa-fw fa-save oe_snippet_save o_we_hover_warning btn o-hb-btn btn-global-color-hover",
+                class: "fa-regular fa-floppy-disk oe_snippet_save o_we_hover_warning btn o-hb-btn btn-global-color-hover",
                 title: _t("Save this block to use it elsewhere"),
                 handler: this.saveSnippet.bind(this),
             },

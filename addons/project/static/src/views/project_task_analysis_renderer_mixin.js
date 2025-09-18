@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { Domain } from "@web/core/domain";
 

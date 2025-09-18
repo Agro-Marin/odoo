@@ -1,8 +1,7 @@
-import { formView } from "@web/views/form/form_view";
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-
-
+import { formView } from "@web/views/form/form_view";
 export class MailComposerSaveTemplateFormController extends formView.Controller {
     /** @override */
     setup() {

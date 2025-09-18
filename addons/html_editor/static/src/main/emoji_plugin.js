@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { EmojiPicker } from "@web/core/emoji_picker/emoji_picker";
+import { EmojiPicker } from "@web/components/emoji_picker/emoji_picker";
 import { _t } from "@web/core/l10n/translation";
 
 /**
@@ -18,7 +19,7 @@ export class EmojiPlugin extends Plugin {
                 id: "addEmoji",
                 title: _t("Emoji"),
                 description: _t("Add an emoji"),
-                icon: "fa-smile-o",
+                icon: "fa-regular fa-face-smile",
                 run: this.showEmojiPicker.bind(this),
             },
         ],

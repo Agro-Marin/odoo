@@ -1,4 +1,5 @@
-import { Plugin, isValidTargetForDomListener } from "../plugin";
+/** @odoo-module native */
+import { Plugin, isValidTargetForDomListener } from "../plugin.js";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { fillEmpty } from "@html_editor/utils/dom";
 import { leftLeafOnlyNotBlockPath } from "@html_editor/utils/dom_state";

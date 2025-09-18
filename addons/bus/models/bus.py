@@ -1,22 +1,22 @@
-# -*- coding: utf-8 -*-
 import contextlib
 import datetime
-import json
 import logging
 import math
 import os
 import selectors
 import threading
 import time
-from psycopg2 import InterfaceError
-from psycopg2.pool import PoolError
+import psycopg
+import psycopg.sql
+from psycopg import InterfaceError
 
 import odoo
 from ..tools import orjson
 from odoo import api, fields, models
+from odoo.libs.json import dumps as json_dumps
 from odoo.service.server import CommonServer
-from odoo.tools import json_default, SQL
-from odoo.tools.constants import GC_UNLINK_LIMIT
+from odoo.tools import SQL
+from odoo.tools.json import orjson_default
 from odoo.tools.misc import OrderedSet
 
 _logger = logging.getLogger(__name__)
@@ -43,19 +43,108 @@ def get_notify_payload_max_length(default=8000):
 NOTIFY_PAYLOAD_MAX_LENGTH = get_notify_payload_max_length()
 
 
+_notify_conn: psycopg.Connection | None = None
+_notify_lock = threading.Lock()
+
+
+def _get_notify_conn_locked():
+    """Return a persistent autocommit connection to the ``postgres`` database.
+
+    Lazily opened on first call, reused thereafter.  Reconnects
+    transparently if the connection was lost.
+
+    Must only be called when the caller already holds ``_notify_lock``.
+    """
+    global _notify_conn  # noqa: PLW0603
+    if _notify_conn is None or _notify_conn.closed:
+        _dbname, params = odoo.db.connection_info_for("postgres")
+        _notify_conn = psycopg.connect(autocommit=True, **params)
+    return _notify_conn
+
+
+def _close_notify_conn_locked():
+    """Close the notify connection without acquiring ``_notify_lock``.
+
+    Must only be called when the caller already holds ``_notify_lock``.
+    """
+    global _notify_conn  # noqa: PLW0603
+    if _notify_conn is not None:
+        with contextlib.suppress(Exception):
+            _notify_conn.close()
+        _notify_conn = None
+
+
+def _close_notify_conn():
+    """Close the persistent notify connection, if open.
+
+    Acquires ``_notify_lock`` to prevent closing the connection under a
+    concurrent ``_send_pg_notify`` call (e.g. at server shutdown).
+    Do NOT call this while already holding ``_notify_lock``; use
+    ``_close_notify_conn_locked()`` instead.
+    """
+    with _notify_lock:
+        _close_notify_conn_locked()
+
+
+def _send_pg_notify(payloads):
+    """Send pg_notify on the ``postgres`` database.
+
+    PostgreSQL LISTEN/NOTIFY is database-scoped: the bus loop
+    (``ImDispatch.loop``) listens on the ``postgres`` database, so
+    NOTIFY must also be sent on ``postgres``.
+
+    Uses a persistent direct connection with ``autocommit=True`` (not
+    the pool) so NOTIFY is sent immediately regardless of the caller's
+    transaction state and without pool contention.
+
+    Retries once on any exception (e.g. transient connection drop) with a
+    fresh connection.  Re-raises on the second failure so the caller can
+    decide how to handle it; notifications will be lost in that case.
+    """
+    _query = psycopg.sql.SQL("SELECT {}('imbus', %s)").format(
+        psycopg.sql.Identifier(ODOO_NOTIFY_FUNCTION)
+    )
+    with _notify_lock:
+        for attempt in range(2):
+            conn = _get_notify_conn_locked()
+            try:
+                for payload in payloads:
+                    conn.execute(_query, (payload,))
+                return
+            except Exception:
+                _close_notify_conn_locked()
+                if attempt == 1:
+                    raise
+
+
 # ---------------------------------------------------------
 # Bus
 # ---------------------------------------------------------
 def json_dump(v):
-    return json.dumps(v, separators=(',', ':'), default=json_default)
+    """Serialize ``v`` to a JSON string using the shared orjson default encoder."""
+    return json_dumps(v, default=orjson_default)
+
 
 def hashable(key):
+    """Convert ``key`` to a hashable form suitable for use in a dict/set.
+
+    Lists are converted to tuples; all other types are returned unchanged.
+    Callers must ensure the value is actually hashable after conversion.
+    """
     if isinstance(key, list):
         key = tuple(key)
     return key
 
 
 def channel_with_db(dbname, channel):
+    """Qualify a raw channel with the database name to produce a scoped channel key.
+
+    Accepted forms and their output:
+    - ``Model`` instance           → ``(dbname, model_name, record_id)``
+    - ``(Model, subchannel)``      → ``(dbname, model_name, record_id, subchannel)``
+    - ``str``                      → ``(dbname, channel_str)``
+    - anything else (e.g. tuple)   → passed through unchanged (pre-qualified)
+    """
     if isinstance(channel, models.Model):
         return (dbname, channel._name, channel.id)
     if isinstance(channel, tuple) and len(channel) == 2 and isinstance(channel[0], models.Model):
@@ -95,11 +184,27 @@ class BusBus(models.Model):
 
     @api.autovacuum
     def _gc_messages(self):
-        gc_retention_seconds = int(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("bus.gc_retention_seconds", DEFAULT_GC_RETENTION_SECONDS)
-        )
+        """Delete bus messages older than the configured retention window.
+
+        Falls back to ``DEFAULT_GC_RETENTION_SECONDS`` if the parameter is
+        absent, non-numeric, or non-positive (a zero or negative value would
+        wipe the entire table by making timeout_ago >= now).
+        """
+        try:
+            gc_retention_seconds = int(
+                self.env["ir.config_parameter"]
+                .sudo()
+                .get_param("bus.gc_retention_seconds", DEFAULT_GC_RETENTION_SECONDS)
+            )
+        except (ValueError, TypeError):
+            gc_retention_seconds = DEFAULT_GC_RETENTION_SECONDS
+        if gc_retention_seconds <= 0:
+            _logger.warning(
+                "bus.gc_retention_seconds is %d (must be > 0); using default %d seconds.",
+                gc_retention_seconds,
+                DEFAULT_GC_RETENTION_SECONDS,
+            )
+            gc_retention_seconds = DEFAULT_GC_RETENTION_SECONDS
         timeout_ago = fields.Datetime.now() - datetime.timedelta(seconds=gc_retention_seconds)
         # Direct SQL to avoid ORM overhead; this way we can delete millions of rows quickly.
         # This is a low-level table with no expected references, and doing this avoids
@@ -146,51 +251,44 @@ class BusBus(models.Model):
             # When calling `NOTIFY imbus`, notifications will be fetched in the
             # bus table. If the transaction is not commited yet, there will be
             # nothing to fetch, and the websocket will return no notification.
-            @self.env.cr.postcommit.add
+            cr_ref = self.env.cr
+
+            @cr_ref.postcommit.add
             def notify():
                 payloads = get_notify_payloads(
-                    list(self.env.cr.postcommit.data.pop("bus.bus.channels"))
+                    list(cr_ref.postcommit.data.pop("bus.bus.channels"))
                 )
                 if len(payloads) > 1:
                     _logger.info(
                         "The imbus notification payload was too large, it's been split into %d payloads.",
                         len(payloads),
                     )
-                with odoo.sql_db.db_connect("postgres").cursor() as cr:
-                    for payload in payloads:
-                        cr.execute(
-                            SQL(
-                                "SELECT %s('imbus', %s)",
-                                SQL.identifier(ODOO_NOTIFY_FUNCTION),
-                                payload,
-                            )
-                        )
+                _send_pg_notify(payloads)
 
     @api.model
     def _poll(self, channels, last=0, ignore_ids=None):
-        # first poll return the notification in the 'buffer'
+        # Direct SQL — bus.bus is a simple queue table with no computed fields.
+        # Channel filtering provides security; sudo/access rules are unnecessary.
         if last == 0:
             timeout_ago = fields.Datetime.now() - datetime.timedelta(seconds=TIMEOUT)
-            domain = [('create_date', '>', timeout_ago)]
-        else:  # else returns the unread notifications
-            domain = [('id', '>', last)]
+            where = SQL("create_date > %s", timeout_ago)
+        else:
+            where = SQL("id > %s", last)
         if ignore_ids:
-            domain.append(("id", "not in", ignore_ids))
+            where = SQL("%s AND NOT (id = ANY(%s))", where, ignore_ids)
         channels = [json_dump(channel_with_db(self.env.cr.dbname, c)) for c in channels]
-        domain.append(('channel', 'in', channels))
-        notifications = self.sudo().search_read(domain, ["message"])
-        # list of notification to return
-        result = []
-        for notif in notifications:
-            result.append({
-                'id': notif['id'],
-                'message': orjson.loads(notif['message']),
-            })
-        return result
+        self.env.cr.execute(SQL(
+            "SELECT id, message FROM bus_bus WHERE %s AND channel = ANY(%s) ORDER BY id",
+            where, channels,
+        ))
+        return [
+            {'id': row[0], 'message': orjson.loads(row[1])}
+            for row in self.env.cr.fetchall()
+        ]
 
     def _bus_last_id(self):
-        last = self.env['bus.bus'].search([], order='id desc', limit=1)
-        return last.id if last else 0
+        self.env.cr.execute("SELECT COALESCE(MAX(id), 0) FROM bus_bus")
+        return self.env.cr.fetchone()[0]
 
 
 # ---------------------------------------------------------
@@ -207,53 +305,66 @@ class ImDispatch(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True, name=f'{__name__}.Bus')
         self._channels_to_ws = {}
+        # Serialises all mutations to _channels_to_ws and the loop's
+        # snapshot read, preventing races between the dispatch loop and
+        # concurrent subscribe/unsubscribe calls from websocket threads.
+        self._lock = threading.Lock()
 
     def subscribe(self, channels, last, db, websocket):
-        """
-        Subcribe to bus notifications. Every notification related to the
-        given channels will be sent through the websocket. If a subscription
-        is already present, overwrite it.
+        """Subscribe to bus notifications.
+
+        Every notification related to the given channels will be sent through
+        the websocket. Replaces any existing subscription for this websocket.
         """
         channels = {hashable(channel_with_db(db, c)) for c in channels}
-        for channel in channels:
-            self._channels_to_ws.setdefault(channel, set()).add(websocket)
         outdated_channels = websocket._channels - channels
-        self._clear_outdated_channels(websocket, outdated_channels)
+        with self._lock:
+            for channel in channels:
+                self._channels_to_ws.setdefault(channel, set()).add(websocket)
+            for channel in outdated_channels:
+                ws_set = self._channels_to_ws.get(channel)
+                if ws_set is not None:
+                    ws_set.discard(websocket)
+                    if not ws_set:
+                        del self._channels_to_ws[channel]
         websocket.subscribe(channels, last)
         with contextlib.suppress(RuntimeError):
             if not self.is_alive():
                 self.start()
 
     def unsubscribe(self, websocket):
-        self._clear_outdated_channels(websocket, websocket._channels)
-
-    def _clear_outdated_channels(self, websocket, outdated_channels):
-        """ Remove channels from channel to websocket map. """
-        for channel in outdated_channels:
-            self._channels_to_ws[channel].remove(websocket)
-            if not self._channels_to_ws[channel]:
-                self._channels_to_ws.pop(channel)
+        """Remove a websocket from all channel subscriptions."""
+        with self._lock:
+            for channel in websocket._channels:
+                ws_set = self._channels_to_ws.get(channel)
+                if ws_set is not None:
+                    ws_set.discard(websocket)
+                    if not ws_set:
+                        del self._channels_to_ws[channel]
 
     def loop(self):
-        """ Dispatch postgres notifications to the relevant websockets """
+        """Dispatch postgres notifications to the relevant websockets.
+
+        Uses a direct connection (not the pool) so the long-lived LISTEN
+        connection does not consume a pool slot.
+        """
         _logger.info("Bus.loop listen imbus on db postgres")
-        with odoo.sql_db.db_connect('postgres').cursor() as cr, \
+        _dbname, params = odoo.db.connection_info_for("postgres")
+        with psycopg.connect(autocommit=True, **params) as conn, \
              selectors.DefaultSelector() as sel:
-            cr.execute("listen imbus")
-            cr.commit()
-            conn = cr._cnx
+            conn.execute("LISTEN imbus")
             sel.register(conn, selectors.EVENT_READ)
             while not stop_event.is_set():
                 if sel.select(TIMEOUT):
-                    conn.poll()
                     channels = []
-                    while conn.notifies:
-                        channels.extend(orjson.loads(conn.notifies.pop().payload))
-                    # relay notifications to websockets that have
-                    # subscribed to the corresponding channels.
-                    websockets = set()
-                    for channel in channels:
-                        websockets.update(self._channels_to_ws.get(hashable(channel), []))
+                    for notif in conn.notifies(timeout=0):
+                        channels.extend(orjson.loads(notif.payload))
+                    # Snapshot websockets under lock, then dispatch outside
+                    # to avoid holding the lock while calling websocket code.
+                    with self._lock:
+                        websockets = set()
+                        for channel in channels:
+                            websockets.update(self._channels_to_ws.get(hashable(channel), []))
                     for websocket in websockets:
                         websocket.trigger_notification_dispatching()
 
@@ -262,14 +373,14 @@ class ImDispatch(threading.Thread):
             try:
                 self.loop()
             except Exception as exc:
-                if isinstance(exc, (InterfaceError, PoolError)) and stop_event.is_set():
+                if isinstance(exc, (InterfaceError, psycopg.OperationalError)) and stop_event.is_set():
                     continue
                 _logger.exception("Bus.loop error, sleep and retry")
                 time.sleep(TIMEOUT)
 
-# Partially undo a2ed3d3d5bdb6025a1ba14ad557a115a86413e65
-# IMDispatch has a lazy start, so we could initialize it anyway
-# And this avoids the Bus unavailable error messages
+# Lazy-started singleton — initialized early to avoid "Bus unavailable" errors.
+# ImDispatch.start() is deferred until the first subscribe() call.
 dispatch = ImDispatch()
 stop_event = threading.Event()
 CommonServer.on_stop(stop_event.set)
+CommonServer.on_stop(_close_notify_conn)

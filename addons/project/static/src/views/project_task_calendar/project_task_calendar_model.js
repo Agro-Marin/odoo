@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Domain } from "@web/core/domain";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { CalendarModel } from '@web/views/calendar/calendar_model';
-import { ProjectTaskModelMixin } from "../project_task_model_mixin";
+import { ProjectTaskModelMixin } from "../project_task_model_mixin.js";
 
 export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarModel) {
     get tasksToPlanDomain() {

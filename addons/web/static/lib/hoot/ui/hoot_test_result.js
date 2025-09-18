@@ -94,7 +94,7 @@ const DOC_URL = `https://www.odoo.com/documentation/18.0/developer/reference/fro
 
 const ERROR_TEMPLATE = /* xml */ `
     <div class="text-rose flex items-center gap-1 px-2 truncate">
-        <i class="fa fa-exclamation" />
+        <i class="fa-solid fa-exclamation" />
         <strong t-esc="event.label" />
         <span class="flex truncate" t-esc="event.message.join(' ')" />
     </div>
@@ -123,9 +123,9 @@ const EVENT_TEMPLATE = /* xml */ `
             target="_blank"
         >
             <t t-if="event.flags">
-                <i t-if="event.hasFlag('rejects')" class="fa fa-times" />
-                <i t-elif="event.hasFlag('resolves')" class="fa fa-arrow-right" />
-                <i t-if="event.hasFlag('not')" class="fa fa-exclamation" />
+                <i t-if="event.hasFlag('rejects')" class="fa-solid fa-times" />
+                <i t-elif="event.hasFlag('resolves')" class="fa-solid fa-arrow-right" />
+                <i t-if="event.hasFlag('not')" class="fa-solid fa-exclamation" />
             </t>
             <strong t-esc="event.label" />
         </a>

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
-import { FormActionFieldsOption } from "./form_action_fields_option";
-import { FormModelRequiredFieldAlert } from "./form_model_required_field_alert";
+import { FormActionFieldsOption } from "./form_action_fields_option.js";
+import { FormModelRequiredFieldAlert } from "./form_model_required_field_alert.js";
 import {
     getDependencyEl,
     getFieldName,
@@ -9,7 +10,7 @@ import {
     isFieldCustom,
     getCurrentFieldInputEl,
     getModelName,
-} from "./utils";
+} from "./utils.js";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 
 const { DateTime } = luxon;

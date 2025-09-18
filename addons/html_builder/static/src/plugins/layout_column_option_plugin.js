@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { getFirstItem, getNbColumns, getRow } from "@html_builder/utils/column_layout_utils";
 import { Plugin } from "@html_editor/plugin";

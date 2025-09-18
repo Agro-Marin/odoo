@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
@@ -5,7 +6,7 @@ import {
     DEFAULT_LANGUAGE_ID,
     getPreValue,
     newlinesToLineBreaks,
-} from "../../core/syntax_highlighting/syntax_highlighting_utils";
+} from "../../core/syntax_highlighting/syntax_highlighting_utils.js";
 import { removeInvisibleWhitespace } from "@html_editor/utils/dom";
 
 const CODE_BLOCK_CLASS = "o_syntax_highlighting";

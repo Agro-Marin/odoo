@@ -71,33 +71,33 @@ class TestProject(TestCommonSaleTimesheet):
         self.assertEqual(self.project_global._get_sale_order_items(), expected_task_sale_order_items | employee_mapping.sale_line_id)
         self.assertEqual(self.project_global._get_sale_orders(), self.so)
 
-        new_stage = self.env['project.task.type'].create({
+        new_stage = self.env['project.workflow.step'].create({
             'name': 'New',
             'sequence': 1,
             'project_ids': [Command.set(self.project_global.ids)],
         })
-        done_stage = self.env['project.task.type'].create({
+        done_stage = self.env['project.workflow.step'].create({
             'name': 'Done',
             'sequence': 2,
             'project_ids': [Command.set(self.project_global.ids)],
             'fold': True,
         })
         task.write({
-            'stage_id': done_stage.id,
+            'step_id': done_stage.id,
         })
         self.env.flush_all()
-        self.assertEqual(self.project_global._fetch_sale_order_items({'project.task': [('stage_id.fold', '=', False)]}), employee_mapping.sale_line_id)
-        self.assertEqual(self.project_global._fetch_sale_order_items({'project.task': [('stage_id.fold', '=', True)]}), task.sale_line_id | employee_mapping.sale_line_id)
+        self.assertEqual(self.project_global._fetch_sale_order_items({'project.task': [('step_id.fold', '=', False)]}), employee_mapping.sale_line_id)
+        self.assertEqual(self.project_global._fetch_sale_order_items({'project.task': [('step_id.fold', '=', True)]}), task.sale_line_id | employee_mapping.sale_line_id)
 
         task2 = self.env['project.task'].create({
             'name': 'Task 2',
             'project_id': self.project_global.id,
             'sale_line_id': sale_item.id,
-            'stage_id': new_stage.id,
+            'step_id': new_stage.id,
         })
 
-        self.assertEqual(self.project_global._fetch_sale_order_items({'project.task': [('stage_id.fold', '=', False)]}), task2.sale_line_id | employee_mapping.sale_line_id)
-        self.assertEqual(self.project_global._fetch_sale_order_items({'project.task': [('stage_id.fold', '=', True)]}), task.sale_line_id | employee_mapping.sale_line_id)
+        self.assertEqual(self.project_global._fetch_sale_order_items({'project.task': [('step_id.fold', '=', False)]}), task2.sale_line_id | employee_mapping.sale_line_id)
+        self.assertEqual(self.project_global._fetch_sale_order_items({'project.task': [('step_id.fold', '=', True)]}), task.sale_line_id | employee_mapping.sale_line_id)
 
         self.project_global.allow_billable = False
         self.assertFalse(self.project_global._get_sale_order_items())

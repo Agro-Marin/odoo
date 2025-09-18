@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { kanbanView } from "@web/views/kanban/kanban_view";
-import { ProjectKanbanController } from "./project_project_kanban_controller";
-import { ProjectProjectKanbanRenderer } from "./project_project_kanban_renderer";
-import { ProjectRelationalModel } from "../project_relational_model";
+import { ProjectKanbanController } from "./project_project_kanban_controller.js";
+import { ProjectProjectKanbanRenderer } from "./project_project_kanban_renderer.js";
+import { ProjectRelationalModel } from "../project_relational_model.js";
 
 export const projectProjectKanbanView = {
     ...kanbanView,

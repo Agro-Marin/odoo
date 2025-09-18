@@ -1,3 +1,4 @@
+/** @odoo-module */
 export class TourHelpers {
     constructor(anchor) {
         this.anchor = anchor;

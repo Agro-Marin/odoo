@@ -146,8 +146,8 @@
     >
 	    <BuilderRow label.translate="Thumbnails" level="1">
 	        <BuilderButtonGroup action="'websiteConfig'" id="'o_wsale_thumbnail_pos'">
-	            <BuilderButton className="'fa fa-fw fa-long-arrow-left'" actionParam="{ views: ['website_sale.carousel_product_indicators_left'] }" title="Left"></BuilderButton>
-	            <BuilderButton className="'fa fa-fw fa-long-arrow-down'" actionParam="{ views: ['website_sale.carousel_product_indicators_bottom'] }" title="Bottom"></BuilderButton>
+	            <BuilderButton className="'fa-solid fa-left-long'" actionParam="{ views: ['website_sale.carousel_product_indicators_left'] }" title="Left"></BuilderButton>
+	            <BuilderButton className="'fa-solid fa-down-long'" actionParam="{ views: ['website_sale.carousel_product_indicators_bottom'] }" title="Bottom"></BuilderButton>
 	        </BuilderButtonGroup>
 	    </BuilderRow>
     </t>
@@ -352,7 +352,7 @@
             action="'websiteConfig'"
             actionParam="{ views: ['website_sale.product_buy_now'] }"
         >
-            <i class="fa fa-fw fa-bolt"/>
+            <i class="fa-solid fa-bolt"/>
             Buy Now
         </BuilderButton>
         <BuilderButton title.translate="Select Quantity" className="'o_we_buy_now_btn'"

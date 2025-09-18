@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
 

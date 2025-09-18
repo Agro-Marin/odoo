@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SearchModel } from "@web/search/search_model";
 
 export class StockReportSearchModel extends SearchModel {

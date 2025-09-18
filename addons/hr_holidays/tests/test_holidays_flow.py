@@ -5,10 +5,10 @@ import time
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
-from psycopg2 import IntegrityError
+from psycopg import IntegrityError
 
 from odoo import Command
-from odoo.tools import date_utils, mute_logger, test_reports
+from odoo.tools import date_utils, mute_logger
 
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
@@ -212,20 +212,6 @@ class TestHolidaysFlow(TestHrHolidaysCommon):
             # Check left days for casual leave: 19 days left
             _check_holidays_status(hol3_status, self.env['hr.employee'].browse(employee_id), 20.0, 1.0, 19.0, 19.0)
 
-    def test_10_leave_summary_reports(self):
-        # Print the HR Holidays(Summary Employee) Report through the wizard
-        ctx = {
-            'model': 'hr.employee',
-            'active_ids': [self.ref('hr.employee_admin')]
-        }
-        data_dict = {
-            'date_from': datetime.today().strftime('%Y-%m-01'),
-            'emp': [(6, 0, [self.ref('hr.employee_admin')])],
-            'holiday_type': 'Approved'
-        }
-        self.env.company.external_report_layout_id = self.env.ref('web.external_layout_standard').id
-        test_reports.try_report_action(self.env.cr, self.env.uid, 'action_hr_holidays_summary_employee', wiz_data=data_dict, context=ctx, our_module='hr_holidays')
-
     def test_sql_constraint_dates(self):
         # The goal is mainly to verify that a human friendly
         # error message is triggered if the date_from is after
@@ -257,7 +243,7 @@ class TestHolidaysFlow(TestHrHolidaysCommon):
             'request_date_to': date.today() + relativedelta(day=10),
             'employee_id': self.ref('hr.employee_admin'),
         }
-        with mute_logger('odoo.sql_db'), self.assertRaises(IntegrityError):
+        with mute_logger('odoo.db'), self.assertRaises(IntegrityError):
             self.env['hr.leave'].create(leave_vals)
 
         leave_vals = {
@@ -269,7 +255,7 @@ class TestHolidaysFlow(TestHrHolidaysCommon):
         }
         leave = self.env['hr.leave'].create(leave_vals)
 
-        with mute_logger('odoo.sql_db'), self.assertRaises(IntegrityError):
+        with mute_logger('odoo.db'), self.assertRaises(IntegrityError):
             leave.write({
                 'request_date_from': date.today() + relativedelta(day=11),
                 'request_date_to': date.today() + relativedelta(day=10),

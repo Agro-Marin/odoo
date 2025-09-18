@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
@@ -74,7 +75,7 @@ export class RemovePlugin extends Plugin {
         this.overlayTarget = target;
         const disabledReason = this.dependencies.builderOptions.getRemoveDisabledReason(target);
         buttons.push({
-            class: "oe_snippet_remove bg-danger fa fa-trash",
+            class: "oe_snippet_remove bg-danger fa-solid fa-trash-can",
             title: _t("Remove"),
             disabledReason,
             handler: () => {

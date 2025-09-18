@@ -108,7 +108,7 @@
     <t t-name="website_slides.UploadInProgressDialog">
         <div class="text-center" role="status">
             <div class="fa-3x">
-                <i class="fa fa-circle-o-notch fa-spin"></i>
+                <i class="fa-solid fa-circle-notch fa-spin"></i>
             </div>
             <h4>Uploading document ...</h4>
         </div>

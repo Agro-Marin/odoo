@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { Popup } from "@website/interactions/popup/popup";
 import { registry } from "@web/core/registry";
 
 import { cookie } from "@web/core/browser/cookie";
 import { _t } from "@web/core/l10n/translation";
-import { isVisible } from "@web/core/utils/ui";
+import { isVisible } from "@web/core/utils/dom/ui";
 import { cloneContentEls } from "@website/js/utils";
 import { setUtmsHtmlDataset } from "@website/utils/misc";
 
@@ -116,7 +117,7 @@ export class CookiesBar extends Popup {
         if (policyLinkEl && window.location.pathname === new URL(policyLinkEl.href).pathname) {
             this.toggleEl = cloneContentEls(`
             <button class="o_cookies_bar_toggle btn btn-info btn-sm rounded-circle d-flex gap-2 align-items-center position-fixed pe-auto">
-                <i class="fa fa-eye" alt="" aria-hidden="true"></i> <span class="o_cookies_bar_toggle_label"></span>
+                <i class="fa-regular fa-eye" alt="" aria-hidden="true"></i> <span class="o_cookies_bar_toggle_label"></span>
             </button>
             `).firstElementChild;
             this.insert(this.toggleEl, this.el, "beforebegin");

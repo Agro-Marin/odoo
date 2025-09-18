@@ -14,7 +14,7 @@
             <span t-else="">Preset</span>
         </button>
         <button t-if="!props.showRemainingButtons and !ui.isSmall and this.pos.showSaveOrderButton" t-att-disabled="this.pos.getOrder().isEmpty()" t-attf-class="{{ buttonClass }} ms-auto" t-on-click="() => this.pos.clickSaveOrder()">
-            <i class="fa fa-upload"/>
+            <i class="fa-solid fa-upload"/>
         </button>
         <button class="btn btn-secondary btn-lg flex-shrink-0 more-btn" t-att-class="{'ms-auto': !this.pos.showSaveOrderButton}" t-if="!props.showRemainingButtons and !ui.isSmall and props.onClickMore" t-on-click="props.onClickMore">
             <i class="oi oi-fw oi-ellipsis-v" aria-hidden="true" />
@@ -25,30 +25,30 @@
                 <NoteButton
                     label.translate="Customer Note"
                     class="buttonClass"
-                    icon="'fa fa-sticky-note'"/>
+                    icon="'fa-solid fa-sticky-note'"/>
                 <button t-if="this.pos.cashier._role != 'minimal'" class="o_pricelist_button" t-att-class="buttonClass" t-on-click="() => this.clickPricelist()">
-                    <i class="fa fa-th-list me-2" role="img" aria-label="Price list" title="Price list" />
+                    <i class="fa-solid fa-th-list me-2" role="img" aria-label="Price list" title="Price list" />
                     <t t-if="currentOrder?.pricelist_id" t-esc="currentOrder.pricelist_id.display_name" />
                     <t t-else="">Pricelist</t>
                 </button>
                 <button t-if="this.pos.cashier._role != 'minimal'" t-att-class="buttonClass" t-on-click="() => this.clickRefund()">
-                    <i class="fa fa-undo me-1" role="img" aria-label="Refund" title="Refund" />
+                    <i class="fa-solid fa-undo me-1" role="img" aria-label="Refund" title="Refund" />
                     Refund
                 </button>
                 <button t-if="this.pos.config.fiscal_position_ids.length and this.pos.cashier._role != 'minimal'"
                     class="control-button o_fiscal_position_button"
                     t-att-class="buttonClass"
                     t-on-click="() => this.clickFiscalPosition()">
-                    <i class="fa fa-book me-1" role="img" aria-label="Set fiscal position"
+                    <i class="fa-solid fa-book me-1" role="img" aria-label="Set fiscal position"
                     title="Set fiscal position" />
                     <t t-if="currentOrder?.fiscal_position_id" t-esc="currentOrder.fiscal_position_id.display_name" />
                     <t t-else="">Tax</t>
                 </button>
                 <button t-if="this.displayProductInfoBtn()" t-att-class="buttonClass" t-on-click="() => this.pos.onProductInfoClick(currentOrder.getSelectedOrderline().product_id.product_tmpl_id, currentOrder.getSelectedOrderline().product_id)">
-                    <i class="fa fa-info-circle me-1" role="img" aria-label="Product Info" title="Product Info" /> Info
+                    <i class="fa-solid fa-info-circle me-1" role="img" aria-label="Product Info" title="Product Info" /> Info
                 </button>
                 <button t-if="this.pos.cashier._role != 'minimal'" t-att-class="buttonClass" t-on-click="() => this.pos.onDeleteOrder(this.pos.getOrder())">
-                    <i class="fa fa-trash me-1" role="img" /> Cancel Order 
+                    <i class="fa-solid fa-trash-can me-1" role="img" /> Cancel Order 
                 </button>
             </div>
         </t>

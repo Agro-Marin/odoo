@@ -1,3 +1,9 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/public/utils - PairSet data structure and button click handler utilities for public pages */
+
+import { addLoadingEffect } from "@web/core/utils/dom/ui";
 export class PairSet {
     constructor() {
         this.map = new Map(); // map of [1] => Set<[2]>
@@ -26,9 +32,7 @@ export class PairSet {
     }
 }
 
-import { addLoadingEffect } from "@web/core/utils/ui";
-
-export const DEBOUNCE = 400;
+const DEBOUNCE = 400;
 export const BUTTON_HANDLER_SELECTOR =
     'a, button, input[type="submit"], input[type="button"], .btn';
 
@@ -40,7 +44,7 @@ export const BUTTON_HANDLER_SELECTOR =
  * @param {function} fct
  *      The function which is to be used as a handler. If a promise
  *      is returned, it is used to determine when the handler's action is
- *      finished. Otherwise, the return is used as jQuery uses it.
+ *      finished.
  */
 export function makeAsyncHandler(fct) {
     let pending = false;
@@ -79,7 +83,7 @@ export function makeAsyncHandler(fct) {
  * @param {function} fct
  *      The function which is to be used as a button click handler. If a
  *      promise is returned, it is used to determine when the button can be
- *      re-enabled. Otherwise, the return is used as jQuery uses it.
+ *      re-enabled.
  */
 export function makeButtonHandler(fct) {
     // Fallback: if the final handler is not bound to a button, at least
@@ -102,8 +106,11 @@ export function makeButtonHandler(fct) {
         buttonEl.classList.add("pe-none");
         new Promise((resolve) => setTimeout(resolve, DEBOUNCE)).then(() => {
             buttonEl.classList.remove("pe-none");
-            const restore = addLoadingEffect(buttonEl);
-            return Promise.resolve(result).then(restore, restore);
+            const restore = addLoadingEffect(/** @type {any} */ (buttonEl));
+            return Promise.resolve(result).then(
+                /** @type {any} */ (restore),
+                /** @type {any} */ (restore),
+            );
         });
 
         return result;
@@ -119,7 +126,7 @@ export function makeButtonHandler(fct) {
  * @param {any|function} replacement, if a function, takes the element and the
  *     replaced's function output as parameters
  */
-export function patchDynamicContentEntry(dynamicContent, selector, t, replacement) {
+function patchDynamicContentEntry(dynamicContent, selector, t, replacement) {
     dynamicContent[selector] = dynamicContent[selector] || {};
     const forSelector = dynamicContent[selector];
     if (replacement === undefined) {

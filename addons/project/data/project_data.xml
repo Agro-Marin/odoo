@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
     <!-- Project Stages -->
-    <record id="project_project_stage_0" model="project.project.stage">
+    <record id="project_project_stage_0" model="project.phase">
         <field name="sequence">10</field>
         <field name="name">To Do</field>
     </record>
 
-    <record id="project_project_stage_1" model="project.project.stage">
+    <record id="project_project_stage_1" model="project.phase">
         <field name="sequence">15</field>
         <field name="name">In Progress</field>
     </record>
 
-    <record id="project_project_stage_2" model="project.project.stage">
+    <record id="project_project_stage_2" model="project.phase">
         <field name="sequence">20</field>
         <field name="name">Done</field>
         <field name="fold" eval="True"/>
     </record>
 
-    <record id="project_project_stage_3" model="project.project.stage">
+    <record id="project_project_stage_3" model="project.phase">
         <field name="sequence">25</field>
         <field name="name">Cancelled</field>
         <field name="fold" eval="True"/>
@@ -49,9 +49,9 @@
         <field name="name">user_ids</field>
     </record>
 
-    <record id="project_task_export_template_line_stage_id" model="ir.exports.line">
+    <record id="project_task_export_template_line_step_id" model="ir.exports.line">
         <field name="export_id" ref="project_task_export_template"/>
-        <field name="name">stage_id</field>
+        <field name="name">step_id</field>
     </record>
 
     <record id="project_task_export_template_line_state" model="ir.exports.line">

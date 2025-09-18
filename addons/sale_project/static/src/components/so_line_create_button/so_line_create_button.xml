@@ -14,7 +14,7 @@
                 data-tooltip="Create Sales Order"
                 t-on-click="openSalesOrderDialog"
             >
-                <i class="fa fa-plus"/>
+                <i class="fa-solid fa-plus"/>
             </a>
         </div>
     </t>

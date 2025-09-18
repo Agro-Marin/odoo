@@ -32,16 +32,16 @@ export class AddProductToWishlistButton extends Interaction {
         wishlistUtils.updateWishlistNavBar();
         wishlistUtils.updateDisabled(el, true);
         await wSaleUtils.animateClone(
-            $(document.querySelector('.o_wsale_my_wish')),
-            $(document.querySelector('#product_detail_main') ?? el.closest('.o_cart_product') ?? form),
+            document.querySelector('.o_wsale_my_wish'),
+            document.querySelector('#product_detail_main') ?? el.closest('.o_cart_product') ?? form,
             25,
             40,
         );
         if (el.classList.contains('o_add_wishlist')) {
-            const iconEl = el.querySelector('.fa');
+            const iconEl = el.querySelector('.fa-heart');
             if (iconEl) {
-                iconEl.classList.remove('fa-heart-o');
-                iconEl.classList.add('fa-heart');
+                iconEl.classList.remove('fa-regular');
+                iconEl.classList.add('fa-solid');
             }
         }
     }

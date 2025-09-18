@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SnippetViewer } from "@html_builder/snippets/snippet_viewer";
 import { onMounted, onPatched, onWillPatch, onWillUnmount } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";

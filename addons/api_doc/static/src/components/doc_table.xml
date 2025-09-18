@@ -37,14 +37,14 @@
                 >
                     <i
                         t-if="row.subData"
-                        class="fa fa-bars o-doc-sub-table-btn d-inline me-1 cursor-pointer"
+                        class="fa-solid fa-bars o-doc-sub-table-btn d-inline me-1 cursor-pointer"
                         aria-hidden="true"
                         t-on-click="(ev) => this.showSubTable(ev, row.subData)"
                     />
 
                     <t t-if="row and row.type == 'tooltip'">
                         <i
-                            class="fa fa-question-circle"
+                            class="fa-solid fa-question-circle"
                             aria-hidden="true"
                             t-if="row.value"
                             t-on-mouseover="(ev) => this.showDynamicTooltip(ev, row.value)"
@@ -61,7 +61,7 @@
                     >
                         <t t-out="row.relation"/>
                         <i
-                            class="fa fa-external-link ps-1 d-inline"
+                            class="fa-solid fa-up-right-from-square ps-1 d-inline"
                             aria-hidden="true"
                         ></i>
                     </a>

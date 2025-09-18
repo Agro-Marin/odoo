@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { markup } from "@odoo/owl";
-import { AnchorDialog } from "./anchor_dialog";
+import { AnchorDialog } from "./anchor_dialog.js";
 import { getElementsWithOption } from "@html_builder/utils/utils";
 
 const anchorSelector = ":not(p).oe_structure > *, :not(p)[data-oe-type=html] > *, .accordion-item";
@@ -52,7 +53,7 @@ export class AnchorPlugin extends Plugin {
 
         return [
             {
-                class: "fa fa-fw fa-link oe_snippet_anchor btn o-hb-btn btn-accent-color-hover",
+                class: "fa-solid fa-link oe_snippet_anchor btn o-hb-btn btn-accent-color-hover",
                 title: _t("Create and copy a link targeting this block or edit it"),
                 handler: this.createOrEditAnchorLink.bind(this),
             },

@@ -2,8 +2,9 @@
 
 import pytz
 
-from odoo import models, fields, tools, _
+from odoo import _, fields, models, tools
 from odoo.tools import is_html_empty
+
 from odoo.addons.mail.tools.discuss import Store
 
 
@@ -53,7 +54,7 @@ class MailActivity(models.Model):
         }
         return action
 
-    def _action_done(self, feedback=False, attachment_ids=False):
+    def _action_done(self, feedback=False, attachment_ids=None):
         # Add feedback to the internal event 'notes', which is not synchronized with the activity's 'note'
         if feedback:
             for event in self.calendar_event_id:

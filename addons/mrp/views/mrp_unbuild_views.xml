@@ -190,10 +190,4 @@
         </field>
     </record>
 
-    <menuitem id="menu_mrp_unbuild"
-          name="Unbuild Orders"
-          parent="menu_mrp_manufacturing"
-          action="mrp_unbuild"
-          sequence="20"/>
-
 </odoo>

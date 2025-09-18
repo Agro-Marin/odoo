@@ -1,5 +1,10 @@
-import { Interaction } from "@web/public/interaction";
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/public/caps_lock_warning - Interaction that detects Caps Lock state and toggles a warning on password inputs */
+
 import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class CapsLockWarning extends Interaction {
     static selector = ".o_caps_lock_warning";

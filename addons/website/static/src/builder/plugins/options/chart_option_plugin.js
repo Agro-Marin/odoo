@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { ChartOption, DATASET_KEY_PREFIX, getColor } from "./chart_option";
+import { ChartOption, DATASET_KEY_PREFIX, getColor } from "./chart_option.js";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 

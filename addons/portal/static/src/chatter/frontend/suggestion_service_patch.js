@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SuggestionService } from "@mail/core/common/suggestion_service";
 
 import { patch } from "@web/core/utils/patch";

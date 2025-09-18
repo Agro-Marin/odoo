@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export class ProductTemplateAttributeValue {
     /**
      * @param {number} id

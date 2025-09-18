@@ -6,7 +6,7 @@ import tourUtils from "@sale/js/tours/tour_utils";
 registry.category("web_tour.tours").add('sale_product_configurator_single_custom_attribute_tour', {
     url: '/odoo',
     steps: () => [
-        ...stepUtils.goToAppSteps("sale.sale_menu_root", "Go to the Sales App"),
+        ...stepUtils.goToAppSteps("sale.menu_sale_root", "Go to the Sales App"),
         ...tourUtils.createNewSalesOrder(),
         ...tourUtils.addProduct("Customizable Desk (TEST)"),
         configuratorTourUtils.setCustomAttribute("Customizable Desk (TEST)", "product attribute", "great single custom value"),

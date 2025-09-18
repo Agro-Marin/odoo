@@ -1,6 +1,22 @@
-import { loadJS } from "../assets"; // use the real, non patched (in tests), loadJS
+// @ts-check
+/** @odoo-module native */
 
-/** @typedef {import("./error_service").UncaughtError} UncaughtError */
+/** @module @web/core/errors/error_utils - Traceback formatting, source-map annotation, and error chain utilities */
+
+import { loadJS } from "@web/core/assets"; // use the real, non patched (in tests), loadJS
+
+/** @typedef {import("./uncaught_errors").UncaughtError} UncaughtError */
+
+/**
+ * An Error with optional custom properties used by the Odoo error pipeline.
+ * `annotatedTraceback` caches the annotated traceback string once computed.
+ * `errorEvent` holds the original browser ErrorEvent/PromiseRejectionEvent.
+ *
+ * @typedef {Error & {
+ *     annotatedTraceback?: string,
+ *     errorEvent?: ErrorEvent | PromiseRejectionEvent,
+ * }} AnnotatedError
+ */
 
 /**
  * @param {UncaughtError} uncaughtError
@@ -25,7 +41,7 @@ function combineErrorNames(uncaughtError, originalError) {
  */
 export function fullTraceback(error) {
     let traceback = formatTraceback(error);
-    let current = error.cause;
+    let current = /** @type {any} */ (error.cause);
     while (current) {
         traceback += `\n\nCaused by: ${
             current instanceof Error ? formatTraceback(current) : current
@@ -38,7 +54,7 @@ export function fullTraceback(error) {
 /**
  * Returns the full annotated traceback for an error chain based on error causes
  *
- * @param {Error} error
+ * @param {AnnotatedError} error
  * @returns {Promise<string>}
  */
 export async function fullAnnotatedTraceback(error) {
@@ -59,7 +75,7 @@ export async function fullAnnotatedTraceback(error) {
     let traceback;
     try {
         traceback = await annotateTraceback(error);
-        let current = error.cause;
+        let current = /** @type {any} */ (error.cause);
         while (current) {
             traceback += `\n\nCaused by: ${
                 current instanceof Error ? await annotateTraceback(current) : current
@@ -67,7 +83,12 @@ export async function fullAnnotatedTraceback(error) {
             current = current.cause;
         }
     } catch (e) {
-        console.warn("Failed to annotate traceback for error:", error, "failure reason:", e);
+        console.warn(
+            "Failed to annotate traceback for error:",
+            error,
+            "failure reason:",
+            e,
+        );
         traceback = fullTraceback(error);
     }
     error.annotatedTraceback = traceback;
@@ -83,7 +104,11 @@ export async function fullAnnotatedTraceback(error) {
  * @param {boolean} annotated
  * @returns {Promise<void>}
  */
-export async function completeUncaughtError(uncaughtError, originalError, annotated = false) {
+export async function completeUncaughtError(
+    uncaughtError,
+    originalError,
+    annotated = false,
+) {
     uncaughtError.name = combineErrorNames(uncaughtError, originalError);
     if (annotated) {
         uncaughtError.traceback = await fullAnnotatedTraceback(originalError);
@@ -112,8 +137,8 @@ export function getErrorTechnicalName(error) {
  * @param {Error} error
  * @returns {string}
  */
-export function formatTraceback(error) {
-    let traceback = error.stack;
+function formatTraceback(error) {
+    const stack = error.stack ?? "";
     const errorName = getErrorTechnicalName(error);
     // ensure the proper error name and error message are present in the traceback, no matter the error.stack brower's formatting.
     // Stack example:
@@ -121,11 +146,11 @@ export function formatTraceback(error) {
     //     _onOpenFormView@http://localhost:8069/web/content/425-baf33f1/web.assets.js:1064:30
     //     ...
     const descriptionLine = `${errorName}: ${error.message}`;
-    if (error.stack.split("\n")[0].trim() !== descriptionLine) {
+    if (stack && stack.split("\n")[0].trim() !== descriptionLine) {
         // avoid having the description line twice if already present
-        traceback = `${descriptionLine}\n${error.stack}`.replace(/\n/g, "\n    ");
+        return `${descriptionLine}\n${stack}`.replace(/\n/g, "\n    ");
     }
-    return traceback;
+    return stack || descriptionLine;
 }
 
 /**
@@ -152,7 +177,7 @@ export async function annotateTraceback(error) {
         const subst = `:$1`;
         error.stack = error.stack.replace(regex, subst);
     }
-    // eslint-disable-next-line no-undef
+
     let frames;
     try {
         frames = await StackTrace.fromError(error);
@@ -162,17 +187,17 @@ export async function annotateTraceback(error) {
         return traceback;
     }
     const lines = traceback.split("\n");
-    if (lines[lines.length - 1].trim() === "") {
+    if (lines.at(-1).trim() === "") {
         // firefox traceback have an empty line at the end
         lines.splice(-1);
     }
 
     let lineIndex = 0;
     let frameIndex = 0;
-    while (frameIndex < frames.length) {
+    while (frameIndex < frames.length && lineIndex < lines.length) {
         const line = lines[lineIndex];
         // skip lines that have no location information as they don't correspond to a frame
-        if (!line.match(/:\d+:\d+\)?$/)) {
+        if (!/:\d+:\d+\)?$/.test(line)) {
             lineIndex++;
             continue;
         }

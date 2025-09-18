@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // TODO: this code should probably be converted into an interaction. At the
 // moment, the `data-bs-auto-close` attribute of the dropdown is set both by
 // the code in this file and by the `website.dropdown_edit` interaction. Because

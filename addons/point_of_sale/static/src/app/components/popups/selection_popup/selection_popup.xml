@@ -17,7 +17,7 @@
                         <span t-esc="item.description" t-if="item.description" />
                     </div>
                </div>
-                <i t-attf-class="{{ item.isSelected ? 'fa fa-check text-action' : 'oi oi-chevron-right' }}"/>
+                <i t-attf-class="{{ item.isSelected ? 'fa-solid fa-check text-action' : 'oi oi-chevron-right' }}"/>
             </button>
         </Dialog>
     </t>

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
@@ -8,6 +9,9 @@ export class SearchModal extends Interaction {
             "t-on-shown.bs.modal": () => this.el.querySelector(".search-query").focus(),
         },
     };
+    destroy() {
+        Modal.getInstance(this.el)?.hide();
+    }
 }
 
 registry.category("public.interactions").add("website.search_modal", SearchModal);

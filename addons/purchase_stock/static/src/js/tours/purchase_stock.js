@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 
 import PurchaseAdditionalTourSteps from "@purchase/js/tours/purchase_steps";
@@ -35,7 +36,7 @@ patch(PurchaseAdditionalTourSteps.prototype, {
             tooltipPosition: 'bottom',
             run: "click",
         }, {
-            trigger: ".o_statusbar_buttons button[name='action_create_invoice']",
+            trigger: ".o_statusbar_buttons button[name='create_invoice']",
             content: _t("Generate the draft vendor bill."),
             tooltipPosition: "bottom",
             run: 'click',

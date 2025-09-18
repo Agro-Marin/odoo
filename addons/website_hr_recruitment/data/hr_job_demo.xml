@@ -24,11 +24,11 @@
                                 <strong class="s_rating_title">Customer Relationship</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -38,11 +38,11 @@
                                 <strong class="s_rating_title">Personal Evolution</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -52,13 +52,13 @@
                                 <strong class="s_rating_title">Autonomy</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -66,13 +66,13 @@
                                 <strong class="s_rating_title">Administrative Work</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -80,11 +80,11 @@
                                 <strong class="s_rating_title">Technical Expertise</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -183,7 +183,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Perks</h3>
                             <p>A full-time position <br/>Attractive salary package.</p>
                         </div>
@@ -191,7 +191,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-bar-chart mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Trainings</h3>
                             <p>12 days / year, including <br/>6 of your choice.</p>
                         </div>
@@ -199,7 +199,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-futbol-o mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Sport Activity</h3>
                             <p>Play any sport with colleagues, <br/>the bill is covered.</p>
                         </div>
@@ -207,7 +207,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
                             <p>Fruit, coffee and <br/>snacks provided.</p>
                         </div>
@@ -269,11 +269,11 @@
                                 <strong class="s_rating_title">Problem-solving</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -283,11 +283,11 @@
                                 <strong class="s_rating_title">Skill Development</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -297,13 +297,13 @@
                                 <strong class="s_rating_title">Autonomy</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -311,13 +311,13 @@
                                 <strong class="s_rating_title">Client Interaction</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -325,13 +325,13 @@
                                 <strong class="s_rating_title">Management</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -426,7 +426,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Perks</h3>
                             <p>A full-time position <br/>Attractive salary package.</p>
                         </div>
@@ -434,7 +434,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-bar-chart mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Trainings</h3>
                             <p>12 days / year, including <br/>6 of your choice.</p>
                         </div>
@@ -442,7 +442,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-futbol-o mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Sport Activity</h3>
                             <p>Play any sport with colleagues, <br/>the bill is covered.</p>
                         </div>
@@ -450,7 +450,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
                             <p>Fruit, coffee and <br/>snacks provided.</p>
                         </div>
@@ -513,11 +513,11 @@
                                 <strong class="s_rating_title">Customer Relationship</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -527,11 +527,11 @@
                                 <strong class="s_rating_title">Personal Evolution</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -541,13 +541,13 @@
                                 <strong class="s_rating_title">Innovation</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -555,13 +555,13 @@
                                 <strong class="s_rating_title">Administrative Work</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -569,11 +569,11 @@
                                 <strong class="s_rating_title">Technical Expertise</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -672,7 +672,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Perks</h3>
                             <p>A full-time position <br/>Attractive salary package.</p>
                         </div>
@@ -680,7 +680,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-bar-chart mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Trainings</h3>
                             <p>12 days / year, including <br/>6 of your choice.</p>
                         </div>
@@ -688,7 +688,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-futbol-o mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Sport Activity</h3>
                             <p>Play any sport with colleagues, <br/>the bill is covered.</p>
                         </div>
@@ -696,7 +696,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
                             <p>Fruit, coffee and <br/>snacks provided.</p>
                         </div>
@@ -762,11 +762,11 @@
                                 <strong class="s_rating_title">Technology Strategy</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -776,11 +776,11 @@
                                 <strong class="s_rating_title">Leadership</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -790,13 +790,13 @@
                                 <strong class="s_rating_title">Collaboration</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -804,13 +804,13 @@
                                 <strong class="s_rating_title">Administrative Work</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -818,11 +818,11 @@
                                 <strong class="s_rating_title">Cybersecurity</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -954,11 +954,11 @@
                                 <strong class="s_rating_title">Learning</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -968,11 +968,11 @@
                                 <strong class="s_rating_title">Adaptability</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -982,13 +982,13 @@
                                 <strong class="s_rating_title">Autonomy</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -996,13 +996,13 @@
                                 <strong class="s_rating_title">Problem-Solving</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -1010,11 +1010,11 @@
                                 <strong class="s_rating_title">Be enthusiastic</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -1113,7 +1113,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Perks</h3>
                             <p>A full-time position <br/>Attractive salary package.</p>
                         </div>
@@ -1121,7 +1121,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-bar-chart mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Trainings</h3>
                             <p>12 days / year, including <br/>6 of your choice.</p>
                         </div>
@@ -1129,7 +1129,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-futbol-o mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Sport Activity</h3>
                             <p>Play any sport with colleagues, <br/>the bill is covered.</p>
                         </div>
@@ -1137,7 +1137,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
                             <p>Fruit, coffee and <br/>snacks provided.</p>
                         </div>
@@ -1197,11 +1197,11 @@
                                 <strong class="s_rating_title">Talent Acquisition</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -1211,11 +1211,11 @@
                                 <strong class="s_rating_title">Compliance and Regulations</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
                                     </span>
@@ -1225,13 +1225,13 @@
                                 <strong class="s_rating_title">Diversity and Inclusion</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -1239,13 +1239,13 @@
                                 <strong class="s_rating_title">Conflict Resolution</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -1253,13 +1253,13 @@
                                 <strong class="s_rating_title">Technical Expertise</strong>
                                 <div class="s_rating_icons o_not_editable">
                                     <span class="s_rating_active_icons text-primary">
-                                        <i class="fa fa-star"/>
+                                        <i class="fa-solid fa-star"/>
                                     </span>
                                     <span class="s_rating_inactive_icons text-primary">
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
-                                        <i class="fa fa-star-o"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
+                                        <i class="fa-regular fa-star"/>
                                     </span>
                                 </div>
                             </div>
@@ -1356,7 +1356,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-gift mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Perks</h3>
                             <p>A full-time position <br/>Attractive salary package.</p>
                         </div>
@@ -1364,7 +1364,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-bar-chart mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-chart-column mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Trainings</h3>
                             <p>12 days / year, including <br/>6 of your choice.</p>
                         </div>
@@ -1372,7 +1372,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-futbol-o mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-regular fa-futbol mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Sport Activity</h3>
                             <p>Play any sport with colleagues, <br/>the bill is covered.</p>
                         </div>
@@ -1380,7 +1380,7 @@
                             <div class="s_hr pt-4 pb32">
                                 <hr class="w-100 mx-auto"/>
                             </div>
-                            <i class="fa fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
+                            <i class="fa-solid fa-coffee mb-3 rounded fs-5 bg-o-color-3" role="img"/>
                             <h3 class="h5-fs">Eat &amp; Drink</h3>
                             <p>Fruit, coffee and <br/>snacks provided.</p>
                         </div>

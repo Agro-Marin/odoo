@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { session } from "@web/session";
 import {
     setUtmsHtmlDataset,

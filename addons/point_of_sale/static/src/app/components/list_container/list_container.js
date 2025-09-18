@@ -1,9 +1,9 @@
+/** @odoo-module native */
 import { Component, useEffect, useRef, xml } from "@odoo/owl";
 import { useIsChildLarger } from "@point_of_sale/app/hooks/hooks";
-import { useService } from "@web/core/utils/hooks";
-import { Dialog } from "@web/core/dialog/dialog";
 import { _t } from "@web/core/l10n/translation";
-
+import { useService } from "@web/core/utils/hooks";
+import { Dialog } from "@web/ui/dialog/dialog";
 class ListContainerDialog extends Component {
     static components = { Dialog };
     static props = {
@@ -39,10 +39,10 @@ export class ListContainer extends Component {
     static template = xml`
         <div class="d-flex flex-grow-1" t-attf-class="{{props.class}}" t-att-class="{'overflow-hidden': !isUiSmall}">
             <button t-if="props.onClickPlus" class="list-plus-btn btn btn-secondary btn-lg me-1 my-2" t-on-click="props.onClickPlus">
-                <i class="fa fa-fw fa-plus-circle" aria-hidden="true"/>
+                <i class="fa-solid fa-plus-circle" aria-hidden="true"/>
             </button>
             <button t-if="this.sizing.isLarger or props.forceSmall" t-on-click="toggle"
-                class="btn btn-secondary mx-1 fa fa-caret-down my-2" />
+                class="btn btn-secondary mx-1 fa-solid fa-caret-down my-2" />
             <div class="overflow-hidden w-100 position-relative py-2">
                 <div t-ref="container" class="list-container-items d-flex w-100">
                     <div t-if="!props.forceSmall" t-foreach="props.items" t-as="item" t-key="item_index" t-att-class="{'invisible': shouldBeInvisible(item_index)}">
@@ -62,7 +62,7 @@ export class ListContainer extends Component {
             () => {
                 this.sizing.reload();
             },
-            () => [this.props.items]
+            () => [this.props.items],
         );
     }
     shouldBeInvisible(itemIndex) {

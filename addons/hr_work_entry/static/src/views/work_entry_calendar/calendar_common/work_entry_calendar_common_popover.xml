@@ -2,7 +2,7 @@
 <template>
     <t t-name="hr_work_entry.WorkEntryCalendarCommonPopover.footer" t-inherit="web.CalendarCommonPopover.footer" t-inherit-mode="primary">
         <xpath expr="." position="inside">
-            <span t-if="isWorkEntryValidated"><i class="fa fa-lock me-1"/> You cannot edit a validated work entry</span>
+            <span t-if="isWorkEntryValidated"><i class="fa-solid fa-lock me-1"/> You cannot edit a validated work entry</span>
         </xpath>
         <a t-on-click="onEditEvent" position="after">
             <a href="#" class="btn btn-secondary" t-if="isSplittable" t-on-click="onSplitEvent">

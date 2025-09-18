@@ -21,7 +21,7 @@
                         t-att-data-line-id="order_line.id"
                         t-att-data-product-id="order_line.product_id.id"
                     >
-                        <i class="fa fa-fw fa-heart-o" role="presentation" aria-label="Add to Wishlist"/>
+                        <i class="fa-regular fa-heart" role="presentation" aria-label="Add to Wishlist"/>
                         Wishlist
                     </span>
                 </a>
@@ -29,7 +29,7 @@
                     t-else=""
                     class="alert-link border-start ps-2 small"
                 >
-                    <i class="fa fa-fw fa-heart"/> In wishlist
+                    <i class="fa-solid fa-heart"/> In wishlist
                 </span>
             </t>
         </div>

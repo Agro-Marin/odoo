@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import { getVideoUrl } from "@html_editor/utils/url";
 import { Component } from "@odoo/owl";

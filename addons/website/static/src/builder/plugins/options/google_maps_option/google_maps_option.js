@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useRef, onMounted, useState, useEffect, onWillDestroy } from "@odoo/owl";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 
@@ -80,7 +81,7 @@ export class GoogleMapsOption extends BaseOptionComponent {
     onPlaceChanged() {
         /** @type {Place | undefined} */
         const place = this.googleMapsAutocomplete.getPlace();
-        this.onPlaceChanged(this.env.getEditingElement(), place);
+        this.commitPlace(this.env.getEditingElement(), place);
         this.state.formattedAddress = place?.formatted_address || "";
     }
 }
