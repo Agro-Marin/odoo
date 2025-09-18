@@ -445,7 +445,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.amount = self.sale_order.amount_total / 2
 
         with patch(
-            'odoo.addons.sale.models.sale_order.SaleOrder._send_order_notification_mail',
+            'odoo.addons.sale.models.sale_order.SaleOrder._send_mail_order_notification',
         ) as notification_mail_mock:
             tx_pending = self._create_transaction(
                 flow='direct',

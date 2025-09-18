@@ -25,7 +25,7 @@
                         </div>
                     </group>
                     <field name="alternative_po_ids" readonly="not id" widget="many2many_alt_pos" context="{'quotation_only': True}">
-                        <list string="Alternative Purchase Order" decoration-muted="state in ['cancel', 'purchase']" default_order="amount_total_cc, date_planned, id">
+                        <list string="Alternative Purchase Order" decoration-muted="state in ['cancel', 'purchase']" default_order="date_planned, id">
                             <control>
                                 <create string="Link to Existing RfQ"/>
                             </control>
@@ -34,8 +34,6 @@
                             <field name="name" string="Reference"/>
                             <field name="date_planned"/>
                             <field name="amount_total" widget="monetary"/>
-                            <field name="company_currency_id" column_invisible="1"/>
-                            <field name="amount_total_cc" widget="monetary" optional="hide"/>
                             <field name="state"/>
                         </list>
                     </field>

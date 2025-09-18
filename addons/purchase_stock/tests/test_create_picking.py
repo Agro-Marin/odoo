@@ -521,7 +521,7 @@ class TestCreatePicking(ProductVariantsCommon):
 
         # Now check scheduled date and deadline of delivery order.
         self.assertNotEqual(
-            purchase_order_line.date_planned, delivery_order.scheduled_date,
+            purchase_order_line.date_planned, delivery_order.date_planned,
             'Scheduled delivery order date should not changed.')
         self.assertEqual(
             purchase_order_line.date_planned, delivery_order.date_deadline,
@@ -556,7 +556,7 @@ class TestCreatePicking(ProductVariantsCommon):
 
         pickings = self.env['stock.picking'].search([('reference_ids', '=', po.reference_ids.id)])
         for picking in pickings:
-            self.assertEqual(picking.scheduled_date.date(), date.today())
+            self.assertEqual(picking.date_planned.date(), date.today())
 
     def test_update_quantity_and_return(self):
         po = self.env['purchase.order'].create(self.po_vals)

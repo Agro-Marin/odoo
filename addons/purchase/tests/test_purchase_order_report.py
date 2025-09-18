@@ -65,9 +65,9 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         #     elif self.purchase_vendor_bill_id.purchase_order_id:
         #         self.purchase_id = self.purchase_vendor_bill_id.purchase_order_id
         #     self.purchase_vendor_bill_id = False
-        # purchase_vendor_bill_id = fields.Many2one('purchase.bill.union'
+        # purchase_vendor_bill_id = fields.Many2one('purchase.bill.match'
         # class PurchaseBillUnion(models.Model):
-        #     _name = 'purchase.bill.union'
+        #     _name = 'purchase.bill.match'
         #     ...
         #     def init(self):
         #         self.env.cr.execute("""
@@ -79,7 +79,7 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         #                 ...
         #             )""")
         #     ...
-        f.purchase_vendor_bill_id = self.env['purchase.bill.union'].browse(-po.id)
+        f.purchase_vendor_bill_id = self.env['purchase.bill.match'].browse(-po.id)
         invoice = f.save()
         invoice.action_post()
         po.flush_model()

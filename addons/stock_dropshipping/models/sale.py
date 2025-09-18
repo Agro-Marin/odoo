@@ -52,12 +52,17 @@ class SaleOrderLine(models.Model):
             return super(SaleOrderLine, self)._get_qty_procurement(previous_product_uom_qty=previous_product_uom_qty)
 
     @api.depends('purchase_line_count')
-    def _compute_product_updatable(self):
-        super()._compute_product_updatable()
+    def _compute_product_readonly(self):
+        """Extend product_readonly for dropshipped products.
+
+        In addition to base conditions, dropshipped products become readonly
+        if there are associated purchase order lines.
+        """
+        super()._compute_product_readonly()
         if self.env.user.has_group('purchase.group_purchase_user'):
             for line in self:
                 if line.purchase_line_count > 0:
-                    line.product_updatable = False
+                    line.product_readonly = True
 
     def _purchase_service_prepare_order_values(self, supplierinfo):
         res = super()._purchase_service_prepare_order_values(supplierinfo)

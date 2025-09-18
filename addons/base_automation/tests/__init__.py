@@ -3,3 +3,7 @@
 
 from . import test_automation
 from . import test_mail_composer
+from . import test_workflow_dag
+from . import test_runtime_execution
+from . import test_triggers
+from . import test_webhook

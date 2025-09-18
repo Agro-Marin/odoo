@@ -49,7 +49,7 @@ class EventEvent(models.Model):
         """ Redirects to only the confirmed orders linked to the current events """
         sale_order_action = self.env["ir.actions.actions"]._for_xml_id("sale.action_orders")
         sale_order_action.update({
-            'domain': [('state', '=', 'sale'), ('order_line.event_id', 'in', self.ids)],
+            'domain': [('state', '=', 'sale'), ('line_ids.event_id', 'in', self.ids)],
             'context': {'create': 0},
         })
         return sale_order_action

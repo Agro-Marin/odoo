@@ -1715,7 +1715,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
             return request.redirect(self._get_shop_path())
 
         # Check that the cart is not empty.
-        if not order_sudo.order_line:
+        if not order_sudo.line_ids:
             return request.redirect('/shop/cart')
 
         # Check that public orders are allowed.
@@ -1858,9 +1858,9 @@ class WebsiteSale(payment_portal.PaymentPortal):
             'value': order.amount_total,
             'tax': order.amount_tax,
             'currency': order.currency_id.name,
-            'items': self.order_lines_2_google_api(order.order_line),
+            'items': self.order_lines_2_google_api(order.line_ids),
         }
-        delivery_line = order.order_line.filtered('is_delivery')
+        delivery_line = order.line_ids.filtered('is_delivery')
         if delivery_line:
             tracking_cart_dict['shipping'] = delivery_line.price_unit
         return tracking_cart_dict

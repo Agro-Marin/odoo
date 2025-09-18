@@ -540,50 +540,50 @@ class AccountMove(models.Model):
     )
     amount_untaxed = fields.Monetary(
         string='Untaxed Amount',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         tracking=True,
     )
     amount_tax = fields.Monetary(
         string='Tax',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
     )
     amount_total = fields.Monetary(
         string='Total',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         inverse='_inverse_amount_total',
     )
     amount_residual = fields.Monetary(
         string='Amount Due',
-        compute='_compute_amount', store=True,
+        compute='_compute_amounts', store=True,
     )
     amount_untaxed_signed = fields.Monetary(
         string='Untaxed Amount Signed',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='company_currency_id',
     )
     amount_untaxed_in_currency_signed = fields.Monetary(
         string="Untaxed Amount Signed Currency",
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='currency_id',
     )
     amount_tax_signed = fields.Monetary(
         string='Tax Signed',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='company_currency_id',
     )
     amount_total_signed = fields.Monetary(
         string='Total Signed',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='company_currency_id',
     )
     amount_total_in_currency_signed = fields.Monetary(
         string='Total in Currency Signed',
-        compute='_compute_amount', store=True, readonly=True,
+        compute='_compute_amounts', store=True, readonly=True,
         currency_field='currency_id',
     )
     amount_residual_signed = fields.Monetary(
         string='Amount Due Signed',
-        compute='_compute_amount', store=True,
+        compute='_compute_amounts', store=True,
         currency_field='company_currency_id',
     )
     tax_totals = fields.Binary(
@@ -1160,7 +1160,7 @@ class AccountMove(models.Model):
         'line_ids.payment_id.state',
         'line_ids.full_reconcile_id',
         'state')
-    def _compute_amount(self):
+    def _compute_amounts(self):
         for move in self:
             total_untaxed, total_untaxed_currency = 0.0, 0.0
             total_tax, total_tax_currency = 0.0, 0.0
@@ -2477,7 +2477,7 @@ class AccountMove(models.Model):
 
                             if not move.currency_id.is_zero(delta_amount):
                                 first_tax_line.amount_currency -= delta_amount * sign
-            self._compute_amount()
+            self._compute_amounts()
 
     def _inverse_amount_total(self):
         for move in self:
@@ -2860,7 +2860,7 @@ class AccountMove(models.Model):
             )
         for line in self.line_ids:
             if (
-                line.get_parent_section_line().id == section_id
+                line.get_line_parent_section().id == section_id
                 and line.display_type == 'product'
                 and line.product_id.id in product_ids
             ):
@@ -2881,7 +2881,7 @@ class AccountMove(models.Model):
         """
         move_line = self.line_ids.filtered(
             lambda line: line.product_id.id == product_id
-            and line.get_parent_section_line().id == section_id,
+            and line.get_line_parent_section().id == section_id,
         )
         if move_line:
             if quantity != 0:
@@ -5364,9 +5364,9 @@ class AccountMove(models.Model):
                 to_cancel += move
             else:
                 to_unlink += move
-        to_unlink.filtered(lambda m: m.state in ('posted', 'cancel')).button_draft()
+        to_unlink.filtered(lambda m: m.state in ('posted', 'cancel')).action_draft()
         to_unlink.filtered(lambda m: m.state == 'draft').unlink()
-        to_cancel.button_cancel()
+        to_cancel.action_cancel()
         return to_reverse._reverse_moves(cancel=True)
 
     def _post(self, soft=True):
@@ -5665,7 +5665,7 @@ class AccountMove(models.Model):
     def open_reconcile_view(self):
         return self.line_ids.open_reconcile_view()
 
-    def action_open_business_doc(self):
+    def action_view_business_doc(self):
         self.ensure_one()
         if self.origin_payment_id:
             name = _("Payment")
@@ -5917,7 +5917,7 @@ class AccountMove(models.Model):
         for move in self.filtered(lambda m: m.state == 'posted'):
             move.checked = is_checked
 
-    def button_draft(self):
+    def action_draft(self):
         if any(move.state not in ('cancel', 'posted') for move in self):
             raise UserError(_("Only posted/cancelled journal entries can be reset to draft."))
         if any(move.need_cancel_request for move in self):
@@ -5996,12 +5996,12 @@ class AccountMove(models.Model):
         if not self.need_cancel_request:
             raise UserError(_("You can only request a cancellation for invoice sent to the government."))
 
-    def button_cancel(self):
+    def action_cancel(self):
         # Shortcut to move from posted to cancelled directly. This is useful for E-invoices that must not be changed
         # when sent to the government.
         moves_to_reset_draft = self.filtered(lambda x: x.state == 'posted')
         if moves_to_reset_draft:
-            moves_to_reset_draft.button_draft()
+            moves_to_reset_draft.action_draft()
 
         if any(move.state != 'draft' for move in self):
             raise UserError(_("Only draft journal entries can be cancelled."))

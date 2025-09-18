@@ -388,7 +388,7 @@ class TestSalePurchase(TestCommonSalePurchaseNoChart):
             'name': "Branch Out-sourced Service",
             'standard_price': 200.0,
             'type': 'service',
-            'invoice_policy': 'delivery',
+            'invoice_policy': 'transfered',
             'taxes_id': self.company_data['default_tax_sale'],
             'supplier_taxes_id': self.company_data['default_tax_purchase'],
             'service_to_purchase': True,

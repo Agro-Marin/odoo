@@ -432,7 +432,7 @@ class TestDropshipPostInstall(common.TransactionCase):
             'name': 'Dropshipped Product',
             'tracking': 'none',
             'standard_price': 20,
-            'invoice_policy': 'delivery',
+            'invoice_policy': 'transfered',
             'seller_ids': [Command.create({
                 'partner_id': cls.supplier.id,
             })],

@@ -145,8 +145,8 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         fnames = []
         total_balance = 0.0
         for order in orders:
-            product_lines = order.order_line.filtered(lambda x: x.product_id)
-            if len(orders) == 1 and product_lines and self.amount and order.order_line:
+            product_lines = order.line_ids.filtered(lambda x: x.product_id)
+            if len(orders) == 1 and product_lines and self.amount and order.line_ids:
                 total_balance = self.amount
                 order_line = product_lines[0]
                 account = self._get_computed_account(order, order_line.product_id, is_purchase)
@@ -158,14 +158,12 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                 # without actually writing anything on the real record (field is computed and stored)
                 o = order.new(origin=order)
                 if is_purchase:
-                    o.order_line.with_context(accrual_entry_date=self.date)._compute_qty_received()
-                    o.order_line.with_context(accrual_entry_date=self.date)._compute_qty_invoiced()
-                else:
-                    o.order_line.with_context(accrual_entry_date=self.date)._compute_qty_delivered()
-                    o.order_line.with_context(accrual_entry_date=self.date)._compute_qty_invoiced()
-                    o.order_line.with_context(accrual_entry_date=self.date)._compute_untaxed_amount_invoiced()
-                    o.order_line.with_context(accrual_entry_date=self.date)._compute_qty_to_invoice()
-                lines = o.order_line.filtered(
+                    o.line_ids.with_context(accrual_entry_date=self.date)._compute_qty_transferred()
+                    o.line_ids.with_context(accrual_entry_date=self.date)._compute_qty_invoiced()
+                else:  # is_sale
+                    o.line_ids.with_context(accrual_entry_date=self.date)._compute_qty_transferred()
+                    o.line_ids.with_context(accrual_entry_date=self.date)._compute_invoice_amounts()
+                lines = o.line_ids.filtered(
                     # We only want non-comment lines (no sections, notes, ...) and include all lines
                     # for purchase orders but exclude downpayment lines for sales orders.
                     lambda l: not l.display_type and not l.is_downpayment and
@@ -190,26 +188,26 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                             price_subtotal = order_line.qty_to_invoice * order_line.price_unit
                         amount_currency = order_line.currency_id.round(price_subtotal)
                         amount = order.currency_id._convert(amount_currency, self.company_id.currency_id, self.company_id)
-                        fnames = ['qty_to_invoice', 'qty_received', 'qty_invoiced', 'invoice_lines']
+                        fnames = ['qty_to_invoice', 'qty_transferred', 'qty_invoiced', 'invoice_line_ids']
                         label = _(
                             '%(order)s - %(order_line)s; %(quantity_billed)s Billed, %(quantity_received)s Received at %(unit_price)s each',
                             order=order.name,
                             order_line=_ellipsis(order_line.name, 20),
                             quantity_billed=order_line.qty_invoiced,
-                            quantity_received=order_line.qty_received,
+                            quantity_received=order_line.qty_transferred,
                             unit_price=formatLang(self.env, order_line.price_unit, currency_obj=order.currency_id),
                         )
                     else:
                         account = self._get_computed_account(order, order_line.product_id, is_purchase)
-                        amount_currency = order_line.untaxed_amount_to_invoice
+                        amount_currency = order_line.amount_taxexc_to_invoice
                         amount = order.currency_id._convert(amount_currency, self.company_id.currency_id, self.company_id)
-                        fnames = ['qty_to_invoice', 'untaxed_amount_to_invoice', 'qty_invoiced', 'qty_delivered', 'invoice_lines']
+                        fnames = ['qty_to_invoice', 'amount_taxexc_to_invoice', 'qty_invoiced', 'qty_transferred', 'invoice_line_ids']
                         label = _(
                             '%(order)s - %(order_line)s; %(quantity_invoiced)s Invoiced, %(quantity_delivered)s Delivered at %(unit_price)s each',
                             order=order.name,
                             order_line=_ellipsis(order_line.name, 20),
                             quantity_invoiced=order_line.qty_invoiced,
-                            quantity_delivered=order_line.qty_delivered,
+                            quantity_delivered=order_line.qty_transferred,
                             unit_price=formatLang(self.env, order_line.price_unit, currency_obj=order.currency_id),
                         )
                     distribution = order_line.analytic_distribution if order_line.analytic_distribution else {}
@@ -217,13 +215,13 @@ class AccountAccruedOrdersWizard(models.TransientModel):
                     move_lines.append(Command.create(values))
                     total_balance += amount
                 # must invalidate cache or o can mess when _create_invoices().action_post() of original order after this
-                order.order_line.invalidate_model(fnames)
+                order.line_ids.invalidate_model(fnames)
 
         if not self.company_id.currency_id.is_zero(total_balance):
             # globalized counterpart for the whole orders selection
             analytic_distribution = {}
             total = sum(order.amount_total for order in orders)
-            for line in orders.order_line:
+            for line in orders.line_ids:
                 ratio = line.price_total / total
                 if not line.analytic_distribution:
                     continue

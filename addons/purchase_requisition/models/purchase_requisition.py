@@ -120,7 +120,7 @@ class PurchaseRequisition(models.Model):
         for requisition in self:
             for requisition_line in requisition.line_ids:
                 requisition_line.supplier_info_ids.sudo().unlink()
-            requisition.purchase_ids.button_cancel()
+            requisition.purchase_ids.action_cancel()
             for po in requisition.purchase_ids:
                 po.message_post(body=_('Cancelled by the agreement associated to this quotation.'))
         self.state = 'cancel'
@@ -186,7 +186,7 @@ class PurchaseRequisitionLine(models.Model):
         for line in self:
             total = 0.0
             for po in line.requisition_id.purchase_ids.filtered(lambda purchase_order: purchase_order.state == 'purchase'):
-                for po_line in po.order_line.filtered(lambda order_line: order_line.product_id == line.product_id):
+                for po_line in so.line_ids.filtered(lambda order_line: order_line.product_id == line.product_id):
                     if po_line.product_uom_id != line.product_uom_id:
                         total += po_line.product_uom_id._compute_quantity(po_line.product_qty, line.product_uom_id)
                     else:

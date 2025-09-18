@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo><data>
     <record id="event_product.product_product_event_standard" model="product.product">
-        <field name="invoice_policy">order</field>
+        <field name="invoice_policy">ordered</field>
     </record>
     <record id="event_product.product_product_event_vip" model="product.product">
-        <field name="invoice_policy">order</field>
+        <field name="invoice_policy">ordered</field>
     </record>
     <!-- ****** Registrations ****** -->
     <!-- Design fair -->

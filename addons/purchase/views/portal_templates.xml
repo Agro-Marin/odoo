@@ -101,11 +101,11 @@
                   <tr>
                       <td id="order_name"><a t-att-href="order.get_portal_url()"><t t-esc="order.name"/></a></td>
                       <td id="order_confirmation" class="text-end">
-                          <span t-field="order.date_approve" t-options="{'widget': 'date'}"/>&amp;nbsp;
-                          <span class='d-none d-md-inline' t-field="order.date_approve" t-options="{'time_only': True}"/>
+                          <span t-field="order.date_confirmed" t-options="{'widget': 'date'}"/>&amp;nbsp;
+                          <span class='d-none d-md-inline' t-field="order.date_confirmed" t-options="{'time_only': True}"/>
                       </td>
                       <td id="order_badge" class="text-center">
-                          <span t-if="order.invoice_status == 'to invoice'" class="badge rounded-pill text-bg-info">
+                          <span t-if="order.invoice_state == 'to invoice'" class="badge rounded-pill text-bg-info">
                               <i class="fa fa-fw fa-file-text" role="img" aria-label="Waiting for Bill" title="Waiting for Bill"></i><span class="d-none d-md-inline"> Waiting for Bill</span>
                           </span>
                           <span t-if="order.state == 'cancel'" class="badge rounded-pill text-bg-secondary">
@@ -242,8 +242,8 @@
                   <div class="col-lg-6">
                     <strong class="d-block mb-1">From:</strong>
                     <address t-field="order.company_id.partner_id" t-options='{"widget": "contact", "fields": ["address", "name"], "no_marker": True}'/>
-                    <t t-if="order.date_approve">
-                      <strong>Confirmation Date:</strong> <span t-field="order.date_approve" t-options='{"widget": "date"}'/><br/>
+                    <t t-if="order.date_confirmed">
+                      <strong>Confirmation Date:</strong> <span t-field="order.date_confirmed" t-options='{"widget": "date"}'/><br/>
                     </t>
                     <div t-att-class="'d-inline' if order.date_planned else 'd-none'">
                       <strong>Receipt Date:</strong><span class="ms-1" t-field="order.date_planned" t-options='{"widget": "date"}'/>
@@ -300,7 +300,7 @@
 
                           <t t-set="current_subtotal" t-value="0"/>
 
-                          <t t-foreach="order.order_line.filtered(lambda l: l.display_type or l.product_qty != 0)" t-as="line">
+                          <t t-foreach="order.line_ids.filtered(lambda l: l.display_type or l.product_qty != 0)" t-as="line">
 
                               <t t-set="current_subtotal" t-value="current_subtotal + line.price_subtotal"/>
 
@@ -361,7 +361,7 @@
                                     </td>
                                 </t>
                             </tr>
-                            <t t-if="current_section and (line_last or order.order_line[line_index+1].display_type in ('line_section', 'line_subsection')) and order.state == 'purchase'">
+                            <t t-if="current_section and (line_last or order.line_ids[line_index+1].display_type in ('line_section', 'line_subsection')) and order.state == 'purchase'">
                                 <tr class="is-subtotal text-end">
                                     <td colspan="99">
                                         <strong class="mr16">Subtotal</strong>

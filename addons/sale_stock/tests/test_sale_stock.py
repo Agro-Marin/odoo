@@ -71,28 +71,28 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         # invoice on order
         self.so._create_invoices()
 
-        # deliver partially, check the so's invoice_status and delivered quantities
-        self.assertEqual(self.so.invoice_status, 'no', 'Sale Stock: so invoice_status should be "nothing to invoice" after invoicing')
+        # deliver partially, check the so's invoice_state and delivered quantities
+        self.assertEqual(self.so.invoice_state, 'no', 'Sale Stock: so invoice_state should be "nothing to invoice" after invoicing')
         pick = self.so.picking_ids
         pick.move_ids.write({'quantity': 1, 'picked': True})
         Form.from_action(self.env, pick.button_validate()).save().process()
-        self.assertEqual(self.so.invoice_status, 'to invoice', 'Sale Stock: so invoice_status should be "to invoice" after partial delivery')
+        self.assertEqual(self.so.invoice_state, 'to invoice', 'Sale Stock: so invoice_state should be "to invoice" after partial delivery')
         del_qties = [sol.qty_delivered for sol in self.so.order_line]
         del_qties_truth = [1.0 if sol.product_id.type == 'consu' else 0.0 for sol in self.so.order_line]
         self.assertEqual(del_qties, del_qties_truth, 'Sale Stock: delivered quantities are wrong after partial delivery')
         # invoice on delivery: only storable products
         inv_1 = self.so._create_invoices()
-        self.assertTrue(all([il.product_id.invoice_policy == 'delivery' for il in inv_1.invoice_line_ids]),
+        self.assertTrue(all([il.product_id.invoice_policy == 'transfered' for il in inv_1.invoice_line_ids]),
                         'Sale Stock: invoice should only contain "invoice on delivery" products')
 
-        # complete the delivery and check invoice_status again
-        self.assertEqual(self.so.invoice_status, 'no',
-                         'Sale Stock: so invoice_status should be "nothing to invoice" after partial delivery and invoicing')
+        # complete the delivery and check invoice_state again
+        self.assertEqual(self.so.invoice_state, 'no',
+                         'Sale Stock: so invoice_state should be "nothing to invoice" after partial delivery and invoicing')
         self.assertEqual(len(self.so.picking_ids), 2, 'Sale Stock: number of pickings should be 2')
         pick_2 = self.so.picking_ids.filtered('backorder_id')
         pick_2.move_ids.write({'quantity': 1, 'picked': True})
         self.assertTrue(pick_2.button_validate(), 'Sale Stock: second picking should be final without need for a backorder')
-        self.assertEqual(self.so.invoice_status, 'to invoice', 'Sale Stock: so invoice_status should be "to invoice" after complete delivery')
+        self.assertEqual(self.so.invoice_state, 'to invoice', 'Sale Stock: so invoice_state should be "to invoice" after complete delivery')
         del_qties = [sol.qty_delivered for sol in self.so.order_line]
         del_qties_truth = [2.0 if sol.product_id.type == 'consu' else 0.0 for sol in self.so.order_line]
         self.assertEqual(del_qties, del_qties_truth, 'Sale Stock: delivered quantities are wrong after complete delivery')
@@ -110,8 +110,8 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.env.invalidate_all()
 
         inv_id = self.so._create_invoices()
-        self.assertEqual(self.so.invoice_status, 'invoiced',
-                         'Sale Stock: so invoice_status should be "fully invoiced" after complete delivery and invoicing')
+        self.assertEqual(self.so.invoice_state, 'invoiced',
+                         'Sale Stock: so invoice_state should be "fully invoiced" after complete delivery and invoicing')
 
     def test_01_sale_stock_order(self):
         """
@@ -142,11 +142,11 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             'picking_policy': 'direct',
         })
         # confirm our standard so, check the picking
-        self.so.order_line._compute_product_updatable()
-        self.assertTrue(self.so.order_line.sorted()[0].product_updatable)
+        self.so.order_line._compute_product_readonly()
+        self.assertFalse(self.so.order_line.sorted()[0].product_readonly)
         self.so.action_confirm()
-        self.so.order_line._compute_product_updatable()
-        self.assertFalse(self.so.order_line.sorted()[0].product_updatable)
+        self.so.order_line._compute_product_readonly()
+        self.assertTrue(self.so.order_line.sorted()[0].product_readonly)
         self.assertTrue(self.so.picking_ids, 'Sale Stock: no picking created for "invoice on order" storable products')
         # let's do an invoice for a deposit of 5%
 
@@ -157,10 +157,10 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         act = adv_wiz.create_invoices()
         inv = self.env['account.move'].browse(act['res_id'])
         self.assertEqual(inv.amount_untaxed, self.so.amount_untaxed * 5.0 / 100.0, 'Sale Stock: deposit invoice is wrong')
-        self.assertEqual(self.so.invoice_status, 'to invoice', 'Sale Stock: so should be to invoice after invoicing deposit')
+        self.assertEqual(self.so.invoice_state, 'to invoice', 'Sale Stock: so should be to invoice after invoicing deposit')
         # invoice on order: everything should be invoiced
         self.so._create_invoices(final=True)
-        self.assertEqual(self.so.invoice_status, 'invoiced', 'Sale Stock: so should be fully invoiced after second invoice')
+        self.assertEqual(self.so.invoice_state, 'invoiced', 'Sale Stock: so should be fully invoiced after second invoice')
 
         # deliver, check the delivered quantities
         pick = self.so.picking_ids
@@ -197,7 +197,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertTrue(self.so.picking_ids, 'Sale Stock: no picking created for "invoice on delivery" storable products')
 
         # invoice in on delivery, nothing should be invoiced
-        self.assertEqual(self.so.invoice_status, 'no', 'Sale Stock: so invoice_status should be "no" instead of "%s".' % self.so.invoice_status)
+        self.assertEqual(self.so.invoice_state, 'no', 'Sale Stock: so invoice_state should be "no" instead of "%s".' % self.so.invoice_state)
 
         # deliver completely
         pick = self.so.picking_ids
@@ -209,9 +209,9 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertEqual(del_qty, 5.0, 'Sale Stock: delivered quantity should be 5.0 instead of %s after complete delivery' % del_qty)
 
         # Check invoice
-        self.assertEqual(self.so.invoice_status, 'to invoice', 'Sale Stock: so invoice_status should be "to invoice" instead of "%s" before invoicing' % self.so.invoice_status)
+        self.assertEqual(self.so.invoice_state, 'to invoice', 'Sale Stock: so invoice_state should be "to invoice" instead of "%s" before invoicing' % self.so.invoice_state)
         self.inv_1 = self.so._create_invoices()
-        self.assertEqual(self.so.invoice_status, 'invoiced', 'Sale Stock: so invoice_status should be "invoiced" instead of "%s" after invoicing' % self.so.invoice_status)
+        self.assertEqual(self.so.invoice_state, 'invoiced', 'Sale Stock: so invoice_state should be "invoiced" instead of "%s" after invoicing' % self.so.invoice_state)
         self.assertEqual(len(self.inv_1), 1, 'Sale Stock: only one invoice instead of "%s" should be created' % len(self.inv_1))
         self.assertEqual(self.inv_1.amount_untaxed, self.inv_1.amount_untaxed, 'Sale Stock: amount in SO and invoice should be the same')
         self.inv_1.action_post()
@@ -231,7 +231,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         return_pick.button_validate()
 
         # Check invoice
-        self.assertEqual(self.so.invoice_status, 'to invoice', 'Sale Stock: so invoice_status should be "to invoice" instead of "%s" after picking return' % self.so.invoice_status)
+        self.assertEqual(self.so.invoice_state, 'to invoice', 'Sale Stock: so invoice_state should be "to invoice" instead of "%s" after picking return' % self.so.invoice_state)
         self.assertAlmostEqual(self.so.order_line.sorted()[0].qty_delivered, 3.0, msg='Sale Stock: delivered quantity should be 3.0 instead of "%s" after picking return' % self.so.order_line.sorted()[0].qty_delivered)
         # let's do an invoice with refunds
         adv_wiz = self.env['sale.advance.payment.inv'].with_context(active_ids=[self.so.id]).create({
@@ -240,7 +240,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         adv_wiz.create_invoices()
         self.inv_2 = self.so.invoice_ids.filtered(lambda r: r.state == 'draft')
         self.assertAlmostEqual(self.inv_2.invoice_line_ids.sorted()[0].quantity, 2.0, msg='Sale Stock: refund quantity on the invoice should be 2.0 instead of "%s".' % self.inv_2.invoice_line_ids.sorted()[0].quantity)
-        self.assertEqual(self.so.invoice_status, 'no', 'Sale Stock: so invoice_status should be "no" instead of "%s" after invoicing the return' % self.so.invoice_status)
+        self.assertEqual(self.so.invoice_state, 'no', 'Sale Stock: so invoice_state should be "no" instead of "%s" after invoicing the return' % self.so.invoice_state)
 
     def test_04_create_picking_update_saleorderline(self):
         """
@@ -583,7 +583,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             ],
         })
         line = so.order_line[0]
-        self.assertAlmostEqual(line.scheduled_date, datetime.now(), delta=timedelta(seconds=10))
+        self.assertAlmostEqual(line.date_planned, datetime.now(), delta=timedelta(seconds=10))
         self.assertEqual(line.virtual_available_at_date, 10)
         self.assertEqual(line.free_qty_today, 7)
         self.assertEqual(line.qty_available_today, 10)
@@ -696,7 +696,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         product_inv_on_order = self.env['product.product'].create({
             'name': 'Shenaniffluffy',
             'type': 'consu',
-            'invoice_policy': 'order',
+            'invoice_policy': 'ordered',
             'list_price': 55.0,
         })
         # Creates a sale order for 3 products invoiced on qty. delivered.
@@ -788,7 +788,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         product_inv_on_order = self.env['product.product'].create({
             'name': 'Shenaniffluffy',
             'type': 'consu',
-            'invoice_policy': 'order',
+            'invoice_policy': 'ordered',
             'list_price': 55.0,
         })
         # Create a sale order.
@@ -964,7 +964,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.group_user.implied_ids = [Command.link(group_auto_done.id)]
 
         product = self.product_a
-        product.invoice_policy = 'delivery'
+        product.invoice_policy = 'transfered'
         partner = self.partner_a
         so = self.env['sale.order'].create({
             'partner_id': partner.id,
@@ -982,7 +982,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertTrue(so.locked)
         so.picking_ids.action_cancel()
 
-        self.assertEqual(so.invoice_status, 'no')
+        self.assertEqual(so.invoice_state, 'no')
 
     def test_16_multi_uom(self):
         yards_uom = self.env['uom.uom'].create({
@@ -1692,7 +1692,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             'uom_id': self.env.ref('uom.product_uom_unit').id,
             'lst_price': 100.0,
             'is_storable': True,
-            'invoice_policy': 'delivery',
+            'invoice_policy': 'transfered',
         })
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
@@ -1903,7 +1903,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertEqual(sale_order.order_line.qty_available_today, 0.0)
         self.assertEqual(sale_order.order_line.qty_delivered, 7.0)
 
-    def test_delivery_status(self):
+    def test_transfer_state(self):
         """
             Tests the delivery status of a sales order.
             If nothing was done: pending
@@ -1925,22 +1925,22 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             ],
         })
         so.action_confirm()
-        self.assertEqual(so.delivery_status, 'pending')
+        self.assertEqual(so.transfer_state, 'pending')
 
         pick01 = so.picking_ids
         pick01.move_ids.write({'quantity': 10, 'picked': True})
         pick01.button_validate()
-        self.assertEqual(so.delivery_status, 'started')
+        self.assertEqual(so.transfer_state, 'started')
 
         ship01 = so.picking_ids.filtered(lambda p: p.picking_type_id == warehouse.out_type_id)
         ship01.move_ids.write({'quantity': 3, 'picked': True})
         Form.from_action(self.env, ship01.button_validate()).save().process()
-        self.assertEqual(so.delivery_status, 'partial')
+        self.assertEqual(so.transfer_state, 'partial')
 
         ship02 = ship01.backorder_ids[0]
         ship02.move_ids.write({'quantity': 7, 'picked': True})
         ship02.button_validate()
-        self.assertEqual(so.delivery_status, 'full')
+        self.assertEqual(so.transfer_state, 'full')
 
     def test_so_delivery_ignores_shipping_policy_from_picking_type(self):
         picking_type_out = self.company_data['default_warehouse'].out_type_id
