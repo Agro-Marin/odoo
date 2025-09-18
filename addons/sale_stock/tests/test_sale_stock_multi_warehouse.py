@@ -31,7 +31,7 @@ class TestSaleStockMultiWarehouse(TestSaleStockCommon, ValuationReconciliationTe
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
             'warehouse_id': self.warehouse_A.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'name': self.product_a.name,
                     'product_id': self.product_a.id,

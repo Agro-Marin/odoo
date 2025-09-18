@@ -13,6 +13,7 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
          */
         { trigger: ".o_purchase_order" },
         ...purchaseForm.createNewPO(),
+        { trigger: ".o_form_view .o_form_sheet" },  // Wait for form to render
         ...purchaseForm.selectVendor("Julia Agrolait"),
         ...purchaseForm.openCatalog(),
         {
@@ -27,11 +28,14 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
         },
 
         // --- Check that suggestion feature does not appear on non draft POs ---
+        // First add a product so we can confirm the PO (empty POs cannot be confirmed)
+        ...productCatalog.addProduct("test_product"),
+        ...productCatalog.waitForQuantity("test_product", 1),
         ...productCatalog.goBackToOrder(),
         { trigger: ".o_purchase_order" },
         {
             content: "Confirm PO",
-            trigger: 'button[name="button_confirm"]',
+            trigger: 'button[name="action_confirm"]',
             run: "click",
         },
         ...purchaseForm.openCatalog(),
@@ -39,12 +43,12 @@ registry.category("web_tour.tours").add("test_purchase_order_suggest_search_pane
         ...productCatalog.goBackToOrder(),
         {
             content: "Cancel PO",
-            trigger: 'button[name="button_cancel"]',
+            trigger: 'button[name="action_cancel"]',
             run: "click",
         },
         {
             content: "Reset to draft",
-            trigger: 'button[name="button_draft"]',
+            trigger: 'button[name="action_draft"]',
             run: "click",
         },
         ...purchaseForm.openCatalog(),

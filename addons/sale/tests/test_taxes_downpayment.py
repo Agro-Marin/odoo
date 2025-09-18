@@ -152,7 +152,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
 
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 # Standalone line, no tax:
                 Command.create({
                     'name': 'line_1',
@@ -210,7 +210,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         action_values = wizard.create_invoices()
 
         down_payment_label = f"Down Payment: {so.create_date.strftime('%m/%d/%Y')} (Draft)"
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'name': 'line_1',              'tax_ids': [],                          'price_subtotal': 1000.0},
             {'name': 'line_2',              'tax_ids': tax_15.ids,                  'price_subtotal': 2000.0},
             {'name': 'line_3',              'tax_ids': tax_15.ids,                  'price_subtotal': 3000.0},
@@ -284,7 +284,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
 
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': 'line_1',
                     'product_id': product.id,
@@ -380,7 +380,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                 'partner_id': self.partner_a.id,
                 'currency_id': self.other_currency.id,
                 'pricelist_id': self.foreign_currency_pricelist.id,
-                'order_line': [
+                'line_ids': [
                     Command.create({
                         'name': 'line_1',
                         'product_id': product.id,
@@ -460,7 +460,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
 
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': 'line_1',
                     'product_id': product.id,
@@ -488,7 +488,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         action_values = wizard.create_invoices()
 
         draft_down_payment_label = f"Down Payment: {so.create_date.strftime('%m/%d/%Y')} (Draft)"
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'name': 'line_1',                  'tax_ids': tax_15.ids,                  'price_subtotal': 1000.0},
             {'name': "Down Payments",           'tax_ids': [],                          'price_subtotal': 0.0},
             {'name': draft_down_payment_label,  'tax_ids': tax_15.ids,                  'price_subtotal': 0.0},
@@ -503,7 +503,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         }])
 
         down_payment_dp_invoice_1 = f"Down Payment (ref: {dp_invoice_1.name} on {dp_invoice_1.invoice_date.strftime('%m/%d/%Y')})"
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'name': 'line_1',                      'tax_ids': tax_15.ids,                  'price_subtotal': 1000.0},
             {'name': "Down Payments",               'tax_ids': [],                          'price_subtotal': 0.0},
             {'name': down_payment_dp_invoice_1,     'tax_ids': tax_15.ids,                  'price_subtotal': 0.0},
@@ -519,7 +519,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         dp_credit_note = self.env['account.move'].browse(action_values['res_id'])
         dp_credit_note.action_post()
 
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'name': 'line_1',                      'tax_ids': tax_15.ids,                  'price_subtotal': 1000.0},
             {'name': "Down Payments",               'tax_ids': [],                          'price_subtotal': 0.0},
             {'name': down_payment_dp_invoice_1,     'tax_ids': tax_15.ids,                  'price_subtotal': 0.0},
@@ -536,7 +536,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         )
         action_values = wizard.create_invoices()
 
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'name': 'line_1',                  'tax_ids': tax_15.ids,                  'price_subtotal': 1000.0},
             {'name': "Down Payments",           'tax_ids': [],                          'price_subtotal': 0.0},
             {'name': down_payment_dp_invoice_1, 'tax_ids': tax_15.ids,                  'price_subtotal': 0.0},
@@ -552,7 +552,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         }])
 
         down_payment_dp_invoice_2 = f"Down Payment (ref: {dp_invoice_2.name} on {dp_invoice_2.invoice_date.strftime('%m/%d/%Y')})"
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'name': 'line_1',                  'tax_ids': tax_15.ids,                  'price_subtotal': 1000.0},
             {'name': "Down Payments",           'tax_ids': [],                          'price_subtotal': 0.0},
             {'name': down_payment_dp_invoice_1, 'tax_ids': tax_15.ids,                  'price_subtotal': 0.0},
@@ -613,7 +613,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             'partner_id': self.partner_a.id,
             'currency_id': other_currency.id,
             'pricelist_id': self.foreign_currency_pricelist.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': 'line',
                     'product_id': product.id,
@@ -747,7 +747,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             'partner_id': self.partner_a.id,
             'currency_id': other_currency.id,
             'pricelist_id': self.foreign_currency_pricelist.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': 'line',
                     'product_id': product.id,
@@ -882,7 +882,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
 
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 # Aggregate distributions with positive amounts.
                 Command.create({
                     'name': 'line_1',
@@ -970,7 +970,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         # Make a sale order with multiple lines. Total amount of sale order is equal to 1680$
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.company_data['product_order_no'].id,
                     'product_uom_qty': 1,
@@ -1023,7 +1023,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
 
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': 'line_1',
                     'product_id': product.id,
@@ -1057,7 +1057,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
 
         so_base_lines = [
             order_line._prepare_base_line_for_taxes_computation()
-            for order_line in so.order_line
+            for order_line in so.line_ids
         ]
         AccountTax = self.env['account.tax']
         AccountTax._add_tax_details_in_base_lines(so_base_lines, self.env.company)
@@ -1099,7 +1099,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         })
         sale_order = self.env['sale.order'].create({
             'partner_id': new_partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.company_data['product_order_no'].id,
                     'product_uom_qty': 1,

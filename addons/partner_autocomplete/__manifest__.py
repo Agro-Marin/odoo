@@ -18,7 +18,7 @@ Auto-complete partner companies' data
         'views/res_config_settings_views.xml',
         'data/iap_service_data.xml',
     ],
-    'auto_install': True,
+    'auto_install': False,
     'assets': {
         'web.assets_backend': [
             'partner_autocomplete/static/src/scss/*',

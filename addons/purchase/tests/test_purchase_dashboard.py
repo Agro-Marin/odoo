@@ -37,28 +37,31 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         '''
 
         # Create 3 Request for Quotations with lines.
+        # Set user_id to allow access via personal purchase order rule
         rfqs = self.env['purchase.order'].create([{
             'partner_id': self.partner_a.id,
             'company_id': self.user_a.company_id.id,
             'currency_id': self.user_a.company_id.currency_id.id,
             'date_order': fields.Date.today(),
+            'user_id': self.user_a.id if i == 0 else self.user_b.id,
         } for i in range(3)])
         for rfq, qty in zip(rfqs, [1, 2, 3]):
             rfq_form = Form(rfq)
-            with rfq_form.order_line.new() as line_1:
+            with rfq_form.line_ids.new() as line_1:
                 line_1.product_id = self.product_100
                 line_1.product_qty = qty
-            with rfq_form.order_line.new() as line_2:
+            with rfq_form.line_ids.new() as line_2:
                 line_2.product_id = self.product_250
                 line_2.product_qty = qty
             rfq_form.save()
 
-        # Create 1 late RFQ without line.
+        # Create 1 late RFQ without line (assigned to user_a for access).
         self.env['purchase.order'].create([{
             'partner_id': self.partner_a.id,
             'company_id': self.user_a.company_id.id,
             'currency_id': self.user_a.company_id.currency_id.id,
-            'date_order': fields.Date.today() - timedelta(days=7)
+            'date_order': fields.Date.today() - timedelta(days=7),
+            'user_id': self.user_a.id,
         }])
 
         # Create 1 draft RFQ for user A.
@@ -82,9 +85,9 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         self.assertEqual(rfqs[1].state, 'sent')
 
         # Confirm Orders with lines.
-        rfqs.button_confirm()
+        rfqs.action_confirm()
         # Retrieve dashboard as User A to check 'my_{to_send, waiting, late}' values.
-        dashboard_result = rfqs.with_user(self.user_a).retrieve_dashboard()
+        dashboard_result = rfqs.with_user(self.user_a).prepare_dashboard()
 
         # Check dashboard values
         currency_id = self.env.company.currency_id

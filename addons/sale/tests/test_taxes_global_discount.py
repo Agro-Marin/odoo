@@ -92,7 +92,7 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
         product = self.company_data['product_order_cost']
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 # Standalone line with a discount already:
                 Command.create({
                     'name': 'line_1',
@@ -123,7 +123,7 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
         })
         wizard.action_apply_discount()
 
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'name': 'line_1', 'discount': 30.0},
             {'name': 'line_2', 'discount': 30.0},
         ])
@@ -137,7 +137,7 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
         wizard.discount_percentage = 0.0
         wizard.action_apply_discount()
 
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'name': 'line_1', 'discount': 0.0},
             {'name': 'line_2', 'discount': 0.0},
         ])
@@ -155,7 +155,7 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
         product = self.company_data['product_order_cost']
         so = self.env['sale.order'].create({
             'partner_id': self.partner_a.id,
-            'order_line': [Command.create({
+            'line_ids': [Command.create({
                 'name': 'line_1',
                 'product_id': product.id,
                 'price_unit': 2000.0,
@@ -176,7 +176,7 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
         })
         wizard.action_apply_discount()
 
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'price_unit': 2000.0},
             {'price_unit': -500.0},
         ])
@@ -190,7 +190,7 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
         wizard.discount_percentage = 0.10
         wizard.action_apply_discount()
 
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'price_unit': 2000.0},
             {'price_unit': -500.0},
             {'price_unit': -150.0},

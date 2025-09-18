@@ -41,7 +41,7 @@ class TestProductAttributeValue(HttpCase, SaleCommon):
             }
         ])
         cls.archived_template.action_archive()
-        cls.empty_order.order_line = [
+        cls.empty_order.line_ids = [
             Command.create({
                 'product_id': cls.product_template.product_variant_id.id,
                 'product_no_variant_attribute_value_ids': [
@@ -53,7 +53,7 @@ class TestProductAttributeValue(HttpCase, SaleCommon):
                 ],
             }),
         ]
-        cls.order_line = cls.empty_order.order_line
+        cls.line_ids = cls.empty_order.line_ids
 
     def test_attribute_values_deletion_or_archiving(self):
         """Check that product attributes can be deleted if product or linked ptav are archived."""
@@ -66,8 +66,8 @@ class TestProductAttributeValue(HttpCase, SaleCommon):
 
         self.product_template.attribute_line_ids.update({'value_ids': [Command.set([self.a1.id])]})
         self.assertEqual(
-            self.order_line.product_no_variant_attribute_value_ids.product_attribute_value_id,
+            self.line_ids.product_no_variant_attribute_value_ids.product_attribute_value_id,
             self.a3,
         )
-        self.assertFalse(self.order_line.product_no_variant_attribute_value_ids.ptav_active)
+        self.assertFalse(self.line_ids.product_no_variant_attribute_value_ids.ptav_active)
         self.start_tour("/odoo", 'delete_product_attribute_value_tour', login="admin")

@@ -20,7 +20,7 @@ class TestSaleSections(SaleCommon):
         })
         cls.sections_sale_order = cls.env['sale.order'].create({
             'partner_id': cls.partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'name': 'r1',
                     'product_id': cls.product.id,
@@ -86,18 +86,18 @@ class TestSaleSections(SaleCommon):
         - Section's children (lines + subsections) → parent is the section.
         - Subsection's children → parent is the subsection.
         """
-        self.assertFalse(self.sections_sale_order.order_line[0].parent_id)
+        self.assertFalse(self.sections_sale_order.line_ids[0].parent_id)
         self.assertEqual(
-            self.sections_sale_order.order_line[2].parent_id,
-            self.sections_sale_order.order_line[1],
+            self.sections_sale_order.line_ids[2].parent_id,
+            self.sections_sale_order.line_ids[1],
         )
         self.assertEqual(
-            self.sections_sale_order.order_line[3].parent_id,
-            self.sections_sale_order.order_line[1],
+            self.sections_sale_order.line_ids[3].parent_id,
+            self.sections_sale_order.line_ids[1],
         )
         self.assertEqual(
-            self.sections_sale_order.order_line[4].parent_id,
-            self.sections_sale_order.order_line[3],
+            self.sections_sale_order.line_ids[4].parent_id,
+            self.sections_sale_order.line_ids[3],
         )
 
     def test_sale_order_report_line_visibility_and_grouping(self):
@@ -129,14 +129,14 @@ class TestSaleSections(SaleCommon):
         Aggregation must stop when another section or subsection is encountered.
         """
         self.assertEqual(
-            self.sections_sale_order.order_line[1]._get_section_totals('price_subtotal'),
-            sum(self.sections_sale_order.order_line[1:].mapped('price_subtotal')),
+            self.sections_sale_order.line_ids[1]._get_section_totals('price_subtotal'),
+            sum(self.sections_sale_order.line_ids[1:].mapped('price_subtotal')),
         )
         self.assertEqual(
-            self.sections_sale_order.order_line[3]._get_section_totals('price_subtotal'),
-            sum(self.sections_sale_order.order_line[4:7].mapped('price_subtotal')),
+            self.sections_sale_order.line_ids[3]._get_section_totals('price_subtotal'),
+            sum(self.sections_sale_order.line_ids[4:7].mapped('price_subtotal')),
         )
         self.assertEqual(
-            self.sections_sale_order.order_line[7]._get_section_totals('price_subtotal'),
-            sum(self.sections_sale_order.order_line[8:].mapped('price_subtotal')),
+            self.sections_sale_order.line_ids[7]._get_section_totals('price_subtotal'),
+            sum(self.sections_sale_order.line_ids[8:].mapped('price_subtotal')),
         )

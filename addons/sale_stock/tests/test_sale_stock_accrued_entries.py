@@ -20,11 +20,11 @@ class TestAccruedStockSaleOrders(TestSaleCommon):
             'list_price': 30.0,
             'type': 'consu',
             'uom_id': cls.uom_unit.id,
-            'invoice_policy': 'delivery',
+            'invoice_policy': 'transferred',
         })
         cls.sale_order = cls.env['sale.order'].with_context(tracking_disable=True).create({
             'partner_id': cls.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': product.id,
                     'product_uom_qty': 10.0,

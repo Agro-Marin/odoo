@@ -39,26 +39,26 @@ class TestSaleFlow(TestSaleCommon):
         user.company_ids |= cls.company
         user.company_id = cls.company
 
-    def test_qty_delivered(self):
-        ''' Test 'qty_delivered' at-install to avoid a change in the behavior when 'sale_stock' is installed. '''
+    def test_qty_transferred(self):
+        ''' Test 'qty_transferred' at-install to avoid a change in the behavior when 'sale_stock' is installed. '''
 
         sale_order = self.env['sale.order'].with_context(mail_notrack=True, mail_create_nolog=True).create({
             'partner_id': self.partner_a.id,
             'partner_invoice_id': self.partner_a.id,
             'partner_shipping_id': self.partner_a.id,
-            'order_line': [
+            'line_ids': [
                 (0, 0, {
                     'name': self.company_data['product_order_cost'].name,
                     'product_id': self.company_data['product_order_cost'].id,
                     'product_uom_qty': 2,
-                    'qty_delivered': 1,
+                    'qty_transferred': 1,
                     'price_unit': self.company_data['product_order_cost'].list_price,
                 }),
                 (0, 0, {
                     'name': self.company_data['product_delivery_cost'].name,
                     'product_id': self.company_data['product_delivery_cost'].id,
                     'product_uom_qty': 4,
-                    'qty_delivered': 1,
+                    'qty_transferred': 1,
                     'price_unit': self.company_data['product_delivery_cost'].list_price,
                 }),
             ],
@@ -66,7 +66,7 @@ class TestSaleFlow(TestSaleCommon):
 
         sale_order.action_confirm()
 
-        self.assertRecordValues(sale_order.order_line, [
-            {'qty_delivered': 1.0},
-            {'qty_delivered': 1.0},
+        self.assertRecordValues(sale_order.line_ids, [
+            {'qty_transferred': 1.0},
+            {'qty_transferred': 1.0},
         ])

@@ -84,7 +84,7 @@ class TestPERF(TransactionCaseWithUserDemo):
             self.env['sale.order'].create([{
                 'partner_id': self.partners[0].id,
                 'user_id': self.salesmans[0].id,
-                "order_line": [
+                "line_ids": [
                     (0, 0, {"display_type": "line_note", "name": "NOTE"}),
                     (0, 0, {"display_type": "line_section", "name": "SECTION"})
                 ]
@@ -103,7 +103,7 @@ class TestPERF(TransactionCaseWithUserDemo):
             self.env['sale.order'].create([{
                 'partner_id': self.partners[0].id,
                 'user_id': self.salesmans[0].id,
-                "order_line": [
+                "line_ids": [
                     (0, 0, {"display_type": "line_note", "name": "NOTE"}),
                     (0, 0, {"display_type": "line_section", "name": "SECTION"}),
                     (0, 0, {'product_id': self.products[0].id})
@@ -121,7 +121,7 @@ class TestPERF(TransactionCaseWithUserDemo):
             self.env['sale.order'].create([{
                 'partner_id': self.partners[0].id,
                 'user_id': self.salesmans[0].id,
-                "order_line": [
+                "line_ids": [
                     (0, 0, {"display_type": "line_note", "name": "NOTE"}),
                     (0, 0, {"display_type": "line_section", "name": "SECTION"}),
                     (0, 0, {'product_id': self.products[0].id})
@@ -142,7 +142,7 @@ class TestPERF(TransactionCaseWithUserDemo):
         vals_list = [{
             "partner_id": self.partners[i].id,
             "user_id": self.salesmans[i % 2].id,
-            "order_line": [
+            "line_ids": [
                 (0, 0, {"display_type": "line_note", "name": "NOTE"})
             ] + [
                 (0, 0, {'product_id': product.id}) for product in self.products
@@ -167,7 +167,7 @@ class TestPERF(TransactionCaseWithUserDemo):
         vals_list = [{
             "partner_id": self.partners[i].id,
             "user_id": self.salesmans[i % 2].id,
-            "order_line": [
+            "line_ids": [
                 (0, 0, {"display_type": "line_note", "name": "NOTE"})
             ] + [
                 (0, 0, {

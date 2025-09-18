@@ -42,7 +42,7 @@ class TestSaleOrder(SaleCommon):
         # Test pre-computes of lines with order
         order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'display_type': 'line_section',
                     'name': 'Dummy section',
@@ -86,24 +86,24 @@ class TestSaleOrder(SaleCommon):
 
     def test_sale_order_standard_flow(self):
         self.assertEqual(self.sale_order.amount_total, 725.0, 'Sale: total amount is wrong')
-        self.sale_order.order_line._compute_product_updatable()
-        self.assertTrue(self.sale_order.order_line[0].product_updatable)
+        self.sale_order.line_ids._compute_product_readonly()
+        self.assertFalse(self.sale_order.line_ids[0].product_readonly)
 
         # send quotation
-        email_act = self.sale_order.action_quotation_send()
+        email_act = self.sale_order.action_send_quotation()
         email_ctx = email_act.get('context', {})
         self.sale_order.with_context(**email_ctx).message_post_with_source(
             self.env['mail.template'].browse(email_ctx.get('default_template_id')),
             subtype_xmlid='mail.mt_comment',
         )
-        self.assertTrue(self.sale_order.state == 'sent', 'Sale: state after sending is wrong')
-        self.sale_order.order_line._compute_product_updatable()
-        self.assertTrue(self.sale_order.order_line[0].product_updatable)
+        self.assertTrue(self.sale_order.sent, 'Sale: sent flag after sending is wrong')
+        self.sale_order.line_ids._compute_product_readonly()
+        self.assertFalse(self.sale_order.line_ids[0].product_readonly)
 
         # confirm quotation
         self.sale_order.action_confirm()
-        self.assertTrue(self.sale_order.state == 'sale')
-        self.assertTrue(self.sale_order.invoice_status == 'to invoice')
+        self.assertTrue(self.sale_order.state == 'done')
+        self.assertTrue(self.sale_order.invoice_state == 'to do')
 
     def test_sale_order_send_to_self(self):
         # when sender(logged in user) is also present in recipients of the mail composer,
@@ -111,7 +111,7 @@ class TestSaleOrder(SaleCommon):
         sale_order = self.env['sale.order'].with_user(self.sale_user).create({
             'partner_id': self.sale_user.partner_id.id,
         })
-        email_ctx = sale_order.action_quotation_send().get('context', {})
+        email_ctx = sale_order.action_send_quotation().get('context', {})
         # We need to prevent auto mail deletion, and so we copy the template and send the mail with
         # added configuration in copied template. It will allow us to check whether mail is being
         # sent to to author or not (in case author is present in 'Recipients' of composer).
@@ -121,7 +121,7 @@ class TestSaleOrder(SaleCommon):
             mail_template,
             subtype_xmlid='mail.mt_comment',
         )
-        self.assertTrue(sale_order.state == 'sent', 'Sale : state should be changed to sent')
+        self.assertTrue(sale_order.sent, 'Sale : sent flag should be True after sending')
         mail_message = sale_order.message_ids[0]
         self.assertEqual(mail_message.author_id, sale_order.partner_id, 'Sale: author should be same as customer')
         self.assertEqual(mail_message.author_id, mail_message.partner_ids, 'Sale: author should be in composer recipients thanks to "partner_to" field set on template')
@@ -152,21 +152,21 @@ class TestSaleOrder(SaleCommon):
         # SO in state 'cancel' can be deleted
         so_copy = self.sale_order.copy()
         so_copy.action_confirm()
-        self.assertTrue(so_copy.state == 'sale', 'Sale: SO should be in state "sale"')
+        self.assertTrue(so_copy.state == 'done', 'Sale: SO should be in state "done"')
         so_copy._action_cancel()
         self.assertTrue(so_copy.state == 'cancel', 'Sale: SO should be in state "cancel"')
         with self.assertRaises(AccessError):
             so_copy.with_user(self.sale_user).unlink()
         self.assertTrue(so_copy.unlink(), 'Sale: deleting a cancelled SO should be possible')
 
-        # SO in state 'sale' cannot be deleted
+        # SO in state 'done' cannot be deleted
         self.sale_order.action_confirm()
-        self.assertTrue(self.sale_order.state == 'sale', 'Sale: SO should be in state "sale"')
+        self.assertTrue(self.sale_order.state == 'done', 'Sale: SO should be in state "done"')
         with self.assertRaises(UserError):
             self.sale_order.unlink()
 
         self.sale_order.action_lock()
-        self.assertTrue(self.sale_order.state == 'sale')
+        self.assertTrue(self.sale_order.state == 'done')
         self.assertTrue(self.sale_order.locked)
         with self.assertRaises(UserError):
             self.sale_order.unlink()
@@ -188,23 +188,23 @@ class TestSaleOrder(SaleCommon):
         self.env.company.terms_type = 'plain'
         self.env.company.invoice_terms = "Coin coin"
         sale_order = self._create_sale_order()
-        self.assertEqual(sale_order.note, "<p>Coin coin</p>")
+        self.assertEqual(sale_order.notes, "<p>Coin coin</p>")
 
         # Html invoice terms (/terms page)
         self.env.company.terms_type = 'html'
         sale_order = self._create_sale_order()
-        self.assertTrue(sale_order.note.startswith("<p>Terms &amp; Conditions: "))
+        self.assertTrue(sale_order.notes.startswith("<p>Terms &amp; Conditions: "))
 
     def test_validity_days(self):
         self.env.company.quotation_validity_days = 5
         with freeze_time("2020-05-02"):
             sale_order = self._create_sale_order()
 
-            self.assertEqual(sale_order.validity_date, fields.Date.today() + timedelta(days=5))
+            self.assertEqual(sale_order.date_validity, fields.Date.today() + timedelta(days=5))
         self.env.company.quotation_validity_days = 0
         sale_order = self._create_sale_order()
         self.assertFalse(
-            sale_order.validity_date,
+            sale_order.date_validity,
             "No validity date must be specified if the company validity duration is 0")
 
     def test_so_names(self):
@@ -247,7 +247,7 @@ class TestSaleOrder(SaleCommon):
             'description_sale': "Additional\ninfo.",
         })
 
-        self.sale_order.order_line = [
+        self.sale_order.line_ids = [
             Command.create({'is_downpayment': True}),
             Command.create({'display_type': 'line_note', 'name': "Foo\nBar\nBaz"}),
             Command.create({
@@ -256,7 +256,7 @@ class TestSaleOrder(SaleCommon):
             }),
             Command.create({'product_id': product_with_desc.id}),
         ]
-        sol1, sol2, sol3, sol4, sol5, sol6 = self.sale_order.order_line
+        sol1, sol2, sol3, sol4, sol5, sol6 = self.sale_order.line_ids
         sol1.name += "\nOK THANK YOU\nGOOD BYE"
 
         self.assertEqual(
@@ -295,35 +295,35 @@ class TestSaleOrder(SaleCommon):
         """Test some untested state changes methods & logic."""
         self.sale_order.action_quotation_sent()
 
-        self.assertEqual(self.sale_order.state, 'sent')
+        self.assertTrue(self.sale_order.sent)
         self.assertNotIn(
             self.sale_order.partner_id, self.sale_order.message_partner_ids,
             'Customer should not be added automatically in followers')
 
         self.env.user.group_ids += self.env.ref('sale.group_auto_done_setting')
         self.sale_order.action_confirm()
-        self.assertEqual(self.sale_order.state, 'sale')
+        self.assertEqual(self.sale_order.state, 'done')
         self.assertTrue(self.sale_order.locked)
         with self.assertRaises(UserError):
             self.sale_order.action_confirm()
 
         self.sale_order.action_unlock()
-        self.assertEqual(self.sale_order.state, 'sale')
+        self.assertEqual(self.sale_order.state, 'done')
 
     def test_sol_name_search(self):
         # Shouldn't raise
-        self.env['sale.order']._search([('order_line', 'ilike', 'product')])
+        self.env['sale.order']._search([('line_ids', 'ilike', 'product')])
 
         name_search_data = self.env['sale.order.line'].name_search(name=self.sale_order.name)
         sol_ids_found = dict(name_search_data).keys()
-        self.assertEqual(list(sol_ids_found), self.sale_order.order_line.ids)
+        self.assertEqual(list(sol_ids_found), self.sale_order.line_ids.ids)
 
     def test_zero_quantity(self):
         """
             If the quantity set is 0 it should remain to 0
             Test that changing the uom do not change the quantity
         """
-        order_line = self.sale_order.order_line[0]
+        order_line = self.sale_order.line_ids[0]
         order_line.product_uom_qty = 0.0
         order_line.product_uom_id = self.uom_dozen
         self.assertEqual(order_line.product_uom_qty, 0.0)
@@ -335,15 +335,15 @@ class TestSaleOrder(SaleCommon):
         """
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': self.product.id,
                 'product_uom_qty': 1,
                 'price_unit': 192,
                 'discount': 74.246,
             })]
         })
-        self.assertEqual(sale_order.order_line.price_subtotal, 49.44, "Subtotal should be equal to 192 * (1 - 0.7425)")
-        self.assertEqual(sale_order.order_line.discount, 74.25)
+        self.assertEqual(sale_order.line_ids.price_subtotal, 49.44, "Subtotal should be equal to 192 * (1 - 0.7425)")
+        self.assertEqual(sale_order.line_ids.discount, 74.25)
 
     def test_tax_amount_rounding(self):
         """ Check order amounts are rounded according to settings """
@@ -360,7 +360,7 @@ class TestSaleOrder(SaleCommon):
         self.env.company.tax_calculation_rounding_method = 'round_per_line'
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                     'product_uom_qty': 1,
@@ -383,7 +383,7 @@ class TestSaleOrder(SaleCommon):
         self.env.company.tax_calculation_rounding_method = 'round_globally'
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                     'product_uom_qty': 1,
@@ -414,7 +414,7 @@ class TestSaleOrder(SaleCommon):
         """ Test that the order status email is sent synchronously when nothing is configured. """
         self.env['ir.config_parameter'].set_param('sale.async_emails', 'False')
 
-        self.sale_order._send_order_notification_mail(self.confirmation_email_template)
+        self.sale_order._send_mail_order_notification(self.confirmation_email_template)
         self.assertFalse(
             self.env['ir.cron.trigger'].search_count([('cron_id', '=', self.async_emails_cron.id)]),
             msg="The email should be sent synchronously when the system parameter is not set.",
@@ -424,7 +424,7 @@ class TestSaleOrder(SaleCommon):
         """ Test that the order status email is sent asynchronously when configured. """
         self.env['ir.config_parameter'].set_param('sale.async_emails', 'True')
 
-        self.sale_order._send_order_notification_mail(self.confirmation_email_template)
+        self.sale_order._send_mail_order_notification(self.confirmation_email_template)
         self.assertTrue(
             self.sale_order.pending_email_template_id,
             msg="The email template should be saved on the sales order.",
@@ -470,7 +470,7 @@ class TestSaleOrder(SaleCommon):
         ], limit=1)
         self.assertEqual(order.state, 'draft')
         scheduled_message.post_message()
-        self.assertEqual(order.state, 'sent')
+        self.assertTrue(order.sent)
 
     def test_so_discount_is_not_reset(self):
         """ Discounts should not be recomputed on order confirmation """
@@ -479,7 +479,7 @@ class TestSaleOrder(SaleCommon):
             '._compute_discount'
         ) as patched:
             self.sale_order.action_confirm()
-            self.sale_order.order_line.flush_recordset(['discount'])
+            self.sale_order.line_ids.flush_recordset(['discount'])
             patched.assert_not_called()
 
     def test_so_company_empty(self):
@@ -493,11 +493,11 @@ class TestSaleOrder(SaleCommon):
             so_form.company_id = self.env['res.company']
 
     def test_so_is_not_invoiceable_if_only_discount_line_is_to_invoice(self):
-        self.sale_order.order_line.product_id.invoice_policy = 'delivery'
+        self.sale_order.line_ids.product_id.invoice_policy = 'transferred'
         self.sale_order.action_confirm()
 
-        self.assertEqual(self.sale_order.invoice_status, 'no')
-        standard_lines = self.sale_order.order_line
+        self.assertEqual(self.sale_order.invoice_state, 'no')
+        standard_lines = self.sale_order.line_ids
 
         self.env['sale.order.discount'].create({
             'sale_order_id': self.sale_order.id,
@@ -506,22 +506,24 @@ class TestSaleOrder(SaleCommon):
         }).action_apply_discount()
 
         # Only the discount line is invoiceable (there are lines not invoiced and not invoiceable)
-        discount_line = self.sale_order.order_line - standard_lines
-        self.assertEqual(discount_line.invoice_status, 'to invoice')
-        self.assertEqual(self.sale_order.invoice_status, 'no')
+        discount_line = self.sale_order.line_ids - standard_lines
+        self.assertEqual(discount_line.invoice_state, 'to do')
+        self.assertEqual(self.sale_order.invoice_state, 'no')
 
     def test_so_is_invoiceable_if_only_discount_line_remains_to_invoice(self):
-        self.sale_order.order_line.product_id.invoice_policy = 'delivery'
+        self.sale_order.line_ids.product_id.invoice_policy = 'transferred'
         self.sale_order.action_confirm()
 
-        self.assertEqual(self.sale_order.invoice_status, 'no')
-        standard_lines = self.sale_order.order_line
+        self.assertEqual(self.sale_order.invoice_state, 'no')
+        standard_lines = self.sale_order.line_ids
 
         for sol in standard_lines:
-            sol.qty_delivered = sol.product_uom_qty
-        self.sale_order._create_invoices()
+            sol.qty_transferred = sol.product_uom_qty
+        invoice = self.sale_order._create_invoices()
+        # Post invoice - only posted invoices affect invoice_state
+        invoice.action_post()
 
-        self.assertEqual(self.sale_order.invoice_status, 'invoiced')
+        self.assertEqual(self.sale_order.invoice_state, 'done')
 
         self.env['sale.order.discount'].create({
             'sale_order_id': self.sale_order.id,
@@ -530,9 +532,9 @@ class TestSaleOrder(SaleCommon):
         }).action_apply_discount()
 
         # Only the discount line is invoiceable (there are no other lines remaining to invoice)
-        discount_line = (self.sale_order.order_line - standard_lines)
-        self.assertEqual(discount_line.invoice_status, 'to invoice')
-        self.assertEqual(self.sale_order.invoice_status, 'to invoice')
+        discount_line = (self.sale_order.line_ids - standard_lines)
+        self.assertEqual(discount_line.invoice_state, 'to do')
+        self.assertEqual(self.sale_order.invoice_state, 'to do')
 
     def test_so_with_fixed_discount_zero_amount(self):
         """ Applying a fixed discount of 0.0 should have no effect on the order total. """
@@ -631,16 +633,16 @@ class TestSaleOrder(SaleCommon):
         # - Product no tax from XX      => tax from Branch X should be set
         # - Product no tax from branch  => 2 taxes from parent company should be set
         # - Product no tax              => no tax should be set
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = product_all_taxes
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = product_no_xx_tax
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = product_no_branch_tax
-        with so_form.order_line.new() as line:
+        with so_form.line_ids.new() as line:
             line.product_id = product_no_tax
         so = so_form.save()
-        self.assertRecordValues(so.order_line, [
+        self.assertRecordValues(so.line_ids, [
             {'product_id': product_all_taxes.id, 'tax_ids': tax_xx.ids},
             {'product_id': product_no_xx_tax.id, 'tax_ids': tax_x.ids},
             {'product_id': product_no_branch_tax.id, 'tax_ids': (tax_a + tax_b).ids},
@@ -652,9 +654,9 @@ class TestSaleOrder(SaleCommon):
 
         Since the client doesn't send readonly fields, flagging the field as readonly
         will result in the `price_unit` being absent from the values, but not the
-        `technical_price_unit` field, which would disable the price computation.
+        `price_unit_shadow` field, which would disable the price computation.
 
-        This test makes sure that the `technical_price_unit` is correctly discarded
+        This test makes sure that the `price_unit_shadow` is correctly discarded
         if not provided in the same request as the `price_unit`
         """
         self.pricelist.item_ids = [
@@ -666,12 +668,12 @@ class TestSaleOrder(SaleCommon):
         ]
 
         # Order update
-        product_sol = self.sale_order.order_line[0]
+        product_sol = self.sale_order.line_ids[0]
         self.assertNotEqual(product_sol.price_unit, 22)
         self.sale_order.write({
-            'order_line': [Command.update(
+            'line_ids': [Command.update(
                 product_sol.id,
-                {'product_uom_qty': 4.0, 'technical_price_unit': 22.0}
+                {'product_uom_qty': 4.0, 'price_unit_shadow': 22.0}
             )],
         })
         self.assertEqual(product_sol.price_unit, 22.0)
@@ -679,15 +681,15 @@ class TestSaleOrder(SaleCommon):
         # Order creation
         new_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                     'product_uom_qty': 5.0,
-                    'technical_price_unit': 22.0,
+                    'price_unit_shadow': 22.0,
                 }),
             ],
         })
-        self.assertEqual(new_order.order_line.price_unit, 22.0)
+        self.assertEqual(new_order.line_ids.price_unit, 22.0)
 
     def test_sale_warnings(self):
         """Test warnings when partner/products with sale warnings are used."""
@@ -774,7 +776,7 @@ class TestSaleOrder(SaleCommon):
             'name': "Test Product2",
             'list_price': 0.0,
         })
-        sol = self.sale_order.order_line[0]
+        sol = self.sale_order.line_ids[0]
         # Manually change the product & price on the SO line
         with Form(sol) as sol_form:
             sol_form.product_id = product2
@@ -801,14 +803,16 @@ class TestSaleOrderInvoicing(AccountTestInvoicingCommon, SaleCommon):
         this test ensures that the  invoicing status of the SO line is 'invoiced' (and not 'upselling')."""
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [(0, 0, {
+            'line_ids': [(0, 0, {
                 'product_id': self.product.id,
                 'product_uom_qty': -1,
             })]
         })
         sale_order.action_confirm()
-        sale_order._create_invoices(final=True)
-        self.assertTrue(sale_order.invoice_status == 'invoiced', 'Sale: The invoicing status of the SO should be "invoiced"')
+        invoice = sale_order._create_invoices(final=True)
+        # Post invoice - only posted invoices affect invoice_state
+        invoice.action_post()
+        self.assertTrue(sale_order.invoice_state == 'done', 'Sale: The invoicing status of the SO should be "done"')
 
 
 @tagged('post_install', '-at_install')
@@ -1021,16 +1025,16 @@ class TestSalesTeam(SaleCommon):
         with self.assertRaises(ValidationError):
             self.sale_order.prepayment_percent = 1.01
 
-    def test_qty_delivered_on_creation(self):
+    def test_qty_transferred_on_creation(self):
         """Checks that the qty delivered of sol is automatically set to 0.0 when an so is created"""
         sale_order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                 })],
         })
-        self.assertEqual(self.env['sale.order.line'].search(['&', ('order_id', '=', sale_order.id), ('qty_delivered', '=', 0.0)]), sale_order.order_line)
+        self.assertEqual(self.env['sale.order.line'].search(['&', ('order_id', '=', sale_order.id), ('qty_transferred', '=', 0.0)]), sale_order.line_ids)
 
     def test_action_recompute_taxes(self):
         '''
@@ -1088,7 +1092,7 @@ class TestSalesTeam(SaleCommon):
 
         order = self.env['sale.order'].create({
             'partner_id': self.partner.id,
-            'order_line': [
+            'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
                     'product_uom_qty': 1.0,

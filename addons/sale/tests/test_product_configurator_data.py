@@ -112,7 +112,7 @@ class TestProductConfiguratorData(HttpCaseWithUserDemo, ProductVariantsCommon, S
         self.assertEqual(len(self.product_template_sofa.product_variant_ids), 3)
 
         # Use variants s.t. they are archived and not deleted when value is removed
-        self.empty_order.order_line = [
+        self.empty_order.line_ids = [
             Command.create({
                 'product_id': product.id
             })
@@ -135,7 +135,7 @@ class TestProductConfiguratorData(HttpCaseWithUserDemo, ProductVariantsCommon, S
         self.assertEqual(len(product_template.product_variant_ids), 4)
 
         # Use variants s.t. they are archived and not deleted when value is removed
-        self.empty_order.order_line = [
+        self.empty_order.line_ids = [
             Command.create({
                 'product_id': product.id
             })
@@ -159,7 +159,7 @@ class TestProductConfiguratorData(HttpCaseWithUserDemo, ProductVariantsCommon, S
         self.assertEqual(len(product_template.product_variant_ids), 4)
 
         # Use variants s.t. they are archived and not deleted when value is removed
-        self.empty_order.order_line = [
+        self.empty_order.line_ids = [
             Command.create(
                 {
                     'product_id': product.id
@@ -280,7 +280,7 @@ class TestProductConfiguratorData(HttpCaseWithUserDemo, ProductVariantsCommon, S
 
         # Use variants s.t. they are archived and not deleted when value is removed
 
-        self.empty_order.order_line = [
+        self.empty_order.line_ids = [
             Command.create({
                 'product_id': product.id,
                 'product_no_variant_attribute_value_ids': product.attribute_line_ids.product_template_value_ids.filtered(
@@ -345,7 +345,7 @@ class TestProductConfiguratorData(HttpCaseWithUserDemo, ProductVariantsCommon, S
         })
 
         # Sell all variants
-        self.empty_order.order_line = [
+        self.empty_order.line_ids = [
             Command.create({
                 'product_id': product.id,
             })
@@ -374,7 +374,7 @@ class TestProductConfiguratorData(HttpCaseWithUserDemo, ProductVariantsCommon, S
         self.assertEqual(len(_get_ptavs()), 4)
 
         # Use products s.t. they are archived and not deleted
-        self.empty_order.order_line = [
+        self.empty_order.line_ids = [
             Command.create({
                 'product_id': product.id,
             })

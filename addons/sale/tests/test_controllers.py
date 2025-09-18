@@ -107,7 +107,7 @@ class TestSaleSignature(HttpCaseWithUserPortal):
         sales_order = self.env['sale.order'].create({
             'name': 'test SO',
             'partner_id': portal_user_partner.id,
-            'state': 'sent',
+            'sent': True,
             'require_payment': False,
         })
         self.env['sale.order.line'].create({
@@ -117,7 +117,7 @@ class TestSaleSignature(HttpCaseWithUserPortal):
         self.assertFalse(sales_order.message_partner_ids)
 
         # must be sent to the user so he can see it
-        email_act = sales_order.action_quotation_send()
+        email_act = sales_order.action_send_quotation()
         email_ctx = email_act.get('context', {})
         sales_order.with_context(**email_ctx).message_post_with_source(
             self.env['mail.template'].browse(email_ctx.get('default_template_id')),
