@@ -3,7 +3,7 @@ import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { useSetupAction } from "@web/search/action_hook";
+import { useSetupAction } from "@web/core/action_hook";
 import { Layout } from "@web/search/layout";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";

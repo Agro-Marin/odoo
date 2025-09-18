@@ -9,12 +9,12 @@ import { TranslateSetupEditorPlugin } from "./plugins/translate_setup_editor_plu
 import { VisibilityPlugin } from "@html_builder/core/visibility_plugin";
 import { removePlugins } from "@html_builder/utils/utils";
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { Component, onWillStart } from "@odoo/owl";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { Component, onMounted, onWillStart } from "@odoo/owl";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { useSetupAction } from "@web/search/action_hook";
+import { useSetupAction } from "@web/core/action_hook";
 import { HighlightPlugin } from "./plugins/highlight/highlight_plugin";
 import { PopupVisibilityPlugin } from "./plugins/popup_visibility_plugin";
 import { SaveTranslationPlugin } from "./plugins/save_translation_plugin";
@@ -47,6 +47,11 @@ import { Plugin } from "@html_editor/plugin";
 import { revertPreview } from "@html_builder/core/utils";
 import { rpc } from "@web/core/network/rpc";
 import { redirect } from "@web/core/utils/urls";
+import { browser } from "@web/core/browser/browser";
+import {
+    localStorageNoDialogKey,
+    TranslatorInfoDialog,
+} from "./translation_components/translatorInfoDialog";
 
 const TRANSLATION_PLUGINS = [
     BuilderOptionsTranslationPlugin,
@@ -107,6 +112,11 @@ export class WebsiteBuilder extends Component {
             this.translatedElements = this.props.translation
                 ? await rpc("/website/get_translated_elements")
                 : [];
+        });
+        onMounted(() => {
+            if (this.props.translation && !browser.localStorage.getItem(localStorageNoDialogKey)) {
+                this.dialog.add(TranslatorInfoDialog);
+            }
         });
     }
 

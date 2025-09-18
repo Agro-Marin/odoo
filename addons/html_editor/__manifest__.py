@@ -13,7 +13,7 @@ This addon provides an extensible, maintainable editor.
     'website': "https://www.odoo.com",
     'version': '1.0',
     'category': 'Hidden',
-    'depends': ['base', 'bus', 'web'],
+    'depends': ['bus'],
     'data': [
         'security/ir.model.access.csv',
     ],
@@ -32,7 +32,7 @@ This addon provides an extensible, maintainable editor.
             'html_editor/static/src/main/selection_placeholder_plugin.scss',
         ],
         'web.assets_backend': [
-            ('include', 'html_editor.assets_editor'),
+            ('include', 'html_editor._assets_editor'),
             'html_editor/static/src/others/dynamic_placeholder_plugin.js',
             'html_editor/static/src/backend/**/*',
             'html_editor/static/src/fields/**/*',
@@ -41,7 +41,7 @@ This addon provides an extensible, maintainable editor.
             'html_editor/static/src/scss/html_editor.common.scss',
             'html_editor/static/src/scss/html_editor.backend.scss',
         ],
-        'html_editor.assets_editor': [
+        'html_editor._assets_editor': [
             'web/static/lib/dompurify/DOMpurify.js',
             ('include', 'html_editor.assets_media_dialog'),
             ('include', 'html_editor.assets_readonly'),
@@ -63,10 +63,12 @@ This addon provides an extensible, maintainable editor.
         ],
         'html_editor.assets_media_dialog': [
             # Bundle to use the media dialog in the backend and the frontend
+            ('include', 'web._assets_helpers'),
             'html_editor/static/src/components/switch/**/*',
             'html_editor/static/src/main/media/media_dialog/**/*',
         ],
         'html_editor.assets_readonly': [
+            ('include', 'web._assets_helpers'),
             'html_editor/static/src/components/html_viewer/**/*',
             'html_editor/static/src/local_overlay_container.*',
             'html_editor/static/src/main/local_overlay.scss',

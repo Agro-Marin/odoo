@@ -3,7 +3,7 @@ import { Component, useRef } from "@odoo/owl";
 import { useBus } from "@web/core/utils/hooks";
 import { useModel } from "@web/model/model";
 import { addFieldDependencies, extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
-import { useSetupAction } from "@web/search/action_hook";
+import { useSetupAction } from "@web/core/action_hook";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
 import { SearchBar } from "@web/search/search_bar/search_bar";

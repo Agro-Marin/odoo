@@ -52,7 +52,7 @@ class IrActionsReport(models.Model):
     def _get_splitted_report(self, report_ref, content, report_type):
         if report_type == 'html':
             report = self._get_report(report_ref)
-            bodies, res_ids, *_unused = self._prepare_html(content, report_model=report.model)
+            bodies, res_ids, _ = self._prepare_weasyprint_html(content, report_model=report.model)
             return {res_id: str(body).encode() for res_id, body in zip(res_ids, bodies)}
         elif report_type == 'pdf':
             pdf_dict = {res_id: stream['stream'].getvalue() for res_id, stream in content.items()}

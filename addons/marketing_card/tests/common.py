@@ -21,14 +21,14 @@ def mock_image_render(func):
 class MockImageRender(BaseCase):
     @contextmanager
     def mock_image_renderer(self, collect_params=True):
-        self._wkhtmltoimage_bodies = []
+        self._render_image_bodies = []
 
-        def _ir_actions_report_build_run_wkhtmltoimage(model, bodies, width, height, image_format="jpg"):
+        def _mock_render_html_to_image(model, bodies, width, height, image_format="jpg"):
             if collect_params:
-                self._wkhtmltoimage_bodies.extend(bodies)
+                self._render_image_bodies.extend(bodies)
             return [VALID_JPEG] * len(bodies)
 
-        with patch.object(IrActionsReport, '_run_wkhtmltoimage', _ir_actions_report_build_run_wkhtmltoimage):
+        with patch.object(IrActionsReport, '_render_html_to_image', _mock_render_html_to_image):
             yield
 
 

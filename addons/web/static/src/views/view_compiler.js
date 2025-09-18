@@ -1,11 +1,6 @@
-import {
-    append,
-    combineAttributes,
-    createElement,
-    createTextNode,
-    getTag,
-} from "@web/core/utils/xml";
-import { toStringExpression, BUTTON_CLICK_PARAMS } from "./utils";
+// @ts-check
+
+/** @module @web/views/view_compiler - Base view compiler: transforms XML arch nodes into OWL template elements with attribute and slot helpers */
 
 /**
  * @typedef Compiler
@@ -14,9 +9,17 @@ import { toStringExpression, BUTTON_CLICK_PARAMS } from "./utils";
  * @property {string} [class]
  * @property {boolean} [doNotCopyAttributes]
  */
+import { App } from "@odoo/owl";
+import {
+    append,
+    combineAttributes,
+    createElement,
+    createTextNode,
+    getTag,
+} from "@web/core/utils/dom/xml";
 
-import { xml } from "@odoo/owl";
-
+import { BUTTON_CLICK_PARAMS } from "./view_buttons";
+import { toStringExpression } from "./view_utils";
 const BUTTON_STRING_PROPS = ["string", "size", "title", "icon", "id", "disabled"];
 const INTERP_REGEXP = /(\{\{|#\{)(.*?)(\}{1,2})/g;
 
@@ -72,7 +75,7 @@ function appendToStringifiedObject(originalTattr, string) {
  * @param  {...Element} sources
  * @returns {Element}
  */
-export function assignOwlDirectives(target, ...sources) {
+function assignOwlDirectives(target, ...sources) {
     for (const source of sources) {
         for (const { name, value } of source.attributes) {
             if (name.startsWith("t-attf-")) {
@@ -100,7 +103,10 @@ export function copyAttributes(el, compiled) {
     if (classes) {
         if (isComponent) {
             const cls = compiled.className;
-            compiled.setAttribute("class", cls ? `'${classes} ' + ${cls}` : `'${classes}'`);
+            compiled.setAttribute(
+                "class",
+                cls ? `'${classes} ' + ${cls}` : `'${classes}'`,
+            );
         } else {
             compiled.classList.add(...classes.split(/\s+/).filter(Boolean));
         }
@@ -116,17 +122,8 @@ export function copyAttributes(el, compiled) {
 }
 
 /**
- * Decodes a string within an attribute into an Object
- * @param  {string} str
- * @return {Object}
- */
-export function decodeObjectForTemplate(str) {
-    return JSON.parse(decodeURI(str));
-}
-
-/**
  * Encodes an object into a string usable inside a pre-compiled template
- * @param  {Object}
+ * @param {Object} obj
  * @return {string}
  */
 export function encodeObjectForTemplate(obj) {
@@ -136,7 +133,7 @@ export function encodeObjectForTemplate(obj) {
 /**
  * @param {Element} el
  * @param {string} modifierName
- * @returns {boolean | boolean[]}
+ * @returns {string | null}
  */
 export function getModifier(el, modifierName) {
     return el.getAttribute(modifierName);
@@ -183,7 +180,8 @@ export function isTextNode(node) {
  */
 export function makeSeparator(title) {
     const separator = createElement("div");
-    separator.className = "o_horizontal_separator mt-4 mb-3 text-uppercase fw-bolder small";
+    separator.className =
+        "o_horizontal_separator mt-4 mb-3 text-uppercase fw-bolder small";
     separator.textContent = title;
     return separator;
 }
@@ -195,7 +193,8 @@ export class ViewCompiler {
         /** @type {Compiler[]} */
         this.compilers = [
             {
-                selector: "a[type]:not([data-bs-toggle]),a[data-type]:not([data-bs-toggle])",
+                selector:
+                    "a[type]:not([data-bs-toggle]),a[data-type]:not([data-bs-toggle])",
                 fn: this.compileButton,
             },
             {
@@ -209,9 +208,9 @@ export class ViewCompiler {
         this.templates = templates;
         this.ctx = { readonly: "__comp__.props.readonly" };
 
-        this.owlDirectiveRegexesWhitelist = this.constructor.OWL_DIRECTIVE_WHITELIST.map(
-            (d) => new RegExp(d)
-        );
+        this.owlDirectiveRegexesWhitelist = /** @type {any} */ (
+            this.constructor
+        ).OWL_DIRECTIVE_WHITELIST.map((/** @type {string} */ d) => new RegExp(d));
         this.setup();
     }
 
@@ -232,7 +231,7 @@ export class ViewCompiler {
         }
         const recordExpr = params.recordExpr || "__comp__.props.record";
         let isVisileExpr = `!__comp__.evaluateBooleanExpr(${JSON.stringify(
-            invisible
+            invisible,
         )},${recordExpr}.evalContextWithVirtualIds)`;
         if (compiled.hasAttribute("t-if")) {
             const formerTif = compiled.getAttribute("t-if");
@@ -245,7 +244,7 @@ export class ViewCompiler {
     /**
      * @param {string} key
      * @param {Record<string, any>} params
-     * @returns {string}
+     * @returns {Element}
      */
     compile(key, params = {}) {
         const root = this.templates[key].cloneNode(true);
@@ -256,8 +255,9 @@ export class ViewCompiler {
     }
 
     /**
-     * @param {Node} node
+     * @param {any} node
      * @param {Record<string, any>} params
+     * @param {boolean} [evalInvisible]
      * @returns {Element | Text | void}
      */
     compileNode(node, params = {}, evalInvisible = true) {
@@ -275,7 +275,10 @@ export class ViewCompiler {
         let invisible;
         if (evalInvisible) {
             invisible = getModifier(node, "invisible");
-            if (!params.compileInvisibleNodes && (invisible === "True" || invisible === "1")) {
+            if (
+                !params.compileInvisibleNodes &&
+                (invisible === "True" || invisible === "1")
+            ) {
                 return;
             }
         }
@@ -324,7 +327,7 @@ export class ViewCompiler {
             button,
             "className",
             [toStringExpression(el.className), button.className],
-            "+` `+"
+            "+` `+",
         );
         el.removeAttribute("class");
         button.removeAttribute("class");
@@ -376,7 +379,10 @@ export class ViewCompiler {
         field.setAttribute("id", `'${fieldId}'`);
         field.setAttribute("name", `'${fieldName}'`);
         field.setAttribute("record", recordExpr);
-        field.setAttribute("fieldInfo", `__comp__.props.archInfo.fieldNodes['${fieldId}']`);
+        field.setAttribute(
+            "fieldInfo",
+            `__comp__.props.archInfo.fieldNodes['${fieldId}']`,
+        );
         field.setAttribute("readonly", `__comp__.props.readonly`);
 
         if (el.hasAttribute("widget")) {
@@ -443,33 +449,53 @@ ViewCompiler.OWL_DIRECTIVE_WHITELIST = [];
 
 let templateCache = Object.create(null);
 /**
+ * Compile view arch templates and register them with OWL.
+ *
+ * Each template is keyed by `${ViewCompiler.name}/${arch.outerHTML}` (with
+ * newlines collapsed to spaces) — a string that is both the compiler-cache key
+ * AND the name registered in OWL's globalTemplates via App.registerTemplate.
+ * The key must be single-line because Owl embeds it in a `//` JS comment during
+ * code generation; real newlines in the name would break the comment and cause
+ * a syntax error. Using arch content as the OWL template name ensures that
+ * re-registering the same arch after a cache reset overwrites the same
+ * globalTemplates slot instead of accumulating new entries, which eliminates
+ * the memory leak that occurred when the auto-incrementing xml`` tag helper
+ * was used.
+ *
  * @param {typeof ViewCompiler} ViewCompiler
- * @param {string} key
  * @param {Record<string, Element>} templates
  * @param {Record<string, any>} [params]
  * @returns {Record<string, string>}
  */
 export function useViewCompiler(ViewCompiler, templates, params) {
+    /** @type {Record<string, string>} */
     const compiledTemplates = {};
     let compiler;
     for (const tname in templates) {
-        const key = `${ViewCompiler.name}/${templates[tname].outerHTML}`;
+        // Collapse newlines to spaces so the key is always a single-line string.
+        // Owl embeds the template name in a // JS comment during code generation;
+        // a multi-line name would break the comment and cause "Unexpected token '<'".
+        const key = `${ViewCompiler.name}/${templates[tname].outerHTML.replace(/[\n\r]+/g, " ")}`;
         if (!templateCache[key]) {
             compiler = compiler || new ViewCompiler(templates);
-            templateCache[key] = xml`${compiler.compile(tname, params).outerHTML}`;
+            const compiledOuterHTML = compiler.compile(tname, params).outerHTML;
+            // Register with a deterministic name: same arch always maps to the
+            // same globalTemplates slot, so clearing templateCache and
+            // re-compiling overwrites rather than accumulates OWL entries.
+            App.registerTemplate(key, compiledOuterHTML);
+            templateCache[key] = key;
         }
         compiledTemplates[tname] = templateCache[key];
     }
     return compiledTemplates;
 }
 
-/*
- * clear the view compiler's cache.
- * FIXME: that function only purges the compiler's cache and NOT the cache in owl's app.
- * the owl.xml function creates an internal template each time, so the cache is here to prevent
- * creating new owl templates every time. If we clear the cache, new templates WILL be created,
- * even if the arch to compile is the same.
- * This is how a memory leak occurs. :-)
+/**
+ * Clear the view compiler's template cache.
+ *
+ * OWL template registrations are keyed by arch content (via App.registerTemplate),
+ * so the next call to useViewCompiler for the same arch overwrites the existing
+ * globalTemplates slot rather than creating a new one. No memory leak occurs.
  */
 export function resetViewCompilerCache() {
     templateCache = Object.create(null);

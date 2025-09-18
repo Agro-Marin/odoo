@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <template id="view_memory">
         &lt;!DOCTYPE html&gt;
         <html lang="en">
@@ -97,6 +98,14 @@
                     text-align: center;
                     padding-top: 50px;
                 }
+                .traceback-full-path {
+                    margin-bottom: 10px;
+                    padding: 8px;
+                    background: #e8f4f8;
+                    border-radius: 3px;
+                    font-size: 11px;
+                    color: #555;
+                }
             </style>
         </head>
         <body>
@@ -120,7 +129,13 @@
 
             <script>
                 // Get data from Odoo template
-                const rawData = JSON.parse(atob('<t t-esc="memory_graph"/>'));
+                let rawData;
+                try {
+                    rawData = JSON.parse(atob('<t t-esc="memory_graph"/>'));
+                } catch (e) {
+                    document.body.innerHTML = `<p style="color:red;padding:20px">Failed to load memory profile data: ${e.message}</p>`;
+                    throw e;
+                }
 
                 // --- UTILITY FUNCTIONS ---
                 function formatBytes(bytes) {
@@ -146,6 +161,12 @@
                 function getFullTracebackKey(traceback) {
                     if (!traceback || traceback.length === 0) return "unknown";
                     return traceback.map(frame => `${frame[0]}:${frame[1]}`).join(' -> ');
+                }
+
+                function escapeHtml(str) {
+                    const node = document.createElement('div');
+                    node.textContent = String(str);
+                    return node.innerHTML;
                 }
 
                 // --- DYNAMIC UI UPDATES ---
@@ -176,8 +197,8 @@
 
                     if (fullTracebackKey) {
                         html += `
-                            <div style="margin-bottom: 10px; padding: 8px; background: #e8f4f8; border-radius: 3px; font-size: 11px; color: #555;">
-                                <strong>Full Path:</strong> <span class="copyable" title="Click to select for copying">${fullTracebackKey}</span>
+                            <div class="traceback-full-path">
+                                <strong>Full Path:</strong> <span class="copyable" title="Click to select for copying">${escapeHtml(fullTracebackKey)}</span>
                             </div>
                         `;
                     }
@@ -186,9 +207,9 @@
                         const [filename, lineNo, functionName, code] = frame;
                         html += `
                             <div class="traceback-item">
-                                <div class="traceback-file copyable" title="Click to select for copying">${filename}:${lineNo}</div>
-                                <div>in <strong>${functionName || 'unknown'}</strong></div>
-                                ${code ? `<div class="traceback-line">${code}</div>` : ''}
+                                <div class="traceback-file copyable" title="Click to select for copying">${escapeHtml(filename)}:${escapeHtml(lineNo)}</div>
+                                <div>in <strong>${escapeHtml(functionName || 'unknown')}</strong></div>
+                                ${code ? `<div class="traceback-line">${escapeHtml(code)}</div>` : ''}
                             </div>
                         `;
                     });
@@ -390,4 +411,5 @@
         </body>
         </html>
     </template>
+
 </odoo>

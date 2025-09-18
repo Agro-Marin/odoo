@@ -5,8 +5,6 @@
             <html t-att-lang="lang and lang.replace('_', '-')"
                 t-att-data-report-margin-top="8"
                 t-att-data-report-margin-bottom="8"
-                t-att-data-report-header-spacing="data_report_header_spacing"
-                t-att-data-report-dpi="data_report_dpi"
                 t-att-data-report-landscape="data_report_landscape"
                 t-att-web-base-url="web_base_url">
                 <head>

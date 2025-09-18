@@ -1,8 +1,9 @@
 .o_report_layout_bubble {
     #informations {
         margin: 0;
-        border: $border-width * 2 solid;
+        border: $border-width * 2 solid var(--co-secondary, $o-default-report-secondary-color);
         border-radius: $border-radius-lg;
+        background-color: color-mix(in srgb, white 92%, var(--co-secondary, $o-default-report-secondary-color));
         padding: map-get($spacers, 2) $table-cell-padding-y;
 
         // In pdf it overlaps with existing margin, set to 0 to replicate in HTML
@@ -13,6 +14,13 @@
         div:last-child {
             padding-right: 0;
         }
+    }
+
+    // Table headers and total rows use primary as background;
+    // generated styles_company_report SCSS sets text contrast color via co-color-contrast().
+    thead th,
+    #total .o_total td {
+        background-color: var(--co-primary, $o-default-report-primary-color);
     }
 }
 

@@ -85,7 +85,7 @@ $o-we-item-pressed-color: $o-we-fg-lighter !default;
             border-radius: 50%;
             text-align: center;
             z-index: 1;
-            box-shadow: $box-shadow;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
         }
     }
 }

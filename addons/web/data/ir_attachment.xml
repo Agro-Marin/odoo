@@ -1,10 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
-        <record id="image_placeholder" model="ir.attachment">
-            <field name="name">placeholder.png</field>
-            <field name="type">url</field>
-            <field name="url">/web/static/img/placeholder.png</field>
-            <field name="public">True</field>
-        </record>
-    </data>
+
+    <record id="image_placeholder" model="ir.attachment">
+        <field name="name">placeholder.png</field>
+        <field name="type">url</field>
+        <field name="url">/web/static/img/placeholder.png</field>
+        <field name="public">True</field>
+    </record>
+
 </odoo>

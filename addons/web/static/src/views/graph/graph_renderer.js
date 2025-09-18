@@ -1,118 +1,37 @@
-import { _t } from "@web/core/l10n/translation";
-import {
-    getBorderWhite,
-    DEFAULT_BG,
-    getColor,
-    getCustomColor,
-    lightenColor,
-    darkenColor,
-} from "@web/core/colors/colors";
-import { registry } from "@web/core/registry";
-import { formatFloat, formatMonetary } from "@web/views/fields/formatters";
-import { SEP } from "./graph_model";
-import { sortBy } from "@web/core/utils/arrays";
-import { loadBundle } from "@web/core/assets";
-import { renderToMarkup } from "@web/core/utils/render";
-import { useService } from "@web/core/utils/hooks";
+// @ts-check
 
-import { Component, onWillUnmount, useEffect, useRef, onWillStart, markup } from "@odoo/owl";
-import { Dropdown } from "@web/core/dropdown/dropdown";
-import { DropdownItem } from "@web/core/dropdown/dropdown_item";
-import { cookie } from "@web/core/browser/cookie";
-import { createElementWithContent } from "@web/core/utils/html";
+/** @module @web/views/graph/graph_renderer - Chart.js integration for rendering bar, line, and pie charts with tooltips and legends */
+
+import {
+    Component,
+    onWillStart,
+    onWillUnmount,
+    useEffect,
+    useRef,
+} from "@odoo/owl";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { loadBundle } from "@web/core/assets";
+import { _t } from "@web/core/l10n/translation";
+import { createElementWithContent } from "@web/core/utils/dom/html";
+import { useService } from "@web/core/utils/hooks";
+import { renderToMarkup } from "@web/core/utils/render";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
 import { Widget } from "@web/views/widgets/widget";
 
-const NO_DATA = _t("No data");
-const formatters = registry.category("formatters");
-
-const colorScheme = cookie.get("color_scheme");
-const GRAPH_LEGEND_COLOR = getCustomColor(colorScheme, "#111827", "#ffffff");
-const GRAPH_GRID_COLOR = getCustomColor(colorScheme, "rgba(0,0,0,.1)", "rgba(255,255,255,.15");
-const GRAPH_LABEL_COLOR = getCustomColor(colorScheme, "#111827", "#E4E4E4");
-const NO_DATA_COLOR = getCustomColor(colorScheme, DEFAULT_BG, "#3C3E4B");
-
-/**
- * Custom Plugin for Line chart:
- * Draw the scale grid on top of the chart to
- * see this last one correctly.
- */
-const gridOnTop = {
-    id: "gridOnTop",
-    afterDraw: (chart) => {
-        const elements = chart.getDatasetMeta(0).data || [];
-        const ctx = chart.ctx;
-        const chartArea = chart.chartArea;
-        const yAxis = chart.scales.y;
-        const xAxis = chart.scales.x;
-
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = GRAPH_GRID_COLOR;
-
-        // Draw Y axis scale
-        yAxis.ticks.forEach((value, index) => {
-            const y = yAxis.getPixelForTick(index);
-            ctx.beginPath();
-            // Draw the line scale
-            ctx.moveTo(chartArea.left, y);
-            ctx.lineTo(chartArea.right, y);
-            // Draw the tick mark
-            ctx.moveTo(chartArea.left - 8, y);
-            ctx.lineTo(chartArea.left, y);
-            ctx.setLineDash([]);
-            ctx.stroke();
-        });
-
-        // Draw X axis tick marks
-        xAxis.ticks.forEach((value, tickIndex) => {
-            const x = xAxis.getPixelForTick(tickIndex);
-            ctx.beginPath();
-            ctx.moveTo(x, chartArea.bottom);
-            ctx.lineTo(x, chartArea.bottom + 8);
-            ctx.stroke();
-        });
-
-        // Draw the X axis dashed line
-        elements.forEach((point, eltIndex) => {
-            xAxis.ticks.forEach((value, tickIndex) => {
-                if (point.active && eltIndex === tickIndex) {
-                    const x = xAxis.getPixelForTick(tickIndex);
-                    ctx.beginPath();
-                    ctx.moveTo(x, chartArea.top);
-                    ctx.lineTo(x, chartArea.bottom);
-                    ctx.strokeStyle = GRAPH_GRID_COLOR;
-                    ctx.stroke();
-                }
-            });
-        });
-    },
-};
-
-/**
- * @param {Object} chartArea
- * @returns {string}
- */
-function getMaxWidth(chartArea) {
-    const { left, right } = chartArea;
-    return Math.floor((right - left) / 1.618) + "px";
-}
-
-/**
- * Used to avoid too long legend items.
- * @param {string} label
- * @returns {string} shortened version of the input label
- */
-function shortenLabel(label) {
-    // string returned could be wrong if a groupby value contain a " / "!
-    const groups = label.toString().split(SEP);
-    let shortLabel = groups.slice(0, 3).join(SEP);
-    if (shortLabel.length > 30) {
-        shortLabel = `${shortLabel.slice(0, 30)}...`;
-    } else if (groups.length > 3) {
-        shortLabel = `${shortLabel}${SEP}...`;
-    }
-    return shortLabel;
-}
+import {
+    buildAnimationOptions,
+    buildElementOptions,
+    buildScaleOptions,
+    buildTooltipItems,
+    generateBarLineLegendLabels,
+    generatePieLegendLabels,
+    getMaxWidth,
+    gridOnTop,
+    styleBarChartData,
+    styleLineChartData,
+    stylePieChartData,
+} from "./graph_chart_config";
 
 export class GraphRenderer extends Component {
     static template = "web.GraphRenderer";
@@ -157,7 +76,9 @@ export class GraphRenderer extends Component {
         const tbodySize = tooltip.querySelector("tbody").clientHeight;
         const toKeep = Math.max(
             0,
-            Math.floor((maxTooltipHeight - (tooltip.clientHeight - tbodySize)) / sizeOneLine) - 1
+            Math.floor(
+                (maxTooltipHeight - (tooltip.clientHeight - tbodySize)) / sizeOneLine,
+            ) - 1,
         );
         const lines = tooltip.querySelectorAll("tbody tr");
         const toRemove = lines.length - toKeep;
@@ -198,16 +119,19 @@ export class GraphRenderer extends Component {
             maxWidth: getMaxWidth(this.chart.chartArea),
             measure: measures[measure].string,
             mode: this.model.metaData.mode,
-            tooltipItems: this.getTooltipItems(data, metaData, tooltipModel),
+            tooltipItems: buildTooltipItems(data, metaData, tooltipModel, this.model.lineOverlayDataset),
         });
         const template = createElementWithContent("template", content);
-        const tooltip = template.content.firstChild;
+        const tooltip = /** @type {HTMLElement} */ (
+            /** @type {HTMLTemplateElement} */ (template).content.firstChild
+        );
         this.containerRef.el.prepend(tooltip);
 
         let top;
         const tooltipHeight = tooltip.clientHeight;
         const minTopAllowed = Math.floor(chartAreaTop);
-        const maxTopAllowed = Math.floor(window.innerHeight - (viewContentTop + tooltipHeight)) - 2;
+        const maxTopAllowed =
+            Math.floor(window.innerHeight - (viewContentTop + tooltipHeight)) - 2;
         const y = Math.floor(tooltipModel.y);
         if (minTopAllowed <= maxTopAllowed) {
             // Here we know that the full tooltip can fit in the screen.
@@ -231,11 +155,12 @@ export class GraphRenderer extends Component {
             // so we position the tooltip at the minimal position and
             // cut it the minimum possible.
             top = minTopAllowed;
-            const maxTooltipHeight = window.innerHeight - (viewContentTop + chartAreaTop) - 2;
+            const maxTooltipHeight =
+                window.innerHeight - (viewContentTop + chartAreaTop) - 2;
             this.adjustTooltipHeight(tooltip, maxTooltipHeight);
         }
         this.fixTooltipLeftPosition(tooltip, tooltipModel.x);
-        tooltip.style.top = Math.floor(top) + "px";
+        tooltip.style.top = `${Math.floor(top)}px`;
 
         this.tooltip = tooltip;
     }
@@ -249,7 +174,9 @@ export class GraphRenderer extends Component {
         let left;
         const tooltipWidth = tooltip.clientWidth;
         const minLeftAllowed = Math.floor(this.chart.chartArea.left + 2);
-        const maxLeftAllowed = Math.floor(this.chart.chartArea.right - tooltipWidth - 2);
+        const maxLeftAllowed = Math.floor(
+            this.chart.chartArea.right - tooltipWidth - 2,
+        );
         x = Math.floor(x);
         if (x < minLeftAllowed) {
             left = minLeftAllowed;
@@ -262,68 +189,11 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Used to format correctly the values in tooltip and y.
-     * @param {number} value
-     * @param {boolean} [allIntegers=true]
-     * @returns {string}
-     */
-    formatValue(value, allIntegers = true, formatType = "") {
-        const largeNumber = Math.abs(value) >= 1000;
-        if (formatType) {
-            return formatters.get(formatType)(value);
-        }
-        if (allIntegers && !largeNumber) {
-            return String(value);
-        }
-        if (largeNumber) {
-            return formatFloat(value, { humanReadable: true, decimals: 2, minDigits: 1 });
-        }
-        return formatFloat(value);
-    }
-
-    /**
      * Returns the bar chart data
      * @returns {Object}
      */
     getBarChartData() {
-        // style data
-        const { stacked } = this.model.metaData;
-        const { data, lineOverlayDataset } = this.model;
-        for (let index = 0; index < data.datasets.length; ++index) {
-            const dataset = data.datasets[index];
-            const itemColor = getColor(index, colorScheme, data.datasets.length);
-            // used when stacked
-            if (stacked) {
-                dataset.stack = "";
-            }
-            // set dataset color
-            dataset.backgroundColor = itemColor;
-            dataset.borderRadius = 4;
-        }
-        if (lineOverlayDataset) {
-            // Mutate the lineOverlayDataset to include the config on how it will be displayed.
-            Object.assign(lineOverlayDataset, {
-                type: "line",
-                order: -1,
-                tension: 0,
-                fill: false,
-                pointHitRadius: 20,
-                pointRadius: 5,
-                pointHoverRadius: 10,
-                backgroundColor: getCustomColor(colorScheme, "#343a40", "#e9ecef"),
-                borderColor: getCustomColor(colorScheme, "rgba(0,0,0,.3)", "rgba(255,255,255,.5)"),
-                borderWidth: 2,
-                lineWidth: 3,
-            });
-            // We're not mutating the original datasets (`this.model.data.datasets`)
-            // because some part of the code depends on it.
-            return {
-                ...data,
-                datasets: [...data.datasets, lineOverlayDataset],
-            };
-        }
-
-        return data;
+        return styleBarChartData(this.model.data, this.model.metaData, this.model.lineOverlayDataset);
     }
 
     /**
@@ -352,52 +222,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Returns the animation options.
-     * 1. This adds progressive animation for Bar & Line charts.
-     * 2. Reduce animation duration for Pie chart.
-     * @returns {Object}
-     */
-    getAnimationOptions() {
-        let delayed;
-        const { mode } = this.model.metaData;
-        const labelsCount = this.model.data.labels.length;
-        const gap = 350;
-        const animationOptions = {};
-        if (mode === "pie") {
-            animationOptions.offset = { duration: 200 };
-        } else {
-            animationOptions.duration = 600;
-            animationOptions.onComplete = () => {
-                delayed = true;
-            };
-            animationOptions.delay = (context) => {
-                let delay = 0;
-                if ((mode === "bar" || mode === "line") && !delayed) {
-                    delay = context.dataIndex * (gap / labelsCount);
-                }
-                return delay;
-            };
-        }
-        return animationOptions;
-    }
-
-    /**
-     * Returns an object used to style chart elements independently from
-     * the datasets.
-     * @returns {Object}
-     */
-    getElementOptions() {
-        const { mode, stacked } = this.model.metaData;
-        const elementOptions = {};
-        if (mode === "bar") {
-            elementOptions.bar = { borderWidth: 1 };
-        } else if (mode === "line") {
-            elementOptions.line = { fill: stacked, tension: 0 };
-        }
-        return elementOptions;
-    }
-
-    /**
      * @returns {Object}
      */
     getLegendOptions() {
@@ -411,50 +235,13 @@ export class GraphRenderer extends Component {
         }
         if (mode === "pie") {
             legendOptions.labels = {
-                generateLabels: (chart) =>
-                    chart.data.labels.map((label, index) => {
-                        const hidden = !chart.getDataVisibility(index);
-                        const fullText = label;
-                        const text = shortenLabel(fullText);
-                        const fillStyle =
-                            label === NO_DATA
-                                ? NO_DATA_COLOR
-                                : getColor(index, colorScheme, chart.data.labels.length);
-                        return {
-                            text,
-                            fullText,
-                            fillStyle,
-                            hidden,
-                            index,
-                            fontColor: GRAPH_LEGEND_COLOR,
-                            lineWidth: 0,
-                        };
-                    }),
+                generateLabels: generatePieLegendLabels,
             };
         } else {
             legendOptions.position = "top";
             legendOptions.align = "end";
-            const referenceColor = mode === "bar" ? "backgroundColor" : "borderColor";
             legendOptions.labels = {
-                generateLabels: (chart) => {
-                    const { data } = chart;
-                    const labels = data.datasets.map((dataset, index) => ({
-                        text: shortenLabel(dataset.label),
-                        fullText: dataset.label,
-                        fillStyle: dataset[referenceColor],
-                        hidden: !chart.isDatasetVisible(index),
-                        lineCap: dataset.borderCapStyle,
-                        lineDash: dataset.borderDash,
-                        lineDashOffset: dataset.borderDashOffset,
-                        lineJoin: dataset.borderJoinStyle,
-                        lineWidth: dataset.borderWidth,
-                        strokeStyle: dataset[referenceColor],
-                        pointStyle: dataset.pointStyle,
-                        datasetIndex: index,
-                        fontColor: GRAPH_LEGEND_COLOR,
-                    }));
-                    return labels;
-                },
+                generateLabels: (chart) => generateBarLineLegendLabels(chart, mode),
             };
         }
         return legendOptions;
@@ -465,43 +252,7 @@ export class GraphRenderer extends Component {
      * @returns {Object}
      */
     getLineChartData() {
-        const { cumulated } = this.model.metaData;
-        const data = this.model.data;
-        for (let index = 0; index < data.datasets.length; ++index) {
-            const dataset = data.datasets[index];
-            const itemColor = getColor(index, colorScheme, data.datasets.length);
-            dataset.backgroundColor = getCustomColor(
-                colorScheme,
-                lightenColor(itemColor, 0.5),
-                darkenColor(itemColor, 0.5)
-            );
-            dataset.cubicInterpolationMode = "monotone";
-            dataset.borderColor = itemColor;
-            dataset.borderWidth = 2;
-            dataset.hoverBackgroundColor = dataset.borderColor;
-            dataset.pointRadius = 3;
-            dataset.pointHoverRadius = 6;
-            if (cumulated) {
-                let accumulator = dataset.cumulatedStart;
-                dataset.data = dataset.data.map((value) => {
-                    accumulator += value;
-                    return accumulator;
-                });
-            }
-            if (data.labels.length === 1) {
-                // shift of the real value to right. This is done to
-                // center the points in the chart. See data.labels below in
-                // Chart parameters
-                dataset.data.unshift(undefined);
-                dataset.trueLabels.unshift(undefined);
-                dataset.domains.unshift(undefined);
-            }
-            dataset.pointBackgroundColor = dataset.borderColor;
-        }
-        // center the points in the chart (without that code they are put
-        // on the left and the graph seems empty)
-        data.labels = data.labels.length > 1 ? data.labels : ["", ...data.labels, ""];
-        return data;
+        return styleLineChartData(this.model.data, this.model.metaData);
     }
 
     /**
@@ -509,39 +260,7 @@ export class GraphRenderer extends Component {
      * @returns {Object}
      */
     getPieChartData() {
-        const data = this.model.data;
-        // style/complete data
-        // give same color to same groups from different origins
-        const colors = data.labels.map((_, index) =>
-            getColor(index, colorScheme, data.labels.length)
-        );
-        const borderColor = getBorderWhite(colorScheme);
-        for (const dataset of data.datasets) {
-            dataset.backgroundColor = colors;
-            dataset.hoverBackgroundColor = colors;
-            dataset.borderColor = borderColor;
-            dataset.hoverOffset = 60;
-        }
-        let addNoDataToLegend = false;
-        if (data.datasets.length === 0) {
-            const fakeData = new Array(data.labels.length + 1);
-            fakeData[data.labels.length] = 1;
-            const fakeTrueLabels = new Array(data.labels.length + 1);
-            fakeTrueLabels[data.labels.length] = NO_DATA;
-            data.datasets.push({
-                label: "",
-                data: fakeData,
-                trueLabels: fakeTrueLabels,
-                backgroundColor: [...colors, NO_DATA_COLOR],
-                borderColor,
-            });
-            addNoDataToLegend = true;
-        }
-        if (addNoDataToLegend) {
-            data.labels.push(NO_DATA);
-        }
-
-        return data;
+        return stylePieChartData(this.model.data);
     }
 
     /**
@@ -549,105 +268,11 @@ export class GraphRenderer extends Component {
      * @returns {Object}
      */
     getScaleOptions() {
-        const { labels } = this.model.data;
-        const { fieldAttrs, measure, measures, mode, stacked } = this.model.metaData;
-        if (mode === "pie") {
-            return {};
-        }
-        const xAxe = {
-            type: "category",
-            ticks: {
-                callback: (val, index) => {
-                    const value = labels[index];
-                    return shortenLabel(value);
-                },
-                color: GRAPH_LABEL_COLOR,
-            },
-            grid: {
-                color: "transparent",
-            },
-            border: {
-                display: false,
-            },
-        };
-        const yAxe = {
-            beginAtZero: true,
-            type: "linear",
-            title: {
-                text: measures[measure].string,
-                color:
-                    cookie.get("color_scheme") === "dark"
-                        ? getColor(15, cookie.get("color_scheme"))
-                        : null,
-            },
-            ticks: {
-                callback: (value) => this.formatValue(value, false, fieldAttrs[measure]?.widget),
-                color: GRAPH_LABEL_COLOR,
-            },
-            stacked: mode === "line" && stacked ? stacked : undefined,
-            grid: {
-                display: mode === "line" ? false : true,
-                color: GRAPH_GRID_COLOR,
-            },
-            border: {
-                display: false,
-            },
-            suggestedMax: 0,
-            suggestedMin: 0,
-        };
-        return { x: xAxe, y: yAxe };
+        return buildScaleOptions(this.model.data, this.model.metaData);
     }
 
     loadAll() {
         return this.model.forceLoadAll();
-    }
-
-    /**
-     * This function extracts the information from the data points in
-     * tooltipModel.dataPoints (corresponding to datapoints over a given
-     * label determined by the mouse position) that will be displayed in a
-     * custom tooltip.
-     * @param {Object} data
-     * @param {Object} metaData
-     * @param {Object} tooltipModel see chartjs documentation
-     * @returns {Object[]}
-     */
-    getTooltipItems(data, metaData, tooltipModel) {
-        const { allIntegers, mode, groupBy, measure } = metaData;
-        const sortedDataPoints = sortBy(tooltipModel.dataPoints, "raw", "desc");
-        const items = [];
-        for (const item of sortedDataPoints) {
-            const index = item.dataIndex;
-            // If `datasetIndex` is not found in the `datasets`, then it refers to the `lineOverlayDataset`.
-            const dataset = data.datasets[item.datasetIndex] || this.model.lineOverlayDataset;
-            let label = dataset.trueLabels[index];
-            let value = dataset.data[index];
-            const measureWidget = metaData.fieldAttrs[measure]?.widget;
-            if (dataset.currencyIds?.[index]) {
-                value = formatMonetary(value, { currencyId: dataset.currencyIds[index] });
-            } else if (dataset.currencyIds?.[index] === false) {
-                value = markup`${formatMonetary(value)}<sup class="ms-1 fw-bolder">?</sup>`;
-            } else {
-                value = this.formatValue(value, allIntegers, measureWidget);
-            }
-            let boxColor;
-            let percentage;
-            if (mode === "pie") {
-                if (label === NO_DATA) {
-                    value = this.formatValue(0, allIntegers, measureWidget);
-                }
-                boxColor = dataset.backgroundColor[index];
-                const totalData = dataset.data.reduce((a, b) => a + b, 0);
-                percentage = totalData && ((dataset.data[index] * 100) / totalData).toFixed(2);
-            } else {
-                if (groupBy.length > 1) {
-                    label = `${label} / ${dataset.label}`;
-                }
-                boxColor = mode === "bar" ? dataset.backgroundColor : dataset.borderColor;
-            }
-            items.push({ label, value, boxColor, percentage });
-        }
-        return items;
     }
 
     /**
@@ -690,7 +315,7 @@ export class GraphRenderer extends Component {
             ev,
             "nearest",
             { intersect: true },
-            false
+            false,
         );
         if (!activeElement) {
             return;
@@ -713,7 +338,8 @@ export class GraphRenderer extends Component {
         // Default 'onClick' fallback. See web/static/lib/Chart/Chart.js#15138
         const index = legendItem.datasetIndex;
         const meta = this.chart.getDatasetMeta(index);
-        meta.hidden = meta.hidden === null ? !this.chart.data.datasets[index].hidden : null;
+        meta.hidden =
+            meta.hidden === null ? !this.chart.data.datasets[index].hidden : null;
         this.chart.update();
     }
 
@@ -725,7 +351,7 @@ export class GraphRenderer extends Component {
      * @param {Object} legendItem
      */
     onLegendHover(ev, legendItem) {
-        ev = ev.native;
+        ev = /** @type {any} */ (ev).native;
         this.canvasRef.el.style.cursor = "pointer";
         /**
          * The string legendItem.text is an initial segment of legendItem.fullText.
@@ -742,10 +368,13 @@ export class GraphRenderer extends Component {
             className: "o_tooltip_legend popover p-3 pe-none position-absolute",
             innerText: fullText,
         });
-        legendTooltip.style.top = `${ev.clientY - viewContentTop}px`;
+        legendTooltip.style.top = `${/** @type {MouseEvent} */ (ev).clientY - viewContentTop}px`;
         legendTooltip.style.maxWidth = getMaxWidth(this.chart.chartArea);
         this.containerRef.el.appendChild(legendTooltip);
-        this.fixTooltipLeftPosition(legendTooltip, ev.clientX);
+        this.fixTooltipLeftPosition(
+            legendTooltip,
+            /** @type {MouseEvent} */ (ev).clientX,
+        );
         this.legendTooltip = legendTooltip;
     }
 
@@ -764,7 +393,7 @@ export class GraphRenderer extends Component {
      * instantiate the chart.
      */
     prepareOptions() {
-        const { mode } = this.model.metaData;
+        const { mode, stacked } = this.model.metaData;
         const options = {
             maintainAspectRatio: false,
             scales: this.getScaleOptions(),
@@ -772,11 +401,11 @@ export class GraphRenderer extends Component {
                 legend: this.getLegendOptions(),
                 tooltip: this.getTooltipOptions(),
             },
-            elements: this.getElementOptions(),
+            elements: buildElementOptions(mode, stacked),
             onResize: () => {
                 this.resizeChart(options);
             },
-            animation: this.getAnimationOptions(),
+            animation: buildAnimationOptions(mode, this.model.data.labels.length),
         };
         if (mode === "line") {
             options.interaction = {
@@ -856,6 +485,7 @@ export class GraphRenderer extends Component {
                 domain,
                 name: this.model.metaData.title,
                 res_model: this.model.metaData.resModel,
+                search_view_id: this.env.config.views?.find((v) => v[1] === "search"),
                 target: "current",
                 type: "ir.actions.act_window",
                 views,
@@ -863,20 +493,20 @@ export class GraphRenderer extends Component {
             {
                 newWindow,
                 viewType: "list",
-            }
+            },
         );
     }
     /**
-     * @param {string} domain the domain of the clicked area
+     * @param {any[]} domain the domain of the clicked area
      */
     onGraphClickedFinal(domain, isMiddleClick = false) {
         const { context } = this.model.metaData;
 
-        Object.keys(context).forEach((x) => {
+        for (const x of Object.keys(context)) {
             if (x === "group_by" || x.startsWith("search_default_")) {
                 delete context[x];
             }
-        });
+        }
 
         const views = {};
         for (const [viewId, viewType] of this.env.config.views || []) {
@@ -886,7 +516,7 @@ export class GraphRenderer extends Component {
             return [views[viewType] || false, viewType];
         }
         const actionViews = [getView("list"), getView("form")];
-        this.openView(domain, actionViews, context, isMiddleClick);
+        this.openView(domain, /** @type {any} */ (actionViews), context, isMiddleClick);
     }
 
     /**
@@ -901,7 +531,7 @@ export class GraphRenderer extends Component {
      * @param {"bar"|"line"|"pie"} mode
      */
     onModeSelected(mode) {
-        if (this.model.metaData.mode != mode) {
+        if (this.model.metaData.mode !== mode) {
             this.model.updateMetaData({ mode });
         }
     }
