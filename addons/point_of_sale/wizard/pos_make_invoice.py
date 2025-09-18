@@ -21,7 +21,7 @@ class PosMakeInvoice(models.TransientModel):
         selected_orders = self.env['pos.order'].browse(self.env.context.get('active_ids'))
         is_single_order = len(selected_orders) == 1
 
-        uninvoiceable_orders = selected_orders.filtered(lambda o: o.invoice_status != 'to_invoice' or o.state == 'draft' or o.state == 'cancel' )
+        uninvoiceable_orders = selected_orders.filtered(lambda o: o.invoice_state != 'to_invoice' or o.state == 'draft' or o.state == 'cancel' )
         if uninvoiceable_orders:
             order_names = "\n".join(uninvoiceable_orders.mapped('pos_reference'))
             raise UserError(_(
