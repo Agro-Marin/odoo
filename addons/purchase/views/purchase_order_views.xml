@@ -659,7 +659,7 @@
                             </field>
                             <group>
                                 <group>
-                                    <field colspan="2" name="note" nolabel="1"
+                                    <field colspan="2" name="notes" nolabel="1"
                                         placeholder="Define your terms and conditions ..." />
                                 </group>
                                 <group class="oe_subtotal_footer">

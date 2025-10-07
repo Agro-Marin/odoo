@@ -126,7 +126,7 @@ class PurchaseOrder(models.Model):
         store=True,
         precompute=True,
         readonly=False,
-        domain="[('company_id', 'in', (False, company_id))]",
+        domain="[('company_id', 'in', [False, company_id])]",
     )
     user_id = fields.Many2one(
         comodel_name="res.users",
@@ -317,7 +317,7 @@ class PurchaseOrder(models.Model):
         "products as this reference is usually written on the "
         "delivery order sent by your vendor.",
     )
-    note = fields.Html(string="Terms and Conditions")
+    notes = fields.Html(string="Terms and Conditions")
     acknowledged = fields.Boolean(
         string="Acknowledged",
         copy=False,
