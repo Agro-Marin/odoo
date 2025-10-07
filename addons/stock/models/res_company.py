@@ -1,15 +1,9 @@
-from odoo import _, api, fields, models, modules
+from odoo import _, api, fields, models
 
 
 class ResCompany(models.Model):
     _inherit = "res.company"
     _check_company_auto = True
-
-    def _default_confirmation_mail_template(self):
-        try:
-            return self.env.ref("stock.mail_template_data_delivery_confirmation").id
-        except ValueError:
-            return False
 
     # used for resupply routes between warehouses that belong to this company
     internal_transit_location_id = fields.Many2one(
@@ -19,12 +13,13 @@ class ResCompany(models.Model):
         ondelete="restrict",
     )
     stock_move_email_validation = fields.Boolean(
-        string="Email Confirmation picking", default=False
+        string="Email Confirmation picking",
+        default=False,
     )
     stock_mail_confirmation_template_id = fields.Many2one(
         comodel_name="mail.template",
         string="Email Template confirmation picking",
-        default=_default_confirmation_mail_template,
+        default=lambda self: self._default_confirmation_mail_template(),
         domain="[('model', '=', 'stock.picking')]",
         help="Email sent to the customer once the order is done.",
     )
@@ -84,7 +79,7 @@ class ResCompany(models.Model):
             company.sudo()._set_per_company_inter_company_locations(
                 inter_company_location
             )
-        #if modules.module.current_test:
+        # if modules.module.current_test:
         self.env["stock.warehouse"].sudo().create(
             [{"company_id": company.id} for company in companies],
         )
@@ -283,6 +278,12 @@ class ResCompany(models.Model):
                     "property_stock_supplier": inter_company_location.id,
                 },
             )
+
+    def _default_confirmation_mail_template(self):
+        try:
+            return self.env.ref("stock.mail_template_data_delivery_confirmation").id
+        except ValueError:
+            return False
 
     def _get_text_validation(self, confirmation_type):
         self.ensure_one()

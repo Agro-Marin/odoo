@@ -13,7 +13,8 @@ class StockPackageHistory(models.Model):
         default=lambda self: self.env.company,
     )
     location_id = fields.Many2one(
-        comodel_name="stock.location", string="Origin Location"
+        comodel_name="stock.location",
+        string="Origin Location",
     )
     location_dest_id = fields.Many2one(
         comodel_name="stock.location",
@@ -37,7 +38,8 @@ class StockPackageHistory(models.Model):
         comodel_name="stock.package.type",
     )
     parent_orig_id = fields.Many2one(
-        comodel_name="stock.package", string="Origin Container"
+        comodel_name="stock.package",
+        string="Origin Container",
     )
     parent_orig_name = fields.Char(string="Origin Container Name")
     parent_dest_id = fields.Many2one(
@@ -49,7 +51,10 @@ class StockPackageHistory(models.Model):
         comodel_name="stock.package",
         string="Outermost Destination Container",
     )
-    picking_ids = fields.Many2many(comodel_name="stock.picking", string="Transfers")
+    picking_ids = fields.Many2many(
+        comodel_name="stock.picking",
+        string="Transfers",
+    )
 
     def _get_complete_dest_name_except_outermost(self):
         self.ensure_one()

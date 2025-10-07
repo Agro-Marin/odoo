@@ -5,14 +5,6 @@ from odoo.fields import Domain
 class ProductCategory(models.Model):
     _inherit = "product.category"
 
-    route_ids = fields.Many2many(
-        comodel_name="stock.route",
-        relation="stock_route_categ",
-        column1="categ_id",
-        column2="route_id",
-        string="Routes",
-        domain=[("product_categ_selectable", "=", True)],
-    )
     removal_strategy_id = fields.Many2one(
         comodel_name="product.removal",
         string="Force Removal Strategy",
@@ -24,6 +16,14 @@ class ProductCategory(models.Model):
         "FEFO: products/lots with the closest removal date will be moved out first "
         '(the availability of this method depends on the "Expiration Dates" setting).\n'
         "Least Packages: FIFO but with the least number of packages possible when there are several packages containing the same product.",
+    )
+    route_ids = fields.Many2many(
+        comodel_name="stock.route",
+        relation="stock_route_categ",
+        column1="categ_id",
+        column2="route_id",
+        string="Routes",
+        domain=[("product_categ_selectable", "=", True)],
     )
     parent_route_ids = fields.Many2many(
         comodel_name="stock.route",
@@ -37,11 +37,6 @@ class ProductCategory(models.Model):
         readonly=True,
         search="_search_total_route_ids",
     )
-    putaway_rule_ids = fields.One2many(
-        comodel_name="stock.putaway.rule",
-        inverse_name="category_id",
-        string="Putaway Rules",
-    )
     packaging_reserve_method = fields.Selection(
         selection=[
             ("full", "Reserve Only Full Packagings"),
@@ -51,6 +46,11 @@ class ProductCategory(models.Model):
         default="partial",
         help="Reserve Only Full Packagings: will not reserve partial packagings. If customer orders 2 pallets of 1000 units each and you only have 1600 in stock, then only 1000 will be reserved\n"
         "Reserve Partial Packagings: allow reserving partial packagings. If customer orders 2 pallets of 1000 units each and you only have 1600 in stock, then 1600 will be reserved",
+    )
+    putaway_rule_ids = fields.One2many(
+        comodel_name="stock.putaway.rule",
+        inverse_name="category_id",
+        string="Putaway Rules",
     )
     filter_for_stock_putaway_rule = fields.Boolean(
         string="stock.putaway.rule",

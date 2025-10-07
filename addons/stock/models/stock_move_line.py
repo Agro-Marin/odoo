@@ -46,7 +46,8 @@ class StockMoveLine(models.Model):
         index=True,
     )
     allowed_uom_ids = fields.Many2many(
-        comodel_name="uom.uom", compute="_compute_allowed_uom_ids",
+        comodel_name="uom.uom",
+        compute="_compute_allowed_uom_ids",
     )
     product_uom_id = fields.Many2one(
         comodel_name="uom.uom",
@@ -173,10 +174,12 @@ class StockMoveLine(models.Model):
         search="_search_picking_type_id",
     )
     picking_type_use_create_lots = fields.Boolean(
-        related="picking_type_id.use_create_lots", readonly=True
+        related="picking_type_id.use_create_lots",
+        readonly=True,
     )
     picking_type_use_existing_lots = fields.Boolean(
-        related="picking_type_id.use_existing_lots", readonly=True
+        related="picking_type_id.use_existing_lots",
+        readonly=True,
     )
     state = fields.Selection(related="move_id.state", store=True)
     scrap_id = fields.Many2one(related="move_id.scrap_id")
