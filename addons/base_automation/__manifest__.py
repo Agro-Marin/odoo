@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
     "name": "Automation Rules",
     "version": "1.0",
@@ -22,8 +19,8 @@ trigger an automatic reminder email.
         "data/digest_data.xml",
         "data/ir_sequence_data.xml",
         "views/base_automation_views.xml",
-        "views/base_automation_runtime_views.xml",
-        "views/base_automation_runtime_line_views.xml",
+        "views/automation_runtime_views.xml",
+        "views/automation_runtime_line_views.xml",
         "views/ir_actions_server_views.xml",
         "views/workflow_dag_views.xml",
     ],

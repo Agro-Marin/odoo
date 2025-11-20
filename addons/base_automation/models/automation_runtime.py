@@ -2,7 +2,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
-class BaseAutomationRuntime(models.Model):
+class AutomationRuntime(models.Model):
     """Runtime instance for manual/semi-automatic workflow execution.
 
     This model stores the execution context for workflows that need:
@@ -21,7 +21,7 @@ class BaseAutomationRuntime(models.Model):
     without creating runtime instances.
     """
 
-    _name = "base.automation.runtime"
+    _name = "automation.runtime"
     _description = "Automation Workflow Runtime Instance"
     _inherit = ["mail.thread", "mail.activity.mixin"]
     _check_company_auto = True
@@ -112,7 +112,7 @@ class BaseAutomationRuntime(models.Model):
         help="Reference date for this workflow execution",
     )
     line_ids = fields.One2many(
-        comodel_name="base.automation.runtime.line",
+        comodel_name="automation.runtime.line",
         inverse_name="runtime_id",
         string="Workflow Steps",
         readonly=True,
@@ -153,7 +153,7 @@ class BaseAutomationRuntime(models.Model):
                     else None
                 )
                 vals["name"] = self.env["ir.sequence"].next_by_code(
-                    "base.automation.runtime",
+                    "automation.runtime",
                     sequence_date=seq_date,
                 ) or _("New")
 
@@ -305,7 +305,7 @@ class BaseAutomationRuntime(models.Model):
             )
 
         # Create lines and build DAG structure
-        lines = self.env["base.automation.runtime.line"]
+        lines = self.env["automation.runtime.line"]
         prev_line = None
 
         for action in actions:
@@ -319,7 +319,7 @@ class BaseAutomationRuntime(models.Model):
             }
 
             # Create line
-            line = self.env["base.automation.runtime.line"].create(vals)
+            line = self.env["automation.runtime.line"].create(vals)
             lines |= line
 
             # Build sequential DAG (each action waits for previous)

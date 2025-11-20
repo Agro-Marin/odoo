@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record id="view_base_automation_runtime_line_tree" model="ir.ui.view">
-        <field name="name">base.automation.runtime.line.tree</field>
-        <field name="model">base.automation.runtime.line</field>
+    <record id="view_automation_runtime_line_tree" model="ir.ui.view">
+        <field name="name">automation.runtime.line.tree</field>
+        <field name="model">automation.runtime.line</field>
         <field name="arch" type="xml">
             <list string="Workflow Steps">
                 <field name="sequence" widget="handle" />
@@ -21,9 +21,9 @@
         </field>
     </record>
 
-    <record id="view_base_automation_runtime_line_form" model="ir.ui.view">
-        <field name="name">base.automation.runtime.line.form</field>
-        <field name="model">base.automation.runtime.line</field>
+    <record id="view_automation_runtime_line_form" model="ir.ui.view">
+        <field name="name">automation.runtime.line.form</field>
+        <field name="model">automation.runtime.line</field>
         <field name="arch" type="xml">
             <form string="Workflow Step">
                 <header>

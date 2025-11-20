@@ -10,7 +10,7 @@ class BaseAutomationRuntimeLine(models.Model):
     """Execution tracking for individual workflow actions.
 
     Each line represents one execution of an ir.actions.server within
-    a base.automation.runtime workflow instance.
+    a automation.runtime workflow instance.
 
     Tracks:
     - Which action was executed
@@ -19,7 +19,7 @@ class BaseAutomationRuntimeLine(models.Model):
     - Dependencies (DAG structure)
     """
 
-    _name = "base.automation.runtime.line"
+    _name = "automation.runtime.line"
     _description = "Automation Runtime Action Line"
     _order = "sequence, id"
 
@@ -28,7 +28,7 @@ class BaseAutomationRuntimeLine(models.Model):
     # =========================================================================
 
     runtime_id = fields.Many2one(
-        comodel_name="base.automation.runtime",
+        comodel_name="automation.runtime",
         string="Workflow Runtime",
         required=True,
         ondelete="cascade",
@@ -76,8 +76,8 @@ class BaseAutomationRuntimeLine(models.Model):
     # =========================================================================
 
     predecessor_ids = fields.Many2many(
-        comodel_name="base.automation.runtime.line",
-        relation="base_automation_runtime_line_dag",
+        comodel_name="automation.runtime.line",
+        relation="automation_runtime_line_dag",
         column1="successor_id",
         column2="predecessor_id",
         string="Wait For",
@@ -85,8 +85,8 @@ class BaseAutomationRuntimeLine(models.Model):
     )
 
     successor_ids = fields.Many2many(
-        comodel_name="base.automation.runtime.line",
-        relation="base_automation_runtime_line_dag",
+        comodel_name="automation.runtime.line",
+        relation="automation_runtime_line_dag",
         column1="predecessor_id",
         column2="successor_id",
         string="Enables",
@@ -124,7 +124,7 @@ class BaseAutomationRuntimeLine(models.Model):
         Base implementation returns common workflow models.
         """
         return [
-            ("base.automation.runtime", "Workflow Runtime"),
+            ("automation.runtime", "Workflow Runtime"),
         ]
 
     # =========================================================================
@@ -169,7 +169,7 @@ class BaseAutomationRuntimeLine(models.Model):
             # Cancel any created sub-workflows
             if (
                 line.created_record_ref
-                and line.created_record_ref._name == "base.automation.runtime"
+                and line.created_record_ref._name == "automation.runtime"
             ):
                 line.created_record_ref.action_cancel()
 
@@ -219,7 +219,7 @@ class BaseAutomationRuntimeLine(models.Model):
             ctx = dict(self.env.context)
             ctx.update(
                 {
-                    "active_model": "base.automation.runtime",
+                    "active_model": "automation.runtime",
                     "active_id": self.runtime_id.id,
                     "active_ids": [self.runtime_id.id],
                     "runtime_line_id": self.id,

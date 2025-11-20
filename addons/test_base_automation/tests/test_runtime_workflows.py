@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-"""Tests for base.automation.runtime workflow execution.
+"""Tests for automation.runtime workflow execution.
 
 Runtime workflows are wizard-based workflows that:
 - Store execution context (partner, amount, date, reference)
@@ -36,8 +33,8 @@ class TestRuntimeWorkflows(common.TransactionCase):
         """Set up test data that will be reused across test methods."""
         super().setUpClass()
 
-        cls.Runtime = cls.env["base.automation.runtime"]
-        cls.RuntimeLine = cls.env["base.automation.runtime.line"]
+        cls.Runtime = cls.env["automation.runtime"]
+        cls.RuntimeLine = cls.env["automation.runtime.line"]
         cls.Automation = cls.env["base.automation"]
         cls.Action = cls.env["ir.actions.server"]
         cls.Partner = cls.env["res.partner"]

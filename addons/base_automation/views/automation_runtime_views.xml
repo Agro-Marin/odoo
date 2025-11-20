@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record id="view_base_automation_runtime_search" model="ir.ui.view">
-        <field name="name">base.automation.runtime.search</field>
-        <field name="model">base.automation.runtime</field>
+    <record id="view_automation_runtime_search" model="ir.ui.view">
+        <field name="name">automation.runtime.search</field>
+        <field name="model">automation.runtime</field>
         <field name="arch" type="xml">
             <search string="Workflow Runtimes">
                 <field name="name" />
@@ -37,9 +37,9 @@
         </field>
     </record>
 
-    <record id="view_base_automation_runtime_tree" model="ir.ui.view">
-        <field name="name">base.automation.runtime.tree</field>
-        <field name="model">base.automation.runtime</field>
+    <record id="view_automation_runtime_tree" model="ir.ui.view">
+        <field name="name">automation.runtime.tree</field>
+        <field name="model">automation.runtime</field>
         <field name="arch" type="xml">
             <list string="Workflow Runtimes">
                 <field name="name" />
@@ -58,9 +58,9 @@
         </field>
     </record>
 
-    <record id="view_base_automation_runtime_form" model="ir.ui.view">
-        <field name="name">base.automation.runtime.form</field>
-        <field name="model">base.automation.runtime</field>
+    <record id="view_automation_runtime_form" model="ir.ui.view">
+        <field name="name">automation.runtime.form</field>
+        <field name="model">automation.runtime</field>
         <field name="arch" type="xml">
             <form string="Workflow Runtime">
                 <header>
@@ -155,9 +155,9 @@
         </field>
     </record>
 
-    <record id="action_base_automation_runtime" model="ir.actions.act_window">
+    <record id="action_automation_runtime" model="ir.actions.act_window">
         <field name="name">Workflow Runtimes</field>
-        <field name="res_model">base.automation.runtime</field>
+        <field name="res_model">automation.runtime</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_in_progress': 1}</field>
         <field name="help" type="html">
@@ -172,10 +172,10 @@
     </record>
 
     <menuitem
-        id="menu_base_automation_runtime"
+        id="menu_automation_runtime"
         name="Workflow Runtimes"
         parent="base.menu_automation"
-        action="action_base_automation_runtime"
+        action="action_automation_runtime"
         sequence="65"
     />
 
