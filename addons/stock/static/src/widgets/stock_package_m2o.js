@@ -10,22 +10,37 @@ import {
 import { Many2XAutocomplete } from "@web/views/fields/relational_utils";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
+/**
+ * Custom FormViewDialog for stock packages that forces reload after save.
+ *
+ * This is needed because package names are computed server-side from sequences,
+ * so we need to reload after creation to display the correct name instead of 'Unnamed'.
+ *
+ * NOTE: We create a proper subclass instead of mutating FormViewDialog.defaultProps
+ * to avoid affecting other Many2one fields globally (which would cause bugs like
+ * lot_id values being incorrectly assigned to result_package_id).
+ */
+class StockPackageFormViewDialog extends FormViewDialog {
+    setup() {
+        super.setup();
+        // Override saveRecord to force reload after save
+        const originalSaveRecord = this.viewProps.saveRecord;
+        this.viewProps.saveRecord = async (record, params) => {
+            // Save with reload to get computed name from backend
+            const saved = await record.save({ reload: true });
+            if (saved) {
+                this.currentResId = record.resId;
+                await this.props.onRecordSaved(record);
+                await this.onRecordSaved(record, params);
+            }
+            return saved;
+        };
+    }
+}
+
 class Many2XStockPackageAutocomplete extends Many2XAutocomplete {
     get createDialog() {
-        const PackageFormDialog = FormViewDialog;
-        PackageFormDialog.defaultProps = {
-            ...PackageFormDialog.defaultProps,
-            onRecordSave: async (record) => {
-                // We need to reload to get the name computed from the backend.
-                const saved = await record.save({ reload: true });
-                if (saved && this.props.update) {
-                    // Without this, the package is named 'Unnamed' in the UI until the record is saved.
-                    this.props.update([{ ...record.data, id: record.resId }]);
-                }
-                return saved;
-            },
-        };
-        return PackageFormDialog;
+        return StockPackageFormViewDialog;
     }
 }
 
