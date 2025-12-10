@@ -392,7 +392,7 @@
                             type="object"
                             groups="account.group_account_invoice"
                             icon="fa-bullseye"
-                            invisible="not partner_id or state != 'done' or not partner_bill_count or invoice_state == 'invoiced'">
+                            invisible="not partner_id or state != 'done' or not partner_bill_count or invoice_state == 'done'">
                             <div class="o_field_statinfo">
                                 <span class="o_stat_text">Bill Matching</span>
                             </div>
