@@ -1,4 +1,4 @@
-from odoo import _, api, fields, models
+from odoo import _, api, fields, models, Command
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
@@ -220,7 +220,24 @@ class PurchaseBillLineMatch(models.Model):
             ]  # in case of multiple POL with same product, only match the first one
             matching_bill_lines = aml_by_product.get(product)
             if matching_bill_lines:
-                matching_bill_lines.purchase_line_id = po_line.id
+                # Direct SQL INSERT to bypass ORM readonly validation on posted moves
+                # Uses Many2many relation table since purchase_line_ids is Many2many in Odoo 19
+                for aml in matching_bill_lines:
+                    self.env.cr.execute("""
+                        INSERT INTO account_move_line_purchase_order_line_rel
+                            (move_line_id, order_line_id)
+                        VALUES (%s, %s)
+                        ON CONFLICT DO NOTHING
+                    """, (aml.id, po_line.id))
+                # Invalidate caches on BOTH sides of the Many2many relation
+                matching_bill_lines.invalidate_recordset(["purchase_line_ids"])
+                matching_bill_lines.move_id.invalidate_recordset(["is_purchase_matched"])
+                # Invalidate PO line side and trigger stored computed fields
+                po_line.invalidate_recordset(["invoice_line_ids"])
+                po_line._compute_invoice_amounts()
+                # Invalidate PO order side and trigger stored computed fields
+                po_line.order_id.invalidate_recordset(["invoice_state"])
+                po_line.order_id._compute_invoice_state()
                 residual_purchase_order_lines -= po_line
                 residual_account_move_lines -= matching_bill_lines
 
@@ -443,6 +460,9 @@ class PurchaseBillLineMatch(models.Model):
             aml.display_type = 'product'
             AND am.move_type IN ('in_invoice', 'in_refund')
             AND aml.parent_state IN ('draft', 'posted')
-            AND aml.purchase_line_id IS NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM account_move_line_purchase_order_line_rel rel
+                WHERE rel.move_line_id = aml.id
+            )
             """,
         )
