@@ -198,8 +198,8 @@ class PurchaseBillUnion(models.Model):
         """Select purchase orders awaiting invoicing.
 
         Returns:
-            SQL: Query for confirmed purchase orders with invoice_status
-                 'to invoice' or 'no'. Uses negative IDs to prevent
+            SQL: Query for confirmed purchase orders with invoice_state
+                 'to do' or 'no'. Uses negative IDs to prevent
                  collision with vendor bill IDs.
         """
         return SQL(
@@ -257,6 +257,6 @@ class PurchaseBillUnion(models.Model):
         return SQL(
             """
             po.state = 'done'
-            AND po.invoice_status IN ('to invoice', 'no')
+            AND po.invoice_state IN ('to do', 'no')
             """,
         )
