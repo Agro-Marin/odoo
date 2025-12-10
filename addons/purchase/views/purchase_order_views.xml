@@ -73,10 +73,10 @@
                 <filter string="Starred" name="starred" domain="[('priority', '=', '1')]" />
                 <separator />
                 <filter name="not_invoiced" string="Waiting Bills"
-                    domain="[('invoice_state', '=', 'to invoice')]"
+                    domain="[('invoice_state', '=', 'to do')]"
                     help="Purchase orders that include lines not invoiced." />
                 <filter name="invoiced" string="Bills Received"
-                    domain="[('invoice_state', '=', 'invoiced')]"
+                    domain="[('invoice_state', '=', 'done')]"
                     help="Purchase orders that have been invoiced." />
                 <separator />
                 <filter name="order_date" string="Order Date" date="date_order" />
@@ -281,7 +281,7 @@
         <field name="model">purchase.order</field>
         <field name="arch" type="xml">
             <list decoration-muted="state == 'cancel'"
-                decoration-info="invoice_state == 'to invoice'"
+                decoration-warning="invoice_state == 'to do'"
                 string="Purchase Order"
                 class="o_purchase_order"
                 multi_edit="1"
@@ -316,8 +316,9 @@
                     readonly="state in ['done', 'cancel']" />
                 <field name="state" column_invisible="True" />
                 <field name="invoice_state" widget="badge"
-                    decoration-success="invoice_state == 'invoiced'"
-                    decoration-info="invoice_state == 'to invoice'" optional="show" />
+                    decoration-success="invoice_state == 'done'"
+                    decoration-warning="invoice_state == 'to do'"
+                    decoration-info="invoice_state == 'partial'" optional="show" />
                 <field name="date_planned" column_invisible="context.get('quotation_only', False)"
                     optional="show" />
             </list>
@@ -673,10 +674,10 @@
                                     <field name="invoice_state"
                                         invisible="state in ('draft', 'sent', 'cancel')" />
                                     <field name="payment_term_id"
-                                        readonly="invoice_state == 'invoiced' or locked"
+                                        readonly="invoice_state == 'done' or locked"
                                         options="{'no_create': True}" />
                                     <field name="fiscal_position_id" options="{'no_create': True}"
-                                        readonly="invoice_state == 'invoiced' or locked" />
+                                        readonly="invoice_state == 'done' or locked" />
                                 </group>
                             </group>
                         </page>
