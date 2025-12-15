@@ -125,6 +125,38 @@ class MyModel(models.Model):
 
 ---
 
+## Git Workflow
+
+### Branch Naming Convention
+
+Use the following format for all feature branches:
+
+```
+19.0-t<TASK_ID>-<username>
+```
+
+**Examples:**
+- `19.0-t14367-jsuniaga` - Fix for task 14367
+- `19.0-t15000-dev` - Feature for task 15000
+
+### Workflow
+
+1. Create feature branch from `19.0-marin`: `git checkout -b 19.0-t<TASK_ID>-<username>`
+2. Make changes and commit with OCA format: `[TAG] module: description`
+3. Push and create PR against `19.0-marin`
+
+### Commit Tags
+
+| Tag | Use |
+|-----|-----|
+| `[FIX]` | Bug fixes |
+| `[IMP]` | Improvements to existing features |
+| `[ADD]` | New features |
+| `[REF]` | Refactoring (no functional change) |
+| `[REM]` | Removing code or features |
+
+---
+
 ## References
 
 - [Odoo 19.0 Developer Docs](https://www.odoo.com/documentation/19.0/developer.html)
