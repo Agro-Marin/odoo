@@ -798,7 +798,7 @@ class PurchaseOrderLine(models.Model):
     def _compute_price_unit_discounted_taxinc(self):
         for line in self:
             line.price_unit_discounted_taxinc = (
-                line.price_total / line.product_uom_qty if line.product_uom_qty else 0.0
+                line.price_total / line.product_qty if line.product_qty else 0.0
             )
 
     @api.depends("qty_transferred_method")
@@ -823,7 +823,7 @@ class PurchaseOrderLine(models.Model):
         "state",
         "product_id",
         "product_id.bill_policy",
-        "product_uom_qty",
+        "product_qty",
         "price_unit_discounted_taxexc",
         "tax_ids",
         "price_total",
@@ -850,7 +850,7 @@ class PurchaseOrderLine(models.Model):
             qty_to_consider = (
                 line.qty_transferred
                 if line.product_id.bill_policy == "transferred"
-                else line.product_uom_qty  # bill_policy == "ordered"
+                else line.product_qty  # bill_policy == "ordered"
             )
             qty_invoiced = 0.0
             amount_taxexc_invoiced = 0.0
@@ -959,7 +959,7 @@ class PurchaseOrderLine(models.Model):
             # Tax-included amount to invoice
             # Reuse price_total from _compute_amounts to avoid recalculation
             unit_price_total = (
-                line.price_total / line.product_uom_qty if line.product_uom_qty else 0.0
+                line.price_total / line.product_qty if line.product_qty else 0.0
             )
             line.amount_taxinc_to_invoice = unit_price_total * (
                 qty_to_consider - line.qty_invoiced
@@ -989,6 +989,9 @@ class PurchaseOrderLine(models.Model):
     @api.depends(
         "qty_to_invoice",
         "qty_invoiced",
+        "product_qty",
+        "qty_transferred",
+        "product_id.bill_policy",
         "amount_taxexc_to_invoice",
     )
     def _compute_invoice_state(self):
@@ -1009,7 +1012,7 @@ class PurchaseOrderLine(models.Model):
             if line.is_downpayment and line.amount_taxexc_to_invoice == 0:
                 line.invoice_state = "done"
 
-            elif float_is_zero(line.product_uom_qty, precision_digits=precision):
+            elif float_is_zero(line.product_qty, precision_digits=precision):
                 line.invoice_state = "no"
 
             elif not float_is_zero(line.qty_to_invoice, precision_digits=precision):
@@ -1021,15 +1024,24 @@ class PurchaseOrderLine(models.Model):
                     line.invoice_state = "partial"
 
             elif float_is_zero(line.qty_to_invoice, precision_digits=precision):
+                # Compare against qty_to_consider based on bill_policy
+                qty_to_consider = (
+                    line.qty_transferred
+                    if line.product_id.bill_policy == "transferred"
+                    else line.product_qty
+                )
                 compare = float_compare(
                     line.qty_invoiced,
-                    line.product_uom_qty,
+                    qty_to_consider,
                     precision_digits=precision,
                 )
                 if compare == 0:
                     line.invoice_state = "done"
                 elif compare > 0:
                     line.invoice_state = "over done"
+                else:
+                    # qty_invoiced < qty_to_consider
+                    line.invoice_state = "partial"
 
     # -------------------------------------------------------------------------
     # ACTION METHODS
