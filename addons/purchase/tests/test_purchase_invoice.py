@@ -142,19 +142,19 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             self.assertEqual(line.qty_invoiced, 0.0)
 
         purchase_order.order_line.qty_received = 5
-        self.assertEqual(purchase_order.invoice_state, "to invoice")
+        self.assertEqual(purchase_order.invoice_state, "to do")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 5)
             self.assertEqual(line.qty_invoiced, 0.0)
 
         purchase_order.create_invoice()
-        self.assertEqual(purchase_order.invoice_state, "invoiced")
+        self.assertEqual(purchase_order.invoice_state, "done")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 5)
 
         purchase_order.invoice_ids.button_cancel()
-        self.assertEqual(purchase_order.invoice_status, "to invoice")
+        self.assertEqual(purchase_order.invoice_status, "to do")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 5)
             self.assertEqual(line.qty_invoiced, 0.0)
@@ -186,19 +186,19 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         })
         purchase_order.button_confirm()
 
-        self.assertEqual(purchase_order.invoice_state, "to invoice")
+        self.assertEqual(purchase_order.invoice_state, "to do")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 10)
             self.assertEqual(line.qty_invoiced, 0.0)
 
         purchase_order.order_line.qty_received = 5
-        self.assertEqual(purchase_order.invoice_state, "to invoice")
+        self.assertEqual(purchase_order.invoice_state, "to do")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 10)
             self.assertEqual(line.qty_invoiced, 0.0)
 
         purchase_order.create_invoice()
-        self.assertEqual(purchase_order.invoice_state, "invoiced")
+        self.assertEqual(purchase_order.invoice_state, "done")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 10)
@@ -232,18 +232,18 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
 
         purchase_order.order_line.qty_received = 10
         purchase_order.create_invoice()
-        self.assertEqual(purchase_order.invoice_state, "invoiced")
+        self.assertEqual(purchase_order.invoice_state, "done")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 10)
 
         purchase_order.order_line.qty_received = 5
-        self.assertEqual(purchase_order.invoice_state, "to invoice")
+        self.assertEqual(purchase_order.invoice_state, "to do")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, -5)
             self.assertEqual(line.qty_invoiced, 10)
         purchase_order.create_invoice()
-        self.assertEqual(purchase_order.invoice_state, "invoiced")
+        self.assertEqual(purchase_order.invoice_state, "done")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 5)
@@ -277,13 +277,13 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
 
         purchase_order.order_line.qty_received = 10
         purchase_order.create_invoice()
-        self.assertEqual(purchase_order.invoice_state, "invoiced")
+        self.assertEqual(purchase_order.invoice_state, "done")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 10)
 
         purchase_order.order_line.qty_received = 5
-        self.assertEqual(purchase_order.invoice_state, "invoiced")
+        self.assertEqual(purchase_order.invoice_state, "done")
         for line in purchase_order.order_line:
             self.assertEqual(line.qty_to_invoice, 0.0)
             self.assertEqual(line.qty_invoiced, 10)

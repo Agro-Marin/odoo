@@ -60,7 +60,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
 
         self.po.button_confirm()
         self.assertEqual(self.po.state, 'done', 'Purchase: PO state should be "Purchase"')
-        self.assertEqual(self.po.invoice_state, 'to invoice', 'Purchase: PO invoice_state should be "Waiting Invoices"')
+        self.assertEqual(self.po.invoice_state, 'to do', 'Purchase: PO invoice_state should be "Waiting Invoices"')
 
         self.assertTrue(self.product_id_2.seller_ids.filtered(lambda r: r.partner_id == self.partner_a), 'Purchase: the partner should be in the list of the product suppliers')
 
@@ -97,7 +97,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
 
         self.po.button_confirm()
         self.assertEqual(self.po.state, 'done', 'Purchase: PO state should be "Purchase"')
-        self.assertEqual(self.po.invoice_state, 'to invoice', 'Purchase: PO invoice_state should be "Waiting Invoices"')
+        self.assertEqual(self.po.invoice_state, 'to do', 'Purchase: PO invoice_state should be "Waiting Invoices"')
 
         # Confirm the purchase order
         self.po.button_confirm()

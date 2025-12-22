@@ -739,29 +739,29 @@ class PurchaseOrder(models.Model):
             order.invoice_ids = invoices
             order.invoice_count = len(invoices)
 
-    @api.depends("state", "line_ids.qty_to_invoice")
+    @api.depends("state", "line_ids.invoice_state")
     def _compute_invoice_state(self):
         confirmed_orders = self.filtered(lambda order: order.state == "done")
         (self - confirmed_orders).invoice_state = "no"
         if not confirmed_orders:
             return
 
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
         for order in confirmed_orders:
-            if any(
-                not float_is_zero(line.qty_to_invoice, precision_digits=precision)
-                for line in order.line_ids.filtered(lambda line: not line.display_type)
-            ):
-                order.invoice_state = "to do"
-            elif (
-                all(
-                    float_is_zero(line.qty_to_invoice, precision_digits=precision)
-                    for line in order.line_ids.filtered(
-                        lambda line: not line.display_type,
-                    )
+            line_states = set(
+                order.line_ids.filtered(lambda l: not l.display_type).mapped(
+                    "invoice_state"
                 )
-                and order.invoice_ids
-            ):
+            )
+
+            if not line_states or line_states == {"no"}:
+                order.invoice_state = "no"
+            elif "over done" in line_states:
+                order.invoice_state = "over done"
+            elif "to do" in line_states:
+                order.invoice_state = "to do"
+            elif "partial" in line_states:
+                order.invoice_state = "partial"
+            elif line_states == {"done"} or line_states == {"done", "no"}:
                 order.invoice_state = "done"
             else:
                 order.invoice_state = "no"
