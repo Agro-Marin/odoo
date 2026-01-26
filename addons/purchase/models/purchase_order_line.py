@@ -2014,11 +2014,21 @@ class PurchaseOrderLine(models.Model):
 
         # Check if current price is a manual override
         # Compare current price with OLD shadow (what system previously computed)
+        price_precision = self._get_price_precision()
         if old_shadow:
-            price_precision = self._get_price_precision()
             is_manual = float_compare(
                 self.price_unit,
                 old_shadow,
+                precision_digits=price_precision,
+            ) != 0
+            if is_manual:
+                return False
+        else:
+            # For new records without old_shadow, check if provided price differs
+            # from computed auto price - if so, it's a manual override
+            is_manual = float_compare(
+                self.price_unit,
+                new_auto_price,
                 precision_digits=price_precision,
             ) != 0
             if is_manual:
