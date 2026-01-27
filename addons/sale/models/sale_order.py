@@ -343,7 +343,7 @@ class SaleOrder(models.Model):
         tracking=4,
     )
     tax_totals = fields.Binary(
-        compute="_compute_amounts",
+        compute="_compute_tax_totals",
         exportable=False,
     )
 
@@ -972,6 +972,32 @@ class SaleOrder(models.Model):
                     warnings.add(line.product_id.display_name + " - " + product_msg)
             order.sale_warning_text = "\n".join(warnings)
 
+    def _prepare_tax_totals_data(self):
+        """Prepare tax totals data for a single order.
+
+        This helper method computes the tax totals structure that is used by both
+        _compute_amounts (for stored monetary fields) and _compute_tax_totals
+        (for the non-stored tax_totals field).
+
+        Returns:
+            dict: Tax totals summary with base_amount_currency, tax_amount_currency,
+                  total_amount_currency, and detailed tax breakdown.
+        """
+        self.ensure_one()
+        AccountTax = self.env["account.tax"]
+        order_lines = self.line_ids.filtered(lambda x: not x.display_type)
+        base_lines = [
+            line._prepare_base_line_for_taxes_computation() for line in order_lines
+        ]
+        base_lines += self._add_base_lines_for_early_payment_discount()
+        AccountTax._add_tax_details_in_base_lines(base_lines, self.company_id)
+        AccountTax._round_base_lines_tax_details(base_lines, self.company_id)
+        return AccountTax._get_tax_totals_summary(
+            base_lines=base_lines,
+            currency=self.currency_id or self.company_id.currency_id,
+            company=self.company_id,
+        )
+
     @api.depends_context("lang")
     @api.depends(
         "company_id",
@@ -980,30 +1006,31 @@ class SaleOrder(models.Model):
         "line_ids.price_subtotal",
     )
     def _compute_amounts(self):
-        """Compute tax totals and amount fields in a single pass.
+        """Compute stored amount fields (amount_untaxed, amount_tax, amount_total).
 
-        This method computes both the monetary amounts (amount_untaxed, amount_tax,
-        amount_total) and the tax_totals structure from a single tax computation,
-        avoiding duplicate calculations.
+        Uses _prepare_tax_totals_data() to get the computed values.
         """
-        AccountTax = self.env["account.tax"]
         for order in self:
-            order_lines = order.line_ids.filtered(lambda x: not x.display_type)
-            base_lines = [
-                line._prepare_base_line_for_taxes_computation() for line in order_lines
-            ]
-            base_lines += order._add_base_lines_for_early_payment_discount()
-            AccountTax._add_tax_details_in_base_lines(base_lines, order.company_id)
-            AccountTax._round_base_lines_tax_details(base_lines, order.company_id)
-            tax_totals = AccountTax._get_tax_totals_summary(
-                base_lines=base_lines,
-                currency=order.currency_id or order.company_id.currency_id,
-                company=order.company_id,
-            )
+            tax_totals = order._prepare_tax_totals_data()
             order.amount_untaxed = tax_totals["base_amount_currency"]
             order.amount_tax = tax_totals["tax_amount_currency"]
             order.amount_total = tax_totals["total_amount_currency"]
-            order.tax_totals = tax_totals
+
+    @api.depends_context("lang")
+    @api.depends(
+        "company_id",
+        "currency_id",
+        "payment_term_id",
+        "line_ids.price_subtotal",
+    )
+    def _compute_tax_totals(self):
+        """Compute the non-stored tax_totals field.
+
+        Uses _prepare_tax_totals_data() to get the complete tax breakdown structure.
+        Separated from _compute_amounts to avoid inconsistent store attribute warnings.
+        """
+        for order in self:
+            order.tax_totals = order._prepare_tax_totals_data()
 
     @api.depends("company_id", "partner_id", "amount_total")
     def _compute_partner_credit_warning(self):
