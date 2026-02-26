@@ -883,7 +883,7 @@ test("Update unread counter when receiving new message", async () => {
     });
     await start();
     await openDiscuss(undefined);
-    await contains(".o-mail-NotificationItem .o-discuss-badge:text('1')");
+    await contains(".o-mail-NotificationItem:has(:text('Demo')) .o-discuss-badge:text('1')");
 
     await withUser(userId, () =>
         rpc("/mail/message/post", {
@@ -896,7 +896,7 @@ test("Update unread counter when receiving new message", async () => {
             thread_model: "discuss.channel",
         })
     );
-    await contains(".o-mail-NotificationItem .o-discuss-badge:text('2')");
+    await contains(".o-mail-NotificationItem:has(:text('Demo')) .o-discuss-badge:text('2')");
 });
 
 test("Show start message of conversation", async () => {
