@@ -384,11 +384,14 @@ class _ReadGroupSQLMixin:
                 # functionally dependent on the GROUP BY column. This avoids
                 # adding comodel fields (e.g., partner.name) to GROUP BY
                 # when ordering by a many2one with custom _order.
-                # Disabled for GROUPING SETS: the same ORDER BY serves
-                # multiple sets, and sets without the many2one field would
-                # get arbitrary values from ANY_VALUE().
-                if not query._grouping_sets:
-                    query._any_value_orderby = True
+                # Also enabled for GROUPING SETS: without ANY_VALUE, comodel
+                # fields with parameters (e.g., translated JSONB fields) get
+                # different parameter placeholders in ORDER BY vs GROUPING
+                # SETS, causing PostgreSQL to reject the query. For sets that
+                # include the many2one field, ANY_VALUE returns the correct
+                # (only) value; for other sets, ordering is non-deterministic
+                # but rows are dispatched separately via GROUPING().
+                query._any_value_orderby = True
                 try:
                     sql_order = self._order_to_sql(f"{term} {direction} {nulls}", query)
                 finally:
