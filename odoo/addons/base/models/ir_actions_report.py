@@ -56,14 +56,21 @@ logging.getLogger("weasyprint").setLevel(logging.ERROR)
 # worker process.  These expensive objects are created once and reused:
 #
 # - _weasy_font_config: Holds the Pango font map with loaded @font-face data.
-#   The first write_pdf() call discovers system fonts via fontconfig (~30s cold,
-#   <1s warm).  Subsequent calls reuse the loaded font map.
+#   Created lazily to avoid Pango/fontconfig mutex corruption after fork()
+#   in prefork (multi-worker) mode.
 #
 # - _weasy_image_cache: Decoded image data (company logo etc.) shared across
 #   all renders — avoids re-decoding the same PNG for every body.
 # ---------------------------------------------------------------------------
-_weasy_font_config = FontConfiguration()
+_weasy_font_config = None
 _weasy_image_cache = {}
+
+
+def _get_weasy_font_config():
+    global _weasy_font_config
+    if _weasy_font_config is None:
+        _weasy_font_config = FontConfiguration()
+    return _weasy_font_config
 
 # Regex to extract and strip <link rel="stylesheet"> tags from HTML.
 # Lookaheads match rel="stylesheet" and href="..." in any attribute order.
@@ -993,7 +1000,7 @@ class IrActionsReport(models.Model):
                         string=html_with_css,
                         url_fetcher=fetcher,
                     ).write_pdf(
-                        font_config=_weasy_font_config,
+                        font_config=_get_weasy_font_config(),
                         counter_style=CounterStyle(),
                         stylesheets=pre_parsed_css or None,
                         presentational_hints=True,

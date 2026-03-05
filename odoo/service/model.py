@@ -245,7 +245,7 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                     raise ValidationError(message) from exc
 
                 if isinstance(exc, PG_CONCURRENCY_EXCEPTIONS_TO_RETRY):
-                    error = errors.lookup(exc.pgcode).__name__
+                    error = errors.lookup(exc.sqlstate).__name__
                 elif isinstance(exc, ConcurrencyError):
                     error = repr(exc)
                 else:
