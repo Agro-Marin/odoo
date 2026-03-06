@@ -87,9 +87,6 @@ class AccountMove(models.Model):
             if move.move_type == 'entry' and move.reversed_pos_order_id:
                 move.amount_total_signed = move.amount_total_signed * -1
 
-    def _compute_tax_totals(self):
-        return super(AccountMove, self.with_context(linked_to_pos=bool(self.sudo().pos_order_ids)))._compute_tax_totals()
-
     def _compute_is_storno(self):
         # EXTENDS 'account'
         super()._compute_is_storno()

@@ -769,7 +769,7 @@ class PosOrder(models.Model):
 
         invoice = AccountMove.sudo()\
             .with_company(self.company_id)\
-            .with_context(default_move_type=move_vals['move_type'], linked_to_pos=True)\
+            .with_context(default_move_type=move_vals['move_type'])\
             .create(move_vals)
         currency = self.currency_id
         amount_total = sum(order.amount_total for order in self)
