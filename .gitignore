@@ -43,6 +43,9 @@ package-lock.json
 package.json
 .husky
 
+# Rust build artifacts (platform-specific, must be compiled per environment)
+crates/*/target/
+
 # various virtualenv
 /bin/
 /build/

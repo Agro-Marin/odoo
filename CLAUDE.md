@@ -38,6 +38,34 @@ Odoo 19.0 addons repository for Agromarin ERP: 40+ custom modules for accounting
 ./odoo-bin -u module_name -d db_name --stop-after-init  # Migrate data
 ```
 
+## Initial Setup: Rust Extension (odoo_rust)
+
+Odoo 19.0 includes a Rust-compiled Python extension (`odoo_rust`) used by `web/controllers/export.py`
+for CSV export. The compiled binaries are **not tracked in git** (platform-specific — tied to OS,
+CPU architecture, and Python version). Each developer must compile and install it once.
+
+**Requirements:** Rust toolchain (`cargo`) and `maturin`.
+
+```bash
+# 1. Install Rust (if not present)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# 2. Activate virtualenv and install maturin
+source <YOUR_VENV>/bin/activate
+pip install maturin
+
+# 3. Build and install the wheel
+# Navigate to the crates directory relative to the repo root (path varies by environment)
+cd <ODOO_CORE_ROOT>/crates/odoo_rust
+maturin build --release
+pip install target/wheels/odoo_rust-*.whl
+```
+
+**When to redo this:** After pulling changes to `crates/odoo_rust/src/`, rebuild and reinstall.
+
+**Symptom if missing:** `ModuleNotFoundError: No module named 'odoo_rust'` on Odoo startup.
+
 ## Rules Reference
 
 - `core/ruff.toml` — Linter and formatter config (enforces `doc/coding_guidelines.rst`)
