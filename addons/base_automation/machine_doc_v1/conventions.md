@@ -13,21 +13,18 @@
 
 ## What NOT to Add to `ir.actions.server`
 
-Do not add more fields to `ir.actions.server` that track execution state.
-`action_state`, `is_ready`, and `error_message` are already mistakes.
-All new execution state belongs on `automation.runtime.line`.
+Do not add fields to `ir.actions.server` that track execution state.
+`action_state`, `is_ready`, and `error_message` were mistakes and have been
+removed in Phase 1. All execution state belongs on `automation.runtime.line`.
 
 If you need to know "what state is this action in", you are asking the wrong
 question — ask "what state is this *execution step* (`runtime.line`) in".
 
-## The `use_workflow_dag` Flag
+## Removed Transitional Fields (Phase 1 Complete)
 
-This flag is **transitional scaffolding**. It exists to gate the DAG UI and
-execution path while `automation.runtime` is not yet wired to all triggers.
-
-- Do not add new conditional logic that branches on `use_workflow_dag`.
-- Do not document it as a long-lived feature toggle.
-- When Phase 1 lands, this flag is removed along with `auto_execute_workflow`.
+`use_workflow_dag` and `auto_execute_workflow` have been **removed** from
+`base.automation`. All automations are now DAG-capable. Do not re-add these
+fields under any name.
 
 ## The `__action_done` Context Key
 

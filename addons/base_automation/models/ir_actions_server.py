@@ -1,6 +1,6 @@
 import logging
 
-from odoo import _, api, fields, models
+from odoo import _, api, exceptions, fields, models
 from odoo.fields import Domain
 from odoo.tools.json import scriptsafe as json_scriptsafe
 
@@ -28,7 +28,7 @@ class IrActionsServer(models.Model):
     )
 
     # =========================================================================
-    # DAG Dependency Fields
+    # DAG Dependency Fields (topology only — execution state lives on automation.runtime.line)
     # =========================================================================
 
     predecessor_ids = fields.Many2many(
@@ -46,111 +46,37 @@ class IrActionsServer(models.Model):
         column2="successor_id",
         string="Successors",
         readonly=True,
-        help="Server actions that depend on this action completing (computed from predecessors)",
-    )
-    action_state = fields.Selection(
-        selection=[
-            ("no", "Not Used"),
-            ("waiting", "Waiting"),
-            ("ready", "Ready"),
-            ("in_progress", "In Progress"),
-            ("done", "Done"),
-            ("error", "Error"),
-        ],
-        string="Execution State",
-        default="no",
-        copy=False,
-        index=True,
-        help="Workflow execution state:\n"
-        "- Waiting: Dependencies not satisfied\n"
-        "- Ready: Can be executed now\n"
-        "- In Progress: Currently executing\n"
-        "- Done: Completed successfully\n"
-        "- Error: Execution failed",
-    )
-    is_ready = fields.Boolean(
-        string="Is Ready",
-        compute="_compute_is_ready",
-        store=True,
-        help="True when all predecessors are done",
-    )
-    error_message = fields.Text(
-        string="Error Message",
-        help="Error details if action_state is 'error'",
+        help="Server actions that depend on this action completing (inverse of predecessor_ids)",
     )
 
     # =========================================================================
-    # CRUD Methods - State Management
+    # Constraints
     # =========================================================================
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        """Initialize action_state based on automation workflow context.
+    @api.constrains("predecessor_ids")
+    def _check_no_dag_cycle(self):
+        """Prevent cycles in the DAG topology using BFS on the predecessor graph.
 
-        - If action is part of a workflow DAG automation: set to 'waiting'
-        - Otherwise: keep default 'no' (not part of workflow)
+        A cycle would exist if the current action is reachable from any of its
+        own predecessors by following the predecessor chain.
         """
-        actions = super().create(vals_list)
-
-        for action in actions:
-            # Only set state if part of workflow automation
-            if action.base_automation_id and action.base_automation_id.use_workflow_dag:
-                # Set to waiting - will be marked ready by workflow reset
-                if action.action_state == "no":
-                    action.action_state = "waiting"
-
-        return actions
-
-    def write(self, vals):
-        """Update action_state when automation workflow context changes.
-
-        When base_automation_id changes or use_workflow_dag is toggled:
-        - Added to workflow DAG: change 'no' → 'waiting'
-        - Removed from workflow DAG: change workflow states → 'no'
-        """
-        result = super().write(vals)
-
-        # Check if automation context changed
-        if "base_automation_id" in vals:
-            for action in self:
-                if (
-                    action.base_automation_id
-                    and action.base_automation_id.use_workflow_dag
-                ):
-                    # Added to workflow automation
-                    if action.action_state == "no":
-                        action.action_state = "waiting"
-                elif not action.base_automation_id:
-                    # Removed from automation - reset to 'no'
-                    if action.action_state in (
-                        "waiting",
-                        "ready",
-                        "in_progress",
-                        "done",
-                        "error",
-                    ):
-                        action.action_state = "no"
-
-        # Also check if automation's use_workflow_dag changed
-        # This is handled by base.automation's onchange/write, but we catch edge cases
         for action in self:
-            if action.base_automation_id:
-                if action.base_automation_id.use_workflow_dag:
-                    # Workflow enabled - ensure not 'no'
-                    if action.action_state == "no":
-                        action.action_state = "waiting"
-                else:
-                    # Workflow disabled - reset to 'no'
-                    if action.action_state in (
-                        "waiting",
-                        "ready",
-                        "in_progress",
-                        "done",
-                        "error",
-                    ):
-                        action.action_state = "no"
-
-        return result
+            reachable: set[int] = set()
+            to_visit: list[int] = list(action.predecessor_ids.ids)
+            while to_visit:
+                node_id = to_visit.pop()
+                if node_id == action.id:
+                    raise exceptions.ValidationError(
+                        _(
+                            "Circular dependency detected: action '%(action)s' "
+                            "would create a cycle in the workflow DAG.",
+                            action=action.name,
+                        )
+                    )
+                if node_id not in reachable:
+                    reachable.add(node_id)
+                    node = self.browse(node_id)
+                    to_visit.extend(node.predecessor_ids.ids)
 
     # =========================================================================
     # Computed Fields
@@ -158,7 +84,7 @@ class IrActionsServer(models.Model):
 
     @api.depends("usage")
     def _compute_available_model_ids(self):
-        """Stricter model limit: based on automation rule."""
+        """Restrict available models to the parent automation's model."""
         super()._compute_available_model_ids()
         rule_based = self.filtered(lambda action: action.usage == "base_automation")
         for action in rule_based:
@@ -167,85 +93,9 @@ class IrActionsServer(models.Model):
                 rule_model.ids if rule_model in action.available_model_ids else []
             )
 
-    @api.depends("predecessor_ids.action_state", "action_state")
-    def _compute_is_ready(self):
-        """Compute if action is ready based on predecessor states.
-
-        An action is ready when:
-        - It's in 'waiting' state
-        - All predecessors are in 'done' state (or no predecessors)
-        """
-        for action in self:
-            # Only compute for waiting actions
-            if action.action_state != "waiting":
-                action.is_ready = False
-                continue
-
-            # No predecessors = ready immediately
-            if not action.predecessor_ids:
-                action.is_ready = True
-                continue
-
-            # All predecessors must be done
-            done_predecessors = action.predecessor_ids.filtered(
-                lambda p: p.action_state == "done",
-            )
-            action.is_ready = len(done_predecessors) == len(action.predecessor_ids)
-
     # =========================================================================
-    # State Management Actions
+    # Action Methods
     # =========================================================================
-
-    def action_mark_ready(self):
-        """Mark action as ready to execute."""
-        self.write({"action_state": "ready", "error_message": False})
-        return True
-
-    def action_mark_in_progress(self):
-        """Mark action as in progress."""
-        self.write({"action_state": "in_progress", "error_message": False})
-        return True
-
-    def action_mark_done(self):
-        """Mark action as done and activate ready successors.
-
-        This implements the core DAG resolution logic:
-        1. Mark self as done
-        2. Check each successor
-        3. If successor's prerequisites are met, mark as ready
-        """
-        self.write({"action_state": "done", "error_message": False})
-
-        # Activate successors that are now ready
-        for successor in self.successor_ids:
-            if successor.action_state == "waiting":
-                # Trigger recomputation
-                successor._compute_is_ready()
-
-                if successor.is_ready:
-                    successor.action_mark_ready()
-                    _logger.info(
-                        "Action '%s' (#%d) is now ready (all predecessors done)",
-                        successor.name,
-                        successor.id,
-                    )
-
-        return True
-
-    def action_mark_error(self, error_msg=None):
-        """Mark action as error."""
-        self.write(
-            {
-                "action_state": "error",
-                "error_message": error_msg or "Unknown error",
-            },
-        )
-        return True
-
-    def action_reset(self):
-        """Reset action state to waiting."""
-        self.write({"action_state": "waiting", "error_message": False})
-        return True
 
     def action_open_automation(self):
         """Open the parent automation rule."""
@@ -258,11 +108,11 @@ class IrActionsServer(models.Model):
         }
 
     # =========================================================================
-    # Existing Methods (from standard base_automation)
+    # Existing Methods (standard base_automation)
     # =========================================================================
 
     def _get_children_domain(self):
-        """Ensure automation actions can't be used as multi-action children."""
+        """Prevent automation actions from being used as multi-action children."""
         return super()._get_children_domain() & Domain("base_automation_id", "=", False)
 
     def _get_eval_context(self, action=None):

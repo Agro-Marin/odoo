@@ -181,6 +181,7 @@ class BaseAutomation(models.Model):
     _name = "base.automation"
     _inherit = ["mail.thread", "mail.activity.mixin"]
     _description = "Automation Rule"
+    _order = "sequence, id"
 
     # which fields have an impact on the registry and the cron
     CRITICAL_FIELDS = ["model_id", "active", "trigger", "on_change_field_ids"]
@@ -190,6 +191,10 @@ class BaseAutomation(models.Model):
     # FIELDS
     # ------------------------------------------------------------
 
+    sequence = fields.Integer(
+        default=10,
+        help="Determines the execution order when multiple automations match the same trigger.",
+    )
     name = fields.Char(
         string="Automation Rule Name",
         required=True,
@@ -243,9 +248,6 @@ class BaseAutomation(models.Model):
         inverse_name="base_automation_id",
         string="Actions",
         context={"default_usage": "base_automation"},
-        compute="_compute_action_server_ids",
-        store=True,
-        readonly=False,
     )
 
     url = fields.Char(
@@ -384,49 +386,6 @@ class BaseAutomation(models.Model):
         "If empty, all fields are watched.",
     )
 
-    use_workflow_dag = fields.Boolean(
-        string="Use Workflow DAG",
-        default=False,
-        help="Enable to use this automation as a multi-step workflow with dependencies between actions",
-    )
-    auto_execute_workflow = fields.Boolean(
-        string="Auto-Execute Workflow",
-        default=False,
-        help="If enabled, workflow will automatically execute next ready actions.\n"
-        "If disabled, user must manually click 'Execute Next' button.",
-    )
-
-    # Workflow statistics computed fields
-    action_count_total = fields.Integer(
-        string="Total Actions",
-        compute="_compute_action_counts",
-        help="Total number of actions in this automation",
-    )
-    action_count_waiting = fields.Integer(
-        string="Waiting Actions",
-        compute="_compute_action_counts",
-        help="Number of actions in waiting state",
-    )
-    action_count_ready = fields.Integer(
-        string="Ready Actions",
-        compute="_compute_action_counts",
-        help="Number of actions in ready state",
-    )
-    action_count_in_progress = fields.Integer(
-        string="In Progress Actions",
-        compute="_compute_action_counts",
-        help="Number of actions in progress",
-    )
-    action_count_done = fields.Integer(
-        string="Done Actions",
-        compute="_compute_action_counts",
-        help="Number of completed actions",
-    )
-    action_count_error = fields.Integer(
-        string="Error Actions",
-        compute="_compute_action_counts",
-        help="Number of actions with errors",
-    )
 
     # ------------------------------------------------------------
     # CONSTRAINT METHODS
@@ -568,6 +527,8 @@ class BaseAutomation(models.Model):
         clear_templates = self._has_trigger_onchange()
         res = super().write(vals)
         if set(vals).intersection(self.CRITICAL_FIELDS):
+            if "model_id" in vals:
+                self._clean_action_server_ids()
             self._update_cron()
             self._update_registry()
             if clear_templates or self._has_trigger_onchange():
@@ -575,25 +536,6 @@ class BaseAutomation(models.Model):
                 self.env.registry.clear_cache("templates")
         elif set(vals).intersection(self.RANGE_FIELDS):
             self._update_cron()
-
-        # Handle workflow DAG toggle - update action states
-        if "use_workflow_dag" in vals:
-            for automation in self:
-                if automation.use_workflow_dag:
-                    # Workflow enabled - set actions to 'waiting' if currently 'no'
-                    no_state_actions = automation.action_server_ids.filtered(
-                        lambda a: a.action_state == "no",
-                    )
-                    if no_state_actions:
-                        no_state_actions.write({"action_state": "waiting"})
-                else:
-                    # Workflow disabled - reset workflow states to 'no'
-                    workflow_actions = automation.action_server_ids.filtered(
-                        lambda a: a.action_state
-                        in ("waiting", "ready", "in_progress", "done", "error"),
-                    )
-                    if workflow_actions:
-                        workflow_actions.write({"action_state": "no"})
 
         return res
 
@@ -635,16 +577,13 @@ class BaseAutomation(models.Model):
     def _compute_trigger(self):
         self.trigger = False
 
-    @api.depends("model_id")
-    def _compute_action_server_ids(self):
-        """When changing / setting model, remove actions that are not targeting
-        the same model anymore.
+    def _clean_action_server_ids(self):
+        """Remove actions whose model no longer matches this automation's model.
 
-        Exception: When automation targets base.automation itself, allow
-        cross-model actions to enable meta-workflow orchestration.
+        Called from write() when model_id changes. Skipped for automations
+        targeting base.automation itself (meta-workflows allow cross-model actions).
         """
         for automation in self.filtered("model_id"):
-            # Allow cross-model actions for meta-workflows on base.automation
             if automation.model_name == "base.automation":
                 continue
 
@@ -652,54 +591,7 @@ class BaseAutomation(models.Model):
                 lambda action: action.model_id != automation.model_id,
             )
             if actions_to_remove:
-                automation.action_server_ids = [
-                    Command.unlink(action.id) for action in actions_to_remove
-                ]
-
-    @api.depends("action_server_ids.action_state")
-    def _compute_action_counts(self):
-        """Compute action statistics by state for workflow status display.
-
-        Uses _read_group for efficient database-level aggregation instead of
-        fetching all records and filtering in Python.
-        """
-        # Initialize all counts to 0
-        for automation in self:
-            automation.action_count_total = 0
-            automation.action_count_waiting = 0
-            automation.action_count_ready = 0
-            automation.action_count_in_progress = 0
-            automation.action_count_done = 0
-            automation.action_count_error = 0
-
-        # Efficient database aggregation with _read_group
-        if self.ids:
-            domain = [("base_automation_id", "in", self.ids)]
-            groups = self.env["ir.actions.server"]._read_group(
-                domain=domain,
-                groupby=["base_automation_id", "action_state"],
-                aggregates=["__count"],
-            )
-
-            # Map results back to automations
-            for group in groups:
-                automation_id = group[0].id
-                state = group[1]
-                count = group[2]
-
-                automation = self.browse(automation_id)
-                automation.action_count_total += count
-
-                if state == "waiting":
-                    automation.action_count_waiting = count
-                elif state == "ready":
-                    automation.action_count_ready = count
-                elif state == "in_progress":
-                    automation.action_count_in_progress = count
-                elif state == "done":
-                    automation.action_count_done = count
-                elif state == "error":
-                    automation.action_count_error = count
+                actions_to_remove.unlink()
 
     @api.depends("trigger")
     def _compute_trg_date_id(self):
@@ -945,12 +837,12 @@ class BaseAutomation(models.Model):
     def action_manual_trigger(self):
         """Manually trigger automation on active records.
 
-        This method supports two execution modes:
-        1. Workflow DAG mode: Initiates workflow by resetting and executing first step
-        2. Standalone mode: Directly processes selected records through automation
+        For automations with DAG structure (actions that have ``predecessor_ids``
+        defined), creates an ``automation.runtime`` instance per record to track
+        isolated per-execution step state and runs all steps to completion.
 
-        Returns:
-            dict: Action result (notification or next workflow step)
+        For simple automations (no DAG), processes records directly via
+        ``_process()``.
         """
         self.ensure_one()
 
@@ -971,27 +863,9 @@ class BaseAutomation(models.Model):
                 ),
             )
 
-        # Mode 1: Workflow DAG - Orchestrated execution
-        if self.use_workflow_dag:
-            # Reset workflow to initial state
-            self.action_reset_workflow()
-
-            # Execute first ready action
-            result = self.action_execute_next()
-
-            # Add context about workflow mode
-            if isinstance(result, dict) and result.get("type") == "ir.actions.client":
-                if "params" not in result:
-                    result["params"] = {}
-                result["params"]["sticky"] = False
-
-            return result
-
-        # Mode 2: Standalone - Direct record processing
         active_model = self.env.context.get("active_model")
         active_ids = self.env.context.get("active_ids", [])
 
-        # Validate context
         if not active_model or not active_ids:
             return {
                 "type": "ir.actions.client",
@@ -1017,7 +891,6 @@ class BaseAutomation(models.Model):
                 ),
             )
 
-        # Get records and filter them
         records = self.env[active_model].browse(active_ids)
         filtered_records = self._filter_post(records)
 
@@ -1034,224 +907,55 @@ class BaseAutomation(models.Model):
                 },
             }
 
-        # Process the records
+        # Use automation.runtime for DAG-based automations (any action has predecessors),
+        # fall back to direct _process() for simple single-step automations.
+        has_dag = any(action.predecessor_ids for action in self.action_server_ids)
+
+        if has_dag:
+            runtimes = self.env["automation.runtime"]
+            for record in filtered_records:
+                runtime = self.env["automation.runtime"].create({
+                    "automation_id": self.id,
+                    "res_model": active_model,
+                    "res_id": record.id,
+                })
+                runtime.action_start()
+                runtime.action_run_all()
+                runtimes |= runtime
+
+            if len(runtimes) == 1:
+                return {
+                    "type": "ir.actions.act_window",
+                    "res_model": "automation.runtime",
+                    "res_id": runtimes.id,
+                    "view_mode": "form",
+                    "views": [[False, "form"]],
+                    "target": "current",
+                }
+            return {
+                "type": "ir.actions.act_window",
+                "res_model": "automation.runtime",
+                "view_mode": "list,form",
+                "domain": [("id", "in", runtimes.ids)],
+            }
+
         try:
             self._process(filtered_records)
-
             return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
                     "title": _("Automation Executed"),
-                    "message": _("Successfully processed %(processed)d of %(total)d selected record(s).")
-                    % {"processed": len(filtered_records), "total": len(records)},
+                    "message": _(
+                        "Successfully processed %(processed)d of %(total)d selected record(s).",
+                        processed=len(filtered_records),
+                        total=len(records),
+                    ),
                     "type": "success",
                 },
             }
         except Exception as e:
             self._add_postmortem(e)
-            raise
-
-    def action_reset_workflow(self):
-        """Reset all action states to initial configuration.
-
-        Sets root actions (no predecessors) to 'ready',
-        all others to 'waiting'.
-        """
-        self.ensure_one()
-
-        if not self.use_workflow_dag:
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "title": _("Not a Workflow"),
-                    "message": _(
-                        "This automation is not configured to use workflow DAG.",
-                    ),
-                    "type": "warning",
-                },
-            }
-
-        # Reset all actions to waiting
-        self.action_server_ids.action_reset()
-
-        # Mark root actions (no predecessors) as ready
-        root_actions = self.action_server_ids.filtered(lambda a: not a.predecessor_ids)
-
-        if not root_actions:
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "title": _("No Root Actions"),
-                    "message": _(
-                        "Workflow has no root actions (actions without predecessors).",
-                    ),
-                    "type": "danger",
-                },
-            }
-
-        root_actions.action_mark_ready()
-
-        return {
-            "type": "ir.actions.client",
-            "tag": "display_notification",
-            "params": {
-                "title": _("Workflow Reset"),
-                "message": _("%(reset)d actions reset, %(ready)d ready to execute")
-                % {
-                    "reset": len(self.action_server_ids),
-                    "ready": len(root_actions),
-                },
-                "type": "success",
-            },
-        }
-
-    def action_execute_next(self):
-        """Execute next ready action in workflow.
-
-        Returns:
-            Action dict, notification, or result of action execution
-        """
-        self.ensure_one()
-
-        if not self.use_workflow_dag:
-            return {
-                "type": "ir.actions.client",
-                "tag": "display_notification",
-                "params": {
-                    "title": _("Not a Workflow"),
-                    "message": _(
-                        "This automation is not configured to use workflow DAG.",
-                    ),
-                    "type": "warning",
-                },
-            }
-
-        # Get ready actions
-        ready_actions = self.action_server_ids.filtered(
-            lambda a: a.action_state == "ready",
-        )
-
-        if not ready_actions:
-            # Check if workflow is complete or blocked
-            waiting_actions = self.action_server_ids.filtered(
-                lambda a: a.action_state == "waiting",
-            )
-            error_actions = self.action_server_ids.filtered(
-                lambda a: a.action_state == "error",
-            )
-
-            if not waiting_actions and not error_actions:
-                return {
-                    "type": "ir.actions.client",
-                    "tag": "display_notification",
-                    "params": {
-                        "title": _("Workflow Complete"),
-                        "message": _("All actions have been executed successfully."),
-                        "type": "success",
-                    },
-                }
-            elif error_actions:
-                return {
-                    "type": "ir.actions.client",
-                    "tag": "display_notification",
-                    "params": {
-                        "title": _("Workflow Has Errors"),
-                        "message": _(
-                            "%d actions failed. Please fix errors and reset workflow.",
-                        )
-                        % len(error_actions),
-                        "type": "danger",
-                    },
-                }
-            else:
-                return {
-                    "type": "ir.actions.client",
-                    "tag": "display_notification",
-                    "params": {
-                        "title": _("Workflow Blocked"),
-                        "message": _(
-                            "%d actions waiting but none are ready. Check dependencies.",
-                        )
-                        % len(waiting_actions),
-                        "type": "warning",
-                    },
-                }
-
-        # Execute first ready action
-        action = ready_actions[0]
-        return self._execute_workflow_action(action)
-
-    def _execute_workflow_action(self, action):
-        """Execute a single workflow action.
-
-        Args:
-            action: ir.actions.server record to execute
-
-        Returns:
-            Result of action execution or next action
-        """
-        action.ensure_one()
-
-        # Mark as in progress
-        action.action_mark_in_progress()
-
-        _logger.info(
-            "Executing workflow action '%s' (#%d) for automation '%s'",
-            action.name,
-            action.id,
-            self.name,
-        )
-
-        try:
-            # Execute the server action
-            # Note: Context should be set by the caller
-            result = action.run()
-
-            # Mark as done (this will auto-activate ready successors)
-            action.action_mark_done()
-
-            _logger.info(
-                "Workflow action '%s' (#%d) completed successfully",
-                action.name,
-                action.id,
-            )
-
-            # If auto-execute is enabled, continue to next action
-            if self.auto_execute_workflow:
-                return self.action_execute_next()
-            else:
-                # Return result or prompt to continue
-                return result or {
-                    "type": "ir.actions.client",
-                    "tag": "display_notification",
-                    "params": {
-                        "title": _("Action Complete"),
-                        "message": _(
-                            "Action '%s' completed. Click 'Execute Next' to continue.",
-                        )
-                        % action.name,
-                        "type": "success",
-                        "sticky": False,
-                    },
-                }
-
-        except Exception as e:
-            error_msg = str(e)
-            _logger.error(
-                "Workflow action '%s' (#%d) failed: %s",
-                action.name,
-                action.id,
-                error_msg,
-                exc_info=True,
-            )
-
-            # Mark as error
-            action.action_mark_error(error_msg)
-
-            # Re-raise to show error to user
             raise
 
     # ------------------------------------------------------------
@@ -1704,8 +1408,8 @@ class BaseAutomation(models.Model):
             for record in records
         ]
 
-        # execute server actions
-        for action in self.sudo().action_server_ids:
+        # execute server actions in sequence order (ascending)
+        for action in self.sudo().action_server_ids.sorted("sequence"):
             for ctx in contexts:
                 try:
                     action.with_context(**ctx).run()

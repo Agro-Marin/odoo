@@ -25,8 +25,8 @@ and the set of `ir.actions.server` nodes that form the DAG.
 | `record_getter` | Char | Python expression: payload → record |
 | `log_webhook_calls` | Boolean | Log webhook calls to `ir.logging` |
 | `last_run` | Datetime | Last successful cron execution |
-| `use_workflow_dag` | Boolean | **TRANSITIONAL** — see vision.md |
-| `auto_execute_workflow` | Boolean | **TRANSITIONAL** — auto-advance DAG |
+| ~~`use_workflow_dag`~~ | ~~Boolean~~ | **REMOVED in Phase 1** — all automations are DAG-capable |
+| ~~`auto_execute_workflow`~~ | ~~Boolean~~ | **REMOVED in Phase 1** — execution is always auto-advancing |
 
 ### Trigger Categories
 
@@ -72,24 +72,17 @@ server action model AND the workflow node definition.
 | `usage` | Selection (extended) | Added `"base_automation"` value |
 | `predecessor_ids` | Many2many self | Nodes that must complete before this |
 | `successor_ids` | Many2many self | Computed inverse of `predecessor_ids` |
-| `action_state` | Selection | **BROKEN — see below** |
-| `is_ready` | Boolean (computed, stored) | All predecessors done |
-| `error_message` | Text | Last error if `action_state == error` |
+| ~~`action_state`~~ | ~~Selection~~ | **REMOVED in Phase 1** — was broken (global state, not per-execution) |
+| ~~`is_ready`~~ | ~~Boolean~~ | **REMOVED in Phase 1** — use `automation.runtime.line.is_ready` |
+| ~~`error_message`~~ | ~~Text~~ | **REMOVED in Phase 1** — use `automation.runtime.line.error_message` |
 
-### action_state — Known Design Flaw
+### Execution State — Phase 1 Complete
 
-`action_state` is a field on the **definition** model (`ir.actions.server`),
-not on an **execution instance**. This means:
-
-- Two concurrent executions of the same automation corrupt each other's state.
-- Sequential re-runs of an automation leave stale state from the previous run.
-- Resetting state (`action_reset_workflow()`) mutates the definition, not an
-  execution record.
-
-**This field is slated for removal.** All execution state will move to
-`automation.runtime.line`. Do not add new logic that depends on `action_state`.
-The field exists to support the current prove-the-concept DAG UI while
-`automation.runtime` is wired up as the canonical execution model.
+All execution state has been moved from `ir.actions.server` (definition) to
+`automation.runtime.line` (per-execution instance). `ir.actions.server` now
+stores **only the DAG topology** (`predecessor_ids`, `successor_ids`).
+Concurrent executions are isolated: each `automation.runtime` instance has
+its own `automation.runtime.line` records with independent state.
 
 ### Edge Model — Current vs Target
 
@@ -107,18 +100,18 @@ conditional branching (IF nodes).
 A single *run* of a workflow. Stores isolated execution context and drives
 step-by-step progress through the DAG.
 
-### Current Scope Restriction
+### Phase 1 Changes (Complete)
 
-`automation_id` has domain `[("model_name", "=", "base.automation")]`.
-This restricts `automation.runtime` to automations whose target model is
-`base.automation` itself — i.e., meta-workflows that orchestrate other
-automations. This is **intentional by design**: the special carve-out in
-`_check_action_server_model` for `model_name == "base.automation"` enables
-cross-model server actions within such automations, making it the natural
-container for orchestration workflows.
+The `automation_id` domain restriction has been **removed**. Any automation
+(regardless of target model) can now have `automation.runtime` instances.
 
-In the target architecture, every automation trigger (not just `on_hand`)
-creates an `automation.runtime` instance and the domain restriction is lifted.
+Two new fields support general-purpose automations:
+- `res_model` (Char) — the model of the record being automated (e.g. `res.partner`)
+- `res_id` (Integer) — the specific record ID
+
+`partner_id` is now optional. `action_run_all()` executes all ready branches
+in a loop until the runtime completes — enabling fully automatic DAG traversal
+from a single call in `action_manual_trigger()`.
 
 ### Key Fields
 

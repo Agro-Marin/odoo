@@ -3,22 +3,20 @@ from odoo.exceptions import UserError
 
 
 class AutomationRuntime(models.Model):
-    """Runtime instance for meta-workflow execution on base.automation records.
+    """Per-execution instance for automation workflow runs.
 
-    This model stores isolated execution state for multi-step workflows where
-    ``base.automation`` itself is the target model (i.e., automations that
-    orchestrate other automations). Each instance represents a single run of
-    a workflow, tracking step progress through a DAG of ``ir.actions.server``
-    actions.
+    Each time an automation's ``on_hand`` trigger fires (and the automation
+    has multi-step DAG structure), one ``automation.runtime`` record is
+    created to track isolated execution state across all steps.
 
-    The ``automation_id`` is restricted to automations whose model is
-    ``base.automation``. This deliberate constraint enables cross-model
-    orchestration: the server actions within such an automation can target any
-    model, while the runtime record tracks the overall execution state.
+    Unlike ``ir.actions.server.action_state`` (which is global and broken
+    under concurrent runs), every field on this model and its child
+    ``automation.runtime.line`` records is strictly per-execution. Two
+    concurrent runs of the same automation never share state.
 
-    For event-triggered automations on business models (e.g., ``sale.order``,
-    ``res.partner``), use ``base.automation`` directly — no runtime instance
-    is needed.
+    ``automation_id`` accepts any ``base.automation`` rule regardless of
+    its target model. The ``res_model``/``res_id`` fields record which
+    specific business record is being automated.
     """
 
     _name = "automation.runtime"
@@ -50,26 +48,35 @@ class AutomationRuntime(models.Model):
         comodel_name="base.automation",
         string="Automation",
         required=True,
-        domain=[("model_name", "=", "base.automation")],
         index=True,
         tracking=True,
         ondelete="restrict",
-        help="The automation workflow definition to execute",
+        help="The automation workflow definition being executed",
     )
     partner_id = fields.Many2one(
         comodel_name="res.partner",
         string="Partner",
-        required=True,
         domain=["|", ("parent_id", "=", False), ("is_company", "=", True)],
         index=True,
         tracking=True,
-        help="Main partner for this operation",
+        help="Main partner for this operation (optional)",
     )
     diff_partner_id = fields.Many2one(
         comodel_name="res.partner",
         string="Alternative Partner",
         domain=["|", ("parent_id", "=", False), ("is_company", "=", True)],
         help="Alternative partner for specific actions in workflow",
+    )
+    # Target record for general automations (non-meta-workflow use)
+    res_model = fields.Char(
+        string="Target Model",
+        index=True,
+        help="Model of the record being automated (e.g. 'res.partner')",
+    )
+    res_id = fields.Integer(
+        string="Target Record ID",
+        index=True,
+        help="ID of the specific record being automated",
     )
     name = fields.Char(
         string="Operation",
@@ -116,7 +123,7 @@ class AutomationRuntime(models.Model):
         inverse_name="runtime_id",
         string="Workflow Steps",
         readonly=True,
-        help="Execution history of workflow actions",
+        help="Per-step execution history",
     )
     progress = fields.Integer(
         string="Progress %",
@@ -138,7 +145,7 @@ class AutomationRuntime(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Generate sequence name and set initial state."""
+        """Generate sequence name on creation."""
         for vals in vals_list:
             if "company_id" in vals:
                 self = self.sudo().with_company(vals["company_id"])
@@ -159,6 +166,10 @@ class AutomationRuntime(models.Model):
 
         return super().create(vals_list)
 
+    # =========================================================================
+    # Computed Fields
+    # =========================================================================
+
     @api.depends("line_ids.state")
     def _compute_progress(self):
         """Calculate workflow completion percentage."""
@@ -167,7 +178,6 @@ class AutomationRuntime(models.Model):
             if total == 0:
                 runtime.progress = 0
                 continue
-
             done = len(runtime.line_ids.filtered(lambda l: l.state == "done"))
             runtime.progress = int(round((done / total) * 100))
 
@@ -179,46 +189,57 @@ class AutomationRuntime(models.Model):
             if total == 0:
                 runtime.progress_display = "0/0 steps"
                 continue
-
             done = len(runtime.line_ids.filtered(lambda l: l.state == "done"))
             runtime.progress_display = f"{done}/{total} steps"
 
+    # =========================================================================
+    # Workflow Actions
+    # =========================================================================
+
     def action_start(self):
-        """Start workflow execution by creating action lines."""
+        """Start workflow: create per-execution lines from the DAG definition."""
         self.ensure_one()
 
         if self.state != "draft":
             return
 
-        if not self.partner_id:
-            raise UserError(_("Please set a partner before starting the workflow."))
-
-        # Create workflow action lines from automation's server actions
         self._create_action_lines()
-
-        # Update state
         self.state = "in_progress"
 
-        # Post message
         self.message_post(
             body=_("Workflow started with %d steps", len(self.line_ids)),
             subject=_("Workflow Started"),
         )
 
+    def action_run_all(self):
+        """Execute all workflow steps, advancing through the DAG until complete.
+
+        Processes all ready branches at each iteration, enabling parallel
+        branch execution. Returns when the runtime reaches 'done' or 'cancel'
+        or blocks (error / unsatisfied dependency).
+        """
+        self.ensure_one()
+
+        while self.state == "in_progress":
+            ready_lines = self.line_ids.filtered(lambda l: l.state == "ready")
+            if not ready_lines:
+                break
+            for line in ready_lines:
+                line.action_execute()
+
+        return self.state
+
     def action_cancel(self):
-        """Cancel workflow and all pending actions."""
+        """Cancel workflow and all pending steps."""
         self.ensure_one()
 
         if self.state in ["done", "cancel"]:
             return
 
         self.state = "cancel"
-
-        # Cancel all non-completed lines
         self.line_ids.filtered(
             lambda l: l.state not in ["done", "cancel"],
         ).action_cancel()
-
         self.message_post(body=_("Workflow cancelled"), subject=_("Workflow Cancelled"))
 
     def action_done(self):
@@ -229,30 +250,25 @@ class AutomationRuntime(models.Model):
             return
 
         self.state = "done"
-
         self.message_post(
             body=_("Workflow completed successfully"),
             subject=_("Workflow Completed"),
         )
 
     def action_next_step(self):
-        """Execute the next ready action in the workflow."""
+        """Execute the next single ready step (for manual step-by-step mode)."""
         self.ensure_one()
 
         if self.state != "in_progress":
             raise UserError(_("Workflow is not in progress"))
 
-        # Get ready actions
         ready_lines = self.line_ids.filtered(lambda l: l.state == "ready")
 
         if not ready_lines:
-            # Check if workflow is complete
             incomplete = self.line_ids.filtered(
                 lambda l: l.state not in ["done", "cancel"],
             )
-
             if not incomplete:
-                # All done - mark workflow complete
                 self.action_done()
                 return {
                     "type": "ir.actions.client",
@@ -263,18 +279,11 @@ class AutomationRuntime(models.Model):
                         "type": "success",
                     },
                 }
-            else:
-                raise UserError(
-                    _("No actions are ready to execute. Check dependencies."),
-                )
+            raise UserError(
+                _("No actions are ready to execute. Check dependencies."),
+            )
 
-        # Execute first ready action
         next_line = ready_lines[0]
-
-        # Mark as in progress
-        next_line.state = "in_progress"
-
-        # Build execution context
         context = self._get_execution_context()
         context.update(
             {
@@ -282,20 +291,23 @@ class AutomationRuntime(models.Model):
                 "runtime_line_id": next_line.id,
             },
         )
-
-        # Execute the action
         return next_line.with_context(**context).action_execute()
 
-    def _create_action_lines(self):
-        """Create runtime.line records from automation's server actions.
+    # =========================================================================
+    # Internal Helpers
+    # =========================================================================
 
-        Builds the DAG structure using predecessor/successor relationships.
+    def _create_action_lines(self):
+        """Create runtime.line records that mirror the automation's DAG definition.
+
+        Faithfully replicates the ``predecessor_ids`` topology from
+        ``ir.actions.server`` into isolated ``automation.runtime.line``
+        records for this execution. Root actions (no predecessors) start
+        as 'ready'; all others start as 'waiting'.
         """
         self.ensure_one()
 
-        # Get all server actions from the automation (ordered by sequence)
         actions = self.automation_id.action_server_ids.sorted("sequence")
-
         if not actions:
             raise UserError(
                 _(
@@ -304,36 +316,41 @@ class AutomationRuntime(models.Model):
                 ),
             )
 
-        # Create lines and build DAG structure
-        lines = self.env["automation.runtime.line"]
-        prev_line = None
-
+        # Pass 1: create all lines in 'waiting' state
+        line_by_action: dict[int, models.Model] = {}
         for action in actions:
-            # Prepare line values
-            vals = {
+            line = self.env["automation.runtime.line"].create({
                 "runtime_id": self.id,
                 "action_id": action.id,
                 "name": action.name,
                 "sequence": action.sequence,
-                "state": "ready" if not prev_line else "waiting",
-            }
+                "state": "waiting",
+            })
+            line_by_action[action.id] = line
 
-            # Create line
-            line = self.env["automation.runtime.line"].create(vals)
-            lines |= line
+        # Pass 2: wire predecessor relationships using the definition topology
+        for action in actions:
+            line = line_by_action[action.id]
+            predecessor_line_ids = [
+                line_by_action[pred.id].id
+                for pred in action.predecessor_ids
+                if pred.id in line_by_action
+            ]
+            if predecessor_line_ids:
+                line.predecessor_ids = [(6, 0, predecessor_line_ids)]
 
-            # Build sequential DAG (each action waits for previous)
-            if prev_line:
-                line.predecessor_ids = [(4, prev_line.id)]
+        # Pass 3: mark root actions (no predecessors in this execution) as ready
+        for action in actions:
+            if not action.predecessor_ids:
+                line_by_action[action.id].state = "ready"
 
-            prev_line = line
-
-        return lines
+        return self.env["automation.runtime.line"].browse(
+            [line.id for line in line_by_action.values()]
+        )
 
     def _get_execution_context(self):
-        """Get context dictionary for action execution."""
+        """Build context dict for action execution."""
         self.ensure_one()
-
         return {
             "default_partner_id": self.partner_id.id if self.partner_id else False,
             "default_diff_partner_id": (
@@ -347,6 +364,10 @@ class AutomationRuntime(models.Model):
                 self.multicompany_id.id if self.multicompany_id else False
             ),
         }
+
+    # =========================================================================
+    # Navigation Actions
+    # =========================================================================
 
     def action_view_automation(self):
         """Open the automation workflow definition."""
