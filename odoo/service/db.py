@@ -3,6 +3,7 @@ import functools
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -29,6 +30,10 @@ from odoo.tools import SQL
 from odoo.tools.misc import exec_pg_environ, find_pg_tool
 
 _logger = logging.getLogger(__name__)
+
+# Pattern enforced by the HTTP controller and service layer alike.
+# First char must be alphanumeric; subsequent chars may include _ . -
+DBNAME_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]+\Z"
 
 
 class DatabaseExists(Warning):
@@ -170,6 +175,11 @@ def exp_create_database(
     phone: str | None = None,
 ) -> typing.Literal[True]:
     """Similar to exp_create but blocking."""
+    if not re.match(DBNAME_PATTERN, db_name):
+        raise ValueError(
+            f"Invalid database name {db_name!r}: only alphanumeric characters, "
+            "underscores, hyphens, and dots are allowed."
+        )
     _logger.info("Create database `%s`.", db_name)
     _create_empty_database(db_name)
     odoo.modules.db.initialize_db(
@@ -184,6 +194,11 @@ def exp_duplicate_database(
     db_name: str,
     neutralize_database: bool = False,
 ) -> typing.Literal[True]:
+    if not re.match(DBNAME_PATTERN, db_name):
+        raise ValueError(
+            f"Invalid database name {db_name!r}: only alphanumeric characters, "
+            "underscores, hyphens, and dots are allowed."
+        )
     _logger.info("Duplicate database `%s` to `%s`.", db_original_name, db_name)
     odoo.db.close_db(db_original_name)
     db = odoo.db.db_connect("postgres")
@@ -318,13 +333,18 @@ def dump_db(
                 with db.cursor() as cr:
                     json.dump(dump_db_manifest(cr), fh, indent=4)
             cmd.insert(-1, "--file=" + str(Path(dump_dir, "dump.sql")))
-            subprocess.run(
+            result = subprocess.run(
                 cmd,
                 env=env,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-                check=True,
+                stderr=subprocess.PIPE,
+                check=False,
             )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"pg_dump failed (exit {result.returncode}): "
+                    f"{result.stderr.decode(errors='replace').strip()}"
+                )
             if stream:
                 osutil.zip_dir(
                     dump_dir,
@@ -333,7 +353,7 @@ def dump_db(
                     fnct_sort=lambda file_name: file_name != "dump.sql",
                 )
             else:
-                t = tempfile.TemporaryFile()
+                t = tempfile.TemporaryFile()  # noqa: SIM115 — returned to caller, must not close
                 osutil.zip_dir(
                     dump_dir,
                     t,
@@ -344,14 +364,46 @@ def dump_db(
                 return t
     else:
         cmd.insert(-1, "--format=c")
-        proc = subprocess.Popen(
-            cmd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE
-        )
         if stream:
+            # Stream stdout directly while draining stderr into a pipe buffer.
+            # pg_dump error messages are small (<< pipe buffer limit), so reading
+            # stderr after stdout EOF is safe and avoids deadlock.
+            proc = subprocess.Popen(
+                cmd,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
             shutil.copyfileobj(proc.stdout, stream)
+            proc.stdout.close()
+            stderr_output = proc.stderr.read()
             proc.wait()
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"pg_dump failed (exit {proc.returncode}): "
+                    f"{stderr_output.decode(errors='replace').strip()}"
+                )
         else:
-            return proc.stdout
+            # Buffer to a TemporaryFile so the caller gets a seekable object
+            # and errors are detected before returning.
+            t = tempfile.TemporaryFile()  # noqa: SIM115 — returned to caller, must not close
+            result = subprocess.run(
+                cmd,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=t,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            if result.returncode != 0:
+                t.close()
+                raise RuntimeError(
+                    f"pg_dump failed (exit {result.returncode}): "
+                    f"{result.stderr.decode(errors='replace').strip()}"
+                )
+            t.seek(0)
+            return t
     return None
 
 
@@ -361,7 +413,7 @@ def exp_restore(db_name: str, data: str, copy: bool = False) -> typing.Literal[T
         for i in range(0, len(d), n):
             yield d[i : i + n]
 
-    data_file = tempfile.NamedTemporaryFile(delete=False)
+    data_file = tempfile.NamedTemporaryFile(delete=False)  # noqa: SIM115 — path used after close
     try:
         for chunk in chunks(data):
             data_file.write(base64.b64decode(chunk))
@@ -379,7 +431,8 @@ def restore_db(
     copy: bool = False,
     neutralize_database: bool = False,
 ) -> None:
-    assert isinstance(db, str)
+    if not isinstance(db, str):
+        raise TypeError(f"db must be a str, got {type(db).__name__!r}")
     if exp_db_exist(db):
         _logger.warning("RESTORE DB: %s already exists", db)
         raise RuntimeError(f"Database {db!r} already exists")
@@ -414,6 +467,7 @@ def restore_db(
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 text=True,
+                check=False,
             )
             if r.returncode != 0:
                 _logger.error("RESTORE DB %r failed:\n%s", db, r.stderr)
@@ -585,7 +639,7 @@ def exp_list_lang() -> list:
 
 def exp_list_countries() -> list[list[str]]:
     list_countries = []
-    root = ET.parse(
+    root = ET.parse(  # noqa: S314 — bundled read-only data file, not user input
         Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
     ).getroot()
     for country in root.find("data").findall('record[@model="res.country"]'):
