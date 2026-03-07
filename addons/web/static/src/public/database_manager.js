@@ -2,12 +2,18 @@
 
 /** @module @web/public/database_manager - DOM event handlers for the database manager page (eye toggle, modals, master password) */
 
+// Keep theme in sync if the user changes OS preference while the page is open
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+    document.documentElement.setAttribute("data-bs-theme", e.matches ? "dark" : "light");
+});
+
 document.addEventListener("DOMContentLoaded", function () {
-    // Little eye
+    // Little eye — use closest() so clicks on the nested <i> icon are also caught
     document.body.addEventListener("mousedown", function (ev) {
         const target = /** @type {HTMLElement} */ (ev.target);
-        if (target.classList.contains("o_little_eye")) {
-            const closestInputGroup = target.closest(".input-group");
+        const eyeToggle = target.closest(".o_little_eye");
+        if (eyeToggle) {
+            const closestInputGroup = eyeToggle.closest(".input-group");
             if (closestInputGroup) {
                 const formControl = /** @type {HTMLInputElement | null} */ (
                     closestInputGroup.querySelector(".form-control")
@@ -36,7 +42,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    document.getElementById("backup_format").addEventListener("change", function (ev) {
+    document.getElementById("backup_format")?.addEventListener("change", function (ev) {
         ev.preventDefault();
         const no_filestore_flag = document.getElementById("filestore_div");
         if (no_filestore_flag) {
@@ -72,17 +78,19 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     }
-    // generate a random master password
-    // removed l1O0 to avoid confusions
+    // Generate a cryptographically random master password suggestion.
+    // Charset: 32 chars (l/o/0/1 removed to avoid confusion).
+    // Uint8Array values are 0-255; 256 / 32 = 8 exactly → zero modulo bias.
     const charset = "abcdefghijkmnpqrstuvwxyz23456789";
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
     let password = "";
-    for (let i = 0; i < 12; ++i) {
-        password += charset.charAt(Math.floor(Math.random() * charset.length));
+    for (let i = 0; i < 12; i++) {
+        password += charset[bytes[i] % charset.length];
         if (i === 3 || i === 7) {
             password += "-";
         }
     }
-    const masterPwds = document.getElementsByClassName("generated_master_pwd");
+    const masterPwds = document.querySelectorAll(".generated_master_pwd");
     for (const pwdElement of masterPwds) {
         /** @type {HTMLElement} */ (pwdElement).innerText = password;
     }
