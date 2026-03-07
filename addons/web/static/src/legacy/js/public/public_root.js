@@ -343,7 +343,7 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
                 throw e;
             }
         } finally {
-            this.stopFromEventHandler = true;
+            this.startFromEventHandler = false;
         }
     },
     /**

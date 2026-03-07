@@ -494,6 +494,6 @@ export class PropertyDefinition extends Component {
      */
     _typeLabel(propertyType) {
         const allTypes = this.availablePropertyTypes;
-        return allTypes.find((type) => type[0] === propertyType)[1];
+        return allTypes.find((type) => type[0] === propertyType)?.[1] ?? propertyType;
     }
 }

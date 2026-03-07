@@ -187,17 +187,20 @@ export async function executeActionButton(
     // attribute on the button, the priority is given to the button attribute
     const effect = params.effect ? evaluateExpr(params.effect) : action.effect;
     const { onClose, stackPosition, viewType } = params;
-    await ctx.doAction(action, {
-        newWindow,
-        onClose,
-        stackPosition,
-        viewType,
-    });
-    if (params.close) {
-        await ctx.executeCloseAction();
-    }
-    if (blockUi) {
-        ctx.env.services.ui.unblock();
+    try {
+        await ctx.doAction(action, {
+            newWindow,
+            onClose,
+            stackPosition,
+            viewType,
+        });
+        if (params.close) {
+            await ctx.executeCloseAction();
+        }
+    } finally {
+        if (blockUi) {
+            ctx.env.services.ui.unblock();
+        }
     }
     if (effect) {
         ctx.env.services.effect.add(effect);

@@ -122,7 +122,7 @@ export function useSetupAction(params = {}) {
     function setScrollFromState() {
         const { state } = component.props;
         const scrolling = state && state[scrollSymbol];
-        if (scrolling) {
+        if (scrolling && rootRef?.el) {
             if (component.env.isSmall) {
                 rootRef.el.scrollTop = (scrolling.root && scrolling.root.top) || 0;
                 rootRef.el.scrollLeft = (scrolling.root && scrolling.root.left) || 0;

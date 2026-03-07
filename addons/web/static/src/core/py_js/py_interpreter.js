@@ -51,7 +51,7 @@ function applyUnaryOp(ast, context) {
 
 /**
  * We want to maintain this order:
- *   None < number (boolean) < dict < string < list < dict
+ *   None < number (boolean) < dict < string < list
  * So, each type is mapped to a number to represent that order
  *
  * @param {any} val
@@ -207,7 +207,7 @@ function applyBinaryOp(ast, context) {
                 }
             }
 
-            if (left instanceof PyDate) {
+            if (left instanceof PyDate || left instanceof PyDateTime) {
                 return left.substract(right);
             }
             return left - right;

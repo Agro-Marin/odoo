@@ -94,6 +94,10 @@ export class FileViewer extends Component {
     activateFile(index) {
         this.state.index = index;
         this.state.file = this.props.files[index];
+        this.state.scale = 1;
+        this.state.angle = 0;
+        this.state.imageLoaded = false;
+        this.translate = { dx: 0, dy: 0, x: 0, y: 0 };
     }
 
     onKeydown(ev) {
@@ -211,6 +215,9 @@ export class FileViewer extends Component {
     }
 
     updateZoomerStyle() {
+        if (!this.imageRef.el || !this.zoomerRef.el) {
+            return;
+        }
         const tx =
             this.imageRef.el.offsetWidth * this.state.scale >
             this.zoomerRef.el.offsetWidth
@@ -247,6 +254,9 @@ export class FileViewer extends Component {
 
     onClickPrint() {
         const printWindow = window.open("about:blank", "_new");
+        if (!printWindow) {
+            return;
+        }
         printWindow.document.open();
         printWindow.document.write(`
                 <html>

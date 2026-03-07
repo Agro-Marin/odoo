@@ -201,7 +201,7 @@ export class KanbanController extends MultiRecordController {
                                     (g) => g.serverValue === serverValue,
                                 );
                                 if (group) {
-                                    const sel = `.o_kanban_group[data-id=${group.id}]`;
+                                    const sel = `.o_kanban_group[data-id="${group.id}"]`;
                                     this.rootRef.el.querySelector(sel).scrollTop =
                                         scrollTop;
                                 }

@@ -557,7 +557,7 @@ export class DateTimePicker extends Component {
 
         if (this.props.range) {
             if (result.isSelected) {
-                const [selectStart, selectEnd] = this.selectedRange.sort();
+                const [selectStart, selectEnd] = this.selectedRange.toSorted();
                 result.isSelectStart = !selectStart || isInRange(selectStart, range);
                 result.isSelectEnd = !selectEnd || isInRange(selectEnd, range);
             }

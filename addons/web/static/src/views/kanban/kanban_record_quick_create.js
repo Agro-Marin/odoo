@@ -220,9 +220,11 @@ export class KanbanQuickCreateController extends Component {
             throw e;
         }
 
-        const context = this.props.context;
         const values = this.model.root.data;
-        context.default_name = values.name || values.display_name;
+        const context = {
+            ...this.props.context,
+            default_name: values.name || values.display_name,
+        };
         this.addDialog(FormViewDialog, {
             resModel: this.props.resModel,
             context,

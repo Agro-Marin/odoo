@@ -281,8 +281,8 @@ export class SearchPanel extends Component {
         for (const { groups, values, icon, color } of filters) {
             let filterValues;
             if (groups) {
-                filterValues = Object.keys(groups)
-                    .map((groupId) => nameOfCheckedValues(groups[groupId].values))
+                filterValues = [...groups.values()]
+                    .map((group) => nameOfCheckedValues(group.values))
                     .flat();
             } else if (values) {
                 filterValues = nameOfCheckedValues(values);

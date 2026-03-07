@@ -229,7 +229,7 @@ export const pwaService = {
                         if (onDone) {
                             onDone({});
                         }
-                        this.decline();
+                        decline();
                     },
                 });
             }

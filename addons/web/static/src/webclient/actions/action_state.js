@@ -176,6 +176,9 @@ export function getActionParams(state) {
             const nextState = { actionStack: actionStack.slice(0, -1) };
             Object.assign(nextState, nextState.actionStack.at(-1));
             const params = getActionParams(nextState);
+            if (!params) {
+                return null;
+            }
             // Place the controller at the found position in the action stack to remove all the
             // invalid virtual controllers.
             if (params.options && params.options.index === undefined) {

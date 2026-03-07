@@ -241,10 +241,17 @@ export class SampleServer {
             if (["sum", "sum_currency", "avg", "max", "min"].includes(func)) {
                 if (!records.length) {
                     group[name] = false;
+                } else if (func === "max") {
+                    group[name] = Math.max(...records.map((r) => r[fieldName]));
+                } else if (func === "min") {
+                    group[name] = Math.min(...records.map((r) => r[fieldName]));
                 } else {
                     group[name] = 0;
                     for (const record of records) {
                         group[name] += record[fieldName];
+                    }
+                    if (func === "avg") {
+                        group[name] /= records.length;
                     }
                 }
                 group[name] = sanitizeNumber(group[name]);
@@ -287,7 +294,7 @@ export class SampleServer {
             return [serialize(from), from.toFormat(fmt)];
         } else if (["many2one", "many2many"].includes(type)) {
             const rec = this.data[relation].records.find(({ id }) => id === value);
-            return [value, rec.display_name];
+            return [value, rec ? rec.display_name : `Record ${value}`];
         } else {
             return value;
         }
@@ -432,9 +439,9 @@ export class SampleServer {
             result = arraySortBy(result, (group) => {
                 const val = group[alias];
                 if (type === "datetime") {
-                    return deserializeDateTime(val);
+                    return deserializeDateTime(Array.isArray(val) ? val[0] : val);
                 } else if (type === "date") {
-                    return deserializeDate(val);
+                    return deserializeDate(Array.isArray(val) ? val[0] : val);
                 }
                 return val;
             });

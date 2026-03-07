@@ -56,7 +56,7 @@ export function normalizeCalendarRecord(
     const showTime =
         !(fieldMapping.all_day && rawRecord[fieldMapping.all_day]) &&
         startType !== "date" &&
-        start.day === end.day;
+        start.hasSame(end, "day");
 
     const colorValue = rawRecord[fieldMapping.color];
     const colorIndex = Array.isArray(colorValue) ? colorValue[0] : colorValue;

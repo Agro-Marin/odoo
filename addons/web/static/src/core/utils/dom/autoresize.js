@@ -149,5 +149,7 @@ export function resizeTextArea(textarea, options = {}) {
     textarea.style.height = "auto";
     const height = Math.max(minimumHeight, textarea.scrollHeight + heightOffset);
     Object.assign(textarea.style, previousStyle, { height: `${height}px` });
-    textarea.parentElement.style.height = `${height}px`;
+    if (textarea.parentElement) {
+        textarea.parentElement.style.height = `${height}px`;
+    }
 }

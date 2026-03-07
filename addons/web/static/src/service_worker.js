@@ -67,11 +67,12 @@ const storeDataOnCache = async (url, response) => {
     // store on ram, the session info
     sessionInfo = extractSessionInfo(htmlBody);
     const cache = await caches.open(cacheName);
+    const body = sessionInfo
+        ? htmlBody.replace(sessionInfo, "@@@session_info_secret@@@")
+        : htmlBody;
     return cache.put(
         url.endsWith(offLineURL) ? url : homepageURL,
-        new Response(htmlBody.replace(sessionInfo, "@@@session_info_secret@@@"), {
-            headers: response.headers,
-        }),
+        new Response(body, { headers: response.headers }),
     );
 };
 
@@ -176,7 +177,7 @@ self.addEventListener("fetch", (event) => {
         (event.request.mode === "navigate" &&
             event.request.destination === "document") ||
         // request.mode = navigate isn't supported in all browsers => check for http header accept:text/html
-        event.request.headers.get("accept").includes("text/html")
+        event.request.headers.get("accept")?.includes("text/html")
     ) {
         event.respondWith(navigateOrDisplayOfflinePage(event.request));
     }

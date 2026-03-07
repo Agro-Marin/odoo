@@ -266,7 +266,7 @@ export class FormController extends Component {
                         !isInEdition &&
                         !this.rootRef.el
                             .querySelector(".o_content")
-                            .contains(document.activeElement)
+                            ?.contains(document.activeElement)
                     ) {
                         const elementToFocus = this.rootRef.el.querySelector(
                             ".o_content button.btn-primary",

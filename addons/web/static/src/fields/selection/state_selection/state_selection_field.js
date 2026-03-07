@@ -66,15 +66,9 @@ export class StateSelectionField extends Component {
     }
     /** @returns {string} Display label with legend override if available */
     get label() {
-        if (
-            this.props.record.data[this.props.name] &&
-            this.props.record.data[
-                `legend_${this.props.record.data[this.props.name][0]}`
-            ]
-        ) {
-            return this.props.record.data[
-                `legend_${this.props.record.data[this.props.name][0]}`
-            ];
+        const stateValue = this.props.record.data[this.props.name];
+        if (stateValue && this.props.record.data[`legend_${stateValue}`]) {
+            return this.props.record.data[`legend_${stateValue}`];
         }
         return formatSelection(this.currentValue, { selection: this.options });
     }

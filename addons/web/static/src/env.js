@@ -261,7 +261,7 @@ export async function mountComponent(component, target, appConfig = {}) {
         getTemplate,
         dev: /** @type {any} */ (env).debug || session.test_mode,
         warnIfNoStaticProps: !session.test_mode,
-        name: component.constructor.name,
+        name: component.name,
         translatableAttributes: ["data-tooltip"],
         translateFn: appTranslateFn,
         customDirectives,

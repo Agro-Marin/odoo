@@ -82,7 +82,7 @@ export class ErrorDialog extends Component {
         });
         this.copyButtonRef = useRef("copyButton");
         this.popover = usePopover(Tooltip);
-        this.contextDetails = "Occured ";
+        this.contextDetails = "Occurred ";
         if (this.props.serverHost) {
             this.contextDetails += `on ${this.props.serverHost} `;
         }

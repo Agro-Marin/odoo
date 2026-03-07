@@ -795,11 +795,11 @@ export class ListRenderer extends Component {
                 classNames.push("o_list_button");
             } else if (column.type === "field") {
                 classNames.push("o_field_cell");
-                if (
-                    column.attrs &&
-                    column.attrs.class &&
-                    this.canUseFormatter(column, record)
-                ) {
+                // column.attrs.class is a static column property — cache it
+                // unconditionally.  The record-dependent canUseFormatter()
+                // check was here previously, causing the class to be missing
+                // from the cache when the first record was in edit mode.
+                if (column.attrs && column.attrs.class) {
                     classNames.push(column.attrs.class);
                 }
                 const typeClass = FIELD_CLASSES[this.fields[column.name].type];

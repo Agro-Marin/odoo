@@ -205,7 +205,7 @@ class ProgressBarState {
             }
         }
         value ||= 0;
-        if (aggregateField.type === "monetary" && aggregateField.currency_field) {
+        if (aggregateField && aggregateField.type === "monetary" && aggregateField.currency_field) {
             const aggValues = _findGroup(
                 this._aggregateValues,
                 groupByField,

@@ -111,7 +111,7 @@ export class Many2ManyTagsField extends Component {
                 },
                 onRecordSaved: (record) => {
                     const records = this.props.record.data[this.props.name].records;
-                    return records.find((r) => r.resId === record.resId).load();
+                    return records.find((r) => r.resId === record.resId)?.load();
                 },
             }),
         );

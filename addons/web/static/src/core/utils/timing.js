@@ -60,10 +60,12 @@ export function debounce(func, delay, options) {
         trailing = options.trailing ?? trailing;
     }
 
+    let lastSelf;
     return Object.assign(
         {
             /** @type {any} */
             [funcName](...args) {
+                lastSelf = this;
                 return new Promise((resolve) => {
                     if (leading && !handle) {
                         Promise.resolve(func.apply(this, args)).then(resolve);
@@ -74,7 +76,7 @@ export function debounce(func, delay, options) {
                     handle = /** @type {any} */ (browser)[setFnName](() => {
                         handle = null;
                         if (trailing && lastArgs) {
-                            Promise.resolve(func.apply(this, lastArgs)).then(resolve);
+                            Promise.resolve(func.apply(lastSelf, lastArgs)).then(resolve);
                             lastArgs = null;
                         }
                     }, delay);
@@ -85,7 +87,7 @@ export function debounce(func, delay, options) {
             cancel(execNow = false) {
                 browser[clearFnName](handle);
                 if (execNow && lastArgs) {
-                    func.apply(this, lastArgs);
+                    func.apply(lastSelf, lastArgs);
                 }
             },
         },

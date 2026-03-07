@@ -277,11 +277,33 @@ export class PyDateTime {
     }
 
     /**
-     * @param {PyTimeDelta} timedelta
-     * @returns {PyDateTime}
+     * Subtract a timedelta or another datetime from this datetime.
+     *
+     * @param {PyTimeDelta | PyDateTime} other
+     * @returns {PyDateTime | PyTimeDelta}
      */
-    substract(timedelta) {
-        return this.add(timedelta.negate());
+    substract(other) {
+        if (other instanceof PyTimeDelta) {
+            return this.add(other.negate());
+        }
+        if (other instanceof PyDateTime) {
+            const daysDiff = this.toordinal() - other.toordinal();
+            const secsDiff =
+                (this.hour * 3600 + this.minute * 60 + this.second) -
+                (other.hour * 3600 + other.minute * 60 + other.second);
+            const usDiff = this.microsecond - other.microsecond;
+            return PyTimeDelta.create({
+                days: daysDiff,
+                seconds: secsDiff,
+                microseconds: usDiff,
+            });
+        }
+        throw new NotSupportedError();
+    }
+
+    /** @returns {number} */
+    toordinal() {
+        return ymd2ord(this.year, this.month, this.day);
     }
 
     /** @returns {string} */
