@@ -625,10 +625,7 @@ class BaseAutomation(models.Model):
             if automation.trigger != "on_webhook":
                 automation.url = ""
             else:
-                automation.url = "%s/web/hook/%s" % (
-                    automation.get_base_url(),
-                    automation.webhook_uuid,
-                )
+                automation.url = f"{automation.get_base_url()}/web/hook/{automation.webhook_uuid}"
 
     def _inverse_model_name(self):
         for rec in self:
@@ -942,7 +939,7 @@ class BaseAutomation(models.Model):
             "name": _("Webhook Logs"),
             "res_model": "ir.logging",
             "view_mode": "list,form",
-            "domain": [("path", "=", "base_automation(%s)" % self.id)],
+            "domain": [("path", "=", f"base_automation({self.id})")],
         }
 
     def action_manual_trigger(self):
@@ -1329,7 +1326,7 @@ class BaseAutomation(models.Model):
         msg_args = (self.id, payload)
         _logger.debug(msg, *msg_args)
         if self.log_webhook_calls:
-            ir_logging_sudo.create(self._prepare_loggin_values(message=msg % msg_args))
+            ir_logging_sudo.create(self._prepare_logging_values(message=msg % msg_args))
 
         record = self.env[self.model_name]
         if self.record_getter:
@@ -1344,7 +1341,7 @@ class BaseAutomation(models.Model):
                 _logger.warning(msg, *msg_args)
                 if self.log_webhook_calls:
                     ir_logging_sudo.create(
-                        self._prepare_loggin_values(
+                        self._prepare_logging_values(
                             message=msg % msg_args,
                             level="ERROR",
                         ),
@@ -1357,7 +1354,7 @@ class BaseAutomation(models.Model):
             _logger.warning(msg, *msg_args)
             if self.log_webhook_calls:
                 ir_logging_sudo.create(
-                    self._prepare_loggin_values(message=msg % msg_args, level="ERROR"),
+                    self._prepare_logging_values(message=msg % msg_args, level="ERROR"),
                 )
             raise exceptions.ValidationError(
                 _("No record to run the automation on was found."),
@@ -1371,7 +1368,7 @@ class BaseAutomation(models.Model):
             _logger.warning(msg, *msg_args)
             if self.log_webhook_calls:
                 ir_logging_sudo.create(
-                    self._prepare_loggin_values(message=msg % msg_args, level="ERROR"),
+                    self._prepare_logging_values(message=msg % msg_args, level="ERROR"),
                 )
             raise e
 
@@ -1653,14 +1650,14 @@ class BaseAutomation(models.Model):
         domain += [("model_id", "=", self.model_id.id)]
         return self.env["ir.model.fields"].search(domain, limit=1)
 
-    def _prepare_loggin_values(self, **values):
+    def _prepare_logging_values(self, **values):
         self.ensure_one()
         defaults = {
             "name": _("Webhook Log"),
             "type": "server",
             "dbname": self.env.cr.dbname,
             "level": "INFO",
-            "path": "base_automation(%s)" % self.id,
+            "path": f"base_automation({self.id})",
             "func": "",
             "line": "",
         }
@@ -1885,7 +1882,11 @@ class BaseAutomation(models.Model):
                 # check preconditions on records
                 # changed fields are all fields computed by the function
                 changed_fields = [f for f in records._fields.values() if f.compute == field.compute]
-                pre = {a: a.with_context(changed_fields=changed_fields)._filter_pre(records) for a in automations}                # read old values before the update
+                pre = {
+                    a: a.with_context(changed_fields=changed_fields)._filter_pre(records)
+                    for a in automations
+                }
+                # read old values before the update
                 old_values = {
                     record.id: {fname: record[fname] for fname in stored_fnames}
                     for record in records
@@ -2214,7 +2215,7 @@ class BaseAutomation(models.Model):
                 time_domain |= (
                     Domain(date_field.name, "=", False)
                     & Domain("create_date", ">", relative_last_run.date())
-                    & Domain("create_date", "<=", relative_until.today())
+                    & Domain("create_date", "<=", relative_until.date())
                 )
         else:  # datetime
             time_domain = Domain(date_field.name, ">=", relative_last_run) & Domain(

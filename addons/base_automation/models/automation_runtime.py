@@ -3,22 +3,22 @@ from odoo.exceptions import UserError
 
 
 class AutomationRuntime(models.Model):
-    """Runtime instance for manual/semi-automatic workflow execution.
+    """Runtime instance for meta-workflow execution on base.automation records.
 
-    This model stores the execution context for workflows that need:
-    - User interaction (wizard-based steps)
-    - Runtime parameters (partner, amount, dates)
-    - Progress tracking
-    - Multi-step orchestration
+    This model stores isolated execution state for multi-step workflows where
+    ``base.automation`` itself is the target model (i.e., automations that
+    orchestrate other automations). Each instance represents a single run of
+    a workflow, tracking step progress through a DAG of ``ir.actions.server``
+    actions.
 
-    Use Cases:
-    - Manual multi-step accounting workflows
-    - Bank reconciliation with context
-    - Approval workflows with state
-    - Multi-company operations
+    The ``automation_id`` is restricted to automations whose model is
+    ``base.automation``. This deliberate constraint enables cross-model
+    orchestration: the server actions within such an automation can target any
+    model, while the runtime record tracks the overall execution state.
 
-    For fully automatic workflows (event-triggered), use base.automation directly
-    without creating runtime instances.
+    For event-triggered automations on business models (e.g., ``sale.order``,
+    ``res.partner``), use ``base.automation`` directly — no runtime instance
+    is needed.
     """
 
     _name = "automation.runtime"
