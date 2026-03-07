@@ -176,7 +176,7 @@ export class MessagingMenu extends Component {
             {
                 channelHasUnread: Boolean(this.store.discuss.unreadChannels.length),
                 counter: this.store.discuss.channels.threadsWithCounter.length,
-                icon: "fa fa-hashtag",
+                icon: "fa-solid fa-hashtag",
                 id: "channel",
                 label: _t("Channels"),
                 sequence: 40,

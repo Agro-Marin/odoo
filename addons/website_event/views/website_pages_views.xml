@@ -62,7 +62,7 @@
         </xpath>
         <xpath expr="//main" position="inside">
             <div class="text-muted" t-if="record.website_id.value" groups="website.group_multi_website">
-                <i class="fa fa-globe me-1" title="Website"/>
+                <i class="fa-solid fa-earth-americas me-1" title="Website"/>
                 <field name="website_id"/>
             </div>
         </xpath>

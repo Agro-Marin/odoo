@@ -342,7 +342,7 @@ export class PyTime extends PyDate {
                 case "Y":
                     return fmt4(this.year);
                 case "m":
-                    return fmt2(this.month + 1);
+                    return fmt2(this.month);
                 case "d":
                     return fmt2(this.day);
                 case "H":

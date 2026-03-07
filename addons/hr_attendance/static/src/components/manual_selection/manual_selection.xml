@@ -48,8 +48,8 @@
                 <t t-else="">
                     <Dropdown>
                         <button class="btn btn-light m-2 me-auto align-self-start">
-                            <span id="departmentButton" ><i class="fa fa-users me-2"/><t t-esc="departmentName"/></span>
-                            <i class="fa fa-caret-down ms-2"/>
+                            <span id="departmentButton" ><i class="fa-solid fa-users me-2"/><t t-esc="departmentName"/></span>
+                            <i class="fa-solid fa-caret-down ms-2"/>
                         </button>
                         <t t-set-slot="content">
                             <a t-on-click="() => this.onDepartmentClick()" class="d-flex text-start text-reset p-3">

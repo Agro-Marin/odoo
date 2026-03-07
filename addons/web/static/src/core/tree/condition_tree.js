@@ -265,11 +265,7 @@ function normalizeConnector(connector) {
     if (newTree.children.length === 1) {
         const child = newTree.children[0];
         if (newTree.negate) {
-            const newChild = { ...child, negate: !child.negate };
-            if (newChild.type === "condition") {
-                return newChild;
-            }
-            return newChild;
+            return { ...child, negate: !child.negate };
         }
         return child;
     }

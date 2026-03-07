@@ -197,7 +197,7 @@ export class HootReporting extends Component {
                                             class="flex items-center gap-1 text-emerald"
                                             t-on-click.stop="() => this.filterResults('passed')"
                                         >
-                                            <i class="fa fa-check-circle" />
+                                            <i class="fa-solid fa-check-circle" />
                                             <strong t-esc="runnerReporting.passed" />
                                         </button>
                                         tests passed
@@ -209,7 +209,7 @@ export class HootReporting extends Component {
                                             class="flex items-center gap-1 text-rose"
                                             t-on-click.stop="() => this.filterResults('failed')"
                                         >
-                                            <i class="fa fa-times-circle" />
+                                            <i class="fa-solid fa-times-circle" />
                                             <strong t-esc="runnerReporting.failed" />
                                         </button>
                                         tests failed
@@ -221,7 +221,7 @@ export class HootReporting extends Component {
                                             class="flex items-center gap-1 text-cyan"
                                             t-on-click.stop="() => this.filterResults('skipped')"
                                         >
-                                            <i class="fa fa-pause-circle" />
+                                            <i class="fa-solid fa-pause-circle" />
                                             <strong t-esc="runnerReporting.skipped" />
                                         </button>
                                         tests skipped
@@ -233,7 +233,7 @@ export class HootReporting extends Component {
                                             class="flex items-center gap-1 text-purple"
                                             t-on-click.stop="() => this.filterResults('todo')"
                                         >
-                                            <i class="fa fa-exclamation-circle" />
+                                            <i class="fa-solid fa-exclamation-circle" />
                                             <strong t-esc="runnerReporting.todo" />
                                         </button>
                                         tests to do

@@ -32,7 +32,7 @@ test("portal_invoice_page_payment is started with #portal_pay", async () => {
             <div class="o_portal container mt-3">
                 <div class="d-flex justify-content-between align-items-center flex-wrap">
                     <ol class="o_portal_submenu breadcrumb mb-0 flex-grow-1 px-0">
-                        <li class="breadcrumb-item ms-1" data-oe-model="ir.ui.view" data-oe-id="539" data-oe-field="arch" data-oe-xpath="/t[1]/ol[1]/li[1]"><a href="/my/home" aria-label="Home" title="Home"><i class="fa fa-home"></i></a></li>
+                        <li class="breadcrumb-item ms-1" data-oe-model="ir.ui.view" data-oe-id="539" data-oe-field="arch" data-oe-xpath="/t[1]/ol[1]/li[1]"><a href="/my/home" aria-label="Home" title="Home"><i class="fa-solid fa-house"></i></a></li>
                         <li class="breadcrumb-item">
                             <a data-oe-model="ir.ui.view" data-oe-id="786" data-oe-field="arch" data-oe-xpath="/data/xpath/li[1]/a[1]" href="/my/invoices?access_token=48b81433-0b2f-4ebd-847b-980120176bb6&amp;payment=True">Invoices &amp; Bills</a>
                         </li>
@@ -59,18 +59,18 @@ test("portal_invoice_page_payment is started with #portal_pay", async () => {
                                         <div class="my-1 w-100">
                                         </div>
                                         <div class="small w-100 text-center">
-                                            <i class="fa fa-clock-o" data-oe-model="ir.ui.view" data-oe-id="789" data-oe-field="arch" data-oe-xpath="/data/xpath/div/t[1]/t[2]/div[2]/i[1]"></i>
+                                            <i class="fa-regular fa-clock" data-oe-model="ir.ui.view" data-oe-id="789" data-oe-field="arch" data-oe-xpath="/data/xpath/div/t[1]/t[2]/div[2]/i[1]"></i>
                                             <span class="o_portal_sidebar_timeago ml4" data-oe-model="ir.ui.view" data-oe-id="789" data-oe-field="arch" data-oe-xpath="/data/xpath/div/t[1]/t[2]/div[2]/span[1]" datetime="2025-01-06">Due today</span>
                                         </div>
                                     </div>
                                     <div class="d-flex flex-column gap-4 mt-3">
                                         <div class="d-flex flex-column gap-2">
                                             <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pay_with" data-oe-id="868" data-oe-xpath="/data/xpath[2]/a" data-oe-model="ir.ui.view" data-oe-field="arch">
-                                            <i class="fa fa-fw fa-arrow-circle-right"></i> Pay Now
+                                            <i class="fa-solid fa-arrow-circle-right"></i> Pay Now
                                             </a>
                                             <div class="o_download_pdf d-flex flex-lg-column flex-xl-row flex-wrap gap-2">
                                                 <a class="btn btn-light o_download_btn flex-grow-1" title="Download" role="button" data-oe-model="ir.ui.view" data-oe-id="789" data-oe-field="arch" data-oe-xpath="/data/xpath/div/t[1]/t[3]/div[1]/div[1]/div[1]/a[1]" href="/my/invoices/2?access_token=48b81433-0b2f-4ebd-847b-980120176bb6&amp;report_type=pdf&amp;download=true">
-                                                <i class="fa fa-download"></i> Download
+                                                <i class="fa-solid fa-download"></i> Download
                                                 </a>
                                             </div>
                                         </div>
@@ -137,7 +137,7 @@ test("portal_invoice_page_payment is started with #portal_pay", async () => {
                                 </div>
                                 <div class="o_portal_html_view position-relative bg-white shadow p-3 overflow-hidden">
                                     <div class="o_portal_html_loader text-center" data-oe-model="ir.ui.view" data-oe-id="789" data-oe-field="arch" data-oe-xpath="/data/xpath/div/div[1]/div[1]/div[1]">
-                                        <i class="fa fa-circle-o-notch fa-spin fa-2x fa-fw text-black-50"></i>
+                                        <i class="fa-solid fa-circle-notch fa-spin fa-2x text-black-50"></i>
                                     </div>
                                     <iframe id="invoice_html" class="position-relative my-2" width="100%" height="100%" frameborder="0" scrolling="no" data-oe-model="ir.ui.view" data-oe-id="789" data-oe-field="arch" data-oe-xpath="/data/xpath/div/div[1]/div[1]/iframe[1]" src="/my/invoices/2?access_token=48b81433-0b2f-4ebd-847b-980120176bb6&amp;report_type=html" style="height: 0px;"></iframe>
                                 </div>

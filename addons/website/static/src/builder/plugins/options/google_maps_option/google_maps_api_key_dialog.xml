@@ -5,7 +5,7 @@
             <label class="col-sm-2 col-form-label" for="pin_address">API Key</label>
             <div class="col">
                 <div class="input-group">
-                    <div class="input-group-text"><i class="fa fa-key"/></div>
+                    <div class="input-group-text"><i class="fa-solid fa-key"/></div>
                     <input type="text" class="form-control" id="api_key_input"
                             t-att-class="{ 'is-invalid': state.apiKeyValidation and !state.apiKeyValidation.isValid and state.apiKeyValidation.message }"
                             t-model="state.apiKey"

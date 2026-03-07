@@ -10,7 +10,7 @@
                 </button>
             </t>
             <div class="flex-grow-1" />
-            <button t-attf-class="btn btn-sm fa fa-trash #{ isDarkTheme ? 'btn-secondary' : 'btn-light'}"
+            <button t-attf-class="btn btn-sm fa-solid fa-trash #{ isDarkTheme ? 'btn-secondary' : 'btn-light'}"
                     title="Reset"
                     t-on-click="onColorApply"
                     t-on-mouseover="onColorHover"

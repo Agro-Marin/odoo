@@ -25,10 +25,10 @@ describe("collapsed selection", () => {
     test("should insert html in an empty paragraph / empty editable", async () => {
         await testEditor({
             contentBefore: "<p>[]<br></p>",
-            stepFunction: insertHTML('<i class="fa fa-pastafarianism"></i>'),
+            stepFunction: insertHTML('<i class="fa-solid fa-pastafarianism"></i>'),
             contentAfterEdit:
-                '<p>\ufeff<i class="fa fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]</p>',
-            contentAfter: '<p><i class="fa fa-pastafarianism"></i>[]</p>',
+                '<p>\ufeff<i class="fa-solid fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]</p>',
+            contentAfter: '<p><i class="fa-solid fa-pastafarianism"></i>[]</p>',
         });
     });
 
@@ -36,10 +36,10 @@ describe("collapsed selection", () => {
         await testEditor({
             // This scenario is only possible with the allowInlineAtRoot option.
             contentBefore: "<p><br></p>[]",
-            stepFunction: insertHTML('<i class="fa fa-pastafarianism"></i>'),
+            stepFunction: insertHTML('<i class="fa-solid fa-pastafarianism"></i>'),
             contentAfterEdit:
-                '<p><br></p><i class="fa fa-pastafarianism" contenteditable="false">\u200b</i>[]',
-            contentAfter: '<p><br></p><i class="fa fa-pastafarianism"></i>[]',
+                '<p><br></p><i class="fa-solid fa-pastafarianism" contenteditable="false">\u200b</i>[]',
+            contentAfter: '<p><br></p><i class="fa-solid fa-pastafarianism"></i>[]',
             config: { allowInlineAtRoot: true },
         });
     });
@@ -47,20 +47,20 @@ describe("collapsed selection", () => {
     test("should insert html between two letters", async () => {
         await testEditor({
             contentBefore: "<p>a[]b</p>",
-            stepFunction: insertHTML('<i class="fa fa-pastafarianism"></i>'),
+            stepFunction: insertHTML('<i class="fa-solid fa-pastafarianism"></i>'),
             contentAfterEdit:
-                '<p>a\ufeff<i class="fa fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]b</p>',
-            contentAfter: '<p>a<i class="fa fa-pastafarianism"></i>[]b</p>',
+                '<p>a\ufeff<i class="fa-solid fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]b</p>',
+            contentAfter: '<p>a<i class="fa-solid fa-pastafarianism"></i>[]b</p>',
         });
     });
 
     test("should insert html in between naked text in the editable", async () => {
         await testEditor({
             contentBefore: "<p>a[]b</p>",
-            stepFunction: insertHTML('<i class="fa fa-pastafarianism"></i>'),
+            stepFunction: insertHTML('<i class="fa-solid fa-pastafarianism"></i>'),
             contentAfterEdit:
-                '<p>a\ufeff<i class="fa fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]b</p>',
-            contentAfter: '<p>a<i class="fa fa-pastafarianism"></i>[]b</p>',
+                '<p>a\ufeff<i class="fa-solid fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]b</p>',
+            contentAfter: '<p>a<i class="fa-solid fa-pastafarianism"></i>[]b</p>',
         });
     });
 
@@ -97,13 +97,13 @@ describe("collapsed selection", () => {
                 editor.shared.dom.insert(
                     parseHTML(
                         editor.document,
-                        '<p>unwrapped</p><div><i class="fa fa-circle-o-notch"></i></div><p>culprit</p><p>after</p>'
+                        '<p>unwrapped</p><div><i class="fa-solid fa-circle-notch"></i></div><p>culprit</p><p>after</p>'
                     )
                 );
                 editor.shared.history.addStep();
             },
             contentAfter:
-                '<p>contentunwrapped</p><div><i class="fa fa-circle-o-notch"></i></div><p>culprit</p><p>after[]</p>',
+                '<p>contentunwrapped</p><div><i class="fa-solid fa-circle-notch"></i></div><p>culprit</p><p>after[]</p>',
         });
     });
 
@@ -399,20 +399,20 @@ describe("not collapsed selection", () => {
     test("should delete selection and insert html in its place", async () => {
         await testEditor({
             contentBefore: "<p>[a]</p>",
-            stepFunction: insertHTML('<i class="fa fa-pastafarianism"></i>'),
+            stepFunction: insertHTML('<i class="fa-solid fa-pastafarianism"></i>'),
             contentAfterEdit:
-                '<p>\ufeff<i class="fa fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]</p>',
-            contentAfter: '<p><i class="fa fa-pastafarianism"></i>[]</p>',
+                '<p>\ufeff<i class="fa-solid fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]</p>',
+            contentAfter: '<p><i class="fa-solid fa-pastafarianism"></i>[]</p>',
         });
     });
 
     test("should delete selection and insert html in its place (2)", async () => {
         await testEditor({
             contentBefore: "<p>a[b]c</p>",
-            stepFunction: insertHTML('<i class="fa fa-pastafarianism"></i>'),
+            stepFunction: insertHTML('<i class="fa-solid fa-pastafarianism"></i>'),
             contentAfterEdit:
-                '<p>a\ufeff<i class="fa fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]c</p>',
-            contentAfter: '<p>a<i class="fa fa-pastafarianism"></i>[]c</p>',
+                '<p>a\ufeff<i class="fa-solid fa-pastafarianism" contenteditable="false">\u200b</i>\ufeff[]c</p>',
+            contentAfter: '<p>a<i class="fa-solid fa-pastafarianism"></i>[]c</p>',
         });
     });
 

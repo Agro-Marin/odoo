@@ -54,7 +54,7 @@
             <xpath expr="//main/div/div" position="after">
                 <div class="d-flex flex-column mb-1">
                     <div class="text-muted" t-if="record.website_id.value" groups="website.group_multi_website">
-                        <i class="fa fa-globe me-1" title="Website"/>
+                        <i class="fa-solid fa-earth-americas me-1" title="Website"/>
                         <field name="website_id"/>
                     </div>
                     <field class="text-primary" name="website_url"/>

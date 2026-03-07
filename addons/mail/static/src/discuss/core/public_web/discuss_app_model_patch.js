@@ -18,7 +18,7 @@ const discussAppPatch = {
                     addTitle: _t("Add or join a channel"),
                     canView: true,
                     extraClass: "o-mail-DiscussSidebarCategory-channel",
-                    icon: "fa fa-hashtag",
+                    icon: "fa-solid fa-hashtag",
                     id: "channels",
                     name: _t("Channels"),
                     sequence: 10,

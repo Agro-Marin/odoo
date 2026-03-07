@@ -66,7 +66,7 @@ registerComposerAction("send-message", {
         (store.env.isSmall && composer.message) ||
         (!owner.env.inChatter && !composer.message),
     disabledCondition: ({ owner }) => owner.isSendButtonDisabled,
-    icon: "fa fa-paper-plane-o",
+    icon: "fa-regular fa-paper-plane",
     isActive: ({ owner }) => owner.sendMessageState.active,
     name: ({ composer, owner }) =>
         composer.message
@@ -89,7 +89,7 @@ registerComposerAction("send-message", {
     sequenceQuick: 30,
 });
 registerComposerAction("add-emoji", {
-    icon: "fa fa-smile-o",
+    icon: "fa-regular fa-face-smile",
     isPicker: true,
     pickerName: _t("Emoji"),
     name: _t("Add Emojis"),
@@ -113,7 +113,7 @@ registerComposerAction("add-emoji", {
 });
 registerComposerAction("upload-files", {
     condition: ({ owner }) => owner.allowUpload,
-    icon: "fa fa-paperclip",
+    icon: "fa-solid fa-paperclip",
     name: _t("Attach Files"),
     onSelected: ({ composer: comp, owner }, ev) => {
         owner.fileUploaderRef.el?.click();
@@ -132,7 +132,7 @@ registerComposerAction("open-full-composer", {
         composer.targetThread.model !== "discuss.channel" &&
         !owner.env.inFrontendPortalChatter,
     hotkey: "shift+c",
-    icon: "fa fa-expand",
+    icon: "fa-solid fa-up-right-and-down-left-from-center",
     name: _t("Open Full Composer"),
     onSelected: ({ owner }) => owner.onClickFullComposer(),
     sequence: 30,
@@ -144,7 +144,7 @@ registerComposerAction("add-canned-response", {
         store.env.services["mail.suggestion"]
             .getSupportedDelimiters(composer.targetThread)
             .find(([delimiter]) => delimiter === "::"),
-    icon: "fa fa-file-text-o",
+    icon: "fa-regular fa-file-lines",
     name: _t("Insert a Canned response"),
     onSelected: ({ owner }, ev) => owner.onClickInsertCannedResponse(ev),
     sequence: 5,

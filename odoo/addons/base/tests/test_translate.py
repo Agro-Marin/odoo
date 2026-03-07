@@ -152,14 +152,14 @@ class TranslationToolsTestCase(BaseCase):
         source = """<form string="Form stuff">
                         <div>
                             <label for="stuff"/>
-                            <span class="fa fa-globe" title="Title stuff"/>
+                            <span class="fa-solid fa-earth-americas" title="Title stuff"/>
                         </div>
                     </form>"""
         result = xml_translate(terms.append, source)
         self.assertEqual(result, source)
         self.assertItemsEqual(
             terms,
-            ["Form stuff", '<span class="fa fa-globe" title="Title stuff"/>'],
+            ["Form stuff", '<span class="fa-solid fa-earth-americas" title="Title stuff"/>'],
         )
 
     def test_translate_xml_inline5(self):
@@ -168,7 +168,7 @@ class TranslationToolsTestCase(BaseCase):
         source = """<form string="Form stuff">
                         <div>
                             <label for="stuff"/>
-                            <span class="fa fa-globe" title=""/>
+                            <span class="fa-solid fa-earth-americas" title=""/>
                         </div>
                     </form>"""
         result = xml_translate(terms.append, source)
@@ -375,11 +375,11 @@ class TranslationToolsTestCase(BaseCase):
         # text and elements
         make_xml = '<form string="X">{}</form>'.format
         term = (
-            '<i class="fa fa-circle" role="img" aria-label="Invalid" title="Invalid"/>'
+            '<i class="fa-solid fa-circle" role="img" aria-label="Invalid" title="Invalid"/>'
         )
 
         # {legal: legal}
-        valid = '<i class="fa fa-circle" role="img" aria-label="Non-valide" title="Non-valide"/>X'
+        valid = '<i class="fa-solid fa-circle" role="img" aria-label="Non-valide" title="Non-valide"/>X'
         self.assertEqual(
             xml_translate({term: valid}.get, make_xml(term)),
             make_xml(valid),
@@ -387,7 +387,7 @@ class TranslationToolsTestCase(BaseCase):
         )
 
         # {legal: illegal(has no text)}
-        invalid = '<i class="fa fa-circle" role="img"/>'
+        invalid = '<i class="fa-solid fa-circle" role="img"/>'
         self.assertEqual(
             xml_translate({term: invalid}.get, make_xml(term)),
             make_xml(term),

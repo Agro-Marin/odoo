@@ -22,7 +22,7 @@
                     <t t-name="card" class="flex-row fw-bolder">
                         <field name="name" />
                         <div class="ms-auto align-items-center">
-                            <i class="fa fa-money" role="img" aria-label="Currency" title="Currency"></i>
+                            <i class="fa-solid fa-money-bill-1" role="img" aria-label="Currency" title="Currency"></i>
                             <field name="currency_id" />
                         </div>
                     </t>

@@ -36,7 +36,7 @@
     <BuilderRow label.translate="Actions" action="'websiteConfig'">
         <BuilderButton
             title.translate="Search Bar"
-            className="'fa fa-search flex-grow-1'"
+            className="'fa-solid fa-search flex-grow-1'"
             actionParam="{
                 views: ['website.header_search_box'],
                 resetViewArch: true,
@@ -45,7 +45,7 @@
         <t t-set="language_ids" t-value="env.services.website.currentWebsite.language_ids || []"/>
         <BuilderButton t-if="language_ids.length > 1"
             title.translate="Language Selector"
-            className="'fa fa-flag flex-grow-1'"
+            className="'fa-solid fa-flag flex-grow-1'"
             actionParam="{
                 views: ['website.header_language_selector'],
                 resetViewArch: true,
@@ -53,7 +53,7 @@
         />
         <BuilderButton
             title.translate="Sign In"
-            className="'fa fa-sign-in flex-grow-1'"
+            className="'fa-solid fa-right-to-bracket flex-grow-1'"
             actionParam="{
                 views: ['portal.user_sign_in'],
                 resetViewArch: true,

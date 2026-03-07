@@ -40,9 +40,6 @@ class ConversionNotFoundError(ValueError):
     pass
 
 
-ConversionNotFound = ConversionNotFoundError  # backward-compatibility alias
-
-
 class IrFieldsConverter(models.AbstractModel):
     _name = "ir.fields.converter"
     _description = "Fields Converter"

@@ -36,8 +36,8 @@ registry.category("command_provider").add("im_livechat.channel_join_leave", {
                 name: c.are_you_inside ? c.leaveTitle : c.joinTitle,
                 props: {
                     iconClass: c.are_you_inside
-                        ? "fa fa-sign-out text-danger"
-                        : "fa fa-sign-in text-success",
+                        ? "fa-solid fa-right-from-bracket text-danger"
+                        : "fa-solid fa-right-to-bracket text-success",
                 },
             }));
     },

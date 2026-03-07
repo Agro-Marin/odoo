@@ -9,7 +9,7 @@ registerThreadAction("pinned-messages", {
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen) &&
         !owner.isDiscussSidebarChannelActions,
     panelOuterClass: "o-discuss-PinnedMessagesPanel bg-inherit",
-    icon: "fa fa-fw fa-thumb-tack",
+    icon: "fa-solid fa-thumbtack",
     name: ({ action }) =>
         action.isActive ? _t("Hide Pinned Messages") : _t("Pinned Messages"),
     sequence: 20,

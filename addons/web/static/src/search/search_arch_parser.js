@@ -14,6 +14,30 @@ const DEFAULT_LIMIT = 200;
 const DEFAULT_VIEWS_WITH_SEARCH_PANEL = ["kanban", "list"];
 
 /**
+ * Normalize an icon class value to FA7 format.
+ * Bare FA4 names like 'fa-folder' are promoted to 'fa-solid fa-folder'.
+ * Full FA7 class strings ('fa-solid …', 'fa-regular …', 'fa-brands …') pass through unchanged.
+ * @param {string | null | undefined} iconClass
+ * @returns {string | null}
+ */
+function _normalizeIconClass(iconClass) {
+    if (!iconClass) {
+        return null;
+    }
+    if (
+        iconClass.startsWith("fa-solid") ||
+        iconClass.startsWith("fa-regular") ||
+        iconClass.startsWith("fa-brands")
+    ) {
+        return iconClass; // Already FA7 — no-op
+    }
+    // Bare FA4 name: "fa-folder" → "fa-solid fa-folder"
+    // Also handles legacy "fa-solid fa-folder" → "fa-solid fa-folder" (strip base class)
+    const name = iconClass.startsWith("fa fa-") ? iconClass.slice(3) : iconClass;
+    return `fa-solid ${name}`;
+}
+
+/**
  * Returns the split 'group_by' key from the given context attribute.
  * This helper accepts any invalid context or one that does not have
  * a valid 'group_by' key, and falls back to an empty list.
@@ -436,7 +460,7 @@ export class SearchArchParser {
                 enableCounters: evaluateBooleanExpr(attrs.enable_counters),
                 expand: evaluateBooleanExpr(attrs.expand),
                 fieldName: attrs.name,
-                icon: attrs.icon || null,
+                icon: _normalizeIconClass(attrs.icon),
                 id: nextSectionId++,
                 limit: evaluateExpr(attrs.limit || String(DEFAULT_LIMIT)),
                 type,
@@ -444,7 +468,7 @@ export class SearchArchParser {
             };
             if (type === "category") {
                 section.activeValueId = this.searchPanelDefaults[attrs.name];
-                section.icon = section.icon || "fa-folder";
+                section.icon = section.icon || "fa-solid fa-folder";
                 section.hierarchize = evaluateBooleanExpr(attrs.hierarchize || "1");
                 section.depth = attrs.depth ? parseInt(attrs.depth) : 0;
                 section.values.set(false, {
@@ -459,7 +483,7 @@ export class SearchArchParser {
             } else {
                 section.domain = attrs.domain || "[]";
                 section.groupBy = attrs.groupby || null;
-                section.icon = section.icon || "fa-filter";
+                section.icon = section.icon || "fa-solid fa-filter";
                 hasFilterWithDomain = hasFilterWithDomain || section.domain !== "[]";
             }
             this.sections.push([section.id, section]);

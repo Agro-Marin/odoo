@@ -17,7 +17,7 @@
                 <span t-if="props.isFieldExpandable(props.field.id)" t-attf-class="ms-n3 float-start o_expand_parent small oi {{ state.subfields.length ? 'oi-chevron-down' : 'oi-chevron-right' }}" role="img" aria-label="Show sub-fields" title="Show sub-fields" />
                 <span t-if="props.isDebug and props.field.id" class="overflow-hidden w-100" t-esc="`${props.field.string} (${props.field.id})`" />
                 <span t-else="" class="overflow-hidden w-100" t-esc="props.field.string" />
-                <span title="Select field" t-attf-class="fa fa-plus float-end m-1 o_add_field {{ isFieldSelected(props.field.id) ? 'o_inactive opacity-25' : '' }}" t-on-click.stop="(ev) => !this.isFieldSelected(this.props.field.id) and this.props.onAdd(this.props.field.id)" />
+                <span title="Select field" t-attf-class="fa-solid fa-plus float-end m-1 o_add_field {{ isFieldSelected(props.field.id) ? 'o_inactive opacity-25' : '' }}" t-on-click.stop="(ev) => !this.isFieldSelected(this.props.field.id) and this.props.onAdd(this.props.field.id)" />
             </div>
                 <t t-foreach="state.subfields" t-as="field" t-key="field.id">
                     <ExportDataItem
@@ -90,15 +90,15 @@
                             </t>
                             <t t-if="state.isEditingTemplate">
                                 <button t-if="state.templateId === 'new_template'" type="button" class="btn btn-secondary ms-1 o_save_list_btn" t-on-click.stop="onSaveExportTemplate">
-                                    <i class="fa fa-floppy-o" />
+                                    <i class="fa-regular fa-floppy-disk" />
                                 </button>
                                 <button type="button" class="btn btn-secondary ms-1 o_cancel_list_btn" t-on-click.stop="onCancelExportTemplate">
-                                    <i t-attf-class="fa {{ state.templateId === 'new_template' ? 'fa-times' : 'fa-undo' }}" />
+                                    <i t-attf-class="fa-solid {{ state.templateId === 'new_template' ? 'fa-xmark' : 'fa-rotate-left' }}" />
                                 </button>
                             </t>
                             <t t-else="">
                                 <button t-if="state.templateId" type="button" class="btn btn-secondary ms-1 o_delete_exported_list" t-on-click.stop="onDeleteExportTemplate">
-                                    <i class="fa fa-trash" />
+                                    <i class="fa-solid fa-trash-can" />
                                 </button>
                             </t>
                         </div>
@@ -107,9 +107,9 @@
                         <ul class="o_fields_list list-unstyled" t-ref="draggable">
                             <t t-foreach="state.exportList" t-as="field" t-key="field.id">
                                 <li t-attf-class="o_export_field d-inline-block w-100 {{ state.isSmall ? '' : 'o_export_field_sortable' }}" t-att-data-field_id="field.id">
-                                    <span t-if="!state.isSmall" class="fa fa-sort o_sort_field mx-1" t-attf-style="opacity:{{ state.exportList.length === 1 ? 0 : 1 }}" />
+                                    <span t-if="!state.isSmall" class="fa-solid fa-sort o_sort_field mx-1" t-attf-style="opacity:{{ state.exportList.length === 1 ? 0 : 1 }}" />
                                     <span t-esc="isDebug and field.id ? `${field.string} (${field.id})` : field.string" />
-                                    <span class="fa fa-trash m-1 pe-2 float-end o_remove_field cursor-pointer" t-att-title="removeFieldText" t-on-click.stop="() => this.onRemoveItemExportList(field.id)" />
+                                    <span class="fa-solid fa-trash-can m-1 pe-2 float-end o_remove_field cursor-pointer" t-att-title="removeFieldText" t-on-click.stop="() => this.onRemoveItemExportList(field.id)" />
                                 </li>
                             </t>
                         </ul>

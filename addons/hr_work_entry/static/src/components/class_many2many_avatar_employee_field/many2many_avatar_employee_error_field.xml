@@ -5,7 +5,7 @@
             <attribute name="t-attf-class" separator=" " add="#{tag.inError ? 'text-danger' : ''}"/>
         </xpath>
         <div t-if="props.displayText" position="after">
-            <i t-if="tag.inError" class="ms-1 fa fa-lock z-1"/>
+            <i t-if="tag.inError" class="ms-1 fa-solid fa-lock z-1"/>
         </div>
     </t>
 </template>

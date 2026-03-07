@@ -63,10 +63,6 @@ class BadModuleStateError(Exception):
     pass
 
 
-BadVersion = BadVersionError  # backward-compatibility alias
-BadModuleState = BadModuleStateError  # backward-compatibility alias
-
-
 _intervalTypes = {
     "days": lambda interval: relativedelta(days=interval),
     "hours": lambda interval: relativedelta(hours=interval),

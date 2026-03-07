@@ -302,7 +302,7 @@
                                     <a role="button"
                                         class="btn btn-primary btn-lg"
                                         t-att-href="'/survey/%s/get_certification' % survey.id">
-                                        <i class="fa fa-fw fa-trophy" role="img" aria-label="Download certification" title="Download certification"/>
+                                        <i class="fa-solid fa-trophy" role="img" aria-label="Download certification" title="Download certification"/>
                                         Download certification
                                     </a>
                                 </div>
@@ -428,13 +428,13 @@
                            t-attf-for="{{ question.id }}_{{ value }}">
                         <div class="d-none d-md-flex align-items-center fs-5">
                             <div class="fw-bold my-3 flex-fill align-self-center text-center" t-out="value"/>
-                            <i class="fa fa-check-circle me-1 my-3"/>
-                            <i class="fa fa-circle-thin me-1 my-3"/>
+                            <i class="fa-solid fa-check-circle me-1 my-3"/>
+                            <i class="fa-regular fa-circle me-1 my-3"/>
                         </div>
                         <div class="d-block d-md-none my-3 text-center fs-5">
                             <div class="fw-bold" t-out="value"/>
-                            <i class="fa fa-check-circle"/>
-                            <i class="fa fa-circle-thin"/>
+                            <i class="fa-solid fa-check-circle"/>
+                            <i class="fa-regular fa-circle"/>
                         </div>
                         <input autocomplete="off"
                                class="btn-check"
@@ -467,7 +467,7 @@
                    data-widget="datetime-picker" data-widget-type="date"
                    t-att-data-min-date="question.validation_min_date"
                    t-att-data-max-date="question.validation_max_date"/>
-            <div t-if="not survey_form_readonly" class="position-absolute input-group-text o_input_group_date_icon text-primary border-0 bg-transparent p-0 end-0"><i class="fa fa-calendar"></i></div>
+            <div t-if="not survey_form_readonly" class="position-absolute input-group-text o_input_group_date_icon text-primary border-0 bg-transparent p-0 end-0"><i class="fa-solid fa-calendar-days"></i></div>
         </div>
     </template>
 
@@ -480,7 +480,7 @@
                    data-widget="datetime-picker" data-widget-type="datetime"
                    t-att-data-min-date="question.validation_min_datetime"
                    t-att-data-max-date="question.validation_max_datetime"/>
-            <div t-if="not survey_form_readonly" class="position-absolute input-group-text o_input_group_date_icon text-primary border-0 bg-transparent p-0 end-0"><i class="fa fa-calendar"></i></div>
+            <div t-if="not survey_form_readonly" class="position-absolute input-group-text o_input_group_date_icon text-primary border-0 bg-transparent p-0 end-0"><i class="fa-solid fa-calendar-days"></i></div>
         </div>
     </template>
 
@@ -521,12 +521,12 @@
                         </t>
                         <t t-if="has_correct_answer and answer_selected">
                             <!-- While displaying results: change icons to have a check mark for a right answer and a cross for a wrong one -->
-                            <i t-if="label.is_correct" class="float-end mt-1 position-relative d-inline fa fa-check-circle"/>
-                            <i t-else="" class="float-end mt-1 position-relative d-inline fa fa-times-circle"/>
+                            <i t-if="label.is_correct" class="float-end mt-1 position-relative d-inline fa-solid fa-check-circle"/>
+                            <i t-else="" class="float-end mt-1 position-relative d-inline fa-solid fa-times-circle"/>
                         </t>
                         <t t-else="">
-                            <i class="fa fa-check-circle float-end mt-1 ms-1 position-relative"/>
-                            <i class="fa fa-circle-thin float-end mt-1 ms-1 position-relative"/>
+                            <i class="fa-solid fa-check-circle float-end mt-1 ms-1 position-relative"/>
+                            <i class="fa-regular fa-circle float-end mt-1 ms-1 position-relative"/>
                         </t>
                         <input t-att-id="str(question.id) + '_' + str(label.id)" type="radio" t-att-value='label.id'
                             t-attf-class="o_survey_form_choice_item invisible position-absolute #{'o_survey_form_choice_item_selected' if answer_selected else ''}"
@@ -545,8 +545,8 @@
                         <t t-call="survey.survey_selection_key">
                             <t t-set="selection_key_class" t-value="'position-relative o_survey_radio_btn float-start d-flex'"/>
                         </t>
-                        <i class="fa fa-check-circle float-end mt-1 ms-1 position-relative"/>
-                        <i class="fa fa-circle-thin float-end mt-1 ms-1 position-relative"/>
+                        <i class="fa-solid fa-check-circle float-end mt-1 ms-1 position-relative"/>
+                        <i class="fa-regular fa-circle float-end mt-1 ms-1 position-relative"/>
                         <input type="radio" class="o_survey_form_choice_item o_survey_js_form_other_comment invisible position-absolute" value="-1"
                             t-att-name='question.id'
                             t-att-checked="comment_line and 'checked' or None"
@@ -589,10 +589,10 @@
                         </t>
                         <!-- While displaying results: change icons to have a check mark for a right answer and a cross for a wrong one -->
                         <i t-if="has_correct_answer and answer_selected" t-attf-class="float-end mt-1 position-relative d-inline
-                            fa #{'fa-check-square' if is_correct else 'fa-times-square'}"/>
+                            #{'fa-solid fa-square-check' if is_correct else 'fa-solid fa-square-xmark'}"/>
                         <t t-else="">
-                            <i class="fa fa-check-square float-end mt-1 ms-1 position-relative"/>
-                            <i class="fa fa-square-o float-end mt-1 ms-1 position-relative"/>
+                            <i class="fa-solid fa-square-check float-end mt-1 ms-1 position-relative"/>
+                            <i class="fa-regular fa-square float-end mt-1 ms-1 position-relative"/>
                         </t>
                         <input type="checkbox" t-att-value='label.id' class="o_survey_form_choice_item invisible position-absolute"
                             t-att-name="question.id"
@@ -610,8 +610,8 @@
                         <t t-call="survey.survey_selection_key">
                             <t t-set="selection_key_class" t-value="'position-relative float-start d-flex'"/>
                         </t>
-                        <i class="fa fa-check-square float-end mt-1 ms-1 position-relative"/>
-                        <i class="fa fa-square-o float-end mt-1 ms-1 position-relative"/>
+                        <i class="fa-solid fa-check-square float-end mt-1 ms-1 position-relative"/>
+                        <i class="fa-regular fa-square float-end mt-1 ms-1 position-relative"/>
                         <input type="checkbox" class="o_survey_form_choice_item o_survey_js_form_other_comment invisible position-absolute" value="-1"
                             t-att-name="question.id"
                             t-att-checked="comment_line and 'checked' or None"
@@ -660,10 +660,10 @@
                                    t-att-data-row-id="row_label.id"
                                    t-att-data-selection-key="letters[item_idx] if useKeySelection else ''"
                                    class="o_survey_form_choice_item d-none"/>
-                            <i t-att-class="'o_survey_matrix_empty_checkbox fa fa-%s position-relative'
-                            % ('square-o' if question.matrix_subtype == 'multiple' else 'circle-thin')"></i>
-                            <i t-att-class="'fa fa-%s position-relative'
-                            % ('check-square' if question.matrix_subtype == 'multiple' else 'check-circle')"></i>
+                            <i t-att-class="'o_survey_matrix_empty_checkbox %s position-relative'
+                            % ('fa-regular fa-square' if question.matrix_subtype == 'multiple' else 'fa-regular fa-circle')"></i>
+                            <i t-att-class="'%s position-relative'
+                            % ('fa-solid fa-square-check' if question.matrix_subtype == 'multiple' else 'fa-solid fa-circle-check')"></i>
                             <t t-call="survey.survey_selection_key">
                                 <t t-set="selection_key_class"
                                    t-value="'position-absolute float-end fw-bold %s' % ('o_survey_radio_btn' if question.matrix_subtype != 'multiple' else '')"/>

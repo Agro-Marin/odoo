@@ -290,7 +290,7 @@ test("applying option container button should wait for actions in progress", asy
         getButtons(target) {
             return [
                 {
-                    class: "test_button fa fa-shield",
+                    class: "test_button fa-solid fa-shield",
                     title: "Test",
                     handler: () => {
                         target.classList.add("overlayButton");

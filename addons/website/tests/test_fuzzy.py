@@ -153,7 +153,7 @@ class TestAutoComplete(TransactionCase):
                 self.assertDictEqual(self.expectedParts, suggestions['parts'],
                                      f"Parts should contain {self.expectedParts.keys()}")
             for result in suggestions['results']:
-                self.assertEqual("fa-file-o", result['_fa'], "Expect an fa icon")
+                self.assertEqual("fa-regular fa-file", result['_fa'], "Expect an fa icon")
                 for field in suggestions['parts'].keys():
                     value = result[field]
                     if value:

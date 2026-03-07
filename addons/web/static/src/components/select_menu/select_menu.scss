@@ -67,7 +67,8 @@
             @include o-position-absolute($top: 50%);
             transform: translateY(-50%);
             content: "\f002";
-            font-family: 'FontAwesome';
+            font-family: "Font Awesome 7 Free";
+            font-weight: 900;
         }
     }
 

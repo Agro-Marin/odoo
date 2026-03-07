@@ -67,7 +67,10 @@ actions(Check in/Check out) performed by them.
             '/web/static/lib/bootstrap/scss/_functions.scss',
             '/web/static/lib/bootstrap/scss/_mixins.scss',
             '/web/static/lib/bootstrap/scss/utilities/_api.scss',
-            'web/static/src/libs/fontawesome/css/font-awesome.css',
+            'web/static/src/libs/fontawesome7/css/fontawesome.css',
+            'web/static/src/libs/fontawesome7/css/solid.css',
+            'web/static/src/libs/fontawesome7/css/regular.css',
+            'web/static/src/libs/fontawesome7/css/brands.css',
             ('include', 'web._assets_core'),
 
             # Public Kiosk app and its components

@@ -5,7 +5,7 @@
                 t-if="hasOdooMenu and !env.isDashboard()"
                 class="o-figure-menu-item o-chart-external-link"
                 t-custom-click="(ev, isMiddleClick) => this.navigateToOdooMenu(isMiddleClick)">
-                <span class="fa fa-external-link" />
+                <span class="fa-solid fa-up-right-from-square" />
             </div>
         </xpath>
     </div>

@@ -376,7 +376,7 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
         for (const btn of buttons) {
             btn.insertAdjacentHTML(
                 "afterbegin",
-                '<i class="fa fa-circle-o-notch fa-spin"></i> ',
+                '<i class="fa-solid fa-circle-notch fa-spin"></i> ',
             );
             btn.disabled = true;
         }

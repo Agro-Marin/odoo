@@ -15,7 +15,7 @@ export class BooleanIconField extends Component {
         label: { type: String, optional: true },
     };
     static defaultProps = {
-        icon: "fa-check-square-o",
+        icon: "fa-regular fa-square-check",
     };
 
     /** Toggles the boolean value and updates the record. */

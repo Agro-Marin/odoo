@@ -111,7 +111,7 @@ function getRoot(element) {
 }
 
 const HASCLASS_REGEXP = /hasclass\(([^)]*)\)/g;
-const CLASS_CONTAINS_REGEX = /contains\(@class.*\)/g;
+const CLASS_CONTAINS_REGEX = /contains\(@class.*\)/;
 /**
  * @param {Element} operation
  * @returns {string}

@@ -113,14 +113,14 @@ export class AttachmentList extends Component {
         if (this.showDelete) {
             res.push({
                 label: _t("Remove"),
-                icon: "fa fa-trash",
+                icon: "fa-solid fa-trash-can",
                 onSelect: () => this.onClickUnlink(attachment),
             });
         }
         if (this.canDownload(attachment)) {
             res.push({
                 label: _t("Download"),
-                icon: "fa fa-download",
+                icon: "fa-solid fa-download",
                 onSelect: () => this.onClickDownload(attachment),
             });
         }

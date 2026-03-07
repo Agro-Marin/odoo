@@ -65,7 +65,7 @@
             t-if="env.model.getters.isReadonly()"
             class="o-readonly-toolbar d-flex flex-grow-1 align-items-center text-muted">
             <span>
-              <i class="fa fa-eye"/>
+              <i class="fa-regular fa-eye"/>
               Readonly Access
             </span>
           </div>
@@ -433,7 +433,7 @@
         <div class="d-flex flex-fill align-items-center bottom-bar-menu">
           <Ripple>
             <div class="py-1 px-1 mx-2 ribbon-toggler" t-on-click="toggleRibbon">
-              <i class="o-icon fa fa-cog"/>
+              <i class="o-icon fa-solid fa-cog"/>
             </div>
           </Ripple>
           <BottomBar onClick="props.onClick"/>
@@ -449,7 +449,7 @@
           class="o-previous-button px-3 py-1 mx-2 rounded"
           t-on-click="onClickBack"
           t-att-title="backTitle">
-          <i class="fa fa-angle-left"/>
+          <i class="fa-solid fa-angle-left"/>
         </div>
         <span class="d-flex align-items-center" t-esc="state.title"/>
       </div>
@@ -683,7 +683,7 @@
           t-if="props.onToggleCollapsePanel"
           class="o-collapse-panel o-sidePanelAction rounded"
           t-on-click="props.onToggleCollapsePanel">
-          <i class="fa fa-angle-double-right"/>
+          <i class="fa-solid fa-angle-double-right"/>
         </div>
         <div class="o-sidePanelTitle o-fw-bold ms-2" t-esc="getTitle()"/>
         <div
@@ -692,7 +692,7 @@
           t-att-class="{'active': props.isPinned}"
           t-on-click="props.onTogglePinPanel"
           t-att-title="pinInfoMessage">
-          <i class="fa fa-thumb-tack"/>
+          <i class="fa-solid fa-thumbtack"/>
         </div>
         <div class="o-sidePanelClose o-sidePanelAction rounded" t-on-click="props.onCloseSidePanel">
           ✕
@@ -727,7 +727,7 @@
         <div
           t-if="props.onToggleCollapsePanel"
           class="o-collapse-panel o-sidePanelAction rounded mb-1">
-          <i class="fa fa-angle-double-left"/>
+          <i class="fa-solid fa-angle-double-left"/>
         </div>
         <div
           t-if="props.onTogglePinPanel"
@@ -735,7 +735,7 @@
           t-att-class="{'active': props.isPinned}"
           t-on-click.stop="props.onTogglePinPanel"
           t-att-title="pinInfoMessage">
-          <i class="fa fa-thumb-tack"/>
+          <i class="fa-solid fa-thumbtack"/>
         </div>
         <div
           class="o-sidePanelClose o-sidePanelAction rounded mb-1"
@@ -998,7 +998,7 @@
               <t t-set="errorMessage" t-value="getHugeDimensionErrorMessage(col)"/>
               <i
                 t-if="errorMessage"
-                class="text-warning fa fa-exclamation-triangle"
+                class="text-warning fa-solid fa-exclamation-triangle"
                 t-att-title="errorMessage"
               />
             </t>
@@ -1039,7 +1039,7 @@
               <t t-set="errorMessage" t-value="getHugeDimensionErrorMessage(row)"/>
               <i
                 t-if="errorMessage"
-                class="text-warning fa fa-exclamation-triangle"
+                class="text-warning fa-solid fa-exclamation-triangle"
                 t-att-title="errorMessage"
               />
             </t>
@@ -1121,13 +1121,13 @@
         <t t-if="measure.isHidden" t-set="hideTitle">Show</t>
         <t t-else="" t-set="hideTitle">Hide</t>
         <i
-          t-att-class="measure.isHidden ? 'fa fa-eye-slash': 'fa fa-eye'"
+          t-att-class="measure.isHidden ? 'fa-regular fa-eye-slash': 'fa-regular fa-eye'"
           t-att-title="hideTitle"
           class="o-button-icon pe-1 ps-2"
           t-on-click="toggleMeasureVisibility"
         />
         <i
-          class="o-button-icon pe-1 ps-2 fa fa-cog"
+          class="o-button-icon pe-1 ps-2 fa-solid fa-cog"
           title="Show values as"
           t-on-click="openShowValuesAs"
         />
@@ -1234,7 +1234,7 @@
         <div class="d-flex flex-rows" t-on-pointerdown.stop="">
           <t t-slot="upper-right-icons"/>
           <i
-            class="o-button-icon fa fa-trash pe-1 ps-2"
+            class="o-button-icon fa-solid fa-trash-can pe-1 ps-2"
             t-if="props.onRemoved"
             t-on-click="() => props.onRemoved(props.dimension)"
           />
@@ -1280,7 +1280,7 @@
       />
       <div t-if="props.isDirty" class="d-flex align-items-center">
         <i
-          class="o-button-icon pe-0 fa fa-undo"
+          class="o-button-icon pe-0 fa-solid fa-undo"
           title="Discard all changes"
           t-on-click="() => props.discard()"
         />
@@ -1314,7 +1314,7 @@
                 onChange="(newName) => this.onRenameGroup(group_index, newName)"
               />
               <i
-                class="o-button-icon ps-3 fa fa-trash"
+                class="o-button-icon ps-3 fa-solid fa-trash-can"
                 t-on-click="() => this.onDeleteGroup(group_index)"
               />
             </div>
@@ -2326,7 +2326,7 @@
 
   <t t-name="o-spreadsheet-CogWheelMenu">
     <span
-      class="fa fa-cog os-cog-wheel-menu-icon o-button-icon"
+      class="fa-solid fa-cog os-cog-wheel-menu-icon o-button-icon"
       t-on-click="toggleMenu"
       t-ref="button"
     />
@@ -2836,14 +2836,14 @@
           class="o-panel-element o-panel-configuration"
           t-att-class="store.panel !== 'configuration' ? 'inactive' : ''"
           t-on-click="switchPanel.bind(this, 'configuration')">
-          <i class="fa fa-sliders"/>
+          <i class="fa-solid fa-sliders"/>
           Configuration
         </div>
         <div
           class="o-panel-element o-panel-design"
           t-att-class="store.panel !== 'design' ? 'inactive' : ''"
           t-on-click="switchPanel.bind(this, 'design')">
-          <i class="fa fa-paint-brush"/>
+          <i class="fa-solid fa-paint-brush"/>
           Design
         </div>
       </div>
@@ -4648,12 +4648,12 @@
   </t>
   <t t-name="o-spreadsheet-Icon.CLIPBOARD">
     <div class="o-icon">
-      <i class="fa fa-clipboard"/>
+      <i class="fa-solid fa-paste"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.COPY">
     <div class="o-icon">
-      <i class="fa fa-clone"/>
+      <i class="fa-regular fa-clone"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.CUT">
@@ -4711,7 +4711,7 @@
   </t>
   <t t-name="o-spreadsheet-Icon.SHOW">
     <div class="o-icon">
-      <i class="fa fa-eye"/>
+      <i class="fa-regular fa-eye"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.FORMULA">
@@ -4844,22 +4844,22 @@
   </t>
   <t t-name="o-spreadsheet-Icon.INSERT_CHART">
     <div class="o-icon">
-      <i class="fa fa-bar-chart"/>
+      <i class="fa-solid fa-chart-column"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.INSERT_IMAGE">
     <div class="o-icon">
-      <i class="fa fa-file-image-o"/>
+      <i class="fa-regular fa-file-image"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.INSERT_LINK">
     <div class="o-icon">
-      <i class="fa fa-link"/>
+      <i class="fa-solid fa-link"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.INSERT_CHECKBOX">
     <div class="o-icon">
-      <i class="fa fa-check-square-o"/>
+      <i class="fa-regular fa-square-check"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.INSERT_DROPDOWN">
@@ -4967,7 +4967,7 @@
   </t>
   <t t-name="o-spreadsheet-Icon.IRREGULARITY_MAP">
     <div class="o-icon">
-      <i class="fa fa-align-center fa-rotate-270"/>
+      <i class="fa-solid fa-align-center fa-rotate-270"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.ALIGN_RIGHT">
@@ -5150,57 +5150,57 @@
 
   <t t-name="o-spreadsheet-Icon.EDIT">
     <div class="o-icon">
-      <i class="fa fa-pencil-square-o"/>
+      <i class="fa-regular fa-pen-to-square"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.EXTERNAL">
     <div class="o-icon">
-      <i class="fa fa-external-link"/>
+      <i class="fa-solid fa-up-right-from-square"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.UNLINK">
     <div class="o-icon">
-      <i class="fa fa-chain-broken"/>
+      <i class="fa-solid fa-link-slash"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.CARET_UP">
     <div class="o-icon fa-small">
-      <i class="fa fa-caret-up"/>
+      <i class="fa-solid fa-caret-up"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.CARET_DOWN">
     <div class="o-icon fa-small">
-      <i class="fa fa-caret-down"/>
+      <i class="fa-solid fa-caret-down"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.CARET_RIGHT">
     <div class="o-icon fa-small">
-      <i class="fa fa-caret-right"/>
+      <i class="fa-solid fa-caret-right"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.CARET_LEFT">
     <div class="o-icon fa-small">
-      <i class="fa fa-caret-left"/>
+      <i class="fa-solid fa-caret-left"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.TRASH">
     <div class="o-icon">
-      <i class="fa fa-trash-o"/>
+      <i class="fa-regular fa-trash-can"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.TRASH_FILLED">
     <div class="o-icon">
-      <i class="fa fa-trash"/>
+      <i class="fa-solid fa-trash-can"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.REFRESH">
     <div class="o-icon">
-      <i class="fa fa-refresh"/>
+      <i class="fa-solid fa-arrows-rotate"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.EXCHANGE">
     <div class="o-icon">
-      <i class="fa fa-exchange"/>
+      <i class="fa-solid fa-right-left"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.ARROW_DOWN">
@@ -5298,17 +5298,17 @@
   </t>
   <t t-name="o-spreadsheet-Icon.SORT_ASCENDING">
     <div class="o-icon">
-      <i class="fa fa-sort-alpha-asc"/>
+      <i class="fa-solid fa-arrow-down-a-z"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.SORT_DESCENDING">
     <div class="o-icon">
-      <i class="fa fa-sort-alpha-desc"/>
+      <i class="fa-solid fa-arrow-down-z-a"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.DATA_CLEANUP">
     <div class="o-icon">
-      <i class="fa fa-magic"/>
+      <i class="fa-solid fa-wand-magic-sparkles"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.FILTER_ICON">
@@ -5321,12 +5321,12 @@
   </t>
   <t t-name="o-spreadsheet-Icon.FILTER_ICON_ACTIVE">
     <div class="o-icon filter-icon-active">
-      <i class="fa fa-filter"/>
+      <i class="fa-solid fa-filter"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.SEARCH">
     <div class="o-icon">
-      <i class="fa fa-search"/>
+      <i class="fa-solid fa-search"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.CHECK">
@@ -5361,7 +5361,7 @@
   </t>
   <t t-name="o-spreadsheet-Icon.TRIANGLE_EXCLAMATION">
     <div class="o-icon fa-small">
-      <i class="fa fa-exclamation-triangle"/>
+      <i class="fa-solid fa-exclamation-triangle"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.SPLIT_TEXT">
@@ -5374,7 +5374,7 @@
   </t>
   <t t-name="o-spreadsheet-Icon.ERROR">
     <div class="o-icon">
-      <i class="fa fa-exclamation-circle"/>
+      <i class="fa-solid fa-exclamation-circle"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.DISPLAY_HEADER">
@@ -5582,12 +5582,12 @@
   </t>
   <t t-name="o-spreadsheet-Icon.HIDE_SHEET">
     <div class="o-icon">
-      <i class="fa fa-eye-slash"/>
+      <i class="fa-regular fa-eye-slash"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.DOWNLOAD">
     <div class="o-icon">
-      <i class="fa fa-download"/>
+      <i class="fa-solid fa-download"/>
     </div>
   </t>
   <t t-name="o-spreadsheet-Icon.CAROUSEL">
@@ -6387,7 +6387,7 @@
           t-att-class="{'active': menuState.isOpen}"
           t-ref="carouselTabsDropdown"
           t-on-click="toggleMenu">
-          <div class="fa fa-angle-down"/>
+          <div class="fa-solid fa-angle-down"/>
           <MenuPopover
             t-if="menuState.isOpen"
             menuId="menuId"
@@ -6410,7 +6410,7 @@
         />
         <div
           t-if="!env.isDashboard()"
-          class="o-carousel-menu-button o-carousel-button fa fa-ellipsis-v rounded ms-1"
+          class="o-carousel-menu-button o-carousel-button fa-solid fa-ellipsis-v rounded ms-1"
           t-on-click="openContextMenu"
         />
       </div>
@@ -6567,7 +6567,7 @@
           </div>
         </t>
         <button
-          class="o-chart-dashboard-item btn text-muted lh-1 p-1 fa fa-ellipsis-v"
+          class="o-chart-dashboard-item btn text-muted lh-1 p-1 fa-solid fa-ellipsis-v"
           t-on-click="openContextMenu"
         />
       </div>
@@ -6674,7 +6674,7 @@
         t-if="props.sortDirection === 'none'"
         class="o-icon sorting-icon pb-1"
         t-att-style="style">
-        <i class="fa fa-small fa-sort"/>
+        <i class="fa-solid fa-small fa-sort"/>
       </span>
     </div>
   </t>
@@ -6820,8 +6820,8 @@
           t-on-click.prevent.stop=""
           t-on-pointerup.prevent.stop=""
           class="fa-stack position-absolute translate-middle force-open-assistant fs-4">
-          <i class="fa fa-circle fa-stack-1x fa-inverse"/>
-          <i class="fa fa-question-circle fa-stack-1x"/>
+          <i class="fa-solid fa-circle fa-stack-1x fa-inverse"/>
+          <i class="fa-solid fa-question-circle fa-stack-1x"/>
         </span>
         <div
           class="o-composer w-100 text-start"
@@ -6862,8 +6862,8 @@
           role="button"
           t-on-click="closeAssistant"
           class="fa-stack position-absolute top-0 start-100 translate-middle fs-4">
-          <i class="fa fa-circle fa-stack-1x fa-inverse"/>
-          <i class="fa fa-times-circle fa-stack-1x text-muted"/>
+          <i class="fa-solid fa-circle fa-stack-1x fa-inverse"/>
+          <i class="fa-solid fa-times-circle fa-stack-1x text-muted"/>
         </span>
         <div class="o-composer-assistant overflow-auto" t-att-style="assistantStyle">
           <FunctionDescriptionProvider

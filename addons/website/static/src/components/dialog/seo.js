@@ -867,7 +867,7 @@ export class SeoChecks extends Component {
                     if (imgLinkEl?.src) {
                         label = imgLinkEl.src.split("/").pop();
                         isImageLink = true;
-                    } else if (el.querySelector(".fa")) {
+                    } else if (el.querySelector(":is(.fa-solid, .fa-regular, .fa-brands)")) {
                         label =
                             el.ariaLabel || el.title || el.href.split("/").filter(Boolean).pop();
                         isImageLink = true;

@@ -839,6 +839,6 @@ from .ir_model_access import (  # noqa: E402, F401
 )
 from .ir_model_data import IrModelData  # noqa: E402, F401
 from .ir_model_fields import FIELD_TYPES, IrModelFields  # noqa: E402, F401
-from .ir_model_fields_selection import (
+from .ir_model_fields_selection import (  # noqa: E402, F401
     IrModelFieldsSelection,
 )

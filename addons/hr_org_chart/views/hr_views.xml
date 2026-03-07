@@ -32,7 +32,7 @@
                         role="button"
                         class="float-end me-2 cursor-pointer"
                         context="{'hierarchy_res_id': id}">
-                        <i class="fa fa-share-alt fa-rotate-90 ms-1 mt-1" role="img" aria-label="Full Chart"/>
+                        <i class="fa-solid fa-share-alt fa-rotate-90 ms-1 mt-1" role="img" aria-label="Full Chart"/>
                         Full Chart
                     </a>
                 </div>

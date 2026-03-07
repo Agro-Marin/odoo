@@ -26,7 +26,7 @@ import { getFieldsSpec } from "./field_spec";
  * @param {string} resModel
  * @returns {Promise<false | { id: number, display_name: string }>}
  */
-export async function completeMany2OneValue(record, value, fieldName, resModel) {
+async function completeMany2OneValue(record, value, fieldName, resModel) {
     const resId = value.id;
     const displayName = value.display_name;
     if (!resId && !displayName) {

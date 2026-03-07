@@ -12,7 +12,7 @@
             </label>
             <div t-if="!isBrowserSafari()" class="btn border-transparent d-flex gap-2" t-on-click="() => store.settings.setUseBlur(!store.settings.useBlur)">
                 <label class="d-flex align-items-center flex-wrap mw-100 cursor-pointer gap-2">
-                    <i class="fa fa-fw fa-photo"/><span class="text-truncate text-wrap">Blur background</span>
+                    <i class="fa-regular fa-image"/><span class="text-truncate text-wrap">Blur background</span>
                 </label>
                 <div class="flex-grow-1"/>
                 <div class="form-check form-switch">
@@ -20,7 +20,7 @@
                 </div>
             </div>
             <button class="btn border-transparent d-flex align-items-center gap-2" t-on-click="onClickVideoSettings">
-                <i class="fa fa-fw fa-gear"/><span>Video Settings</span>
+                <i class="fa-solid fa-gear"/><span>Video Settings</span>
             </button>
         </div>
     </t>

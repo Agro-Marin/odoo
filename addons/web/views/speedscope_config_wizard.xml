@@ -13,15 +13,13 @@
                                 <h4>Memory profile</h4>
                                 <div class="mt-3">
                                     <label for="memory_limit">Memory limit (in bytes)</label>
-                                    <input type="number" id="memory_limit" name="memory_limit"
-                                        class="form-control" value="1000" />
+                                    <input type="number" id="memory_limit" name="memory_limit" class="form-control" value="1000" />
                                 </div>
 
                                 <input type="hidden" name="profile_id" t-att-value="profile_str" />
 
                                 <div class="mt-3">
-                                    <button type="submit" class="btn btn-primary" name="action"
-                                        value="memory_open">open</button>
+                                    <button type="submit" class="btn btn-primary" name="action" value="memory_open">open</button>
                                 </div>
                             </form>
                         </div>
@@ -33,33 +31,27 @@
                             <form method="get" t-attf-action="/web/speedscope/{{profile_str}}">
                                 <h4>Speedscope</h4>
                                 <div class="form-check">
-                                    <input type="checkbox" class="form-check-input"
-                                        id="constant_time" name="constant_time" value="True" />
+                                    <input type="checkbox" class="form-check-input" id="constant_time" name="constant_time" value="True" />
                                     <label class="form-check-label" for="constant_time">Constant Time</label>
                                 </div>
                                 <!-- add more variable here -->
                                 <div class="form-check">
-                                    <input type="checkbox" class="form-check-input"
-                                        id="aggregate_sql" name="aggregate_sql" value="True" />
+                                    <input type="checkbox" class="form-check-input" id="aggregate_sql" name="aggregate_sql" value="True" />
                                     <label class="form-check-label" for="aggregate_sql">Aggregate SQL</label>
                                 </div>
                                 <div class="form-check">
-                                    <input type="checkbox" class="form-check-input"
-                                        id="use_execution_context" name="use_execution_context"
-                                        value="True" checked="1" />
+                                    <input type="checkbox" class="form-check-input" id="use_execution_context" name="use_execution_context" value="True" checked="1" />
                                     <label class="form-check-label" for="use_execution_context">Use execution context</label>
                                 </div>
-                                <div t-if="len(profiles) > 1">
+                                <div t-if="len(profiles) &gt; 1">
                                     <hr />
                                     <h4>Multiple profile</h4>
                                     <label class="form-check-label" for="profile_aggregation_mode">Aggregation mode</label>
-                                    <select class="form-select" name="profile_aggregation_mode"
-                                        id="profile_aggregation_mode">
+                                    <select class="form-select" name="profile_aggregation_mode" id="profile_aggregation_mode">
                                         <option value="tabs">Separated (one per tab)</option>
                                         <option value="temporal">Temporal (experimental)</option>
                                     </select>
-                                    <span id="temporal_warning" class="alert alert-warning"
-                                        style="display:none"><b>Warning:</b> Temporal mode will
+                                    <span id="temporal_warning" class="alert alert-warning" style="display:none"><b>Warning:</b> Temporal mode will
                                         merge all samples.<br />It can lead to partially invalid
                                         result in case of concurrent profiles.<br />Use with caution </span>
                                     <script>
@@ -71,48 +63,33 @@
                                 </div>
                                 <hr />
                                 <h4>Display presets</h4>
-                                <t t-set="has_sql"
-                                    t-value="any(profile.sql for profile in profiles)" />
-                                <t t-set="has_traces"
-                                    t-value="any(profile.traces_async for profile in profiles)" />
+                                <t t-set="has_sql" t-value="any(profile.sql for profile in profiles)" />
+                                <t t-set="has_traces" t-value="any(profile.traces_async for profile in profiles)" />
                                 <div class="form-check" t-if="has_sql and has_traces">
-                                    <input type="checkbox" class="form-check-input"
-                                        id="combined_profile" name="combined_profile" value="True"
-                                        t-att-checked="default_params.get('combined_profile')" />
+                                    <input type="checkbox" class="form-check-input" id="combined_profile" name="combined_profile" value="True" t-att-checked="default_params.get('combined_profile')" />
                                     <label class="form-check-label" for="combined_profile">Frames + sql (Combined)</label>
                                 </div>
                                 <div class="form-check" t-if="has_sql">
-                                    <input type="checkbox" class="form-check-input"
-                                        id="sql_no_gap_profile" name="sql_no_gap_profile"
-                                        value="True"
-                                        t-att-checked="default_params.get('sql_no_gap_profile')" />
+                                    <input type="checkbox" class="form-check-input" id="sql_no_gap_profile" name="sql_no_gap_profile" value="True" t-att-checked="default_params.get('sql_no_gap_profile')" />
                                     <label class="form-check-label" for="sql_no_gap_profile">SQL no gap</label>
                                 </div>
                                 <div class="form-check" t-if="has_sql">
-                                    <input type="checkbox" class="form-check-input"
-                                        id="sql_density_profile" name="sql_density_profile"
-                                        value="True"
-                                        t-att-checked="default_params.get('sql_density_profile')" />
+                                    <input type="checkbox" class="form-check-input" id="sql_density_profile" name="sql_density_profile" value="True" t-att-checked="default_params.get('sql_density_profile')" />
                                     <label class="form-check-label" for="sql_density_profile">SQL density</label>
                                 </div>
                                 <div class="form-check" t-if="has_traces">
-                                    <input type="checkbox" class="form-check-input"
-                                        id="frames_profile" name="frames_profile" value="True"
-                                        t-att-checked="default_params.get('frames_profile')" />
+                                    <input type="checkbox" class="form-check-input" id="frames_profile" name="frames_profile" value="True" t-att-checked="default_params.get('frames_profile')" />
                                     <label class="form-check-label" for="frames_profile">Frames</label>
                                 </div>
 
                                 <input type="hidden" name="profile_id" t-att-value="profile_str" />
 
                                 <div class="mt-3">
-                                    <button type="submit" class="btn btn-secondary" name="action"
-                                        value="speedscope_download_json"><i class="fa fa-download" />
+                                    <button type="submit" class="btn btn-secondary" name="action" value="speedscope_download_json"><i class="fa-solid fa-download" />
                                         (json)</button>
-                                    <button type="submit" class="btn btn-secondary" name="action"
-                                        value="speedscope_download_html"><i class="fa fa-download" />
+                                    <button type="submit" class="btn btn-secondary" name="action" value="speedscope_download_html"><i class="fa-solid fa-download" />
                                         (html)</button>
-                                    <button type="submit" class="btn btn-primary" name="action"
-                                        value="speedscope_open">Open</button>
+                                    <button type="submit" class="btn btn-primary" name="action" value="speedscope_open">Open</button>
                                 </div>
                             </form>
                         </div>

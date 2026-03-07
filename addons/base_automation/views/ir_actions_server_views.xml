@@ -108,7 +108,7 @@
                                     domain="[('base_automation_id', '=', base_automation_id), ('id', '!=', id)]"
                                     options="{'color_field': 'action_state', 'no_create': True}" />
                                 <div class="text-muted small mt-1">
-                                    <i class="fa fa-info-circle" /> This action will execute after
+                                    <i class="fa-solid fa-info-circle" /> This action will execute after
                                     all predecessors complete </div>
                             </div>
 
@@ -119,7 +119,7 @@
                                     readonly="1"
                                     options="{'color_field': 'action_state'}" />
                                 <div class="text-muted small mt-1">
-                                    <i class="fa fa-info-circle" /> These actions depend on this one completing </div>
+                                    <i class="fa-solid fa-info-circle" /> These actions depend on this one completing </div>
                             </div>
                         </group>
                     </group>
@@ -130,7 +130,7 @@
 
                     <separator string="Dependency Graph Tips" class="mt-4" />
                     <div class="alert alert-info" role="alert">
-                        <h5><i class="fa fa-lightbulb-o" /> How Dependencies Work</h5>
+                        <h5><i class="fa-regular fa-lightbulb" /> How Dependencies Work</h5>
                         <ul class="mb-0">
                             <li><strong>No predecessors:</strong> Action is ready immediately (root
                                 action)</li>
@@ -144,7 +144,7 @@
                     </div>
 
                     <div class="alert alert-warning" role="alert" invisible="predecessor_ids">
-                        <i class="fa fa-warning" title="Warning" /> This is a <strong>root action</strong> (no dependencies). It will be ready as soon as the workflow starts. </div>
+                        <i class="fa-solid fa-triangle-exclamation" title="Warning" /> This is a <strong>root action</strong> (no dependencies). It will be ready as soon as the workflow starts. </div>
 
                 </page>
             </xpath>

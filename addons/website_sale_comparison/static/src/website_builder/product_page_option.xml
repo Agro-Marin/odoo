@@ -7,7 +7,7 @@
             action="'websiteConfig'"
             actionParam="{views:['website_sale_comparison.product_add_to_compare']}"
         >
-            <i class="fa fa-fw fa-exchange"/>
+            <i class="fa-solid fa-right-left"/>
             Compare
         </BuilderButton>
     </BuilderRow>

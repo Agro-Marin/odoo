@@ -15,7 +15,7 @@
             expr="//button[@name='sale_product_configurator_add_button']/*[hasclass('oi-plus')]"
             position="attributes"
         >
-            <attribute name="class" remove="oi oi-plus" add="fa fa-shopping-cart" separator=" "/>
+            <attribute name="class" remove="oi oi-plus" add="fa-solid fa-shopping-cart" separator=" "/>
         </xpath>
         <span name="add_button" position="replace">
             <span name="add_button" class="ms-2 d-none d-lg-inline">Add to Cart</span>
@@ -49,7 +49,7 @@
             t-if="!this.props.can_be_sold"
             class="text-muted fst-italic"
         >
-            <i class="fa fa-times me-1"/>
+            <i class="fa-solid fa-times me-1"/>
             Not available for sale
         </div>
     </t>

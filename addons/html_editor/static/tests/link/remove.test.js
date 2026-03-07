@@ -16,9 +16,9 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the start of the link.
         await testEditor({
             contentBefore:
-                '<p>a<a href="http://test.test/"><span class="fa fa-music" contenteditable="false">\u200B</span>bcd[]</a>e</p>',
+                '<p>a<a href="http://test.test/"><span class="fa-solid fa-music" contenteditable="false">\u200B</span>bcd[]</a>e</p>',
             stepFunction: unlinkFromPopover,
-            contentAfter: '<p>a<span class="fa fa-music"></span>bcd[]e</p>',
+            contentAfter: '<p>a<span class="fa-solid fa-music"></span>bcd[]e</p>',
         });
     });
 
@@ -26,9 +26,9 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the middle of the link.
         await testEditor({
             contentBefore:
-                '<p>a<a href="http://test.test/">bc<span class="fa fa-music" contenteditable="false">\u200B</span>d[]</a>e</p>',
+                '<p>a<a href="http://test.test/">bc<span class="fa-solid fa-music" contenteditable="false">\u200B</span>d[]</a>e</p>',
             stepFunction: unlinkFromPopover,
-            contentAfter: '<p>abc<span class="fa fa-music"></span>d[]e</p>',
+            contentAfter: '<p>abc<span class="fa-solid fa-music"></span>d[]e</p>',
         });
     });
 
@@ -36,9 +36,9 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the end of the link.
         await testEditor({
             contentBefore:
-                '<p>a<a href="http://test.test/">bcd[]<span class="fa fa-music" contenteditable="false">\u200B</span></a>e</p>',
+                '<p>a<a href="http://test.test/">bcd[]<span class="fa-solid fa-music" contenteditable="false">\u200B</span></a>e</p>',
             stepFunction: unlinkFromPopover,
-            contentAfter: '<p>abcd[]<span class="fa fa-music"></span>e</p>',
+            contentAfter: '<p>abcd[]<span class="fa-solid fa-music"></span>e</p>',
         });
     });
 
@@ -54,9 +54,9 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the start of the link.
         await testEditor({
             contentBefore:
-                '<p>a<a href="http://test.test/"><span class="fa fa-music" contenteditable="false">\u200B</span>b[]cd</a>e</p>',
+                '<p>a<a href="http://test.test/"><span class="fa-solid fa-music" contenteditable="false">\u200B</span>b[]cd</a>e</p>',
             stepFunction: unlinkFromPopover,
-            contentAfter: '<p>a<span class="fa fa-music"></span>b[]cde</p>',
+            contentAfter: '<p>a<span class="fa-solid fa-music"></span>b[]cde</p>',
         });
     });
 
@@ -64,9 +64,9 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the middle of the link.
         await testEditor({
             contentBefore:
-                '<p>a<a href="http://test.test/">b[]c<span class="fa fa-music" contenteditable="false">\u200B</span>d</a>e</p>',
+                '<p>a<a href="http://test.test/">b[]c<span class="fa-solid fa-music" contenteditable="false">\u200B</span>d</a>e</p>',
             stepFunction: unlinkFromPopover,
-            contentAfter: '<p>ab[]c<span class="fa fa-music"></span>de</p>',
+            contentAfter: '<p>ab[]c<span class="fa-solid fa-music"></span>de</p>',
         });
     });
 
@@ -74,9 +74,9 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the end of the link.
         await testEditor({
             contentBefore:
-                '<p>a<a href="http://test.test/">b[]cd<span class="fa fa-music" contenteditable="false">\u200B</span></a>e</p>',
+                '<p>a<a href="http://test.test/">b[]cd<span class="fa-solid fa-music" contenteditable="false">\u200B</span></a>e</p>',
             stepFunction: unlinkFromPopover,
-            contentAfter: '<p>ab[]cd<span class="fa fa-music"></span>e</p>',
+            contentAfter: '<p>ab[]cd<span class="fa-solid fa-music"></span>e</p>',
         });
     });
 
@@ -93,9 +93,9 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the start of the link.
         await testEditor({
             contentBefore:
-                '<p>a<a href="http://test.test/"><span class="fa fa-music" contenteditable="false">\u200B</span>[]bcd</a>e</p>',
+                '<p>a<a href="http://test.test/"><span class="fa-solid fa-music" contenteditable="false">\u200B</span>[]bcd</a>e</p>',
             stepFunction: unlinkFromPopover,
-            contentAfter: '<p>a<span class="fa fa-music"></span>[]bcde</p>',
+            contentAfter: '<p>a<span class="fa-solid fa-music"></span>[]bcde</p>',
         });
     });
 
@@ -103,9 +103,9 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the middle of the link.
         await testEditor({
             contentBefore:
-                '<p>a<a href="http://test.test/">[]bc<span class="fa fa-music" contenteditable="false">\u200B</span>d</a>e</p>',
+                '<p>a<a href="http://test.test/">[]bc<span class="fa-solid fa-music" contenteditable="false">\u200B</span>d</a>e</p>',
             stepFunction: unlinkFromPopover,
-            contentAfter: '<p>a[]bc<span class="fa fa-music"></span>de</p>',
+            contentAfter: '<p>a[]bc<span class="fa-solid fa-music"></span>de</p>',
         });
     });
 
@@ -113,9 +113,9 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the end of the link.
         await testEditor({
             contentBefore:
-                '<p>a<a href="http://test.test/">[]bcd<span class="fa fa-music" contenteditable="false">\u200B</span></a>e</p>',
+                '<p>a<a href="http://test.test/">[]bcd<span class="fa-solid fa-music" contenteditable="false">\u200B</span></a>e</p>',
             stepFunction: unlinkFromPopover,
-            contentAfter: '<p>a[]bcd<span class="fa fa-music"></span>e</p>',
+            contentAfter: '<p>a[]bcd<span class="fa-solid fa-music"></span>e</p>',
         });
     });
 
@@ -134,10 +134,10 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the start of the link.
         await testEditor({
             contentBefore:
-                '<p><a href="http://test.test/">a</a>b<a href="http://test.test/"><span class="fa fa-music" contenteditable="false">\u200B</span>c[]d</a>e<a href="http://test.test/">f</a></p>',
+                '<p><a href="http://test.test/">a</a>b<a href="http://test.test/"><span class="fa-solid fa-music" contenteditable="false">\u200B</span>c[]d</a>e<a href="http://test.test/">f</a></p>',
             stepFunction: unlinkFromPopover,
             contentAfter:
-                '<p><a href="http://test.test/">a</a>b<span class="fa fa-music"></span>c[]de<a href="http://test.test/">f</a></p>',
+                '<p><a href="http://test.test/">a</a>b<span class="fa-solid fa-music"></span>c[]de<a href="http://test.test/">f</a></p>',
         });
     });
 
@@ -145,10 +145,10 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the middle of the link.
         await testEditor({
             contentBefore:
-                '<p><a href="http://test.test/">a</a>b<a href="http://test.test/">c<span class="fa fa-music" contenteditable="false">\u200B</span>d[]e</a>f<a href="http://test.test/">g</a></p>',
+                '<p><a href="http://test.test/">a</a>b<a href="http://test.test/">c<span class="fa-solid fa-music" contenteditable="false">\u200B</span>d[]e</a>f<a href="http://test.test/">g</a></p>',
             stepFunction: unlinkFromPopover,
             contentAfter:
-                '<p><a href="http://test.test/">a</a>bc<span class="fa fa-music"></span>d[]ef<a href="http://test.test/">g</a></p>',
+                '<p><a href="http://test.test/">a</a>bc<span class="fa-solid fa-music"></span>d[]ef<a href="http://test.test/">g</a></p>',
         });
     });
 
@@ -156,10 +156,10 @@ describe("range collapsed, remove by popover unlink button", () => {
         // With fontawesome at the end of the link.
         await testEditor({
             contentBefore:
-                '<p><a href="http://test.test/">a</a>b<a href="http://test.test/">c[]d<span class="fa fa-music" contenteditable="false">\u200B</span></a>e<a href="http://test.test/">f</a></p>',
+                '<p><a href="http://test.test/">a</a>b<a href="http://test.test/">c[]d<span class="fa-solid fa-music" contenteditable="false">\u200B</span></a>e<a href="http://test.test/">f</a></p>',
             stepFunction: unlinkFromPopover,
             contentAfter:
-                '<p><a href="http://test.test/">a</a>bc[]d<span class="fa fa-music"></span>e<a href="http://test.test/">f</a></p>',
+                '<p><a href="http://test.test/">a</a>bc[]d<span class="fa-solid fa-music"></span>e<a href="http://test.test/">f</a></p>',
         });
     });
 });

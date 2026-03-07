@@ -139,7 +139,7 @@
                             title="Edit this address"
                             aria-label="Edit this address"
                         >
-                            <i class="fa fa-fw fa-pencil"/>
+                            <i class="fa-solid fa-pencil"/>
                         </a>
                         <t t-if="show_removal">
                             <span class="d-block border-start border-2 my-2"/>
@@ -150,7 +150,7 @@
                                 aria-label="Remove this address"
                                 t-att-data-partner-id="contact.id"
                             >
-                                <i class="fa fa-fw fa-trash"/>
+                                <i class="fa-solid fa-trash-can"/>
                             </a>
                         </t>
                     </div>
@@ -393,7 +393,7 @@
                 t-att-href="discard_url or '/my/'"
                 class="btn btn-outline-secondary w-100 w-md-auto order-md-1 order-3"
             >
-                <i class="fw-light fa fa-angle-left me-2"/>Discard
+                <i class="fw-light fa-solid fa-angle-left me-2"/>Discard
             </a>
             <div class="position-relative w-100 d-flex d-md-none justify-content-center align-items-center order-2 my-2 opacity-75">
                 <hr class="w-100"/>
@@ -402,7 +402,7 @@
             </div>
             <button id="save_address" class="btn btn-primary w-100 w-md-auto order-1 order-md-3">
                 <t name="save_address_label">Save Address</t>
-                <i class="fw-light fa fa-angle-right ms-2"/>
+                <i class="fw-light fa-solid fa-angle-right ms-2"/>
             </button>
         </div>
     </template>

@@ -163,7 +163,7 @@ export class HootDebugToolBar extends Component {
             <div class="flex flex-col w-full overflow-hidden rounded shadow bg-gray-200 dark:bg-gray-800">
                 <div class="flex items-center gap-2 px-2">
                     <i
-                        class="fa fa-bug text-cyan p-2"
+                        class="fa-solid fa-bug text-cyan p-2"
                         t-att-class="{ 'cursor-move': !state.open }"
                         t-ref="handle"
                     />
@@ -173,7 +173,7 @@ export class HootDebugToolBar extends Component {
                             title="Exit debug mode (Ctrl + Esc)"
                             t-on-click.stop="exitDebugMode"
                         >
-                            <i class="fa fa-sign-out" />
+                            <i class="fa-solid fa-right-from-bracket" />
                         </button>
                         <t t-if="done">
                             <button
@@ -181,7 +181,7 @@ export class HootDebugToolBar extends Component {
                                 title="Restart test (F5)"
                                 t-on-click.stop="refresh"
                             >
-                                <i class="fa fa-refresh" />
+                                <i class="fa-solid fa-arrows-rotate" />
                             </button>
                         </t>
                     </div>
@@ -218,7 +218,7 @@ export class HootDebugToolBar extends Component {
                         />
                     </button>
                     <button class="p-2" t-on-click="toggleConfig">
-                        <i class="fa fa-cog" />
+                        <i class="fa-solid fa-cog" />
                     </button>
                 </div>
                 <t t-if="state.open">

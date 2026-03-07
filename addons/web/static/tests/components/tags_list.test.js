@@ -98,8 +98,8 @@ test("Tags can be displayed with an icon", async () => {
 
     await mountWithCleanup(Parent);
     expect(".o_tag").toHaveCount(2);
-    expect(".o_tag:nth-of-type(1) i").toHaveClass("fa fa-trash");
-    expect(".o_tag:nth-of-type(2) i").toHaveClass("fa fa-check");
+    expect(".o_tag:nth-of-type(1) i").toHaveClass("fa-solid fa-trash-can");
+    expect(".o_tag:nth-of-type(2) i").toHaveClass("fa-solid fa-check");
 });
 
 test("Limiting the visible tags displays a counter", async () => {

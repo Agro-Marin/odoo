@@ -8,7 +8,7 @@
             <field name="arch" type="xml">
                 <xpath expr="//group[@name='account']" position="before">
                     <div role="status" class="alert alert-danger mb-0" invisible="service_name != 'sms' or (state != 'unregistered' and state)">
-                        <i class="fa fa-warning"/> You cannot send SMS while your account is not registered.
+                        <i class="fa-solid fa-triangle-exclamation"/> You cannot send SMS while your account is not registered.
                         <button type="object"
                             name="action_open_registration_wizard" class="btn-link p-0">
                             <i class="oi oi-arrow-right"/>
@@ -16,7 +16,7 @@
                         </button>
                     </div>
                     <div role="status" class="alert alert-danger mb-0" invisible="service_name != 'sms' or (state != 'banned')">
-                        <i class="fa fa-warning"/> An error occurred with your account. Please contact the support for more information...
+                        <i class="fa-solid fa-triangle-exclamation"/> An error occurred with your account. Please contact the support for more information...
                     </div>
                 </xpath>
                 <xpath expr="//button[@name='action_buy_credits']" position="attributes">

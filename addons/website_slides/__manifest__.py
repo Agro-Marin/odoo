@@ -118,11 +118,14 @@ Featuring
 
             ('include', 'web._assets_bootstrap_frontend'),
 
-            'web/static/src/libs/fontawesome/css/font-awesome.css',
+            'web/static/src/libs/fontawesome7/css/fontawesome.css',
+            'web/static/src/libs/fontawesome7/css/solid.css',
+            'web/static/src/libs/fontawesome7/css/regular.css',
+            'web/static/src/libs/fontawesome7/css/brands.css',
             'web/static/lib/odoo_ui_icons/*',
             'web/static/src/webclient/navbar/navbar.scss',
             'web/static/src/scss/animation.scss',
-            'web/static/src/scss/fontawesome_overridden.scss',
+            'web/static/src/scss/rtl_icon_flip.scss',
             'web/static/src/scss/mimetypes.scss',
             'web/static/src/scss/ui.scss',
             'web/static/src/components/color_picker/color_picker.scss',

@@ -90,7 +90,7 @@ export class UpdateDialog extends Component {
             <t t-set-slot="header">
                 <div>
                     Update
-                    <a href="https://www.odoo.com/documentation/latest/applications/general/iot/iot_advanced/updating_iot.html" class="fa fa-question-circle text-decoration-none text-dark" target="_blank"></a>
+                    <a href="https://www.odoo.com/documentation/latest/applications/general/iot/iot_advanced/updating_iot.html" class="fa-solid fa-question-circle text-decoration-none text-dark" target="_blank"></a>
                 </div>
             </t>
             <t t-set-slot="body">

@@ -158,7 +158,7 @@
                                 <field name="quotation_validity_days" class="text-center"
                                     style="width: 3rem;" />
                                 <div class="d-inline-block">days</div>
-                                <span class="fa fa-lg fa-building-o p-2"
+                                <span class="fa-regular fa-building fa-lg p-2"
                                     title="Values set here are company-specific."
                                     groups="base.group_multi_company" />
                             </div>
@@ -183,7 +183,7 @@
                             <field name="lock_confirmed_so" />
                             <div class="content-group mt16" invisible="not lock_confirmed_so">
                                 <div class="text-muted">
-                                    <i class="fa fa-lock"/> Orders will be automatically locked when confirmed.
+                                    <i class="fa-solid fa-lock"/> Orders will be automatically locked when confirmed.
                                     Users need specific permissions to manually lock/unlock orders.
                                 </div>
                             </div>

@@ -594,8 +594,8 @@ export class Store extends BaseStore {
         )) {
             const text = linkEl.textContent.substring(1); // remove '#' prefix
             const icon = linkEl.classList.contains("o_channel_redirect_asThread")
-                ? "fa fa-comments-o"
-                : "fa fa-hashtag";
+                ? "fa-regular fa-comments"
+                : "fa-solid fa-hashtag";
             const iconEl = renderToElement("mail.Message.mentionedChannelIcon", {
                 icon,
             });

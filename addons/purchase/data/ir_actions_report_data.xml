@@ -10,6 +10,7 @@
         <field name="print_report_name">(object.state == 'draft' and 'Request for Quotation - %s' % (object.name) or 'Purchase Order - %s' % (object.name))</field>
         <field name="binding_model_id" ref="model_purchase_order" />
         <field name="binding_type">report</field>
+        <field name="binding_view_types">list,kanban</field>
     </record>
 
     <record id="report_purchase_quotation" model="ir.actions.report">
@@ -21,6 +22,7 @@
         <field name="print_report_name">'Request for Quotation - %s' % (object.name)</field>
         <field name="binding_model_id" ref="model_purchase_order" />
         <field name="binding_type">report</field>
+        <field name="binding_view_types">list,kanban</field>
     </record>
 
 </odoo>

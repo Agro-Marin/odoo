@@ -8,7 +8,6 @@ import time
 import uuid
 from functools import wraps
 from hashlib import sha256
-from itertools import chain
 from typing import TYPE_CHECKING, Any, Self
 
 from lxml import etree
@@ -43,7 +42,6 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 MIN_ROUNDS = 600_000
-concat = chain.from_iterable
 
 
 def _jsonable(o: object) -> bool:

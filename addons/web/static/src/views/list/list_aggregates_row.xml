@@ -28,10 +28,10 @@
                         t-on-keydown="(ev) => this.onGroupInputKeydown(ev)"
                     />
                     <button class="btn btn-primary o_list_group_confirm" type="button" t-on-click="_confirmGroupInput">
-                        <i class="fa fa-check"/>
+                        <i class="fa-solid fa-check"/>
                     </button>
                     <button class="btn btn-danger o_list_group_cancel" type="button" t-on-click="props.onHideGroupInput">
-                        <i class="fa fa-times"/>
+                        <i class="fa-solid fa-times"/>
                     </button>
                 </div>
             </td>

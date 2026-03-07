@@ -30,7 +30,7 @@
                             type="object"
                             class="oe_stat_button"
                             invisible="access_mode == 'public'"
-                            icon="fa-envelope-o">
+                            icon="fa-regular fa-envelope">
                             <field string="Registered" name="answer_count" widget="statinfo"/>
                         </button>
                         <button name="action_survey_user_input_certified"
@@ -43,7 +43,7 @@
                         <button name="action_survey_user_input_completed"
                             type="object"
                             class="oe_stat_button"
-                            icon="fa-check-square-o">
+                            icon="fa-regular fa-square-check">
                             <field string="Participants" name="answer_done_count" widget="statinfo"/>
                         </button>
                     </div>

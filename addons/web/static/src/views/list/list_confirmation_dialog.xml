@@ -51,7 +51,7 @@
                         </tbody>
                     </table>
                     <div t-if="showTip" class="alert alert-info d-flex align-items-center mt-3">
-                        <i class="fa fa-lightbulb-o fa-lg me-4"></i>
+                        <i class="fa-regular fa-lightbulb fa-lg me-4"></i>
                         <div class="text-muted">
                             <div>Use the operators "+=", "-=", "*=" and "/=" to update the current value.</div>
                             <div>For example, if the value is "1" and you enter "+=2", it will be updated to "3".</div>

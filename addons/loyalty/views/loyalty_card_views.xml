@@ -51,7 +51,7 @@
                 <field name="expiration_date"/>
                 <field name="program_id"/>
                 <field name="partner_id"/>
-                <button name="action_coupon_send" string="Send" type="object" icon="fa-paper-plane-o"/>
+                <button name="action_coupon_send" string="Send" type="object" icon="fa-regular fa-paper-plane"/>
             </list>
         </field>
     </record>

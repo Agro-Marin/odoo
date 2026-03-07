@@ -66,13 +66,13 @@
                                 class="o_form_label" />
                             <button name="switch_based_on_duration"
                                 invisible="duration_based or flexible_hours" type="object"
-                                icon="fa-square-o" title="Switch to Duration based attendance"
+                                icon="fa-regular fa-square" title="Switch to Duration based attendance"
                                 class="btn p-0"
                                 confirm="If checked, the working schedule will be based on an amount of hours (defined for each day) and not a start &amp; end time anymore.Do you confirm ?"
                                 confirm-label="Confirm" />
                             <button name="switch_based_on_duration"
                                 invisible="not duration_based or flexible_hours" type="object"
-                                icon="fa-check-square" title="Switch to fixed attendance"
+                                icon="fa-solid fa-square-check" title="Switch to fixed attendance"
                                 class="btn p-0"
                                 confirm="If unchecked, the working schedule will be based on a defined start and end hours.Do you confirm ?"
                                 confirm-label="Confirm" />
@@ -117,13 +117,13 @@
                                     class="o_form_label" />
                                 <button name="switch_calendar_type" invisible="two_weeks_calendar"
                                     type="object"
-                                    icon="fa-square-o" title="Switch to 2-weeks calendar"
+                                    icon="fa-regular fa-square" title="Switch to 2-weeks calendar"
                                     class="btn p-0"
                                     confirm="Are you sure you want to switch to a 2-week calendar? All work entries will be lost."
                                     confirm-label="Switch" />
                                 <button name="switch_calendar_type"
                                     invisible="not two_weeks_calendar" type="object"
-                                    icon="fa-check-square" title="Switch to 1-week calendar"
+                                    icon="fa-solid fa-square-check" title="Switch to 1-week calendar"
                                     class="btn p-0"
                                     confirm="Are you sure you want to switch to a 1-week calendar? All work entries will be lost."
                                     confirm-label="Switch" />

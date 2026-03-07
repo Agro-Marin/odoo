@@ -74,19 +74,25 @@ export function normalizedMatch(src, substr) {
         0,
     );
     for (let i = 0; i <= flattenSrcLength - normalizedSubstr.length; ++i) {
-        const substrStack = Array.from(normalizedSubstr).toReversed();
+        let substrIdx = 0;
         for (let j = 0; i + j < normalizedSrc.length; ++j) {
             const current = normalizedSrc[i + j];
-            // "every" in case normalization expanded current to several chars
-            if (
-                ![...current].every(
-                    (c) => substrStack.length === 0 || c === substrStack.pop(),
-                )
-            ) {
+            // Iterate codepoints directly — normalization may expand a single
+            // source character to several normalized characters (e.g. "ß" → "ss").
+            let allMatched = true;
+            for (const c of current) {
+                if (substrIdx < normalizedSubstr.length) {
+                    if (c !== normalizedSubstr[substrIdx]) {
+                        allMatched = false;
+                        break;
+                    }
+                    substrIdx++;
+                }
+            }
+            if (!allMatched) {
                 break;
             }
-            if (substrStack.length === 0) {
-                // full substring matched, return the result 😤
+            if (substrIdx >= normalizedSubstr.length) {
                 const start = srcAsCodepoints.slice(0, i).join("").length;
                 const match = srcAsCodepoints.slice(i, i + j + 1).join("");
                 const end = start + match.length;

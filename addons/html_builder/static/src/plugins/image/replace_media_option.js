@@ -3,9 +3,9 @@ import { _t } from "@web/core/l10n/translation";
 
 export class ReplaceMediaOption extends BaseOptionComponent {
     static template = "html_builder.ReplaceMediaOption";
-    static selector = "img, .media_iframe_video, span.fa, i.fa";
+    static selector = "img, .media_iframe_video, :is(span, i):is(.fa-solid, .fa-regular, .fa-brands)";
     static exclude =
-        "[data-oe-xpath], a[href^='/website/social/'] > i.fa, a[class*='s_share_'] > i.fa";
+        "[data-oe-xpath], a[href^='/website/social/'] > i:is(.fa-solid, .fa-regular, .fa-brands), a[class*='s_share_'] > i:is(.fa-solid, .fa-regular, .fa-brands)";
     static name = "replaceMediaOption";
     setup() {
         super.setup();
@@ -33,7 +33,7 @@ export class ReplaceMediaOption extends BaseOptionComponent {
         } else if (classes.contains("img")) {
             return _t("Replace Image");
         } else if (
-            classes.contains("fa") ||
+            classes.contains("fa-solid") || classes.contains("fa-regular") || classes.contains("fa-brands") ||
             Array.from(classes).some((cls) => cls.startsWith("s_share_"))
         ) {
             return _t("Replace Icon");

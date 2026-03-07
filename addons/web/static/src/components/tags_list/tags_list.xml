@@ -29,7 +29,7 @@
                     class="o_avatar o_m2m_avatar position-relative rounded"
                     t-att-class="tag.imageClass"/>
 
-                <i t-if="tag.icon" t-attf-class="p-1 fa {{ tag.icon }}" t-att-class="tag.className"/>
+                <i t-if="tag.icon" t-attf-class="p-1 {{ tag.icon }}" t-att-class="tag.className"/>
 
                 <div
                     t-if="props.displayText"

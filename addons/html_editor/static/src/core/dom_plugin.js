@@ -581,7 +581,7 @@ export class DomPlugin extends Plugin {
     // commands
     // --------------------------------------------------------------------------
 
-    insertFontAwesome({ faClass = "fa fa-star" } = {}) {
+    insertFontAwesome({ faClass = "fa-solid fa-star" } = {}) {
         const fontAwesomeNode = document.createElement("i");
         fontAwesomeNode.className = faClass;
         this.insert(fontAwesomeNode);

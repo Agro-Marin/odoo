@@ -113,12 +113,15 @@
             'html_editor/static/src/scss/bootstrap_overridden.scss',
             'html_builder/static/src/scss/background.scss',
 
-            'web/static/src/libs/fontawesome/css/font-awesome.css',
+            'web/static/src/libs/fontawesome7/css/fontawesome.css',
+            'web/static/src/libs/fontawesome7/css/solid.css',
+            'web/static/src/libs/fontawesome7/css/regular.css',
+            'web/static/src/libs/fontawesome7/css/brands.css',
             'web/static/lib/odoo_ui_icons/*',
             'web/static/src/scss/animation.scss',
             'web/static/src/scss/mimetypes.scss',
             'web/static/src/scss/ui.scss',
-            'web/static/src/scss/fontawesome_overridden.scss',
+            'web/static/src/scss/rtl_icon_flip.scss',
 
             ('include', 'mass_mailing.assets_mail_themes'),
             'mass_mailing/static/src/scss/mass_mailing_mail.scss',

@@ -12,13 +12,13 @@
         <h3 class="s_rating_title">Quality</h3>
         <div class="s_rating_icons o_not_editable">
             <span class="s_rating_active_icons" style="color: #f3cc00;">
-                <i class="fa fa-star"></i>
-                <i class="fa fa-star"></i>
-                <i class="fa fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
+                <i class="fa-solid fa-star"></i>
             </span>
             <span class="s_rating_inactive_icons" style="color: var(--border-color);">
-                <i class="fa fa-star-o"></i>
-                <i class="fa fa-star-o"></i>
+                <i class="fa-regular fa-star"></i>
+                <i class="fa-regular fa-star"></i>
             </span>
         </div>
     </div>
@@ -36,7 +36,7 @@
 
 <template id="s_alert" name="Alert">
     <div class="oe_unmovable s_alert s_mail_alert s_alert_md alert alert-info w-100 row" style="border-width: 1px !important; border-color: rgb(190 229 235) !important;">
-        <i class="fa fa-2x fa-info-circle fa-stack o_not_editable s_alert_icon rounded-1 col-auto"/>
+        <i class="fa-solid fa-info-circle fa-2x fa-stack o_not_editable s_alert_icon rounded-1 col-auto"/>
         <div class="s_alert_content col-9">
             <p class="mb-0">Explain the benefits you offer. <br/>Don't write about products or services here, write about solutions.</p>
         </div>
@@ -46,7 +46,7 @@
 <template name="CTA Badge" id="s_cta_badge">
     <div class="s_cta_badge badge d-block mx-auto o_mail_snippet_general border rounded py-2 px-3" data-name="CTA Badge" style="border-radius: 32px !important;">
         <p class="mb-0">
-            <span class="fa fa-fw fa-info-circle" role="img"/>&#160;&#160;What do you want to promote&amp;nbsp;? &#160;&#160;&#160;&#160;<a href="#">See more <span class="fa fa-long-arrow-right" role="img"/></a>
+            <span class="fa-solid fa-info-circle" role="img"/>&#160;&#160;What do you want to promote&amp;nbsp;? &#160;&#160;&#160;&#160;<a href="#">See more <span class="fa-solid fa-right-long" role="img"/></a>
         </p>
     </div>
 </template>
@@ -85,7 +85,7 @@
 <template name="Badge" id="s_badge">
     <div class="s_badge badge text-bg-secondary o_mail_snippet_general" data-name="Badge" data-vxml="001">
         <p class="mb-0">
-            <span class="fa fa-fw fa-folder"/>Category
+            <span class="fa-solid fa-folder"/>Category
         </p>
     </div>
 </template>

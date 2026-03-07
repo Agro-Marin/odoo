@@ -6,9 +6,9 @@ import { Component, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 const DENSITY_META = {
-    default: { icon: "fa fa-expand", next: "compact", label: "Default" },
-    compact: { icon: "fa fa-compress", next: "condensed", label: "Compact" },
-    condensed: { icon: "fa fa-bars", next: "default", label: "Condensed" },
+    default: { icon: "fa-solid fa-up-right-and-down-left-from-center", next: "compact", label: "Default" },
+    compact: { icon: "fa-solid fa-down-left-and-up-right-to-center", next: "condensed", label: "Compact" },
+    condensed: { icon: "fa-solid fa-bars", next: "default", label: "Condensed" },
 };
 
 /**
@@ -29,7 +29,7 @@ export class DensityToggle extends Component {
 
     /** @returns {string} Font Awesome icon class for the current density. */
     get icon() {
-        return DENSITY_META[this.state.density]?.icon ?? "fa fa-expand";
+        return DENSITY_META[this.state.density]?.icon ?? "fa-solid fa-up-right-and-down-left-from-center";
     }
 
     /** @returns {string} Tooltip text describing current density and next on click. */

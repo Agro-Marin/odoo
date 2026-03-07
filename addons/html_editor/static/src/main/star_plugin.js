@@ -23,7 +23,7 @@ export class StarPlugin extends Plugin {
                 title: _t("3 Stars"),
                 description: _t("Insert a rating over 3 stars"),
                 categoryId: "widget",
-                icon: "fa-star-o",
+                icon: "fa-regular fa-star",
                 commandId: "addStars",
                 commandParams: { length: 3 },
             },
@@ -45,8 +45,7 @@ export class StarPlugin extends Plugin {
     onMouseDown(ev) {
         const node = ev.target;
         const isStar = (node) =>
-            node.nodeType === Node.ELEMENT_NODE &&
-            (node.classList.contains("fa-star") || node.classList.contains("fa-star-o"));
+            node.nodeType === Node.ELEMENT_NODE && node.classList.contains("fa-star");
         if (
             isStar(node) &&
             node.parentElement &&
@@ -61,12 +60,12 @@ export class StarPlugin extends Plugin {
                     node.classList.contains("fa-star") &&
                     (!nextStars[0] || !nextStars[0].classList.contains("fa-star"));
                 for (const star of [...previousStars, node]) {
-                    star.classList.toggle("fa-star-o", shouldToggleOff);
-                    star.classList.toggle("fa-star", !shouldToggleOff);
+                    star.classList.toggle("fa-regular", shouldToggleOff);
+                    star.classList.toggle("fa-solid", !shouldToggleOff);
                 }
                 for (const star of nextStars) {
-                    star.classList.toggle("fa-star-o", true);
-                    star.classList.toggle("fa-star", false);
+                    star.classList.toggle("fa-regular", true);
+                    star.classList.toggle("fa-solid", false);
                 }
                 this.dependencies.history.addStep();
             }
@@ -76,7 +75,7 @@ export class StarPlugin extends Plugin {
     }
 
     addStars({ length }) {
-        const stars = Array.from({ length }, () => '<i class="fa fa-star-o"></i>').join("");
+        const stars = Array.from({ length }, () => '<i class="fa-regular fa-star"></i>').join("");
         const html = `<span contenteditable="false" class="o_stars">${stars}</span>`;
         this.dependencies.dom.insert(parseHTML(this.document, html));
         this.dependencies.history.addStep();

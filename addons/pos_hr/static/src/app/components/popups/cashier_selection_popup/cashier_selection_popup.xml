@@ -17,7 +17,7 @@
                 </div>
                 <div class="d-flex align-items-center ms-1">
                     <button class="btn-cashier-lock btn btn-lg btn-secondary" title="Lock" t-on-click.stop="() => this.lock()">
-                        <i class="fa fa-fw fa-lock"/>
+                        <i class="fa-solid fa-lock"/>
                     </button>
                 </div>
             </div>

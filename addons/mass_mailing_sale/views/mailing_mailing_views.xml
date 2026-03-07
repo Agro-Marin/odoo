@@ -8,7 +8,7 @@
     		<xpath expr="//button[@id='button_view_delivered']" position="before">
                 <button name="action_redirect_to_quotations"
                     type="object"
-                    icon="fa-pencil-square-o"
+                    icon="fa-regular fa-pen-to-square"
                     class="oe_stat_button"
                     invisible="state == 'draft'">
                     <field name="sale_quotation_count" string="Quotations" widget="statinfo"/>

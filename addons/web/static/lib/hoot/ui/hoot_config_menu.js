@@ -85,7 +85,7 @@ export class HootConfigMenu extends Component {
                         title="Generate new random seed"
                         t-on-click.stop="resetSeed"
                     >
-                        <i class="fa fa-repeat" />
+                        <i class="fa-solid fa-arrow-rotate-right" />
                     </button>
                     <HootCopyButton text="config.random.toString()" />
                 </small>
@@ -223,7 +223,7 @@ export class HootConfigMenu extends Component {
                     <t t-else="">
                         none
                     </t>
-                    <i t-attf-class="fa fa-sort-numeric-{{ uiState.sortResults or 'desc' }}" />
+                    <i t-attf-class="fa-solid fa-sort-numeric-{{ uiState.sortResults or 'desc' }}" />
                 </span>
             </button>
             <label
@@ -254,7 +254,7 @@ export class HootConfigMenu extends Component {
                 title="Toggle the color scheme of the UI"
                 t-on-click.stop="toggleColorScheme"
             >
-                <i t-attf-class="fa fa-{{ color.scheme === 'light' ? 'moon' : 'sun' }}-o w-4 h-4" />
+                <i t-attf-class="fa-solid fa-{{ color.scheme === 'light' ? 'moon' : 'sun' }}-o w-4 h-4" />
                 Color scheme
             </button>
 

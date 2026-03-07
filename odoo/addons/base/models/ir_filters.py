@@ -82,9 +82,6 @@ class IrFilters(models.Model):
             for ir_filter, vals in zip(self, vals_list, strict=True)
         ]
 
-    def write(self, vals: dict[str, Any]) -> bool:
-        return super().write(vals)
-
     def _get_eval_domain(self) -> list:
         try:
             return ast.literal_eval(self.domain)

@@ -85,7 +85,7 @@
                                 type="action"
                                 context="{'search_default_mail_group_id': id, 'search_default_moderation_status': 'pending_moderation'}"
                                 class="oe_stat_button"
-                                icon="fa-commenting-o"
+                                icon="fa-regular fa-comment-dots"
                                 help="Emails waiting an action for this group"
                                 invisible="not (moderation and mail_group_message_moderation_count != 0)">
                             <field name="mail_group_message_moderation_count" widget="statinfo" string="To Review"/>

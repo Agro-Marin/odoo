@@ -16,11 +16,11 @@
                 t-att-data-product-template-id="product_id"
                 data-action="o_wishlist"
             >
-                <i class="fa fa-heart-o me-2"/>Add to wishlist
+                <i class="fa-regular fa-heart me-2"/>Add to wishlist
             </button>
             <div id="wsale_added_to_your_wishlist_alert" t-att-class="is_in_wishlist ? '' : 'd-none'">
                 <div class="btn btn-outline-primary disabled">
-                    <i class="fa fa-heart me-2"/>Added to your wishlist
+                    <i class="fa-solid fa-heart me-2"/>Added to your wishlist
                 </div>
             </div>
 

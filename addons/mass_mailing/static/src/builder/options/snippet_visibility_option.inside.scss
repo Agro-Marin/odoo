@@ -6,7 +6,8 @@ section[data-filter-domain]:not([data-filter-domain="[]"]) {
         pointer-events: none;
         opacity: 50%;
         position: absolute;
-        font-family: "FontAwesome";
+        font-family: "Font Awesome 7 Free";
+        font-weight: 900;
         content: "\f070";
         font-size: xx-large;
         color: $o-we-color-accent;

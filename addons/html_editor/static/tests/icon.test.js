@@ -10,9 +10,9 @@ import { execCommand } from "./_helpers/userCommands";
 import { unformat } from "./_helpers/format";
 
 test("icon toolbar is displayed", async () => {
-    const { el } = await setupEditor(`<p><span class="fa fa-glass"></span></p>`);
+    const { el } = await setupEditor(`<p><span class="fa-solid fa-martini-glass-empty"></span></p>`);
     expect(getContent(el)).toBe(
-        `<p>\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeff</p>`
+        `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -24,16 +24,16 @@ test("icon toolbar is displayed", async () => {
         focusOffset: 2,
     });
     expect(getContent(el)).toBe(
-        `<p>\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
     expect(".btn-group[name='icon_size']").toHaveCount(1);
 });
 
 test("icon toolbar is displayed (2)", async () => {
-    const { el } = await setupEditor(`<p>abc<span class="fa fa-glass"></span>def</p>`);
+    const { el } = await setupEditor(`<p>abc<span class="fa-solid fa-martini-glass-empty"></span>def</p>`);
     expect(getContent(el)).toBe(
-        `<p>abc\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeffdef</p>`
+        `<p>abc\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeffdef</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -45,16 +45,16 @@ test("icon toolbar is displayed (2)", async () => {
         focusOffset: 3,
     });
     expect(getContent(el)).toBe(
-        `<p>abc\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeffdef</p>`
+        `<p>abc\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeffdef</p>`
     );
     await waitFor(".o-we-toolbar");
     expect(".btn-group[name='icon_size']").toHaveCount(1);
 });
 
 test("icon toolbar is displayed (3)", async () => {
-    const { el } = await setupEditor(`<p>abc<span class="fa fa-glass"></span>def</p>`);
+    const { el } = await setupEditor(`<p>abc<span class="fa-solid fa-martini-glass-empty"></span>def</p>`);
     expect(getContent(el)).toBe(
-        `<p>abc\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeffdef</p>`
+        `<p>abc\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeffdef</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -66,16 +66,16 @@ test("icon toolbar is displayed (3)", async () => {
         focusOffset: 3,
     });
     expect(getContent(el)).toBe(
-        `<p>abc\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeffdef</p>`
+        `<p>abc\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeffdef</p>`
     );
     await waitFor(".o-we-toolbar");
     expect(".btn-group[name='icon_size']").toHaveCount(1);
 });
 
 test("icon toolbar is not displayed on rating stars", async () => {
-    const { el } = await setupEditor(`<p><span class="fa fa-glass"></span></p>`);
+    const { el } = await setupEditor(`<p><span class="fa-solid fa-martini-glass-empty"></span></p>`);
     expect(getContent(el)).toBe(
-        `<p>\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeff</p>`
+        `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -87,34 +87,34 @@ test("icon toolbar is not displayed on rating stars", async () => {
         focusOffset: 2,
     });
     expect(getContent(el)).toBe(
-        `<p>\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
     expect(".btn-group[name='icon_size']").toHaveCount(1);
     setContent(
         el,
-        `<p>\u200B<span contenteditable="false" class="o_stars"><i class="fa fa-star-o" contenteditable="false">\u200B</i><i class="fa fa-star-o" contenteditable="false">\u200B</i>[<i class="fa fa-star-o" contenteditable="false">\u200B</i></span>]\u200B</p>`
+        `<p>\u200B<span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="fa-regular fa-star" contenteditable="false">\u200B</i>[<i class="fa-regular fa-star" contenteditable="false">\u200B</i></span>]\u200B</p>`
     );
     await waitForNone(".o-we-toolbar .btn-group[name='icon_size']");
     expect(".btn-group[name='icon_size']").toHaveCount(0);
 });
 
 test("toolbar should not be namespaced for icon", async () => {
-    await setupEditor(`<p>a[bc<span class="fa fa-glass"></span>]def</p>`);
+    await setupEditor(`<p>a[bc<span class="fa-solid fa-martini-glass-empty"></span>]def</p>`);
     await waitFor(".o-we-toolbar");
     expect(".btn-group[name='icon_size']").toHaveCount(0);
 });
 
 test("toolbar should not be namespaced for icon (2)", async () => {
-    await setupEditor(`<p>abc[<span class="fa fa-glass"></span>de]f</p>`);
+    await setupEditor(`<p>abc[<span class="fa-solid fa-martini-glass-empty"></span>de]f</p>`);
     await waitFor(".o-we-toolbar");
     expect(".btn-group[name='icon_size']").toHaveCount(0);
 });
 
 test("Can resize an icon", async () => {
-    const { el } = await setupEditor(`<p><span class="fa fa-glass"></span></p>`);
+    const { el } = await setupEditor(`<p><span class="fa-solid fa-martini-glass-empty"></span></p>`);
     expect(getContent(el)).toBe(
-        `<p>\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeff</p>`
+        `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -126,7 +126,7 @@ test("Can resize an icon", async () => {
         focusOffset: 2,
     });
     expect(getContent(el)).toBe(
-        `<p>\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
     expect("span.fa-glass").toHaveCount(1);
@@ -146,9 +146,9 @@ test("Can resize an icon", async () => {
 });
 
 test("Can spin an icon", async () => {
-    const { el } = await setupEditor(`<p><span class="fa fa-glass"></span></p>`);
+    const { el } = await setupEditor(`<p><span class="fa-solid fa-martini-glass-empty"></span></p>`);
     expect(getContent(el)).toBe(
-        `<p>\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeff</p>`
+        `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -160,7 +160,7 @@ test("Can spin an icon", async () => {
         focusOffset: 2,
     });
     expect(getContent(el)).toBe(
-        `<p>\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
     expect("span.fa-glass").toHaveCount(1);
@@ -169,7 +169,7 @@ test("Can spin an icon", async () => {
 });
 
 test("Can set icon color", async () => {
-    const { el } = await setupEditor(`<p><span class="fa fa-glass">[]</span></p>`);
+    const { el } = await setupEditor(`<p><span class="fa-solid fa-martini-glass-empty">[]</span></p>`);
     await waitFor(".o-we-toolbar");
     expect(".o_font_color_selector").toHaveCount(0);
     await click(".o-select-color-foreground");
@@ -180,14 +180,14 @@ test("Can set icon color", async () => {
     await expectElementCount(".o-we-toolbar", 1);
     expect(".o_font_color_selector").toHaveCount(0); // selector closed
     expect(getContent(el)).toBe(
-        `<p>[<font style="color: rgb(107, 173, 222);">\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeff</font>]</p>`
+        `<p>[<font style="color: rgb(107, 173, 222);">\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</font>]</p>`
     );
 });
 
 test("Can undo to 1x size after applying 2x size", async () => {
-    const { el, editor } = await setupEditor(`<p><span class="fa fa-glass"></span></p>`);
+    const { el, editor } = await setupEditor(`<p><span class="fa-solid fa-martini-glass-empty"></span></p>`);
     expect(getContent(el)).toBe(
-        `<p>\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeff</p>`
+        `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -199,7 +199,7 @@ test("Can undo to 1x size after applying 2x size", async () => {
         focusOffset: 2,
     });
     expect(getContent(el)).toBe(
-        `<p>\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
     expect("span.fa-glass").toHaveCount(1);
@@ -211,9 +211,9 @@ test("Can undo to 1x size after applying 2x size", async () => {
 });
 
 test("Can replace icon using toolbar", async () => {
-    const { el, editor } = await setupEditor(`<p><span class="fa fa-heart"></span></p>`);
+    const { el, editor } = await setupEditor(`<p><span class="fa-solid fa-heart"></span></p>`);
     expect(getContent(el)).toBe(
-        `<p>\ufeff<span class="fa fa-heart" contenteditable="false">\u200b</span>\ufeff</p>`
+        `<p>\ufeff<span class="fa-solid fa-heart" contenteditable="false">\u200b</span>\ufeff</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -225,7 +225,7 @@ test("Can replace icon using toolbar", async () => {
         focusOffset: 2,
     });
     expect(getContent(el)).toBe(
-        `<p>\ufeff[<span class="fa fa-heart" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-heart" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
     await contains("button[name='icon_replace']").click();
@@ -247,9 +247,9 @@ test("Can replace icon using toolbar", async () => {
 });
 
 test("Styles should be preserved when replacing icon", async () => {
-    const { el } = await setupEditor(`<p><span class="fa fa-heart fa-3x"></span></p>`);
+    const { el } = await setupEditor(`<p><span class="fa-solid fa-heart fa-3x"></span></p>`);
     expect(getContent(el)).toBe(
-        `<p>\ufeff<span class="fa fa-heart fa-3x" contenteditable="false">\u200b</span>\ufeff</p>`
+        `<p>\ufeff<span class="fa-solid fa-heart fa-3x" contenteditable="false">\u200b</span>\ufeff</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -261,7 +261,7 @@ test("Styles should be preserved when replacing icon", async () => {
         focusOffset: 2,
     });
     expect(getContent(el)).toBe(
-        `<p>\ufeff[<span class="fa fa-heart fa-3x" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-heart fa-3x" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
     await contains("button[name='icon_replace']").click();
@@ -372,9 +372,9 @@ test("Can replace a font awesome regular icon", async () => {
 });
 
 test("Should be able to undo after adding spin effect to an icon", async () => {
-    const { el, editor } = await setupEditor('<p><span class="fa fa-glass"></span></p>');
+    const { el, editor } = await setupEditor('<p><span class="fa-solid fa-martini-glass-empty"></span></p>');
     expect(getContent(el)).toBe(
-        `<p>\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeff</p>`
+        `<p>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</p>`
     );
     // Selection normalization include U+FEFF, moving the cursor outside the
     // icon and triggering the normal toolbar. To prevent this, we exclude
@@ -387,7 +387,7 @@ test("Should be able to undo after adding spin effect to an icon", async () => {
     });
     editor.shared.history.stageSelection();
     expect(getContent(el)).toBe(
-        `<p>\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeff</p>`
+        `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
     expect(".btn-group[name='icon_spin']").toHaveCount(1);
@@ -406,25 +406,25 @@ test("Should be able to undo after adding spin effect to an icon", async () => {
 
 describe("selection", () => {
     test("selection inside icon gets expanded to its outer boundaries", async () => {
-        const { el } = await setupEditor(`<p>abc<span class="fa fa-glass"></span>def</p>`);
+        const { el } = await setupEditor(`<p>abc<span class="fa-solid fa-martini-glass-empty"></span>def</p>`);
         const icon = el.querySelector("span.fa-glass");
         setSelection({ anchorNode: icon, anchorOffset: 0 });
         await tick();
         expect(getContent(el)).toBe(
-            `<p>abc\ufeff[<span class="fa fa-glass" contenteditable="false">\u200b</span>]\ufeffdef</p>`
+            `<p>abc\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeffdef</p>`
         );
     });
 
     test("selection inside icon gets expanded around it, but not around its contenteditable=false ancestor", async () => {
         const { el } = await setupEditor(
-            `<p contenteditable="false">abc<span class="fa fa-glass"></span>def</p>`
+            `<p contenteditable="false">abc<span class="fa-solid fa-martini-glass-empty"></span>def</p>`
         );
         const icon = el.querySelector("span.fa-glass");
         setSelection({ anchorNode: icon, anchorOffset: 0 });
         await tick();
         expect(getContent(el)).toBe(
             '<p data-selection-placeholder=""><br></p>' +
-                '<p contenteditable="false">abc[<span class="fa fa-glass" contenteditable="false">\u200b</span>]def</p>' +
+                '<p contenteditable="false">abc[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]def</p>' +
                 '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>'
         );
     });
@@ -432,15 +432,15 @@ describe("selection", () => {
 
 test("should insert two empty paragraphs when Enter is pressed twice before the icon element", async () => {
     const { el, editor } = await setupEditor(
-        `<p>[]<span class="fa fa-glass" contenteditable="false"></span></p>`
+        `<p>[]<span class="fa-solid fa-martini-glass-empty" contenteditable="false"></span></p>`
     );
     splitBlock(editor);
     expect(getContent(el)).toBe(
-        `<p><br></p><p>\ufeff[]<span class="fa fa-glass" contenteditable="false">\u200B</span>\ufeff</p>`
+        `<p><br></p><p>\ufeff[]<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200B</span>\ufeff</p>`
     );
     splitBlock(editor);
     expect(getContent(el)).toBe(
-        `<p><br></p><p><br></p><p>\ufeff[]<span class="fa fa-glass" contenteditable="false">\u200B</span>\ufeff</p>`
+        `<p><br></p><p><br></p><p>\ufeff[]<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200B</span>\ufeff</p>`
     );
 });
 
@@ -448,12 +448,12 @@ test("should wrap icons in feff when under list item", async () => {
     await testEditor({
         contentBefore: unformat(`
                 <ul>
-                    <li><span class="fa fa-glass" contenteditable="false"></span></li>
+                    <li><span class="fa-solid fa-martini-glass-empty" contenteditable="false"></span></li>
                 </ul>
             `),
         contentBeforeEdit: unformat(`
             <ul>
-                <li>\ufeff<span class="fa fa-glass" contenteditable="false">\u200B</span>\ufeff</li>
+                <li>\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200B</span>\ufeff</li>
             </ul>
         `),
     });

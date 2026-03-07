@@ -21,7 +21,7 @@
                     class="btn pe-0 text-danger float-end o_field_property_definition_delete"
                     title="Remove Property"
                     t-on-click="props.onDelete">
-                    <i class="fa fa-trash"/> Delete
+                    <i class="fa-solid fa-trash-can"/> Delete
                 </button>
             </div>
             <div class="o_modal_container p-3 o_inner_group grid">

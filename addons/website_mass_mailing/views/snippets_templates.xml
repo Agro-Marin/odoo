@@ -44,7 +44,7 @@ database, without the s_newsletter_list class. See fixNewsletterListClass.
     <div t-attf-class="s_newsletter_subscribe_form s_newsletter_list js_subscribe #{_contentClasses}" data-vxml="001" data-list-id="0" data-name="Newsletter Form">
         <div class="js_subscribed_wrap d-none">
             <t t-if="thank_you_message" t-out="thank_you_message"/>
-            <p t-else="" class="h4-fs text-center text-success"><i class="fa fa-check-circle-o" role="img"/> Thanks for registering!</p>
+            <p t-else="" class="h4-fs text-center text-success"><i class="fa-regular fa-circle-check" role="img"/> Thanks for registering!</p>
         </div>
         <div class="js_subscribe_wrap">
             <div t-attf-class="{{_wrap_classes or 'input-group'}}">
@@ -139,7 +139,7 @@ database, without the s_newsletter_list class. See fixNewsletterListClass.
                     <p class="lead">Be the first to find out all the latest new, products and trends.</p>
                     <t t-snippet-call="website_mass_mailing.s_newsletter_subscribe_form">
                         <t t-set="thank_you_message">
-                            <p class="h5-fs mt-4 text-success"><i class="fa fa-check-circle-o" role="img"/> Thanks for registering!</p>
+                            <p class="h5-fs mt-4 text-success"><i class="fa-regular fa-circle-check" role="img"/> Thanks for registering!</p>
                         </t>
                         <t t-set="_wrapClasses" t-value="'input-group input-group-lg'"/>
                     </t>
@@ -244,7 +244,7 @@ database, without the s_newsletter_list class. See fixNewsletterListClass.
                 <div class="oe_structure">
                     <section class="s_text_block pt64 pb64 o_colored_level o_cc o_cc2 text-center" data-snippet="s_text_block">
                         <div class="container">
-                            <i class="fa fa-paper-plane fa-2x mb-3 rounded-circle text-bg-success" role="presentation"/>
+                            <i class="fa-solid fa-paper-plane fa-2x mb-3 rounded-circle text-bg-success" role="presentation"/>
                             <h1 class="fw-bolder">Thank you for subscribing!</h1>
                             <p class="lead">You will now be informed about the latest news.</p>
                         </div>

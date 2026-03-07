@@ -41,46 +41,46 @@
                                 <div invisible="question_type != 'simple_choice'" role="img" aria-label="Multiple choice with one answer"
                                     title="Multiple choice with one answer">
                                     <span>Which is yellow?</span><br/>
-                                    <div class="o_preview_questions_choice mb-2"><i class="fa fa-circle-o  fa-lg me-2"/>answer</div>
-                                    <div class="o_preview_questions_choice mb-2"><i class="fa fa-dot-circle-o fa-lg me-2"/>answer</div>
-                                    <div class="o_preview_questions_choice"><i class="fa fa-circle-o  fa-lg me-2"/>answer</div>
+                                    <div class="o_preview_questions_choice mb-2"><i class="fa-regular fa-circle fa-lg me-2"/>answer</div>
+                                    <div class="o_preview_questions_choice mb-2"><i class="fa-regular fa-circle-dot fa-lg me-2"/>answer</div>
+                                    <div class="o_preview_questions_choice"><i class="fa-regular fa-circle fa-lg me-2"/>answer</div>
                                 </div>
                                 <!-- Multiple choice: multiple answers allowed -->
                                 <div invisible="question_type != 'multiple_choice'" role="img" aria-label="Multiple choice with multiple answers"
                                     title="Multiple choice with multiple answers">
                                     <span>Which are yellow?</span><br/>
-                                    <div class="o_preview_questions_choice mb-2"><i class="fa fa-square-o fa-lg me-2"/>answer</div>
-                                    <div class="o_preview_questions_choice mb-2"><i class="fa fa-check-square-o fa-lg me-2"/>answer</div>
-                                    <div class="o_preview_questions_choice"><i class="fa fa-check-square-o fa-lg me-2"/>answer</div>
+                                    <div class="o_preview_questions_choice mb-2"><i class="fa-regular fa-square fa-lg me-2"/>answer</div>
+                                    <div class="o_preview_questions_choice mb-2"><i class="fa-regular fa-square-check fa-lg me-2"/>answer</div>
+                                    <div class="o_preview_questions_choice"><i class="fa-regular fa-square-check fa-lg me-2"/>answer</div>
                                 </div>
                                 <!-- Multiple Lines Text Zone -->
                                 <div invisible="question_type != 'text_box'">
                                     <span>Name all the animals</span><br/>
-                                    <i class="fa fa-align-justify fa-4x" role="img" aria-label="Multiple lines" title="Multiple Lines"/>
+                                    <i class="fa-solid fa-align-justify fa-4x" role="img" aria-label="Multiple lines" title="Multiple Lines"/>
                                 </div>
                                 <!-- Single Line Text Zone -->
                                 <div invisible="question_type != 'char_box'">
                                     <span>Name one animal</span><br/>
-                                    <i class="fa fa-minus fa-4x" role="img" aria-label="Single Line" title="Single Line"/>
+                                    <i class="fa-solid fa-minus fa-4x" role="img" aria-label="Single Line" title="Single Line"/>
                                 </div>
                                 <!-- Numerical Value -->
                                 <div invisible="question_type != 'numerical_box'">
                                     <span>How many ...?</span><br/>
-                                    <i class="fa fa-2x" role="img" aria-label="Numeric" title="Numeric">123&#160;</i>
-                                    <i class="fa fa-2x fa-sort" role="img" aria-label="Numeric"/>
+                                    <i class="fa-2x" role="img" aria-label="Numeric" title="Numeric">123&#160;</i>
+                                    <i class="fa-solid fa-sort fa-2x" role="img" aria-label="Numeric"/>
                                 </div>
                                 <!-- Date -->
                                 <div invisible="question_type != 'date'">
                                     <span>When is Christmas?</span><br/>
                                     <p class="o_datetime border-0" >YYYY-MM-DD
-                                        <i class="fa fa-calendar" role="img" aria-label="Calendar" title="Calendar"/>
+                                        <i class="fa-solid fa-calendar-days" role="img" aria-label="Calendar" title="Calendar"/>
                                     </p>
                                 </div>
                                 <!-- Date and Time -->
                                 <div invisible="question_type != 'datetime'">
                                     <span>When does ... start?</span><br/>
                                     <p class="o_datetime border-0">YYYY-MM-DD hh:mm:ss
-                                        <i class="fa fa-calendar" role="img" aria-label="Calendar" title="Calendar"/>
+                                        <i class="fa-solid fa-calendar-days" role="img" aria-label="Calendar" title="Calendar"/>
                                     </p>
                                 </div>
                                 <!-- Matrix -->
@@ -93,21 +93,21 @@
                                     </div>
                                     <div class="row o_matrix_row">
                                         <div class="col-3">Row1</div>
-                                        <div class="col-3"><i class="fa fa-circle-o fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
-                                        <div class="col-3"><i class="fa fa-dot-circle-o fa-lg" role="img" aria-label="Checked" title="Checked"/></div>
-                                        <div class="col-3"><i class="fa fa-circle-o fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
+                                        <div class="col-3"><i class="fa-regular fa-circle fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
+                                        <div class="col-3"><i class="fa-regular fa-circle-dot fa-lg" role="img" aria-label="Checked" title="Checked"/></div>
+                                        <div class="col-3"><i class="fa-regular fa-circle fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
                                     </div>
                                     <div class="row o_matrix_row">
                                         <div class="col-3">Row2</div>
-                                        <div class="col-3"><i class="fa fa-circle-o fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
-                                        <div class="col-3"><i class="fa fa-circle-o fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
-                                        <div class="col-3"><i class="fa fa-dot-circle-o fa-lg" role="img" aria-label="Checked" title="Checked"/></div>
+                                        <div class="col-3"><i class="fa-regular fa-circle fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
+                                        <div class="col-3"><i class="fa-regular fa-circle fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
+                                        <div class="col-3"><i class="fa-regular fa-circle-dot fa-lg" role="img" aria-label="Checked" title="Checked"/></div>
                                     </div>
                                     <div class="row o_matrix_row">
                                         <div class="col-3">Row3</div>
-                                        <div class="col-3"><i class="fa fa-dot-circle-o fa-lg" role="img" aria-label="Checked" title="Checked"/></div>
-                                        <div class="col-3"><i class="fa fa-circle-o fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
-                                        <div class="col-3"><i class="fa fa-circle-o fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
+                                        <div class="col-3"><i class="fa-regular fa-circle-dot fa-lg" role="img" aria-label="Checked" title="Checked"/></div>
+                                        <div class="col-3"><i class="fa-regular fa-circle fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
+                                        <div class="col-3"><i class="fa-regular fa-circle fa-lg" role="img" aria-label="Not checked" title="Not checked"/></div>
                                     </div>
                                 </div>
                                 <!-- Scale -->
@@ -213,7 +213,7 @@
                                                invisible="question_type != 'datetime'"
                                                required="validation_required and question_type == 'datetime' and not validation_max_datetime"/>
 
-                                        <i class="fa fa-long-arrow-right mx-2" aria-label="Arrow icon" title="Arrow"/>
+                                        <i class="fa-solid fa-right-long mx-2" aria-label="Arrow icon" title="Arrow"/>
                                         <!-- Maxima -->
                                         <field name="validation_length_max" class="o_survey_question_validation_inline" nolabel="1" placeholder="Maximum"
                                                invisible="question_type != 'char_box'"

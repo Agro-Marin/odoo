@@ -16,7 +16,7 @@
                             role="button"
                             href="https://www.odoo.com/documentation/latest/applications/marketing/sms_marketing/twilio.html">
                             Need help ?
-                            <i class="fa fa-external-link" aria-hidden="true"/>
+                            <i class="fa-solid fa-up-right-from-square" aria-hidden="true"/>
                         </a>
                     </div>
                     <field name="sms_twilio_auth_token" password="True" placeholder="abcde12345abcde12345abcde12345ab"
@@ -39,7 +39,7 @@
                             <field name="sequence" widget="handle"/>
                             <field name="country_id"/>
                             <field name="number" placeholder="+1 555-123-4567"/>
-                            <button name="action_unlink" title="Delete" icon="fa-trash" type="object"/>
+                            <button name="action_unlink" title="Delete" icon="fa-solid fa-trash-can" type="object"/>
                         </list>
                     </field>
                 </group>

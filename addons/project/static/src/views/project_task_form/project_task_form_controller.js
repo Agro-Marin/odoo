@@ -61,7 +61,7 @@ export class ProjectTaskFormController extends FormControllerWithHTMLExpander {
             ...super.getStaticActionMenuItems(),
             openHistoryDialog: {
                 sequence: 15,
-                icon: "fa fa-history",
+                icon: "fa-solid fa-history",
                 description: _t("Version History"),
                 callback: () => this.openHistoryDialog(),
             },

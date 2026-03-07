@@ -4,7 +4,7 @@ import { _t } from "@web/core/l10n/translation";
 registerThreadAction("leave", {
     condition: ({ owner, thread }) =>
         (thread?.canLeave || thread?.canUnpin) && !owner.isDiscussContent,
-    icon: "fa fa-fw fa-sign-out",
+    icon: "fa-solid fa-right-from-bracket",
     name: ({ thread }) =>
         thread.canLeave ? _t("Leave Channel") : _t("Unpin Conversation"),
     open: ({ thread }) => (thread.canLeave ? thread.leaveChannel() : thread.unpin()),

@@ -329,19 +329,19 @@ class SlideSlide(models.Model):
     @api.depends('slide_type')
     def _compute_slide_icon_class(self):
         icon_per_slide_type = {
-            'image': 'fa-file-picture-o',
-            'article': 'fa-file-text-o',
-            'quiz': 'fa-question-circle-o',
-            'pdf': 'fa-file-pdf-o',
-            'sheet': 'fa-file-excel-o',
-            'doc': 'fa-file-word-o',
-            'slides': 'fa-file-powerpoint-o',
-            'youtube_video': 'fa-youtube-play',
-            'google_drive_video': 'fa-play-circle-o',
-            'vimeo_video': 'fa-vimeo',
+            'image': 'fa-regular fa-file-image',
+            'article': 'fa-regular fa-file-lines',
+            'quiz': 'fa-regular fa-circle-question',
+            'pdf': 'fa-regular fa-file-pdf',
+            'sheet': 'fa-regular fa-file-excel',
+            'doc': 'fa-regular fa-file-word',
+            'slides': 'fa-regular fa-file-powerpoint',
+            'youtube_video': 'fa-brands fa-youtube',
+            'google_drive_video': 'fa-regular fa-circle-play',
+            'vimeo_video': 'fa-brands fa-vimeo',
         }
         for slide in self:
-            slide.slide_icon_class = icon_per_slide_type.get(slide.slide_type, 'fa-file-o')
+            slide.slide_icon_class = icon_per_slide_type.get(slide.slide_type, 'fa-regular fa-file')
 
     @api.depends('slide_category', 'source_type', 'video_source_type')
     def _compute_slide_type(self):
@@ -1306,17 +1306,17 @@ class SlideSlide(models.Model):
 
     def _search_render_results(self, fetch_fields, mapping, icon, limit):
         icon_per_category = {
-            'infographic': 'fa-file-picture-o',
-            'article': 'fa-file-text',
-            'presentation': 'fa-file-pdf-o',
-            'document': 'fa-file-pdf-o',
-            'video': 'fa-play-circle',
-            'quiz': 'fa-question-circle',
-            'link': 'fa-file-code-o', # appears in template "slide_icon"
+            'infographic': 'fa-regular fa-file-image',
+            'article': 'fa-solid fa-file-lines',
+            'presentation': 'fa-regular fa-file-pdf',
+            'document': 'fa-regular fa-file-pdf',
+            'video': 'fa-regular fa-circle-play',
+            'quiz': 'fa-solid fa-circle-question',
+            'link': 'fa-regular fa-file-code',
         }
         results_data = super()._search_render_results(fetch_fields, mapping, icon, limit)
         for slide, data in zip(self, results_data):
-            data['_fa'] = icon_per_category.get(slide.slide_category, 'fa-file-pdf-o')
+            data['_fa'] = icon_per_category.get(slide.slide_category, 'fa-regular fa-file-pdf')
             data['url'] = slide.website_absolute_url
             data['course'] = _('Course: %s', slide.channel_id.name)
             data['course_url'] = slide.channel_id.website_absolute_url

@@ -298,7 +298,12 @@ function configureBlobDownloadXHR(
         // In Odoo, the default mimetype, including for JSON errors is text/html (ref: http.py:Root.get_response )
         // in that case, in order to also be able to download html files, we check if we get a proper filename to be able to download
         if (xhr.status === 200 && (mimetype !== "text/html" || filename)) {
-            _download(xhr.response, filename, mimetype);
+            // Repackage as application/octet-stream so browsers (Safari, Chrome) do not
+            // intercept the blob URL with their built-in PDF/office viewers and open it
+            // inline instead of downloading. The filename extension is sufficient for the
+            // OS to restore the correct file type after download.
+            const downloadBlob = new Blob([xhr.response], { type: "application/octet-stream" });
+            _download(downloadBlob, filename, "application/octet-stream");
             onSuccess(filename);
         } else if (xhr.status === 502) {
             // If Odoo is behind another server (nginx)

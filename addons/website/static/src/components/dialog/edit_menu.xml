@@ -21,7 +21,7 @@
                     <input id="url_input" t-on-input="onUrlInput" t-ref="url-input" type="text"
                         t-model="state.url" class="form-control" t-att-class="{ 'is-invalid': state.invalidUrl }"/>
                     <i t-if="state.pageNotFound and !state.invalidUrl"
-                        class="fa fa-info-circle text-warning position-absolute top-50 end-0 translate-middle-y me-2"
+                        class="fa-solid fa-info-circle text-warning position-absolute top-50 end-0 translate-middle-y me-2"
                         data-tooltip="Page not found" data-tooltip-position="top" data-tooltip-delay="0">
                     </i>
                 </div>
@@ -41,16 +41,16 @@
                     <t t-esc="props.menu.fields['name']"/>
                 </span>
                 <span t-if="props.menu.fields['is_mega_menu']" class="badge text-bg-primary rounded-pill">Mega Menu</span>
-                <i t-if="props.menu.is_homepage" class="fa fa-home ms-3" role="img" aria-label="Home" title="Home"/>
+                <i t-if="props.menu.is_homepage" class="fa-solid fa-house ms-3" role="img" aria-label="Home" title="Home"/>
             </span>
             <div class="input-group-text bg-view p-0 ms-0 border-start-0">
                 <button type="button" t-if="props.menu.page_not_found and !props.menu.children.length" t-on-click="createPage"
                     class="btn btn-sm btn-outline-primary me-1">Create Page</button>
                 <button t-on-click="edit" type="button"
-                    class="btn js_edit_menu fa fa-pencil text-muted px-2 rounded-0 h-100"
+                    class="btn js_edit_menu fa-solid fa-pencil text-muted px-2 rounded-0 h-100"
                     aria-label="Edit Menu Item" title="Edit Menu Item"/>
                 <button t-on-click="delete" type="button"
-                    class="btn js_delete_menu fa fa-trash-o text-danger px-2 rounded-0 h-100"
+                    class="btn js_delete_menu fa-regular fa-trash-can text-danger px-2 rounded-0 h-100"
                     aria-label="Delete Menu Item" title="Delete Menu Item"/>
             </div>
         </div>
@@ -72,14 +72,14 @@
         <div class="d-flex mt-4 justify-content-between align-items-end">
             <div class="d-flex flex-column">
                 <a href="#" t-on-click="() => this.addMenu(false)">
-                    <i class="fa fa-plus-circle me-1"/> Add Menu Item
+                    <i class="fa-solid fa-plus-circle me-1"/> Add Menu Item
                 </a>
                 <a href="#" t-on-click="() => this.addMenu(true)">
-                    <i class="fa fa-plus-circle me-1"/> Add Mega Menu Item
+                    <i class="fa-solid fa-plus-circle me-1"/> Add Mega Menu Item
                 </a>
             </div>
             <small class="text-muted">
-                <i class="fa fa-info-circle me-1"/> Drag to the right to get a submenu
+                <i class="fa-solid fa-info-circle me-1"/> Drag to the right to get a submenu
             </small>
         </div>
     </WebsiteDialog>

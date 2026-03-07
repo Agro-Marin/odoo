@@ -80,7 +80,7 @@ class ResPartner(models.Model):
             return data_list
         for partner in self.filtered(lambda partner: partner.purchase_order_count):
             stat_info = {
-                "iconClass": "fa-credit-card",
+                "iconClass": "fa-solid fa-credit-card",
                 "value": partner.purchase_order_count,
                 "label": _("Purchases"),
                 "tagClass": "o_tag_color_5",

@@ -99,13 +99,13 @@ const TOOLBAR = (language) =>
         <div data-prevent-closing-overlay="true">
             <button class="btn o-dropdown dropdown-toggle dropdown" name="language" title="${language}" aria-expanded="false">
                 <span class="px-1">${language}</span>
-                <i class="fa fa-caret-down"></i>
+                <i class="fa-solid fa-caret-down"></i>
             </button>
             <button type="button" class="text-nowrap btn o_clipboard_button">
-                <span class="mx-1 fa fa-clipboard"></span>
+                <span class="mx-1 fa-solid fa-paste"></span>
                 <span>Copy</span>
             </button>
-            <button class="text-nowrap btn"><span class="mx-1 fa fa-paragraph" title="Convert to paragraph"></span></button>
+            <button class="text-nowrap btn"><span class="mx-1 fa-solid fa-paragraph" title="Convert to paragraph"></span></button>
         </div>
     </div>`
     );

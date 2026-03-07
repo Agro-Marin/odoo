@@ -85,14 +85,12 @@ export function scrollTo(element, options = {}) {
         return;
     }
 
-    const scrollBottom = scrollable.getBoundingClientRect().bottom;
-    const scrollTop = scrollable.getBoundingClientRect().top;
-    const elementBottom = element.getBoundingClientRect().bottom;
-    const elementTop = element.getBoundingClientRect().top;
+    const scrollRect = scrollable.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
 
     const scrollPromises = [];
 
-    if (elementBottom > scrollBottom && !isAnchor) {
+    if (elementRect.bottom > scrollRect.bottom && !isAnchor) {
         // The scroll place the element at the bottom border of the scrollable
         scrollPromises.push(
             new Promise((resolve) => {
@@ -105,13 +103,13 @@ export function scrollTo(element, options = {}) {
         scrollable.scrollTo({
             top:
                 scrollable.scrollTop +
-                elementTop -
-                scrollBottom +
-                Math.ceil(element.getBoundingClientRect().height) +
+                elementRect.top -
+                scrollRect.bottom +
+                Math.ceil(elementRect.height) +
                 offset,
             behavior,
         });
-    } else if (elementTop < scrollTop || isAnchor) {
+    } else if (elementRect.top < scrollRect.top || isAnchor) {
         // The scroll place the element at the top of the scrollable
         scrollPromises.push(
             new Promise((resolve) => {
@@ -122,7 +120,7 @@ export function scrollTo(element, options = {}) {
         );
 
         scrollable.scrollTo({
-            top: scrollable.scrollTop - scrollTop + elementTop + offset,
+            top: scrollable.scrollTop - scrollRect.top + elementRect.top + offset,
             behavior,
         });
 
@@ -158,7 +156,7 @@ export function compensateScrollbar(
     if (!scrollableEl) {
         return;
     }
-    const isRTL = scrollableEl.classList.contains(".o_rtl");
+    const isRTL = scrollableEl.classList.contains("o_rtl");
     if (isRTL) {
         cssProperty = cssProperty.replace("right", "left");
     }

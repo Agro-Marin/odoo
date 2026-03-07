@@ -131,7 +131,10 @@
             ('include', 'web._assets_core'),
             ("remove", "web/static/src/core/browser/router.js"),
             ("remove", "web/static/src/services/debug/**/*"),
-            "web/static/src/libs/fontawesome/css/font-awesome.css",
+            "web/static/src/libs/fontawesome7/css/fontawesome.css",
+            "web/static/src/libs/fontawesome7/css/solid.css",
+            "web/static/src/libs/fontawesome7/css/regular.css",
+            "web/static/src/libs/fontawesome7/css/brands.css",
             "web/static/src/fields/formatters.js",
             "web/static/lib/odoo_ui_icons/*",
             "point_of_sale/static/src/utils.js",
@@ -171,7 +174,7 @@
             # scss variables and utilities
             'point_of_sale/static/src/scss/pos_variables_extra.scss',
             'web/static/src/scss/bootstrap_overridden.scss',
-            'web/static/src/scss/fontawesome_overridden.scss',
+            'web/static/src/scss/rtl_icon_flip.scss',
             'web/static/fonts/fonts.scss',
             "web/static/src/scss/ui.scss",
 

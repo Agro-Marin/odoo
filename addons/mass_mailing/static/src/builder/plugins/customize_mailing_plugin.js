@@ -161,13 +161,14 @@ export class CustomizeMailingPlugin extends Plugin {
      * Ensure that FontAwesome icons are not impacted by font-family selectors
      */
     transformFontFamilySelector(selector) {
-        if (selector.trim().endsWith(":not(.fa)")) {
+        const FA_EXCLUDE = ":not(.fa-solid, .fa-regular, .fa-brands, .oi)";
+        if (selector.trim().endsWith(FA_EXCLUDE)) {
             return [selector];
         }
         if (!selector.endsWith("*")) {
-            return [`${selector.trim()}:not(.fa)`, `${selector.trim()} :not(.fa)`];
+            return [`${selector.trim()}${FA_EXCLUDE}`, `${selector.trim()} *${FA_EXCLUDE}`];
         } else if (RE_SELECTOR_ENDS_WITH_GT_STAR.test(selector)) {
-            return [`${selector.replace(RE_SELECTOR_ENDS_WITH_GT_STAR, "").trim()} :not(.fa)`];
+            return [`${selector.replace(RE_SELECTOR_ENDS_WITH_GT_STAR, "").trim()} *${FA_EXCLUDE}`];
         }
     }
 

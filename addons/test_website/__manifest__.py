@@ -32,7 +32,10 @@ models which only purpose is to run tests.""",
     'assets': {
         'test_website.test_bundle': [
             'http://test.external.link/javascript1.js',
-            '/web/static/src/libs/fontawesome/css/font-awesome.css',
+            '/web/static/src/libs/fontawesome7/css/fontawesome.css',
+            '/web/static/src/libs/fontawesome7/css/solid.css',
+            '/web/static/src/libs/fontawesome7/css/regular.css',
+            '/web/static/src/libs/fontawesome7/css/brands.css',
             'http://test.external.link/style1.css',
             '/web/static/src/module_loader.js',
             'http://test.external.link/javascript2.js',

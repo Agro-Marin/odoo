@@ -22,12 +22,12 @@ according to the enabled options.
                 <div class="btn-group btn-group-sm">
                     <a t-attf-class="btn #{state == 'published' and 'btn-success' or 'btn-default bg-white border'}"
                        t-attf-href="#{state == 'published' and blog_url(state='') or blog_url(state='published')}">
-                        <i t-attf-class="fa me-1 #{state == 'published' and 'fa-check-square-o' or 'fa-square-o'}"/>
+                        <i t-attf-class="me-1 #{state == 'published' and 'fa-regular fa-square-check' or 'fa-regular fa-square'}"/>
                         Published (<t t-out="state_info['published']" />)
                     </a>
                     <a t-attf-class="btn #{state == 'unpublished' and 'btn-success' or 'btn-default bg-white border'}"
                        t-attf-href="#{state == 'unpublished' and blog_url(state='') or blog_url(state='unpublished')}">
-                        <i t-attf-class="fa me-1 #{state == 'unpublished' and 'fa-check-square-o' or 'fa-square-o'}"/>
+                        <i t-attf-class="me-1 #{state == 'unpublished' and 'fa-regular fa-square-check' or 'fa-regular fa-square'}"/>
                         Unpublished (<t t-out="state_info['unpublished']" />)
                     </a>
                 </div>
@@ -44,7 +44,7 @@ according to the enabled options.
                     <t t-else="">Articles</t>
                 </div>
                 <span t-if="search" class="align-items-baseline border d-inline-flex ps-2 rounded mb-2">
-                    <i class="fa fa-search me-2 text-muted"/>
+                    <i class="fa-solid fa-search me-2 text-muted"/>
                     <t t-out="search"/>
                     <a t-att-href="blog_url(search=False, tag=tag)" class="btn border-0 py-1 post_link">&#215;</a>
                 </span>
@@ -64,7 +64,7 @@ according to the enabled options.
                     </t>
                 </t>
                 <span t-if="date_begin" class="align-items-baseline border d-inline-flex ps-2 rounded mb-2">
-                    <i class="fa fa-calendar-o me-2 text-muted"/>
+                    <i class="fa-regular fa-calendar me-2 text-muted"/>
                     <t t-out="date_begin" t-options="{'widget': 'date', 'format': 'MMM yyyy'}"></t>
                     <a t-attf-href="#{blog_url(date_begin=False, date_end=False, tag=tag)}" class="btn border-0 py-1">&#215;</a>
                 </span>
@@ -167,11 +167,11 @@ according to the enabled options.
         <div t-attf-class="d-flex flex-wrap align-items-center justify-content-between mx-n2 #{opt_blog_list_view and 'flex-grow-0 w-auto mw-100' or 'flex-grow-1' }">
             <time t-field="blog_post.post_date" class="text-nowrap fw-bold px-2" t-options="{'widget': 'datetime', 'date_only': 'true', 'format': 'medium'}"/>
             <div t-if="is_view_active('website_blog.opt_posts_loop_show_stats')" class="px-2">
-                <b class="text-nowrap" title="Comments"><i class="fa fa-comment text-muted me-1"/><t t-out="len(blog_post.message_ids)"/></b>
-                <b class="text-nowrap ps-2" title="Views"><i class="fa fa-eye text-muted me-1"/><t t-out="blog_post.visits"/></b>
+                <b class="text-nowrap" title="Comments"><i class="fa-solid fa-comment text-muted me-1"/><t t-out="len(blog_post.message_ids)"/></b>
+                <b class="text-nowrap ps-2" title="Views"><i class="fa-regular fa-eye text-muted me-1"/><t t-out="blog_post.visits"/></b>
             </div>
             <b t-if="posts_list_show_parent_blog" class="text-nowrap text-truncate px-2">
-                <i class="fa fa-folder-open text-muted"/>
+                <i class="fa-solid fa-folder-open text-muted"/>
                 <a t-attf-href="/blog/#{slug(blog_post.blog_id)}" t-field="blog_post.blog_id"/>
             </b>
         </div>

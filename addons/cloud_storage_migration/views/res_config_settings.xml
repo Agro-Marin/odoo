@@ -23,7 +23,7 @@
                                 string="Cron Job"
                                 type="action"
                                 class="btn-link ps-0"
-                                icon="fa-clock-o"/>
+                                icon="fa-regular fa-clock"/>
                         <button name="action_open_cloud_storage_migration_configurations"
                                 string="Parameters"
                                 type="object"

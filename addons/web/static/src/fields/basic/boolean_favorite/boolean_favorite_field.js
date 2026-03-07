@@ -22,8 +22,8 @@ export class BooleanFavoriteField extends Component {
     /** @returns {string} */
     get iconClass() {
         return this.props.record.data[this.props.name]
-            ? "fa fa-star me-1"
-            : "fa fa-star-o me-1";
+            ? "fa-solid fa-star me-1"
+            : "fa-regular fa-star me-1";
     }
 
     /** @returns {string} */

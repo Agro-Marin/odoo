@@ -490,14 +490,14 @@ export class FormController extends Component {
             addPropertyFieldValue: {
                 isAvailable: () => activeActions.addPropertyFieldValue,
                 sequence: 10,
-                icon: "fa fa-cogs",
+                icon: "fa-solid fa-cogs",
                 description: _t("Edit Properties"),
                 callback: () => this.model.bus.trigger("PROPERTY_FIELD:EDIT"),
             },
             duplicate: {
                 isAvailable: () => activeActions.create && activeActions.duplicate,
                 sequence: 30,
-                icon: "fa fa-clone",
+                icon: "fa-regular fa-clone",
                 description: _t("Duplicate"),
                 callback: () => this.duplicateRecord(),
             },
@@ -520,7 +520,7 @@ export class FormController extends Component {
             delete: {
                 isAvailable: () => activeActions.delete && !this.model.root.isNew,
                 sequence: 50,
-                icon: "fa fa-trash-o",
+                icon: "fa-regular fa-trash-can",
                 description: _t("Delete"),
                 class: "text-danger",
                 callback: () => this.deleteRecord(),

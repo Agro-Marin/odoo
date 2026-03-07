@@ -58,7 +58,7 @@
                                             />
                                         </group>
                                         <span colspan="2" class="text-muted o_row ps-1">
-                                            <i class="fa fa-lightbulb-o pe-2"/>
+                                            <i class="fa-regular fa-lightbulb pe-2"/>
                                             <span name="rating_status_helper">
                                                 <span invisible="rating_status == 'periodic'">A rating request will be sent as soon as a task reaches this stage.</span>
                                                 <span invisible="rating_status == 'stage'">Rating requests will be sent as long as the task remains in this stage.</span>

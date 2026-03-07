@@ -60,7 +60,7 @@
                         <t t-out="record.display_name"/>
                     </BuilderSelectItem>
                 </BuilderSelect>
-                <BuilderButton t-if="field.createAction" className="'fa fa-fw fa-plus'"
+                <BuilderButton t-if="field.createAction" className="'fa-solid fa-plus'"
                     title.translate="Create New"
                     action="'promptSaveRedirect'" actionParam="field.createAction"
                 />
@@ -154,7 +154,7 @@
     <BuilderRow label.translate="Position" level="1">
         <BuilderButtonGroup action="'selectLabelPosition'">
             <BuilderButton title.translate="Hide" actionValue="'none'">
-                <i class="fa fa-eye-slash"/>
+                <i class="fa-regular fa-eye-slash"/>
             </BuilderButton>
             <BuilderButton title.translate="Top" actionValue="'top'" iconImg="'/website/static/src/img/snippets_options/pos_top.svg'"/>
             <BuilderButton title.translate="Left" actionValue="'left'" iconImg="'/website/static/src/img/snippets_options/pos_left.svg'"/>
@@ -268,7 +268,7 @@
         <BuilderButton id="'error_message_opt'"
             t-if="!isActiveItem('no_requirement_opt')"
             title.translate="Add predefined error message"
-            className="'fa ' + (isActiveItem('error_message_opt') ? 'fa-eye' : 'fa-eye-slash')"
+            className="'fa-solid ' + (isActiveItem('error_message_opt') ? 'fa-eye' : 'fa-eye-slash')"
             preview="false"
             action="'setCustomErrorMessage'"/>
     </BuilderRow>

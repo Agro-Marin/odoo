@@ -337,7 +337,7 @@ class ForumForum(models.Model):
             'search_fields': search_fields,
             'fetch_fields': fetch_fields,
             'mapping': mapping,
-            'icon': 'fa-comments-o',
+            'icon': 'fa-regular fa-comments',
             'order': 'name desc, id desc' if 'name desc' in order else 'name asc, id desc',
         }
 

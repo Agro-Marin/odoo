@@ -64,9 +64,9 @@ const COLORS_XL = [
     "#056BD9", // Blue #3
     "#155193", // Blue #4
     "#A76DBC", // Violet #1
-    "#7F4295", // Violet #1
-    "#6D2387", // Violet #1
-    "#4F1565", // Violet #1
+    "#7F4295", // Violet #2
+    "#6D2387", // Violet #3
+    "#4F1565", // Violet #4
     "#EA6175", // Red #1
     "#CE4257", // Red #2
     "#982738", // Red #3
@@ -149,10 +149,11 @@ const RGB_REGEX = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i;
  * @returns {string}
  */
 export function hexToRGBA(hex, opacity) {
-    const rgb = RGB_REGEX.exec(hex)
-        .slice(1, 4)
-        .map((n) => parseInt(n, 16))
-        .join(",");
+    const match = RGB_REGEX.exec(hex);
+    if (!match) {
+        return `rgba(0,0,0,${opacity})`;
+    }
+    const rgb = match.slice(1, 4).map((n) => parseInt(n, 16)).join(",");
     return `rgba(${rgb},${opacity})`;
 }
 

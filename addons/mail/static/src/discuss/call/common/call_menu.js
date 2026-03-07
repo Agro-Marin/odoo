@@ -20,7 +20,7 @@ export class CallMenu extends Component {
         const res = this.rtc.callActions.find(
             (action) => action.id === this.rtc.lastSelfCallAction,
         )?.icon;
-        return (typeof res === "function" ? res() : res) ?? "fa fa-microphone";
+        return (typeof res === "function" ? res() : res) ?? "fa-solid fa-microphone";
     }
 }
 

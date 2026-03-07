@@ -1,4 +1,4 @@
-//@ts-check
+// @ts-check
 
 /** @module @web/model/relational_model/dynamic_group_list - Server-backed grouped list with expand/collapse, cross-group record moves, and progress bars */
 

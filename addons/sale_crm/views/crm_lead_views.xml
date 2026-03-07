@@ -16,7 +16,7 @@
                 </button>
                 <button name="action_schedule_meeting" position="after">
                     <button class="oe_stat_button" type="object"
-                        name="action_view_sale_quotation" icon="fa-pencil-square-o" invisible="type == 'lead'">
+                        name="action_view_sale_quotation" icon="fa-regular fa-pen-to-square" invisible="type == 'lead'">
                         <field name="quotation_count" widget="statinfo" string="Quotations"/>
                     </button>
                     <button class="oe_stat_button" type="object" invisible="sale_order_count == 0 or type == 'lead'"

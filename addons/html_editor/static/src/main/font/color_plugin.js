@@ -9,6 +9,7 @@ import {
 } from "@html_editor/utils/color";
 import { fillEmpty, unwrapContents } from "@html_editor/utils/dom";
 import {
+    ICON_SELECTOR,
     isEmptyBlock,
     isRedundantElement,
     isTextNode,
@@ -236,7 +237,7 @@ export class ColorPlugin extends Plugin {
                         (node) => node.nodeName !== "LI" && hasTextColorClass(node, mode)
                     );
 
-                const faNodes = font?.querySelectorAll(".fa");
+                const faNodes = font?.querySelectorAll(ICON_SELECTOR);
                 if (faNodes && Array.from(faNodes).some((faNode) => faNode.contains(node))) {
                     return font;
                 }

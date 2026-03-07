@@ -63,9 +63,9 @@ export class IconPlugin extends Plugin {
                     targetedNodes.every(
                         // All nodes should be icons, its ZWS child or its ancestors
                         (node) =>
-                            node.classList?.contains("fa") ||
-                            node.parentElement.classList.contains("fa") ||
-                            (node.querySelector?.(".fa") && node.isContentEditable !== false)
+                            node.matches?.(ICON_SELECTOR) ||
+                            node.parentElement.matches?.(ICON_SELECTOR) ||
+                            (node.querySelector?.(ICON_SELECTOR) && node.isContentEditable !== false)
                     )
                 ) {
                     return this.toolbarNamespace;

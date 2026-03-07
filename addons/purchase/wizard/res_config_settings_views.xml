@@ -28,7 +28,7 @@
                             <field name="lock_confirmed_po" />
                             <div class="content-group mt16" invisible="not lock_confirmed_po">
                                 <div class="text-muted">
-                                    <i class="fa fa-lock"/> Orders will be automatically locked when confirmed.
+                                    <i class="fa-solid fa-lock"/> Orders will be automatically locked when confirmed.
                                     Users need specific permissions to manually lock/unlock orders.
                                 </div>
                             </div>

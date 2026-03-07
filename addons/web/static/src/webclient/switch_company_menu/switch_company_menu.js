@@ -319,15 +319,15 @@ export class SwitchCompanyMenu extends Component {
                 this.companySelector.isCompanySelected(c.company.id),
             )
         ) {
-            return "fa-check-square text-primary";
+            return "fa-solid fa-square-check text-primary";
         } else if (
             this.visibleCompanies.some((c) =>
                 this.companySelector.isCompanySelected(c.company.id),
             )
         ) {
-            return "fa-minus-square-o";
+            return "fa-regular fa-square-minus";
         } else {
-            return "fa-square-o";
+            return "fa-regular fa-square";
         }
     }
 

@@ -60,7 +60,7 @@ class ResPartner(models.Model):
         for partner in self.filtered("sale_order_count"):
             data_list[partner.id].append(
                 {
-                    "iconClass": "fa-usd",
+                    "iconClass": "fa-solid fa-dollar-sign",
                     "value": partner.sale_order_count,
                     "label": self.env._("Sale Orders"),
                     "tagClass": "o_tag_color_2",

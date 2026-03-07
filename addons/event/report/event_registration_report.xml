@@ -22,7 +22,7 @@
             <div class="col-5">
                 <span t-out="event.date_begin"
                     t-options='{"widget": "datetime", "show_seconds": False, "tz_name": event.date_tz, "format": "medium"}'/>
-                <i class="fa fa-arrow-right"/>
+                <i class="fa-solid fa-arrow-right"/>
                 <span t-out="event.date_end"
                     t-options='{"widget": "datetime", "show_seconds": False, "tz_name": event.date_tz, "format": "medium"}'/>
             </div>

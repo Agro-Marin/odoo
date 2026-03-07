@@ -165,14 +165,14 @@ export class MultiRecordController extends Component {
             export: {
                 isAvailable: () => this.isExportEnable,
                 sequence: 10,
-                icon: "fa fa-upload",
+                icon: "fa-solid fa-upload",
                 description: _t("Export"),
                 callback: () => this.exportRecords(),
             },
             duplicate: {
                 isAvailable: () => this.archInfo.activeActions.duplicate,
                 sequence: 30,
-                icon: "fa fa-clone",
+                icon: "fa-regular fa-clone",
                 description: _t("Duplicate"),
                 callback: () => this.model.root.duplicateRecords(),
             },
@@ -197,7 +197,7 @@ export class MultiRecordController extends Component {
             delete: {
                 isAvailable: () => this.archInfo.activeActions.delete,
                 sequence: 50,
-                icon: "fa fa-trash-o",
+                icon: "fa-regular fa-trash-can",
                 description: _t("Delete"),
                 class: "text-danger",
                 callback: () => this.onDeleteSelectedRecords(),

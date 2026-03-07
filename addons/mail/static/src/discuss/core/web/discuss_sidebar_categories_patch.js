@@ -33,7 +33,7 @@ const DiscussSidebarCategoryPatch = {
             actions.push({
                 onSelect: () => this.open(),
                 label: _t("View or join channels"),
-                icon: "fa fa-cog",
+                icon: "fa-solid fa-cog",
             });
         }
         return actions;

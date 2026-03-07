@@ -37,6 +37,26 @@ test("warn when contains(@class, ...)", async () => {
     ]);
 });
 
+test("warn on every contains(@class, ...) — not just alternating calls", async () => {
+    serverState.debug = "1";
+    patchWithCleanup(console, {
+        warn(msg) {
+            expect.step(msg);
+        },
+    });
+    const arch = `<t t-name="web.B"><div class="c1" /><div class="c2" /></t>`;
+    // Two successive contains(@class) operations — before the /g fix, only the
+    // first would warn (the second was missed due to stale lastIndex).
+    const operations = `<t t-inherit="web.B">
+        <xpath expr="*[contains(@class, 'c1')]" position="inside"><span/></xpath>
+        <xpath expr="*[contains(@class, 'c2')]" position="inside"><span/></xpath>
+    </t>`;
+    _applyInheritance(arch, operations, "");
+    const expectedWarning =
+        `Error-prone use of @class in template "web.B" (or one of its inheritors). Use the hasclass(*classes) function to filter elements by their classes`;
+    expect.verifySteps([expectedWarning, expectedWarning]);
+});
+
 test("no operation", async () => {
     const arch = `<t t-name="web.A" t-translation-context="from_target"> <div><h2>Title</h2>text</div> </t>`;
     const operations = `<t/>`;

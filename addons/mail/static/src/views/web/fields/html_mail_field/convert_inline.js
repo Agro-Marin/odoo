@@ -1061,7 +1061,7 @@ function flattenBackgroundImages(element) {
 function fontToImg(element) {
     const { fonts } = odoo.loader.modules.get("@html_editor/utils/fonts");
 
-    for (const font of element.querySelectorAll(".fa")) {
+    for (const font of element.querySelectorAll(".fa, .fa-solid, .fa-regular, .fa-brands")) {
         let icon, content;
         fonts.fontIcons.find((fontIcon) =>
             fonts.getCssSelectors(fontIcon.parser).find((data) => {

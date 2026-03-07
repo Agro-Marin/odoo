@@ -22,7 +22,7 @@ const IMAGE_LINK_ALIGN_CLASSES = ["mx-auto", "ms-auto", "me-auto"];
 
 export class ImageAndFaOption extends BaseOptionComponent {
     static template = "html_builder.ImageAndFaOption";
-    static selector = "span.fa, i.fa, img";
+    static selector = ":is(span, i):is(.fa-solid, .fa-regular, .fa-brands), img";
     static exclude = "[data-oe-type='image'] > img, [data-oe-xpath]";
     static name = "imageAndFaOption";
 }

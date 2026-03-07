@@ -8,7 +8,7 @@
                     state.isOpen = !state.isOpen;
                     props.isOpenCallback?.(state.isOpen);
                 }">
-                <i t-if="state.isOpen" class="fa fa-arrow-right"/>
+                <i t-if="state.isOpen" class="fa-solid fa-arrow-right"/>
                 <t t-else="props.iconOnLeftSide" t-call="point_of_sale.inputIcon" />
             </button>
             <div t-if="!props.isSmall || state.isOpen"
@@ -24,13 +24,13 @@
                         t-on-input="(event) => this.setValue(event.target.value)"
                         t-att-readonly="props.readonly" />
                     <t t-if="!props.iconOnLeftSide" t-call="point_of_sale.inputIcon" />
-                    <i t-att-class="{ 'invisible': !getValue() }" class="fa fa-times mx-2" t-on-click="() => this.setValue('')"/>
+                    <i t-att-class="{ 'invisible': !getValue() }" class="fa-solid fa-times mx-2" t-on-click="() => this.setValue('')"/>
                 </div>
             </div>
         </div>
     </t>
     <t t-name="point_of_sale.inputIcon">
-        <i t-if="props.icon.type === 'fa'" t-attf-class="fa {{props.icon.value}} {{margin}}"/>
+        <i t-if="props.icon.type === 'fa'" t-attf-class="{{props.icon.value}} {{margin}}"/>
         <span t-if="props.icon.type === 'string'" t-attf-class="{{margin}}" t-esc="props.icon.value"/>
     </t>
 

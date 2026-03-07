@@ -198,9 +198,12 @@ const hookParams = {
                 return;
             }
             const element = /** @type {HTMLElement} */ (ev.currentTarget);
-            const elementRect = element.getBoundingClientRect();
-
             const relatedElement = /** @type {HTMLElement} */ (ev.relatedTarget);
+            if (!relatedElement) {
+                // Pointer left the browser window — no sibling comparison possible.
+                return;
+            }
+            const elementRect = element.getBoundingClientRect();
             const relatedElementRect = relatedElement.getBoundingClientRect();
 
             const siblingArray = [...element.parentElement.children].filter(

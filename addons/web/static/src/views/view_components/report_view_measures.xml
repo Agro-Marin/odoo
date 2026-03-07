@@ -4,7 +4,7 @@
     <t t-name="web.ReportViewMeasures">
       <Dropdown>
         <button class="btn btn-primary">
-          Measures <i class="fa fa-caret-down ms-1"/>
+          Measures <i class="fa-solid fa-caret-down ms-1"/>
         </button>
         <t t-set-slot="content">
           <t t-foreach="props.measures" t-as="measure" t-key="measure_value.name">

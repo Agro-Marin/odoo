@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <template>
+
     <t t-name="account.AccountPickCurrencyDate">
         <button
             type="button"
@@ -8,7 +9,7 @@
             title="Pick the rate on a certain date"
             t-ref="datetime-picker-target"
         >
-            <i class="fa fa-calendar"/>
+            <i class="fa-solid fa-calendar-days"/>
         </button>
     </t>
 

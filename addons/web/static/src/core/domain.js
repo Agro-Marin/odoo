@@ -37,21 +37,19 @@ export class Domain {
         if (domains.length === 0) {
             return new Domain([]);
         }
-        const domain1 =
-            domains[0] instanceof Domain ? domains[0] : new Domain(domains[0]);
         if (domains.length === 1) {
-            return domain1;
+            return domains[0] instanceof Domain ? domains[0] : new Domain(domains[0]);
         }
-        const domain2 = Domain.combine(domains.slice(1), operator);
-        const result = new Domain([]);
-        const astValues1 = domain1.ast.value;
-        const astValues2 = domain2.ast.value;
+        // Iterative: collect all AST values in one pass instead of
+        // recursively slicing (which created N-1 intermediate Domain objects).
         const op = operator === "AND" ? "&" : "|";
-        const combinedAST = {
-            type: 4 /* List */,
-            value: [...astValues1, ...astValues2],
-        };
-        result.ast = normalizeDomainAST(combinedAST, op);
+        const allValues = [];
+        for (const d of domains) {
+            const dom = d instanceof Domain ? d : new Domain(d);
+            allValues.push(...dom.ast.value);
+        }
+        const result = new Domain([]);
+        result.ast = normalizeDomainAST({ type: 4 /* List */, value: allValues }, op);
         return result;
     }
 
@@ -344,13 +342,14 @@ function matchCondition(record, condition) {
             ]);
         }
     }
-    let likeRegexp, ilikeRegexp;
-    if (["like", "not like", "ilike", "not ilike"].includes(operator)) {
+    let likeRegexp;
+    if (["like", "not like"].includes(operator)) {
         likeRegexp = new RegExp(
             `(.*)${escapeRegExp(value).replaceAll("%", "(.*)")}(.*)`,
             "g",
         );
-        ilikeRegexp = new RegExp(
+    } else if (["ilike", "not ilike"].includes(operator)) {
+        likeRegexp = new RegExp(
             `(.*)${escapeRegExp(value).replaceAll("%", "(.*)")}(.*)`,
             "gi",
         );
@@ -411,7 +410,7 @@ function matchCondition(record, condition) {
             if (fieldValue === false) {
                 return isNot;
             }
-            return Boolean(fieldValue.match(ilikeRegexp)) !== isNot;
+            return Boolean(fieldValue.match(likeRegexp)) !== isNot;
         case "=ilike":
         case "not =ilike":
             if (fieldValue === false) {
@@ -466,9 +465,10 @@ function matchDomain(record, domain) {
         return true;
     }
     const operators = makeOperators(record);
-    const reversedDomain = Array.from(domain).toReversed();
+    // Iterate backwards in-place instead of allocating a reversed copy.
     const condStack = [];
-    for (const item of reversedDomain) {
+    for (let i = domain.length - 1; i >= 0; i--) {
+        const item = domain[i];
         const operator = typeof item === "string" && operators[item];
         if (operator) {
             const operands = condStack.splice(-OPERATOR_ARITY[item]);

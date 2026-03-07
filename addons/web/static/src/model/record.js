@@ -143,10 +143,11 @@ class _Record extends Component {
                         proms.push(prom);
                     } else if (Array.isArray(values[fieldName])) {
                         if (values[fieldName][1] === undefined) {
-                            const prom = loadDisplayName(values[fieldName][0]);
+                            const originalId = values[fieldName][0];
+                            const prom = loadDisplayName(originalId);
                             prom.then((displayName) => {
                                 values[fieldName] = {
-                                    id: values[fieldName][0],
+                                    id: originalId,
                                     display_name: displayName,
                                 };
                             });

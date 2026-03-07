@@ -17,8 +17,8 @@ export class EventStateSelection extends StateSelectionField {
         this.icons = {
             normal: "o_status",
             done: "o_status o_status_green",
-            blocked: "fa fa-lg fa-exclamation-circle",
-            cancel: "fa fa-lg fa-times-circle",
+            blocked: "fa-solid fa-exclamation-circle fa-lg",
+            cancel: "fa-solid fa-times-circle fa-lg",
         };
         this.colorIcons = {
             normal: "",

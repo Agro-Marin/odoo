@@ -14,7 +14,7 @@ registerThreadAction("show-threads", {
         (thread?.hasSubChannelFeature ||
             thread?.parent_channel_id?.hasSubChannelFeature) &&
         !owner.isDiscussSidebarChannelActions,
-    icon: "fa fa-fw fa-comments-o",
+    icon: "fa-regular fa-comments",
     name: _t("Threads"),
     setup({ owner, store }) {
         if (owner.env.inDiscussApp && !store.env.isSmall) {

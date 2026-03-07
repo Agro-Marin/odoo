@@ -23,7 +23,7 @@
                     <button type="object"
                         name="open_google_gmail_uri" class="btn-link px-0 ms-2"
                         invisible="smtp_authentication != 'gmail' or not google_gmail_refresh_token">
-                        <i class="fa fa-cog" title="Edit Settings"/>
+                        <i class="fa-solid fa-cog" title="Edit Settings"/>
                     </button>
                 </div>
             </field>

@@ -5,11 +5,11 @@
             <div class="input-group">
                 <input t-ref="input" t-on-keydown="onKeydown" t-model="state.email" t-att-disabled="isInputDisabled" type="text" class="form-control" t-att-class="{'bg-view': !isInputDisabled}" placeholder="mail@example.com" />
                 <button class="btn btn-primary" type="button" data-action="sendTranscript" t-att-disabled="isButtonDisabled" t-on-click="onClickSend">
-                    <i class="fa" t-att-class="{
-                        'fa-circle-o-notch fa-spin': state.status === STATUS.SENDING,
+                    <i class="fa-solid" t-att-class="{
+                        'fa-circle-notch fa-spin': state.status === STATUS.SENDING,
                         'fa-check': state.status === STATUS.SENT,
                         'fa-paper-plane': state.status === STATUS.IDLE,
-                        'fa-repeat': state.status === STATUS.FAILED,
+                        'fa-rotate-right': state.status === STATUS.FAILED,
                     }" />
                 </button>
             </div>

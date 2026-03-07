@@ -109,7 +109,7 @@
         }">
             <div class="o-mail-Thread-avatar d-inline" t-att-class="{'o-mail-Thread-avatarChatWindow': env.inChatWindow }">
                 <img t-if="!props.thread.parent_channel_id" class="rounded-3 object-fit-cover" t-att-src="props.thread?.avatarUrl" alt="Thread Image"/>
-                <i t-else="" class="fa fa-comments-o text-muted" role="presentation"/>
+                <i t-else="" class="fa-regular fa-comments text-muted" role="presentation"/>
             </div>
             <div role="heading" aria-level="1" class="text-break" t-att-class="{ 'fs-1': !env.inChatWindow, 'fs-3': env.inChatWindow }" t-esc="startMessageTitle"/>
         </div>

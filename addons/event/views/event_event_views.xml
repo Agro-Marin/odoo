@@ -106,11 +106,11 @@
                                     <field name="mail_count_done"/>
                                     <field name="mail_state" widget="event_icon_selection" string=" " nolabel="1"
                                         options="{
-                                            'error': 'fa fa-exclamation-triangle',
-                                            'sent': 'fa fa-check',
-                                            'scheduled': 'fa fa-hourglass-half',
-                                            'running': 'fa fa-cogs',
-                                            'cancelled': 'fa fa-times-circle'
+                                            'error': 'fa-solid fa-exclamation-triangle',
+                                            'sent': 'fa-solid fa-check',
+                                            'scheduled': 'fa-solid fa-hourglass-half',
+                                            'running': 'fa-solid fa-cogs',
+                                            'cancelled': 'fa-solid fa-times-circle'
                                         }"/>
                                 </list>
                             </field>
@@ -251,12 +251,12 @@
                                     <field name="name"/>
                                 </div>
                                 <div class="d-flex ps-1">
-                                    <i class="fa fa-map-marker mt-1 me-2 text-center ps-1" title="Location"/>
+                                    <i class="fa-solid fa-location-dot mt-1 me-2 text-center ps-1" title="Location"/>
                                     <field t-if="record.address_id.value" name="address_id" class="ms-1"/>
                                     <span t-else="" class="ms-1">Online Event</span>
                                 </div>
                                 <div t-if="record.seats_taken.raw_value" class="d-flex ps-1">
-                                    <i class="fa fa-group mt-1 me-2 text-center" title="Attendees"/>
+                                    <i class="fa-solid fa-users mt-1 me-2 text-center" title="Attendees"/>
                                     <field name="seats_taken" class="me-1"/> Attendees
                                 </div>
                             </div>
