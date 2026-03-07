@@ -33,12 +33,5 @@
             <field name="view_mode">list,form</field>
             <field name="context">{"create": False}</field>
         </record>
-        <menuitem
-            action="discuss_call_history_action"
-            id="discuss_call_history_menu"
-            name="Call History"
-            parent="discuss_technical"
-            sequence="15"
-        />
     </data>
 </odoo>

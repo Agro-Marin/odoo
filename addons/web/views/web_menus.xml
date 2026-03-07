@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        web_menus.xml — Single source of truth for all web module menus.
+        Load order: last in data list, so all actions are already defined.
+    -->
+
+    <!-- ═══════════════════════════════════════
+         SETTINGS
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="menu_config"
+        name="General Settings"
+        parent="base.menu_administration"
+        action="action_general_configuration"
+        sequence="0"
+        groups="base.group_system" />
+
+</odoo>

@@ -52,6 +52,20 @@
         action="mail.res_role_action"
         sequence="25"
     />
+    <menuitem
+        id="discuss_technical"
+        name="Technical"
+        parent="mail.menu_root_discuss"
+        groups="base.group_no_one"
+        sequence="10"
+    />
+    <menuitem
+        action="discuss_call_history_action"
+        id="discuss_call_history_menu"
+        name="Call History"
+        parent="discuss_technical"
+        sequence="15"
+    />
 
     <record id="base.menu_email" model="ir.ui.menu">
         <field name="sequence">3</field>

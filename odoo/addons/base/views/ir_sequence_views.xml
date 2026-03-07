@@ -112,6 +112,4 @@
         <field name="context">{'active_test': False}</field>
     </record>
 
-    <menuitem id="menu_ir_sequence_form" parent="next_id_5" action="ir_sequence_form" />
-
 </odoo>

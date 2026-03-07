@@ -24,7 +24,6 @@
         'wizard/mrp_consumption_warning_views.xml',
         'wizard/mrp_production_split.xml',
         'wizard/mrp_production_serial_numbers.xml',
-        'views/mrp_views_menus.xml',
         'views/stock_move_views.xml',
         'report/mrp_report_views_main.xml',
         'views/mrp_workorder_views.xml',
@@ -50,6 +49,7 @@
         'report/report_stock_rule.xml',
         'report/mrp_zebra_production_templates.xml',
         'report/mrp_workorder_templates.xml',
+        'views/mrp_menus.xml',
     ],
     'demo': [
         'data/mrp_demo.xml',

@@ -55,12 +55,6 @@
         <field name="res_model">res.groups.privilege</field>
     </record>
 
-    <menuitem
-        id="menu_action_res_groups_privilege"
-        parent="base.menu_users"
-        action="action_res_groups_privilege"
-        sequence="5"
-        groups="base.group_no_one" />
     <!-- res.groups -->
     <record id="view_groups_search" model="ir.ui.view">
         <field name="name">res.groups.search</field>
@@ -181,13 +175,6 @@
             the view of the menu that users will be able to see. Whether they can have a read,
             write, create and delete access right can be managed from here.</field>
     </record>
-
-    <menuitem
-        id="menu_action_res_groups"
-        parent="base.menu_users"
-        action="action_res_groups"
-        sequence="3"
-        groups="base.group_no_one" />
 
     <record id="view_default_groups_form" model="ir.ui.view">
         <field name="name">res.groups default groups form</field>

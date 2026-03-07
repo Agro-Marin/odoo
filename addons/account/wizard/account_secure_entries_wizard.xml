@@ -39,12 +39,5 @@
             <field name="target">new</field>
         </record>
 
-        <menuitem
-            id="menu_action_secure_entries"
-            name="Secure Entries"
-            action="action_view_account_secure_entries_wizard"
-            parent="account.account_closing_menu"
-            sequence="80"
-            groups="base.group_no_one,account.group_account_secured"/>
     </data>
 </odoo>

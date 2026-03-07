@@ -68,9 +68,4 @@
         <field name="search_view_id" ref="ir_logging_search_view" />
     </record>
 
-    <menuitem
-        id="ir_logging_all_menu"
-        parent="base.next_id_9"
-        action="ir_logging_all_act" />
-
 </odoo>

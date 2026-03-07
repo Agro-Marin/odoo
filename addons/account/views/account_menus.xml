@@ -69,4 +69,27 @@
             </menuitem>
         </menuitem>
     </menuitem>
+
+    <!-- ═══════════════════════════
+         ACCOUNTING > CLOSING
+         ═══════════════════════════ -->
+
+    <menuitem
+        id="menu_action_secure_entries"
+        name="Secure Entries"
+        action="action_view_account_secure_entries_wizard"
+        parent="account.account_closing_menu"
+        sequence="80"
+        groups="base.group_no_one,account.group_account_secured" />
+
+    <!-- ═══════════════════════════
+         REVIEW > LOGS
+         ═══════════════════════════ -->
+
+    <menuitem
+        id="account_audit_trail_menu"
+        name="Audit Trail"
+        action="action_account_audit_trail_report"
+        parent="account.account_logs_menu" />
+
 </odoo>

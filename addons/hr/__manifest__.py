@@ -37,7 +37,6 @@
         'views/hr_employee_views.xml',
         'views/hr_department_views.xml',
         'views/hr_work_location_views.xml',
-        'views/hr_views.xml',
         'views/res_config_settings_views.xml',
         'views/res_partner_views.xml',
         'views/res_partner_bank_views.xml',
@@ -45,6 +44,7 @@
         'views/res_users.xml',
         'views/hr_templates.xml',
         'data/hr_data.xml',
+        'views/hr_menus.xml',
     ],
     'demo': [
         'data/hr_demo.xml'

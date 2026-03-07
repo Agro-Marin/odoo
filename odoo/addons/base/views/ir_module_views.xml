@@ -265,42 +265,14 @@
             </p>
         </field>
     </record>
-    <!--top
-    menu -->
-    <menuitem id="menu_apps" name="Apps" parent="menu_management" sequence="5" />
-    <!--submenu -->
-    <menuitem
-        id="menu_module_tree"
-        name="Main Apps"
-        parent="menu_apps"
-        action="open_module_tree"
-        sequence="5" />
-    <menuitem
-        id="theme_store"
-        name="Theme Store"
-        parent="menu_apps"
-        sequence="15" />
-    <!--link
-    to stores-->
+    <!-- link to stores -->
     <record id="action_third_party" model="ir.actions.act_url">
         <field name="name">Third-Party Apps</field>
         <field name="url">https://apps.odoo.com/apps/modules</field>
     </record>
-    <menuitem
-        id="menu_third_party"
-        name="Third-Party Apps"
-        parent="menu_apps"
-        action="action_third_party"
-        sequence="20" />
     <record id="action_theme_store" model="ir.actions.act_url">
         <field name="name">Theme Store</field>
         <field name="url">https://apps.odoo.com/apps/themes</field>
     </record>
-    <menuitem
-        id="menu_theme_store"
-        name="Theme Store"
-        parent="menu_apps"
-        action="action_theme_store"
-        sequence="10" />
 
 </odoo>

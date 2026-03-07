@@ -104,10 +104,4 @@
         <field name="search_view_id" ref="view_rule_search" />
     </record>
 
-    <menuitem
-        id="menu_action_rule"
-        parent="base.menu_security"
-        action="action_rule"
-        sequence="3" />
-
 </odoo>

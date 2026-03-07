@@ -221,12 +221,4 @@
         <field name="context">{'module' : 'general_settings', 'bin_size': False}</field>
     </record>
 
-    <menuitem
-        id="menu_config"
-        name="General Settings"
-        parent="base.menu_administration"
-        action="action_general_configuration"
-        sequence="0"
-        groups="base.group_system" />
-
 </odoo>

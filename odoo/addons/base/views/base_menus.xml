@@ -1,7 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Top menu item -->
+    <!--
+        base_menu.xml — Single source of truth for all base module menus.
+        Load order: last in manifest, so all actions are already defined.
+
+        Structure:
+          1. Top-level menus (structural, no actions)
+          2. Users & Companies
+          3. Translations
+          4. Technical > User Interface
+          5. Technical > Email
+          6. Technical > Actions
+          7. Technical > Database Structure
+          8. Technical > Sequences & Identifiers
+          9. Technical > Reporting
+         10. Technical > Security
+         11. Technical > Parameters
+         12. Technical > Automation
+         13. Apps
+         14. Supporting records (actions tied to menu navigation)
+    -->
+
+    <!-- ═══════════════════════════════════════
+         TOP-LEVEL MENUS (structural)
+         ═══════════════════════════════════════ -->
+
+    <!-- Settings -->
     <menuitem
         id="menu_administration"
         name="Settings"
@@ -45,6 +70,7 @@
         </menuitem>
     </menuitem>
 
+    <!-- Apps -->
     <menuitem
         id="menu_management"
         name="Apps"
@@ -52,6 +78,7 @@
         groups="base.group_system"
         web_icon="base,static/description/modules.png" />
 
+    <!-- Tests -->
     <menuitem
         id="base.menu_tests"
         name="Tests"
@@ -63,6 +90,335 @@
             name="group_ids"
             eval="[Command.set([ref('group_system'), ref('group_erp_manager')])]" />
     </record>
+
+    <!-- ═══════════════════════════════════════
+         USERS & COMPANIES
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="menu_action_res_users"
+        parent="base.menu_users"
+        action="action_res_users"
+        sequence="0" />
+
+    <menuitem
+        id="menu_action_res_groups_privilege"
+        parent="base.menu_users"
+        action="action_res_groups_privilege"
+        sequence="5"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_action_res_groups"
+        parent="base.menu_users"
+        action="action_res_groups"
+        sequence="3"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_action_res_company_form"
+        parent="base.menu_users"
+        action="action_res_company_form" />
+
+    <!-- ═══════════════════════════════════════
+         TRANSLATIONS
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="menu_res_lang_act_window"
+        parent="menu_translation"
+        action="res_lang_act_window"
+        sequence="1" />
+
+    <menuitem
+        id="menu_view_base_import_language"
+        parent="menu_translation_export"
+        action="action_view_base_import_language" />
+
+    <menuitem
+        id="menu_wizard_lang_export"
+        parent="menu_translation_export"
+        action="action_wizard_lang_export" />
+
+    <!-- ═══════════════════════════════════════
+         TECHNICAL > USER INTERFACE (next_id_2)
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="menu_grant_menu_access"
+        parent="base.next_id_2"
+        action="grant_menu_access"
+        sequence="1" />
+
+    <menuitem
+        id="menu_action_ui_view"
+        parent="base.next_id_2"
+        action="action_ui_view"
+        sequence="2" />
+
+    <menuitem
+        id="menu_action_ui_view_custom"
+        parent="base.next_id_2"
+        action="action_ui_view_custom"
+        sequence="3" />
+
+    <menuitem
+        id="menu_ir_filters"
+        name="User-defined Filters"
+        parent="base.next_id_2"
+        action="actions_ir_filters_view"
+        sequence="5" />
+
+    <!-- ═══════════════════════════════════════
+         TECHNICAL > EMAIL (menu_email)
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="menu_mail_servers"
+        parent="menu_email"
+        action="action_ir_mail_server_list"
+        sequence="5"
+        groups="base.group_no_one" />
+
+    <!-- ═══════════════════════════════════════
+         TECHNICAL > ACTIONS (next_id_6)
+         ═══════════════════════════════════════ -->
+
+    <menuitem id="next_id_6" name="Actions" parent="base.menu_custom" sequence="5" />
+
+    <menuitem
+        id="menu_ir_sequence_actions"
+        parent="next_id_6"
+        action="ir_sequence_actions" />
+
+    <menuitem
+        id="menu_ir_action_report"
+        parent="base.next_id_6"
+        action="ir_action_report" />
+
+    <menuitem
+        id="menu_ir_action_window"
+        parent="base.next_id_6"
+        action="ir_action_window" />
+
+    <menuitem
+        id="menu_ir_client_actions_report"
+        parent="base.next_id_6"
+        action="ir_client_actions_report" />
+
+    <menuitem
+        id="menu_server_action"
+        parent="base.next_id_6"
+        action="action_server_action" />
+
+    <menuitem
+        id="menu_ir_embedded_action"
+        parent="base.next_id_6"
+        action="ir_embedded_action" />
+
+    <menuitem
+        id="menu_ir_actions_todo_form"
+        parent="base.next_id_6"
+        action="act_ir_actions_todo_form" />
+
+    <menuitem id="ir_default_menu" parent="next_id_6" action="ir_default_menu_action" />
+
+    <!-- ═══════════════════════════════════════
+         TECHNICAL > DATABASE STRUCTURE (next_id_9)
+         ═══════════════════════════════════════ -->
+
+    <menuitem id="ir_model_model_menu" parent="next_id_9" action="action_model_model" />
+
+    <menuitem
+        id="ir_model_model_fields"
+        parent="base.next_id_9"
+        action="action_model_fields" />
+
+    <menuitem
+        id="ir_model_model_fields_selection"
+        parent="base.next_id_9"
+        action="action_model_fields_selection" />
+
+    <menuitem
+        id="ir_model_constraint_menu"
+        parent="base.next_id_9"
+        action="action_model_constraint"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="ir_model_relation_menu"
+        parent="base.next_id_9"
+        action="action_model_relation"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="ir_logging_all_menu"
+        parent="base.next_id_9"
+        action="ir_logging_all_act" />
+
+    <menuitem
+        id="menu_ir_profile"
+        name="Profiling"
+        parent="base.next_id_9"
+        action="action_menu_ir_profile" />
+
+    <menuitem
+        id="menu_decimal_precision_form"
+        parent="base.next_id_9"
+        action="action_decimal_precision_form" />
+
+    <menuitem id="menu_action_asset" parent="base.next_id_9" action="action_asset" />
+
+    <menuitem
+        id="menu_action_attachment"
+        parent="base.next_id_9"
+        action="action_attachment" />
+
+    <!-- ═══════════════════════════════════════
+         TECHNICAL > SEQUENCES & IDENTIFIERS (next_id_5)
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="next_id_5"
+        name="Sequences &amp; Identifiers"
+        parent="base.menu_custom"
+        sequence="21"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="ir_model_data_menu"
+        parent="base.next_id_5"
+        action="action_model_data"
+        groups="base.group_no_one" />
+
+    <menuitem id="menu_ir_sequence_form" parent="next_id_5" action="ir_sequence_form" />
+
+    <!-- ═══════════════════════════════════════
+         TECHNICAL > REPORTING (reporting_menuitem)
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="reporting_menuitem"
+        name="Reporting"
+        parent="base.menu_custom"
+        sequence="15"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="paper_format_menuitem"
+        name="Paper Format"
+        parent="reporting_menuitem"
+        action="paper_format_action"
+        sequence="2"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="reports_menuitem"
+        name="Reports"
+        parent="reporting_menuitem"
+        action="reports_action"
+        sequence="3"
+        groups="base.group_no_one" />
+
+    <!-- ═══════════════════════════════════════
+         TECHNICAL > SECURITY (menu_security)
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="menu_ir_access_act"
+        parent="base.menu_security"
+        action="ir_access_act" />
+
+    <menuitem
+        id="menu_action_rule"
+        parent="base.menu_security"
+        action="action_rule"
+        sequence="3" />
+
+    <menuitem
+        id="menu_action_user_device"
+        parent="base.menu_security"
+        action="action_user_device"
+        sequence="10" />
+
+    <!-- ═══════════════════════════════════════
+         TECHNICAL > PARAMETERS (menu_ir_property)
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="ir_config_menu"
+        name="System Parameters"
+        parent="menu_ir_property"
+        action="ir_config_list_action" />
+
+    <!-- ═══════════════════════════════════════
+         TECHNICAL > AUTOMATION (menu_automation)
+         ═══════════════════════════════════════ -->
+
+    <menuitem
+        id="menu_ir_cron_act"
+        parent="base.menu_automation"
+        action="ir_cron_act"
+        sequence="2" />
+
+    <menuitem
+        id="ir_cron_trigger_menu"
+        parent="base.menu_automation"
+        action="ir_cron_trigger_action"
+        sequence="3" />
+
+    <!-- ═══════════════════════════════════════
+         APPS (menu_management)
+         ═══════════════════════════════════════ -->
+
+    <menuitem id="menu_apps" name="Apps" parent="menu_management" sequence="5" />
+
+    <menuitem
+        id="menu_module_tree"
+        name="Main Apps"
+        parent="menu_apps"
+        action="open_module_tree"
+        sequence="5" />
+
+    <menuitem
+        id="theme_store"
+        name="Theme Store"
+        parent="menu_apps"
+        sequence="15" />
+
+    <menuitem
+        id="menu_theme_store"
+        name="Theme Store"
+        parent="menu_apps"
+        action="action_theme_store"
+        sequence="10" />
+
+    <menuitem
+        id="menu_third_party"
+        name="Third-Party Apps"
+        parent="menu_apps"
+        action="action_third_party"
+        sequence="20" />
+
+    <menuitem
+        id="menu_view_base_module_update"
+        name="Update Apps List"
+        parent="menu_management"
+        action="action_view_base_module_update"
+        sequence="40"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_view_base_module_upgrade"
+        name="Apply Scheduled Upgrades"
+        parent="menu_management"
+        action="action_view_base_module_upgrade"
+        sequence="50"
+        groups="base.group_no_one" />
+
+    <!-- ═══════════════════════════════════════
+         SUPPORTING RECORDS (menu navigation)
+         ═══════════════════════════════════════ -->
 
     <record id="action_client_base_menu" model="ir.actions.client">
         <field name="name">Open Settings Menu</field>

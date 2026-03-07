@@ -719,26 +719,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_product_variant_config_stock"
-        name="Products"
-        action="product_template_action_product"
-        parent="stock.menu_stock_inventory_control"
-        sequence="1" />
-
-    <menuitem
-        id="product_product_menu"
-        name="Product Variants"
-        action="stock_product_normal_action"
-        parent="menu_stock_inventory_control"
-        sequence="2"
-        groups="product.group_product_variant" />
-
-    <menuitem
-        id="menu_product_stock"
-        name="Stock"
-        action="stock.action_product_stock_view"
-        parent="stock.menu_warehouse_report"
-        sequence="5" />
-
 </odoo>

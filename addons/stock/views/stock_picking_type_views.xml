@@ -362,18 +362,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_pickingtype"
-        name="Operations Types"
-        parent="stock.menu_warehouse_config"
-        action="action_picking_type_list"
-        sequence="2" />
-
-    <menuitem
-        id="stock_picking_type_menu"
-        name="Overview"
-        parent="menu_stock_root"
-        action="stock_picking_type_action"
-        sequence="0" />
-
 </odoo>
