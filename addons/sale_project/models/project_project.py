@@ -12,6 +12,7 @@ from odoo.tools.translate import _
 
 
 class ProjectProject(models.Model):
+    _name = 'project.project'
     _inherit = 'project.project'
 
     def _domain_sale_line_id(self):

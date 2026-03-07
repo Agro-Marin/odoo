@@ -7,6 +7,7 @@ from odoo.fields import Domain
 
 
 class ProjectProject(models.Model):
+    _name = 'project.project'
     _inherit = "project.project"
 
     purchase_orders_count = fields.Integer('# Purchase Orders', compute='_compute_purchase_orders_count', groups='purchase.group_purchase_user', export_string_translation=False)

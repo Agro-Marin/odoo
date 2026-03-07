@@ -6,6 +6,7 @@ from odoo.tools import OrderedSet
 
 
 class ProjectTask(models.Model):
+    _name = 'project.task'
     _inherit = 'project.task'
 
     leave_types_count = fields.Integer(compute='_compute_leave_types_count', string="Time Off Types Count")

@@ -7,6 +7,7 @@ from collections import defaultdict
 
 
 class ProjectProject(models.Model):
+    _name = 'project.project'
     _inherit = 'project.project'
 
     def _get_expenses_profitability_items(self, with_action=True):

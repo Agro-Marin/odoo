@@ -8,6 +8,7 @@ from odoo.tools.translate import _
 
 
 class ProjectProject(models.Model):
+    _name = 'project.project'
     _inherit = "project.project"
 
     allow_timesheets = fields.Boolean(

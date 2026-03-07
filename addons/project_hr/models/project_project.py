@@ -12,6 +12,7 @@ class ProjectProject(models.Model):
     employee_id.user_id so filters and downstream modules keep working.
     """
 
+    _name = 'project.project'
     _inherit = ["hr.mixin", "project.project"]
 
     employee_id = fields.Many2one(
