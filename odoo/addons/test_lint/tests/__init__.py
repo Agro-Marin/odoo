@@ -8,6 +8,8 @@ from . import test_index
 from . import test_jstranslate
 from . import test_l10n
 from . import test_manifests
+from . import test_xml_records
+from . import test_pretty_xml
 from . import test_markers
 from . import test_naming
 from . import test_onchange_domains

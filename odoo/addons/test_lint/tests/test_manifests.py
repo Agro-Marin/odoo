@@ -5,6 +5,8 @@ from odoo.modules.module import _DEFAULT_MANIFEST, Manifest
 from odoo.tests import BaseCase
 from odoo.tools.misc import file_path
 
+from . import _sort_manifests
+
 _logger = logging.getLogger(__name__)
 
 MANIFEST_KEYS = {
@@ -31,6 +33,7 @@ class ManifestLinter(BaseCase):
                 # we want to check the content of the manifest directly without
                 # parsed values
                 self._test_manifest_keys(manifest)
+                self._test_manifest_key_order(manifest)
                 self._test_manifest_values(manifest)
 
     def _test_manifest_keys(self, manifest_data: Manifest):
@@ -40,6 +43,21 @@ class ManifestLinter(BaseCase):
             unknown_keys,
             set(),
             f"Unknown manifest keys in module {manifest_data.name!r}. Either there are typos or they must be white listed.",
+        )
+
+    def _test_manifest_key_order(self, manifest_data: Manifest):
+        """Check that manifest keys appear in canonical order.
+
+        Run ``python core/odoo/addons/test_lint/tests/_sort_manifests.py``
+        from the project root to fix all manifests automatically.
+        """
+        actual = list(manifest_data._Manifest__manifest_content.keys())
+        expected = _sort_manifests.expected_key_order(actual)
+        self.assertEqual(
+            actual,
+            expected,
+            f"Manifest keys are out of canonical order in module {manifest_data.name!r}.\n"
+            "Run `./venv/odoo/bin/python core/odoo/addons/test_lint/tests/_sort_manifests.py` to fix.",
         )
 
     def _test_manifest_values(self, manifest_data: Manifest):
