@@ -57,7 +57,7 @@ def acquire_cursor(db):
                 return
             time.sleep(delay + random.uniform(0, JITTER_ON_POOL_ERROR))
             delay *= 1.5
-        raise PoolError('Failed to acquire cursor after %s retries' % MAX_TRY_ON_POOL_ERROR)
+        raise PoolError(f'Failed to acquire cursor after {MAX_TRY_ON_POOL_ERROR} retries')
     finally:
         # Yield after releasing the cursor to let waiting threads
         # immediately pick up the freed connection.
@@ -684,7 +684,7 @@ class Websocket:
             if sequence != registry.registry_sequence:
                 _logger.warning("Bus operation aborted; registry has been reloaded")
             else:
-                _logger.error(exc, exc_info=True)
+                _logger.exception("Unhandled exception in websocket handler")
         if self.state is ConnectionState.OPEN:
             self._disconnect(code, reason)
         else:
@@ -752,12 +752,8 @@ class Websocket:
         `SESSION_EXPIRED` close code. If no cursor can be acquired,
         close the connection with the `TRY_LATER` close code.
         """
-        session = root.session_store.get(self._session.sid)
-        if not session:
-            raise SessionExpiredException()
-        if 'next_sid' in session:
-            self._session = root.session_store.get(session['next_sid'])
-            return self._dispatch_bus_notifications()
+        session = _follow_session_chain(self._session)
+        self._session = session
         # Mark the notification request as processed.
         self._waiting_for_dispatch = False
         with acquire_cursor(session.db) as cr:
@@ -782,9 +778,10 @@ class Websocket:
         # 6 can only be removed after 3 reaches the threshold and is removed as
         # well, and if 4 appears in the meantime, 3 can be removed but 6 will
         # have to wait for 4 to reach the threshold as well.
+        now = time.time()
         last_index = -1
         for i, notif in enumerate(self._notif_history):
-            if time.time() - notif[1] > self.MAX_NOTIFICATION_HISTORY_SEC:
+            if now - notif[1] > self.MAX_NOTIFICATION_HISTORY_SEC:
                 last_index = i
             else:
                 break
@@ -882,6 +879,24 @@ class TimeoutManager:
 # ------------------------------------------------------
 
 
+def _follow_session_chain(initial_session):
+    """Resolve a session, following ``next_sid`` rotation chains.
+
+    Returns the final (non-rotated) session.  Raises
+    :class:`~odoo.http.SessionExpiredException` if any session in the
+    chain is missing or if the chain exceeds 10 hops (which indicates a
+    bug or circular rotation).
+    """
+    session = root.session_store.get(initial_session.sid)
+    for _ in range(10):
+        if not session:
+            raise SessionExpiredException()
+        if 'next_sid' not in session:
+            return session
+        session = root.session_store.get(session['next_sid'])
+    raise SessionExpiredException()
+
+
 _wsrequest_stack = LocalStack()
 wsrequest = _wsrequest_stack()
 
@@ -939,12 +954,9 @@ class WebsocketRequest:
         self.env["ir.websocket"]._serve_ir_websocket(event_name, data)
 
     def _get_session(self):
-        session = root.session_store.get(self.ws._session.sid)
-        if 'next_sid' in session:
-            self.ws._session = root.session_store.get(session['next_sid'])
-            return self._get_session()
-        if not session:
-            raise SessionExpiredException()
+        """Return the current session, following at most 10 next_sid hops."""
+        session = _follow_session_chain(self.ws._session)
+        self.ws._session = session
         return session
 
     def update_env(self, user=None, context=None, su=None):

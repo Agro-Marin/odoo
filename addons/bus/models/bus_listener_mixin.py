@@ -16,8 +16,16 @@ class BusListenerMixin(models.AbstractModel):
         """Send a notification to the webclient."""
         for record in self:
             main_channel = record
-            while (new_main_channel := main_channel._bus_channel()) != main_channel:
+            for _ in range(10):
+                new_main_channel = main_channel._bus_channel()
+                if new_main_channel == main_channel:
+                    break
                 main_channel = new_main_channel
+            else:
+                raise RecursionError(
+                    f"_bus_channel() chain on {record!r} did not terminate within 10 hops. "
+                    "Check for a cycle in _bus_channel() overrides."
+                )
             assert isinstance(main_channel, models.Model)
             if not main_channel:
                 continue

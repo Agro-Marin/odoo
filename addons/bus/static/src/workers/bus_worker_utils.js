@@ -104,7 +104,7 @@ export class Logger {
                     store.createIndex("timestamp", "timestamp", { unique: false });
                 }
             };
-            request.onerror = rej;
+            request.onerror = (e) => rej(e.target.error);
         });
     }
 
@@ -115,7 +115,7 @@ export class Logger {
         const addRequest = store.add({ timestamp: Date.now(), message });
         return new Promise((res, rej) => {
             addRequest.onsuccess = res;
-            addRequest.onerror = rej;
+            addRequest.onerror = (e) => rej(e.target.error);
         });
     }
 
@@ -128,7 +128,7 @@ export class Logger {
         return new Promise((res, rej) => {
             request.onsuccess = (ev) =>
                 res(ev.target.result.map(({ message }) => message));
-            request.onerror = rej;
+            request.onerror = (e) => rej(e.target.error);
         });
     }
 }

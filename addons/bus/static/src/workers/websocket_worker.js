@@ -116,7 +116,7 @@ export class WebsocketWorker {
         for (const client of this.channelsByClient.keys()) {
             client.postMessage({
                 type,
-                data: data ? JSON.parse(JSON.stringify(data)) : undefined,
+                data: data != null ? JSON.parse(JSON.stringify(data)) : undefined,
             });
         }
     }
@@ -146,7 +146,7 @@ export class WebsocketWorker {
         }
         client.postMessage({
             type,
-            data: data ? JSON.parse(JSON.stringify(data)) : undefined,
+            data: data != null ? JSON.parse(JSON.stringify(data)) : undefined,
         });
     }
 
@@ -432,6 +432,9 @@ export class WebsocketWorker {
         this._restartConnectionCheckInterval();
         const notifications = JSON.parse(messageEv.data);
         this._logDebug("_onWebsocketMessage", notifications);
+        if (!notifications.length) {
+            return;
+        }
         this.lastNotificationId = notifications[notifications.length - 1].id;
         this.broadcast("BUS:NOTIFICATION", notifications);
     }

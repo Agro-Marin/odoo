@@ -39,7 +39,7 @@ export const presenceService = {
         function onStorage({ key, newValue }) {
             if (key === `${LOCAL_STORAGE_PREFIX}.focus`) {
                 isOdooFocused = JSON.parse(newValue);
-                env.bus.trigger("window_focus", newValue);
+                env.bus.trigger("window_focus", isOdooFocused);
             }
             if (key === `${LOCAL_STORAGE_PREFIX}.lastPresence`) {
                 lastPresenceTime = JSON.parse(newValue);
