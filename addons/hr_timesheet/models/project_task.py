@@ -27,6 +27,7 @@ PROJECT_TASK_READABLE_FIELDS = {
 
 
 class ProjectTask(models.Model):
+    _name = 'project.task'
     _inherit = "project.task"
 
     project_id = fields.Many2one(domain="['|', ('company_id', '=', False), ('company_id', '=?',  company_id), ('is_internal_project', '=', False), ('is_template', 'in', [is_template, False])]")

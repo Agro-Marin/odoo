@@ -4,6 +4,7 @@ from odoo import fields, models, _
 
 
 class ProjectProject(models.Model):
+    _name = 'project.project'
     _inherit = 'project.project'
 
     bom_count = fields.Integer(compute='_compute_bom_count', groups='mrp.group_mrp_user', export_string_translation=False)

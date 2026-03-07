@@ -5,6 +5,7 @@ from odoo.fields import Domain
 
 
 class ProjectTask(models.Model):
+    _name = 'project.task'
     _inherit = "project.task"
 
     def _get_default_partner_id(self, project=None, parent=None):

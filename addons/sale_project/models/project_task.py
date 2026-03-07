@@ -8,6 +8,7 @@ from odoo.tools.misc import unquote
 
 
 class ProjectTask(models.Model):
+    _name = 'project.task'
     _inherit = "project.task"
 
     def _domain_sale_line_id(self):

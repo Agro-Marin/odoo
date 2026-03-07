@@ -6,6 +6,7 @@ from odoo import fields, models
 class ProjectTask(models.Model):
     """Expose assignee skills directly from the employee identity."""
 
+    _name = 'project.task'
     _inherit = "project.task"
 
     user_skill_ids = fields.One2many(
