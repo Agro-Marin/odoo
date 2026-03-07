@@ -53,6 +53,19 @@ def zip_dump():
     os.unlink(tmp)
 
 
+@pytest.fixture()
+def zip_dump_with_filestore():
+    """A minimal zip containing ``dump.sql`` and a ``filestore/`` with one file."""
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
+        with zipfile.ZipFile(f, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("dump.sql", "-- empty sql dump\n")
+            zf.writestr("filestore/ab/abc123", "fake attachment content")
+        tmp = f.name
+    yield tmp
+    import os  # noqa: PLC0415
+    os.unlink(tmp)
+
+
 # ---------------------------------------------------------------------------
 # restore_db — pre-flight guard
 # ---------------------------------------------------------------------------
@@ -190,6 +203,49 @@ class TestRestoreDbCleanupOnAnyFailure:
                 db_mod.restore_db("newdb", zip_dump)
 
         mock_drop.assert_called_once_with("newdb")
+
+
+# ---------------------------------------------------------------------------
+# restore_db — filestore move happens while temp dir exists
+# ---------------------------------------------------------------------------
+
+
+class TestRestoreDbFilestoreMove:
+    """Regression: the filestore extracted from the zip must be moved to its
+    final destination *before* the TemporaryDirectory is cleaned up."""
+
+    def test_filestore_source_exists_when_move_is_called(
+        self, db_mod, bypass_db_mgmt, zip_dump_with_filestore
+    ):
+        """``shutil.move`` must be called while the temp dir still exists,
+        otherwise the extracted filestore is already gone."""
+        import os  # noqa: PLC0415
+
+        source_existed_at_call_time = []
+
+        def recording_move(src, dst):
+            """Intercept shutil.move and check the source path is real."""
+            source_existed_at_call_time.append(os.path.isdir(src))
+
+        mock_registry = MagicMock()
+        # Environment(cr, SUPERUSER_ID, {})["ir.attachment"]._filestore()
+        mock_registry.cursor.return_value.__enter__.return_value = MagicMock()
+        mock_registry.cursor.return_value.__exit__.return_value = False
+
+        with patch.object(db_mod, "exp_db_exist", return_value=False), \
+             patch.object(db_mod, "_create_empty_database"), \
+             patch.object(db_mod, "exp_drop"), \
+             patch("odoo.service.db.subprocess.run",
+                   return_value=CompletedProcess(args=[], returncode=0, stderr="")), \
+             patch("odoo.modules.registry.Registry.new", return_value=mock_registry), \
+             patch("odoo.api.Environment", return_value=MagicMock()), \
+             patch("odoo.service.db.shutil.move", side_effect=recording_move):
+            db_mod.restore_db("newdb", zip_dump_with_filestore)
+
+        assert source_existed_at_call_time == [True], (
+            "shutil.move was called after TemporaryDirectory cleanup — "
+            "the filestore source no longer existed on disk"
+        )
 
 
 # ---------------------------------------------------------------------------

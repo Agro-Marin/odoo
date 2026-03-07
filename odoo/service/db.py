@@ -475,18 +475,18 @@ def restore_db(
                     f"Couldn't restore database {db!r}:\n{r.stderr.strip()}"
                 )
 
-        registry = odoo.modules.registry.Registry.new(db)
-        with registry.cursor() as cr:
-            env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
-            if copy:
-                # if it's a copy of a database, force generation of a new dbuuid
-                env["ir.config_parameter"].init(force=True)
-            if neutralize_database:
-                odoo.modules.neutralize.neutralize_database(cr)
+            registry = odoo.modules.registry.Registry.new(db)
+            with registry.cursor() as cr:
+                env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
+                if copy:
+                    # if it's a copy of a database, force generation of a new dbuuid
+                    env["ir.config_parameter"].init(force=True)
+                if neutralize_database:
+                    odoo.modules.neutralize.neutralize_database(cr)
 
-            if filestore_path:
-                filestore_dest = env["ir.attachment"]._filestore()
-                shutil.move(filestore_path, filestore_dest)
+                if filestore_path:
+                    filestore_dest = env["ir.attachment"]._filestore()
+                    shutil.move(filestore_path, filestore_dest)
 
         _logger.info("RESTORE DB: %s", db)
     except Exception:
