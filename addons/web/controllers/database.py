@@ -5,14 +5,16 @@ import re
 import tempfile
 
 from lxml import html
-
-from werkzeug.datastructures import FileStorage
+from werkzeug.datastructures import (
+    FileStorage,  # noqa: TC002 — runtime import required (PEP 649)
+)
 
 import odoo
 import odoo.modules.registry
 from odoo import http
 from odoo.http import Response, content_disposition, dispatch_rpc, request
 from odoo.service import db
+from odoo.service.db import DBNAME_PATTERN  # re-exported; used by template renderer too
 from odoo.tools.misc import file_open, str2bool
 from odoo.tools.translate import _
 
@@ -21,10 +23,12 @@ from odoo.addons.base.models.ir_qweb import render as qweb_render
 _logger = logging.getLogger(__name__)
 
 
-DBNAME_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9_.-]+\Z"
-
-
 class Database(http.Controller):
+
+    def _handle_insecure_password(self, master_pwd: str) -> None:
+        """Upgrade the admin password if it is still the insecure default 'admin'."""
+        if odoo.tools.config.verify_admin_password("admin") and master_pwd:
+            dispatch_rpc("db", "change_admin_password", ["admin", master_pwd])
 
     def _render_template(self, **d) -> str:
         d.setdefault("manage", True)
@@ -87,9 +91,7 @@ class Database(http.Controller):
     def create(
         self, master_pwd: str, name: str, lang: str, password: str, **post
     ) -> str | Response:
-        insecure = odoo.tools.config.verify_admin_password("admin")
-        if insecure and master_pwd:
-            dispatch_rpc("db", "change_admin_password", ["admin", master_pwd])
+        self._handle_insecure_password(master_pwd)
         try:
             if not re.match(DBNAME_PATTERN, name):
                 raise ValueError(
@@ -143,9 +145,7 @@ class Database(http.Controller):
         new_name: str,
         neutralize_database: bool | str = False,
     ) -> str | Response:
-        insecure = odoo.tools.config.verify_admin_password("admin")
-        if insecure and master_pwd:
-            dispatch_rpc("db", "change_admin_password", ["admin", master_pwd])
+        self._handle_insecure_password(master_pwd)
         try:
             if not re.match(DBNAME_PATTERN, new_name):
                 raise ValueError(
@@ -174,11 +174,10 @@ class Database(http.Controller):
         csrf=False,
     )
     def drop(self, master_pwd: str, name: str) -> str | Response:
-        insecure = odoo.tools.config.verify_admin_password("admin")
-        if insecure and master_pwd:
-            dispatch_rpc("db", "change_admin_password", ["admin", master_pwd])
+        self._handle_insecure_password(master_pwd)
         try:
-            dispatch_rpc("db", "drop", [master_pwd, name])
+            if not dispatch_rpc("db", "drop", [master_pwd, name]):
+                raise RuntimeError(f"Database {name!r} was not found")
             if request.session.db == name:
                 request.env.cr.close()  # dropping this database killed our cursor
                 request.session.logout()
@@ -203,10 +202,10 @@ class Database(http.Controller):
         filestore: bool | str = True,
     ) -> str | Response:
         filestore = str2bool(filestore)
-        insecure = odoo.tools.config.verify_admin_password("admin")
-        if insecure and master_pwd:
-            dispatch_rpc("db", "change_admin_password", ["admin", master_pwd])
+        self._handle_insecure_password(master_pwd)
         try:
+            if backup_format not in {"zip", "dump"}:
+                raise ValueError(f"Invalid backup format {backup_format!r}; expected 'zip' or 'dump'")
             odoo.service.db.check_super(master_pwd)
             if name not in http.db_list():
                 raise ValueError(f"Database {name!r} is not known")
@@ -239,9 +238,7 @@ class Database(http.Controller):
         copy: bool | str = False,
         neutralize_database: bool | str = False,
     ) -> str | Response:
-        insecure = odoo.tools.config.verify_admin_password("admin")
-        if insecure and master_pwd:
-            dispatch_rpc("db", "change_admin_password", ["admin", master_pwd])
+        self._handle_insecure_password(master_pwd)
         tmp_path = None
         try:
             db.check_super(master_pwd)

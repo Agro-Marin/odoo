@@ -42,6 +42,34 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    // Delete modal: reset confirm field on open and validate on each keystroke
+    const deleteModal = document.querySelector(".o_database_delete");
+    if (deleteModal) {
+        deleteModal.addEventListener("show.bs.modal", function () {
+            const confirmInput = /** @type {HTMLInputElement | null} */ (
+                document.getElementById("dbname_delete_confirm")
+            );
+            if (confirmInput) {
+                confirmInput.value = "";
+                confirmInput.setCustomValidity("Please type the database name to confirm deletion.");
+            }
+        });
+        deleteModal.addEventListener("input", function (ev) {
+            const target = /** @type {HTMLElement} */ (ev.target);
+            if (target.id === "dbname_delete_confirm") {
+                const confirmInput = /** @type {HTMLInputElement} */ (target);
+                const nameInput = /** @type {HTMLInputElement | null} */ (
+                    document.getElementById("dbname_delete")
+                );
+                if (nameInput && confirmInput.value === nameInput.value) {
+                    confirmInput.setCustomValidity("");
+                } else {
+                    confirmInput.setCustomValidity("Database name does not match.");
+                }
+            }
+        });
+    }
+
     document.getElementById("backup_format")?.addEventListener("change", function (ev) {
         ev.preventDefault();
         const no_filestore_flag = document.getElementById("filestore_div");
