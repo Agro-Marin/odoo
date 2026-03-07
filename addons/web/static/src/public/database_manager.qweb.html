@@ -1,6 +1,8 @@
-<html>
+<html lang="en">
 <head>
     <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <title>Odoo</title>
     <link rel="shortcut icon" href="/web/static/img/favicon.ico" type="image/x-icon" />
     <link rel="stylesheet" href="/web/static/src/libs/fontawesome7/css/fontawesome.css" />
@@ -21,6 +23,13 @@
     <script src="/web/static/lib/bootstrap/js/dist/base-component.js" ></script>
     <script src="/web/static/lib/bootstrap/js/dist/modal.js" ></script>
 
+    <script>
+        // Inline: apply theme before first paint to prevent flash
+        (function () {
+            const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            document.documentElement.setAttribute("data-bs-theme", dark ? "dark" : "light");
+        })();
+    </script>
     <script src="/web/static/src/public/database_manager.js" ></script>
     <style>
         a {
@@ -29,18 +38,18 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <main class="container py-5">
         <!-- Database List -->
         <div class="row">
             <div class="col-lg-6 offset-lg-3 o_database_list">
-                <img src="/web/static/img/logo2.png" class="img-fluid d-block mx-auto"/>
+                <img src="/web/static/img/logo2.png" class="img-fluid d-block mx-auto" alt="Odoo"/>
                 <t t-if="not list_db">
                     <div class="alert alert-danger text-center">The database manager has been disabled by the administrator</div>
                 </t>
                 <t t-elif="insecure and databases">
                     <div class="alert alert-warning">
                         Warning, your Odoo database manager is not protected.<br/>
-                        Please <a href="#" data-bs-toggle="modal" data-bs-target=".o_database_master">set a master password</a> to secure it.
+                        Please <button type="button" class="btn btn-link p-0 align-baseline" data-bs-toggle="modal" data-bs-target=".o_database_master">set a master password</button> to secure it.
                     </div>
                 </t>
                 <t t-if="error">
@@ -58,7 +67,7 @@
                                     <t t-out="db" />
                                 </a>
                                 <t t-if="manage">
-                                    <div class="btn-group btn-group-sm float-end">
+                                    <div class="btn-group btn-group-sm">
                                         <button type="button" t-att-data-db="db" data-bs-target=".o_database_backup" class="o_database_action btn btn-primary">
                                             <i class="fa-regular fa-floppy-disk"></i> Backup
                                         </button>
@@ -77,7 +86,7 @@
                         <div class="d-flex mt-2">
                             <button type="button" data-bs-toggle="modal" data-bs-target=".o_database_create" class="btn btn-primary flex-grow-1">Create Database</button>
                             <button type="button" data-bs-toggle="modal" data-bs-target=".o_database_restore" class="btn btn-primary flex-grow-1 ms-2">Restore Database</button>
-                            <button type="button" data-bs-toggle="modal" data-bs-target=".o_database_master" class="btn btn-primary flex-grow-1 ms-2">Set Master Password</button>
+                            <button type="button" data-bs-toggle="modal" data-bs-target=".o_database_master" class="btn btn-outline-secondary flex-grow-1 ms-2">Set Master Password</button>
                         </div>
                     </t>
                     <t t-else="">
@@ -91,18 +100,18 @@
                         <t t-call="create_form" />
                         <input type="submit" value="Create database" class="btn btn-primary float-start"/>
                     </form>
-                    <a role="button" data-bs-toggle="modal" data-bs-target=".o_database_restore" class="btn btn-link">or restore a database</a>
+                    <button type="button" data-bs-toggle="modal" data-bs-target=".o_database_restore" class="btn btn-link">or restore a database</button>
                 </t>
             </div>
         </div>
 
         <!-- Create -->
-        <div class="modal fade o_database_create" role="dialog">
+        <div class="modal fade o_database_create" role="dialog" aria-labelledby="o_db_create_title" aria-modal="true">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <form role="form" action="/web/database/create" method="post">
                         <div class="modal-header">
-                            <h4 class="modal-title">Create Database</h4>
+                            <h4 id="o_db_create_title" class="modal-title">Create Database</h4>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
@@ -112,7 +121,7 @@
                             </small>
                         </div>
                         <div class="modal-footer">
-                            <input type="submit" value="Continue" class="btn btn-primary float-end"/>
+                            <input type="submit" value="Continue" class="btn btn-primary"/>
                         </div>
                     </form>
                 </div>
@@ -120,11 +129,11 @@
         </div>
 
         <!-- Restore -->
-        <div class="modal fade o_database_restore" role="dialog">
+        <div class="modal fade o_database_restore" role="dialog" aria-labelledby="o_db_restore_title" aria-modal="true">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h4 class="modal-title">Restore Database</h4>
+                        <h4 id="o_db_restore_title" class="modal-title">Restore Database</h4>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <form id="form_restore_db" role="form" action="/web/database/restore" method="post" enctype="multipart/form-data">
@@ -139,22 +148,22 @@
                             <div class="row mb-3">
                                 <label for="dbname_restore" class="col-md-4 col-form-label">Database Name</label>
                                 <div class="col-md-8">
-                                    <input id="dbname_restore" type="text" name="name" class="form-control" required="required" t-att-pattern="pattern" title="Only alphanumerical characters, underscore, hyphen and dot are allowed"/>
+                                    <input id="dbname_restore" type="text" name="name" class="form-control" required t-att-pattern="pattern" title="Only alphanumerical characters, underscore, hyphen and dot are allowed"/>
                                 </div>
                             </div>
-                              <div class="row mb-3">
-                                  <label for="neutralize_database_restore" class="col-md-4 col-form-label" >Neutralize</label>
-                                   <div class="col-md-8">
-                                <input id="neutralize_database_restore" type="checkbox" name="neutralize_database" class="form-check-input" />
-                                   </div>
-                              </div>
-                            <label for="radio_copy_true">This database might have been moved or copied.</label>
+                            <div class="row mb-3">
+                                <label for="neutralize_database_restore" class="col-md-4 col-form-label">Neutralize</label>
+                                <div class="col-md-8">
+                                    <input id="neutralize_database_restore" type="checkbox" name="neutralize_database" class="form-check-input" />
+                                </div>
+                            </div>
+                            <p class="fw-semibold mb-1">This database might have been moved or copied.</p>
                             <p class="form-text">
                                 In order to avoid conflicts between databases, Odoo needs to know if this database was moved or copied.<br/>
                                 If you don't know, answer "This database is a copy".
                             </p>
                             <div class="form-check">
-                                <input id="radio_copy_true" name="copy" type="radio" class="form-check-input" value="true" checked="1" />
+                                <input id="radio_copy_true" name="copy" type="radio" class="form-check-input" value="true" checked />
                                 <label for="radio_copy_true" class="form-check-label">This database is a copy</label>
                             </div>
                             <div class="form-check">
@@ -163,7 +172,7 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <input type="submit" value="Continue" class="btn btn-primary float-end"/>
+                            <input type="submit" value="Continue" class="btn btn-primary"/>
                         </div>
                     </form>
                 </div>
@@ -171,11 +180,11 @@
         </div>
 
         <!-- Master password -->
-        <div class="modal fade o_database_master" role="dialog">
+        <div class="modal fade o_database_master" role="dialog" aria-labelledby="o_db_master_title" aria-modal="true">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h4 class="modal-title">Set Master Password</h4>
+                        <h4 id="o_db_master_title" class="modal-title">Set Master Password</h4>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <form id="form_change_pwd" role="form" action="/web/database/change_password" method="post">
@@ -187,14 +196,14 @@
                                 <label for="master_pwd_new" class="col-md-5 col-form-label">New Master Password</label>
                                 <div class="col-md-7">
                                     <div class="input-group">
-                                        <input id="master_pwd_new" type="password" name="master_pwd_new" class="form-control" required="required" autocomplete="new-password"/>
-                                        <span class="fa-regular fa-eye o_little_eye input-group-text" aria-hidden="true" style="cursor: pointer;"></span>
+                                        <input id="master_pwd_new" type="password" name="master_pwd_new" class="form-control" required autocomplete="new-password"/>
+                                        <span class="o_little_eye input-group-text" style="cursor: pointer;"><i class="fa-regular fa-eye" aria-hidden="true"></i></span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <input type="submit" value="Continue" class="btn btn-primary float-end"/>
+                            <input type="submit" value="Continue" class="btn btn-primary"/>
                         </div>
                     </form>
                 </div>
@@ -202,11 +211,11 @@
         </div>
 
         <!-- Duplicate DB -->
-        <div class="modal fade o_database_duplicate" role="dialog">
+        <div class="modal fade o_database_duplicate" role="dialog" aria-labelledby="o_db_duplicate_title" aria-modal="true">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h4 class="modal-title">Duplicate Database</h4>
+                        <h4 id="o_db_duplicate_title" class="modal-title">Duplicate Database</h4>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <form id="form-duplicate-db" role="form" action="/web/database/duplicate" method="post">
@@ -216,24 +225,24 @@
                             <div class="row mb-3">
                                 <label for="dbname_duplicate" class="col-md-4 col-form-label">Database Name</label>
                                 <div class="col-md-8">
-                                    <input id="dbname_duplicate" type="text" name="name" class="form-control" required="required" readonly="readonly"/>
+                                    <input id="dbname_duplicate" type="text" name="name" class="form-control" required readonly/>
                                 </div>
                             </div>
                             <div class="row mb-3">
                                 <label for="new_name" class="col-md-4 col-form-label">New Name</label>
                                 <div class="col-md-8">
-                                    <input id="new_name" type="text" name="new_name" class="form-control" required="required" t-att-pattern="pattern" title="Only alphanumerical characters, underscore, hyphen and dot are allowed"/>
+                                    <input id="new_name" type="text" name="new_name" class="form-control" required t-att-pattern="pattern" title="Only alphanumerical characters, underscore, hyphen and dot are allowed"/>
                                 </div>
                             </div>
-                              <div class="row mb-3">
-                                  <label for="neutralize_database" class="col-md-4 col-form-label" >Neutralize</label>
-                                   <div class="col-md-8">
-                                <input id="neutralize_database" type="checkbox" name="neutralize_database" class="form-check-input" />
-                                   </div>
-                              </div>
+                            <div class="row mb-3">
+                                <label for="neutralize_database" class="col-md-4 col-form-label">Neutralize</label>
+                                <div class="col-md-8">
+                                    <input id="neutralize_database" type="checkbox" name="neutralize_database" class="form-check-input" />
+                                </div>
+                            </div>
                         </div>
                         <div class="modal-footer">
-                            <input type="submit" value="Continue" class="btn btn-primary float-end"/>
+                            <input type="submit" value="Continue" class="btn btn-primary"/>
                         </div>
                     </form>
                 </div>
@@ -241,11 +250,11 @@
         </div>
 
         <!-- Drop DB -->
-        <div class="modal fade o_database_delete" role="dialog">
+        <div class="modal fade o_database_delete" role="dialog" aria-labelledby="o_db_delete_title" aria-modal="true">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h4 class="modal-title">Delete Database</h4>
+                        <h4 id="o_db_delete_title" class="modal-title">Delete Database</h4>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <form id="form_drop_db" role="form" action="/web/database/drop" method="post">
@@ -254,12 +263,12 @@
                             <div class="row mb-3">
                                 <label for="dbname_delete" class="col-md-4 col-form-label">Database</label>
                                 <div class="col-md-8">
-                                    <input id="dbname_delete" type="text" name="name" class="form-control" required="required" readonly="readonly"/>
+                                    <input id="dbname_delete" type="text" name="name" class="form-control" required readonly/>
                                 </div>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <input type="submit" value="Delete" class="btn btn-primary float-end"/>
+                            <input type="submit" value="Delete" class="btn btn-danger"/>
                         </div>
                     </form>
                 </div>
@@ -267,11 +276,11 @@
         </div>
 
         <!-- Backup DB -->
-        <div class="modal fade o_database_backup" role="dialog">
+        <div class="modal fade o_database_backup" role="dialog" aria-labelledby="o_db_backup_title" aria-modal="true">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h4 class="modal-title">Backup Database</h4>
+                        <h4 id="o_db_backup_title" class="modal-title">Backup Database</h4>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <form id="form_backup_db" role="form" action="/web/database/backup" method="post">
@@ -280,33 +289,33 @@
                             <div class="row mb-3">
                                 <label for="dbname_backup" class="col-md-4 col-form-label">Database Name</label>
                                 <div class="col-md-8">
-                                    <input id="dbname_backup" type="text" name="name" class="form-control" required="required" readonly="readonly"/>
+                                    <input id="dbname_backup" type="text" name="name" class="form-control" required readonly/>
                                 </div>
                             </div>
                             <div class="row mb-3">
                                 <label for="backup_format" class="col-md-4 col-form-label">Backup Format</label>
                                 <div class="col-md-8">
-                                    <select id="backup_format" name="backup_format" class="form-select" required="required">
+                                    <select id="backup_format" name="backup_format" class="form-select" required>
                                         <option value="zip">zip</option>
                                         <option value="dump">pg_dump custom format (without filestore)</option>
                                     </select>
                                 </div>
                             </div>
-                             <div class="row mb-3" id="filestore_div">
+                            <div class="row mb-3" id="filestore_div">
                                 <label for="filestore" class="col-md-4 col-form-label">Include filestore</label>
                                 <div class="col-md-8">
-                                     <input id="filestore" type="checkbox" name="filestore" value="1" checked class="form-check-input" />
-                                     <input type="hidden" name="filestore" value="0"/>
+                                    <input id="filestore" type="checkbox" name="filestore" value="1" checked class="form-check-input" />
+                                    <input type="hidden" name="filestore" value="0"/>
                                 </div>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <input type="submit" value="Backup" class="btn btn-primary float-end"/>
+                            <input type="submit" value="Backup" class="btn btn-primary"/>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
-    </div>
+    </main>
 </body>
 </html>
