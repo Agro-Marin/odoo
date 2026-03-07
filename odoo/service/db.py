@@ -388,33 +388,38 @@ def restore_db(
     _create_empty_database(db)
 
     filestore_path = None
-    with tempfile.TemporaryDirectory() as dump_dir:
-        if zipfile.is_zipfile(dump_file):
-            # v8 format
-            with zipfile.ZipFile(dump_file, "r") as z:
-                # only extract known members!
-                filestore = [m for m in z.namelist() if m.startswith("filestore/")]
-                z.extractall(dump_dir, ["dump.sql"] + filestore)
+    try:
+        with tempfile.TemporaryDirectory() as dump_dir:
+            if zipfile.is_zipfile(dump_file):
+                # v8 format
+                with zipfile.ZipFile(dump_file, "r") as z:
+                    # only extract known members!
+                    filestore = [m for m in z.namelist() if m.startswith("filestore/")]
+                    z.extractall(dump_dir, ["dump.sql"] + filestore)
 
-                if filestore:
-                    filestore_path = str(Path(dump_dir, "filestore"))
+                    if filestore:
+                        filestore_path = str(Path(dump_dir, "filestore"))
 
-            pg_cmd = "psql"
-            pg_args = ["-q", "-f", str(Path(dump_dir, "dump.sql"))]
+                pg_cmd = "psql"
+                pg_args = ["-q", "-f", str(Path(dump_dir, "dump.sql"))]
 
-        else:
-            # <= 7.0 format (raw pg_dump output)
-            pg_cmd = "pg_restore"
-            pg_args = ["--no-owner", dump_file]
+            else:
+                # <= 7.0 format (raw pg_dump output)
+                pg_cmd = "pg_restore"
+                pg_args = ["--no-owner", dump_file]
 
-        r = subprocess.run(
-            [find_pg_tool(pg_cmd), "--dbname=" + db, *pg_args],
-            env=exec_pg_environ(),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-        )
-        if r.returncode != 0:
-            raise RuntimeError(f"Couldn't restore database {db!r}")
+            r = subprocess.run(
+                [find_pg_tool(pg_cmd), "--dbname=" + db, *pg_args],
+                env=exec_pg_environ(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            if r.returncode != 0:
+                _logger.error("RESTORE DB %r failed:\n%s", db, r.stderr)
+                raise RuntimeError(
+                    f"Couldn't restore database {db!r}:\n{r.stderr.strip()}"
+                )
 
         registry = odoo.modules.registry.Registry.new(db)
         with registry.cursor() as cr:
@@ -429,7 +434,13 @@ def restore_db(
                 filestore_dest = env["ir.attachment"]._filestore()
                 shutil.move(filestore_path, filestore_dest)
 
-    _logger.info("RESTORE DB: %s", db)
+        _logger.info("RESTORE DB: %s", db)
+    except Exception:
+        # Drop the empty database created above so the name is not blocked
+        # for future restore attempts.
+        _logger.info("RESTORE DB: rolling back empty database %r after failure", db)
+        exp_drop(db)
+        raise
 
 
 @check_db_management_enabled
