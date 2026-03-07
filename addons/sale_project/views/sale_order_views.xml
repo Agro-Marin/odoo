@@ -35,7 +35,7 @@
                     name="action_view_milestone"
                     type="object"
                     class="oe_stat_button"
-                    icon="fa-check-square-o"
+                    icon="fa-regular fa-square-check"
                     invisible="not is_product_milestone or not project_ids or state == 'draft'"
                     groups="project.group_project_milestone"
                 >

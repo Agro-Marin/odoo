@@ -10,6 +10,7 @@
             <field name="print_report_name">'Production Order - %s' % object.name</field>
             <field name="binding_model_id" ref="model_mrp_production"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_bom_structure" model="ir.actions.report">
             <field name="name">BoM Overview</field>
@@ -20,6 +21,7 @@
             <field name="print_report_name">'Bom Overview - %s' % object.display_name</field>
             <field name="binding_model_id" ref="model_mrp_bom"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_mrp_mo_overview" model="ir.actions.report">
             <field name="name">MO Overview</field>
@@ -38,6 +40,7 @@
             <field name="report_file">mrp.label_production_view</field>
             <field name="binding_model_id" ref="model_mrp_production"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_finished_product" model="ir.actions.report">
             <field name="name">Finished Product Label (PDF)</field>
@@ -49,6 +52,7 @@
             <field name="print_report_name">'Finished products - %s' % object.name</field>
             <field name="binding_model_id" ref="model_mrp_production"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_workorder" model="ir.actions.report">
             <field name="name">Work Order</field>
@@ -59,6 +63,7 @@
             <field name="print_report_name">'Work Order - %s' % object.name</field>
             <field name="binding_model_id" ref="model_mrp_workorder"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
             <field name="multi">True</field>
         </record>
     </data>

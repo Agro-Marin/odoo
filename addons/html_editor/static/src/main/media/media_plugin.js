@@ -63,7 +63,7 @@ export class MediaPlugin extends Plugin {
                 description: this.config.allowVideo
                     ? _t("Insert image, icon or video")
                     : _t("Insert image or icon"),
-                icon: "fa-file-image-o",
+                icon: "fa-regular fa-file-image",
                 run: (params, context = {}) =>
                     this.openMediaDialog({
                         activeTab: this.getActiveDialogTab(context.searchTerm),

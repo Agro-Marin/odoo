@@ -21,7 +21,7 @@
                             </button>
                             <button name="action_view_slides"
                                 type="object"
-                                icon="fa-files-o"
+                                icon="fa-regular fa-copy"
                                 class="oe_stat_button"
                                 groups="website_slides.group_website_slides_officer">
                                 <field name="total_slides" widget="statinfo" string="Published Contents"/>
@@ -50,7 +50,7 @@
                             </button>
                              <button name="action_view_ratings"
                                 type="object"
-                                icon="fa-star-half-o"
+                                icon="fa-regular fa-star-half-stroke"
                                 class="oe_stat_button"
                                 groups="website_slides.group_website_slides_officer"
                                 invisible="not allow_comment">

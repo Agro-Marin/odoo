@@ -2,9 +2,9 @@
 <odoo>
     <template id="portal_my_tasks_priority_widget_template" name="Priority Widget Template">
         <t t-set="priority_label" t-value="priority_labels[task.priority]"/>
-        <span t-attf-class="o_priority_star d-inline-block fa fa-star#{' text-warning' if task.priority != '0' else '-o opacity-75'} #{classes if classes else ''}" t-att-title="priority_label"/>
-        <span t-attf-class="o_priority_star d-inline-block fa fa-star#{' text-warning' if task.priority in ['2', '3'] else '-o opacity-75'} #{classes if classes else ''}" t-att-title="priority_label"/>
-        <span t-attf-class="o_priority_star d-inline-block fa fa-star#{' text-warning' if task.priority == '3' else '-o opacity-75'} #{classes if classes else ''}" t-att-title="priority_label"/>
+        <span t-attf-class="o_priority_star d-inline-block #{'fa-solid fa-star text-warning' if task.priority != '0' else 'fa-regular fa-star opacity-75'} #{classes if classes else ''}" t-att-title="priority_label"/>
+        <span t-attf-class="o_priority_star d-inline-block #{'fa-solid fa-star text-warning' if task.priority in ['2', '3'] else 'fa-regular fa-star opacity-75'} #{classes if classes else ''}" t-att-title="priority_label"/>
+        <span t-attf-class="o_priority_star d-inline-block #{'fa-solid fa-star text-warning' if task.priority == '3' else 'fa-regular fa-star opacity-75'} #{classes if classes else ''}" t-att-title="priority_label"/>
     </template>
 
     <template id="portal_my_tasks_state_widget_template" name="Status Widget Template">

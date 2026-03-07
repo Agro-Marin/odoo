@@ -60,7 +60,7 @@
                     showSeconds="props.rounding === 0"
                     inputCssClass="'o_input'"
                 />
-                <i t-if="state.timeValues[0] and state.timeValues[1]" class="fa fa-long-arrow-right"/>
+                <i t-if="state.timeValues[0] and state.timeValues[1]" class="fa-solid fa-right-long"/>
                 <TimePicker
                     t-if="state.timeValues[1]"
                     value="state.timeValues[1]"
@@ -139,7 +139,7 @@
                     t-on-click="props.onToggleRange"
                     t-att-class="{'active': props.range}"
                 >
-                    <i class="fa fa-calendar-plus-o" />
+                    <i class="fa-regular fa-calendar-plus" />
                 </button>
             </nav>
             <t t-if="state.precision === 'days'">

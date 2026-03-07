@@ -2615,7 +2615,7 @@ test("edition of one2many field with pager", async () => {
                         <templates>
                             <t t-name="card">
                                 <div>
-                                    <a type="delete" class="fa fa-times float-end delete_icon"/>
+                                    <a type="delete" class="fa-solid fa-times float-end delete_icon"/>
                                     <field name="name"/>
                                 </div>
                             </t>
@@ -2771,7 +2771,7 @@ test("edition of one2many field with pager on desktop", async () => {
                         <templates>
                             <t t-name="card">
                                 <div>
-                                    <a type="delete" class="fa fa-times float-end delete_icon"/>
+                                    <a type="delete" class="fa-solid fa-times float-end delete_icon"/>
                                     <field name="name"/>
                                 </div>
                             </t>
@@ -3620,7 +3620,7 @@ test("one2many kanban: edition", async () => {
                         <templates>
                             <t t-name="card">
                                 <div>
-                                    <a type="delete" class="fa fa-times float-end delete_icon"/>
+                                    <a type="delete" class="fa-solid fa-times float-end delete_icon"/>
                                     <field name="name"/>
                                     <field name="color"/>
                                 </div>
@@ -3741,7 +3741,7 @@ test("one2many kanban: create action disabled", async () => {
                         <templates>
                             <t t-name="card">
                                 <div>
-                                    <a type="delete" class="fa fa-times float-end delete_icon"/>
+                                    <a type="delete" class="fa-solid fa-times float-end delete_icon"/>
                                     <field name="name"/>
                                 </div>
                             </t>
@@ -6087,7 +6087,7 @@ test("one2many kanban with action button", async () => {
                         <templates>
                             <t t-name="card">
                                 <field name="foo"/>
-                                <button name="method_name" type="object" class="fa fa-plus"/>
+                                <button name="method_name" type="object" class="fa-solid fa-plus"/>
                             </t>
                         </templates>
                     </kanban>
@@ -6881,8 +6881,8 @@ test("one2many field with virtual ids with kanban button", async () => {
                         <templates>
                             <t t-name="card">
                                 <field name="foo"/>
-                                <button type="object" class="btn btn-link fa fa-shopping-cart" name="button_warn" string="button_warn" warn="warn" />
-                                <button type="object" class="btn btn-link fa fa-shopping-cart" name="button_disabled" string="button_disabled" />
+                                <button type="object" class="btn btn-link fa-solid fa-shopping-cart" name="button_warn" string="button_warn" warn="warn" />
+                                <button type="object" class="btn btn-link fa-solid fa-shopping-cart" name="button_disabled" string="button_disabled" />
                             </t>
                         </templates>
                     </kanban>

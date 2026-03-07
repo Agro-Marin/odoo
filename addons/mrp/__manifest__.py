@@ -26,6 +26,7 @@
         'wizard/mrp_production_serial_numbers.xml',
         'views/mrp_views_menus.xml',
         'views/stock_move_views.xml',
+        'report/mrp_report_views_main.xml',
         'views/mrp_workorder_views.xml',
         'views/mrp_workcenter_views.xml',
         'views/mrp_bom_views.xml',
@@ -42,7 +43,6 @@
         'views/stock_scrap_views.xml',
         'wizard/stock_replenishment_info.xml',  # needs views/mrp_workcenter_views.xml to load first
         'report/report_deliveryslip.xml',
-        'report/mrp_report_views_main.xml',
         'report/mrp_report_bom_structure.xml',
         'report/mrp_report_mo_overview.xml',
         'report/mrp_production_templates.xml',

@@ -319,7 +319,9 @@ export const isNotEditableNode = (node) =>
 
 const iconTags = ["I", "SPAN"];
 // @todo @phoenix: move the specific part in a proper plugin.
-export const iconClasses = ["fa", "fab", "fad", "far", "oi"];
+// FA7 native style prefixes (fa-solid/fa-regular/fa-brands) are listed alongside
+// the legacy FA4 base class ("fa") and the FA5 short prefixes (fab/fad/far).
+export const iconClasses = ["fa", "fab", "fad", "far", "oi", "fa-solid", "fa-regular", "fa-brands"];
 
 export const ICON_SELECTOR = iconTags
     .map((tag) => iconClasses.map((cls) => `${tag}.${cls}`).join(", "))

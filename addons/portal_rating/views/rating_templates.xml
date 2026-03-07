@@ -11,13 +11,13 @@
         <div class="o_website_rating_static" t-att-style="inline_mode and 'display:inline'" t-att-title="rating_avg">
             <t t-if="rating_style_compressed">
                 <t t-if="rating_avg &lt;= 2">
-                    <i class="fa fa-star-o" role="img"></i>
+                    <i class="fa-regular fa-star" role="img"></i>
                 </t>
                 <t t-elif="rating_avg &gt;= 2.1 and rating_avg &lt;= 3.5">
-                    <i class="fa fa-star-half-o" role="img"></i>
+                    <i class="fa-regular fa-star-half-stroke" role="img"></i>
                 </t>
                 <t t-else="">
-                    <i class="fa fa-star" role="img"></i>
+                    <i class="fa-solid fa-star" role="img"></i>
                 </t>
                 <small class="text-muted ms-1">
                     <t t-esc="rating_avg"/>
@@ -25,13 +25,13 @@
             </t>
             <t t-else="">
                 <t t-foreach="range(0, val_integer)" t-as="num">
-                    <i class="fa fa-star" role="img"></i>
+                    <i class="fa-solid fa-star" role="img"></i>
                 </t>
                 <t t-if="val_decimal">
-                    <i class="fa fa-star-half-o" role="img"></i>
+                    <i class="fa-regular fa-star-half-stroke" role="img"></i>
                 </t>
                 <t t-foreach="range(0, empty_star)" t-as="num">
-                    <i class="fa fa-star-o" role="img"></i>
+                    <i class="fa-regular fa-star" role="img"></i>
                 </t>
                 <small class="text-muted ms-1">
                     (<t t-esc="rating_count"/>)

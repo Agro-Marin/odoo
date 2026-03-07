@@ -429,9 +429,9 @@ export class Message extends Record {
     get notificationIcon() {
         switch (this.notificationType) {
             case "pin":
-                return "fa fa-thumb-tack";
+                return "fa-solid fa-thumbtack";
             case "call":
-                return "fa fa-phone";
+                return "fa-solid fa-phone";
         }
         return null;
     }
@@ -495,13 +495,13 @@ export class Message extends Record {
         const firstAttachment = attachments[0];
         switch (true) {
             case firstAttachment.isImage:
-                return "fa-picture-o";
+                return "fa-regular fa-image";
             case firstAttachment.mimetype === "audio/mpeg":
-                return firstAttachment.voice ? "fa-microphone" : "fa-headphones";
+                return firstAttachment.voice ? "fa-solid fa-microphone" : "fa-solid fa-headphones";
             case firstAttachment.isVideo:
-                return "fa-video-camera";
+                return "fa-solid fa-video";
             default:
-                return "fa-file";
+                return "fa-solid fa-file";
         }
     }
 

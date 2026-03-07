@@ -265,7 +265,7 @@
                 const questionId = question.dataset.questionId;
                 const isCorrect = this.quiz.answers[questionId].is_correct;
                 for (const answer of question.querySelectorAll('a.o_wslides_quiz_answer')) {
-                    for (const icon of answer.querySelectorAll('i.fa')) {
+                    for (const icon of answer.querySelectorAll('i')) {
                         icon.classList.add('d-none');
                     }
                     const radio = answer.querySelector('input[type=radio]');

@@ -18,7 +18,7 @@ test("Ignore empty hrefs", async () => {
                 <a href="#" class="inactive_link">This link does nothing</a>
                 <button class="btn btn-secondary">
                     <a href="#">
-                        <i class="fa fa-trash"/>
+                        <i class="fa-solid fa-trash-can"/>
                     </a>
                 </button>
             </div>`;

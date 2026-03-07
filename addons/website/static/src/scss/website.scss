@@ -646,7 +646,8 @@ font[class*='bg-'] {
 .fa {
     $-size: map-get($spacers, 5);
 
-    font-family: "FontAwesome" !important;
+    font-family: "Font Awesome 7 Free" !important;
+    font-weight: 900 !important;
 
     &.rounded-circle,
     &.rounded,
@@ -986,7 +987,8 @@ $-o-carousel-controllers-size: var(--CarouselControllers-size, #{map-get($spacer
         background-image: none;
         color: $body-color;
         &:before {
-            font-family: "FontAwesome";
+            font-family: "Font Awesome 7 Free";
+            font-weight: 900;
             display: inline-block;
             background-color: #fff;
         }

@@ -36,7 +36,8 @@ export function useAutoresize(ref, options = {}) {
                     }
                     options.onResize?.(el, options);
                 };
-                el.addEventListener("input", () => resize(true));
+                const inputHandler = () => resize(true);
+                el.addEventListener("input", inputHandler);
                 const resizeObserver = new ResizeObserver(() => {
                     // This ensures that the resize function is not called twice on input or page load
                     if (wasProgrammaticallyResized) {
@@ -47,7 +48,7 @@ export function useAutoresize(ref, options = {}) {
                 });
                 resizeObserver.observe(el);
                 return () => {
-                    el.removeEventListener("input", resize);
+                    el.removeEventListener("input", inputHandler);
                     resizeObserver.unobserve(el);
                     resizeObserver.disconnect();
                     resize = null;

@@ -131,16 +131,18 @@ export function setRecurringAnimationFrame(callback) {
  */
 export function throttleForAnimation(func) {
     let handle = null;
-    const calls = new Set();
+    // Only the last pending call matters — use a single variable instead of
+    // a Set + spread-to-array which allocated on every animation frame tick.
+    let lastCall = null;
     const funcName = func.name
         ? `${func.name} (throttleForAnimation)`
         : "throttleForAnimation";
     let self;
     const pending = () => {
-        if (calls.size) {
+        if (lastCall) {
             handle = browser.requestAnimationFrame(pending);
-            const { args, resolve } = [...calls].pop();
-            calls.clear();
+            const { args, resolve } = lastCall;
+            lastCall = null;
             Promise.resolve(func.apply(self, args)).then(resolve);
         } else {
             handle = null;
@@ -157,7 +159,7 @@ export function throttleForAnimation(func) {
                         handle = browser.requestAnimationFrame(pending);
                         Promise.resolve(func.apply(this, args)).then(resolve);
                     } else {
-                        calls.add({ args, resolve });
+                        lastCall = { args, resolve };
                     }
                 });
             },
@@ -165,7 +167,7 @@ export function throttleForAnimation(func) {
         {
             cancel() {
                 browser.cancelAnimationFrame(handle);
-                calls.clear();
+                lastCall = null;
                 handle = null;
             },
         },

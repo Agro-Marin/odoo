@@ -19,7 +19,7 @@
                                 </t>
                                 <t t-elif="props.message.parent_id.attachment_ids.length > 0">
                                     <span class="me-2 fst-italic">Click to see the attachments</span>
-                                    <i class="fa fa-image"/>
+                                    <i class="fa-regular fa-image"/>
                                 </t>
                             </span>
                         </span>

@@ -109,7 +109,7 @@
                 <field name="state" filters="1" invisible="1" />
                 <field name="partner_ref" />
                 <field name="amount_total" widget="monetary" />
-                <field name="partner_id" avatar_field="avatar_128" options="{'icon': 'fa fa-users'}" />
+                <field name="partner_id" avatar_field="avatar_128" options="{'icon': 'fa-solid fa-users'}" />
                 <field name="payment_term_id" />
             </calendar>
         </field>
@@ -393,7 +393,7 @@
                         </button>
                         <button type="object" name="action_view_invoice"
                             class="oe_stat_button"
-                            icon="fa-pencil-square-o"
+                            icon="fa-regular fa-pen-to-square"
                             invisible="invoice_count == 0 or state in ('draft', 'sent')">
                             <field name="invoice_count" widget="statinfo" string="Vendor Bills" />
                             <field name='invoice_ids' invisible="1" />
@@ -409,7 +409,7 @@
                     </div>
                     <div class="badge rounded-pill text-bg-secondary float-end fs-6 border-0"
                         invisible="not locked">
-                        <i class="fa fa-lock" /> Locked </div>
+                        <i class="fa-solid fa-lock" /> Locked </div>
                     <div class="oe_title">
                         <span class="o_form_label" invisible="state not in ('draft', 'sent')">Request
                             for Quotation </span>

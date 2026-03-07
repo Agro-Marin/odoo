@@ -6,9 +6,9 @@
         <field name="model">ir.profile</field>
         <field name="arch" type="xml">
             <search>
-                <field name="name" string="Name"/>
-                <field name="session" string="Session"/>
-                <filter name="group_session" string="Session" context="{'group_by':'session'}"/>
+                <field name="name" string="Name" />
+                <field name="session" string="Session" />
+                <filter name="group_session" string="Session" context="{'group_by':'session'}" />
             </search>
         </field>
     </record>
@@ -19,17 +19,17 @@
         <field name="arch" type="xml">
             <list string="Profile Session" default_order="session desc, id desc" create="0">
                 <header>
-                    <button name="action_view_speedscope" type="object" string="View in speedscope"/>
+                    <button name="action_view_speedscope" type="object" string="View in speedscope" />
                 </header>
-                <field name="create_date"/>
-                <field name="session"/>
-                <field name="name"/>
-                <field name="entry_count"/>
-                <field name="sql_count" optional="hide"/>
-                <field name="speedscope_url" widget="url"/>
-                <field name="config_url" widget="url"/>
-                <field name="duration"/>
-                <field name="cpu_duration" optional="hide"/>
+                <field name="create_date" />
+                <field name="session" />
+                <field name="name" />
+                <field name="entry_count" />
+                <field name="sql_count" optional="hide" />
+                <field name="speedscope_url" widget="url" />
+                <field name="config_url" widget="url" />
+                <field name="duration" />
+                <field name="cpu_duration" optional="hide" />
             </list>
         </field>
     </record>
@@ -40,17 +40,17 @@
         <field name="arch" type="xml">
             <form string="IR Profile">
                 <group>
-                    <field name="name"/>
-                    <field name="session"/>
-                    <field name="cpu_duration"/>
-                    <field name="entry_count"/>
+                    <field name="name" />
+                    <field name="session" />
+                    <field name="cpu_duration" />
+                    <field name="entry_count" />
                     <!-- Do not rely on sql field for the invisible attrs to avoid fetching whole trace from server. -->
-                    <field name="sql_count" invisible="sql_count == 0"/>
-                    <field name="speedscope_url" widget="url"/>
-                    <field name="config_url" widget="url"/>
+                    <field name="sql_count" invisible="sql_count == 0" />
+                    <field name="speedscope_url" widget="url" />
+                    <field name="config_url" widget="url" />
                 </group>
                 <group invisible="not qweb">
-                    <field name="qweb" widget="profiling_qweb_view" nolabel="1"/>
+                    <field name="qweb" widget="profiling_qweb_view" nolabel="1" />
                 </group>
             </form>
         </field>
@@ -69,12 +69,12 @@
                     Profiling can be disabled at any moment in the settings.
                 </div>
                 <group>
-                    <field name="duration"/>
-                    <field name="expiration"/>
+                    <field name="duration" />
+                    <field name="expiration" />
                 </group>
                 <footer>
-                    <button string="Cancel" class="btn-secondary" special="cancel" data-hotkey="x"/>
-                    <button string="Enable profiling" type="object" name="submit" class="btn btn-primary" data-hotkey="q"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel" data-hotkey="x" />
+                    <button string="Enable profiling" type="object" name="submit" class="btn btn-primary" data-hotkey="q" />
                 </footer>
             </form>
         </field>
@@ -88,9 +88,9 @@
     </record>
 
     <menuitem
-        name="Profiling"
-        action="action_menu_ir_profile"
         id="menu_ir_profile"
-        parent="base.next_id_9"/>
+        name="Profiling"
+        parent="base.next_id_9"
+        action="action_menu_ir_profile" />
 
 </odoo>

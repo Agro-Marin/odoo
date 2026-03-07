@@ -16,38 +16,40 @@
         </t>
     </template>
 
-    <template id="web.layout" name="Web layout">&lt;!DOCTYPE html&gt; <html t-att="html_data or {}">
-            <head>
-                <meta charset="utf-8" />
-                <title t-out="title or 'Odoo'" />
-                <link rel="icon" t-att-href="x_icon or '/web/static/img/favicon.ico'" />
-                <script id="web.layout.odooscript">
-                    window.odoo = {
-                        csrf_token: "<t t-out="request.csrf_token(None)" />",
-                        debug: "<t t-out="debug" />",
-                    };
-                </script>
-                <t t-out="head or ''" />
-            </head>
-            <body t-att-class="body_classname">
-                <t t-out="0" />
-            </body>
-        </html>
+    <template id="web.layout" name="Web layout">
+&lt;!DOCTYPE html&gt; <html t-att="html_data or {}">
+<head>
+<meta charset="utf-8" />
+<title t-out="title or 'Odoo'" />
+<link rel="icon" t-att-href="x_icon or '/web/static/img/favicon.ico'" />
+<script id="web.layout.odooscript">
+window.odoo = {
+csrf_token: "<t t-out="request.csrf_token(None)" />",
+debug: "<t t-out="debug" />",
+};
+</script>
+<t t-out="head or ''" />
+</head>
+<body t-att-class="body_classname">
+<t t-out="0" />
+</body>
+</html>
     </template>
 
-    <template id="web.frontend_layout" name="Frontend Layout" inherit_id="web.layout" primary="True">
+    <template
+        id="web.frontend_layout"
+        name="Frontend Layout"
+        inherit_id="web.layout"
+        primary="True">
         <xpath expr="//head/meta[last()]" position="after">
             <meta name="viewport" content="width=device-width, initial-scale=1" />
         </xpath>
         <xpath expr="//head/link[last()]" position="after">
-            <link rel="preload"
-                href="/web/static/src/libs/fontawesome/fonts/fontawesome-webfont.woff2?v=4.7.0"
-                as="font" crossorigin="anonymous" />
+            <link rel="preload" href="/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2" as="font" crossorigin="anonymous" />
             <t t-call-assets="web.assets_frontend" t-js="false" />
         </xpath>
         <xpath expr="//head/script[@id='web.layout.odooscript']" position="after">
-            <script> odoo.__session_info__ = <t
-                    t-out="json.dumps(request.env['ir.http'].get_frontend_session_info())" />;
+            <script> odoo.__session_info__ = <t t-out="json.dumps(request.env['ir.http'].get_frontend_session_info())" />;
                 if (!/(^|;\s)tz=/.test(document.cookie)) {
                     const userTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
                     document.cookie = `tz=${userTZ}; path=/; SameSite=Lax`;
@@ -60,22 +62,18 @@
         <xpath expr="//t[@t-out='0']" position="replace">
             <div id="wrapwrap" t-attf-class="#{pageName or ''}">
                 <header t-if="not no_header" id="top" data-anchor="true">
-                    <img class="img-responsive d-block mx-auto"
-                        t-attf-src="/web/binary/company_logo"
-                        alt="Logo" />
+                    <img class="img-responsive d-block mx-auto" src="/web/binary/company_logo" alt="Logo" />
                 </header>
                 <main>
                     <t t-out="0" />
                 </main>
-                <footer t-if="not no_footer" id="bottom" data-anchor="true"
-                    t-attf-class="bg-light o_footer">
+                <footer t-if="not no_footer" id="bottom" data-anchor="true" class="bg-light o_footer">
                     <div id="footer" />
                     <div t-if="not no_copyright" class="o_footer_copyright">
                         <div class="container py-3">
                             <div class="row row-gap-2">
                                 <div class="col-sm text-center text-sm-start text-muted">
-                                    <span class="o_footer_copyright_name me-2">Copyright &amp;copy; <span
-                                            t-field="res_company.name" itemprop="name">Company name</span></span>
+                                    <span class="o_footer_copyright_name me-2">Copyright &amp;copy; <span t-field="res_company.name" itemprop="name">Company name</span></span>
                                 </div>
                                 <div class="col-sm text-center text-sm-end">
                                     <t t-call="web.brand_promotion" />
@@ -90,21 +88,17 @@
 
     <template id="web.brand_promotion_message" name="Brand Promotion Message">
         <t t-set="odoo_logo">
-            <a target="_blank" rel="noopener noreferrer"
-                t-attf-href="https://www.odoo.com?utm_source=db&amp;utm_medium=#{_utm_medium}"
-                class="badge text-bg-light">
-                <img alt="Odoo"
-                    src="/web/static/img/odoo_logo_tiny.png"
-                    width="62" height="20"
-                    style="width: auto; height: 1em; vertical-align: baseline;" />
+            <a target="_blank" rel="noopener noreferrer" t-attf-href="https://www.odoo.com?utm_source=db&amp;utm_medium=#{_utm_medium}" class="badge text-bg-light">
+                <img alt="Odoo" src="/web/static/img/odoo_logo_tiny.png" width="62" height="20" style="width: auto; height: 1em; vertical-align: baseline;" />
             </a>
         </t>
         Powered by <t t-out="odoo_logo" /><t t-if="_message"> - <t t-out="_message" /></t>
     </template>
+
     <template id="web.brand_promotion" name="Brand Promotion">
         <div class="o_brand_promotion">
             <t t-call="web.brand_promotion_message">
-                <t t-set="_message"></t>
+                <t t-set="_message" />
                 <t t-set="_utm_medium" t-valuef="portal" />
             </t>
         </div>
@@ -117,23 +111,17 @@
             <t t-set="no_header" t-value="True" />
             <t t-set="no_footer" t-value="True" />
             <div class="container py-5">
-                <div
-                    t-attf-class="card border-0 mx-auto bg-100 {{login_card_classes}} o_database_list"
-                    style="max-width: 300px;">
+                <div t-attf-class="card border-0 mx-auto bg-100 {{login_card_classes}} o_database_list" style="max-width: 300px;">
                     <div class="card-body">
                         <div class="text-center pb-3 border-bottom mb-4">
-                            <img
-                                t-attf-src="/web/binary/company_logo{{ '?dbname='+db if db else '' }}"
-                                alt="Logo" style="max-height:120px; max-width: 100%; width:auto" />
+                            <img t-attf-src="/web/binary/company_logo{{ '?dbname='+db if db else '' }}" alt="Logo" style="max-height:120px; max-width: 100%; width:auto" />
                         </div>
                         <t t-out="0" />
-                        <div class="text-center small mt-4 pt-3 border-top"
-                            t-if="not disable_footer">
+                        <div class="text-center small mt-4 pt-3 border-top" t-if="not disable_footer">
                             <t t-if="not disable_database_manager">
                                 <a class="border-end pe-2 me-1" href="/web/database/manager">Manage Databases</a>
                             </t>
-                            <a href="https://www.odoo.com?utm_source=db&amp;utm_medium=auth"
-                                target="_blank" rel="noopener noreferrer">Powered by <span>Odoo</span></a>
+                            <a href="https://www.odoo.com?utm_source=db&amp;utm_medium=auth" target="_blank" rel="noopener noreferrer">Powered by <span>Odoo</span></a>
                         </div>
                     </div>
                 </div>
@@ -145,38 +133,27 @@
         <t t-call="web.login_layout">
             <div class="oe_structure" id="oe_structure_login_top" />
             <owl-component t-if="not login" name="web.user_switch" />
-            <form class="oe_login_form" role="form" action="/web/login" method="post"
-                onsubmit="this.action = '/web/login' + location.hash" data-captcha="login">
+            <form class="oe_login_form" role="form" action="/web/login" method="post" onsubmit="this.action = '/web/login' + location.hash" data-captcha="login">
                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()" />
                 <div class="mb-3" t-if="databases and len(databases) &gt; 1">
                     <label for="db" class="col-form-label">Database</label>
                     <div class="input-group">
-                        <input type="text" name="db" t-att-value="request.db" id="db"
-                            class="form-control" required="required" readonly="readonly" />
-                        <a role="button" href="/web/database/selector"
-                            class="btn border border-start-0">Select <i class="fa fa-database"
-                                role="img" aria-label="Database" title="Database"></i></a>
+                        <input type="text" name="db" t-att-value="request.db" id="db" class="form-control" required="required" readonly="readonly" />
+                        <a role="button" href="/web/database/selector" class="btn border border-start-0">Select <i class="fa-solid fa-database" role="img" aria-label="Database" title="Database" /></a>
                     </div>
                 </div>
                 <div class="mb-3 field-login">
                     <label for="login" class="form-label d-flex justify-content-between">Email</label>
-                    <input type="text" placeholder="Enter your email" name="login"
-                        t-att-value="login" id="login" class="form-control" required="required"
-                        autocapitalize="off" autocomplete="username" />
+                    <input type="text" placeholder="Enter your email" name="login" t-att-value="login" id="login" class="form-control" required="required" autocapitalize="off" autocomplete="username" />
                 </div>
                 <div class="o_caps_lock_warning">
                     <div class="d-flex justify-content-between align-items-start">
                         <label for="password" class="form-label">Password</label>
                     </div>
                     <div class="input-group mb-1">
-                        <input type="password" placeholder="Enter your password" name="password"
-                            id="password" class="form-control" required="required"
-                            autocomplete="current-password"
-                            t-att-autofocus="'autofocus' if login else None" maxlength="4096" />
-                        <button type="button"
-                            class="btn btn-sm border border-start-0 o_show_password"
-                            aria-label="Show password">
-                            <i class="fa fa-eye" role="presentation" />
+                        <input type="password" placeholder="Enter your password" name="password" id="password" class="form-control" required="required" autocomplete="current-password" t-att-autofocus="'autofocus' if login else None" maxlength="4096" />
+                        <button type="button" class="btn btn-sm border border-start-0 o_show_password" aria-label="Show password">
+                            <i class="fa-regular fa-eye" role="presentation" />
                         </button>
                     </div>
                 </div>
@@ -189,8 +166,7 @@
                 <div class="oe_login_buttons text-center d-grid mb-1 pt-3">
                     <button type="submit" class="btn btn-primary">Log in</button>
                     <t t-if="debug">
-                        <button type="submit" name="redirect" value="/web/become"
-                            class="btn btn-link btn-sm">Log in as superuser</button>
+                        <button type="submit" name="redirect" value="/web/become" class="btn btn-link btn-sm">Log in as superuser</button>
                     </t>
                     <t t-call="web.login_oauth" />
                 </div>
@@ -207,7 +183,7 @@
                 <p>
                     You are logged in.
                 </p>
-                <div t-attf-class="clearfix oe_login_buttons text-center mb-1 pt-3">
+                <div class="clearfix oe_login_buttons text-center mb-1 pt-3">
                     <a class="btn btn-primary w-100" href="/web/session/logout">Log out</a>
                 </div>
             </div>
@@ -221,9 +197,7 @@
         <div t-if="auth_btns" class="o_login_auth">
             <em class="d-block my-3 small text-center text-muted">- or -</em>
             <div class="list-group">
-                <a t-foreach="auth_btns" t-as="p"
-                    t-attf-class="{{p.get('list_item_class')}} list-group-item list-group-item-action d-flex align-items-center gap-2 py-2"
-                    t-att-href="p.get('auth_link') or '#'">
+                <a t-foreach="auth_btns" t-as="p" t-attf-class="{{p.get('list_item_class')}} list-group-item list-group-item-action d-flex align-items-center gap-2 py-2" t-att-href="p.get('auth_link') or '#'">
                     <i t-att-class="p.get('css_class', '')" role="presentation" />
                     <span class="mx-auto" t-out="p.get('body', '')" />
                 </a>
@@ -257,10 +231,8 @@
             <t t-set="html_data" t-value="{'style': 'height: 100%;'}" />
             <t t-set="title">Web Unit Tests</t>
             <t t-set="head">
-                <meta name="viewport"
-                    content="width=device-width, initial-scale=1, user-scalable=no" />
-                <script> odoo.__session_info__ = <t
-                        t-out="json.dumps(session_info)" />; </script>
+                <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+                <script> odoo.__session_info__ = <t t-out="json.dumps(session_info)" />; </script>
                 <t t-call-assets="web.assets_unit_tests_setup" />
                 <t t-call-assets="web.assets_unit_tests" defer_load="True" />
             </t>
@@ -272,8 +244,7 @@
             <t t-set="html_data" t-value="{'style': 'height: 100%;'}" />
             <t t-set="title">Web Tests</t>
             <t t-set="head">
-                <script> odoo.__session_info__ = <t
-                        t-out="json.dumps(session_info)" />; </script>
+                <script> odoo.__session_info__ = <t t-out="json.dumps(session_info)" />; </script>
 
                 <t t-call="web.test_helpers" />
 
@@ -288,8 +259,7 @@
     <template id="web.webclient_bootstrap" name="Web Client Bootstrap">
         <t t-call="web.layout">
             <t t-set="head_web">
-                <meta name="viewport"
-                    content="width=device-width, initial-scale=1, user-scalable=no" />
+                <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
                 <meta name="theme-color" content="#6C5CE7" />
                 <link rel="manifest" href="/web/manifest.webmanifest" crossorigin="use-credentials" />
                 <link rel="apple-touch-icon" href="/web/static/img/odoo-icon-ios.png" />
@@ -303,7 +273,7 @@
                             user_context.lang = lang;
                             menuURL += `?lang=${lang}`;
                         }
-                        odoo.reloadMenus = () => fetch(menuURL, { cache: "no-store" }).then(res => res.json());
+                        odoo.reloadMenus = () =&gt; fetch(menuURL, { cache: "no-store" }).then(res =&gt; res.json());
                         odoo.loadMenusPromise = odoo.reloadMenus();
                     }
                 </script>
@@ -323,8 +293,7 @@
                 <t t-call="web.conditional_assets_tests" media="screen" />
             </t>
             <t t-set="head" t-value="head_web + (head or '')" />
-            <t t-set="body_classname"
-                t-value="'o_web_client' + (' o-density-' + content_density if content_density and content_density != 'default' else '')" />
+            <t t-set="body_classname" t-value="'o_web_client' + (' o-density-' + content_density if content_density and content_density != 'default' else '')" />
         </t>
     </template>
 
@@ -335,7 +304,7 @@
             <t t-set="head">
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <script>
-                    window.addEventListener('online', () => location.reload());
+                    window.addEventListener('online', () =&gt; location.reload());
                 </script>
                 <style>
                     body {
@@ -389,8 +358,8 @@
     <template id="web.webclient_scoped_app" name="Scoped App">
         <t t-call="web.layout">
             <t t-set="html_data" t-value="{'style': 'height: 100%;'}" />
-            <t t-set="title" t-value="'Install %s' % (app_name)" />
-            <t t-set="x_icon" t-value="'/scoped_app_icon_png?app_id=%s' % (app_id)" />
+            <t t-set="title" t-value="f'Install {app_name}'" />
+            <t t-set="x_icon" t-value="f'/scoped_app_icon_png?app_id={app_id}'" />
             <t t-set="head">
                 <t t-call-assets="web.assets_frontend_minimal" />
                 <t t-call-assets="web.assets_frontend_lazy" />

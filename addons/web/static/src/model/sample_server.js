@@ -403,7 +403,7 @@ export class SampleServer {
             const matches = measureSpec.match(MEASURE_SPEC_REGEX);
             if (!matches) {
                 throw new Error(
-                    `Invalidate Aggregate "${measureSpec}" in SampleServer`,
+                    `Invalid Aggregate "${measureSpec}" in SampleServer`,
                 );
             }
             const { fieldName, func } = matches.groups;

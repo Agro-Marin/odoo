@@ -3,8 +3,8 @@
     <t t-name="FieldMany2ManyTagsBanksTagsList" t-inherit="web.TagsList" t-inherit-mode="primary">
         <xpath expr="//div[hasclass('o_tag_badge_text')]" position="before">
             <span class="me-1">
-                <i t-if="tag.allowOutPayment" class="fa fa-shield text-success" data-tooltip="Trusted"/>
-                <i t-else="" class="fa fa-exclamation-circle text-danger" data-tooltip="Untrusted"/>
+                <i t-if="tag.allowOutPayment" class="fa-solid fa-shield text-success" data-tooltip="Trusted"/>
+                <i t-else="" class="fa-solid fa-exclamation-circle text-danger" data-tooltip="Untrusted"/>
             </span>
         </xpath>
     </t>

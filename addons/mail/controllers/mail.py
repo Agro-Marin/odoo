@@ -269,10 +269,14 @@ class MailController(http.Controller):
         '/mail/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>',
         '/mail/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>/<int:alpha>',
         ], type='http', auth="none")
-    def export_icon_to_png(self, icon, color='#000', bg=None, size=100, alpha=255, font='/web/static/src/libs/fontawesome/fonts/fontawesome-webfont.ttf', width=None, height=None):
+    def export_icon_to_png(self, icon, color='#000', bg=None, size=100, alpha=255, font='/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2', width=None, height=None):
         """ This method converts an unicode character to an image (using Font
             Awesome font by default) and is used only for mass mailing because
             custom fonts are not supported in mail.
+
+            NOTE: FA7 ships woff2 only; PIL's ImageFont.truetype() requires a
+            TTF/OTF file. The default font path will fail until a compatible
+            font file is added. Callers can pass an explicit ``font`` path.
             :param icon : decimal encoding of unicode character
             :param color : RGB code of the color
             :param bg : RGB code of the background color

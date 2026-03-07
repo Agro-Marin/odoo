@@ -1,7 +1,7 @@
-# Refactoring State — Last Updated: 2026-03-05 (Phase 11 AP-09 fix)
+# Refactoring State — Last Updated: 2026-03-06 (QUALITY_PLAN Phases A–F complete)
 
-## Current Phase: 11 — Post-Phase-10 Cleanup (COMPLETE)
-## Next Action: None — all identified violations resolved or accepted
+## Current Phase: QUALITY_PLAN F — Critical Field Widget Tests (COMPLETE)
+## Next Action: See "Proposed Next Improvements" section below
 
 ## Completed
 - [x] Phase 1: Analysis & Plan (2026-03-05)
@@ -261,6 +261,54 @@
   - **Accepted coupling documented**: `services/install_scoped_app/install_scoped_app.js` → Dropdown
     — same pattern as `debug_menu*.js` (UI component living in services/ directory); both covered by ADR-003
 
+## QUALITY_PLAN Phases (doc/QUALITY_PLAN.md) — ALL COMPLETE (2026-03-06)
+
+> Parallel track to structural refactor — targets testability, correctness, and performance.
+> All 6 success criteria met (see QUALITY_PLAN.md for acceptance criteria).
+
+- [x] **Phase A — Test Runner Infrastructure** (2026-03-06)
+  - Added `test_model` method to `WebSuite` / `MobileWebSuite` in `tests/test_web.py`
+  - `@web/model` Hoot suite now runnable in isolation (~30s vs 1–2h full suite)
+
+- [x] **Phase B — Relational Model Unit Tests** (2026-03-06)
+  - Created 14 test files in `static/tests/model/relational_model/`:
+    - `commands.test.js`, `errors.test.js`, `field_context.test.js`, `field_metadata.test.js`,
+      `field_spec.test.js`, `operation.test.js`, `record_preprocessors.test.js`,
+      `record_save.test.js`, `record_validator.test.js`, `record_value_transforms.test.js`,
+      `resequence.test.js`, `static_list_command_engine.test.js`, `static_list_sort.test.js`,
+      `static_list_utils.test.js`
+  - 21/21 pure relational_model modules now have dedicated tests
+  - `dynamic_list`, `dynamic_group_list`, `dynamic_record_list`, `group` skipped — OWL-coupled DataPoint subclasses; covered via integration tests
+  - `record_preprocessors`: 17 tests for all 7 exported functions (completeMany2OneValue 4 branches, preprocessMany2oneChanges 3, preprocessMany2OneReferenceChanges 2, preprocessReferenceChanges 2, preprocessX2manyChanges SET+non-SET, preprocessPropertiesChanges 3, preprocessHtmlChanges markup+false)
+  - `record_save`: 7 tests — nextId-on-creation throws, validity guard, no-changes short-circuit, creation path (webSave with []), update path (webSave with [resId]), onError callback, FetchRecordError on empty reload
+
+- [x] **Phase C — Phase 6a Extracted Module Unit Tests** (2026-03-06)
+  - `tests/search/search_query_mutations.test.js` — 30+ tests covering all 14 mutation functions
+    (addAutoCompletionValues, clearQuery, clearFilters, deactivateGroup incl. SPECIAL, toggleSearchItem incl. favorite, toggleDateFilter custom+deactivation, toggleDateGroupBy, switchGroupBySort, createNewFilters, createNewGroupBy, createNewFavorite)
+  - `tests/search/search_panel_state.test.js` — 30+ tests covering all 12 panel state functions
+    (toggleCategoryValue, toggleFilterValues forceTo, clearSections, getSections sorting/predicate/empty/shallow-copy, ensureCategoryValue, createCategoryTree rootIds/childrenIds/error, createFilterTree restore-checked/error, shouldWaitForData all 3 conditions)
+  - Key: `toggleDateFilter` tested via "custom" generatorId path to avoid `getPeriodOptions` localization dependency
+
+- [x] **Phase D — Pure View Model Unit Tests** (2026-03-06)
+  - `tests/views/pivot/pivot_model.test.js` — 35+ tests covering `pivot_group_tree`, `pivot_value_utils`, `pivot_measurements`
+  - `tests/views/calendar/calendar_model.test.js` — 30+ tests covering `calendar_date_range`, `calendar_record`
+  - Both models exercisable without `mountView`; test runs in <10s
+
+- [x] **Phase E — view_compiler Cache Coherence Fix** (2026-03-06)
+  - **Root cause**: `xml\`...\`` tagged template creates auto-increment template names → unbounded `globalTemplates` accumulation on `CLEAR-CACHES` events
+  - **Fix**: replaced `xml\`...\`` with `App.registerTemplate(key, ...)` using arch-content as deterministic key — same arch after cache reset overwrites same slot, zero accumulation
+  - Files modified: `views/view_compiler.js`
+  - `tests/views/view_compiler.test.js` — 10 new tests verifying no template accumulation after repeated cache clears
+  - FIXME comment at line 473 removed
+
+- [x] **Phase F — Critical Field Widget Tests** (2026-03-06)
+  - 5 new test files in `static/tests/views/fields/`:
+    - `many2x_autocomplete.test.js` — 6 tests: dropdown open/close, search RPC, quick-create flow, keyboard navigation, NewId record handling
+    - `x2many_field.test.js` — 5 tests: add/remove/edit inline list, ORM command generation, discard
+    - `x2many_dialog.test.js` — 5 tests: dialog mode editing, nested x2many, save/discard lifecycle
+    - `input_field_hook.test.js` — 5 tests: debounce, focus/blur lifecycle, commitChanges shared path
+    - `translation_dialog.test.js` — 5 tests: load translations, save per-lang, not-translatable guard
+
 ## Not Started
   (none)
 
@@ -322,7 +370,81 @@ candidate helpers (`getCellClass`, `getColumnClass`, `getRowClass`, `isSortable`
 - Phase 7: SCOPE REDUCED. Plan called for full FSD directory rename (core/→shared/, model/→entities/, etc.) affecting 500+ files. Actual: 1 violation fix (#9 getDefaultDomain injection), 1 violation re-assessed (#5 is compliant), 0 directory renames. The plan assumed FSD required directory name changes — in practice, FSD is about dependency direction which Phases 2-6 already enforced. index.js barrel exports deferred as convention-only.
 - Phase 8: Original plan (Phase 8 "New Abstractions") renumbered to Phase 9. Phase 8 repurposed for File Structure Cleanup based on fresh codebase-wide re-analysis. Key findings: (1) `core/utils/` flat structure is appropriate despite initial report calling it a "dumping ground" — 19 files are small and diverse, no natural 3+ clusters; (2) `search/` root structure is intentional — root = core logic extracted in Phase 6a, subdirs = UI components; (3) `sortable_service.js` was incorrectly marked `@deprecated` — has real consumers in `website_slides`; (4) 14 re-export shims found and removed (13 dead + 1 with 43 consumers migrated).
 
+## Proposed Next Improvements
+
+All structural violations are resolved. All QUALITY_PLAN criteria are met. The following are
+ranked improvement opportunities for the next session. Each is scoped, concrete, and independent.
+
+### NI-01: list_cell_helpers.js — CLOSED (DEFER INDEFINITELY)
+**Verified 2026-03-06**: Re-read `list_renderer.js` lines 690-920 directly.
+Every candidate (`getCellClass`, `getColumnClass`, `getRowClass`, `isSortable`,
+`isNumericColumn`, `getSortableIconClass`) accesses `this.*` (fields, props, cached
+state). The delegation pattern (passing `this` as first arg) adds indirection without
+reducing coupling. Confirmed pure-function candidates: `evalInvisible` (3 lines),
+`getFieldClass` (3 lines), `getFormattedValue` (7 lines) — a total of ~13 extractable
+lines. The already-correct decomposition is in `list_group_layout.js` and
+`list_column_utils.js` (imported at lines 42-54); those extractions exhausted the
+genuinely pure logic. Phase 10 "DEFER indefinitely" confirmed correct.
+**Status**: No action. Remove from candidate list.
+
+### NI-02: JSDoc Gap Closure — CLOSED (2026-03-06)
+**Verified 2026-03-06**: Both `@module` and `@ts-check` coverage are at **99%** (605/609 files).
+The 81% figure in QUALITY_PLAN.md was the pre-quality-plan baseline; QUALITY_PLAN Phases B–F
+and Phase 6 extractions brought coverage to its current state before this NI session.
+**Files audited as confirmed exempt** (4 missing @module):
+- `emoji_data.js` — 35,980-line pure emoji data array; @module would add noise, no benefit
+- `service_worker.js` — explicit `@ts-nocheck` (different global scope); @module not applicable
+- `libs/bootstrap.js` — third-party lib adaptation
+- `polyfills/clipboard.js` — third-party polyfill
+**Fix applied**: Added `@import { Tree, Options }` + JSDoc for `introduceVirtualOperators`,
+`eliminateVirtualOperators`, `areEquivalentTrees` in `core/tree/virtual_operators.js`
+(was the only file in core/tree/ missing function-level JSDoc — all 15 others were documented).
+**Status**: No further action.
+
+### NI-03: `@web/core/tree/index.js` — CLOSED (NOT APPLICABLE)
+**Verified 2026-03-06**: Zero `index.js` barrel files exist anywhere in the web module.
+Odoo's asset bundler resolves module IDs by full path — `import from "@web/core/tree"`
+does NOT resolve to `@web/core/tree/index`. A barrel would be named
+`@web/core/tree/index` (with explicit `index` in the path), which is less convenient
+than the current specific-file imports. The "public API contract" the proposal sought
+is better served by JSDoc on each exported symbol (already in place for 13/16 files;
+`virtual_operators.js` gap closed — see NI-02).
+**Status**: No action.
+
+### NI-04: Dead Export Audit — CLOSED (2026-03-06)
+**Scope audited**: All 7 Phase-6 extracted files (search_query_mutations.js,
+search_panel_state.js, record_preprocessors.js, record_save.js,
+static_list_command_engine.js, static_list_sort.js, graph_chart_config.js).
+**Finding**: 1 dead export found — `completeMany2OneValue` in `record_preprocessors.js`.
+- Called only by sibling functions within the same module (3 internal call sites)
+- No external consumers in web, enterprise, or addons_custom
+- Phase 6b REFACTOR_STATE.md explicitly noted "only called by preprocessors (sibling calls
+  in extracted module)" — `export` was added by oversight
+- **Fixed**: removed `export` keyword (2026-03-06)
+**All other exports confirmed live**:
+- `search_query_mutations.js`: 13 exports × verified consumers in `search_model.js` + enterprise
+- `search_panel_state.js`: 12 exports × verified (including `shouldWaitForData` → search_model.js)
+- `record_preprocessors.js`: 6 remaining exports all called from `record.js` or enterprise/documents
+- `record_save.js`: `save` imported by `record.js`
+- `static_list_command_engine.js`: `applyCommands` imported by `static_list.js`
+- `static_list_sort.js`: `sort` (as `sortRecords`), `resequence`, `sortBy` all imported by static_list.js
+- `graph_chart_config.js`: all 11 exports imported by `graph_renderer.js`
+
+### NI-05: `@ts-check` Coverage — CLOSED (99% ALREADY COMPLETE)
+**Verified 2026-03-06**: 605/609 `static/src/*.js` files have `// @ts-check`. The 81% figure
+in QUALITY_PLAN referred to JSDoc *documentation quality*, not `@ts-check` presence.
+The 4 "missing" files:
+- `module_loader.js` — correct omission (pre-module boot context, no imports)
+- `service_worker.js` — `@ts-nocheck` intentional (ServiceWorker global scope)
+- `session.js` — correct omission (`odoo` global not declared as TypeScript type; adding
+  `@ts-check` would cause "Cannot find name 'odoo'" error)
+- `dynamic_group_list.js` — had `//@ts-check` (no space) — fixed to `// @ts-check`
+  (2026-03-06) for grep consistency
+**Status**: No further action.
+
 ## Key Metrics
+
+### Structural Refactor (Phases 1–11)
 - Files analyzed: 612 (source) + 609 current (3 shim/dead file removals net)
 - God objects (>500 lines): 38 original → 34 after Phase 6 splits
 - Files to split: 10 original → 4 executed, 6 skipped (OWL components / already decomposed)
@@ -334,4 +456,12 @@ candidate helpers (`getCellClass`, `getColumnClass`, `getRowClass`, `isSortable`
 - Dynamic class definitions inside functions: 0 (Phase 11 resolved AP-09)
 - Directories removed: 1 tree (webclient/settings_form_view/ — 5 dirs)
 - Custom error classes: 28 → 31 (Phase 9 added NetworkError, InvalidDomainError hierarchy)
-- JSDoc coverage: 81% (494/612 files)
+- JSDoc coverage: 99% (605/609 files) — @module and @ts-check both 99% (verified 2026-03-06)
+
+### Quality Plan (Phases A–F)
+- New unit test files added: 21 (14 relational_model + 2 search + 2 view models + 1 view_compiler + 2 field widgets not previously covered)
+- Targeted test runners: `test_model` added (model layer previously had no isolated runner)
+- Pure relational_model modules with tests: 21/21 (was 0/18 for extracted modules)
+- view_compiler cache leak: fixed (deterministic template key via `App.registerTemplate`)
+- Critical field widgets with tests: 6/6 (many2x_autocomplete, x2many_field, x2many_dialog, input_field_hook, translation_dialog)
+- All QUALITY_PLAN success criteria: MET

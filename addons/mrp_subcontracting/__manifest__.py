@@ -46,7 +46,10 @@
             'web/static/lib/bootstrap/scss/_variables-dark.scss',
             'web/static/lib/bootstrap/scss/_maps.scss',
 
-            'web/static/src/libs/fontawesome/css/font-awesome.css',
+            'web/static/src/libs/fontawesome7/css/fontawesome.css',
+            'web/static/src/libs/fontawesome7/css/solid.css',
+            'web/static/src/libs/fontawesome7/css/regular.css',
+            'web/static/src/libs/fontawesome7/css/brands.css',
             'web/static/lib/odoo_ui_icons/*',
             'web/static/src/webclient/navbar/navbar.scss',
             'web/static/src/scss/animation.scss',
@@ -54,7 +57,7 @@
             'web/static/src/scss/mimetypes.scss',
             'web/static/src/scss/ui.scss',
             'web/static/src/fields/translation_dialog.scss',
-            'web/static/src/scss/fontawesome_overridden.scss',
+            'web/static/src/scss/rtl_icon_flip.scss',
 
             'web/static/src/module_loader.js',
             'web/static/src/session.js',

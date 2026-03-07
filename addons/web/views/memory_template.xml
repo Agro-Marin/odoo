@@ -5,11 +5,11 @@
         &lt;!DOCTYPE html&gt;
         <html lang="en">
         <head>
-            <meta charset="UTF-8"/>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <title>Memory Usage Visualization</title>
-            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js" />
+            <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels" />
             <style>
                 /* General body and layout styles */
                 body {
@@ -43,7 +43,7 @@
                     height: 100%;
                     width: 100%;
                 }
-                
+
                 /* Specific styling for the bottom row elements */
                 .bar-chart-wrapper {
                     flex: 2; /* Bar chart takes 2/3 of the width */
@@ -113,13 +113,13 @@
                 <!-- Top row for the full-width line chart -->
                 <div class="top-row">
                     <div class="chart-container">
-                        <canvas id="totalMemoryChart"></canvas>
+                        <canvas id="totalMemoryChart" />
                     </div>
                 </div>
                 <!-- Bottom row for the bar chart and traceback panel -->
                 <div class="bottom-row">
                     <div class="bar-chart-wrapper chart-container" id="memoryChartContainer">
-                        <canvas id="memoryChart"></canvas>
+                        <canvas id="memoryChart" />
                     </div>
                     <div class="traceback-panel" id="tracebackPanel">
                         <div class="no-selection">Click a point on the top chart, then a bar below to see details.</div>
@@ -131,7 +131,7 @@
                 // Get data from Odoo template
                 let rawData;
                 try {
-                    rawData = JSON.parse(atob('<t t-esc="memory_graph"/>'));
+                    rawData = JSON.parse(atob('<t t-esc="memory_graph" />'));
                 } catch (e) {
                     document.body.innerHTML = `<p style="color:red;padding:20px">Failed to load memory profile data: ${e.message}</p>`;
                     throw e;
@@ -157,10 +157,10 @@
                     const lastFrame = traceback[traceback.length - 1];
                     return `${lastFrame[0]}:${lastFrame[1]}`;
                 }
-                
+
                 function getFullTracebackKey(traceback) {
                     if (!traceback || traceback.length === 0) return "unknown";
-                    return traceback.map(frame => `${frame[0]}:${frame[1]}`).join(' -> ');
+                    return traceback.map(frame =&gt; `${frame[0]}:${frame[1]}`).join(' -&gt; ');
                 }
 
                 function escapeHtml(str) {
@@ -177,11 +177,11 @@
                         chart.resize();
                         return;
                     }
-                    
+
                     const minBarHeight = 35; // Minimum height per bar for readability
                     const padding = 100; // Extra space for axes and labels
                     const newHeight = Math.max(400, (dataLength * minBarHeight) + padding);
-                    
+
                     container.style.height = newHeight + 'px';
                     chart.resize();
                 }
@@ -203,7 +203,7 @@
                         `;
                     }
 
-                    traceback.forEach(frame => {
+                    traceback.forEach(frame =&gt; {
                         const [filename, lineNo, functionName, code] = frame;
                         html += `
                             <div class="traceback-item">
@@ -218,19 +218,19 @@
                 }
 
                 // --- CHART LOGIC ---
-                const totalSizes = rawData.map(entry =>
-                    entry.samples.reduce((sum, sample) => sum + sample.size, 0)
+                const totalSizes = rawData.map(entry =&gt;
+                    entry.samples.reduce((sum, sample) =&gt; sum + sample.size, 0)
                 );
-                const lineLabels = rawData.map(entry => formatTimestamp(entry.start));
+                const lineLabels = rawData.map(entry =&gt; formatTimestamp(entry.start));
 
                 let selectedIndexes = [];
                 let currentBreakdownData = [];
 
-                const updateBarChart = () => {
+                const updateBarChart = () =&gt; {
                     if (selectedIndexes.length === 1) {
                         const entry = rawData[selectedIndexes[0]];
                         const groupedData = {};
-                        entry.samples.forEach(sample => {
+                        entry.samples.forEach(sample =&gt; {
                             const key = getLastFileFromTraceback(sample.traceback);
                             if (!groupedData[key]) {
                                 groupedData[key] = { size: 0, traceback: sample.traceback, samples: [] };
@@ -239,17 +239,17 @@
                             groupedData[key].samples.push(sample);
                         });
 
-                        currentBreakdownData = Object.entries(groupedData).map(([key, data]) => ({
+                        currentBreakdownData = Object.entries(groupedData).map(([key, data]) =&gt; ({
                             label: key,
                             size: data.size,
                             traceback: data.traceback,
                             samples: data.samples
-                        })).sort((a, b) => b.size - a.size);
+                        })).sort((a, b) =&gt; b.size - a.size);
 
-                        breakdownChart.data.labels = currentBreakdownData.map(item => item.label);
+                        breakdownChart.data.labels = currentBreakdownData.map(item =&gt; item.label);
                         breakdownChart.data.datasets = [{
                             label: `Memory Usage`,
-                            data: currentBreakdownData.map(item => item.size),
+                            data: currentBreakdownData.map(item =&gt; item.size),
                             backgroundColor: 'rgba(54, 162, 235, 0.6)',
                             borderColor: 'rgba(54, 162, 235, 1)',
                             borderWidth: 1
@@ -257,13 +257,13 @@
                         breakdownChart.options.plugins.title.text = `Memory Breakdown for ${formatTimestamp(entry.start)}`;
 
                     } else if (selectedIndexes.length === 2) {
-                        const [idx1, idx2] = selectedIndexes.sort((a, b) => a - b);
+                        const [idx1, idx2] = selectedIndexes.sort((a, b) =&gt; a - b);
                         const entry1 = rawData[idx1];
                         const entry2 = rawData[idx2];
 
-                        const groupDataByFullTraceback = (entry) => {
+                        const groupDataByFullTraceback = (entry) =&gt; {
                             const grouped = {};
-                            entry.samples.forEach(sample => {
+                            entry.samples.forEach(sample =&gt; {
                                 const key = getFullTracebackKey(sample.traceback);
                                 if (!grouped[key]) {
                                     grouped[key] = { size: 0, traceback: sample.traceback, lastFile: getLastFileFromTraceback(sample.traceback) };
@@ -276,9 +276,9 @@
                         const data1 = groupDataByFullTraceback(entry1);
                         const data2 = groupDataByFullTraceback(entry2);
                         const labelSet = new Set([...Object.keys(data1), ...Object.keys(data2)]);
-                        
+
                         let diffData = [];
-                        labelSet.forEach(fullTracebackKey => {
+                        labelSet.forEach(fullTracebackKey =&gt; {
                             const size1 = data1[fullTracebackKey]?.size || 0;
                             const size2 = data2[fullTracebackKey]?.size || 0;
                             const diff = size2 - size1;
@@ -293,14 +293,14 @@
                             }
                         });
 
-                        currentBreakdownData = diffData.sort((a, b) => b.diff - a.diff);
+                        currentBreakdownData = diffData.sort((a, b) =&gt; b.diff - a.diff);
 
-                        breakdownChart.data.labels = currentBreakdownData.map(item => item.label);
+                        breakdownChart.data.labels = currentBreakdownData.map(item =&gt; item.label);
                         breakdownChart.data.datasets = [{
                             label: `Difference`,
-                            data: currentBreakdownData.map(item => item.diff),
-                            backgroundColor: item => item.raw >= 0 ? 'rgba(75, 192, 192, 0.6)' : 'rgba(255, 99, 132, 0.6)',
-                            borderColor: item => item.raw >= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)',
+                            data: currentBreakdownData.map(item =&gt; item.diff),
+                            backgroundColor: item =&gt; item.raw &gt;= 0 ? 'rgba(75, 192, 192, 0.6)' : 'rgba(255, 99, 132, 0.6)',
+                            borderColor: item =&gt; item.raw &gt;= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)',
                             borderWidth: 1
                         }];
                         breakdownChart.options.plugins.title.text = `Memory Difference: ${formatTimestamp(entry2.start)} vs ${formatTimestamp(entry1.start)}`;
@@ -313,7 +313,7 @@
                         document.getElementById('tracebackPanel').innerHTML = 
                             '<div class="no-selection">Click a point on the top chart, then a bar below to see details.</div>';
                     }
-                    
+
                     updateChartHeight(breakdownChart, currentBreakdownData.length);
                     breakdownChart.update();
                     totalChart.update();
@@ -330,9 +330,9 @@
                             fill: false,
                             borderColor: 'rgba(75, 192, 192, 1)',
                             tension: 0.1,
-                            pointBackgroundColor: ctx => selectedIndexes.includes(ctx.dataIndex) ? 'rgba(255, 99, 132, 1)' : 'rgba(75, 192, 192, 1)',
-                            pointRadius: ctx => selectedIndexes.includes(ctx.dataIndex) ? 7 : 4,
-                            pointBorderWidth: ctx => selectedIndexes.includes(ctx.dataIndex) ? 3 : 1
+                            pointBackgroundColor: ctx =&gt; selectedIndexes.includes(ctx.dataIndex) ? 'rgba(255, 99, 132, 1)' : 'rgba(75, 192, 192, 1)',
+                            pointRadius: ctx =&gt; selectedIndexes.includes(ctx.dataIndex) ? 7 : 4,
+                            pointBorderWidth: ctx =&gt; selectedIndexes.includes(ctx.dataIndex) ? 3 : 1
                         }]
                     },
                     options: {
@@ -340,18 +340,18 @@
                         maintainAspectRatio: false,
                         plugins: {
                             title: { display: true, text: 'Total Memory Usage Over Time (Click to select, Shift+Click to compare)' },
-                            tooltip: { callbacks: { label: context => `Total: ${formatBytes(context.raw)}` } }
+                            tooltip: { callbacks: { label: context =&gt; `Total: ${formatBytes(context.raw)}` } }
                         },
-                        onClick: (evt, elements) => {
-                            if (elements.length > 0) {
+                        onClick: (evt, elements) =&gt; {
+                            if (elements.length &gt; 0) {
                                 const idx = elements[0].index;
                                 const isSelected = selectedIndexes.includes(idx);
                                 if (evt.native.shiftKey) {
                                     if (isSelected) {
-                                        selectedIndexes = selectedIndexes.filter(i => i !== idx);
+                                        selectedIndexes = selectedIndexes.filter(i =&gt; i !== idx);
                                     } else {
                                         selectedIndexes.push(idx);
-                                        if (selectedIndexes.length > 2) selectedIndexes.shift();
+                                        if (selectedIndexes.length &gt; 2) selectedIndexes.shift();
                                     }
                                 } else {
                                     selectedIndexes = isSelected &amp;&amp; selectedIndexes.length === 1 ? [] : [idx];
@@ -379,19 +379,19 @@
                         plugins: {
                             legend: { display: false },
                             title: { display: true, text: 'Memory Breakdown' },
-                            tooltip: { callbacks: { label: context => `${formatBytes(context.raw)}` } },
+                            tooltip: { callbacks: { label: context =&gt; `${formatBytes(context.raw)}` } },
                             datalabels: {
                                 anchor: 'end',
                                 align: 'right',
                                 color: '#000',
                                 font: { weight: 'bold', size: 11 },
-                                formatter: (value) => formatBytes(value),
+                                formatter: (value) =&gt; formatBytes(value),
                                 display: true,
                                 clip: false
                             }
                         },
-                        onClick: (evt, elements) => {
-                            if (elements.length > 0 &amp;&amp; currentBreakdownData.length > 0) {
+                        onClick: (evt, elements) =&gt; {
+                            if (elements.length &gt; 0 &amp;&amp; currentBreakdownData.length &gt; 0) {
                                 const item = currentBreakdownData[elements[0].index];
                                 const fullKey = item.fullTracebackKey || getFullTracebackKey(item.traceback);
                                 showTraceback(item.traceback, Math.abs(item.diff || item.size), fullKey);

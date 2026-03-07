@@ -12,7 +12,7 @@ registerThreadAction("livechat-info", {
         store.self_partner?.main_user_id?.share === false &&
         !owner.isDiscussSidebarChannelActions,
     panelOuterClass: "o-livechat-ChannelInfoList bg-inherit",
-    icon: "fa fa-fw fa-info",
+    icon: "fa-solid fa-info",
     name: _t("Information"),
     open: ({ store }) => {
         store.discuss.isLivechatInfoPanelOpenByDefault = true;
@@ -63,7 +63,7 @@ registerThreadAction("join-livechat-needing-help", {
         thread?.livechat_status === "need_help" &&
         !thread?.self_member_id &&
         !owner.isDiscussSidebarChannelActions,
-    icon: "fa fa-fw fa-sign-in",
+    icon: "fa-solid fa-right-to-bracket",
     name: _t("Join Chat"),
     nameClass: "text-success",
     open: async ({ store, thread }) => {

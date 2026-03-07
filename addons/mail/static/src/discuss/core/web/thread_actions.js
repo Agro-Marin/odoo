@@ -7,7 +7,7 @@ registerThreadAction("expand-discuss", {
         thread.model === "discuss.channel" &&
         !store.env.services.ui.isSmall &&
         !owner.isDiscussSidebarChannelActions,
-    icon: "fa fa-fw fa-expand",
+    icon: "fa-solid fa-up-right-and-down-left-from-center",
     name: _t("Open in Discuss"),
     open({ owner, store, thread }) {
         store.env.services.action.doAction(
@@ -35,7 +35,7 @@ registerThreadAction("advanced-settings", {
             target: "current",
         });
     },
-    icon: "fa fa-fw fa-gear",
+    icon: "fa-solid fa-gear",
     name: _t("Advanced Settings"),
     sequence: 20,
     sequenceGroup: 30,

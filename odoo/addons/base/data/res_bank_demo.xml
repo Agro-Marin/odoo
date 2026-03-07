@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="1">
 
-        <record model="res.bank" id="bank_ing">
+    <data noupdate="1">
+        <record id="bank_ing" model="res.bank">
             <field name="name">ING</field>
             <field name="bic">BBRUBEBB</field>
         </record>
-
-        <record model="res.bank" id="bank_bnp">
+        <record id="bank_bnp" model="res.bank">
             <field name="name">BNP Paribas</field>
             <field name="bic">GEBABEBB</field>
         </record>
-
     </data>
+
 </odoo>

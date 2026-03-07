@@ -74,7 +74,7 @@ const onLoadAndError = (el, onLoad, onError) => {
 
     window.addEventListener("pagehide", () => {
         removeListeners();
-    });
+    }, { once: true });
 };
 
 /**

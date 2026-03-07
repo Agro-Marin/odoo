@@ -137,7 +137,7 @@ export function getErrorTechnicalName(error) {
  * @returns {string}
  */
 function formatTraceback(error) {
-    let traceback = error.stack;
+    const stack = error.stack ?? "";
     const errorName = getErrorTechnicalName(error);
     // ensure the proper error name and error message are present in the traceback, no matter the error.stack brower's formatting.
     // Stack example:
@@ -145,11 +145,11 @@ function formatTraceback(error) {
     //     _onOpenFormView@http://localhost:8069/web/content/425-baf33f1/web.assets.js:1064:30
     //     ...
     const descriptionLine = `${errorName}: ${error.message}`;
-    if (error.stack.split("\n")[0].trim() !== descriptionLine) {
+    if (stack && stack.split("\n")[0].trim() !== descriptionLine) {
         // avoid having the description line twice if already present
-        traceback = `${descriptionLine}\n${error.stack}`.replace(/\n/g, "\n    ");
+        return `${descriptionLine}\n${stack}`.replace(/\n/g, "\n    ");
     }
-    return traceback;
+    return stack || descriptionLine;
 }
 
 /**
@@ -193,7 +193,7 @@ export async function annotateTraceback(error) {
 
     let lineIndex = 0;
     let frameIndex = 0;
-    while (frameIndex < frames.length) {
+    while (frameIndex < frames.length && lineIndex < lines.length) {
         const line = lines[lineIndex];
         // skip lines that have no location information as they don't correspond to a frame
         if (!/:\d+:\d+\)?$/.test(line)) {

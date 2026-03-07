@@ -10,6 +10,7 @@
             <field name="print_report_name">'Picking Operations - %s - %s' % (object.partner_id.name or '', object.name)</field>
             <field name="binding_model_id" ref="model_stock_picking"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_delivery" model="ir.actions.report">
             <field name="name">Delivery Slip</field>
@@ -20,6 +21,7 @@
             <field name="print_report_name">'Delivery Slip - %s - %s' % (object.partner_id.name or '', object.name)</field>
             <field name="binding_model_id" ref="model_stock_picking"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_picking_packages" model="ir.actions.report">
             <field name="name">Packages</field>
@@ -31,6 +33,7 @@
             <field name="binding_model_id" ref="model_stock_picking"/>
             <field name="binding_type">report</field>
             <field name="group_ids" eval="[Command.link(ref('stock.group_tracking_lot'))]"/>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_inventory" model="ir.actions.report">
             <field name="name">Count Sheet</field>
@@ -41,6 +44,7 @@
             <field name="print_report_name">'Count Sheet'</field>
             <field name="binding_model_id" ref="model_stock_quant"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_package_barcode" model="ir.actions.report">
             <field name="name">Package Barcode with Contents</field>
@@ -50,6 +54,7 @@
             <field name="report_file">stock.report_package_barcode</field>
             <field name="binding_model_id" ref="model_stock_package"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_package_history_barcode" model="ir.actions.report">
             <field name="name">Package Barcode with Contents</field>
@@ -59,6 +64,7 @@
             <field name="report_file">stock.report_package_barcode</field>
             <field name="binding_model_id" ref="model_stock_package_history"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_package_barcode_small" model="ir.actions.report">
             <field name="name">Package Barcode (PDF)</field>
@@ -68,6 +74,7 @@
             <field name="report_file">stock.report_package_barcode</field>
             <field name="binding_model_id" ref="model_stock_package"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_package_history_barcode_small" model="ir.actions.report">
             <field name="name">Package Barcode (PDF)</field>
@@ -77,6 +84,7 @@
             <field name="report_file">stock.report_package_barcode</field>
             <field name="binding_model_id" ref="model_stock_package_history"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_location_barcode" model="ir.actions.report">
             <field name="name">Location Barcode</field>
@@ -88,6 +96,7 @@
             <field name="print_report_name">'Location - %s' % object.name</field>
             <field name="binding_model_id" ref="model_stock_location"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_lot_label" model="ir.actions.report">
             <field name="name">Lot/Serial Number (PDF)</field>
@@ -99,6 +108,7 @@
             <field name="print_report_name">'Lot-Serial - %s' % object.name</field>
             <field name="binding_model_id" ref="model_stock_lot"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_picking_type_label" model="ir.actions.report">
             <field name="name">Operation type (PDF)</field>
@@ -110,6 +120,7 @@
             <field name="print_report_name">'Operation-type - %s' % object.name</field>
             <field name="binding_model_id" ref="model_stock_picking_type"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="action_report_stock_rule" model="ir.actions.report">
             <field name="name">Product Routes Report</field>
@@ -126,6 +137,7 @@
             <field name="report_file">stock.label_product_product_view</field>
             <field name="binding_model_id" eval="False"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="label_lot_template" model="ir.actions.report">
             <field name="name">Lot/Serial Number (ZPL)</field>
@@ -135,6 +147,7 @@
             <field name="report_file">stock.label_lot_template_view</field>
             <field name="binding_model_id" ref="model_stock_lot"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="label_package_template" model="ir.actions.report">
             <field name="name">Package Barcode (ZPL)</field>
@@ -144,6 +157,7 @@
             <field name="report_file">stock.label_package_template_view</field>
             <field name="binding_model_id" ref="model_stock_package"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="label_package_history_template" model="ir.actions.report">
             <field name="name">Package Barcode (ZPL)</field>
@@ -153,6 +167,7 @@
             <field name="report_file">stock.label_package_template_view</field>
             <field name="binding_model_id" ref="model_stock_package_history"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="label_packaging_barcode" model="ir.actions.report">
             <field name="name">Packaging Barcodes (ZPL)</field>
@@ -162,6 +177,7 @@
             <field name="report_file">stock.label_packaging_barcode_view</field>
             <field name="binding_model_id" ref="product.model_product_uom"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="label_picking_type" model="ir.actions.report">
             <field name="name">Operation type (ZPL)</field>
@@ -171,6 +187,7 @@
             <field name="report_file">stock.label_picking_type_view</field>
             <field name="binding_model_id" ref="model_stock_picking_type"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
         <record id="label_picking" model="ir.actions.report">
             <field name="name">Reception Report Label</field>
@@ -180,6 +197,7 @@
             <field name="report_file">stock.report_reception_report_label</field>
             <field name="paperformat_id" ref="product.paperformat_label_sheet_dymo"/>
             <field name="binding_type">report</field>
+            <field name="binding_view_types">list,kanban</field>
         </record>
     </data>
 </odoo>

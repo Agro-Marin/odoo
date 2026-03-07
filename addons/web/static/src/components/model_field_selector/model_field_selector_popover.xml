@@ -16,7 +16,7 @@
                     <div class="o_model_field_selector_popover_title px-2 text-truncate">
                         <t t-esc="state.page.title"/>
                     </div>
-                    <i class="o_model_field_selector_popover_close btn btn-link me-n2 fa fa-times text-dark"
+                    <i class="o_model_field_selector_popover_close btn btn-link me-n2 fa-solid fa-times text-dark"
                        data-tooltip="Close"
                        role="img"
                        aria-label="Close"

@@ -33,13 +33,13 @@
                                             t-attf-style="width: #{slide.channel_id.completion}%;">
                                         </div>
                                     </div>
-                                    <i class="fa fa-trophy m-0 ms-2 p-0 text-black-50"></i>
+                                    <i class="fa-solid fa-trophy m-0 ms-2 p-0 text-black-50"></i>
                                     <small class="ms-2 text-white-50"><span class="o_wslides_progress_percentage" t-out="slide.channel_id.completion"/> %</small>
                                 </div>
                             </div>
                             <div t-attf-class="o_wslides_channel_completion_completed col-12 col-sm-3 #{'d-none' if not slide.channel_id.completed else ''}">
                                 <h2>
-                                    <small><span class="badge text-bg-success fw-normal"><i class="fa fa-check"/> Completed</span></small>
+                                    <small><span class="badge text-bg-success fw-normal"><i class="fa-solid fa-check"/> Completed</span></small>
                                 </h2>
                             </div>
                         </div>
@@ -144,8 +144,8 @@
                 <b>Uncategorized</b>
             </t>
             <div class="flex-grow-1"/>
-            <i class="fa fa-fw fa-caret-left" role="img"/>
-            <i class="fa fa-fw fa-caret-down" role="img"/>
+            <i class="fa-solid fa-caret-left" role="img"/>
+            <i class="fa-solid fa-caret-down" role="img"/>
         </a>
         <ul t-attf-class="collapse #{'show' if category_collapsed else ''} p-0 m-0 list-unstyled" t-att-id="('collapse-%s') % (category.id if category else 0)" >
             <t t-set="is_member" t-value="slide.channel_id.is_member"/>
@@ -178,17 +178,17 @@
                         <t t-if="can_access_channel" t-foreach="aside_slide.slide_resource_ids" t-as="resource">
                            <li class="ps-3">
                                 <a t-if="resource.resource_type == 'url'" t-att-href="resource.link" target="new" class="text-decoration-none small">
-                                    <i class="fa fa-link"/><span t-field="resource.name"/>
+                                    <i class="fa-solid fa-link"/><span t-field="resource.name"/>
                                 </a>
                                 <a t-else="" t-att-href="resource.download_url" class="text-decoration-none small">
-                                    <i class="fa fa-download"/><span t-field="resource.name"/>
+                                    <i class="fa-solid fa-download"/><span t-field="resource.name"/>
                                 </a>
                             </li>
                         </t>
                         <div t-else="" class="o_wslides_js_course_join o_wslides_no_access ps-3">
                             <li t-if="aside_slide.channel_id.enroll == 'public' or (aside_slide.channel_id.enroll == 'invite' and aside_slide.channel_id.is_member_invited)"
                                 class="text-decoration-none small">
-                                <i class="fa fa-download"/>
+                                <i class="fa-solid fa-download"/>
                                 <t t-call="website_slides.join_course_link">
                                     <t t-set="for_resources" t-value="1"/>
                                 </t>
@@ -197,10 +197,10 @@
                         <li t-if="aside_slide.question_ids and aside_slide.slide_category != 'quiz'" class="ps-3">
                             <a t-if="can_access" t-att-href="'/slides/slide/%s#lessonQuiz' % (slug(aside_slide))"
                                 class="o_wslides_lesson_aside_list_link text-decoration-none small text-600">
-                                <i class="fa fa-flag text-warning"/> Quiz
+                                <i class="fa-solid fa-flag text-warning"/> Quiz
                             </a>
                             <span t-else="" class="o_wslides_lesson_aside_list_link text-decoration-none small text-600 text-muted">
-                                <i class="fa fa-flag text-warning"/> Quiz
+                                <i class="fa-solid fa-flag text-warning"/> Quiz
                             </span>
                         </li>
                     </ul>
@@ -217,7 +217,7 @@
         <div class="col-12 col-md order-2 order-md-1 d-flex">
             <div class="d-flex align-items-start overflow-hidden">
                 <h1 class="h4 my-0 d-flex flex_row overflow-hidden">
-                    <i t-attf-class="fa #{slide.slide_icon_class} me-2"/>
+                    <i t-attf-class="#{slide.slide_icon_class} me-2"/>
                     <span class="text-truncate" t-field="slide.name"/>
                 </h1>
             </div>
@@ -228,7 +228,7 @@
             <span t-if="slide.question_ids and (slide_completed or quiz_karma_gain)" style="flex-basis: 100%"
                 t-attf-class="mx-2 my-1 badge #{'text-bg-success' if slide_completed else 'text-bg-info'}">
                 <span t-if="slide_completed">
-                    <i class="fa fa-check-circle"/>
+                    <i class="fa-solid fa-check-circle"/>
                     <t t-if="quiz_karma_won">
                         <t t-out="quiz_karma_won" />
                         <span>XP</span>
@@ -275,7 +275,7 @@
                 </a>
             </div>
             <a class="btn btn-light border ms-2 my-1" role="button" t-att-href="'/slides/slide/%s?fullscreen=1' % (slug(slide))" aria-label="Fullscreen">
-                <i class="fa fa-desktop me-xl-2 my-1"/>
+                <i class="fa-solid fa-desktop me-xl-2 my-1"/>
                 <span class="d-none d-xl-inline-block">Fullscreen</span>
             </a>
             <a class="o_wslides_share btn btn-light border ms-2 my-1" role="button" t-att-data-name="slide.name"
@@ -283,7 +283,7 @@
                t-att-data-email-sharing="bool(slide.channel_id.share_slide_template_id)"
                t-att-data-embed-code="slide.embed_code_external if slide.slide_category in ['video', 'document'] else False"
                aria-label="Share">
-                <i class="fa fa-share-alt me-xl-2 my-1"/>
+                <i class="fa-solid fa-share-alt me-xl-2 my-1"/>
                 <span class="d-none d-xl-inline-block">Share</span>
             </a>
         </div>
@@ -316,17 +316,17 @@
         <ul class="nav nav-tabs o_wslides_lesson_nav" role="tablist">
             <li class="nav-item" role="presentation">
                 <a href="#about" aria-controls="about" t-att-class="'nav-link active' if not comments else 'nav-link'" role="tab" data-bs-toggle="tab">
-                    <i class="fa fa-home"></i> About
+                    <i class="fa-solid fa-house"></i> About
                 </a>
             </li>
             <li class="nav-item" role="presentation">
                 <a href="#discuss" aria-controls="discuss" t-att-class="'nav-link active' if comments else 'nav-link'" role="tab" data-bs-toggle="tab">
-                    <i class="fa fa-comments"></i> Comments <t t-if="slide.channel_id.allow_comment">(<span t-out="slide.comments_count"/>)</t>
+                    <i class="fa-solid fa-comments"></i> Comments <t t-if="slide.channel_id.allow_comment">(<span t-out="slide.comments_count"/>)</t>
                 </a>
             </li>
             <li class="nav-item" role="presentation" groups="base.group_user">
                 <a href="#statistic" aria-controls="statistic" class="nav-link" role="tab" data-bs-toggle="tab">
-                    <i class="fa fa-bar-chart"></i> Statistics
+                    <i class="fa-solid fa-chart-column"></i> Statistics
                 </a>
             </li>
         </ul>
@@ -338,11 +338,11 @@
                     <div class="text-muted border-start ps-3">
                         <div class="o_wslides_js_slide_like me-2">
                             <span t-attf-class="o_wslides_js_slide_like_up #{'disabled' if not slide.channel_id.can_vote else ''}" tabindex="0" data-bs-toggle="popover" t-att-data-slide-id="slide.id" t-att-data-user-vote="slide.user_vote">
-                                <i t-attf-class="fa fa-1x #{'fa-thumbs-up' if slide.user_vote == 1 else 'fa-thumbs-o-up'}" role="img" aria-label="Likes" title="Like"/>
+                                <i t-attf-class="#{'fa-solid' if slide.user_vote == 1 else 'fa-regular'} fa-thumbs-up" role="img" aria-label="Likes" title="Like"/>
                                 <span t-field="slide.likes" t-options="{'format_decimalized_number': True}"/>
                             </span>
                             <span t-attf-class="o_wslides_js_slide_like_down ms-3 #{'disabled' if not slide.channel_id.can_vote else ''}" tabindex="0" data-bs-toggle="popover" t-att-data-slide-id="slide.id" t-att-data-user-vote="slide.user_vote">
-                                <i t-attf-class="fa fa-1x #{'fa-thumbs-down' if slide.user_vote == -1 else 'fa-thumbs-o-down'}" role="img" aria-label="Dislikes" title="Dislike"/>
+                                <i t-attf-class="#{'fa-solid' if slide.user_vote == -1 else 'fa-regular'} fa-thumbs-down" role="img" aria-label="Dislikes" title="Dislike"/>
                                 <span t-field="slide.dislikes" t-options="{'format_decimalized_number': True}"/>
                             </span>
                         </div>
@@ -498,15 +498,15 @@
         <div class="row d-flex mb-2 mx-0">
             <div class="h4">
                 <small class="text-muted">
-                    <i class="o_wslides_js_quiz_icon o_wslides_js_quiz_sequence_handler fa fa-bars me-1 text-muted" t-if="slide.channel_id.can_upload and not slide_completed" />
+                    <i class="o_wslides_js_quiz_icon o_wslides_js_quiz_sequence_handler fa-solid fa-bars me-1 text-muted" t-if="slide.channel_id.can_upload and not slide_completed" />
                     <t t-if="question_index != NoneType"><span class="o_wslides_quiz_question_sequence" t-out="question_index+1"/>.</t>
                     <t t-else=""><span class="o_wslides_quiz_question_sequence" t-out="question['sequence']"/>.</t>
                 </small>
                 <span t-out="question['question']"/>
             </div>
             <div class="ms-auto o_wslides_js_quiz_edit_del" t-if="slide.channel_id.can_upload and not slide_completed" >
-                <i class="o_wslides_js_quiz_icon o_wslides_js_quiz_edit_question fa fa-pencil-square-o p-1 text-muted"></i>
-                <i class="o_wslides_js_quiz_icon o_wslides_js_quiz_delete_question fa fa-trash p-1 text-muted"></i>
+                <i class="o_wslides_js_quiz_icon o_wslides_js_quiz_edit_question fa-regular fa-pen-to-square p-1 text-muted"></i>
+                <i class="o_wslides_js_quiz_icon o_wslides_js_quiz_delete_question fa-solid fa-trash-can p-1 text-muted"></i>
             </div>
         </div>
         <div class="list-group">
@@ -520,16 +520,16 @@
                             t-att-value="answer['id']"
                             class="d-none"
                             t-att-disabled="True if not slide.channel_id.is_member or slide_completed else ''"/>
-                        <i t-att-class="'fa fa-circle text-400 %s' % ('d-none' if slide_completed and answer['is_correct'] else '')"/>
-                        <i class="fa fa-times-circle text-danger d-none"></i>
-                        <i t-att-class="'fa fa-check-circle text-success %s' % ('d-none' if not (slide_completed and answer['is_correct']) else '')"></i>
+                        <i t-att-class="'fa-solid fa-circle text-400 %s' % ('d-none' if slide_completed and answer['is_correct'] else '')"/>
+                        <i class="fa-solid fa-times-circle text-danger d-none"></i>
+                        <i t-att-class="'fa-solid fa-check-circle text-success %s' % ('d-none' if not (slide_completed and answer['is_correct']) else '')"></i>
                     </label>
                     <span t-out="answer['text_value']"/>
                 </a>
                 <t t-if="slide_completed and answer['is_correct']" t-set="correct_answer_comment" t-value="answer['comment']"/>
             </t>
             <div t-attf-class="o_wslides_quiz_answer_info list-group-item list-group-item-info #{'' if correct_answer_comment else 'd-none'}">
-                <i class="fa fa-info-circle"/>
+                <i class="fa-solid fa-info-circle"/>
                 <span class="o_wslides_quiz_answer_comment ms-1">
                     <t t-if="correct_answer_comment" t-out="correct_answer_comment"/>
                 </span>
@@ -541,11 +541,11 @@
 <template id="lesson_content_quiz_add_buttons" name="Lesson: Quiz Add Buttons template">
     <div class="o_wslides_js_lesson_quiz_new_question mt-3">
         <a t-attf-class="o_wslides_js_quiz_add o_wslides_js_quiz_add_quiz btn btn-light border #{'d-none ' if slide.question_ids else ''}" role="button">
-            <i class="fa fa-plus me-2"/>
+            <i class="fa-solid fa-plus me-2"/>
             <span>Add Quiz</span>
         </a>
         <a t-attf-class="o_wslides_js_quiz_add o_wslides_js_quiz_add_question btn btn-light border ms-3 #{'' if slide.question_ids else 'd-none '}" role="button">
-            <i class="fa fa-plus me-2"/>
+            <i class="fa-solid fa-plus me-2"/>
             <span>Add Question</span>
         </a>
     </div>

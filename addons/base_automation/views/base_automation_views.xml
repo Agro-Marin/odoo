@@ -92,7 +92,7 @@
                         <div
                             class="d-none d-md-flex flex-grow-1 align-items-center gap-3 o_automation_actions"
                             data-name="more-info">
-                            <i class="fa fa-2x fa-arrow-right text-primary" title="Actions" />
+                            <i class="fa-solid fa-arrow-right fa-2x text-primary" title="Actions" />
                             <field name="action_server_ids"
                                 widget="base_automation_actions_one2many"
                                 class="align-self-center w-100 me-md-3" />
@@ -170,7 +170,7 @@
                                     <field name="trg_field_ref_model_name" invisible="1" />
                                 </div>
                                 <div class="text-muted" invisible="trigger != 'on_change'"><i
-                                        class="fa fa-warning" title="Warning" /> Automation rules triggered by UI
+                                        class="fa-solid fa-triangle-exclamation" title="Warning" /> Automation rules triggered by UI
                                     changes will be executed <em>every time</em> the watched fields
                                     change, <em>whether you save or not</em>.</div>
                             </div>
@@ -263,7 +263,7 @@
                             <div invisible="trigger != 'on_webhook'">
                                 <field name="record_getter" string="Target Record" />
                                 <div>
-                                    <div class="text-muted"><i class="fa fa-info-circle" /> The
+                                    <div class="text-muted"><i class="fa-solid fa-info-circle" /> The
                                         default target record getter will work out-of-the-box for
                                         any webhook coming from another Odoo instance.</div>
                                     <span class="text-muted"> Available variables: </span>

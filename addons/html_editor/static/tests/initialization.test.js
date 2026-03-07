@@ -93,8 +93,8 @@ describe("No orphan inline elements compatibility mode", () => {
 
     test("should transform root .fa", async () => {
         await testEditor({
-            contentBefore: '<p>ab</p><i class="fa fa-beer"></i><p>c</p>',
-            contentAfter: '<p>ab</p><div><i class="fa fa-beer"></i></div><p>c</p>',
+            contentBefore: '<p>ab</p><i class="fa-solid fa-beer"></i><p>c</p>',
+            contentAfter: '<p>ab</p><div><i class="fa-solid fa-beer"></i></div><p>c</p>',
         });
     });
 

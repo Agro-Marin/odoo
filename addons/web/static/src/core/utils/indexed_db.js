@@ -129,14 +129,14 @@ export class IndexedDB {
                 if (!currentVersion) {
                     this._execute((db) => {
                         if (db) {
-                            this._write(db, VERSION_TABLE, VERSION_KEY, version);
+                            return this._write(db, VERSION_TABLE, VERSION_KEY, version);
                         }
                     }).then(resolve);
                 } else if (currentVersion !== version) {
                     this._deleteDatabase(() => {
-                        this._execute((db) => {
+                        return this._execute((db) => {
                             if (db) {
-                                this._write(db, VERSION_TABLE, VERSION_KEY, version);
+                                return this._write(db, VERSION_TABLE, VERSION_KEY, version);
                             }
                         });
                     }).then(resolve);

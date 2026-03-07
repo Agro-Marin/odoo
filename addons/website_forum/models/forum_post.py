@@ -911,7 +911,7 @@ class ForumPost(models.Model):
             'search_fields': search_fields,
             'fetch_fields': fetch_fields,
             'mapping': mapping,
-            'icon': 'fa-comment-o',
+            'icon': 'fa-regular fa-comment',
             'order': order,
         }
 

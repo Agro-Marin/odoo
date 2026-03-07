@@ -11,7 +11,8 @@
             outline: none;
             &:before {
                 content: '\f056';
-                font-family: 'FontAwesome';
+                font-family: "Font Awesome 7 Free";
+                font-weight: 900;
                 color: $gray-600;
                 position: absolute;
                 margin-left: -1.5em;

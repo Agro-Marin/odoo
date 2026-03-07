@@ -87,9 +87,9 @@ export class Notification extends Record {
 
     get icon() {
         if (this.isFailure) {
-            return "fa fa-envelope";
+            return "fa-solid fa-envelope";
         }
-        return "fa fa-envelope-o";
+        return "fa-regular fa-envelope";
     }
 
     get label() {
@@ -105,22 +105,22 @@ export class Notification extends Record {
     get statusIcon() {
         switch (this.notification_status) {
             case "process":
-                return "fa fa-hourglass-half";
+                return "fa-solid fa-hourglass-half";
             case "pending":
-                return "fa fa-paper-plane-o";
+                return "fa-regular fa-paper-plane";
             case "sent":
-                return "fa fa-check";
+                return "fa-solid fa-check";
             case "bounce":
-                return "fa fa-exclamation";
+                return "fa-solid fa-exclamation";
             case "exception":
-                return "fa fa-times text-danger";
+                return "fa-solid fa-times text-danger";
             case "ready":
-                return "fa fa-send-o";
+                return "fa-regular fa-paper-plane";
             case "canceled":
                 if (this.autoCanceledFailureType) {
-                    return "fa fa-remove";
+                    return "fa-solid fa-xmark";
                 }
-                return "fa fa-trash-o";
+                return "fa-regular fa-trash-can";
         }
         return "";
     }

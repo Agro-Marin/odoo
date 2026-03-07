@@ -489,32 +489,32 @@ test("toolbar works: show the correct text alignment", async () => {
     const { el } = await setupEditor("<p>[test</p><p><br>]</p>");
     await expandToolbar();
     expect("button[name='text_align']").toHaveCount(1);
-    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa fa-align-left"> </i>`);
+    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa-solid fa-align-left"> </i>`);
     await click("button[name='text_align']");
     await contains(".o-we-toolbar-dropdown .btn.fa-align-right").click();
     expect(getContent(el)).toBe(
         `<p style="text-align: right;">[test</p><p style="text-align: right;"><br>]</p>`
     );
-    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa fa-align-right"> </i>`);
+    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa-solid fa-align-right"> </i>`);
 });
 
 test("toolbar works: show the correct text alignment after undo/redo", async () => {
     const { el } = await setupEditor("<p>[test]</p>");
     await expandToolbar();
     expect("button[name='text_align']").toHaveCount(1);
-    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa fa-align-left"> </i>`);
+    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa-solid fa-align-left"> </i>`);
     await click("button[name='text_align']");
     await contains(".o-we-toolbar-dropdown .btn.fa-align-center").click();
     expect(getContent(el)).toBe(`<p style="text-align: center;">[test]</p>`);
-    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa fa-align-center"> </i>`);
+    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa-solid fa-align-center"> </i>`);
     await press(["ctrl", "z"]);
     await animationFrame();
     expect(getContent(el)).toBe(`<p>[test]</p>`);
-    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa fa-align-left"> </i>`);
+    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa-solid fa-align-left"> </i>`);
     await press(["ctrl", "y"]);
     await animationFrame();
     expect(getContent(el)).toBe(`<p style="text-align: center;">[test]</p>`);
-    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa fa-align-center"> </i>`);
+    expect("button[name='text_align'] span").toHaveInnerHTML(`<i class="fa-solid fa-align-center"> </i>`);
 });
 
 test.tags("desktop");

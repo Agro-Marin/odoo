@@ -12,31 +12,31 @@
                 <DropdownItem
                     class="`d-flex align-items-center`"
                     onSelected="() => this.setState('blocked')">
-                        <span t-attf-class="fa fa-lg fa-exclamation-circle text-warning me-2"/>
+                        <span t-attf-class="fa-solid fa-exclamation-circle fa-lg text-warning me-2"/>
                         <span>Blocked</span>
                 </DropdownItem>
                 <DropdownItem
                     class="`d-flex align-items-center`"
                     onSelected="() => this.setState('ready')">
-                        <span t-attf-class="fa fa-lg fa-circle text-muted me-2"/>
+                        <span t-attf-class="fa-solid fa-circle fa-lg text-muted me-2"/>
                         <span>To Do</span>
                 </DropdownItem>
                 <DropdownItem
                     class="`d-flex align-items-center`"
                     onSelected="() => this.setState('progress')">
-                        <span t-attf-class="fa fa-lg fa-play-circle text-info me-2"/>
+                        <span t-attf-class="fa-solid fa-play-circle fa-lg text-info me-2"/>
                         <span>In Progress</span>
                 </DropdownItem>
                 <DropdownItem
                     class="`d-flex align-items-center`"
                     onSelected="() => this.setState('cancel')">
-                        <span t-attf-class="fa fa-lg fa-times-circle text-danger me-2"/>
+                        <span t-attf-class="fa-solid fa-times-circle fa-lg text-danger me-2"/>
                         <span>Cancelled</span>
                 </DropdownItem>
                 <DropdownItem
                     class="`d-flex align-items-center`"
                     onSelected="() => this.setState('done')">
-                        <span t-attf-class="fa fa-lg fa-check-circle text-success me-2"/>
+                        <span t-attf-class="fa-solid fa-check-circle fa-lg text-success me-2"/>
                         <span>Done</span>
                 </DropdownItem>
             </t>

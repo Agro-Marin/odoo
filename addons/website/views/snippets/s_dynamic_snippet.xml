@@ -24,7 +24,7 @@
                             <p class="lead">Check out what's new in our company !</p>
                         </div>
                         <div t-if="main_page_url">
-                            <a title="See All" t-att-href="main_page_url">See all<span class="fa fa-long-arrow-right ms-2"/></a>
+                            <a title="See All" t-att-href="main_page_url">See all<span class="fa-solid fa-right-long ms-2"/></a>
                         </div>
                     </section>
                     <section t-attf-class="s_dynamic_snippet_content oe_unremovable oe_unmovable o_not_editable col s_col_no_resize #{content_classes}">

@@ -743,7 +743,7 @@ class StockQuant(models.Model):
                     {}
                 </p>
                 <p>
-                    {} <span class="fa fa-cog"/>
+                    {} <span class="fa-solid fa-cog"/>
                 </p>
                 """.format(
                 escape(_("Your stock is currently empty")),

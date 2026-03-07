@@ -10,8 +10,8 @@ import { QuickVideoSettings } from "./quick_video_settings";
 import { QuickVoiceSettings } from "./quick_voice_settings";
 import { CALL_PROMOTE_FULLSCREEN } from "./thread_model_patch";
 export const callActionsRegistry = registry.category("discuss.call/actions");
-export const CALL_ICON_DEAFEN = "fa fa-deaf";
-export const CALL_ICON_MUTED = "fa fa-microphone-slash";
+export const CALL_ICON_DEAFEN = "fa-solid fa-deaf";
+export const CALL_ICON_MUTED = "fa-solid fa-microphone-slash";
 
 /** @typedef {import("@mail/core/common/action").ActionDefinition} ActionDefinition */
 
@@ -35,7 +35,7 @@ export function registerCallAction(id, definition) {
 export const muteAction = {
     badge: ({ owner, store }) =>
         !owner.env.inCallMenu && store.rtc.microphonePermission !== "granted",
-    badgeIcon: "fa fa-exclamation",
+    badgeIcon: "fa-solid fa-exclamation",
     condition: ({ owner, store, thread }) =>
         thread?.isSelfInCall &&
         (owner.env.inCallMenu || !store.rtc.selfSession?.is_deaf),
@@ -50,7 +50,7 @@ export const muteAction = {
             ? store.rtc.selfSession?.is_deaf && !owner.env.inCallMenu
                 ? CALL_ICON_DEAFEN
                 : CALL_ICON_MUTED
-            : "fa fa-microphone",
+            : "fa-solid fa-microphone",
     hotkey: "shift+m",
     onSelected: ({ store }) => store.rtc.toggleMicrophone(),
     sequence: 10,
@@ -87,7 +87,7 @@ registerCallAction("deafen", {
         store.rtc.selfSession.is_deaf ? _t("Undeafen") : _t("Deafen"),
     isActive: ({ store }) => store.rtc.selfSession?.is_deaf,
     isTracked: true,
-    icon: ({ action }) => (action.isActive ? CALL_ICON_DEAFEN : "fa fa-headphones"),
+    icon: ({ action }) => (action.isActive ? CALL_ICON_DEAFEN : "fa-solid fa-headphones"),
     hotkey: "shift+d",
     onSelected: ({ store }) => store.rtc.toggleDeafen(),
     sequence: 10,
@@ -99,7 +99,7 @@ export const cameraOnAction = {
         !owner.env.inCallMenu &&
         thread?.default_display_mode === "video_full_screen" &&
         store.rtc.cameraPermission !== "granted",
-    badgeIcon: "fa fa-exclamation",
+    badgeIcon: "fa-solid fa-exclamation",
     condition: ({ thread }) => thread?.isSelfInCall,
     disabledCondition: ({ store }) => store.rtc?.isRemote,
     name: ({ store }) =>
@@ -110,7 +110,7 @@ export const cameraOnAction = {
               : _t("Turn camera on"),
     isActive: ({ store }) => store.rtc.selfSession?.is_camera_on,
     isTracked: true,
-    icon: "fa fa-video-camera",
+    icon: "fa-solid fa-video",
     onSelected: ({ owner, store }) =>
         store.rtc.toggleVideo("camera", { env: owner.env }),
     sequence: 10,
@@ -147,7 +147,7 @@ export const switchCameraAction = {
         thread?.isSelfInCall && isMobileOS() && store.rtc.selfSession?.is_camera_on,
     name: _t("Switch Camera"),
     isActive: false,
-    icon: "fa fa-refresh",
+    icon: "fa-solid fa-arrows-rotate",
     onSelected: ({ store }) => store.rtc.toggleCameraFacingMode(),
     sequence: 40,
     sequenceGroup: 100,
@@ -159,7 +159,7 @@ registerCallAction("raise-hand", {
         store.rtc.selfSession.raisingHand ? _t("Lower Hand") : _t("Raise Hand"),
     isActive: ({ store }) => store.rtc.selfSession?.raisingHand,
     isTracked: true,
-    icon: "fa fa-hand-paper-o",
+    icon: "fa-regular fa-hand",
     onSelected: ({ store }) => store.rtc.raiseHand(!store.rtc.selfSession.raisingHand),
     sequence: 50,
     sequenceGroup: 200,
@@ -175,7 +175,7 @@ registerCallAction("share-screen", {
               : _t("Share Screen"),
     isTracked: true,
     isActive: ({ store }) => store.rtc.selfSession?.is_screen_sharing_on,
-    icon: "fa fa-desktop",
+    icon: "fa-solid fa-desktop",
     onSelected: ({ owner, store }) =>
         store.rtc.toggleVideo("screen", { env: owner.env }),
     sequence: 40,
@@ -189,7 +189,7 @@ registerCallAction("auto-focus", {
             ? _t("Disable speaker autofocus")
             : _t("Autofocus speaker"),
     isActive: ({ store }) => store.settings?.useCallAutoFocus,
-    icon: ({ action }) => (action.isActive ? "fa fa-eye" : "fa fa-eye-slash"),
+    icon: ({ action }) => (action.isActive ? "fa-regular fa-eye" : "fa-regular fa-eye-slash"),
     onSelected: ({ store }) =>
         (store.settings.useCallAutoFocus = !store.settings.useCallAutoFocus),
     sequence: 50,
@@ -201,7 +201,7 @@ export const blurBackgroundAction = {
     name: ({ store }) =>
         store.settings.useBlur ? _t("Remove Blur") : _t("Blur Background"),
     isActive: ({ store }) => store?.settings?.useBlur,
-    icon: "fa fa-photo",
+    icon: "fa-regular fa-image",
     onSelected: ({ store }) => store.settings.setUseBlur(!store.settings.useBlur),
     sequence: 60,
     sequenceGroup: 200,
@@ -217,7 +217,7 @@ registerCallAction("fullscreen", {
     name: ({ store }) =>
         store.rtc.state.isFullscreen ? _t("Exit Fullscreen") : _t("Fullscreen"),
     isActive: ({ store }) => store.rtc.state.isFullscreen,
-    icon: ({ action }) => (action.isActive ? "fa fa-compress" : "fa fa-expand"),
+    icon: ({ action }) => (action.isActive ? "fa-solid fa-down-left-and-up-right-to-center" : "fa-solid fa-up-right-and-down-left-from-center"),
     onSelected: ({ store, thread }) => {
         thread.promoteFullscreen = CALL_PROMOTE_FULLSCREEN.DISCARDED;
         if (store.rtc.state.isFullscreen) {
@@ -261,7 +261,7 @@ export const acceptWithCamera = {
         typeof thread?.useCameraByDefault !== "boolean",
     disabledCondition: ({ store }) => store.rtc?.state.hasPendingRequest,
     name: _t("Accept with camera"),
-    icon: "fa fa-video-camera",
+    icon: "fa-solid fa-video",
     onSelected: ({ store, thread }) => store.rtc.toggleCall(thread, { camera: true }),
     sequence: 100,
     sequenceGroup: 300,
@@ -278,7 +278,7 @@ registerCallAction("join-back", {
         !thread?.isSelfInCall && typeof thread?.useCameraByDefault === "boolean",
     disabledCondition: ({ store }) => store.rtc?.state.hasPendingRequest,
     icon: ({ thread }) =>
-        thread.useCameraByDefault ? "fa fa-video-camera" : "fa fa-phone",
+        thread.useCameraByDefault ? "fa-solid fa-video" : "fa-solid fa-phone",
     inlineName: ({ owner }) => (owner.env.inCallInvitation ? undefined : _t("Join")),
     name: ({ thread }) =>
         thread.useCameraByDefault ? _t("Join Video Call") : _t("Join Call"),
@@ -296,7 +296,7 @@ registerCallAction("join-with-camera", {
         typeof thread?.useCameraByDefault !== "boolean",
     disabledCondition: ({ store }) => store.rtc?.state.hasPendingRequest,
     name: _t("Join Video Call"),
-    icon: "fa fa-video-camera",
+    icon: "fa-solid fa-video",
     onSelected: ({ store, thread }) => store.rtc.toggleCall(thread, { camera: true }),
     sequence: 120,
     sequenceGroup: 300,
@@ -307,7 +307,7 @@ export const joinAction = {
         !thread?.isSelfInCall && typeof thread?.useCameraByDefault !== "boolean",
     disabledCondition: ({ store }) => store.rtc?.state.hasPendingRequest,
     name: _t("Join Call"),
-    icon: "fa fa-phone",
+    icon: "fa-solid fa-phone",
     onSelected: ({ store, thread }, ev) => store.rtc.toggleCall(thread),
     sequence: 130,
     sequenceGroup: 300,
@@ -346,7 +346,7 @@ registerCallAction("disconnect", {
         thread?.isSelfInCall && !thread?.self_member_id?.rtc_inviting_session_id,
     disabledCondition: ({ store }) => store.rtc?.state.hasPendingRequest,
     name: _t("Disconnect"),
-    icon: "fa fa-phone",
+    icon: "fa-solid fa-phone",
     onSelected: ({ store, thread }) => store.rtc.toggleCall(thread),
     sequence: 150,
     sequenceGroup: 300,

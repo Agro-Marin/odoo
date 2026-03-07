@@ -1,30 +1,30 @@
 :root {
-  --o-webclient-color-scheme:#{$o-webclient-color-scheme};
+ --o-webclient-color-scheme:#{$o-webclient-color-scheme};
 
-  font-size: $o-root-font-size;
+ font-size: $o-root-font-size;
 }
 
 html, body {
-    position: relative;
-    width: 100%;
-    height: 100%;
+ position: relative;
+ width: 100%;
+ height: 100%;
 }
 
 // Disable default border-style added by _reboot.scss
 tfoot {
-  tr, td, th {
-    border-style: none;
-  }
+ tr, td, th {
+ border-style: none;
+ }
 }
 
 // ------------------------------------------------------------------
-//  General
+// General
 // ------------------------------------------------------------------
 .o_web_client {
-  direction: ltr;
-  position: relative; // normally useless but required by bootstrap-datepicker
-  background-color: $o-webclient-background-color;
-  color-scheme: $o-webclient-color-scheme;
+ direction: ltr;
+ position: relative; // normally useless but required by bootstrap-datepicker
+ background-color: $o-webclient-background-color;
+ color-scheme: $o-webclient-color-scheme;
 }
 
 // ------------------------------------------------------------------
@@ -33,103 +33,103 @@ tfoot {
 
 // Buttons
 .o_icon_button {
-  background-color: transparent;
-  border: 0;
-  padding: 0;
-  outline: none;
+ background-color: transparent;
+ border: 0;
+ padding: 0;
+ outline: none;
 }
 
 
 // User input typically entered via keyboard
 kbd {
-  border: 1px solid $o-gray-200;
-  box-shadow: $kbd-box-shadow;
-}  
+ border: 1px solid $o-gray-200;
+ box-shadow: $kbd-box-shadow;
+} 
 
 //== Backgound light colors variations (bootstrap extensions)
 @each $-name, $-bg-color in $theme-colors {
-  $-safe-text-color: color-contrast(mix($-bg-color, $o-view-background-color));
-  @include bg-variant(".bg-#{$-name}-light", rgba(map-get($theme-colors, $-name), 0.5), $-safe-text-color);
+ $-safe-text-color: color-contrast(mix($-bg-color, $o-view-background-color));
+ @include bg-variant(".bg-#{$-name}-light", rgba(map-get($theme-colors, $-name), 0.5), $-safe-text-color);
 }
 
 //== Badges
 .badge {
-  min-width: $o-badge-min-width;
-  line-height: 1.1;
-  border: 0;
-  font-size: 0.85em;
-  user-select: none;
-  font-weight: 500;
-  @include o-text-overflow;
-  transition: none; // remove transition to prevent badges from flickering at reload
-  color: $o-black;
+ min-width: $o-badge-min-width;
+ line-height: 1.1;
+ border: 0;
+ font-size: 0.85em;
+ user-select: none;
+ font-weight: 500;
+ @include o-text-overflow;
+ transition: none; // remove transition to prevent badges from flickering at reload
+ color: $o-black;
 }
 
 // == Boostrap Dropdown
 // ----------------------------------------------------------------------------
 :not(.dropstart) > .dropdown-item {
-  &.active, &.selected {
-    position: relative;
-    font-weight: $font-weight-bold;
+ &.active, &.selected {
+ position: relative;
+ font-weight: $font-weight-bold;
 
-    &:focus, &:hover {
-      background-color: $dropdown-link-hover-bg;
-    }
+ &:focus, &:hover {
+ background-color: $dropdown-link-hover-bg;
+ }
 
-    &:not(.dropdown-item_active_noarrow) {
-      &:before {
-        @include o-position-absolute(0);
-        transform: translate(-1.5em, 90%);
-        font: .7em/1em FontAwesome;
-        color: $link-color;
-        content: "\f00c";
-      }
+ &:not(.dropdown-item_active_noarrow) {
+ &:before {
+ @include o-position-absolute(0);
+ transform: translate(-1.5em, 90%);
+ font: 900 .7em/1em "Font Awesome 7 Free";
+ color: $link-color;
+ content: "\f00c";
+ }
 
-      &.disabled:before {
-        color: $dropdown-link-disabled-color;
-      }
-    }
-  }
+ &.disabled:before {
+ color: $dropdown-link-disabled-color;
+ }
+ }
+ }
 }
 
 /*!rtl:begin:ignore*/
 .o-dropdown.dropstart > .dropdown-item.dropdown-toggle:not(.dropdown-item_active_noarrow) {
-  &.active, &.selected {
-    &::after {
-      @include o-position-absolute(0, $left: 90%);
-      transform: translate(0, 90%);
-      font: .7em/1em FontAwesome;
-      color: $link-color;
-      display: inline-block;
-      content: "\f00c";
-      border: 0;
-    }
+ &.active, &.selected {
+ &::after {
+ @include o-position-absolute(0, $left: 90%);
+ transform: translate(0, 90%);
+ font: 900 .7em/1em "Font Awesome 7 Free";
+ color: $link-color;
+ display: inline-block;
+ content: "\f00c";
+ border: 0;
+ }
 
-    &.disabled:after {
-      color: $dropdown-link-disabled-color;
-    }
-  }
+ &.disabled:after {
+ color: $dropdown-link-disabled-color;
+ }
+ }
 }
 /*!rtl:end:ignore*/
 
 .dropdown-header {
-  font-weight: $font-weight-bold;
-  padding-bottom: .1em;
+ font-weight: $font-weight-bold;
+ padding-bottom: .1em;
 
-  &:not(:first-child) {
-    margin-top: .3em;
-  }
+ &:not(:first-child) {
+ margin-top: .3em;
+ }
 }
 
 .dropdown-divider:first-child {
-  display: none;
+ display: none;
 }
 
 //== Printing improvements
 @media print {
-  .table-responsive {
-    overflow-x: initial;
-  }
+ .table-responsive {
+ overflow-x: initial;
+ }
 }
 
 //== Action manager
@@ -137,27 +137,27 @@ kbd {
 // have an href
 [type="action"],
 [type="toggle"] {
-  cursor: pointer !important;
+ cursor: pointer !important;
 }
 
 .o_web_client.o_touch_device {
-  .btn {
-      &, .btn-sm {
-        &:where(:not(.dropdown-item)) {
-          font-size: $font-size-base;
-          padding: $o-touch-btn-padding;
-        }
-      }
+ .btn {
+ &, .btn-sm {
+ &:where(:not(.dropdown-item)) {
+ font-size: $font-size-base;
+ padding: $o-touch-btn-padding;
+ }
+ }
 
-      &:has(.fa-fw:only-child, .oi-fw:only-child) {
-          padding: $o-touch-btn-with-icon-padding;
-      }
+ &:has(.fa-fw:only-child, .oi-fw:only-child) {
+ padding: $o-touch-btn-with-icon-padding;
+ }
 
-      &.fa {
-          font-size: 1.3em;
-          padding: 2px 10px;
-      }
-  }
+ &.fa {
+ font-size: 1.3em;
+ padding: 2px 10px;
+ }
+ }
 }
 
 //------------------------------------------------------------------------------
@@ -170,52 +170,52 @@ kbd {
 [type="tel"],
 textarea,
 select {
-  width: 100%;
-  display: block;
-  outline: none;
-  border-radius: 0; // webkit OSX browsers have a border-radius on select, input and textarea
+ width: 100%;
+ display: block;
+ outline: none;
+ border-radius: 0; // webkit OSX browsers have a border-radius on select, input and textarea
 }
 
 select {
 
-  // FIXME buggy 'padding-left'
-  cursor: pointer;
-  min-width: 50px;
+ // FIXME buggy 'padding-left'
+ cursor: pointer;
+ min-width: 50px;
 
-  appearance: none;
-  background: transparent $o-caret-down no-repeat right center;
+ appearance: none;
+ background: transparent $o-caret-down no-repeat right center;
 
-  color: $o-main-text-color;
+ color: $o-main-text-color;
 
-  > option {
-    background: $light;
-  }
+ > option {
+ background: $light;
+ }
 
-  // This is a hack to remove the outline in FF
-  &:-moz-focusring {
-    color: transparent;
-    text-shadow: 0 0 0 $o-main-text-color;
-    > option {
-      color: $o-main-text-color;
-    }
-  }
+ // This is a hack to remove the outline in FF
+ &:-moz-focusring {
+ color: transparent;
+ text-shadow: 0 0 0 $o-main-text-color;
+ > option {
+ color: $o-main-text-color;
+ }
+ }
 }
 
 @mixin o-placeholder {
-  // Rules below need to be separeted. Otherwise all browsers will discard the whole rule.
-  color: $input-placeholder-color;
+ // Rules below need to be separeted. Otherwise all browsers will discard the whole rule.
+ color: $input-placeholder-color;
 }
 ::-webkit-input-placeholder {
-  // WebKit, Blink, Edge
-  @include o-placeholder;
+ // WebKit, Blink, Edge
+ @include o-placeholder;
 }
 ::-moz-placeholder {
-  // Mozilla Firefox 19+
-  @include o-placeholder;
+ // Mozilla Firefox 19+
+ @include o-placeholder;
 }
 :-ms-input-placeholder {
-  // Internet Explorer 10-11
-  @include o-placeholder;
+ // Internet Explorer 10-11
+ @include o-placeholder;
 }
 
 //------------------------------------------------------------------------------
@@ -224,61 +224,61 @@ select {
 
 //== Titles
 @include media-breakpoint-down(md) {
-  h1 {
-    font-size: $h1-font-size * 3 / 4;
-  }
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-size: $o-font-size-base-touch;
-  }
+ h1 {
+ font-size: $h1-font-size * 3 / 4;
+ }
+ h2,
+ h3,
+ h4,
+ h5,
+ h6 {
+ font-size: $o-font-size-base-touch;
+ }
 }
 
 //== Alerts
 .alert {
-  border-radius: $o-border-radius-lg;
-  box-shadow: $o-shadow-xs;
+ border-radius: $o-border-radius-lg;
+ box-shadow: $o-shadow-xs;
 
-  &.alert-info,
-  &.alert-success,
-  &.alert-warning,
-  &.alert-danger {
-    border-width: 0 0 0 4px;
-  }
-  a {
-    font-weight: $alert-link-font-weight;
-  }
+ &.alert-info,
+ &.alert-success,
+ &.alert-warning,
+ &.alert-danger {
+ border-width: 0 0 0 4px;
+ }
+ a {
+ font-weight: $alert-link-font-weight;
+ }
 }
 
 //== Badges
 .badge {
-    border-radius: $o-border-radius-full;
-    font-weight: $o-font-weight-medium;
+ border-radius: $o-border-radius-full;
+ font-weight: $o-font-weight-medium;
 
-    &.text-bg-default, &.bg-light, &.text-bg-light, &.bg-default, &.text-primary{
-        outline: 1px solid $o-brand-primary;
-        outline-offset: -1px;
-    }
+ &.text-bg-default, &.bg-light, &.text-bg-light, &.bg-default, &.text-primary{
+ outline: 1px solid $o-brand-primary;
+ outline-offset: -1px;
+ }
 }
 
 //== Buttons
 
 // Disable unnecessary box-shadows on mouse hover (except primary which has intentional shadows)
 .btn:not(.btn-primary):focus:hover {
-  box-shadow: none;
+ box-shadow: none;
 }
 
 //== Navbar
 .navbar .navbar-toggle {
-  border-color: transparent;
+ border-color: transparent;
 }
 
 //== Labels
 .label {
-  border-radius: 0;
-  font-size: 1em; // Override 75% of .label
+ border-radius: 0;
+ font-size: 1em; // Override 75% of .label
 }
 
 //------------------------------------------------------------------------------
@@ -286,10 +286,10 @@ select {
 //------------------------------------------------------------------------------
 
 @include media-only(print) {
-  html, body {
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-  }
+ html, body {
+ print-color-adjust: exact;
+ -webkit-print-color-adjust: exact;
+ }
 }
 
 // ------------------------------------------------------------------
@@ -297,46 +297,46 @@ select {
 // ------------------------------------------------------------------
 
 .card {
-  border-radius: $o-border-radius-lg;
-  box-shadow: $o-shadow-sm;
-  border-color: $o-gray-200;
+ border-radius: $o-border-radius-lg;
+ box-shadow: $o-shadow-sm;
+ border-color: $o-gray-200;
 }
 
 
 // Skeleton loading placeholder
 .o_skeleton {
-    @include o-skeleton();
+ @include o-skeleton();
 }
 
 // Thin rounded scrollbars
 ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+ width: 6px;
+ height: 6px;
 }
 ::-webkit-scrollbar-track {
-    background: transparent;
+ background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-    background: $o-gray-300;
-    border-radius: $o-border-radius-full;
+ background: $o-gray-300;
+ border-radius: $o-border-radius-full;
 
-    &:hover {
-        background: $o-gray-400;
-    }
+ &:hover {
+ background: $o-gray-400;
+ }
 }
 
 // Firefox (scrollbar properties inherit, so html is sufficient)
 html {
-    scrollbar-width: thin;
-    scrollbar-color: $o-gray-300 transparent;
+ scrollbar-width: thin;
+ scrollbar-color: $o-gray-300 transparent;
 }
 
 // Respect user's motion preferences
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
-    }
+ *, *::before, *::after {
+ animation-duration: 0.01ms !important;
+ animation-iteration-count: 1 !important;
+ transition-duration: 0.01ms !important;
+ scroll-behavior: auto !important;
+ }
 }

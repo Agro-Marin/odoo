@@ -157,10 +157,10 @@ export function makeDraggableHook(hookParams) {
      * @returns {Error}
      */
     const makeError = (reason) => new Error(`Error in hook ${hookName}: ${reason}.`);
-    let preventClick = false;
 
     return {
         [hookName](params) {
+            let preventClick = false;
             /**
              * Executes a handler from the `hookParams`.
              * @param {string} hookHandlerName

@@ -34,7 +34,7 @@ export class HootDropdown extends Component {
                         bg-base text-base mt-1 shadow rounded z-2"
                 >
                     <button class="fixed end-2 top-2 p-1 text-rose sm:hidden" t-on-click="() => state.open = false">
-                        <i class="fa fa-times w-5 h-5" />
+                        <i class="fa-solid fa-times w-5 h-5" />
                     </button>
                     <t t-slot="menu" open="state.open" />
                 </div>

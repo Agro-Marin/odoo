@@ -4792,7 +4792,7 @@ describe("onDrop", () => {
     });
     test("should drag and drop icon", async () => {
         const { el } = await setupEditor(
-            `<p>[a</p><p><span class="fa fa-heart"></span>b]</p><p>c</p>`
+            `<p>[a</p><p><span class="fa-solid fa-heart"></span>b]</p><p>c</p>`
         );
         const iconElement = el.querySelector(".fa");
         const targetNodeForDrop = el.lastChild;
@@ -4818,7 +4818,7 @@ describe("onDrop", () => {
         await animationFrame();
 
         expect(getContent(el)).toBe(
-            '<p><br></p><p>ca</p><p>\ufeff<span class="fa fa-heart" contenteditable="false">\u200b</span>\ufeffb[]</p>'
+            '<p><br></p><p>ca</p><p>\ufeff<span class="fa-solid fa-heart" contenteditable="false">\u200b</span>\ufeffb[]</p>'
         );
     });
 });

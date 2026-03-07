@@ -85,10 +85,10 @@
                         <td class="text-center">
                             <span t-if="quotation.state == 'cancel'"
                                 class="badge rounded-pill text-bg-danger">
-                                <i class="fa fa-fw fa-remove" /> Cancelled</span>
+                                <i class="fa-solid fa-xmark" /> Cancelled</span>
                             <span t-if="quotation.is_expired"
                                 class="badge rounded-pill text-bg-danger">
-                                <i class="fa fa-fw fa-clock-o" /> Expired</span>
+                                <i class="fa-regular fa-clock" /> Expired</span>
                         </td>
                         <td class="text-end">
                             <span t-field="quotation.amount_total" />
@@ -200,7 +200,7 @@
                                     data-bs-target="#modalaccept"
                                     href="#"
                                 > <!-- If paying by link, signing is skipped. -->
-                                    <i class="fa fa-check" />
+                                    <i class="fa-solid fa-check" />
                                     <t t-if="sale_order._has_to_be_paid()"> Sign &amp; Pay</t>
                                     <t t-else=""> Accept &amp; Sign</t>
                                 </a>
@@ -218,7 +218,7 @@
                                     href="#"
                                     t-att-class="'btn btn-primary' if not sale_order.transaction_ids else 'btn btn-light'"
                                 >
-                                    <i class="fa fa-check" />
+                                    <i class="fa-solid fa-check" />
                                     <t
                                         t-if="not sale_order.signature
                                              and sale_order._has_to_be_paid()
@@ -234,7 +234,7 @@
                                         class="btn btn-light o_print_btn o_portal_invoice_print flex-grow-1"
                                         t-att-href="sale_order.get_portal_url(report_type='pdf')"
                                         id="print_invoice_report" title="View Details" role="button"
-                                        target="_blank"><i class="fa fa-print me-1" />View Details</a>
+                                        target="_blank"><i class="fa-solid fa-print me-1" />View Details</a>
                                 </div>
                             </div>
 
@@ -360,7 +360,7 @@
                                 <footer class="modal-footer">
                                     <button type="submit" t-att-id="sale_order.id"
                                         class="btn btn-danger">
-                                        <i class="fa fa-times"></i> Reject </button>
+                                        <i class="fa-solid fa-times"></i> Reject </button>
                                     <button type="button" class="btn btn-primary"
                                         data-bs-dismiss="modal">
                                         Cancel
@@ -406,7 +406,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="alert"
                             aria-label="close"></button>
                         <strong>This quotation has been cancelled.</strong>
-                        <a role="button" href="#discussion"><i class="fa fa-comment" /> Contact us
+                        <a role="button" href="#discussion"><i class="fa-solid fa-comment" /> Contact us
                             to get a new quotation.</a>
                     </div>
 
@@ -415,7 +415,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="alert"
                             aria-label="close"></button>
                         <strong>This offer expired!</strong>
-                        <a role="button" href="#discussion"><i class="fa fa-comment" /> Contact us
+                        <a role="button" href="#discussion"><i class="fa-solid fa-comment" /> Contact us
                             to get a new quotation.</a>
                     </div>
 
@@ -436,26 +436,26 @@
                             <div class="col-sm-auto mt8">
                                 <a role="button" class="btn btn-primary" data-bs-toggle="modal"
                                     data-bs-target="#modalaccept" href="#">
-                                    <i class="fa fa-check" />
+                                    <i class="fa-solid fa-check" />
                                     <t t-if="sale_order._has_to_be_paid()"> Sign &amp; Pay</t>
                                     <t t-else=""> Accept &amp; Sign</t>
                                 </a>
                             </div>
                             <div class="col-sm-auto mt8">
                                 <a role="button" class="btn btn-light" href="#discussion"><i
-                                        class="fa fa-comment" /> Feedback</a>
+                                        class="fa-solid fa-comment" /> Feedback</a>
                             </div>
                             <div class="col-sm-auto mt8">
                                 <a role="button" class="btn btn-danger" data-bs-toggle="modal"
                                     data-bs-target="#modaldecline" href="#">
-                                    <i class="fa fa-times" /> Reject</a>
+                                    <i class="fa-solid fa-times" /> Reject</a>
                             </div>
                         </t>
                         <div t-elif="sale_order._has_to_be_paid()" class="col-sm-auto mt8">
                             <a role="button" data-bs-toggle="modal" data-bs-target="#modalaccept"
                                 href="#"
                                 t-att-class="'%s' % ('btn btn-light' if sale_order.transaction_ids else 'btn btn-primary')">
-                                <i class="fa fa-check" />
+                                <i class="fa-solid fa-check" />
                                 <t t-if="not sale_order.signature">Accept &amp; Pay</t>
                                 <t t-else="">Pay Now</t>
                             </a>
@@ -711,7 +711,7 @@
                             t-if="sale_order.partner_id == sale_order.partner_invoice_id == sale_order.env.user.partner_id">
                             <a class="small"
                                 t-attf-href="/my/account?redirect={{sale_order.get_portal_url()}}">
-                                <i class="fa fa-fw fa-pencil" />
+                                <i class="fa-solid fa-pencil" />
                             </a>
                         </small>
                     </h5>
@@ -747,16 +747,16 @@
                                     </a>
                                     <div t-if="i.payment_state in ('paid', 'in_payment')"
                                         class="small badge rounded-pill text-bg-success orders_label_text_align">
-                                        <i class="fa fa-fw fa-check" /> Paid </div>
+                                        <i class="fa-solid fa-check" /> Paid </div>
                                     <div t-elif="i.payment_state == 'reversed'"
                                         class="small badge text-bg-success orders_label_text_align">
-                                        <i class="fa fa-fw fa-check" /> Reversed </div>
+                                        <i class="fa-solid fa-check" /> Reversed </div>
                                     <div t-elif="authorized_tx_ids"
                                         class="small badge rounded-pill text-bg-success orders_label_text_align">
-                                        <i class="fa fa-fw fa-check" /> Authorized </div>
+                                        <i class="fa-solid fa-check" /> Authorized </div>
                                     <div t-else=""
                                         class="small badge rounded-pill text-bg-info orders_label_text_align">
-                                        <i class="fa fa-fw fa-clock-o" /> Waiting Payment </div>
+                                        <i class="fa-regular fa-clock" /> Waiting Payment </div>
                                 </div>
                                 <div class="small d-lg-inline-block">Date: <span class="text-muted"
                                         t-field="i.invoice_date" /></div>

@@ -145,17 +145,10 @@ function getInactiveIcons(editingElement) {
 }
 function renderIcons(editingElement) {
     const iconType = getIconType(editingElement);
-    const icons = {
-        "fa-star": "fa-star-o",
-        "fa-thumbs-up": "fa-thumbs-o-up",
-        "fa-circle": "fa-circle-o",
-        "fa-square": "fa-square-o",
-        "fa-heart": "fa-heart-o",
-    };
     const faClassActiveIcons =
-        iconType === "custom" ? getActiveCustomIcons(editingElement) : "fa " + iconType;
+        iconType === "custom" ? getActiveCustomIcons(editingElement) : `fa-solid ${iconType}`;
     const faClassInactiveIcons =
-        iconType === "custom" ? getInactiveCustomIcons(editingElement) : "fa " + icons[iconType];
+        iconType === "custom" ? getInactiveCustomIcons(editingElement) : `fa-regular ${iconType}`;
     const activeIconEls = getActiveIcons(editingElement);
     const inactiveIconEls = getInactiveIcons(editingElement);
     activeIconEls.forEach((activeIconEl) => (activeIconEl.className = faClassActiveIcons));

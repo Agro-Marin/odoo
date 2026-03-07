@@ -14,7 +14,7 @@ export class ActivityButton extends Component {
         this.buttonRef = useRef("button");
         this.env = useEnv();
         this.defaultActivityStateClass = "text-muted";
-        this.defaultActivityDecorationClass = "fa-clock-o btn-link text-dark";
+        this.defaultActivityDecorationClass = "fa-regular fa-clock btn-link text-dark";
     }
 
     get buttonClass() {

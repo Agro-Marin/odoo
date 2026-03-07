@@ -1418,7 +1418,7 @@ XML
 File format
 -----------
 
-- Use **2-space indentation** for XML files.
+- Use **4-space indentation** for XML files.
 - Place ``id`` before ``model`` in ``<record>`` tags.
 - Place field ``name`` attribute first, then ``ref``/``eval``/text content.
 

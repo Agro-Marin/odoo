@@ -24,14 +24,32 @@ const odooToBootstrapClasses = {
 
 /**
  * Parse an icon string into a tag/class descriptor for Font Awesome, OdooIcon, or image sources.
- * @param {string} iconString - icon identifier (e.g. "fa-save", "oi-settings", or an image URL)
+ *
+ * Accepts both FA7 full class syntax ("fa-solid fa-edit") and legacy bare-name syntax
+ * ("fa-edit"). Bare names are normalized to "fa-solid" (solid style default).
+ *
+ * @param {string} iconString - icon identifier (e.g. "fa-solid fa-save", "fa-save", "oi-settings", or an image URL)
  * @returns {{ tag: string, class?: string, src?: string }}
  */
 function iconFromString(iconString) {
     const icon = {};
-    if (iconString.startsWith("fa-")) {
+    if (
+        iconString.startsWith("fa-solid ") ||
+        iconString.startsWith("fa-regular ") ||
+        iconString.startsWith("fa-brands ")
+    ) {
+        // FA7 full class syntax — use directly
         icon.tag = "i";
-        icon.class = `o_button_icon fa fa-fw ${iconString}`;
+        icon.class = `o_button_icon ${iconString}`;
+    } else if (iconString.startsWith("fa-")) {
+        // Legacy bare name — apply style based on FA4 outline convention
+        icon.tag = "i";
+        if (iconString.endsWith("-o")) {
+            // FA4 outline suffix (e.g. "fa-star-o") → FA7 regular style, strip -o
+            icon.class = `o_button_icon fa-regular ${iconString.slice(0, -2)}`;
+        } else {
+            icon.class = `o_button_icon fa-solid ${iconString}`;
+        }
     } else if (iconString.startsWith("oi-")) {
         icon.tag = "i";
         icon.class = `o_button_icon oi oi-fw ${iconString}`;

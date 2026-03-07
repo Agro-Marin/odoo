@@ -251,7 +251,7 @@
             color: $o-action;
             // .fa
             text-rendering: auto;
-            font: normal normal normal 14px/1 FontAwesome;
+            font: normal 900 14px/1 "Font Awesome 7 Free";
             // .fa-check
             content: "";
         }
@@ -300,7 +300,7 @@
             padding-block: map-get($spacers, 2);
             // .fa
             text-rendering: auto;
-            font: normal normal normal 14px/1 FontAwesome;
+            font: normal 900 14px/1 "Font Awesome 7 Free";
             // .fa-caret-down
             content: "\f0d7";
         }

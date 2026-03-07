@@ -102,7 +102,7 @@
                     <button name="action_open_employee"
                             type="object"
                             class="oe_stat_button"
-                            icon="fa-id-card-o"
+                            icon="fa-regular fa-id-card"
                             groups="hr.group_hr_user"
                             invisible="not (employee_id or emp_is_active)">
                         <div class="o_field_widget o_stat_info">
@@ -419,7 +419,7 @@
                             <field name="rotting_days" class="d-flex" widget="rotting"/>
                             <div class="d-flex ms-auto align-items-center">
                                 <a name="action_open_attachments" type="object">
-                                    <i class='fa fa-paperclip' role="img" aria-label="Documents"/>
+                                    <i class='fa-solid fa-paperclip' role="img" aria-label="Documents"/>
                                     <field name="attachment_number"/>
                                 </a>
                                 <field name="kanban_state" class="mx-1" widget="hr_applicant_state_selection"/>

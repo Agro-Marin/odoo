@@ -49,7 +49,7 @@
                             type="object"
                             class="oe_stat_button"
                             invisible="attempts_count == 1"
-                            icon="fa-files-o">
+                            icon="fa-regular fa-copy">
                             <field string="Attempts" name="attempts_count" widget="statinfo"/>
                         </button>
                     </div>

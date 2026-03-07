@@ -291,7 +291,7 @@
                 <path fill="#FFF" d="M8 8V1a1 1 0 1 1 2 0v8a1 1 0 0 1-1 1H1a1 1 0 1 1 0-2h7z"/>
             </svg>
             <div class="o_frontend_to_backend_buttons d-flex">
-                <a href="#" title="Go to your Odoo Apps" class="o_frontend_to_backend_apps_btn fa fa-th d-flex align-items-center justify-content-center text-decoration-none" data-bs-toggle="dropdown"/>
+                <a href="#" title="Go to your Odoo Apps" class="o_frontend_to_backend_apps_btn fa-solid fa-th d-flex align-items-center justify-content-center text-decoration-none" data-bs-toggle="dropdown"/>
                 <div class="dropdown-menu o_frontend_to_backend_apps_menu" role="menu">
                     <a role="menuitem" class="dropdown-item" t-out="menu['name']"
                        t-as="menu" t-foreach="env['ir.ui.menu'].with_context(force_action=True).load_menus_root()['children']"
@@ -1664,23 +1664,23 @@
                         <div class="col-lg-4 offset-lg-1 pt24 pb24">
                             <h5>Connect with us</h5>
                             <ul class="list-unstyled">
-                                <li><i class="fa fa-comment fa-fw me-2"/><a href="/contactus">Contact us</a></li>
-                                <li><i class="fa fa-envelope fa-fw me-2"/><a href="mailto:info@yourcompany.example.com">info@yourcompany.example.com</a></li>
-                                <li><i class="fa fa-phone fa-fw me-2"/><a href="tel:+1 555-555-5556"><span class="o_force_ltr">+1 555-555-5556</span></a></li>
+                                <li><i class="fa-solid fa-comment me-2"/><a href="/contactus">Contact us</a></li>
+                                <li><i class="fa-solid fa-envelope me-2"/><a href="mailto:info@yourcompany.example.com">info@yourcompany.example.com</a></li>
+                                <li><i class="fa-solid fa-phone me-2"/><a href="tel:+1 555-555-5556"><span class="o_force_ltr">+1 555-555-5556</span></a></li>
                             </ul>
                             <div class="s_social_media text-start o_not_editable" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <h5 class="s_social_media_title d-none" contenteditable="true">Follow us</h5>
                                 <a href="/website/social/facebook" class="s_social_media_facebook" target="_blank" aria-label="Facebook">
-                                    <i class="fa fa-facebook rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-facebook-f rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank" aria-label="X">
-                                    <i class="fa fa-twitter rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-solid fa-twitter rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/linkedin" class="s_social_media_linkedin" target="_blank" aria-label="LinkedIn">
-                                    <i class="fa fa-linkedin rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-linkedin-in rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/" class="text-800" aria-label="Extra page">
-                                    <i class="fa fa-home rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-solid fa-house rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                             </div>
                         </div>
@@ -1708,22 +1708,22 @@
                         <div class="col-lg-4 offset-lg-3 pb48">
                             <p><b>My Company</b><br/>8000 Marina Blvd, Suite 300 <br/> Brisbane CA 94005 <br/>United States</p>
                             <ul class="list-unstyled mb-2">
-                                <li><i class="fa fa-phone fa-fw me-2"/><span class="o_force_ltr"><a href="tel:+1 555-555-5556">+1 555-555-5556</a></span></li>
-                                <li><i class="fa fa-envelope fa-fw me-2"/><span><a href="mailto:hello@mycompany.com">hello@mycompany.com</a></span></li>
+                                <li><i class="fa-solid fa-phone me-2"/><span class="o_force_ltr"><a href="tel:+1 555-555-5556">+1 555-555-5556</a></span></li>
+                                <li><i class="fa-solid fa-envelope me-2"/><span><a href="mailto:hello@mycompany.com">hello@mycompany.com</a></span></li>
                             </ul>
                             <div class="s_social_media text-start o_not_editable" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <h5 class="s_social_media_title d-none" contenteditable="true">Follow us</h5>
                                 <a href="/website/social/facebook" class="s_social_media_facebook" target="_blank">
-                                    <i class="fa fa-facebook rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-facebook-f rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank">
-                                    <i class="fa fa-twitter rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-solid fa-twitter rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/instagram" class="s_social_media_instagram" target="_blank">
-                                    <i class="fa fa-instagram rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-solid fa-instagram rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/linkedin" class="s_social_media_linkedin" target="_blank">
-                                    <i class="fa fa-linkedin rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-linkedin-in rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                             </div>
                         </div>
@@ -1744,13 +1744,13 @@
                             <div class="s_social_media text-center o_not_editable no_icon_color" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <h5 class="s_social_media_title d-none" contenteditable="true">Follow us</h5>
                                 <a href="/website/social/facebook" class="s_social_media_facebook" target="_blank" aria-label="Facebook">
-                                    <i class="fa fa-facebook rounded-empty-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-facebook-f rounded-empty-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank" aria-label="X">
-                                    <i class="fa fa-twitter rounded-empty-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-solid fa-twitter rounded-empty-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/linkedin" class="s_social_media_linkedin" target="_blank" aria-label="LinkedIn">
-                                    <i class="fa fa-linkedin rounded-empty-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-linkedin-in rounded-empty-circle shadow-sm o_editable_media"/>
                                 </a>
                             </div>
                             <div class="s_hr pt24 pb24" data-snippet="s_hr" data-name="Separator">
@@ -1810,17 +1810,17 @@
                         <div class="col-lg-2 col-10 offset-1 offset-lg-0 pb16">
                             <h5>Follow us</h5>
                             <ul class="list-unstyled">
-                                <li><i class="fa fa-fw fa-facebook-square me-2"/><a href="/website/social/facebook" target="_blank">Facebook</a></li>
-                                <li><i class="fa fa-fw fa-twitter-square me-2"/><a href="/website/social/twitter" target="_blank">X</a></li>
-                                <li><i class="fa fa-fw fa-linkedin-square me-2"/><a href="/website/social/linkedin" target="_blank">Linkedin</a></li>
-                                <li><i class="fa fa-fw fa-instagram me-2"/><a href="/website/social/instagram" target="_blank">Instagram</a></li>
+                                <li><i class="fa-brands fa-square-facebook me-2"/><a href="/website/social/facebook" target="_blank">Facebook</a></li>
+                                <li><i class="fa-brands fa-square-twitter me-2"/><a href="/website/social/twitter" target="_blank">X</a></li>
+                                <li><i class="fa-brands fa-linkedin me-2"/><a href="/website/social/linkedin" target="_blank">Linkedin</a></li>
+                                <li><i class="fa-solid fa-instagram me-2"/><a href="/website/social/instagram" target="_blank">Instagram</a></li>
                             </ul>
                         </div>
                         <div class="col-lg-3 col-10 offset-1 offset-lg-0 pb16">
                             <h5>Get in touch</h5>
                             <ul class="list-unstyled">
-                                <li><i class="fa fa-fw fa-envelope me-2"/><a href="mailto:info@yourcompany.com">info@yourcompany.com</a></li>
-                                <li><i class="fa fa-fw fa-phone me-2"/><a href="tel:+1 555-555-5556"><span class="o_force_ltr">+1 555-555-5556"</span></a></li>
+                                <li><i class="fa-solid fa-envelope me-2"/><a href="mailto:info@yourcompany.com">info@yourcompany.com</a></li>
+                                <li><i class="fa-solid fa-phone me-2"/><a href="tel:+1 555-555-5556"><span class="o_force_ltr">+1 555-555-5556"</span></a></li>
                             </ul>
                         </div>
                         <div class="col-lg-3 col-10 offset-1 offset-lg-0 pb16">
@@ -1860,13 +1860,13 @@
                             <div class="s_social_media no_icon_color o_not_editable text-center" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <h5 class="s_social_media_title d-none" contenteditable="true">Follow us</h5>
                                 <a href="/website/social/facebook" class="s_social_media_facebook" target="_blank">
-                                    <i class="fa fa-facebook fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-facebook-f fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank">
-                                    <i class="fa fa-twitter fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-twitter fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/instagram" class="s_social_media_instagram" target="_blank">
-                                    <i class="fa fa-instagram fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-instagram fa-stack o_editable_media"/>
                                 </a>
                             </div>
                         </div>
@@ -1899,13 +1899,13 @@
                             <div class="s_social_media text-start no_icon_color o_not_editable" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <h6 class="s_social_media_title d-block mb-2" contenteditable="true">Follow us</h6>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank">
-                                    <i class="fa fa-twitter fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-twitter fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/linkedin" class="s_social_media_linkedin" target="_blank">
-                                    <i class="fa fa-linkedin fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-linkedin-in fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/instagram" class="s_social_media_instagram" target="_blank">
-                                    <i class="fa fa-instagram fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-instagram fa-stack o_editable_media"/>
                                 </a>
                             </div>
                         </div>
@@ -1991,22 +1991,22 @@
                             <a href="#" class="o_translate_inline btn btn-primary">Get in touch</a>
                         </div>
                         <div class="col-lg-4">
-                            <i class="fa fa-envelope fa-fw me-2"/><a href="mailto:info@yourcompany.example.com">info@yourcompany.example.com</a>
+                            <i class="fa-solid fa-envelope me-2"/><a href="mailto:info@yourcompany.example.com">info@yourcompany.example.com</a>
                         </div>
                         <div class="col-lg-4 pb24">
-                            <i class="fa fa-phone fa-fw me-2"/><a href="tel:+1 555-555-5556"><span class="o_force_ltr">+1 555-555-5556</span></a>
+                            <i class="fa-solid fa-phone me-2"/><a href="tel:+1 555-555-5556"><span class="o_force_ltr">+1 555-555-5556</span></a>
                         </div>
                         <div class="col-lg-2 offset-lg-2 pb24">
                             <div class="s_social_media text-start o_not_editable" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <h5 class="s_social_media_title d-none" contenteditable="true">Follow Us</h5>
                                 <a href="/website/social/facebook" class="s_social_media_facebook" target="_blank" aria-label="Facebook">
-                                    <i class="fa fa-facebook rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-facebook-f rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank" aria-label="X">
-                                    <i class="fa fa-twitter rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-solid fa-twitter rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/instagram" class="s_social_media_instagram" target="_blank" aria-label="Instagram">
-                                    <i class="fa fa-instagram rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-solid fa-instagram rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                             </div>
                         </div>
@@ -2076,19 +2076,19 @@
                             <div class="s_social_media text-start o_not_editable no_icon_color" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <p class="s_social_media_title d-none" contenteditable="true">Follow us</p>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank">
-                                    <i class="fa fa-twitter fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-twitter fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/linkedin" class="s_social_media_linkedin" target="_blank">
-                                    <i class="fa fa-linkedin fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-linkedin-in fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/instagram" class="s_social_media_instagram" target="_blank">
-                                    <i class="fa fa-instagram fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-instagram fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/facebook" class="s_social_media_facebook" target="_blank">
-                                    <i class="fa fa-facebook fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-facebook-f fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/youtube" class="s_social_media_youtube" target="_blank">
-                                    <i class="fa fa-youtube-play fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-youtube fa-stack o_editable_media"/>
                                 </a>
                             </div>
                         </div>
@@ -2192,19 +2192,19 @@
                             <div class="s_social_media text-start o_not_editable no_icon_color" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <p class="s_social_media_title d-none" contenteditable="true">Follow us</p>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank">
-                                    <i class="fa fa-twitter fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-twitter fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/linkedin" class="s_social_media_linkedin" target="_blank">
-                                    <i class="fa fa-linkedin fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-linkedin-in fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/instagram" class="s_social_media_instagram" target="_blank">
-                                    <i class="fa fa-instagram fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-instagram fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/facebook" class="s_social_media_facebook" target="_blank">
-                                    <i class="fa fa-facebook fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-facebook-f fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/youtube" class="s_social_media_youtube" target="_blank">
-                                    <i class="fa fa-youtube-play fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-youtube fa-stack o_editable_media"/>
                                 </a>
                             </div>
                         </div>
@@ -2321,19 +2321,19 @@
                             <div class="s_social_media text-start o_not_editable no_icon_color" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <p class="s_social_media_title d-none" contenteditable="true">Follow us</p>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank">
-                                    <i class="fa fa-twitter fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-twitter fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/linkedin" class="s_social_media_linkedin" target="_blank">
-                                    <i class="fa fa-linkedin fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-linkedin-in fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/instagram" class="s_social_media_instagram" target="_blank">
-                                    <i class="fa fa-instagram fa-stack o_editable_media"/>
+                                    <i class="fa-solid fa-instagram fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/facebook" class="s_social_media_facebook" target="_blank">
-                                    <i class="fa fa-facebook fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-facebook-f fa-stack o_editable_media"/>
                                 </a>
                                 <a href="/website/social/youtube" class="s_social_media_youtube" target="_blank">
-                                    <i class="fa fa-youtube-play fa-stack o_editable_media"/>
+                                    <i class="fa-brands fa-youtube fa-stack o_editable_media"/>
                                 </a>
                             </div>
                         </div>
@@ -2400,19 +2400,19 @@
                             <div class="s_social_media text-start o_not_editable" data-snippet="s_social_media" data-name="Social Media" contenteditable="false">
                                 <h5 class="s_social_media_title d-block mb-2" contenteditable="true">Follow us</h5>
                                 <a href="/website/social/twitter" class="s_social_media_twitter" target="_blank">
-                                    <i class="fa fa-twitter fa-stack rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-solid fa-twitter fa-stack rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/linkedin" class="s_social_media_linkedin" target="_blank">
-                                    <i class="fa fa-linkedin fa-stack rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-linkedin-in fa-stack rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/instagram" class="s_social_media_instagram" target="_blank">
-                                    <i class="fa fa-instagram fa-stack rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-solid fa-instagram fa-stack rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/facebook" class="s_social_media_facebook" target="_blank">
-                                    <i class="fa fa-facebook fa-stack rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-facebook-f fa-stack rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                                 <a href="/website/social/youtube" class="s_social_media_youtube" target="_blank">
-                                    <i class="fa fa-youtube-play fa-stack rounded-circle shadow-sm o_editable_media"/>
+                                    <i class="fa-brands fa-youtube fa-stack rounded-circle shadow-sm o_editable_media"/>
                                 </a>
                             </div>
                         </div>
@@ -2834,13 +2834,13 @@
                 <form class="offset-md-3 col-md-6" method="POST">
                     <div class="alert alert-info mt32" t-if="not request.params.get('visibility_password')">
                         <div class="h5 text-center">
-                            <i class="fa fa-lock fa-2x"/><br/>
+                            <i class="fa-solid fa-lock fa-2x"/><br/>
                             <span class="mt-1">A password is required to access this page.</span>
                         </div>
                     </div>
                     <div class="alert alert-warning mt32" t-else="">
                         <div class="h5 text-center">
-                            <i class="fa fa-lock fa-2x"/><br/>
+                            <i class="fa-solid fa-lock fa-2x"/><br/>
                             <span class="mt-1">Wrong password</span>
                         </div>
                     </div>
@@ -2850,7 +2850,7 @@
                             <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()" />
                             <input type="password" id="password" class="form-control" required="required" name="visibility_password" />
                           <button class="btn border border-start-0 o_show_password" type="button">
-                            <i class="fa fa-eye"></i>
+                            <i class="fa-regular fa-eye"></i>
                           </button>
                         </div>
                     </div>
@@ -3185,7 +3185,7 @@ Sitemap: <t t-out="url_root"/>sitemap.xml
                     </p>
                     <span
                         t-if="not step_last"
-                        class="fa fa-angle-right d-inline-block align-middle mx-3 text-muted fs-5"
+                        class="fa-solid fa-angle-right d-inline-block align-middle mx-3 text-muted fs-5"
                     />
                 </div>
             </span>
@@ -3201,7 +3201,7 @@ Sitemap: <t t-out="url_root"/>sitemap.xml
                     </p>
                     <span
                         t-if="not step_last"
-                        class="fa fa-angle-right d-inline-block align-middle mx-3 text-muted fs-5"
+                        class="fa-solid fa-angle-right d-inline-block align-middle mx-3 text-muted fs-5"
                     />
                 </div>
             </a>
@@ -3225,16 +3225,16 @@ Sitemap: <t t-out="url_root"/>sitemap.xml
                 <div class="s_social_media o_not_editable oe_unmovable oe_unremovable" data-snippet="s_social_media" data-name="Social Media">
                     <h5 class="s_social_media_title d-none">Follow us</h5>
                     <a href="/website/social/facebook" class="s_social_media_facebook o_nav-link_secondary nav-link m-0 p-0 text-decoration-none" target="_blank" aria-label="Facebook">
-                        <i class="fa fa-facebook fa-stack p-1 o_editable_media"/>
+                        <i class="fa-brands fa-facebook-f fa-stack p-1 o_editable_media"/>
                     </a>
                     <a href="/website/social/twitter" class="s_social_media_twitter o_nav-link_secondary nav-link m-0 p-0 text-decoration-none" target="_blank" aria-label="X">
-                        <i class="fa fa-twitter fa-stack p-1 o_editable_media"/>
+                        <i class="fa-solid fa-twitter fa-stack p-1 o_editable_media"/>
                     </a>
                     <a href="/website/social/linkedin" class="s_social_media_linkedin o_nav-link_secondary nav-link m-0 p-0 text-decoration-none" target="_blank" aria-label="LinkedIn">
-                        <i class="fa fa-linkedin fa-stack p-1 o_editable_media"/>
+                        <i class="fa-brands fa-linkedin-in fa-stack p-1 o_editable_media"/>
                     </a>
                     <a href="/website/social/instagram" class="s_social_media_instagram o_nav-link_secondary nav-link m-0 p-0 text-decoration-none" target="_blank" aria-label="Instagram">
-                        <i class="fa fa-instagram fa-stack p-1 o_editable_media"/>
+                        <i class="fa-solid fa-instagram fa-stack p-1 o_editable_media"/>
                     </a>
                 </div>
             </div>
@@ -3295,15 +3295,15 @@ Sitemap: <t t-out="url_root"/>sitemap.xml
             <t t-elif="_txt_elt_content == 'list'">
                 <div t-attf-class="s_text_block d-flex flex-column flex-lg-row gap-1 gap-lg-4 align-items-lg-center #{_div_class}" data-name="Text">
                     <small class="d-flex align-items-center">
-                        <i class="fa fa-1x fa-fw fa-usd fa-stack me-1"/>
+                        <i class="fa-solid fa-dollar-sign fa-1x fa-stack me-1"/>
                         Low Price Guarantee
                     </small>
                     <small class="d-flex align-items-center">
-                        <i class="fa fa-1x fa-fw fa-shopping-basket fa-stack me-1"/>
+                        <i class="fa-solid fa-shopping-basket fa-1x fa-stack me-1"/>
                         30 Days Online Returns
                     </small>
                     <small class="d-flex align-items-center">
-                        <i class="fa fa-1x fa-fw fa-truck fa-stack me-1"/>
+                        <i class="fa-solid fa-truck fa-1x fa-stack me-1"/>
                         Standard Shipping
                     </small>
                 </div>
@@ -3312,13 +3312,13 @@ Sitemap: <t t-out="url_root"/>sitemap.xml
                 <div t-attf-class="s_text_block #{_div_class}" data-name="Text">
                     <a href="tel:+1 555-555-5556" class="nav-link o_nav-link_secondary">
                         <small>
-                            <i class="fa fa-1x fa-fw fa-phone me-1"/>&#847; <!-- Empty character needed to be able to delete the icon. -->
+                            <i class="fa-solid fa-phone fa-1x me-1"/>&#847; <!-- Empty character needed to be able to delete the icon. -->
                             <span class="o_force_ltr">+1 555-555-5556</span>
                         </small>
                     </a>
                     <a href="mailto:info@yourcompany.example.com" class="nav-link o_nav-link_secondary">
                         <small>
-                            <i class="fa fa-1x fa-fw fa-envelope me-1"/>
+                            <i class="fa-solid fa-envelope fa-1x me-1"/>
                             info@yourcompany.example.com
                         </small>
                     </a>
@@ -3327,14 +3327,14 @@ Sitemap: <t t-out="url_root"/>sitemap.xml
             <t t-elif="_txt_elt_content == 'mail'">
                 <div t-attf-class="s_text_block #{_div_class}" data-name="Text">
                     <a href="mailto:info@yourcompany.example.com" class="nav-link o_nav-link_secondary">
-                        <small><i class="fa fa-1x fa-fw fa-envelope me-1"/> info@yourcompany.example.com</small>
+                        <small><i class="fa-solid fa-envelope fa-1x me-1"/> info@yourcompany.example.com</small>
                     </a>
                 </div>
             </t>
             <t t-elif="_txt_elt_content == 'mail_stretched'">
                 <div t-attf-class="s_text_block #{_div_class}" data-name="Text">
                     <a href="tel:+1 555-555-5556" class="nav-link o_nav-link_secondary p-2 o_navlink_background_hover d-flex align-items-center h-100 text-reset">
-                        <i class="fa fa-1x fa-fw fa-phone me-1"/>
+                        <i class="fa-solid fa-phone fa-1x me-1"/>
                         <span class="o_force_ltr"><small>+1 555-555-5556</small></span>
                     </a>
                 </div>
@@ -3342,7 +3342,7 @@ Sitemap: <t t-out="url_root"/>sitemap.xml
             <t t-else="">
                 <div t-attf-class="s_text_block #{_div_class}" data-name="Text">
                     <a href="tel:+1 555-555-5556" class="nav-link o_nav-link_secondary p-2">
-                        <i class="fa fa-1x fa-fw fa-phone me-1"/>
+                        <i class="fa-solid fa-phone fa-1x me-1"/>
                         <span class="o_force_ltr"><small>+1 555-555-5556</small></span>
                     </a>
                 </div>

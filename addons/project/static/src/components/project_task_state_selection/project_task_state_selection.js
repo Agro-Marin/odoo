@@ -25,10 +25,10 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         this.icons = {
             "01_in_progress": "o_status",
             "03_approved": "o_status o_status_green",
-            "02_changes_requested": "fa fa-lg fa-exclamation-circle",
-            "1_done": "fa fa-lg fa-check-circle",
-            "1_canceled": "fa fa-lg fa-times-circle",
-            "04_waiting_normal": "fa fa-lg fa-hourglass-o",
+            "02_changes_requested": "fa-solid fa-exclamation-circle fa-lg",
+            "1_done": "fa-solid fa-check-circle fa-lg",
+            "1_canceled": "fa-solid fa-times-circle fa-lg",
+            "04_waiting_normal": "fa-solid fa-hourglass fa-lg",
         };
         this.colorIcons = {
             "01_in_progress": "",

@@ -16,7 +16,7 @@
                                 <div data-tooltip="This action will send an email."
                                      class="o_template_element o_send_mail_template cursor-pointer"
                                      t-on-click="() => props.onSendMailTemplate(template.id, type.id)">
-                                    <i class="fa fa-envelope fa-fw"/> <t t-esc="template.name"/>
+                                    <i class="fa-solid fa-envelope"/> <t t-esc="template.name"/>
                                 </div>
                             </t>
                         </div>
@@ -94,7 +94,7 @@
         class="o_activity_summary_cell o_activity_empty_cell cursor-pointer"
         t-attf-class="{{ activeFilter.resIds.has(resId) ? 'o_activity_filter_' + activeFilter.progressValue.active : '' }}"
         t-on-click.prevent.stop="() => props.onEmptyCell(resId, type.id)">
-        <i data-tooltip="Create" class="text-center fa fa-plus mt-2 align-items-center justify-content-center h-100"/>
+        <i data-tooltip="Create" class="text-center fa-solid fa-plus mt-2 align-items-center justify-content-center h-100"/>
     </td>
 </t>
 
@@ -104,7 +104,7 @@
             <td class="p-3" colspan="100">
                 <span class="btn btn-link o_record_selector cursor-pointer"
                       t-on-click.prevent.stop="props.scheduleActivity">
-                    <i class="fa fa-plus pe-2"/> Schedule activity
+                    <i class="fa-solid fa-plus pe-2"/> Schedule activity
                 </span>
             </td>
         </tr>

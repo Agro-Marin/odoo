@@ -10,7 +10,7 @@
                         tabindex="-1"
                         t-on-click="props.pickerProps.onReset"
                     >
-                        <i class="fa fa-eraser" />
+                        <i class="fa-solid fa-eraser" />
                     </button>
                     <button
                         class="btn btn-sm btn-primary"

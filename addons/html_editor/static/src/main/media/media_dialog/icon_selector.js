@@ -4,7 +4,7 @@ import { fonts } from "@html_editor/utils/fonts";
 import { Component, useState } from "@odoo/owl";
 
 export class IconSelector extends Component {
-    static mediaSpecificClasses = ["fa"];
+    static mediaSpecificClasses = ["fa-solid"];
     static mediaSpecificStyles = ["color", "background-color"];
     static mediaExtraClasses = [
         "rounded-circle",

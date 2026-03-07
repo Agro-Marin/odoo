@@ -71,7 +71,8 @@ $o-we-ace-color: #2F3129 !default;
                 &::after {
                     @include o-position-absolute(-100%, 0, -100%, 0);
                     @include ace-line-error-mixin;
-                    font-family: FontAwesome;
+                    font-family: "Font Awesome 7 Free";
+                    font-weight: 900;
                     content: "\f071";
                 }
             }

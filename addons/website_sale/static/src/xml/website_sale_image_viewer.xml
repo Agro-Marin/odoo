@@ -8,7 +8,7 @@
                     <div class="o_wsale_image_viewer_header d-flex w-100 text-white">
                         <div class="flex-grow-1"/>
                         <div class="d-flex align-items-center mb-0 px-3 h4 text-reset cursor-pointer">
-                            <span class="fa fa-times" t-on-click="data.close"/>
+                            <span class="fa-solid fa-times" t-on-click="data.close"/>
                         </div>
                     </div>
                     <!-- Content -->

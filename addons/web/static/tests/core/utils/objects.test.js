@@ -84,9 +84,24 @@ test("deepCopy", () => {
     expect(copy.a).not.toBe(obj.a);
     expect(copy.o).not.toBe(obj.o);
 
-    expect(deepCopy(new Date())).not.toBeInstanceOf(Date);
-    expect(deepCopy(new Set(["a"]))).not.toBeInstanceOf(Set);
-    expect(deepCopy(new Map([["a", 1]]))).not.toBeInstanceOf(Map);
+    // structuredClone preserves Date, Set, and Map (unlike JSON round-trip)
+    const date = new Date();
+    const dateCopy = deepCopy(date);
+    expect(dateCopy).toBeInstanceOf(Date);
+    expect(dateCopy).not.toBe(date);
+    expect(dateCopy.getTime()).toBe(date.getTime());
+
+    const set = new Set(["a"]);
+    const setCopy = deepCopy(set);
+    expect(setCopy).toBeInstanceOf(Set);
+    expect(setCopy).not.toBe(set);
+    expect([...setCopy]).toEqual(["a"]);
+
+    const map = new Map([["a", 1]]);
+    const mapCopy = deepCopy(map);
+    expect(mapCopy).toBeInstanceOf(Map);
+    expect(mapCopy).not.toBe(map);
+    expect(mapCopy.get("a")).toBe(1);
 });
 
 test("isObject", () => {

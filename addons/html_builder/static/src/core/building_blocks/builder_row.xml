@@ -22,7 +22,7 @@
                 t-att-aria-expanded="state.expanded ? 'true' : 'false'"
                 t-att-aria-controls="collapseContentId">
                 <i
-                    class="fa fa-caret-right"
+                    class="fa-solid fa-caret-right"
                     role="img"
                 />
             </button>
@@ -38,7 +38,7 @@
                     >
 
                     <span class="text-nowrap text-truncate" t-out="props.label" t-ref="label"/>
-                    <i t-if="state.tooltip" class="fa fa-question icon-sup"/>
+                    <i t-if="state.tooltip" class="fa-solid fa-question icon-sup"/>
                 </div>
                 <div
                     class="hb-row-content d-flex"

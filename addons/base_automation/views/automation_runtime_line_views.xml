@@ -64,7 +64,7 @@
                             name="action_view_document"
                             type="object"
                             class="oe_stat_button"
-                            icon="fa-file-text-o"
+                            icon="fa-regular fa-file-lines"
                             invisible="not created_record_ref">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">View Document</span>

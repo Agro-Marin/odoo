@@ -71,7 +71,7 @@ test("can be rendered", async () => {
     userMenuRegistry.add("html_item", () => ({
         type: "item",
         id: "html",
-        description: markup`<div>HTML<i class="fa fa-check px-2"></i></div>`,
+        description: markup`<div>HTML<i class="fa-solid fa-check px-2"></i></div>`,
         callback: () => {
             expect.step("callback html_item");
         },

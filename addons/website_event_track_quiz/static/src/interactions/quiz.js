@@ -103,15 +103,15 @@ export class Quiz extends Interaction {
             const questionId = questionEl.dataset.questionId;
             const answer = this.quiz.answers[questionId];
             for (const answerEl of questionEl.querySelectorAll("a.o_quiz_quiz_answer")) {
-                for (const iEl of answerEl.querySelectorAll("i.fa")) {
+                for (const iEl of answerEl.querySelectorAll("i")) {
                     iEl.classList.add("d-none");
                 }
                 if (answerEl.querySelector("input[type=radio]").checked) {
                     if (answer.is_correct) {
-                        answerEl.querySelector("i.fa-check-circle").classList.remove("d-none");
+                        answerEl.querySelector("i.fa-circle-check").classList.remove("d-none");
                     } else {
                         answerEl.querySelector("label input").checked = false;
-                        answerEl.querySelector("i.fa-times-circle").classList.remove("d-none");
+                        answerEl.querySelector("i.fa-circle-xmark").classList.remove("d-none");
                     }
                     if (answer.awarded_points > 0) {
                         this.renderAt("quiz.badge", {
@@ -148,7 +148,7 @@ export class Quiz extends Interaction {
     resetQuiz() {
         for (const questionEl of this.el.querySelectorAll(".o_quiz_js_quiz_question")) {
             for (const answerEl of questionEl.querySelectorAll("a.o_quiz_quiz_answer")) {
-                for (const iEl of answerEl.querySelectorAll("i.fa")) {
+                for (const iEl of answerEl.querySelectorAll("i")) {
                     iEl.classList.add("d-none");
                 }
                 answerEl.querySelector("i.fa-circle").classList.remove("d-none");

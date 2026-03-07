@@ -2,6 +2,8 @@
 
 /** @module @web/core/tree/virtual_operators - Introduces and eliminates virtual operators (between, in range, any/all) in condition trees */
 
+/** @import { Tree, Options } from "./condition_tree" */
+
 import {
     applyTransformations,
     areEqualTrees,
@@ -282,7 +284,11 @@ function eliminateInRangeOperators(tree, options = {}) {
             const generateSmartDates =
                 "generateSmartDates" in options ? options.generateSmartDates : true;
             const bounds = getBounds(generateSmartDates, fieldType);
-            const [, leftBound, rightBound] = bounds.find(([v]) => v === valueType);
+            const found = bounds.find(([v]) => v === valueType);
+            if (!found) {
+                return; // unknown valueType — leave condition untouched
+            }
+            const [, leftBound, rightBound] = found;
             tree = makeStrictBetween(lastPart, leftBound, rightBound);
         }
         return wrapInAny(tree, initialPath, negate);
@@ -364,6 +370,14 @@ function removeFalseTrueLeaves(tree) {
     return operate(_removeFalseTrueLeave, tree);
 }
 
+/**
+ * Transform a raw condition tree by introducing virtual operators (between, in-range,
+ * starts-with, any/all set operators) where the raw domain operators match their patterns.
+ * Call before rendering the tree in a UI tree editor.
+ * @param {Tree} tree
+ * @param {Options} [options={}]
+ * @returns {Tree}
+ */
 export function introduceVirtualOperators(tree, options = {}) {
     return applyTransformations(
         [
@@ -378,6 +392,13 @@ export function introduceVirtualOperators(tree, options = {}) {
     );
 }
 
+/**
+ * Convert virtual operators back to standard domain operators.
+ * Reverses `introduceVirtualOperators`. Call before converting a tree to a domain string.
+ * @param {Tree} tree
+ * @param {Options} [options={}]
+ * @returns {Tree}
+ */
 export function eliminateVirtualOperators(tree, options = {}) {
     return applyTransformations(
         [
@@ -391,6 +412,13 @@ export function eliminateVirtualOperators(tree, options = {}) {
     );
 }
 
+/**
+ * Return whether two trees represent the same logical domain, normalising away
+ * virtual-operator representations (between, in-range, etc.) before comparing.
+ * @param {Tree} tree
+ * @param {Tree} otherTree
+ * @returns {boolean}
+ */
 export function areEquivalentTrees(tree, otherTree) {
     const simplifiedTree = removeFalseTrueLeaves(eliminateVirtualOperators(tree));
     const otherSimplifiedTree = removeFalseTrueLeaves(

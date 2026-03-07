@@ -19,7 +19,7 @@
                         <button class="btn btn-light position-relative ms-2 d-lg-none"
                             data-bs-toggle="offcanvas"
                             data-bs-target="#o_wc_offcanvas">
-                            <i class="fa fa-sliders"/>
+                            <i class="fa-solid fa-sliders"/>
                         </button>
                     </div>
                 </section>
@@ -108,7 +108,7 @@
                                     <div class="accordion-body">
                                         <div class="d-flex flex-wrap align-items-center gap-1 mb-4" t-if="len(tags)">
                                             <a class="badge text-bg-info" t-attf-href="/customers/#{ current_industry_id and 'industry/%s/' % slug(current_industry) or '' }#{ current_country_id and 'country/%s' % slug(current_country) or '' }">
-                                                <span class="fa fa-1x fa-tags"/> All </a>
+                                                <span class="fa-solid fa-tags fa-1x"/> All </a>
                                             <t t-foreach="tags" t-as="o_tag">
                                                 <a t-attf-class="badge text-bg-#{o_tag.classname}" t-out="o_tag.name" t-att-style="tag and tag.id==o_tag.id and 'text-decoration: underline'"
                                                 t-attf-href="/customers/#{ current_industry_id and 'industry/%s/' % slug(current_industry) or '' }#{ current_country_id and 'country/%s' % slug(current_country) or '' }?tag_id=#{slug(o_tag)}"/>
@@ -126,7 +126,7 @@
                         <a href="/customers">See all customers</a>
                     </div>
                     <div t-elif="fallback_all_countries" class="alert alert-primary alert-dismissible fade show" role="alert">
-                        <i class="fa fa-info-circle me-2"/>
+                        <i class="fa-solid fa-info-circle me-2"/>
                         There are no matching customers found for the selected country. Displaying results across all countries instead.
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
@@ -183,10 +183,10 @@
             <!-- modal end -->
             <div class="btn-group ms-2">
                 <button class="btn btn-light border-primary active">
-                    <i class="fa fa-th-large"/>
+                    <i class="fa-solid fa-th-large"/>
                 </button>
                 <button class="btn btn-light" data-bs-toggle="modal" data-bs-target=".customer_map_modal">
-                    <i class="fa fa-map-marker" role="img" aria-label="Open map" title="Open map"/>
+                    <i class="fa-solid fa-location-dot" role="img" aria-label="Open map" title="Open map"/>
                 </button>
             </div>
         </t>
@@ -240,7 +240,7 @@
     <xpath expr="//section[hasclass('o_wcrm_filters_top')]" position="after">
         <div class="d-flex flex-wrap align-items-center gap-2 my-4" t-if="len(tags)">
             <a class="badge text-bg-info" t-attf-href="/customers/#{ current_industry_id and 'industry/%s/' % slug(current_industry) or '' }#{ current_country_id and 'country/%s' % slug(current_country) or '' }">
-                <span class="fa fa-1x fa-tags"/> All
+                <span class="fa-solid fa-tags fa-1x"/> All
             </a>
             <t t-foreach="tags" t-as="o_tag">
                 <a t-attf-class="text-bg-#{o_tag.classname} badge" t-out="o_tag.name" t-att-style="tag and tag.id==o_tag.id and 'text-decoration: underline'"

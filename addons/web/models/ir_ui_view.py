@@ -25,10 +25,10 @@ class IrUiView(models.Model):
     def _get_view_info(self) -> dict[str, dict[str, Any]]:
         return {
             "list": {"icon": "oi oi-view-list"},
-            "form": {"icon": "fa fa-address-card", "multi_record": False},
-            "graph": {"icon": "fa fa-area-chart"},
+            "form": {"icon": "fa-solid fa-address-card", "multi_record": False},
+            "graph": {"icon": "fa-solid fa-chart-area"},
             "pivot": {"icon": "oi oi-view-pivot"},
             "kanban": {"icon": "oi oi-view-kanban"},
-            "calendar": {"icon": "fa fa-calendar"},
+            "calendar": {"icon": "fa-solid fa-calendar-days"},
             "search": {"icon": "oi oi-search"},
         }

@@ -103,11 +103,11 @@ class TestResPartner(TestCrmCommon):
         for partner, expected in zip(
             (contact_company_1, contact_1, contact_1_1, contact_1_2),
             (
-                [{'iconClass': 'fa-star', 'label': 'Opportunities', 'value': 4, 'tagClass': 'o_tag_color_8'},
-                 {'iconClass': 'fa-usd', 'label': 'Sale Orders', 'value': 2, 'tagClass': 'o_tag_color_2'}],
-                [{'iconClass': 'fa-star', 'label': 'Opportunities', 'value': 3, 'tagClass': 'o_tag_color_8'},
-                 {'iconClass': 'fa-usd', 'label': 'Sale Orders', 'value': 1, 'tagClass': 'o_tag_color_2'}],
-                [{'iconClass': 'fa-star', 'label': 'Opportunities', 'value': 2, 'tagClass': 'o_tag_color_8'}],
+                [{'iconClass': 'fa-solid fa-star','label': 'Opportunities', 'value': 4, 'tagClass': 'o_tag_color_8'},
+                 {'iconClass': 'fa-solid fa-dollar-sign', 'label': 'Sale Orders', 'value': 2, 'tagClass': 'o_tag_color_2'}],
+                [{'iconClass': 'fa-solid fa-star','label': 'Opportunities', 'value': 3, 'tagClass': 'o_tag_color_8'},
+                 {'iconClass': 'fa-solid fa-dollar-sign', 'label': 'Sale Orders', 'value': 1, 'tagClass': 'o_tag_color_2'}],
+                [{'iconClass': 'fa-solid fa-star','label': 'Opportunities', 'value': 2, 'tagClass': 'o_tag_color_8'}],
                 False,
             ),
             strict=True,

@@ -81,7 +81,7 @@ export class ChatHub extends Component {
                     id: "hide-all",
                     definition: {
                         name: _t("Hide all conversations"),
-                        icon: "fa fa-eye-slash",
+                        icon: "fa-regular fa-eye-slash",
                         onSelected: () => this.chatHub.hideAll(),
                     },
                     store: this.store,
@@ -105,7 +105,7 @@ export class ChatHub extends Component {
                     id: "reset-position",
                     definition: {
                         name: _t("Reset initial position"),
-                        icon: "fa fa-undo",
+                        icon: "fa-solid fa-undo",
                         onSelected: () => this.resetPosition(),
                     },
                     store: this.store,

@@ -5,7 +5,7 @@ import { _t } from "@web/core/l10n/translation";
 registerThreadAction("call", {
     condition: ({ store, thread }) =>
         thread?.allowCalls && !thread?.eq(store.rtc.channel),
-    icon: "fa fa-fw fa-phone",
+    icon: "fa-solid fa-phone",
     name: ({ thread }) =>
         thread.rtc_session_ids.length > 0 ? _t("Join the Call") : _t("Start Call"),
     open: ({ store, thread }) => store.rtc.toggleCall(thread),
@@ -16,7 +16,7 @@ registerThreadAction("call", {
 registerThreadAction("camera-call", {
     condition: ({ store, thread }) =>
         thread?.allowCalls && !thread?.eq(store.rtc.channel),
-    icon: "fa fa-fw fa-video-camera",
+    icon: "fa-solid fa-video",
     name: ({ thread }) =>
         thread.rtc_session_ids.length > 0
             ? _t("Join the Call with Camera")
@@ -33,7 +33,7 @@ registerThreadAction("call-settings", {
         thread?.allowCalls &&
         (owner.props.chatWindow?.isOpen || store.inPublicPage) &&
         !owner.isDiscussSidebarChannelActions,
-    icon: "fa fa-fw fa-gear",
+    icon: "fa-solid fa-gear",
     name: _t("Call Settings"),
     sequence: 20,
     sequenceGroup: 30,
@@ -44,7 +44,7 @@ registerThreadAction("disconnect", {
         store.rtc.selfSession?.in(thread?.rtc_session_ids) &&
         owner.isDiscussSidebarChannelActions,
     open: ({ store, thread }) => store.rtc.toggleCall(thread),
-    icon: "fa fa-fw fa-phone",
+    icon: "fa-solid fa-phone",
     name: _t("Disconnect"),
     sequence: 30,
     sequenceGroup: 10,

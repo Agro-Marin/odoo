@@ -89,8 +89,8 @@ export class CallInvitation extends Component {
                             : _t("Show camera preview"),
                     icon: () =>
                         this.state.showCameraPreview
-                            ? "fa fa-chevron-up"
-                            : "fa fa-chevron-down",
+                            ? "fa-solid fa-chevron-up"
+                            : "fa-solid fa-chevron-down",
                     onSelected: () => {
                         this.state.showCameraPreview = !this.state.showCameraPreview;
                         if (this.rtc.cameraPermission !== "denied") {

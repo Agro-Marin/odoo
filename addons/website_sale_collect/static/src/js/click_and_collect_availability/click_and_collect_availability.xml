@@ -9,7 +9,7 @@
                 class="cursor-pointer"
             >
                 <h6>
-                    <i class="fa fa-fw fa-map-marker text-muted"/>
+                    <i class="fa-solid fa-location-dot text-muted"/>
                     <t
                         t-if="this.state.selectedLocationData.id"
                         t-out="this.state.selectedLocationData.name"
@@ -22,15 +22,15 @@
                             t-if="this.state.inStoreStockData.show_quantity &amp;&amp; this.state.selectedLocationData.id"
                             class="text-muted"
                         >
-                            <i class="fa fa-fw fa-circle text-warning"/>
+                            <i class="fa-solid fa-circle text-warning"/>
                             Only <t t-out="this.state.inStoreStockData.quantity"/> available
                         </div>
                         <div t-else="" class="text-muted">
-                            <i class="fa fa-fw fa-circle text-success"/> Available
+                            <i class="fa-solid fa-circle text-success"/> Available
                         </div>
                     </t>
                     <div t-else="" class="text-muted">
-                        <i class="fa fa-fw fa-circle text-danger"/> Not available
+                        <i class="fa-solid fa-circle text-danger"/> Not available
                     </div>
                     <a t-if="this.props.showSelectStoreButton" role="button" href="#">
                         <t t-if="this.state.selectedLocationData.id">Change store</t>
@@ -45,10 +45,10 @@
             >
                 <hr/>
                 <h6>
-                    <i class="fa fa-fw fa-truck text-muted"/>
+                    <i class="fa-solid fa-truck text-muted"/>
                     Delivery
                     <i
-                        class="fa fa-info-circle cursor-pointer ms-1"
+                        class="fa-solid fa-info-circle cursor-pointer ms-1"
                         data-tooltip="Restrictions may apply"
                         data-tooltip-delay="0"
                     />
@@ -58,15 +58,15 @@
                         t-if="this.state.deliveryStockData.show_quantity"
                         class="text-muted"
                     >
-                        <i class="fa fa-fw fa-circle text-warning"/>
+                        <i class="fa-solid fa-circle text-warning"/>
                         Only <t t-out="this.state.deliveryStockData.quantity"/> available
                     </div>
                     <div t-else="" class="text-muted">
-                        <i class="fa fa-fw fa-circle text-success"/> Available
+                        <i class="fa-solid fa-circle text-success"/> Available
                     </div>
                 </div>
                 <div t-else="" class="text-muted">
-                    <i class="fa fa-fw fa-circle text-danger"/> Not available
+                    <i class="fa-solid fa-circle text-danger"/> Not available
                 </div>
             </div>
         </div>

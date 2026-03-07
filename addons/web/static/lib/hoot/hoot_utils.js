@@ -2060,7 +2060,7 @@ export const CASE_EVENT_TYPES = {
     },
     time: {
         value: 0b1000000,
-        icon: "fa fa-hourglass text-sm",
+        icon: "fa-solid fa-hourglass text-sm",
         color: "blue",
     },
 };

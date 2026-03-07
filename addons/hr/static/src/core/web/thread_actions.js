@@ -7,7 +7,7 @@ registerThreadAction("open-hr-profile", {
         owner.props.chatWindow?.isOpen &&
         thread.correspondent?.partner_id?.employeeId &&
         !owner.isDiscussSidebarChannelActions,
-    icon: "fa fa-fw fa-id-card",
+    icon: "fa-solid fa-id-card",
     name: _t("Open Profile"),
     open: async ({ store, thread }) =>
         store.env.services.action.doAction({

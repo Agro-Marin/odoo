@@ -80,7 +80,7 @@ export const fonts = {
      *
      * @type Array
      */
-    fontIcons: [{ base: "fa", parser: /\.(fa-(?:\w|-)+)::?before/i }],
+    fontIcons: [{ base: "fa-solid", parser: /\.(fa-(?:\w|-)+)::?before/i }],
     computedFonts: false,
     /**
      * Searches the fonts described by the @see fontIcons variable.

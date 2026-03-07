@@ -328,9 +328,9 @@ test("should not zwnbsp-pad nav-link", async () => {
 test("should not zwnbsp-pad link with block fontawesome", async () => {
     await testEditor({
         contentBefore:
-            '<p>a<a href="http://test.test/">[]<i style="display: flex;" class="fa fa-star"></i></a>b</p>',
+            '<p>a<a href="http://test.test/">[]<i style="display: flex;" class="fa-solid fa-star"></i></a>b</p>',
         contentBeforeEdit:
-            '<p>a<a href="http://test.test/">\ufeff[]<i style="display: flex;" class="fa fa-star" contenteditable="false">\u200b</i>\ufeff</a>b</p>',
+            '<p>a<a href="http://test.test/">\ufeff[]<i style="display: flex;" class="fa-solid fa-star" contenteditable="false">\u200b</i>\ufeff</a>b</p>',
     });
 });
 

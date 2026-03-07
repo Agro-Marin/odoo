@@ -19,16 +19,34 @@ export class WorkerService {
         this.connectionInitializedDeferred = new Deferred();
     }
 
-    startWorker() {
+    async startWorker() {
         this._state = WORKER_STATE.INITIALIZING;
         let workerURL = `${this.params.serverURL}/bus/websocket_worker_bundle?v=${session.websocket_worker_version}`;
         if (this.params.serverURL !== window.origin) {
-            // Worker service can be loaded from a different origin than the
-            // bundle URL. The Worker expects an URL from this origin, give
-            // it a base64 URL that will then load the bundle via "importScripts"
-            // which allows cross origin.
-            const source = `importScripts("${workerURL}");`;
-            workerURL = "data:application/javascript;base64," + window.btoa(source);
+            // Cross-origin scenario (e.g. prefork mode without a reverse proxy:
+            // HTTP workers on port 8069, gevent on port 8072). Using importScripts
+            // from a data: URL would be cross-origin and the browser omits the
+            // session cookie, so Odoo cannot resolve the database and returns 404.
+            // Instead, pre-fetch the bundle from the page context (which carries
+            // the session cookie), then create a same-origin Blob URL for the Worker.
+            try {
+                const response = await fetch(workerURL, { credentials: "include" });
+                if (!response.ok) {
+                    throw new Error(`Bundle fetch failed with status ${response.status}`);
+                }
+                const text = await response.text();
+                workerURL = URL.createObjectURL(
+                    new Blob([text], { type: "application/javascript" }),
+                );
+            } catch (e) {
+                this._state = WORKER_STATE.FAILED;
+                this.connectionInitializedDeferred.resolve();
+                console.warn(
+                    "Worker service failed to initialize: could not fetch worker bundle.",
+                    e,
+                );
+                return;
+            }
         }
         const workerClass = this.isUsingSharedWorker
             ? browser.SharedWorker
@@ -105,6 +123,7 @@ export class WorkerService {
         await this.connectionInitializedDeferred;
         if (this._state === WORKER_STATE.FAILED) {
             console.warn("Worker service failed to initialize, cannot send message.");
+            return;
         }
         this._send(action, data);
     }
@@ -123,6 +142,7 @@ export class WorkerService {
             console.warn(
                 "Worker service failed to initialize, cannot register handler.",
             );
+            return;
         }
         this._registerHandler(handler);
     }

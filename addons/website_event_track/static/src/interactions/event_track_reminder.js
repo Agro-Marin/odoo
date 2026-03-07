@@ -15,12 +15,12 @@ export class WebsiteEventTrackReminder extends Interaction {
             "t-on-click.prevent.stop": this.debounced(this.onReminderToggleClick, 500, true),
             "t-on-mouseover.withTarget": (ev, targetEl) => {
                 if (!this.reminderOn){
-                    targetEl.classList.replace("fa-bell-o", "fa-bell");
+                    targetEl.classList.replace("fa-regular", "fa-solid");
                 }
             },
             "t-on-mouseout.withTarget": (ev, targetEl) => {
                 if (!this.reminderOn){
-                    targetEl.classList.replace("fa-bell", "fa-bell-o");
+                    targetEl.classList.replace("fa-solid", "fa-regular");
                 }
             },
         },
@@ -80,14 +80,14 @@ export class WebsiteEventTrackReminder extends Interaction {
                             delay: 0
                         },
                     ]);
-                    this.bellSelectorEl.classList.replace("fa-bell-o", "fa-bell");
+                    this.bellSelectorEl.classList.replace("fa-regular", "fa-solid");
                     this.bellSelectorEl.setAttribute("title", _t("Favorite On"));
                 } else {
                     this.notification.add(_t("Talk removed from your Favorites"), {
                         type: "info",
                     });
                     this.favoriteAddedConfirmation = "";
-                    this.bellSelectorEl.classList.replace("fa-bell", "fa-bell-o");
+                    this.bellSelectorEl.classList.replace("fa-solid", "fa-regular");
                     this.bellSelectorEl.setAttribute("title", _t("Set Favorite"));
                 }
             }

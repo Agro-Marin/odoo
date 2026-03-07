@@ -122,19 +122,19 @@
                                             required="True" style="font-size: min(4vw, 2.6rem);"/>
                                     </h1>
                                     <h5 class="d-flex align-items-baseline mb-0">
-                                        <i class="fa fa-envelope fa-fw me-1 text-primary" title="Work Email"/>
+                                        <i class="fa-solid fa-envelope me-1 text-primary" title="Work Email"/>
                                         <field name="work_email" widget="email" placeholder="e.g. johndoe@example.com" string="Work Email" class="w-100 w-sm-75"/>
                                     </h5>
                                     <h5 class="d-flex align-items-baseline mb-0">
-                                        <i class="fa fa-phone fa-fw me-1 text-primary" title="Work Phone"/>
+                                        <i class="fa-solid fa-phone me-1 text-primary" title="Work Phone"/>
                                         <field name="work_phone" widget="phone" placeholder="Work Phone" string="Work Phone"  class="w-100 w-sm-75"/>
                                     </h5>
                                     <h5 class="d-flex align-items-baseline mb-0">
-                                        <i class="fa fa-mobile fa-fw me-1 text-primary" title="Work Mobile"/>
+                                        <i class="fa-solid fa-mobile-screen-button me-1 text-primary" title="Work Mobile"/>
                                         <field name="mobile_phone" widget="phone" placeholder="Work Mobile" string="Work Mobile"  class="w-100 w-sm-75"/>
                                     </h5>
                                     <h5>
-                                        <i class="fa fa-tags fa-fw me-1 text-primary" title="Tags"/>
+                                        <i class="fa-solid fa-tags me-1 text-primary" title="Tags"/>
                                         <field name="category_ids" widget="many2many_tags"
                                             options="{'color_field': 'color', 'no_create_edit': True}"
                                             placeholder="e.g. Founder, Motorized, Building B, ..." groups="hr.group_hr_user"/>
@@ -571,25 +571,25 @@
                                     <field class="fw-bold fs-5" name="name" placeholder="Employee's Name"/>
                                 </div>
                                 <div t-if="record.job_title.raw_value" class="text-truncate">
-                                    <i class="fa fa-fw me-2 fa-suitcase text-primary" title="Job Position"/>
+                                    <i class="fa-solid fa-suitcase me-2 text-primary" title="Job Position"/>
                                     <field name="job_title"/>
                                 </div>
                                 <div t-if="record.work_email.raw_value" class="text-truncate">
-                                    <i class="fa fa-fw me-2 fa-envelope text-primary" title="Email"/>
+                                    <i class="fa-solid fa-envelope me-2 text-primary" title="Email"/>
                                     <field name="work_email" />
                                 </div>
                                 <div t-if="record.work_phone.raw_value">
-                                    <i class="fa fa-fw me-2 fa-phone text-primary" title="Phone"/>
+                                    <i class="fa-solid fa-phone me-2 text-primary" title="Phone"/>
                                     <field name="work_phone" />
                                 </div>
                                 <div t-if="record.contract_date_start.raw_value" groups="hr.group_hr_manager" t-att-class="{'text-danger': record.contract_date_end.raw_value &lt; luxon.DateTime.now().toISO()}">
-                                    <i class="fa fa-fw me-2 fa-briefcase text-primary" title="Contract"/>
+                                    <i class="fa-solid fa-briefcase me-2 text-primary" title="Contract"/>
                                     <field name="contract_date_start"/>
                                     <span t-if="record.contract_date_end.raw_value"> - </span>
                                     <field t-if="record.contract_date_end.raw_value" name="contract_date_end"/>
                                 </div>
                                 <div invisible="birthday_public_display_string == 'hidden'">
-                                    <i class="fa fa-fw me-2 fa-birthday-cake text-primary" title="Birthday"/>
+                                    <i class="fa-solid fa-birthday-cake me-2 text-primary" title="Birthday"/>
                                     <field name="birthday_public_display_string"/>
                                 </div>
                                 <field name="employee_properties" widget="properties"/>
@@ -618,7 +618,7 @@
                 <button name="action_open_versions" position="before">
                     <button name="action_related_contacts"
                         class="oe_stat_button"
-                        icon="fa-address-card-o"
+                        icon="fa-regular fa-address-card"
                         type="object"
                         help="Related Contacts"
                         groups="base.group_no_one">

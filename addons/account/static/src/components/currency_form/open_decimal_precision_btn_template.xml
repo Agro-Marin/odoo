@@ -4,7 +4,7 @@
         <button type="button"
             class="btn btn-link p-0"
             t-on-click="discardAndOpen">
-            <i class="fa fa-arrow-right text-muted me-1"/>
+            <i class="fa-solid fa-arrow-right text-muted me-1"/>
              More precision on Product Prices
         </button>
     </t>

@@ -55,7 +55,7 @@
                 <div t-if="props.thread?.invitationLink" class="input-group">
                     <input class="border border-secondary form-control lh-1 rounded-start border-0 smaller" type="text" t-att-value="props.thread.invitationLink" readonly="" disabled="" t-on-focus="onFocusInvitationLinkInput"/>
                     <button class="btn btn-primary px-2 o-py-0_5" t-on-click="onClickCopy">
-                        <i class="fa fa-copy"/>
+                        <i class="fa-solid fa-copy"/>
                     </button>
                 </div>
                 <div t-if="props.thread?.accessRestrictedToGroupText" class="mt-2 text-muted smaller mx-1" t-esc="props.thread.accessRestrictedToGroupText"/>
@@ -75,7 +75,7 @@
                         <ImStatus persona="selectablePartner" className="'position-absolute top-100 start-100 translate-middle mt-n1 ms-n1'" size="'md'"/>
                     </t>
                     <div t-else="" class="w-100 h-100 d-flex align-items-center justify-content-center rounded-3 bg-primary text-white">
-                        <i class="fa fa-envelope"/>
+                        <i class="fa-solid fa-envelope"/>
                     </div>
                 </div>
             </div>

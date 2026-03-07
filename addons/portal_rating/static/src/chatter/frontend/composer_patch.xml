@@ -6,11 +6,11 @@
                 <div class="o-mail-Composer-stars enabled cursor-pointer" t-on-mouseleave="onMouseLeaveStar">
                     <t t-set="index" t-value="0" />
                     <t t-foreach="Array(visibleRatingValue)" t-as="num" t-key="num_index">
-                        <i class="fa fa-star" role="img" aria-label="Full star" t-att-index="index" t-on-mousemove="onMoveStar" t-on-click="onClickStar"/>
+                        <i class="fa-solid fa-star" role="img" aria-label="Full star" t-att-index="index" t-on-mousemove="onMoveStar" t-on-click="onClickStar"/>
                         <t t-set="index" t-value="index + 1" />
                     </t>
                     <t t-foreach="Array(MAX_STAR_RATING - visibleRatingValue)" t-as="num" t-key="Array(visibleRatingValue) + num_index">
-                        <i class="fa fa-star-o text-black-25" role="img" aria-label="Empty star" t-att-index="index" t-on-mousemove="onMoveStar" t-on-click="onClickStar"/>
+                        <i class="fa-regular fa-star text-black-25" role="img" aria-label="Empty star" t-att-index="index" t-on-mousemove="onMoveStar" t-on-click="onClickStar"/>
                         <t t-set="index" t-value="index + 1" />
                     </t>
                 </div>

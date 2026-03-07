@@ -132,12 +132,12 @@
             <templates>
                 <t t-name="card">
                     <div class="text-truncate fw-bold fs-3">
-                        <i t-if="record.is_homepage.raw_value" class="fa fa-home pe-2"
+                        <i t-if="record.is_homepage.raw_value" class="fa-solid fa-house pe-2"
                             title="Home page of the current website"/>
                         <field name="name" />
                     </div>
                     <div t-if="record.website_id.value" class="text-truncate fw-bold text-muted" groups="website.group_multi_website">
-                        <i class="fa fa-globe me-1" title="Website"/>
+                        <i class="fa-solid fa-earth-americas me-1" title="Website"/>
                         <field name="website_id" groups="website.group_multi_website"/>
                     </div>
                     <field name="website_url" class="text-truncate fw-bold text-primary mb-auto"/>

@@ -48,9 +48,6 @@ class AssetNotFoundError(AssetError):
     pass
 
 
-AssetNotFound = AssetNotFoundError  # backward-compatibility alias
-
-
 class XMLAssetError(Exception):
     pass
 

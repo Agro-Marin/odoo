@@ -12,13 +12,13 @@
                                 <FileUploader onUploaded.bind="onUploadProfileImg" acceptedFileExtensions="'image/*'">
                                     <t t-set-slot="toggler">
                                         <button href="#" title="Edit" aria-label="Edit" class="btn btn-primary">
-                                            <i class="fa fa-pencil fa-1g float-sm-none float-md-start"/>
+                                            <i class="fa-solid fa-pencil fa-1g float-sm-none float-md-start"/>
                                         </button>
                                     </t>
                                     <t t-slot="default"/>
                                 </FileUploader>
                                 <button href="#" title="Clear" aria-label="Clear" class="btn border-primary" t-on-click="onClearProfileImg">
-                                    <i class="fa fa-trash-o float-sm-none float-md-end"></i>
+                                    <i class="fa-regular fa-trash-can float-sm-none float-md-end"></i>
                                 </button>
                             </div>
                             <div class="my-3 mb-0 pt-2 border-top" t-if="isEditingMyProfile">

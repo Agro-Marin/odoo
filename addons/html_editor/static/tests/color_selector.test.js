@@ -88,7 +88,7 @@ test("should add opacity to custom background colors but not to theme colors", a
 });
 
 test("default opacity should get applied when applying background color to icon", async () => {
-    const { el } = await setupEditor('<p>[ab<span class="fa fa-glass"></span>cd]</p>');
+    const { el } = await setupEditor('<p>[ab<span class="fa-solid fa-martini-glass-empty"></span>cd]</p>');
 
     await expandToolbar();
     expect(".o_font_color_selector").toHaveCount(0);
@@ -102,7 +102,7 @@ test("default opacity should get applied when applying background color to icon"
     await expectElementCount(".o-we-toolbar", 1);
     expect(".o_font_color_selector").toHaveCount(0); // selector closed
     expect(getContent(el)).toBe(
-        `<p><font style="background-color: rgba(255, 0, 0, 0.6);">[ab</font><font style="background-color: rgba(255, 0, 0, 0.6);">\ufeff<span class="fa fa-glass" contenteditable="false">\u200b</span>\ufeff</font><font style="background-color: rgba(255, 0, 0, 0.6);">cd]</font></p>`
+        `<p><font style="background-color: rgba(255, 0, 0, 0.6);">[ab</font><font style="background-color: rgba(255, 0, 0, 0.6);">\ufeff<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>\ufeff</font><font style="background-color: rgba(255, 0, 0, 0.6);">cd]</font></p>`
     );
 });
 

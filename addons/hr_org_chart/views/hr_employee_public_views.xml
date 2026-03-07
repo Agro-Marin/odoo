@@ -61,7 +61,7 @@
                                 type="action"
                                 role="button"
                                 context="{'hierarchy_res_id': id}">
-                                <i class="fa fa-sitemap me-1 mt-1"/>
+                                <i class="fa-solid fa-sitemap me-1 mt-1"/>
                                 <span class="fw-bolder">Zoom</span>
                             </a>
                         </div>

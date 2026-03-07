@@ -1597,16 +1597,16 @@ describe("upload file via link popover", () => {
         execCommand(editor, "openLinkTools");
         await waitFor(".o-we-linkpopover");
         // Upload button should be visible
-        expect("button i[class='fa fa-upload']").toHaveCount(1);
+        expect("button i[class='fa-solid fa-upload']").toHaveCount(1);
         await click(".o_we_href_input_link");
         await press("a");
         await animationFrame();
         // Upload button should NOT be visible
-        expect("button i[class='fa fa-upload']").toHaveCount(0);
+        expect("button i[class='fa-solid fa-upload']").toHaveCount(0);
         await press("Backspace");
         await animationFrame();
         // Upload button should be visible again
-        expect("button i[class='fa fa-upload']").toHaveCount(1);
+        expect("button i[class='fa-solid fa-upload']").toHaveCount(1);
     });
     const patchUpload = (editor) => {
         const mockedUploadPromise = new Promise((resolve) => {
@@ -1626,7 +1626,7 @@ describe("upload file via link popover", () => {
         const mockedUpload = patchUpload(editor);
         execCommand(editor, "openLinkTools");
         await waitFor(".o-we-linkpopover");
-        await click("button i[class='fa fa-upload']");
+        await click("button i[class='fa-solid fa-upload']");
         await mockedUpload;
         await animationFrame();
         // URL input gets filled with the attachments's URL
@@ -1675,7 +1675,7 @@ describe("upload file via link popover", () => {
         // Fill label input
         await contains(".o-we-linkpopover input.o_we_label_link").fill("label");
         // Upload a file
-        await click("button i[class='fa fa-upload']");
+        await click("button i[class='fa-solid fa-upload']");
         await mockedUpload;
         await animationFrame();
         // Label remains unchanged

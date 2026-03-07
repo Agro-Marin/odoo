@@ -8,10 +8,10 @@
             </button>
             <t t-set-slot="content">
                 <DropdownItem onSelected="props.replaceVideo">
-                    <i class="fa-fw fa fa-exchange me-1"></i>Replace
+                    <i class="fa-solid fa-right-left me-1"></i>Replace
                 </DropdownItem>
                 <DropdownItem onSelected="props.removeVideo" class="'text-danger'">
-                    <i class="fa fa-fw fa-trash me-1"></i>Remove
+                    <i class="fa-solid fa-trash-can me-1"></i>Remove
                 </DropdownItem>
             </t>
         </Dropdown>

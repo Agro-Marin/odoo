@@ -490,14 +490,14 @@ export class LinkPopover extends Component {
         let url;
         if (!this.state.url || this.state.url.startsWith("#")) {
             this.resetPreview();
-            this.state.previewIcon.value = "fa-question-circle-o";
+            this.state.previewIcon.value = "fa-regular fa-circle-question";
             return;
         }
         if (this.isLogoutUrl()) {
             // The session ends if we fetch this url, so the preview is hardcoded
             this.resetPreview();
             this.state.urlTitle = _t("Logout");
-            this.state.previewIcon.value = "fa-sign-out";
+            this.state.previewIcon.value = "fa-solid fa-right-from-bracket";
             return;
         }
         if (this.isAttachmentUrl()) {
@@ -520,7 +520,7 @@ export class LinkPopover extends Component {
         this.resetPreview();
         const protocol = url.protocol;
         if (!protocol.startsWith("http")) {
-            const faMap = { "mailto:": "fa-envelope-o", "tel:": "fa-phone" };
+            const faMap = { "mailto:": "fa-regular fa-envelope", "tel:": "fa-solid fa-phone" };
             const icon = faMap[protocol];
             if (icon) {
                 this.state.previewIcon.value = icon;

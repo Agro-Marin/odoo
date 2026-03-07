@@ -8,7 +8,7 @@ import { BorderConfigurator } from "@html_builder/plugins/border_configurator_op
 
 export class FontAwesomeOption extends BaseOptionComponent {
     static template = "website.FontAwesomeOption";
-    static selector = "span.fa, i.fa";
+    static selector = ":is(span, i):is(.fa-solid, .fa-regular, .fa-brands)";
     static exclude = "[data-oe-xpath]";
     static components = { BorderConfigurator };
 }

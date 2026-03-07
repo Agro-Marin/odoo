@@ -2,7 +2,6 @@ import base64
 import functools
 import logging
 import platform
-import typing
 from collections import OrderedDict, defaultdict
 from pathlib import Path
 from textwrap import dedent
@@ -37,7 +36,6 @@ from odoo.orm._typing import ValuesType
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-T = typing.TypeVar("T")
 _logger = logging.getLogger(__name__)
 
 ACTION_DICT = {

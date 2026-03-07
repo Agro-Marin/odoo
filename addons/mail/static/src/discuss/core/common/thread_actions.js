@@ -51,8 +51,8 @@ registerThreadAction("notification-settings", {
     close: ({ action }) => action.popover?.close(),
     icon: ({ thread }) =>
         thread.self_member_id?.mute_until_dt
-            ? "fa fa-fw text-danger fa-bell-slash"
-            : "fa fa-fw fa-bell",
+            ? "fa-solid fa-bell-slash text-danger"
+            : "fa-solid fa-bell",
     name: _t("Notification Settings"),
     panelOuterClass: "bg-100 border border-secondary",
     sequence: 10,
@@ -65,7 +65,7 @@ registerThreadAction("attachments", {
         thread?.hasAttachmentPanel &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen) &&
         !owner.isDiscussSidebarChannelActions,
-    icon: "fa fa-fw fa-paperclip",
+    icon: "fa-solid fa-paperclip",
     name: _t("Attachments"),
     sequence: 10,
     sequenceGroup: 10,
@@ -121,7 +121,7 @@ registerThreadAction("mark-read", {
         !thread.self_member_id.mute_until_dt &&
         owner.isDiscussSidebarChannelActions,
     open: ({ owner }) => owner.thread.markAsRead(),
-    icon: "fa fa-fw fa-check",
+    icon: "fa-solid fa-check",
     name: _t("Mark Read"),
     sequence: 10,
     sequenceGroup: 20,
@@ -139,8 +139,8 @@ registerThreadAction("delete-thread", {
         );
     },
     panelOuterClass: "bg-100",
-    icon: "fa fa-fw fa-trash",
-    iconLarge: "fa fa-fw fa-lg fa-trash",
+    icon: "fa-solid fa-trash-can",
+    iconLarge: "fa-solid fa-trash-can fa-lg",
     name: _t("Delete Thread"),
     close: ({ action }) => action.popover?.close(),
     toggle: true,

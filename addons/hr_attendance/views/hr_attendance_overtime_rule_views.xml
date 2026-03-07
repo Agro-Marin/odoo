@@ -100,7 +100,7 @@
                     <button name="action_regenerate_overtimes"
                         class="btn"
                         string="Regenerate overtimes"
-                        icon="fa-clock-o"
+                        icon="fa-regular fa-clock"
                         type="object"
                         groups="hr_attendance.group_hr_attendance_officer"
                         help="Regenerate overtimes for this ruleset"/>

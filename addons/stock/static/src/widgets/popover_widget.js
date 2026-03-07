@@ -35,7 +35,9 @@ export class PopoverWidgetField extends Component {
         const position = this.jsonValue.position || "top";
         this.popover = usePopover(this.constructor.components.Popover, { position });
         this.color = this.jsonValue.color || 'text-primary';
-        this.icon = this.jsonValue.icon || 'fa-info-circle';
+        const rawIcon = this.jsonValue.icon || 'fa-circle-info';
+        // Support full FA7 class strings ("fa-solid fa-x") and bare icon names ("fa-x")
+        this.icon = rawIcon.includes(' ') ? rawIcon : `fa-solid ${rawIcon}`;
     }
 
     showPopup(ev){

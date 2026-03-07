@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <template id="report_irmodeloverview">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
@@ -8,8 +9,7 @@
                         <tr>
                             <td colspan="12">
                                 <strong>Object: <span t-field="o.model" />
-                            <p>Name: <span
-                                            t-field="o.name" /></p></strong>
+                            <p>Name: <span t-field="o.name" /></p></strong>
                             </td>
                             <td colspan="8">
                                 <p>Type: <span t-field="o.state" /></p>
@@ -121,9 +121,7 @@
                                     <span>- field = <span t-field="field.relation_field" /></span>
                                 </p>
                                 <div t-if="field.selection_ids">
-                                    <span>- selection = [ <t t-foreach="field.selection_ids"
-                                            t-as="selection"> (<span t-field="selection.value" />, <span
-                                                t-field="selection.name" />), </t>] </span>
+                                    <span>- selection = [ <t t-foreach="field.selection_ids" t-as="selection"> (<span t-field="selection.value" />, <span t-field="selection.name" />), </t>] </span>
                                 </div>
                                 <div t-if="field.size">
                                     <span>- size = <span t-field="field.size" /></span>
@@ -135,8 +133,7 @@
                                     <span>- domain = <span t-field="field.domain" /></span>
                                 </div>
                                 <div t-if="field.groups">
-                                    <span>- groups = <span
-                                            t-esc="', '.join(g.name for g in field.groups)" /></span>
+                                    <span>- groups = <span t-esc="', '.join(g.name for g in field.groups)" /></span>
                                 </div>
                             </td>
                             <td>
@@ -204,4 +201,5 @@
             </t>
         </t>
     </template>
+
 </odoo>

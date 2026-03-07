@@ -36,9 +36,15 @@
             <field name="priority">100</field>
             <field name="arch" type="xml">
                 <form string="Bill of Material">
+                    <header>
+                        <button name="%(mrp.action_report_bom_structure)d"
+                                type="action"
+                                string="Print"
+                                invisible="not id"/>
+                    </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box" invisible="context.get('parent_production_id')">
-                            <button name="%(action_mrp_routing_time)d" type="action" class="oe_stat_button" icon="fa-clock-o" groups="mrp.group_mrp_routings">
+                            <button name="%(action_mrp_routing_time)d" type="action" class="oe_stat_button" icon="fa-regular fa-clock" groups="mrp.group_mrp_routings">
                                 <div class="o_field_widget o_stat_info">
                                     <span class="o_stat_text">Operations<br/>Performance</span>
                                 </div>
@@ -95,7 +101,7 @@
                                     <field name="sequence" widget="handle"/>
                                     <field name="product_id" context="{'default_is_storable': True}"/>
                                     <field name="product_tmpl_id" column_invisible="True"/>
-                                    <button name="action_see_attachments" type="object" icon="fa-files-o" aria-label="Product Attachments" title="Product Attachments" class="float-end" column_invisible="context.get('parent_production_id')"/>
+                                    <button name="action_see_attachments" type="object" icon="fa-regular fa-copy" aria-label="Product Attachments" title="Product Attachments" class="float-end" column_invisible="context.get('parent_production_id')"/>
                                     <field name="attachments_count" class="text-start" string=" " column_invisible="context.get('parent_production_id')"/>
                                     <field name="product_qty"/>
                                     <field name="parent_product_tmpl_id" column_invisible="True" />

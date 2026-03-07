@@ -102,9 +102,9 @@
                 date_start="activity_date_deadline" color="state" event_limit="5" quick_create="0">
                 <field name="currency_id" invisible="1" />
                 <field name="state" filters="1" invisible="1" />
-                <field name="activity_ids" options="{'icon': 'fa fa-clock-o'}"
+                <field name="activity_ids" options="{'icon': 'fa-regular fa-clock'}"
                     invisible="not activity_ids" />
-                <field name="partner_id" avatar_field="avatar_128" options="{'icon': 'fa fa-users'}" />
+                <field name="partner_id" avatar_field="avatar_128" options="{'icon': 'fa-solid fa-users'}" />
                 <field name="amount_total" widget="monetary" />
                 <field name="payment_term_id" />
             </calendar>
@@ -487,14 +487,14 @@
                         <button name="action_view_invoice"
                             type="object"
                             class="oe_stat_button"
-                            icon="fa-pencil-square-o"
+                            icon="fa-regular fa-pen-to-square"
                             invisible="invoice_count == 0">
                             <field name="invoice_count" widget="statinfo" string="Invoices" />
                         </button>
                     </div>
                     <div class="badge rounded-pill text-bg-secondary float-end fs-6 border-0"
                         invisible="not locked">
-                        <i class="fa fa-lock" /> Locked </div>
+                        <i class="fa-solid fa-lock" /> Locked </div>
                     <div class="oe_title">
                         <h1>
                             <field name="name" readonly="1" />
@@ -586,7 +586,7 @@
                                             <label for="product_id" />
                                             <div class="d-flex align-items-baseline">
                                                 <span
-                                                    class="fa fa-exclamation-triangle text-warning me-1"
+                                                    class="fa-solid fa-exclamation-triangle text-warning me-1"
                                                     title="This product is archived"
                                                     invisible="state not in ['draft', 'sent'] or not product_is_archived"
                                                 />
@@ -868,7 +868,7 @@
                                                     <div class="row">
                                                         <div class="col">
                                                             <span
-                                                                class="fa fa-exclamation-triangle text-warning me-1"
+                                                                class="fa-solid fa-exclamation-triangle text-warning me-1"
                                                                 title="This product is archived"
                                                                 invisible="state not in ['draft', 'sent'] or not product_is_archived"
                                                             />

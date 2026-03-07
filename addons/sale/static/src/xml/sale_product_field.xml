@@ -8,7 +8,7 @@
             <button
                 t-if="!props.readonly and hasConfigurationButton"
                 type="button"
-                class="btn btn-secondary fa fa-pencil px-2"
+                class="btn btn-secondary fa-solid fa-pencil px-2"
                 tabindex="-1"
                 draggable="false"
                 t-att-aria-label="configurationButtonHelp"

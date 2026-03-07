@@ -7,7 +7,7 @@ import { patch } from "@web/core/utils/patch";
 registerThreadAction("restart", {
     condition: ({ owner, thread }) =>
         thread?.chatbot?.canRestart && !owner.isDiscussSidebarChannelActions,
-    icon: "fa fa-fw fa-refresh",
+    icon: "fa-solid fa-arrows-rotate",
     name: _t("Restart Conversation"),
     open: ({ owner, thread }) => {
         thread.chatbot.restart();

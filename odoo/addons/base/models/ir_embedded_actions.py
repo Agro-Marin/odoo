@@ -1,5 +1,5 @@
 from ast import literal_eval
-from typing import Any, Self
+from typing import Self
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
