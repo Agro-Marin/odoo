@@ -4,7 +4,7 @@ import logging
 import os
 import platform
 import random
-import select
+import selectors
 import signal
 import socket
 import subprocess
@@ -584,55 +584,57 @@ class ThreadedServer(CommonServer):
             )
             all_db_names = []
             alive_time = time.monotonic()
-            while (
-                config["limit_time_worker_cron"] <= 0
-                or (time.monotonic() - alive_time) <= config["limit_time_worker_cron"]
-            ):
-                select.select([pg_conn], [], [], SLEEP_INTERVAL + number)
-                time.sleep(number / 100)
-                try:
-                    notified = OrderedSet(
-                        notif.payload
-                        for notif in pg_conn.notifies(timeout=0)
-                        if notif.channel == "cron_trigger"
-                    )
-                except Exception:
-                    if pg_conn.closed:
-                        # connection closed, just exit the loop
-                        return
-                    raise
-
-                if time.time() - SLEEP_INTERVAL > check_all_time:
-                    # check all databases
-                    # last time we checked them was `now - SLEEP_INTERVAL`
-                    check_all_time = time.time()
-                    # process notified databases first, then the other ones
-                    all_db_names = OrderedSet(cron_database_list())
-                    db_names = [
-                        *(db for db in notified if db in all_db_names),
-                        *(db for db in all_db_names if db not in notified),
-                    ]
-                else:
-                    # restrict to notified databases only
-                    db_names = notified.intersection(all_db_names)
-                    if not db_names:
-                        continue
-
-                _logger.debug(
-                    "cron%d polling for jobs (notified: %s)", number, notified
-                )
-                for db_name in db_names:
-                    thread = threading.current_thread()
-                    thread.start_time = time.monotonic()
+            with selectors.DefaultSelector() as _sel:
+                _sel.register(pg_conn, selectors.EVENT_READ)
+                while (
+                    config["limit_time_worker_cron"] <= 0
+                    or (time.monotonic() - alive_time) <= config["limit_time_worker_cron"]
+                ):
+                    _sel.select(timeout=SLEEP_INTERVAL + number)
+                    time.sleep(number / 100)
                     try:
-                        IrCron._process_jobs(db_name)
-                    except Exception:
-                        _logger.warning(
-                            "cron%d encountered an Exception:",
-                            number,
-                            exc_info=True,
+                        notified = OrderedSet(
+                            notif.payload
+                            for notif in pg_conn.notifies(timeout=0)
+                            if notif.channel == "cron_trigger"
                         )
-                    thread.start_time = None
+                    except Exception:
+                        if pg_conn.closed:
+                            # connection closed, just exit the loop
+                            return
+                        raise
+
+                    if time.time() - SLEEP_INTERVAL > check_all_time:
+                        # check all databases
+                        # last time we checked them was `now - SLEEP_INTERVAL`
+                        check_all_time = time.time()
+                        # process notified databases first, then the other ones
+                        all_db_names = OrderedSet(cron_database_list())
+                        db_names = [
+                            *(db for db in notified if db in all_db_names),
+                            *(db for db in all_db_names if db not in notified),
+                        ]
+                    else:
+                        # restrict to notified databases only
+                        db_names = notified.intersection(all_db_names)
+                        if not db_names:
+                            continue
+
+                    _logger.debug(
+                        "cron%d polling for jobs (notified: %s)", number, notified
+                    )
+                    for db_name in db_names:
+                        thread = threading.current_thread()
+                        thread.start_time = time.monotonic()
+                        try:
+                            IrCron._process_jobs(db_name)
+                        except Exception:
+                            _logger.warning(
+                                "cron%d encountered an Exception:",
+                                number,
+                                exc_info=True,
+                            )
+                        thread.start_time = None
 
         while True:
             conn = db.db_connect("postgres")
@@ -1058,11 +1060,14 @@ class PreforkServer(CommonServer):
         try:
             # map of fd -> worker
             fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
-            fd_in = list(fds) + [self.pipe[0]]
             # check for ping or internal wakeups
-            ready = select.select(fd_in, [], [], self.beat)
+            with selectors.DefaultSelector() as sel:
+                for fd in list(fds) + [self.pipe[0]]:
+                    sel.register(fd, selectors.EVENT_READ)
+                ready = sel.select(self.beat)
             # update worker watchdogs
-            for fd in ready[0]:
+            for key, _ in ready:
+                fd = key.fileobj
                 if fd in fds:
                     fds[fd].watchdog_time = time.monotonic()
                 empty_pipe(fd)
@@ -1291,9 +1296,7 @@ class Worker:
 
     def sleep(self):
         try:
-            select.select(
-                [self.multi.socket, self.wakeup_fd_r], [], [], self.multi.beat
-            )
+            self._selector.select(timeout=self.multi.beat)
             # clear wakeup pipe if we were interrupted
             empty_pipe(self.wakeup_fd_r)
         except OSError as e:
@@ -1360,9 +1363,12 @@ class Worker:
         signal.signal(signal.SIGTTOU, signal.SIG_DFL)
 
         signal.set_wakeup_fd(self.wakeup_fd_w)
+        self._selector = selectors.DefaultSelector()
+        self._selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
 
     def stop(self):
-        pass
+        if hasattr(self, "_selector"):
+            self._selector.close()
 
     def run(self):
         try:
@@ -1455,6 +1461,7 @@ class WorkerHTTP(Worker):
 
     def start(self):
         Worker.start(self)
+        self._selector.register(self.multi.socket, selectors.EVENT_READ)
         self.server = BaseWSGIServerNoBind(self.multi.app)
 
 
@@ -1477,9 +1484,9 @@ class WorkerCron(Worker):
         if not self.db_queue:
             interval = SLEEP_INTERVAL + self.pid % 10  # chorus effect
 
-            # simulate interruptible sleep with select(wakeup_fd, timeout)
+            # Wait for an OS signal (wakeup pipe) or a Postgres NOTIFY.
             try:
-                select.select([self.wakeup_fd_r, self.dbcursor._cnx], [], [], interval)
+                self._pg_selector.select(timeout=interval)
                 # clear pg_conn/wakeup pipe if we were interrupted
                 time.sleep(self.pid / 100 % 0.1)
                 empty_pipe(self.wakeup_fd_r)
@@ -1513,6 +1520,13 @@ class WorkerCron(Worker):
         else:
             _logger.warning("PG cluster in recovery mode, cron trigger not activated")
         self.dbcursor.commit()
+        # Rebuild the selector: wakeup pipe (OS signals) + postgres socket (NOTIFY).
+        # Called on initial connect and on reconnect after connection loss.
+        if hasattr(self, "_pg_selector"):
+            self._pg_selector.close()
+        self._pg_selector = selectors.DefaultSelector()
+        self._pg_selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
+        self._pg_selector.register(self.dbcursor._cnx, selectors.EVENT_READ)
 
     def process_work(self):
         """Process a single database."""
@@ -1567,6 +1581,10 @@ class WorkerCron(Worker):
     def start(self):
         os.nice(10)  # mommy always told me to be nice with others...
         Worker.start(self)
+        # WorkerCron uses _pg_selector for its sleep; _selector (which only
+        # has wakeup_fd_r) is redundant here — release it immediately.
+        self._selector.close()
+        del self._selector
         if self.multi.socket:
             self.multi.socket.close()
 
@@ -1574,6 +1592,8 @@ class WorkerCron(Worker):
 
     def stop(self):
         super().stop()
+        if hasattr(self, "_pg_selector"):
+            self._pg_selector.close()
         self.dbcursor._cnx.close()
         self.dbcursor.close()
 

@@ -258,6 +258,14 @@ class TestPreforkServerProcessSignals:
 class TestWorkerCronConnectPostgres:
     """``_connect_postgres()``: opens a postgres connection and sets up LISTEN."""
 
+    @pytest.fixture(autouse=True)
+    def patch_selector(self):
+        """_connect_postgres() now creates a selector over the real PG socket fd.
+        These tests cover LISTEN/NOTIFY setup only — patch out the selector so
+        MagicMock connections don't need real file descriptors."""
+        with patch("odoo.service.server.selectors.DefaultSelector"):
+            yield
+
     def _mock_db(self, *, in_recovery: bool):
         conn = MagicMock()
         cursor = MagicMock()
