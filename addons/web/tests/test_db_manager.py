@@ -205,6 +205,36 @@ class TestDatabaseOperations(BaseCase):
         self.assertDbs([test_db_name])
         self.url_open_drop(test_db_name)
 
+    def test_drop_nonexistent_database(self):
+        """Dropping a database that doesn't exist must show an error page, not
+        silently redirect as if the operation succeeded."""
+        nonexistent = self.db_name + "-does-not-exist-xyz"
+        res = self.session.post(
+            self.url("/web/database/drop"),
+            data={"master_pwd": self.password, "name": nonexistent},
+            allow_redirects=False,
+        )
+        # Error page (200), not a redirect (303)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("error", res.text.lower())
+        # The database list must be unchanged
+        self.assertDbs([])
+
+    def test_backup_invalid_format_rejected(self):
+        """An unrecognised backup_format must return an error page, not crash or
+        pass unsanitised input to pg_dump."""
+        res = self.session.post(
+            self.url("/web/database/backup"),
+            data={
+                "master_pwd": self.password,
+                "name": self.db_name,
+                "backup_format": "exe",  # not in {"zip", "dump"}
+            },
+            allow_redirects=False,
+        )
+        self.assertEqual(res.status_code, 200)  # Error page, not streaming response
+        self.assertIn("error", res.text.lower())
+
     def test_database_http_registries(self):
         # This test is about dropping a connection inside one worker and
         # make sure that the other workers behave correctly.
