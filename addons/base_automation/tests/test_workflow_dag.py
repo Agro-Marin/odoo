@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-"""Tests for DAG workflow functionality in base_automation."""
+"""Tests for DAG workflow execution via automation.runtime."""
 
 import logging
 
@@ -13,39 +12,26 @@ _logger = logging.getLogger(__name__)
 
 
 class TestWorkflowDAG(TransactionCase):
-    """Test DAG dependency and orchestration features."""
+    """Test DAG dependency structure and automation.runtime execution."""
 
     def setUp(self):
         super().setUp()
         self.Automation = self.env["base.automation"]
         self.Action = self.env["ir.actions.server"]
+        self.Runtime = self.env["automation.runtime"]
         self.Partner = self.env["res.partner"]
 
-        # Get partner model
         self.model_partner = self.env["ir.model"]._get("res.partner")
+        self.test_partner = self.Partner.create({"name": "Test Partner"})
 
-        # Create test automation with workflow DAG enabled
-        self.automation = self.Automation.create(
-            {
-                "name": "Test DAG Workflow",
-                "model_id": self.model_partner.id,
-                "trigger": "on_hand",
-                "use_workflow_dag": True,
-                "auto_execute_workflow": False,  # Manual execution for testing
-            }
-        )
+        self.automation = self.Automation.create({
+            "name": "Test DAG Workflow",
+            "model_id": self.model_partner.id,
+            "trigger": "on_hand",
+        })
 
     def _create_action(self, name, code="pass", predecessors=None):
-        """Helper to create a server action.
-
-        Args:
-            name: Action name
-            code: Python code to execute
-            predecessors: List of action records that must complete first
-
-        Returns:
-            ir.actions.server record
-        """
+        """Create a server action under self.automation."""
         vals = {
             "name": name,
             "model_id": self.model_partner.id,
@@ -54,592 +40,392 @@ class TestWorkflowDAG(TransactionCase):
             "base_automation_id": self.automation.id,
             "usage": "base_automation",
         }
-
         if predecessors:
             vals["predecessor_ids"] = [Command.set([p.id for p in predecessors])]
-
         return self.Action.create(vals)
 
-    # =========================================================================
-    # Test Basic Dependency Chain
-    # =========================================================================
+    def _make_runtime(self, automation=None):
+        """Create and start a runtime for the given automation (default: self.automation)."""
+        auto = automation or self.automation
+        runtime = self.Runtime.create({
+            "automation_id": auto.id,
+            "res_model": "res.partner",
+            "res_id": self.test_partner.id,
+        })
+        runtime.action_start()
+        return runtime
 
-    def test_simple_linear_chain(self):
-        """Test simple A → B → C linear dependency chain."""
-        _logger.info("Testing simple linear chain A → B → C")
-
-        action_a = self._create_action("Action A")
-        action_b = self._create_action("Action B", predecessors=[action_a])
-        action_c = self._create_action("Action C", predecessors=[action_b])
-
-        # Reset workflow
-        self.automation.action_reset_workflow()
-
-        # Check initial state
-        self.assertEqual(
-            action_a.action_state, "ready", "A should be ready (no predecessors)"
-        )
-        self.assertEqual(action_b.action_state, "waiting", "B should be waiting for A")
-        self.assertEqual(action_c.action_state, "waiting", "C should be waiting for B")
-
-        self.assertTrue(action_a.is_ready, "A is_ready should be True")
-        self.assertFalse(action_b.is_ready, "B is_ready should be False")
-        self.assertFalse(action_c.is_ready, "C is_ready should be False")
-
-        # Complete action A
-        action_a.action_mark_done()
-
-        # Check that B is now ready
-        self.assertEqual(action_a.action_state, "done", "A should be done")
-        self.assertEqual(
-            action_b.action_state, "ready", "B should be ready after A completes"
-        )
-        self.assertEqual(action_c.action_state, "waiting", "C still waiting for B")
-
-        self.assertTrue(action_b.is_ready, "B is_ready should be True")
-        self.assertFalse(action_c.is_ready, "C is_ready should be False")
-
-        # Complete action B
-        action_b.action_mark_done()
-
-        # Check that C is now ready
-        self.assertEqual(action_b.action_state, "done", "B should be done")
-        self.assertEqual(
-            action_c.action_state, "ready", "C should be ready after B completes"
-        )
-
-        self.assertTrue(action_c.is_ready, "C is_ready should be True")
-
-        # Complete action C
-        action_c.action_mark_done()
-
-        self.assertEqual(action_c.action_state, "done", "C should be done")
+    def _line_for(self, runtime, action):
+        """Return the runtime.line corresponding to a definition action."""
+        return runtime.line_ids.filtered(lambda l: l.action_id == action)
 
     # =========================================================================
-    # Test Parallel Execution
+    # DAG Topology: predecessor/successor on ir.actions.server
     # =========================================================================
 
-    def test_parallel_branches(self):
-        """Test parallel branches: A → B and A → C execute in parallel."""
-        _logger.info("Testing parallel branches")
+    def test_successor_relationship(self):
+        """successor_ids is the inverse of predecessor_ids."""
+        action_a = self._create_action("A")
+        action_b = self._create_action("B", predecessors=[action_a])
 
-        action_a = self._create_action("Action A")
-        action_b = self._create_action("Action B", predecessors=[action_a])
-        action_c = self._create_action("Action C", predecessors=[action_a])
-
-        # Reset workflow
-        self.automation.action_reset_workflow()
-
-        # Only A should be ready
-        self.assertEqual(action_a.action_state, "ready")
-        self.assertEqual(action_b.action_state, "waiting")
-        self.assertEqual(action_c.action_state, "waiting")
-
-        # Complete A
-        action_a.action_mark_done()
-
-        # Both B and C should be ready (parallel execution)
-        self.assertEqual(action_b.action_state, "ready", "B should be ready after A")
-        self.assertEqual(action_c.action_state, "ready", "C should be ready after A")
-
-        self.assertTrue(action_b.is_ready, "B can execute in parallel with C")
-        self.assertTrue(action_c.is_ready, "C can execute in parallel with B")
-
-    def test_diamond_pattern(self):
-        """Test diamond dependency: A → B,C → D (D waits for both B and C)."""
-        _logger.info("Testing diamond pattern")
-
-        action_a = self._create_action("Action A")
-        action_b = self._create_action("Action B", predecessors=[action_a])
-        action_c = self._create_action("Action C", predecessors=[action_a])
-        action_d = self._create_action("Action D", predecessors=[action_b, action_c])
-
-        # Reset workflow
-        self.automation.action_reset_workflow()
-
-        # Only A should be ready
-        self.assertTrue(action_a.is_ready)
-        self.assertFalse(action_d.is_ready)
-
-        # Complete A
-        action_a.action_mark_done()
-
-        # B and C should be ready, but not D
-        self.assertEqual(action_b.action_state, "ready")
-        self.assertEqual(action_c.action_state, "ready")
-        self.assertEqual(action_d.action_state, "waiting")
-        self.assertFalse(action_d.is_ready, "D needs both B and C to complete")
-
-        # Complete B
-        action_b.action_mark_done()
-
-        # D still not ready (waiting for C)
-        self.assertEqual(action_d.action_state, "waiting")
-        self.assertFalse(action_d.is_ready, "D still needs C to complete")
-
-        # Complete C
-        action_c.action_mark_done()
-
-        # Now D is ready
-        self.assertEqual(action_d.action_state, "ready")
-        self.assertTrue(action_d.is_ready, "D is ready after both B and C complete")
-
-    # =========================================================================
-    # Test Cycle Detection
-    # =========================================================================
+        self.assertIn(action_b, action_a.successor_ids)
+        self.assertIn(action_a, action_b.predecessor_ids)
 
     def test_cycle_detection_direct(self):
-        """Test that direct cycles are prevented: A → B → A."""
-        _logger.info("Testing direct cycle detection")
+        """Direct cycles (A → B → A) are prevented by constraint."""
+        action_a = self._create_action("A")
+        action_b = self._create_action("B", predecessors=[action_a])
 
-        action_a = self._create_action("Action A")
-        action_b = self._create_action("Action B", predecessors=[action_a])
-
-        # Try to create cycle: A depends on B
-        with self.assertRaises(
-            ValidationError, msg="Should prevent direct cycle A → B → A"
-        ):
+        with self.assertRaises(ValidationError):
             action_a.write({"predecessor_ids": [Command.link(action_b.id)]})
 
     def test_cycle_detection_indirect(self):
-        """Test that indirect cycles are prevented: A → B → C → A."""
-        _logger.info("Testing indirect cycle detection")
+        """Indirect cycles (A → B → C → A) are prevented."""
+        action_a = self._create_action("A")
+        action_b = self._create_action("B", predecessors=[action_a])
+        action_c = self._create_action("C", predecessors=[action_b])
 
-        action_a = self._create_action("Action A")
-        action_b = self._create_action("Action B", predecessors=[action_a])
-        action_c = self._create_action("Action C", predecessors=[action_b])
-
-        # Try to create cycle: A depends on C
-        with self.assertRaises(
-            ValidationError, msg="Should prevent indirect cycle A → B → C → A"
-        ):
+        with self.assertRaises(ValidationError):
             action_a.write({"predecessor_ids": [Command.link(action_c.id)]})
 
     def test_self_dependency_prevented(self):
-        """Test that an action cannot depend on itself."""
-        _logger.info("Testing self-dependency prevention")
+        """An action cannot depend on itself."""
+        action_a = self._create_action("A")
 
-        action_a = self._create_action("Action A")
-
-        # Try to make A depend on itself
-        with self.assertRaises(ValidationError, msg="Should prevent self-dependency"):
+        with self.assertRaises(ValidationError):
             action_a.write({"predecessor_ids": [Command.link(action_a.id)]})
 
     # =========================================================================
-    # Test State Management
+    # automation.runtime: line creation mirrors DAG topology
     # =========================================================================
 
-    def test_action_reset(self):
-        """Test that action reset works correctly."""
-        _logger.info("Testing action reset")
+    def test_runtime_lines_created_from_dag(self):
+        """_create_action_lines mirrors predecessor topology into runtime lines."""
+        action_a = self._create_action("A")
+        action_b = self._create_action("B", predecessors=[action_a])
+        action_c = self._create_action("C", predecessors=[action_b])
 
-        action = self._create_action("Action A")
+        runtime = self._make_runtime()
 
-        # Mark as done
-        action.action_mark_done()
-        self.assertEqual(action.action_state, "done")
+        line_a = self._line_for(runtime, action_a)
+        line_b = self._line_for(runtime, action_b)
+        line_c = self._line_for(runtime, action_c)
 
-        # Reset
-        action.action_reset()
-        self.assertEqual(action.action_state, "waiting")
-        self.assertFalse(action.error_message)
+        # Root action starts ready
+        self.assertEqual(line_a.state, "ready")
+        # Dependents start waiting
+        self.assertEqual(line_b.state, "waiting")
+        self.assertEqual(line_c.state, "waiting")
 
-    def test_action_error_state(self):
-        """Test error state management."""
-        _logger.info("Testing error state")
+        # DAG structure preserved in runtime lines
+        self.assertIn(line_a, line_b.predecessor_ids)
+        self.assertIn(line_b, line_c.predecessor_ids)
 
-        action = self._create_action("Action A")
+    def test_parallel_branches_both_ready(self):
+        """Fan-out: completing A makes both B and C ready."""
+        action_a = self._create_action("A")
+        action_b = self._create_action("B", predecessors=[action_a])
+        action_c = self._create_action("C", predecessors=[action_a])
 
-        # Mark as error
-        error_msg = "Test error message"
-        action.action_mark_error(error_msg)
+        runtime = self._make_runtime()
+        line_a = self._line_for(runtime, action_a)
+        line_b = self._line_for(runtime, action_b)
+        line_c = self._line_for(runtime, action_c)
 
-        self.assertEqual(action.action_state, "error")
-        self.assertEqual(action.error_message, error_msg)
+        # Only A is ready initially
+        self.assertEqual(line_a.state, "ready")
+        self.assertEqual(line_b.state, "waiting")
+        self.assertEqual(line_c.state, "waiting")
 
-        # Reset should clear error
-        action.action_reset()
-        self.assertEqual(action.action_state, "waiting")
-        self.assertFalse(action.error_message)
+        # Complete A
+        line_a.action_mark_done()
 
-    def test_workflow_reset(self):
-        """Test workflow reset functionality."""
-        _logger.info("Testing workflow reset")
+        # Both B and C unblocked (parallel branches)
+        self.assertEqual(line_b.state, "ready")
+        self.assertEqual(line_c.state, "ready")
 
-        action_a = self._create_action("Action A")
-        action_b = self._create_action("Action B", predecessors=[action_a])
-
-        # Manually set states
-        action_a.write({"action_state": "done"})
-        action_b.write({"action_state": "in_progress"})
-
-        # Reset workflow
-        result = self.automation.action_reset_workflow()
-
-        # Check states
-        self.assertEqual(
-            action_a.action_state, "ready", "A should be ready (no predecessors)"
-        )
-        self.assertEqual(action_b.action_state, "waiting", "B should be waiting")
-
-        # Check notification
-        self.assertEqual(result["type"], "ir.actions.client")
-        self.assertEqual(result["params"]["type"], "success")
-
-    # =========================================================================
-    # Test Complex Workflows
-    # =========================================================================
-
-    def test_complex_workflow(self):
-        """Test complex workflow with multiple branches and joins.
-
-        Structure:
-            A
-            ├─→ B ─→ D
-            └─→ C ─→ D
-            D → E
-        """
-        _logger.info("Testing complex workflow")
-
+    def test_diamond_join(self):
+        """Fan-in: D waits for both B and C (AND join)."""
         action_a = self._create_action("A")
         action_b = self._create_action("B", predecessors=[action_a])
         action_c = self._create_action("C", predecessors=[action_a])
         action_d = self._create_action("D", predecessors=[action_b, action_c])
-        action_e = self._create_action("E", predecessors=[action_d])
 
-        # Reset
-        self.automation.action_reset_workflow()
+        runtime = self._make_runtime()
+        line_a = self._line_for(runtime, action_a)
+        line_b = self._line_for(runtime, action_b)
+        line_c = self._line_for(runtime, action_c)
+        line_d = self._line_for(runtime, action_d)
 
-        # Only A ready
-        self.assertEqual(action_a.action_state, "ready")
-        self.assertEqual(action_b.action_state, "waiting")
-        self.assertEqual(action_c.action_state, "waiting")
-        self.assertEqual(action_d.action_state, "waiting")
-        self.assertEqual(action_e.action_state, "waiting")
+        line_a.action_mark_done()
 
-        # Complete A
-        action_a.action_mark_done()
+        self.assertEqual(line_b.state, "ready")
+        self.assertEqual(line_c.state, "ready")
+        self.assertFalse(line_d.is_ready, "D still needs C")
 
-        self.assertEqual(action_b.action_state, "ready")
-        self.assertEqual(action_c.action_state, "ready")
-        self.assertEqual(action_d.action_state, "waiting")
+        line_b.action_mark_done()
+        # D still waiting — C hasn't completed yet
+        self.assertEqual(line_d.state, "waiting", "D still needs C")
+        self.assertFalse(line_d.is_ready, "is_ready only True when waiting+eligible")
 
-        # Complete B
-        action_b.action_mark_done()
-
-        self.assertEqual(action_d.action_state, "waiting", "D still needs C")
-
-        # Complete C
-        action_c.action_mark_done()
-
-        self.assertEqual(action_d.action_state, "ready", "D ready after B and C")
-        self.assertEqual(action_e.action_state, "waiting")
-
-        # Complete D
-        action_d.action_mark_done()
-
-        self.assertEqual(action_e.action_state, "ready")
+        line_c.action_mark_done()
+        # D unblocked — state transitions to ready; is_ready resets to False (by design)
+        self.assertEqual(line_d.state, "ready", "D ready after both B and C")
 
     def test_multiple_root_actions(self):
-        """Test workflow with multiple root actions (no predecessors)."""
-        _logger.info("Testing multiple root actions")
+        """Automations with multiple root actions start both as ready."""
+        action_a = self._create_action("A")
+        action_b = self._create_action("B")  # also a root
 
-        action_a = self._create_action("Action A")
-        action_b = self._create_action("Action B")  # Also no predecessors
-        action_c = self._create_action("Action C", predecessors=[action_a, action_b])
+        runtime = self._make_runtime()
+        line_a = self._line_for(runtime, action_a)
+        line_b = self._line_for(runtime, action_b)
 
-        # Reset
-        self.automation.action_reset_workflow()
+        self.assertEqual(line_a.state, "ready")
+        self.assertEqual(line_b.state, "ready")
 
-        # Both A and B should be ready
-        self.assertEqual(action_a.action_state, "ready")
-        self.assertEqual(action_b.action_state, "ready")
-        self.assertEqual(action_c.action_state, "waiting")
+    def test_runtime_completes_when_all_lines_done(self):
+        """Runtime transitions to 'done' when all lines complete."""
+        action_a = self._create_action("A")
 
-        # Complete A
-        action_a.action_mark_done()
-        self.assertEqual(action_c.action_state, "waiting", "C needs B too")
+        runtime = self._make_runtime()
+        self.assertEqual(runtime.state, "in_progress")
 
-        # Complete B
-        action_b.action_mark_done()
-        self.assertEqual(action_c.action_state, "ready", "C ready after A and B")
+        line_a = self._line_for(runtime, action_a)
+        line_a.action_mark_done()
+
+        self.assertEqual(runtime.state, "done")
+
+    def test_runtime_progress_display(self):
+        """progress_display updates as lines complete."""
+        action_a = self._create_action("A")
+        action_b = self._create_action("B", predecessors=[action_a])
+
+        runtime = self._make_runtime()
+        self.assertEqual(runtime.progress_display, "0/2 steps")
+
+        self._line_for(runtime, action_a).action_mark_done()
+        runtime.invalidate_recordset(["progress_display"])
+        self.assertEqual(runtime.progress_display, "1/2 steps")
 
     # =========================================================================
-    # Test Orchestration
+    # automation.runtime: action_run_all executes DAG to completion
     # =========================================================================
 
-    def test_orchestration_manual_mode(self):
-        """Test manual step-by-step execution."""
-        _logger.info("Testing manual orchestration")
+    def test_run_all_simple_chain(self):
+        """action_run_all executes A → B → C in order."""
+        action_a = self._create_action("A", code="record.write({'comment': 'A'})")
+        action_b = self._create_action("B", code="record.write({'comment': 'B'})",
+                                       predecessors=[action_a])
+        action_c = self._create_action("C", code="record.write({'comment': 'C'})",
+                                       predecessors=[action_b])
 
-        # Create simple chain with tracking
-        execution_log = []
+        runtime = self.Runtime.create({
+            "automation_id": self.automation.id,
+            "res_model": "res.partner",
+            "res_id": self.test_partner.id,
+        })
+        runtime.action_start()
+        final_state = runtime.action_run_all()
 
-        action_a = self._create_action("A", code=f'execution_log.append("A")')
-        action_b = self._create_action(
-            "B", code=f'execution_log.append("B")', predecessors=[action_a]
-        )
-        action_c = self._create_action(
-            "C", code=f'execution_log.append("C")', predecessors=[action_b]
-        )
+        self.assertEqual(final_state, "done")
+        self.assertEqual(runtime.state, "done")
 
-        # Reset
-        self.automation.action_reset_workflow()
+        # All lines completed
+        for line in runtime.line_ids:
+            self.assertEqual(line.state, "done", f"Line '{line.name}' should be done")
 
-        # Verify manual mode
-        self.assertFalse(self.automation.auto_execute_workflow)
+    def test_run_all_parallel_branches(self):
+        """action_run_all handles parallel branches correctly."""
+        action_a = self._create_action("A")
+        action_b = self._create_action("B", predecessors=[action_a])
+        action_c = self._create_action("C", predecessors=[action_a])
+        action_d = self._create_action("D", predecessors=[action_b, action_c])
 
-        # Get ready actions
-        ready = self.automation.action_server_ids.filtered(
-            lambda a: a.action_state == "ready"
-        )
-        self.assertEqual(len(ready), 1)
-        self.assertEqual(ready.name, "A")
+        runtime = self.Runtime.create({
+            "automation_id": self.automation.id,
+            "res_model": "res.partner",
+            "res_id": self.test_partner.id,
+        })
+        runtime.action_start()
+        final_state = runtime.action_run_all()
 
-    def test_workflow_without_dag_flag(self):
-        """Test that workflow methods check use_workflow_dag flag."""
-        _logger.info("Testing workflow without DAG flag")
+        self.assertEqual(final_state, "done")
+        for line in runtime.line_ids:
+            self.assertEqual(line.state, "done")
 
-        # Create automation without DAG flag
-        automation_no_dag = self.Automation.create(
-            {
-                "name": "No DAG Automation",
-                "model_id": self.model_partner.id,
-                "trigger": "on_hand",
-                "use_workflow_dag": False,  # DAG disabled
-            }
-        )
+    # =========================================================================
+    # action_manual_trigger routing
+    # =========================================================================
 
-        # Try to reset workflow
-        result = automation_no_dag.action_reset_workflow()
+    def test_manual_trigger_dag_creates_runtime(self):
+        """action_manual_trigger creates automation.runtime for DAG automations."""
+        action_a = self._create_action("A")
+        action_b = self._create_action("B", predecessors=[action_a])
 
+        before_count = self.Runtime.search_count([("automation_id", "=", self.automation.id)])
+
+        self.automation.with_context(
+            active_model="res.partner",
+            active_ids=self.test_partner.ids,
+        ).action_manual_trigger()
+
+        after_count = self.Runtime.search_count([("automation_id", "=", self.automation.id)])
+        self.assertEqual(after_count, before_count + 1)
+
+    def test_manual_trigger_no_dag_direct_process(self):
+        """action_manual_trigger without DAG calls _process directly (no runtime)."""
+        # Simple action, no predecessor_ids
+        self._create_action("A", code="record.write({'comment': 'triggered'})")
+
+        before_count = self.Runtime.search_count([("automation_id", "=", self.automation.id)])
+
+        result = self.automation.with_context(
+            active_model="res.partner",
+            active_ids=self.test_partner.ids,
+        ).action_manual_trigger()
+
+        after_count = self.Runtime.search_count([("automation_id", "=", self.automation.id)])
+        # No runtime created for simple automations
+        self.assertEqual(after_count, before_count)
         self.assertEqual(result["type"], "ir.actions.client")
+        self.assertEqual(result["params"]["type"], "success")
+
+    def test_manual_trigger_wrong_trigger_raises(self):
+        """action_manual_trigger on non-on_hand automation raises ValidationError."""
+        auto = self.Automation.create({
+            "name": "Write Automation",
+            "model_id": self.model_partner.id,
+            "trigger": "on_write",
+        })
+
+        with self.assertRaises(ValidationError):
+            auto.action_manual_trigger()
+
+    def test_manual_trigger_no_matching_records(self):
+        """action_manual_trigger returns warning when filter excludes all records."""
+        # Filter that no record can match
+        self.automation.filter_domain = "[('name', '=', '__no_record_will_ever_match__')]"
+        self._create_action("A")
+
+        result = self.automation.with_context(
+            active_model="res.partner",
+            active_ids=self.test_partner.ids,
+        ).action_manual_trigger()
+
         self.assertEqual(result["params"]["type"], "warning")
-        self.assertIn("Not a Workflow", result["params"]["title"])
-
-    def test_execute_next_no_ready_actions(self):
-        """Test execute_next when no actions are ready."""
-        _logger.info("Testing execute_next with no ready actions")
-
-        action_a = self._create_action("A")
-        action_b = self._create_action("B", predecessors=[action_a])
-
-        # Don't reset - all actions in waiting state
-        result = self.automation.action_execute_next()
-
-        # Should get blocked message
-        self.assertEqual(result["type"], "ir.actions.client")
-        self.assertIn("Blocked", result["params"]["title"])
-
-    def test_execute_next_workflow_complete(self):
-        """Test execute_next when all actions are done."""
-        _logger.info("Testing execute_next when complete")
-
-        action_a = self._create_action("A")
-
-        # Mark as done
-        action_a.write({"action_state": "done"})
-
-        result = self.automation.action_execute_next()
-
-        # Should get complete message
-        self.assertEqual(result["type"], "ir.actions.client")
-        self.assertIn("Complete", result["params"]["title"])
 
     # =========================================================================
-    # Test Edge Cases
+    # automation.runtime: cancellation
     # =========================================================================
 
-    def test_empty_workflow(self):
-        """Test workflow with no actions."""
-        _logger.info("Testing empty workflow")
-
-        # Create automation with no actions
-        empty_automation = self.Automation.create(
-            {
-                "name": "Empty Workflow",
-                "model_id": self.model_partner.id,
-                "trigger": "on_hand",
-                "use_workflow_dag": True,
-            }
-        )
-
-        result = empty_automation.action_reset_workflow()
-
-        # Should warn about no root actions
-        self.assertEqual(result["params"]["type"], "danger")
-        self.assertIn("No Root Actions", result["params"]["title"])
-
-    def test_is_ready_computation_after_predecessor_change(self):
-        """Test that is_ready updates when predecessors change state."""
-        _logger.info("Testing is_ready computation triggers")
-
+    def test_runtime_cancel(self):
+        """Cancelling runtime cancels all non-done lines."""
         action_a = self._create_action("A")
         action_b = self._create_action("B", predecessors=[action_a])
 
-        self.automation.action_reset_workflow()
+        runtime = self._make_runtime()
+        runtime.action_cancel()
 
-        # B should not be ready
-        self.assertFalse(action_b.is_ready)
+        self.assertEqual(runtime.state, "cancel")
+        for line in runtime.line_ids:
+            self.assertIn(line.state, ["cancel", "done"])
 
-        # Mark A as done
-        action_a.write({"action_state": "done"})
+    def test_runtime_res_model_res_id_set(self):
+        """Runtime records the target model and record ID."""
+        runtime = self.Runtime.create({
+            "automation_id": self.automation.id,
+            "res_model": "res.partner",
+            "res_id": self.test_partner.id,
+        })
 
-        # Trigger recomputation
-        action_b._compute_is_ready()
-
-        # B should now be ready
-        self.assertTrue(action_b.is_ready)
-
-    def test_successor_relationship_computed(self):
-        """Test that successor_ids is properly computed from predecessor_ids."""
-        _logger.info("Testing successor computation")
-
-        action_a = self._create_action("A")
-        action_b = self._create_action("B", predecessors=[action_a])
-
-        # Check both directions
-        self.assertIn(action_b, action_a.successor_ids)
-        self.assertIn(action_a, action_b.predecessor_ids)
-
-        # Add another predecessor
-        action_c = self._create_action("C")
-        action_b.write({"predecessor_ids": [Command.link(action_c.id)]})
-
-        # Check C's successors updated
-        self.assertIn(action_b, action_c.successor_ids)
-
-    def test_action_with_no_predecessors_always_ready_after_reset(self):
-        """Test that actions with no predecessors are ready after reset."""
-        _logger.info("Testing root actions are ready")
-
-        action = self._create_action("Root Action")
-
-        # Initially waiting
-        self.assertEqual(action.action_state, "waiting")
-
-        # Reset workflow
-        self.automation.action_reset_workflow()
-
-        # Should be ready
-        self.assertEqual(action.action_state, "ready")
-        self.assertTrue(action.is_ready)
+        self.assertEqual(runtime.res_model, "res.partner")
+        self.assertEqual(runtime.res_id, self.test_partner.id)
 
 
-class TestWorkflowDAGIntegration(TransactionCase):
-    """Integration tests for workflow execution."""
+class TestWorkflowDAGExecution(TransactionCase):
+    """Integration tests: actual server action code execution through automation.runtime."""
 
     def setUp(self):
         super().setUp()
         self.Automation = self.env["base.automation"]
         self.Action = self.env["ir.actions.server"]
-        self.Partner = self.env["res.partner"]
-
+        self.Runtime = self.env["automation.runtime"]
         self.model_partner = self.env["ir.model"]._get("res.partner")
+        self.test_partner = self.env["res.partner"].create({"name": "Exec Test Partner"})
 
-    def test_actual_code_execution_in_workflow(self):
-        """Test that server actions actually execute their code in workflow."""
-        _logger.info("Testing actual code execution")
+    def test_code_execution_writes_to_target_record(self):
+        """Server action code runs against the runtime's res_model/res_id record."""
+        automation = self.Automation.create({
+            "name": "Email Setter",
+            "model_id": self.model_partner.id,
+            "trigger": "on_hand",
+        })
+        action_a = self.Action.create({
+            "name": "Set Email",
+            "model_id": self.model_partner.id,
+            "state": "code",
+            "code": "record.write({'email': 'dag@example.com'})",
+            "base_automation_id": automation.id,
+            "usage": "base_automation",
+        })
+        action_b = self.Action.create({
+            "name": "Set Phone",
+            "model_id": self.model_partner.id,
+            "state": "code",
+            "code": "record.write({'phone': '999-888-7777'})",
+            "base_automation_id": automation.id,
+            "usage": "base_automation",
+            "predecessor_ids": [Command.link(action_a.id)],
+        })
 
-        # Create test partner
-        test_partner = self.Partner.create({"name": "Test Partner"})
+        runtime = self.Runtime.create({
+            "automation_id": automation.id,
+            "res_model": "res.partner",
+            "res_id": self.test_partner.id,
+        })
+        runtime.action_start()
+        runtime.action_run_all()
 
-        # Create automation
-        automation = self.Automation.create(
-            {
-                "name": "Test Execution Workflow",
-                "model_id": self.model_partner.id,
-                "trigger": "on_hand",
-                "use_workflow_dag": True,
-                "auto_execute_workflow": False,
-            }
-        )
+        self.assertEqual(runtime.state, "done")
+        self.test_partner.invalidate_recordset(["email", "phone"])
+        self.assertEqual(self.test_partner.email, "dag@example.com")
+        self.assertEqual(self.test_partner.phone, "999-888-7777")
 
-        # Create actions that modify the partner
-        action_a = self.Action.create(
-            {
-                "name": "Set Email",
-                "model_id": self.model_partner.id,
-                "state": "code",
-                "code": "record.write({'email': 'test@example.com'})",
-                "base_automation_id": automation.id,
-                "usage": "base_automation",
-            }
-        )
+    def test_error_in_action_marks_line_error(self):
+        """An exception in a server action marks the line as 'error' and propagates."""
+        automation = self.Automation.create({
+            "name": "Failing Workflow",
+            "model_id": self.model_partner.id,
+            "trigger": "on_hand",
+        })
+        action = self.Action.create({
+            "name": "Failing Action",
+            "model_id": self.model_partner.id,
+            "state": "code",
+            "code": "raise Exception('deliberate test error')",
+            "base_automation_id": automation.id,
+            "usage": "base_automation",
+        })
 
-        action_b = self.Action.create(
-            {
-                "name": "Set Phone",
-                "model_id": self.model_partner.id,
-                "state": "code",
-                "code": "record.write({'phone': '123-456-7890'})",
-                "base_automation_id": automation.id,
-                "usage": "base_automation",
-                "predecessor_ids": [Command.link(action_a.id)],
-            }
-        )
+        runtime = self.Runtime.create({
+            "automation_id": automation.id,
+            "res_model": "res.partner",
+            "res_id": self.test_partner.id,
+        })
+        runtime.action_start()
 
-        # Reset workflow
-        automation.action_reset_workflow()
+        line = runtime.line_ids.filtered(lambda l: l.action_id == action)
 
-        # Execute first action
-        action_a.action_mark_in_progress()
-        action_a.with_context(
-            active_model="res.partner",
-            active_id=test_partner.id,
-            active_ids=test_partner.ids,
-        ).run()
-        action_a.action_mark_done()
+        # NOTE: do NOT use assertRaises here — Odoo's assertRaises wraps the block
+        # in a db savepoint that rolls back on catch, reverting deferred ORM writes
+        # (including action_mark_error's write to state='error').
+        exc_raised = False
+        try:
+            line.action_execute()
+        except Exception:
+            exc_raised = True
+        self.assertTrue(exc_raised, "Expected action_execute to raise on failing code")
 
-        # Check email was set
-        self.assertEqual(test_partner.email, "test@example.com")
-
-        # B should now be ready
-        self.assertEqual(action_b.action_state, "ready")
-
-        # Execute second action
-        action_b.action_mark_in_progress()
-        action_b.with_context(
-            active_model="res.partner",
-            active_id=test_partner.id,
-            active_ids=test_partner.ids,
-        ).run()
-        action_b.action_mark_done()
-
-        # Check phone was set
-        self.assertEqual(test_partner.phone, "123-456-7890")
-
-    def test_error_handling_in_workflow(self):
-        """Test that errors are properly caught and logged."""
-        _logger.info("Testing error handling")
-
-        automation = self.Automation.create(
-            {
-                "name": "Error Test Workflow",
-                "model_id": self.model_partner.id,
-                "trigger": "on_hand",
-                "use_workflow_dag": True,
-            }
-        )
-
-        # Create action that will fail
-        action = self.Action.create(
-            {
-                "name": "Failing Action",
-                "model_id": self.model_partner.id,
-                "state": "code",
-                "code": "raise Exception('Test error')",
-                "base_automation_id": automation.id,
-                "usage": "base_automation",
-            }
-        )
-
-        automation.action_reset_workflow()
-
-        # Try to execute - should raise exception
-        with self.assertRaises(Exception):
-            automation._execute_workflow_action(action)
-
-        # Action should be in error state
-        self.assertEqual(action.action_state, "error")
-        self.assertIn("Test error", action.error_message)
+        self.assertEqual(line.state, "error")
+        self.assertIn("deliberate test error", line.error_message)

@@ -116,18 +116,21 @@ record.message_post(...)          ← patched
         automation._process(automation._filter_pre(self))
 ```
 
-### MANUAL Trigger (on_hand)
+### MANUAL Trigger (on_hand) — Phase 1
 
 ```
 automation.action_manual_trigger()
     │
-    ├─ use_workflow_dag=True:
-    │      action_reset_workflow() → mark root actions ready
-    │      action_execute_next()   → run first ready action
+    ├─ has_dag (any action has predecessor_ids):
+    │      for record in filtered_records:
+    │          runtime = automation.runtime.create(res_model, res_id)
+    │          runtime.action_start()    ← creates runtime.line DAG from definition
+    │          runtime.action_run_all()  ← runs all branches to completion
+    │      return act_window → automation.runtime form/list
     │
-    └─ use_workflow_dag=False:
+    └─ no DAG (simple automation):
            records = env[active_model].browse(active_ids)
-           _process(filtered_records)
+           _process(filtered_records)   ← direct execution, no runtime created
 ```
 
 ---
