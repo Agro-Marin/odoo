@@ -364,7 +364,7 @@ export class CalendarModel extends Model {
             const filterIds = filters
                 .filter((f) => f.type === "record")
                 .map((f) => f.recordId);
-            if (filterIds) {
+            if (filterIds.length) {
                 const data = {
                     [info.filterFieldName]: active,
                 };

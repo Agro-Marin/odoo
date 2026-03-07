@@ -455,8 +455,16 @@ export function makeActionManager(env, router = _router) {
         browser.sessionStorage.setItem("current_state", JSON.stringify(state));
         _openURL(router.stateToUrl(state));
         // restore the current action from the current window
-        browser.sessionStorage.setItem("current_action", currentAction);
-        browser.sessionStorage.setItem("current_state", currentState);
+        if (currentAction !== null) {
+            browser.sessionStorage.setItem("current_action", currentAction);
+        } else {
+            browser.sessionStorage.removeItem("current_action");
+        }
+        if (currentState !== null) {
+            browser.sessionStorage.setItem("current_state", currentState);
+        } else {
+            browser.sessionStorage.removeItem("current_state");
+        }
     }
 
     /**

@@ -36,11 +36,12 @@ export class Many2ManyCheckboxesField extends Component {
         this.idsToAdd = new Set();
         this.idsToRemove = new Set();
         this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 500);
-        useBus(
-            this.props.record.model.bus,
-            "NEED_LOCAL_CHANGES",
-            this.commitChanges.bind(this),
-        );
+        useBus(this.props.record.model.bus, "NEED_LOCAL_CHANGES", (ev) => {
+            const result = this.commitChanges();
+            if (result) {
+                ev.detail.proms.push(result);
+            }
+        });
         onWillUnmount(this.commitChanges.bind(this));
     }
 

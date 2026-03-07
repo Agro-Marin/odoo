@@ -20,9 +20,9 @@ const granularityToInterval = {
     hour: { hours: 1 },
     day: { days: 1 },
     week: { days: 7 },
-    month: { month: 1 },
-    quarter: { month: 4 },
-    year: { year: 1 },
+    month: { months: 1 },
+    quarter: { months: 3 },
+    year: { years: 1 },
 };
 
 export const AGGREGATABLE_FIELD_TYPES = ["float", "integer", "monetary"]; // types that can be aggregated in grouped views

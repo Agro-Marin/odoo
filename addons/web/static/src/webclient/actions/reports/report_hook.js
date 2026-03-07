@@ -56,17 +56,14 @@ function enrich(component, targetElement, selector, isIFrame = false) {
             wrapper.setAttribute("href", "#");
             wrapper.addEventListener("click", (ev) => {
                 ev.preventDefault();
+                const viewIdAttr = element.getAttribute("view-id");
+                const viewId = viewIdAttr ? Number(viewIdAttr) : false;
                 component.env.services.action.doAction({
                     type: "ir.actions.act_window",
                     view_mode: element.getAttribute("view-type"),
                     res_id: Number(element.getAttribute("res-id")),
                     res_model: element.getAttribute("res-model"),
-                    views: [
-                        [
-                            element.getAttribute("view-id"),
-                            element.getAttribute("view-type"),
-                        ],
-                    ],
+                    views: [[viewId, element.getAttribute("view-type")]],
                 });
             });
             element.parentNode.insertBefore(wrapper, element);

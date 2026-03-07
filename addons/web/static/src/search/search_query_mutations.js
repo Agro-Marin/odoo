@@ -299,10 +299,14 @@ export function toggleDateFilter(searchModel, searchItemId, generatorId) {
             );
             searchModel.query.push({ searchItemId, generatorId });
             if (!yearSelected(searchModel._getSelectedGeneratorIds(searchItemId))) {
-                const { defaultYearId } = getPeriodOptions(
+                const periodOption = getPeriodOptions(
                     searchModel.referenceMoment,
                     searchItem.optionsParams,
                 ).find((o) => o.id === generatorId);
+                if (!periodOption) {
+                    break;
+                }
+                const { defaultYearId } = periodOption;
                 searchModel.query.push({
                     searchItemId,
                     generatorId: defaultYearId,

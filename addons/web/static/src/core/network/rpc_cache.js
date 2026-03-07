@@ -143,7 +143,13 @@ export class RPCCache {
     }
 
     async checkSize() {
-        const { usage } = await navigator.storage.estimate();
+        let usage;
+        try {
+            ({ usage } = await navigator.storage.estimate());
+        } catch {
+            // StorageManager may be unavailable in insecure contexts
+            return;
+        }
         if (usage > MAX_STORAGE_SIZE) {
             console.warn(
                 `Deleting indexedDB database as maximum storage size is reached`,
@@ -198,17 +204,23 @@ export class RPCCache {
                     // update the ram and optionally the disk caches with the latest data
                     this.ramCache.write(table, key, Promise.resolve(result));
                     if (type === "disk") {
-                        this.crypto.encrypt(result).then((encryptedResult) => {
-                            this.indexedDB
-                                .write(table, key, encryptedResult)
-                                .catch((e) => {
-                                    if (e instanceof IDBQuotaExceededError) {
-                                        this.indexedDB.deleteDatabase();
-                                    } else {
-                                        throw e;
-                                    }
-                                });
-                        });
+                        this.crypto
+                            .encrypt(result)
+                            .then((encryptedResult) => {
+                                this.indexedDB
+                                    .write(table, key, encryptedResult)
+                                    .catch((e) => {
+                                        if (e instanceof IDBQuotaExceededError) {
+                                            this.indexedDB.deleteDatabase();
+                                        } else {
+                                            throw e;
+                                        }
+                                    });
+                            })
+                            .catch(() => {
+                                // Encryption can fail if SubtleCrypto is unavailable
+                                // (e.g. insecure context). Silently skip disk caching.
+                            });
                     }
                     return result;
                 };

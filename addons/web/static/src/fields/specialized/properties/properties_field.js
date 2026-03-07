@@ -886,12 +886,15 @@ export class PropertiesField extends Component {
         const propertyName = this.movePopoverToProperty;
         this.movePopoverToProperty = null;
 
-        const popover = document
-            .querySelector(".o_field_property_definition")
-            .closest(".o_popover");
+        const popoverContent = document.querySelector(".o_field_property_definition");
+        const popover = popoverContent?.closest(".o_popover");
         const target = document.querySelector(
             `*[property-name="${propertyName}"] .o_field_property_open_popover`,
         );
+
+        if (!popover || !target) {
+            return;
+        }
 
         reposition(
             /** @type {HTMLElement} */ (popover),

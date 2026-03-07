@@ -68,7 +68,7 @@ export const sortableService = {
                     const boundElement = boundElements.get(element);
                     if (/** @type {any} */ (sortableId) in boundElement) {
                         delete (/** @type {any} */ (boundElement)[sortableId]);
-                        if (boundElement.length === 0) {
+                        if (Object.keys(boundElement).length === 0) {
                             boundElements.delete(element);
                         }
                     }

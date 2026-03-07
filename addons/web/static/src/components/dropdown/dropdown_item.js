@@ -34,7 +34,7 @@ export class DropdownItem extends Component {
             type: Object,
             optional: true,
         },
-        slots: { Object, optional: true },
+        slots: { type: Object, optional: true },
     };
     static defaultProps = {
         closingMode: ClosingMode.AllParents,

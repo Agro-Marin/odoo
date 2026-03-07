@@ -352,7 +352,7 @@ export function reposition(popper, target, options) {
     const { top, left, maxHeight } = solution;
     popper.style.top = `${top}px`;
     popper.style.left = `${left}px`;
-    if (maxHeight) {
+    if (maxHeight !== undefined) {
         const existingMaxHeight = getComputedStyle(popper).maxHeight;
         popper.style.maxHeight =
             existingMaxHeight !== "none"

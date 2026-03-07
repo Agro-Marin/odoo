@@ -254,7 +254,7 @@ download._download = (options) =>
         } else {
             xhr.open("POST", options.url);
             data = new FormData();
-            Object.entries(options.data).forEach((entry) => {
+            Object.entries(options.data || {}).forEach((entry) => {
                 const [key, value] = entry;
                 data.append(key, value);
             });

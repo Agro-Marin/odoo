@@ -438,8 +438,11 @@ export class ListController extends MultiRecordController {
             if (this.env.isSmall) {
                 this.rootRef.el.scrollTop = 0;
             } else {
-                this.rootRef.el.querySelector(".o_content .o_list_renderer").scrollTop =
-                    0;
+                const renderer =
+                    this.rootRef.el.querySelector(".o_content .o_list_renderer");
+                if (renderer) {
+                    renderer.scrollTop = 0;
+                }
             }
         }
     }

@@ -197,7 +197,7 @@ export function useListAggregates({
                             if (currencies.size > 1) {
                                 multiCurrency = true;
                                 currencyId = user.activeCompany.currency_id;
-                                for (const i in values) {
+                                for (let i = 0; i < values.length; i++) {
                                     let currency = values[i][currencyField].id;
                                     if (
                                         /** @type {any} */ (list).isGrouped &&

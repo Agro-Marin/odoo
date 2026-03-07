@@ -118,6 +118,14 @@ export const nameService = {
                                         : ERROR_INACCESSIBLE_OR_MISSING,
                                 );
                             }
+                        })
+                        .catch((error) => {
+                            for (const resId of idsInBatch) {
+                                if (mapping[resId]) {
+                                    mapping[resId].reject(error);
+                                    delete mapping[resId];
+                                }
+                            }
                         });
                 }
             }

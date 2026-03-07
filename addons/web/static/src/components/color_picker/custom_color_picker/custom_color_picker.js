@@ -527,8 +527,8 @@ export class CustomColorPicker extends Component {
 
         const colorPickerArea = this.colorPickerAreaRef.el;
         const rect = colorPickerArea.getClientRects()[0];
-        const top = ev.pageY - rect.top;
-        const left = ev.pageX - rect.left;
+        const top = ev.clientY - rect.top;
+        const left = ev.clientX - rect.left;
         let saturation = Math.round((100 * left) / colorPickerArea.clientWidth);
         let lightness = Math.round(
             (100 * (colorPickerArea.clientHeight - top)) / colorPickerArea.clientHeight,
@@ -599,7 +599,7 @@ export class CustomColorPicker extends Component {
 
         const colorSlider = this.colorSliderRef.el;
         const colorSliderRects = colorSlider.getClientRects();
-        const y = colorSliderRects[0].height - (ev.pageY - colorSliderRects[0].top);
+        const y = colorSliderRects[0].height - (ev.clientY - colorSliderRects[0].top);
         let hue = Math.round((360 * y) / colorSlider.clientHeight);
         hue = clamp(hue, 0, 360);
 
@@ -658,7 +658,7 @@ export class CustomColorPicker extends Component {
         }
 
         const opacitySlider = this.opacitySliderRef.el;
-        const y = ev.pageY - opacitySlider.getClientRects()[0].top;
+        const y = ev.clientY - opacitySlider.getClientRects()[0].top;
         let opacity = Math.round(100 * (1 - y / opacitySlider.clientHeight));
         opacity = clamp(opacity, 0, 100);
 

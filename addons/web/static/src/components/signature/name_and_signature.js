@@ -324,7 +324,7 @@ export class NameAndSignature extends Component {
      *  if the @see mode is already selected.
      */
     setMode(mode, reset) {
-        if (reset !== true && mode === /** @type {any} */ (this).signMode) {
+        if (reset !== true && mode === this.state.signMode) {
             // prevent flickering and unnecessary compute
             return;
         }

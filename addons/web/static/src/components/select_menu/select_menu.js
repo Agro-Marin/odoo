@@ -400,7 +400,7 @@ export class SelectMenu extends Component {
                 );
             } else {
                 if (this.props.autoSort) {
-                    filteredOptions.sort((optionA, optionB) =>
+                    filteredOptions = filteredOptions.toSorted((optionA, optionB) =>
                         optionA.label.localeCompare(optionB.label),
                     );
                 }

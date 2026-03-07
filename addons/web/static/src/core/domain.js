@@ -335,7 +335,16 @@ function matchCondition(record, condition) {
     if (typeof field === "string") {
         const names = field.split(".");
         if (names.length >= 2) {
-            return matchCondition(record[names[0]], [
+            const subRecord = record[names[0]];
+            if (subRecord == null) {
+                // Treat missing sub-record as false for comparison purposes
+                return matchCondition({ [names.slice(1).join(".")]: false }, [
+                    names.slice(1).join("."),
+                    operator,
+                    value,
+                ]);
+            }
+            return matchCondition(subRecord, [
                 names.slice(1).join("."),
                 operator,
                 value,

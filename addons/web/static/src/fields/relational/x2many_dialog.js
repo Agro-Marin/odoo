@@ -359,7 +359,7 @@ export function useOpenX2ManyRecord({
     }
 
     let recordIsOpen = false;
-    return (params) => {
+    return async (params) => {
         if (recordIsOpen) {
             return;
         }
@@ -377,7 +377,7 @@ export function useOpenX2ManyRecord({
         };
 
         try {
-            return openRecord(params);
+            return await openRecord(params);
         } catch (e) {
             recordIsOpen = false;
             throw e;

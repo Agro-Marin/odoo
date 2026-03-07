@@ -114,8 +114,8 @@ export function makeRAMLocalStorage() {
         get length() {
             return Object.keys(store).length;
         },
-        key() {
-            return "";
+        key(index) {
+            return Object.keys(store)[index] ?? null;
         },
     };
 }

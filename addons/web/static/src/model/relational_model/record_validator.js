@@ -47,7 +47,7 @@ export function findUnsetRequiredFields(
             case "monetary":
                 continue;
             case "html":
-                if (isRequired(fieldName) && data[fieldName].length === 0) {
+                if (isRequired(fieldName) && (!data[fieldName] || data[fieldName].length === 0)) {
                     unsetRequiredFields.add(fieldName);
                 }
                 break;

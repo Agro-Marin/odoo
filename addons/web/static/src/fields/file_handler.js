@@ -47,7 +47,7 @@ export class FileUploader extends Component {
         }
         for (const file of files) {
             if (this.props.checkSize && !checkFileSize(file.size, this.notification)) {
-                return null;
+                return;
             }
             this.state.isUploading = true;
             const data = await getDataURLFromFile(file);
@@ -59,6 +59,8 @@ export class FileUploader extends Component {
                         type: "danger",
                     },
                 );
+                this.state.isUploading = false;
+                continue;
             }
             try {
                 await this.props.onUploaded({

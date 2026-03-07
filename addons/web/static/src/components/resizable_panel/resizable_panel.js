@@ -197,7 +197,7 @@ export class ResizablePanel extends Component {
     };
     static defaultProps = {
         onResize: () => {},
-        width: 400,
+        initialWidth: 400,
         minWidth: 400,
         class: "",
         handleSide: "end",

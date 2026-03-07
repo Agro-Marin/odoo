@@ -133,7 +133,7 @@ class ResConfigInviteUsers extends Component {
         );
 
         try {
-            if (emailsLeftToProcess) {
+            if (emailsLeftToProcess.length) {
                 await this.orm.call("res.users", "web_create_users", [
                     emailsLeftToProcess,
                 ]);
