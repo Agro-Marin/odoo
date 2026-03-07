@@ -68,8 +68,12 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
     if not callable(method):
         raise AttributeError(f"The method '{model._name}.{name}' does not exist")
 
+    # Use __dict__.get instead of getattr to avoid re-checking inherited methods:
+    # getattr() returns non-None for every ancestor class (via inheritance), causing
+    # O(MRO depth) redundant _api_private checks on the same function object.
+    # __dict__.get returns non-None only for classes that directly define the method.
     for mro_cls in cls.mro():
-        if not (cla_method := getattr(mro_cls, name, None)):
+        if not (cla_method := mro_cls.__dict__.get(name)):
             continue
         if getattr(cla_method, "_api_private", False):
             raise AccessError(e)

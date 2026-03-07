@@ -16,6 +16,7 @@ from io import BytesIO
 from pathlib import Path
 
 import psutil
+import psycopg
 import werkzeug.serving
 from werkzeug.urls import uri_to_iri
 
@@ -512,6 +513,7 @@ class ThreadedServer(CommonServer):
             _logger.warning("Server memory limit (%s) reached.", memory)
             self.limits_reached_threads.add(threading.current_thread())
 
+        now = time.monotonic()
         for thread in threading.enumerate():
             thread_type = getattr(thread, "type", None)
             if (
@@ -520,7 +522,7 @@ class ThreadedServer(CommonServer):
                 # We apply the limits on cron threads and HTTP requests,
                 # websocket requests excluded.
                 if getattr(thread, "start_time", None):
-                    thread_execution_time = time.monotonic() - thread.start_time
+                    thread_execution_time = now - thread.start_time
                     thread_limit_time_real = config["limit_time_real"]
                     if (
                         getattr(thread, "type", None) == "cron"
@@ -1499,6 +1501,19 @@ class WorkerCron(Worker):
             )
             self.alive = False
 
+    def _connect_postgres(self) -> None:
+        """Open (or reopen) the persistent postgres connection used for LISTEN."""
+        dbconn = db.db_connect("postgres")
+        self.dbcursor = dbconn.cursor()
+        # LISTEN / NOTIFY doesn't work in recovery mode
+        self.dbcursor.execute("SELECT pg_is_in_recovery()")
+        in_recovery = self.dbcursor.fetchone()[0]
+        if not in_recovery:
+            self.dbcursor.execute("LISTEN cron_trigger")
+        else:
+            _logger.warning("PG cluster in recovery mode, cron trigger not activated")
+        self.dbcursor.commit()
+
     def process_work(self):
         """Process a single database."""
         _logger.debug("WorkerCron (%s) polling for jobs", self.pid)
@@ -1506,11 +1521,22 @@ class WorkerCron(Worker):
         if not self.db_queue:
             # list databases
             db_names = OrderedSet(cron_database_list())
-            notified = OrderedSet(
-                notif.payload
-                for notif in self.dbcursor._cnx.notifies(timeout=0)
-                if notif.channel == "cron_trigger"
-            )
+            try:
+                notified = OrderedSet(
+                    notif.payload
+                    for notif in self.dbcursor._cnx.notifies(timeout=0)
+                    if notif.channel == "cron_trigger"
+                )
+            except psycopg.OperationalError:
+                _logger.warning(
+                    "WorkerCron (%s) lost postgres connection, reconnecting...", self.pid
+                )
+                with contextlib.suppress(Exception):
+                    self.dbcursor._cnx.close()
+                with contextlib.suppress(Exception):
+                    self.dbcursor.close()
+                self._connect_postgres()
+                return  # skip this cycle; notifies will be polled on next iteration
             # add notified databases (in order) first in the queue
             self.db_queue.extend(db for db in notified if db in db_names)
             self.db_queue.extend(db for db in db_names if db not in notified)
@@ -1544,16 +1570,7 @@ class WorkerCron(Worker):
         if self.multi.socket:
             self.multi.socket.close()
 
-        dbconn = db.db_connect("postgres")
-        self.dbcursor = dbconn.cursor()
-        # LISTEN / NOTIFY doesn't work in recovery mode
-        self.dbcursor.execute("SELECT pg_is_in_recovery()")
-        in_recovery = self.dbcursor.fetchone()[0]
-        if not in_recovery:
-            self.dbcursor.execute("LISTEN cron_trigger")
-        else:
-            _logger.warning("PG cluster in recovery mode, cron trigger not activated")
-        self.dbcursor.commit()
+        self._connect_postgres()
 
     def stop(self):
         super().stop()
