@@ -57,6 +57,4 @@
         <field name="context">{'search_default_active': 1}</field>
     </record>
 
-    <menuitem id="menu_action_asset" parent="base.next_id_9" action="action_asset" />
-
 </odoo>

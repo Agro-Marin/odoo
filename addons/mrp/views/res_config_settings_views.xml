@@ -74,7 +74,5 @@
             <field name="context">{'module' : 'mrp', 'bin_size': False}</field>
         </record>
 
-        <menuitem id="menu_mrp_config" name="Settings" parent="menu_mrp_configuration"
-            sequence="0" action="action_mrp_configuration" groups="base.group_system"/>
     </data>
 </odoo>

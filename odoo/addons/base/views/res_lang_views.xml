@@ -85,10 +85,4 @@
         <field name="context">{'active_test': False}</field>
     </record>
 
-    <menuitem
-        id="menu_res_lang_act_window"
-        parent="menu_translation"
-        action="res_lang_act_window"
-        sequence="1" />
-
 </odoo>

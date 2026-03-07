@@ -87,11 +87,5 @@
         <field name="name">User-defined Filters</field>
         <field name="res_model">ir.filters</field>
     </record>
-    <menuitem
-        id="menu_ir_filters"
-        name="User-defined Filters"
-        parent="base.next_id_2"
-        action="actions_ir_filters_view"
-        sequence="5" />
 
 </odoo>

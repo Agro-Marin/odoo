@@ -735,24 +735,6 @@
             </field>
         </record>
 
-        <menuitem action="mrp_production_action"
-            id="menu_mrp_production_action"
-            parent="menu_mrp_manufacturing"
-            sequence="1"/>
-
-        <menuitem id="menu_mrp_workorder_todo"
-                name="Work Orders"
-                action="mrp_workorder_todo"
-                parent="menu_mrp_manufacturing"
-                groups="group_mrp_routings"/>
-
-        <menuitem id="menu_mrp_work_order_report"
-            name="Work Orders"
-            parent="menu_mrp_reporting"
-            action="mrp_workorder_report"
-            groups="group_mrp_routings"
-            sequence="10"/>
-
         <record id="action_mrp_production_form" model="ir.actions.act_window">
             <field name="name">Manufacturing Orders</field>
             <field name="res_model">mrp.production</field>

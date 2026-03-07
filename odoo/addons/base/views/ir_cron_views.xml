@@ -93,10 +93,4 @@
         <field name="context">{'search_default_all': 1}</field>
     </record>
 
-    <menuitem
-        id="menu_ir_cron_act"
-        parent="base.menu_automation"
-        action="ir_cron_act"
-        sequence="2" />
-
 </odoo>

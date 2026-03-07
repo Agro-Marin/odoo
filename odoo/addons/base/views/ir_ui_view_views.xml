@@ -117,12 +117,6 @@
             move fields, rename them or delete the ones that you do not need.</field>
     </record>
 
-    <menuitem
-        id="menu_action_ui_view"
-        parent="base.next_id_2"
-        action="action_ui_view"
-        sequence="2" />
-
     <!-- Reset view wizard -->
     <record id="reset_view_arch_wizard_view" model="ir.ui.view">
         <field name="name">Reset View Architecture</field>
@@ -213,11 +207,5 @@
                 (via web client)</p>
         </field>
     </record>
-
-    <menuitem
-        id="menu_action_ui_view_custom"
-        parent="base.next_id_2"
-        action="action_ui_view_custom"
-        sequence="3" />
 
 </odoo>

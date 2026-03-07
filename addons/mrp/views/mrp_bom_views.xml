@@ -286,11 +286,6 @@
             </field>
         </record>
 
-        <menuitem id="menu_mrp_bom_form_action"
-            action="mrp_bom_form_action"
-            parent="menu_mrp_bom"
-            sequence="13"/>
-
         <!-- BOM Line -->
         <record id="mrp_bom_line_view_form" model="ir.ui.view">
             <field name="name">mrp.bom.line.view.form</field>

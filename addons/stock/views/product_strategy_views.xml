@@ -121,12 +121,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_putaway"
-        name="Putaway Rules"
-        parent="stock.menu_warehouse_config"
-        action="action_stock_putaway_rule"
-        sequence="8"
-        groups="stock.group_stock_multi_locations" />
-
 </odoo>
