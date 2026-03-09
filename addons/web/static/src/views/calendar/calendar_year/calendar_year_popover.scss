@@ -19,7 +19,7 @@
 
             &:before {
                 margin-right: map-get($spacers, 1);
-                font-family: "Font Awesome 7 Free";
+                font-family: "Font Awesome 7 Pro";
                 font-weight: 900;
                 font-size: $o-font-size-base-smaller;
                 color: var(--o-cw-popover-color, #{$info});
