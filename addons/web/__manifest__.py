@@ -388,6 +388,7 @@ This module provides the core of the Odoo Web Client.
         "web.report_assets_pdf": [
             "web/static/src/webclient/actions/reports/reset.min.css",
             "web/static/src/webclient/actions/reports/report_paged_media.css",
+            "web/static/src/webclient/actions/reports/report_pdf_layout.css",
         ],
         "web.ace_lib": [
             "web/static/lib/ace/ace.js",

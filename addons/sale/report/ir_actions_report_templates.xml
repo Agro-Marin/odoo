@@ -91,7 +91,7 @@
                 <div class="oe_structure"></div>
                 <table class="o_has_total_table table o_main_table table-borderless">
                     <!-- In case we want to repeat the header, remove "display: table-row-group" -->
-                    <thead style="display: table-row-group">
+                    <thead class="o_thead_no_repeat">
                         <tr>
                             <th name="th_description" class="text-start">Description</th>
                             <th name="th_quantity" class="text-end text-nowrap">Quantity</th>
@@ -330,7 +330,7 @@
                         </t>
                     </tbody>
                 </table>
-                <div class="clearfix" name="so_total_summary">
+                <div name="so_total_summary">
                     <div id="total" class="row mt-n3" name="total">
                         <div
                             t-attf-class="#{'col-6' if report_type != 'html' else 'col-sm-7 col-md-6'} ms-auto">
@@ -353,7 +353,7 @@
                     </div>
                     <div class="offset-8">
                         <img t-att-src="image_data_uri(doc.signature)"
-                            style="max-height: 4cm; max-width: 8cm;" />
+                            class="o_report_signature_img" />
                     </div>
                     <div class="offset-8 text-center">
                         <span t-field="doc.signed_by">Oscar Morgan</span>
@@ -361,7 +361,7 @@
                 </div>
                 <div>
                     <span t-field="doc.notes"
-                        t-attf-style="#{'text-align:justify;text-justify:inter-word;' if doc.company_id.terms_type != 'html' else ''}"
+                        t-att-class="'justify-text' if doc.company_id.terms_type != 'html' else ''"
                         name="order_note" />
                     <p t-if="not is_html_empty(doc.payment_term_id.note)">
                         <span t-field="doc.payment_term_id.note">The payment should also be

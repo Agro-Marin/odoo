@@ -50,6 +50,14 @@ span.o_force_ltr {
     font-weight: bolder;
 }
 
+// Justify text alignment — used by invoice/order narration and fiscal notes
+// when content is plain text (not HTML). Defined here so all report modules
+// can use it without depending on the account module's CSS.
+.justify-text {
+    text-align: justify;
+    text-justify: inter-word;
+}
+
 .o_black_border tr th {
     border-bottom: 2px solid black !important;
 }

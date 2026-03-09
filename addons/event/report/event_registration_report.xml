@@ -27,7 +27,7 @@
                     t-options='{"widget": "datetime", "show_seconds": False, "tz_name": event.date_tz, "format": "medium"}'/>
             </div>
         </div>
-        <table class="table mt-3" style="page-break-after:always;">
+        <table class="table mt-3" style="break-after: page;">
             <thead>
                 <tr class="text-start">
                     <th>Name</th>

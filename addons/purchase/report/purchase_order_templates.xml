@@ -22,8 +22,8 @@
             <t t-set="display_name_in_footer" t-value="True"/>
             <t t-set="layout_document_title">
                 <t t-if="o.state in ['draft', 'sent', 'to approve']">Request for Quotation #<span t-field="o.name" /></t>
-                <t t-if="o.state == 'done'">Purchase Order #<span t-field="o.name" /></t>
-                <t t-if="o.state == 'cancel'">Cancelled Purchase Order #<span t-field="o.name" /></t>
+                <t t-elif="o.state == 'done'">Purchase Order #<span t-field="o.name" /></t>
+                <t t-elif="o.state == 'cancel'">Cancelled Purchase Order #<span t-field="o.name" /></t>
             </t>
             <div class="page">
                 <div class="oe_structure" />
@@ -52,7 +52,7 @@
                 </div>
 
                 <table class="o_has_total_table table o_main_table table-borderless">
-                    <thead style="display: table-row-group">
+                    <thead class="o_thead_no_repeat">
                         <tr>
                             <th name="th_description" class="text-start">
                                 <strong>Description</strong>
@@ -104,7 +104,7 @@
                                         <span t-field="line.price_unit" />
                                     </td>
                                     <td class="text-end">
-                                        <span class="text-align-bottom"><span
+                                        <span><span
                                                 t-field="line.discount" />%</span>
                                     </td>
                                     <td class="text-end">
@@ -133,7 +133,7 @@
                                 t-if="current_section and (line_last or o.line_ids[line_index+1].display_type in ('line_section', 'line_subsection'))">
                                 <tr class="is-subtotal text-end">
                                     <td colspan="99" id="subtotal">
-                                        <strong class="mr16">Subtotal</strong>
+                                        <strong class="me-3">Subtotal</strong>
                                         <span
                                             t-out="current_subtotal"
                                             t-options='{"widget": "monetary", "display_currency": o.currency_id}'

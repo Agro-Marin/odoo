@@ -86,7 +86,7 @@
                     </t>
                 </t>
             </div>
-            <p style="page-break-before:always;"> </p>
+            <p style="break-before: page;"> </p>
             <div class="oe_structure"></div>
         </t>
     </template>

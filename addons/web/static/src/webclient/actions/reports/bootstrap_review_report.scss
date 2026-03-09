@@ -33,14 +33,31 @@ $report-text-colors: map-merge-multiple($theme-colors, $o-theme-text-colors, $gr
 // Cleanup temporary map
 $report-text-colors: null;
 
-// To avoid broken snippets in report rendering
+// Prevent page breaks inside structural snippets in PDF output.
 .jumbotron, .panel, .carousel, section {
-    page-break-inside: avoid;
+    break-inside: avoid;
 }
 
 // Hide print-none elements in PDF context
 .d-print-none {
     display: none;
+}
+
+// Bootstrap responsive columns (col-N) need explicit widths in PDF context
+// because WeasyPrint doesn't evaluate Bootstrap's media-query breakpoints.
+// Without these, col-2/col-3/col-4/col-5/col-6 collapse to content width.
+@for $i from 1 through 12 {
+    .col-#{$i} {
+        flex: 0 0 auto;
+        width: calc(100% * #{$i} / 12);
+    }
+}
+
+// Bootstrap offset classes — same reasoning as col-N above.
+@for $i from 1 through 11 {
+    .offset-#{$i} {
+        margin-left: calc(100% * #{$i} / 12);
+    }
 }
 
 .col {
@@ -56,9 +73,10 @@ $report-text-colors: null;
     float: left;
 }
 
-// Report footer need to support bootstrap columns (2, 3 and 4 columns)
-// Even if the width is smaller than the media querry limit from bootstrap.
-// This need come from the footer being editable via the Odoo editor.
+// Report footer: the standard footer now uses CSS Grid (.o_report_footer_grid)
+// in PDF mode, which doesn't need Bootstrap responsive breakpoint overrides.
+// Keep .col-lg-* overrides for the company.report_footer HTML content, which
+// is user-editable via the Odoo editor and may contain Bootstrap columns.
 .footer {
     .col-lg-3, .col-lg-4, .col-lg-6 {
         flex: 0 0 auto;

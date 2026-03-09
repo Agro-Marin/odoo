@@ -2,6 +2,8 @@
 from collections import OrderedDict
 from zlib import error as zlib_error
 
+import lxml.html
+
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 from odoo.tools import pdf
@@ -51,9 +53,44 @@ class IrActionsReport(models.Model):
 
     def _get_splitted_report(self, report_ref, content, report_type):
         if report_type == 'html':
+            # In test mode, _pre_render_qweb_pdf returns raw HTML bytes.
+            # Parse article elements to map each record ID to its HTML chunk.
             report = self._get_report(report_ref)
-            bodies, res_ids, _ = self._prepare_weasyprint_html(content, report_model=report.model)
-            return {res_id: str(body).encode() for res_id, body in zip(res_ids, bodies)}
+            root = lxml.html.fromstring(content, parser=lxml.html.HTMLParser(encoding='utf-8'))
+            # Standard class matching (space-separated CSS classes).
+            articles = root.xpath(
+                "//div[contains(concat(' ', normalize-space(@class), ' '), ' article ')]"
+            )
+            if not articles:
+                # WORKAROUND: QWeb t-att-class with dict expressions renders
+                # the raw Python dict string as the class attribute value
+                # (e.g. "{'article': True, 'o_report_layout': True}") instead
+                # of converting it to space-separated CSS classes like the JS
+                # implementation does.
+                #
+                # Root cause: ir_qweb._post_processing_att (ir_qweb.py:3338)
+                # does not handle dict values for the 'class' attribute —
+                # it should convert truthy-valued keys to CSS class strings.
+                #
+                # TODO: Fix QWeb _post_processing_att to convert dict class
+                # values to "key1 key2 ..." strings, then remove this fallback.
+                articles = root.xpath("//div[contains(@class, \"'article'\")]")
+            result = {}
+            for article in articles:
+                if article.get('data-oe-model') == report.model:
+                    res_id = int(article.get('data-oe-id', 0))
+                    result[res_id] = lxml.html.tostring(article)
+            if not result and articles:
+                # Articles found but data-oe-model doesn't match —
+                # use data-oe-id directly if available.
+                for article in articles:
+                    res_id = int(article.get('data-oe-id', 0))
+                    if res_id:
+                        result[res_id] = lxml.html.tostring(article)
+            if not result:
+                # Fallback: single document without article markers
+                result[False] = content if isinstance(content, bytes) else content.encode()
+            return result
         elif report_type == 'pdf':
             pdf_dict = {res_id: stream['stream'].getvalue() for res_id, stream in content.items()}
             for stream in content.values():

@@ -29,7 +29,7 @@
                 </t>
 
                 <table class="table table-borderless">
-                    <thead style="display: table-row-group">
+                    <thead class="o_thead_no_repeat">
                         <tr>
                             <th name="th_description">
                                 <strong>Description</strong>
