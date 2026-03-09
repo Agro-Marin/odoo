@@ -24,7 +24,7 @@ div.o_employee_cv {
     }
 
     &:not(:last-child) .o_new_page {
-        page-break-after: always;
+        break-after: page;
     }
 
     .o_sidebar {

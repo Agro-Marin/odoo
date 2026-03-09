@@ -64,7 +64,7 @@
                                 <th><strong>WorkCenter</strong></th>
                                 <th><strong>Duration (minutes)</strong></th>
                                 <th t-if="o.state in ('progress', 'to_close')"><strong>Actual Duration (minutes)</strong></th>
-                                <th style="width:30%"><strong>Barcode</strong></th>
+                                <th class="w-25"><strong>Barcode</strong></th>
                             </tr>
                             <tr t-foreach="o.workorder_ids" t-as="line2">
                                 <td><span t-field="line2.name">Assembling</span></td>
@@ -100,8 +100,8 @@
             Components
         </span>
     </h3>
+    <div class="oe_structure"></div>
     <table class="table table-sm">
-        <div class="oe_structure"></div>
         <t t-set="has_product_barcode" t-value="any(m.product_id.barcode for m in o.move_raw_ids)"/>
         <thead>
             <tr>
@@ -155,7 +155,7 @@
         <t t-set="index_to_qtys" t-value="{i: qty for i, qty in zip(range(0, len(move_line_qtys)), move_line_qtys)}"/>
         <t t-set="num_pages" t-value="sum(move_line_qtys)// (nRows * nCols) + 1"/>
         <div class="oe_structure"></div>
-        <div t-foreach="range(num_pages)" t-as="page" class="o_label_sheet" t-att-style="'padding: 20mm 8mm'">
+        <div t-foreach="range(num_pages)" t-as="page" class="o_label_sheet" style="padding: 20mm 8mm">
         <div class="oe_structure"></div>
             <table class="my-0 table table-sm table-borderless">
                 <t t-foreach="range(nRows)" t-as="row">

@@ -298,10 +298,14 @@
         <!-- Standard report footer: company footer text left, page counter right.
              Required context: company, report_type, o, display_name_in_footer, is_html_empty.
              Set footer_show_tagline=True before calling to show the company tagline in the footer
-             (used by boxed and bold layouts, which omit the tagline from their header). -->
+             (used by boxed and bold layouts, which omit the tagline from their header).
+
+             PDF uses CSS Grid (.o_report_footer_grid from report_pdf_layout.css)
+             for predictable layout without Bootstrap responsive breakpoints.
+             HTML preview falls back to Bootstrap flex utilities. -->
         <div t-att-class="{'footer': True, f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'mt-auto': report_type != 'pdf'}" name="report_footer">
-            <div class="o_footer_content d-flex border-top pt-2" name="footer_content">
-                <div class="flex-grow-1 text-start me-2" name="footer_text">
+            <div t-attf-class="o_footer_content {{report_type == 'pdf' and 'o_report_footer_grid' or 'd-flex border-top pt-2'}}" name="footer_content">
+                <div t-attf-class="{{report_type != 'pdf' and 'flex-grow-1 text-start me-2' or ''}}" name="footer_text">
                     <span t-field="company.report_footer" />
                 </div>
                 <div class="text-end text-muted" name="page_counter">
@@ -338,11 +342,11 @@
 
     <template id="external_layout_boxed">
         <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True}" name="report_header">
-            <div class="row mb8">
-                <div class="col-4">
+            <div t-attf-class="{{report_type == 'pdf' and 'o_report_header_boxed' or 'row'}} mb8">
+                <div t-att-class="report_type != 'pdf' and 'col-4'">
                     <img t-if="company.logo" class="o_company_logo_big" name="company_logo" t-att-src="image_data_uri(company.logo)" alt="Logo" />
                 </div>
-                <div class="col-8 text-end mb4">
+                <div t-attf-class="{{report_type != 'pdf' and 'col-8 text-end' or ''}} mb4">
                     <div name="company_address" class="mb4">
                         <t t-call="web.company_address_block" />
                     </div>
@@ -362,11 +366,11 @@
 
     <template id="external_layout_bold">
         <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True}" name="report_header" t-att-style="report_header_style">
-            <div class="row">
-                <div class="col-6">
+            <div t-attf-class="{{report_type == 'pdf' and 'o_report_header_bold' or 'row'}}">
+                <div t-att-class="report_type != 'pdf' and 'col-6'">
                     <img t-if="company.logo" class="o_company_logo_big" name="company_logo" t-att-src="image_data_uri(company.logo)" alt="Logo" />
                 </div>
-                <div class="col-5 offset-1" name="company_address">
+                <div t-attf-class="{{report_type != 'pdf' and 'col-5 offset-1' or ''}}" name="company_address">
                     <t t-call="web.company_address_block" />
                 </div>
             </div>
@@ -384,14 +388,12 @@
 
     <template id="external_layout_standard">
         <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True}" name="report_header">
-            <div class="d-flex justify-content-between align-items-center mb-2">
+            <div t-attf-class="{{report_type == 'pdf' and 'o_report_header_standard' or 'd-flex justify-content-between align-items-center'}} mb-2">
                 <img t-if="company.logo" class="o_company_logo_small" name="company_logo" t-att-src="image_data_uri(company.logo)" alt="Logo" />
                 <div t-if="company.report_header" t-field="company.report_header" name="company_tagline" class="o_company_tagline mw-50 fw-bold">Company tagline</div>
             </div>
-            <div class="row">
-                <div class="col-6" name="company_address">
-                    <t t-call="web.company_address_block" />
-                </div>
+            <div name="company_address" style="max-width: 50%;">
+                <t t-call="web.company_address_block" />
             </div>
         </div>
 
@@ -600,11 +602,7 @@
                                 <span t-out="company.name" />
                         </div>
                         <div class="col-2 offset-3 text-end">
-                                <ul class="list-inline">
-                                        <li class="list-inline-item"><span class="page" /></li>
-                                        <li class="list-inline-item">/</li>
-                                        <li class="list-inline-item"><span class="topage" /></li>
-                                </ul>
+                                <span class="page" /> / <span class="topage" />
                         </div>
                 </div>
         </div>

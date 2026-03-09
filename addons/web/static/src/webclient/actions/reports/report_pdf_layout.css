@@ -1,0 +1,143 @@
+/*
+ * PDF-native layout utilities for WeasyPrint.
+ *
+ * This file provides CSS Grid-based layout and WeasyPrint-specific features
+ * that replace Bootstrap's browser-centric approach in PDF context.
+ *
+ * Design principles:
+ *   - CSS Grid for layout (not Bootstrap row/col)
+ *   - WeasyPrint Paged Media features (bookmarks)
+ *   - Minimal footprint — only rules actively used in PDF rendering
+ */
+
+/* ==========================================================================
+   PDF Bookmarks — automatic navigable outline in PDF viewers
+   ========================================================================== */
+
+/* Document title gets a top-level bookmark entry.
+ * This gives multi-record PDF reports a clickable outline:
+ *   Invoice INV/2024/001
+ *   Invoice INV/2024/002
+ *   Credit Note RINV/2024/001
+ * bookmark-label defaults to content(text) — the element's text content. */
+h2[name="document_title"] {
+    bookmark-level: 1;
+}
+
+/* Section headers within a report (HSN Summary, Tax Details, etc.) */
+h3[name] {
+    bookmark-level: 2;
+}
+
+/* ==========================================================================
+   Footer Grid Layout
+   Replaces Bootstrap d-flex in PDF mode. The footer template conditionally
+   applies this class when report_type == 'pdf'.
+   ========================================================================== */
+
+/* Footer content: footer text left, page counter right.
+ * CSS Grid handles this without Bootstrap flex utilities and without
+ * the .col-lg-* width overrides that bootstrap_review_report.scss needs
+ * because Bootstrap responsive breakpoints don't apply in paged media. */
+.o_footer_content.o_report_footer_grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1em;
+    align-items: start;
+    border-top: 1px solid currentColor;
+    padding-top: 2mm;
+}
+
+.o_footer_content.o_report_footer_grid > [name="footer_text"] {
+    text-align: start;
+}
+
+.o_footer_content.o_report_footer_grid > [name="page_counter"] {
+    text-align: end;
+    white-space: nowrap;
+}
+
+/* ==========================================================================
+   Report Header Grid Layouts
+   CSS Grid alternatives for each layout theme's header, applied
+   conditionally when report_type == 'pdf'.
+   ========================================================================== */
+
+/* Standard layout: logo left, tagline right.
+ * Company address sits below this grid as a normal block element. */
+.o_report_header_standard {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.5em;
+}
+
+/* Boxed layout: logo left (1/3), address right-aligned (2/3) */
+.o_report_header_boxed {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 1em;
+    margin-bottom: 2mm;
+}
+
+.o_report_header_boxed > :last-child {
+    text-align: end;
+}
+
+/* Bold layout: logo left (50%), address left-aligned (50%) */
+.o_report_header_bold {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1em;
+    margin-bottom: 2mm;
+}
+
+/* ==========================================================================
+   Shared Report Utilities
+   Common CSS classes that replace inline styles across all report templates.
+   ========================================================================== */
+
+/* Signature image constraints — used by account, sale, stock delivery slips. */
+.o_report_signature_img {
+    max-height: 4cm;
+    max-width: 8cm;
+}
+
+/* Suppress thead repetition on page breaks. WeasyPrint's default behavior for
+ * <thead> (display: table-header-group) repeats headers on every page. This
+ * class switches to table-row-group to suppress that. Used when the report
+ * author intentionally wants no header repetition. */
+.o_thead_no_repeat {
+    display: table-row-group;
+}
+
+/* Fixed table layout — forces columns to respect explicit widths rather than
+ * auto-sizing based on content. Used by stock picking operations. */
+.o_table_fixed {
+    table-layout: fixed;
+    width: 100%;
+}
+
+/* Tree-level indentation — used by MRP BOM structure and MO overview reports
+ * for nested component/operation hierarchies. Each level indents 20px. */
+.o_indent_level_1 { margin-left: 20px; }
+.o_indent_level_2 { margin-left: 40px; }
+.o_indent_level_3 { margin-left: 60px; }
+.o_indent_level_4 { margin-left: 80px; }
+.o_indent_level_5 { margin-left: 100px; }
+
+/* Sub-row indentation for detail lines (e.g., lot/serial breakdown under a
+ * product move in stock picking operations). */
+.o_sub_row_indent {
+    margin-left: 50px;
+}
+
+/* Page break before an element — replaces inline style="break-before: page"
+ * used by MRP BOM structure and MO overview reports. */
+.o_page_break_before {
+    break-before: page;
+}
+
+.o_page_break_after {
+    break-after: page;
+}

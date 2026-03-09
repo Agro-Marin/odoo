@@ -21,8 +21,8 @@
                             <div t-if="o.user_id">
                                 <strong>Responsible:</strong>
                                 <span t-field="o.user_id">John Doe</span>
-                            </div><br/>
-                            <div class="oe_structure"></div>
+                            </div>
+                            <div class="oe_structure mt-3"></div>
                             <table class="table table-borderless">
                                 <thead>
                                     <tr>
@@ -49,14 +49,14 @@
                                     </tr>
                                 </tbody>
                             </table>
-                            <p style="page-break-after: always;"/>
+                            <p class="o_page_break_after"/>
                             <div class="oe_structure"></div>
                             <h3><span t-field="o.name">Batch Name</span></h3>
                             <div t-if="o.user_id">
                                 <strong>Responsible:</strong>
                                 <span t-field="o.user_id">John Doe</span>
-                            </div><br/>
-                            <div class="oe_structure"></div>
+                            </div>
+                            <div class="oe_structure mt-3"></div>
                             <table class="table table-borderless">
                                 <thead>
                                     <tr>
@@ -81,10 +81,10 @@
                                         <t t-set="products" t-value="move_lines.product_id"/>
                                         <tbody>
                                             <tr>
-                                                <td style="background-color:lightgrey" colspan="6" >
-                                                    <p style="margin:0px"><strong>FROM</strong>
+                                                <td class="table-secondary" colspan="6">
+                                                    <p class="mb-0"><strong>FROM</strong>
                                                     <span t-out="move_lines.location_id.display_name">Location From Name</span></p>
-                                                    <p style="margin:0px"><strong>TO</strong>
+                                                    <p class="mb-0"><strong>TO</strong>
                                                     <span t-out="move_lines.location_dest_id.display_name">Location To Name</span></p>
                                                 </td>
                                             </tr>
@@ -93,7 +93,7 @@
                                                     <span t-field="move_operation.display_name">Product Name</span>
                                                 </td>
                                                 <td>
-                                                    <span t-esc="sum(move_operation.mapped('quantity'))">Quantity Done</span>
+                                                    <span t-out="sum(move_operation.mapped('quantity'))">Quantity Done</span>
                                                     <span t-field="move_operation.product_uom_id" groups="uom.group_uom"/>
                                                 </td>
                                                 <td>

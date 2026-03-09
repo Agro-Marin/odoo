@@ -5,8 +5,7 @@
             <div class="oe_structure"></div>
             <t t-call="web.internal_layout">
                 <div class="page">
-                    <br/>
-                    <h2>Inventory Count Sheet</h2>
+                    <h2 class="mt-4">Inventory Count Sheet</h2>
                     <t t-set="locations" t-value="docs.mapped('location_id')"/>
                     <div class="oe_structure"></div>
                     <table class="table table-borderless">

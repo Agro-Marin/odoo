@@ -23,7 +23,7 @@
                                 <span t-field="o.name" t-options="{'widget': 'barcode', 'img_style': 'width:100%;'}">Default Barcode Name</span>
                                 <span t-out="o.name">Default Name</span>
                             </div>
-                            <div style="margin-top:200px;">
+                            <div style="margin-top: 200px;">
                                 <span t-out="'OBTRETU'" t-options="{'widget': 'barcode', 'img_style': 'width:100%;'}">Default OBTRETU Barcode</span>
                                 <span>OBTRETU</span>
                             </div>

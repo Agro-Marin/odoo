@@ -5,6 +5,12 @@
             <t t-call="web.external_layout">
                 <t t-set="o" t-value="o.with_context(lang=lang)" />
                 <t t-set="forced_vat" t-value="o.fiscal_position_id.foreign_vat"/> <!-- So that it appears in the footer of the report instead of the company VAT if it's set -->
+                <!-- Address block: 3 branches for shipping/billing address layout.
+                     The content is identical across branches — only the wrapper div
+                     name and VAT div id differ. The structure must be preserved because
+                     many localizations (l10n_es, l10n_in, l10n_sk, l10n_cz, l10n_mx_edi)
+                     XPath into the per-branch IDs. Cannot use t-call sub-template because
+                     XPath inheritance operates on source XML, not rendered output. -->
                 <div class="row">
                     <t t-if="o.partner_shipping_id and (o.partner_shipping_id != o.partner_id)">
                         <div class="col-6">
@@ -171,7 +177,7 @@
                         <div class="oe_structure"></div>
                         <t t-set="has_long_desc" t-value="any(line.name and line.name.count('\n') > 30 for line in o.invoice_line_ids if line.name)"/>
                         <table class="o_has_total_table table o_main_table table-borderless mb-0" name="invoice_line_table">
-                            <thead t-attf-style="#{has_long_desc and 'display: table-row-group;' or ''}">
+                            <thead t-att-class="'o_thead_no_repeat' if has_long_desc else ''">
                                 <tr>
                                     <th name="th_description" class="text-start"><span>Description</span></th>
                                     <th name="th_quantity" class="text-end"><span>Quantity</span></th>
@@ -186,7 +192,6 @@
                                 </tr>
                             </thead>
                             <tbody class="invoice_tbody">
-                                <t t-set="lines" t-value="o.invoice_line_ids.sorted(key=lambda l: (-l.sequence, l.date, l.move_name, -l.id), reverse=True)"/>
                                 <t t-set="lines_to_report" t-value="o._get_move_lines_to_report()"/>
                                 <t t-set="current_section" t-value="None"/>
                                 <t t-set="current_subsection" t-value="None"/>
@@ -361,9 +366,9 @@
                             </tbody>
                         </table>
                         <div class="overflow-hidden">
-                            <div id="right-elements" t-attf-class="#{'col-5 mt-5' if report_type == 'pdf' else 'col-12 col-md-5'} ms-5 d-inline-block float-end">
-                                <div id="total" class="clearfix row">
-                                    <div class="ms-auto">
+                            <div id="right-elements" t-attf-class="#{'col-5 mt-5' if report_type == 'pdf' else 'col-12 col-md-5'} ms-auto">
+                                <div id="total">
+                                    <div>
                                         <table class="o_total_table table table-borderless avoid-page-break-inside">
 
                                             <!-- Tax totals summary (invoice currency) -->
@@ -437,15 +442,9 @@
                                           t-field="o.invoice_payment_term_id.note"
                                           name="payment_term">Payment within 30 calendar day</span><br/>
                                     <t t-if="o.invoice_payment_term_id.display_on_invoice and payment_term_details">
-                                        <div t-if='o.show_payment_term_details' id="total_payment_term_details_table" class="row">
-                                            <div t-attf-class="#{'col-10' if report_type != 'html' else 'col-sm-10 col-md-9'}">
+                                        <div t-if='o.show_payment_term_details' id="total_payment_term_details_table">
+                                            <div>
                                                 <t t-if="o._is_eligible_for_early_payment_discount(o.currency_id,o.invoice_date)">
-                                                    <!--
-                                                        This is required in stable to void breaking xpath to show_payment_term_details//td,
-                                                        which is illegal because a td cannot be alone.
-                                                        To be removed in master.
-                                                    -->
-                                                    <table class="d-none"><tbody><tr><td/></tr></tbody></table>
                                                     <div id="early_payment_discount">
                                                         <span t-options='{"widget": "monetary", "display_currency": o.currency_id}'
                                                               t-out="o.invoice_payment_term_id._get_amount_due_after_discount(o.amount_total, o.amount_tax)">30.00</span> due if paid before
@@ -508,7 +507,7 @@
                                     </div>
                                 </div>
                                 <!--terms and conditions-->
-                                <div class="text-muted mb-3" t-attf-style="#{'text-align:justify;text-justify:inter-word;' if o.company_id.terms_type != 'html' else ''}" t-if="not is_html_empty(o.narration)" name="comment">
+                                <div t-attf-class="text-muted mb-3 {{ 'justify-text' if o.company_id.terms_type != 'html' else '' }}" t-if="not is_html_empty(o.narration)" name="comment">
                                     <span t-field="o.narration"/>
                                 </div>
                                 <div class="oe_structure"></div>
@@ -602,10 +601,10 @@
             <t t-set="currency" t-value="o.company_currency_id"/>
             <t t-set="same_tax_base" t-value="tax_totals['same_tax_base']"/>
             <div class="mb-2 mt-3 border p-2 avoid-page-break-inside totals_taxes_company_currency">
+                <p class="tax_computation_company_currency">
+                    Taxes <span t-field="o.company_currency_id"/>
+                </p>
                 <table class="o_total_table table table-borderless mb-0">
-                    <p class="tax_computation_company_currency">
-                        Taxes <span t-field="o.company_currency_id"/>
-                    </p>
                     <t t-foreach="tax_totals['subtotals']" t-as="subtotal">
                         <tr class="o_subtotal">
                             <td>

@@ -7,7 +7,7 @@
                 <div class="page">
                     <t t-call="mrp.mo_overview_content"/>
                 </div>
-                <p style="page-break-before:always;"> </p>
+                <p class="o_page_break_before"> </p>
             </t>
         </t>
     </template>
@@ -85,7 +85,7 @@
                         <td class="text-end" t-if="data['show_bom_costs']">
                             <t t-out="data['extras'].get('total_bom_cost_operations')" t-options="{'widget': 'monetary', 'display_currency': currency}"/>
                         </td>
-                        <td class="text-end" t-if="data['show_real_costs']"> <!-- AJOC TODO add decorator here? more below -->
+                        <td class="text-end" t-if="data['show_real_costs']">
                             <t t-out="data['extras'].get('total_real_cost_operations')" t-options="{'widget': 'monetary', 'display_currency': currency}"/>
                         </td>
                     </tr>
@@ -147,7 +147,7 @@
     <template id="mo_overview_line">
         <tr>
             <td class="text-start">
-                <div t-attf-style="margin-left: {{ line['level'] * 20 }}px" class="d-inline-block" t-out="line['name']"/>
+                <div class="d-inline-block" t-attf-style="margin-left: {{ line['level'] * 20 }}px" t-out="line['name']"/>
             </td>
             <td t-if="data['show_replenishments']" class="text-center" t-out="line.get('formatted_state', '')"/>
             <td t-attf-class="text-end {{ data['get_color'](line.get('quantity_decorator')) }}">
@@ -214,8 +214,7 @@
         <t t-if="operations">
             <tr>
                 <td class="text-start">
-                    <span t-attf-style="margin-left: {{ (operations[0]['level'] - 1 if len(operations) else 0) * 20 }}px"/>
-                    Operations
+                    <span t-attf-style="padding-left: {{ (operations[0]['level'] - 1 if len(operations) else 0) * 20 }}px">Operations</span>
                 </td>
                 <td t-if="data['show_replenishments']" class="text-center"/>
                 <td t-attf-class="text-end {{ data['get_color'](summary.get('quantity_decorator')) }}">
@@ -249,8 +248,7 @@
         <t t-if="byproducts">
             <tr>
                 <td class="text-start">
-                    <span t-attf-style="margin-left: {{ (byproducts[0]['level'] - 1 if len(byproducts) else 0) * 20 }}px"/>
-                    By-Products
+                    <span t-attf-style="padding-left: {{ (byproducts[0]['level'] - 1 if len(byproducts) else 0) * 20 }}px">By-Products</span>
                 </td>
                 <td t-if="data['show_replenishments']" class="text-center"/>
                 <td class="text-end"/>
