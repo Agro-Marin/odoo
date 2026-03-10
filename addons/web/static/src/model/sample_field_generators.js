@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/sample_field_generators - Pure functions generating realistic fake field values by type */
 
@@ -21,7 +22,7 @@ import {
     SAMPLE_TEXTS,
     SUB_RECORDSET_SIZE,
     URL_REGEX,
-} from "./sample_data";
+} from "./sample_data.js";
 
 // ─── Random primitives ──────────────────────────────────────────────────────
 

@@ -1,12 +1,13 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/interaction - Base class for public page interactions with selector matching, dynamic content, and service access */
 
 import { renderToFragment } from "@web/core/utils/render";
 import { debounce, throttleForAnimation } from "@web/core/utils/timing";
 
-import { INITIAL_VALUE, SKIP_IMPLICIT_UPDATE } from "./colibri";
-import { makeAsyncHandler, makeButtonHandler } from "./utils";
+import { INITIAL_VALUE, SKIP_IMPLICIT_UPDATE } from "./colibri.js";
+import { makeAsyncHandler, makeButtonHandler } from "./utils.js";
 /**
  * This is the base class to describe interactions. The Interaction class
  * provides a good integration with the web framework (env/services), a well

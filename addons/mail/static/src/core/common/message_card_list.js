@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Message } from "@mail/core/common/message";
 import { useVisible } from "@mail/utils/common/hooks";
 import { Component, useSubEnv } from "@odoo/owl";

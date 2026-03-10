@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/selection/badge_selection/list_badge_selection_field - List-view variant of the badge selection field with color support */
 
@@ -6,7 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 
-import { BadgeSelectionField, badgeSelectionField } from "./badge_selection_field";
+import { BadgeSelectionField, badgeSelectionField } from "./badge_selection_field.js";
 
 export class ListBadgeSelectionField extends BadgeSelectionField {
     static template = "web.ListBadgeSelectionField";

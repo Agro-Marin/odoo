@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/browser/anchor_scroll - Prevents default scroll on bare "#" anchor clicks */
 
-import { browser } from "./browser";
+import { browser } from "./browser.js";
 
 browser.addEventListener("click", (ev) => {
     const href = /** @type {Element} */ (ev.target).closest("a")?.getAttribute("href");

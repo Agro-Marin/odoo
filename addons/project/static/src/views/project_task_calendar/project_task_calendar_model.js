@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { Domain } from "@web/core/domain";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";

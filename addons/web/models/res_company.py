@@ -2,7 +2,7 @@ import base64
 from typing import Any, Self
 
 from odoo import api, models
-from odoo.orm._typing import ValuesType
+from odoo.api import ValuesType
 
 
 class ResCompany(models.Model):

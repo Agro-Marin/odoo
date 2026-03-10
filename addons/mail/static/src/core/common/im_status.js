@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Typing } from "@mail/discuss/typing/common/typing";
 import { Component } from "@odoo/owl";
 

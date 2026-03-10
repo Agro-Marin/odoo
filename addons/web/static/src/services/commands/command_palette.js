@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/commands/command_palette - Command palette dialog with fuzzy search, namespaces, and keyboard navigation */
 
@@ -23,7 +24,7 @@ import { debounce } from "@web/core/utils/timing";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-/** @import { Command } from "./command_service" */
+/** @import { Command } from "./command_service.js" */
 
 const DEFAULT_PLACEHOLDER = _t("Search...");
 const DEFAULT_EMPTY_MESSAGE = _t("No result found");

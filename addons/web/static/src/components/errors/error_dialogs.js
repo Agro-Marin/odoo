@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/errors/error_dialogs - Error dialog components for RPC, client, network, and validation errors */
 
@@ -82,7 +83,7 @@ export class ErrorDialog extends Component {
         });
         this.copyButtonRef = useRef("copyButton");
         this.popover = usePopover(Tooltip);
-        this.contextDetails = "Occured ";
+        this.contextDetails = "Occurred ";
         if (this.props.serverHost) {
             this.contextDetails += `on ${this.props.serverHost} `;
         }

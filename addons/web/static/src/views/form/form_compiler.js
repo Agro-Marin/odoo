@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/form_compiler - Compiles form view XML arch into OWL template AST with layout, notebook, and field handling */
 
@@ -31,9 +32,12 @@ function appendAttf(el, attr, string) {
 }
 
 function appendToExpr(expr, string) {
+    if (!expr) {
+        return `{{${string} }}`;
+    }
     const re = /{{.*}}/;
     const oldString = re.exec(expr);
-    return oldString ? `${oldString} {{${string} }}` : `{{${string} }}`;
+    return oldString ? `${oldString} {{${string} }}` : `${expr} {{${string} }}`;
 }
 
 /**

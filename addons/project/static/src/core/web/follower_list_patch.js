@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { FollowerList } from "@mail/core/web/follower_list";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";

@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { ProjectTaskControlPanel } from "../project_task_control_panel/project_task_control_panel.js";
 import { registry } from "@web/core/registry";
 import { ProjectTaskPivotModel } from "./project_task_pivot_model.js";

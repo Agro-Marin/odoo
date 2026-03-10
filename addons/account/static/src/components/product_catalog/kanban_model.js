@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { ProductCatalogKanbanModel } from "@product/product_catalog/kanban_model";
 import { patch } from "@web/core/utils/patch";
 

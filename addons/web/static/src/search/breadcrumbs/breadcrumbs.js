@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/breadcrumbs/breadcrumbs - Navigation breadcrumb trail showing the action stack with back-navigation */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/file_upload/file_upload_progress_bar - Progress bar with cancel button for active file uploads */
 

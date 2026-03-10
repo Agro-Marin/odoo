@@ -40,7 +40,7 @@
                                     t-on-mouseover="onMouseEnter" t-on-mouseout="onMouseLeave">
                                     <t t-if="cell.value !== undefined">
                                         <div t-if="model.metaData.measures[cell.measure].type === 'boolean'" class="o_value">
-                                            <CheckBox disabled="true" value="cell.value" />
+                                            <CheckBox disabled="true" value="!!cell.value" />
                                         </div>
                                         <div t-else="" class="o_value">
                                             <t t-set="formattedValue" t-value="getFormattedValue(cell)"/>

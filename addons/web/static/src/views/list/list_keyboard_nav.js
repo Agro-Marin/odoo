@@ -1,13 +1,14 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_keyboard_nav - Keyboard navigation hook for arrow, tab, and enter key traversal across list view cells */
 
-/** @odoo-module **/
+/** @odoo-module */
 
 import { getTabableElements } from "@web/core/utils/dom/ui";
 import { useBus } from "@web/core/utils/hooks";
 
-import { makeEditHandlers } from "./list_keyboard_edit";
+import { makeEditHandlers } from "./list_keyboard_edit.js";
 /**
  * @param {HTMLTableCellElement} cell
  * @param {number} [index]

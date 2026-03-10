@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Message } from "@mail/core/common/message";
 import { messageActionOpenFullComposer } from "@mail/core/web/message_actions_patch";
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";

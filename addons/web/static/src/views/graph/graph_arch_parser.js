@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/graph/graph_arch_parser - Parses graph view XML arch into chart mode, measures, groupBy, and display flags */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/legacy/js/public/public_widget - Legacy widget framework for public pages with parent-child lifecycle and DOM event handling */
 
@@ -225,9 +226,9 @@ const EventDispatcherMixin = Object.assign({}, ParentedMixin, {
      * Proxies a method of the object, in order to keep the right ``this`` on
      * method invocations.
      *
-     * This method is similar to ``Function.prototype.bind``, and
-     * even more so to ``jQuery.proxy`` with a fundamental difference: its
-     * resolution of the method being called is lazy, meaning it will use the
+     * This method is similar to ``Function.prototype.bind`` with a fundamental
+     * difference: the resolution of the method being called is lazy, meaning
+     * it will use the
      * method as it is when the proxy is called, not when the proxy is created.
      *
      * Other methods will fix the bound method to what it is when creating the
@@ -801,7 +802,7 @@ export const PublicWidget = Class.extend(EventDispatcherMixin, ServicesMixin, {
             const event = match[1];
             const selector = match[3];
 
-            // Strip jQuery-style namespaces (e.g. "click.widget_events" → "click")
+            // Strip dot-namespaces (e.g. "click.widget_events" → "click")
             const eventName = event.split(".")[0];
 
             if (!selector) {

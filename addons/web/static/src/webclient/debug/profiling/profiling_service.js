@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/debug/profiling/profiling_service - Service managing Python profiling session state, collector toggles, and systray indicator */
 
@@ -6,8 +7,8 @@ import { EventBus, reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
 
-import { ProfilingItem } from "./profiling_item";
-import { profilingSystrayItem } from "./profiling_systray_item";
+import { ProfilingItem } from "./profiling_item.js";
+import { profilingSystrayItem } from "./profiling_systray_item.js";
 
 const systrayRegistry = registry.category("systray");
 

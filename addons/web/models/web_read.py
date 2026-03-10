@@ -11,7 +11,7 @@ from typing import Any
 from odoo import api, models
 from odoo.api import NewId
 from odoo.exceptions import AccessError
-from odoo.orm._typing import DomainType
+from odoo.api import DomainType
 from odoo.tools import OrderedSet
 
 
@@ -128,10 +128,34 @@ class Base(models.AbstractModel):
         }
 
     def web_save(
-        self, vals, specification: dict[str, dict], next_id=None
+        self, vals, specification: dict[str, dict], next_id=None, last_write_date=None
     ) -> list[dict]:
-        """Create or write a record and return it formatted per *specification*."""
+        """Create or write a record and return it formatted per *specification*.
+
+        When *last_write_date* is provided (ISO 8601 string), the method
+        verifies that the record has not been modified by another user since
+        the client last read it.  A ``ConcurrencyError`` is raised if the
+        server's ``write_date`` is more recent, preventing silent data loss
+        from concurrent edits.
+        """
         if self:
+            if last_write_date and 'write_date' in self._fields:
+                # Read directly from DB to avoid ORM cache (which may be stale
+                # if another user's write happened in a different transaction).
+                self.env.cr.execute(
+                    "SELECT write_date FROM %s WHERE id = %%s" % self._table,
+                    (self.id,),
+                )
+                row = self.env.cr.fetchone()
+                server_write_date = row[0] if row else None
+                from odoo.fields import Datetime as FieldsDatetime
+                client_dt = FieldsDatetime.to_datetime(last_write_date)
+                if server_write_date and client_dt and server_write_date > client_dt:
+                    from odoo.exceptions import ConcurrencyError
+                    raise ConcurrencyError(
+                        "This record was modified by another user.\n"
+                        "Please reload and re-apply your changes."
+                    )
             self.write(vals)
             record = self
         else:

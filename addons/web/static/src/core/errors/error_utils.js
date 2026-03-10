@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/errors/error_utils - Traceback formatting, source-map annotation, and error chain utilities */
 

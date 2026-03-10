@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module views/list/list_group_layout - Group header layout utilities for ListRenderer */
 

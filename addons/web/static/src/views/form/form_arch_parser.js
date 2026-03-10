@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/form_arch_parser - Parses form view XML arch into field/widget descriptors, active actions, and autofocus targets */
 

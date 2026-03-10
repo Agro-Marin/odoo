@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list/list_controller";
 export class ArchiveDisabledListController extends ListController {

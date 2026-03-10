@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/user_groups/res_user_group_ids_privilege_field - Boolean/selection field for privilege toggles within the dynamically generated access rights form */
 
@@ -9,7 +10,7 @@ import { SelectionField } from "@web/fields/selection/selection/selection_field"
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { ResUserGroupIdsPopover } from "./res_user_group_ids_popover";
+import { ResUserGroupIdsPopover } from "./res_user_group_ids_popover.js";
 
 /**
  * /!\ This widget is not meant to be used anywhere else than inside form view

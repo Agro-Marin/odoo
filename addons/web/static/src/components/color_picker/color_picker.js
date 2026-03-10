@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/color_picker/color_picker - Full-featured color picker with preset palette, custom colors, and gradient support */
 

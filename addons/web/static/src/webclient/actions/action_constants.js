@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/action_constants - Constants (dialog sizes, context key regex, embedded action keys) and ID parsing for the action service */
 

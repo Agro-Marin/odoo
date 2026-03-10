@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/settings_form_compiler - Compiler transforming settings arch (app/block elements) into SettingsPage/SettingsApp components */
 

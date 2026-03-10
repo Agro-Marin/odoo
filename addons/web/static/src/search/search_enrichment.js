@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/search_enrichment - Pure search-item enrichment producing activated copies with period/interval metadata */
 
@@ -10,7 +11,7 @@
  * values attached — without mutating any state.
  */
 
-import { getPeriodOptions } from "./utils/dates";
+import { getPeriodOptions } from "./utils/dates.js";
 
 /**
  * Enrich option descriptors with an `isActive` flag.

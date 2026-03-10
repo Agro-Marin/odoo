@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/calendar_common/calendar_common_week_column - Inserts week-number columns into FullCalendar grid headers and body rows */
 

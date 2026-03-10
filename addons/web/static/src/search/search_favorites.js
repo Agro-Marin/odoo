@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module search/search_favorites - Favorites/ir.filters utilities for SearchModel */
 
@@ -8,7 +9,7 @@ import { makeContext } from "@web/core/context";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { user } from "@web/services/user";
 
-import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state";
+import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js";
 
 /**
  * Convert an ir.filter record to a favorite search item.

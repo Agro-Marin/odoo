@@ -116,6 +116,12 @@ class Binary(http.Controller):
         nocache: bool = False,
         assets_params: dict[str, Any] | None = None,
     ) -> Response:
+        """Serve a compiled asset bundle (JS or CSS).
+
+        Looks up the pre-compiled attachment by version hash.  If missing,
+        generates the bundle on the fly and stores it for future requests.
+        Versioned assets are served with immutable, long-lived cache headers.
+        """
         env = request.env  # readonly
         assets_params = assets_params or {}
         if not isinstance(assets_params, dict):
@@ -289,15 +295,15 @@ class Binary(http.Controller):
         model: str,
         id: int | str,
         ufile: Any,
-        callback: str | None = None,
     ) -> str:
+        """Upload one or more files and create ir.attachment records.
+
+        Returns a JSON list of dicts, each containing ``filename``,
+        ``mimetype``, ``id``, ``size`` on success, or ``error`` on failure.
+        """
         files = request.httprequest.files.getlist("ufile")
-        Model = request.env["ir.attachment"]
-        out = """<script language="javascript" type="text/javascript">
-                    var win = window.top.window;
-                    win.jQuery(win).trigger(%s, %s);
-                </script>"""
-        args = []
+        Attachment = request.env["ir.attachment"]
+        results = []
         for uploaded_file in files:
             filename = uploaded_file.filename
             if request.httprequest.user_agent.browser == "safari":
@@ -306,7 +312,7 @@ class Binary(http.Controller):
                 filename = unicodedata.normalize("NFD", uploaded_file.filename)
 
             try:
-                attachment = Model.create(
+                attachment = Attachment.create(
                     {
                         "name": filename,
                         "raw": uploaded_file.read(),
@@ -316,16 +322,16 @@ class Binary(http.Controller):
                 )
                 attachment._post_add_create()
             except AccessError:
-                args.append(
+                results.append(
                     {"error": _("You are not allowed to upload an attachment here.")}
                 )
             except Exception:
-                args.append({"error": _("Something horrible happened")})
+                results.append({"error": _("Something horrible happened")})
                 _logger.exception(
                     "Fail to upload attachment %s", uploaded_file.filename
                 )
             else:
-                args.append(
+                results.append(
                     {
                         "filename": clean(filename),
                         "mimetype": attachment.mimetype,
@@ -333,11 +339,7 @@ class Binary(http.Controller):
                         "size": attachment.file_size,
                     }
                 )
-        return (
-            out % (json_dumps(clean(callback)), json_dumps(args))
-            if callback
-            else json_dumps(args)
-        )
+        return json_dumps(results)
 
     @http.route(
         [
@@ -363,7 +365,7 @@ class Binary(http.Controller):
         else:
             try:
                 try:
-                    company = int(kw["company"]) if kw and kw.get("company") else False
+                    company = int(kw["company"]) if kw.get("company") else False
                 except ValueError, TypeError:
                     company = False
                 if company:

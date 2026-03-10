@@ -191,10 +191,11 @@ class Currency extends models.Model {
         ],
     });
     inverse_rate = fields.Float();
+    rate_date = fields.Date();
 
     _records = [
-        { id: 1, name: "USD", symbol: "$", position: "before", inverse_rate: 1 },
-        { id: 2, name: "EUR", symbol: "€", position: "after", inverse_rate: 0.5 },
+        { id: 1, name: "USD", symbol: "$", position: "before", inverse_rate: 1, rate_date: "2025-06-13" },
+        { id: 2, name: "EUR", symbol: "€", position: "after", inverse_rate: 0.5, rate_date: "2025-06-13" },
     ];
 }
 
@@ -4880,7 +4881,7 @@ test(`monetary aggregates in grouped list`, async () => {
     expect(`.o_list_footer .o_list_number span:first`).toHaveText("$ 1,400.00?");
     await toggleMultiCurrencyPopover(".o_list_footer .o_list_number span:first sup");
     expect(".o_multi_currency_popover").toHaveCount(1);
-    expect(".o_multi_currency_popover").toHaveText("2,800.00 € at $ 0.50");
+    expect(".o_multi_currency_popover").toHaveText("2,800.00 € at $ 0.50 on Jun 13, 2025");
 });
 
 test(`monetary aggregates in grouped list (!= currencies in same group)`, async () => {
@@ -5167,7 +5168,7 @@ test(`aggregates monetary (different currencies)`, async () => {
     expect(`tfoot`).toHaveText("$ 1,400.00?");
     await toggleMultiCurrencyPopover("tfoot span sup");
     expect(".o_multi_currency_popover").toHaveCount(1);
-    expect(".o_multi_currency_popover").toHaveText("2,800.00 € at $ 0.50");
+    expect(".o_multi_currency_popover").toHaveText("2,800.00 € at $ 0.50 on Jun 13, 2025");
 });
 
 test(`aggregates monetary (currency field not in view)`, async () => {
@@ -5242,13 +5243,17 @@ test(`aggregates monetary (currency field not set)`, async () => {
         "300.00",
         "0.00",
     ]);
-    expect(`tfoot`).toHaveText("$ 0.00?");
+    expect(`tfoot`).toHaveText("$ 2,000.00?");
+    await toggleMultiCurrencyPopover("tfoot span sup");
+    expect(".o_multi_currency_popover").toHaveCount(1);
+    expect(".o_multi_currency_popover").toHaveText("2,000.00 without currency");
 });
 
 test(`aggregates monetary (currency field not set on first record)`, async () => {
     Foo._fields.amount = fields.Monetary({ currency_field: "currency_test" });
     Foo._fields.currency_test = fields.Many2one({ relation: "res.currency" });
     Foo._records[1].currency_test = 1;
+    Foo._records[2].currency_test = 2;
 
     await mountView({
         resModel: "foo",
@@ -5263,10 +5268,15 @@ test(`aggregates monetary (currency field not set on first record)`, async () =>
     expect(queryAllTexts(`tbody .o_monetary_cell`)).toEqual([
         "1,200.00",
         "$ 500.00",
-        "300.00",
+        "300.00 €",
         "0.00",
     ]);
-    expect(`tfoot`).toHaveText("$ 0.00?");
+    expect(`tfoot`).toHaveText("$ 1,850.00?");
+    await toggleMultiCurrencyPopover("tfoot span sup");
+    expect(".o_multi_currency_popover").toHaveCount(1);
+    expect(".o_multi_currency_popover").toHaveText(
+        "3,700.00 € at $ 0.50 on Jun 13, 2025\n1,850.00 without currency"
+    );
 });
 
 test(`aggregates monetary with custom digits (same currency)`, async () => {

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 export const simpleNotificationService = {
     dependencies: ["bus_service", "notification"],

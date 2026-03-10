@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/properties/property_value - Polymorphic value editor component supporting all property field types */
 
@@ -31,8 +32,8 @@ import {
 } from "@web/fields/relational/many2x_autocomplete";
 import { getCurrency } from "@web/services/currency";
 
-import { PropertyTags } from "./property_tags";
-import { PropertyText } from "./property_text";
+import { PropertyTags } from "./property_tags.js";
+import { PropertyText } from "./property_text.js";
 
 /**
  * Represent one property value.
@@ -247,7 +248,7 @@ export class PropertyValue extends Component {
         } else if (this.props.type === "date" && value) {
             return formatDate(value);
         } else if (this.props.type === "selection") {
-            return this.props.selection.find((option) => option[0] === value)[1];
+            return this.props.selection.find((option) => option[0] === value)?.[1] ?? value;
         }
         return value.toString();
     }
@@ -417,6 +418,6 @@ export class PropertyValue extends Component {
                 context: this.props.context,
             },
         );
-        return result[0];
+        return result[0] || { id: recordId, display_name: false };
     }
 }

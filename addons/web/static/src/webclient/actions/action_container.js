@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/action_container - Thin OWL wrapper rendering the current action's component inside the action manager div */
 

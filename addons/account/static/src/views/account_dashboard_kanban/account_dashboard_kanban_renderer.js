@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 import { DashboardKanbanRecord } from "./account_dashboard_kanban_record.js";
 

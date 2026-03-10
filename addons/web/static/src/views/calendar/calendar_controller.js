@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/calendar_controller - Calendar view orchestrator: date navigation, event CRUD, quick-create, and multi-selection */
 
@@ -23,8 +24,8 @@ import { MultiSelectionButtons } from "@web/views/view_components/multi_selectio
 import { ViewScaleSelector } from "@web/views/view_components/view_scale_selector";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
-import { CalendarMobileFilterPanel } from "./mobile_filter_panel/calendar_mobile_filter_panel";
-import { CalendarQuickCreate } from "./quick_create/calendar_quick_create";
+import { CalendarMobileFilterPanel } from "./mobile_filter_panel/calendar_mobile_filter_panel.js";
+import { CalendarQuickCreate } from "./quick_create/calendar_quick_create.js";
 
 const { DateTime } = luxon;
 

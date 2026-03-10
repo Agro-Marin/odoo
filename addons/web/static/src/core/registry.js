@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/registry - Hierarchical key-value store for services, components, fields, and actions */
 
@@ -80,8 +81,12 @@ export class Registry extends EventBus {
      */
     constructor(name) {
         super();
-        /** @type {Record<string, [number, GetRegistryItemShape<T>]>}*/
-        this.content = {};
+        /**
+         * Null-prototype object prevents false positives from inherited
+         * keys like "constructor" or "toString" in contains()/get().
+         * @type {Record<string, [number, GetRegistryItemShape<T>]>}
+         */
+        this.content = Object.create(null);
         /** @type {{ [P in keyof GetRegistryCategories<T>]?: Registry<GetRegistryCategories<T>[P]> }} */
         this.subRegistries = {};
         /** @type {GetRegistryItemShape<T>[]}*/
@@ -161,31 +166,43 @@ export class Registry extends EventBus {
      * Get a list of all elements in the registry. Note that it is ordered
      * according to the sequence numbers.
      *
-     * @returns {GetRegistryItemShape<T>[]}
+     * Returns a frozen cached array — callers that need a mutable copy
+     * should spread it: ``[...registry.getAll()]``.
+     *
+     * @returns {ReadonlyArray<GetRegistryItemShape<T>>}
      */
     getAll() {
         if (!this.elements) {
-            const content = Object.values(this.content).sort(
-                (el1, el2) => el1[0] - el2[0],
-            );
-            this.elements = content.map((elem) => elem[1]);
+            const tuples = Object.values(this.content);
+            tuples.sort((a, b) => a[0] - b[0]);
+            const elements = new Array(tuples.length);
+            for (let i = 0; i < tuples.length; i++) {
+                elements[i] = tuples[i][1];
+            }
+            this.elements = Object.freeze(elements);
         }
-        return this.elements.slice();
+        return this.elements;
     }
 
     /**
      * Return a list of all entries, ordered by sequence numbers.
      *
-     * @returns {[string, GetRegistryItemShape<T>][]}
+     * Returns a frozen cached array — callers that need a mutable copy
+     * should spread it: ``[...registry.getEntries()]``.
+     *
+     * @returns {ReadonlyArray<[string, GetRegistryItemShape<T>]>}
      */
     getEntries() {
         if (!this.entries) {
-            const entries = Object.entries(this.content).sort(
-                (el1, el2) => el1[1][0] - el2[1][0],
-            );
-            this.entries = entries.map(([str, elem]) => [str, elem[1]]);
+            const raw = Object.entries(this.content);
+            raw.sort((a, b) => a[1][0] - b[1][0]);
+            const entries = new Array(raw.length);
+            for (let i = 0; i < raw.length; i++) {
+                entries[i] = [raw[i][0], raw[i][1][1]];
+            }
+            this.entries = Object.freeze(entries);
         }
-        return this.entries.slice();
+        return this.entries;
     }
 
     /**
@@ -247,18 +264,17 @@ export const registry = new Registry();
  * @returns {{ entries: [string, GetRegistryItemShape<T>][] }}
  */
 export function useRegistry(registry) {
-    const state = useState({ entries: registry.getEntries() });
+    const state = useState({ entries: [...registry.getEntries()] });
     const listener = ({ detail }) => {
         const index = state.entries.findIndex(([k]) => k === detail.key);
         if (detail.operation === "add" && index === -1) {
             // New key: insert at the correct sorted position.
             const newEntries = registry.getEntries();
-            const newEntry = newEntries.find(([k]) => k === detail.key);
-            const newIndex = newEntries.indexOf(newEntry);
+            const newIndex = newEntries.findIndex(([k]) => k === detail.key);
             if (newIndex === newEntries.length - 1) {
-                state.entries.push(newEntry);
+                state.entries.push(newEntries[newIndex]);
             } else {
-                state.entries.splice(newIndex, 0, newEntry);
+                state.entries.splice(newIndex, 0, newEntries[newIndex]);
             }
         } else if (detail.operation === "add" && index !== -1) {
             // Force-replace: update value and reposition if sequence changed.
@@ -266,11 +282,10 @@ export function useRegistry(registry) {
             // match newEntries minus the replaced key, so inserting at newIndex
             // always produces the correct sorted result.
             const newEntries = registry.getEntries();
-            const newEntry = newEntries.find(([k]) => k === detail.key);
-            if (newEntry) {
-                const newIndex = newEntries.indexOf(newEntry);
+            const newIndex = newEntries.findIndex(([k]) => k === detail.key);
+            if (newIndex !== -1) {
                 state.entries.splice(index, 1);
-                state.entries.splice(newIndex, 0, newEntry);
+                state.entries.splice(newIndex, 0, newEntries[newIndex]);
             }
         } else if (detail.operation === "delete" && index >= 0) {
             state.entries.splice(index, 1);

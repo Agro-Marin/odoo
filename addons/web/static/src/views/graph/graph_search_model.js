@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/graph/graph_search_model - SearchModel extension restoring graph_groupbys from saved favorites */
 

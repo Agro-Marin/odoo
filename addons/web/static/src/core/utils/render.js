@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/render - Render QWeb templates to Element, DocumentFragment, Markup, or string */
 

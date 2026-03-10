@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/user_groups/res_user_group_ids_field - Field widget for visualizing and configuring res.users access rights (group_ids) */
 

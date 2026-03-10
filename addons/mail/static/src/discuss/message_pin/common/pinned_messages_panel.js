@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { MessageCardList } from "@mail/core/common/message_card_list";
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";

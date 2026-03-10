@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/legacy/js/public/lazyloader - Lazy script loader that defers event handling until all JS bundles are loaded */
 

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Component, useExternalListener, useRef, useState, useSubEnv } from "@odoo/owl";
 import { usePosition } from "@web/core/position/position_hook";
 import { useNavigation } from "@web/services/navigation/navigation";

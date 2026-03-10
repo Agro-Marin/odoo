@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { dataUrlToBlob } from "@mail/core/common/attachment_uploader_hook";
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";

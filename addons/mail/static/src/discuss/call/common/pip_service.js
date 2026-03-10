@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 
-import { Meeting } from "./meeting";
+import { Meeting } from "./meeting.js";
 export const callPipService = {
     dependencies: ["mail.popout"],
 

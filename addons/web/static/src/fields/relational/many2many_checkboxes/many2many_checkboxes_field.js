@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2many_checkboxes/many2many_checkboxes_field - Checkbox group field for Many2many relations */
 
@@ -11,7 +12,7 @@ import { debounce } from "@web/core/utils/timing";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 
-import { useSpecialData } from "../special_data";
+import { useSpecialData } from "../special_data.js";
 
 export class Many2ManyCheckboxesField extends Component {
     static template = "web.Many2ManyCheckboxesField";
@@ -36,11 +37,12 @@ export class Many2ManyCheckboxesField extends Component {
         this.idsToAdd = new Set();
         this.idsToRemove = new Set();
         this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 500);
-        useBus(
-            this.props.record.model.bus,
-            "NEED_LOCAL_CHANGES",
-            this.commitChanges.bind(this),
-        );
+        useBus(this.props.record.model.bus, "NEED_LOCAL_CHANGES", (ev) => {
+            const result = this.commitChanges();
+            if (result) {
+                ev.detail.proms.push(result);
+            }
+        });
         onWillUnmount(this.commitChanges.bind(this));
     }
 

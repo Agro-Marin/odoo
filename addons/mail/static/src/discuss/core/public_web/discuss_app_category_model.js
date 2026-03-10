@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { fields, Record } from "@mail/core/common/record";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/html/html_field - Simple HTML field widget extending TextField for Html columns */
 

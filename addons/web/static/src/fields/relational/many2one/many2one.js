@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2one/many2one - Core Many2One autocomplete component with search, navigation, and barcode support */
 
@@ -13,7 +14,7 @@ import { useService } from "@web/core/utils/hooks";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete";
+import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.js";
 
 ///////////////////////////////////////////////////////////////////////////////
 // UTILS
@@ -127,7 +128,7 @@ export class Many2One extends Component {
         canScanBarcode: false,
         canWrite: true,
         context: {},
-        domain: [],
+        domain: () => [],
         linkCssClass: "",
         nameCreateField: "name",
         otherSources: [],

@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/utils/group_by - Group-by descriptor parser and interval validation for search queries */
 
-import { BACKEND_INTERVAL_OPTIONS, DEFAULT_INTERVAL } from "./dates";
+import { BACKEND_INTERVAL_OPTIONS, DEFAULT_INTERVAL } from "./dates.js";
 
 /**
  * @param {string} descr

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { FollowerSubtypeDialog } from "@mail/core/web/follower_subtype_dialog";
 import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";

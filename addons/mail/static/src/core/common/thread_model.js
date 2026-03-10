@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { AND, fields, Record } from "@mail/core/common/record";
 import { generateEmojisOnHtml } from "@mail/utils/common/format";
 import { assignDefined } from "@mail/utils/common/misc";

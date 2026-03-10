@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/title_service - Manages the document title with named parts and notification counters */
 

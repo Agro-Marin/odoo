@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/utils - PairSet data structure and button click handler utilities for public pages */
 
@@ -43,7 +44,7 @@ export const BUTTON_HANDLER_SELECTOR =
  * @param {function} fct
  *      The function which is to be used as a handler. If a promise
  *      is returned, it is used to determine when the handler's action is
- *      finished. Otherwise, the return is used as jQuery uses it.
+ *      finished.
  */
 export function makeAsyncHandler(fct) {
     let pending = false;
@@ -82,7 +83,7 @@ export function makeAsyncHandler(fct) {
  * @param {function} fct
  *      The function which is to be used as a button click handler. If a
  *      promise is returned, it is used to determine when the button can be
- *      re-enabled. Otherwise, the return is used as jQuery uses it.
+ *      re-enabled.
  */
 export function makeButtonHandler(fct) {
     // Fallback: if the final handler is not bound to a button, at least

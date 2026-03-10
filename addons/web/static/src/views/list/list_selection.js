@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_selection - Hook for checkbox selection, shift-range selection, and long-touch selection in list views */
 
-/** @odoo-module **/
+/** @odoo-module */
 
 import { useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

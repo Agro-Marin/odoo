@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/iframe_wrapper/iframe_wrapper_field - Iframe wrapper that renders HTML field content inside an isolated iframe */
 

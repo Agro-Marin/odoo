@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dom/events - Mark and query DOM events as handled during propagation */
 
@@ -11,10 +12,8 @@ const eventHandledWeakMap = new WeakMap();
  * @returns {boolean}
  */
 export function isEventHandled(ev, markName) {
-    if (!eventHandledWeakMap.get(ev)) {
-        return false;
-    }
-    return eventHandledWeakMap.get(ev).includes(markName);
+    const marks = eventHandledWeakMap.get(ev);
+    return marks ? marks.includes(markName) : false;
 }
 /**
  * Marks the given event as handled by the given markName. Useful to allow
@@ -25,8 +24,10 @@ export function isEventHandled(ev, markName) {
  * @param {string} markName
  */
 export function markEventHandled(ev, markName) {
-    if (!eventHandledWeakMap.get(ev)) {
-        eventHandledWeakMap.set(ev, []);
+    let marks = eventHandledWeakMap.get(ev);
+    if (!marks) {
+        marks = [];
+        eventHandledWeakMap.set(ev, marks);
     }
-    eventHandledWeakMap.get(ev).push(markName);
+    marks.push(markName);
 }

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/calendar_date_range - Pure date range computation and domain construction for calendar views */
 

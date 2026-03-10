@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/l10n/utils - Re-exports format_list, locales, and normalize l10n utilities */
 

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Composer } from "@mail/core/common/composer";
 import { Typing } from "@mail/discuss/typing/common/typing";
 import { onWillDestroy } from "@odoo/owl";

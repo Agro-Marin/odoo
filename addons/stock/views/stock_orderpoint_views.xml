@@ -291,12 +291,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_reordering_rules_replenish"
-        name="Replenishment"
-        parent="menu_stock_procurement"
-        action="action_replenishment"
-        sequence="5"
-        groups="stock.group_stock_manager" />
-
 </odoo>

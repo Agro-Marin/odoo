@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/utils - Barrel re-export of field metadata, spec, values, and context utilities for external consumers */
 
@@ -11,7 +12,7 @@ export {
     getFieldDomain,
     getId,
     isRelational,
-} from "./field_context";
+} from "./field_context.js";
 export {
     addFieldDependencies,
     combineModifiers,
@@ -20,8 +21,8 @@ export {
     extractFieldsFromArchInfo,
     makeActiveField,
     patchActiveFields,
-} from "./field_metadata";
-export { getFieldsSpec } from "./field_spec";
+} from "./field_metadata.js";
+export { getFieldsSpec } from "./field_spec.js";
 export {
     AGGREGATABLE_FIELD_TYPES,
     extractInfoFromGroupData,
@@ -29,4 +30,4 @@ export {
     getAggregateSpecifications,
     getGroupServerValue,
     parseServerValue,
-} from "./field_values";
+} from "./field_values.js";

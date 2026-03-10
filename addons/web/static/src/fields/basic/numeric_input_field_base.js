@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/numeric_input_field_base - Abstract base class for numeric input fields with shared focus and parse logic */
 

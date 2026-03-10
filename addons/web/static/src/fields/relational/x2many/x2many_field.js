@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/x2many/x2many_field - Full-featured x2many field with embedded list/kanban sub-views and CRUD controls */
 
@@ -14,10 +15,10 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
 
-import { useSelectCreate } from "../many2x_autocomplete";
-import { useActiveActions } from "../relational_active_actions";
-import { useAddInlineRecord, useX2ManyCrud } from "../x2many_crud";
-import { useOpenX2ManyRecord } from "../x2many_dialog";
+import { useSelectCreate } from "../many2x_autocomplete.js";
+import { useActiveActions } from "../relational_active_actions.js";
+import { useAddInlineRecord, useX2ManyCrud } from "../x2many_crud.js";
+import { useOpenX2ManyRecord } from "../x2many_dialog.js";
 
 const shared = registry.category("shared_components");
 const views = registry.category("views");
@@ -300,7 +301,7 @@ export class X2ManyField extends Component {
                 );
             }
             newResIds.sort((x, y) => x - y);
-            resId = newResIds[newRecordIndex];
+            resId = newRecordIndex >= 0 ? newResIds[newRecordIndex] : newResIds.at(-1);
         } else {
             const saved = await this.props.record.save();
             if (!saved) {

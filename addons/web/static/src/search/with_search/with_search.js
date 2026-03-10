@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/with_search/with_search - Wrapper component that creates a SearchModel and injects it into the sub-environment */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/block/block_ui - Full-screen overlay component that blocks UI during long-running operations */
 
@@ -79,7 +80,7 @@ export class BlockUI extends Component {
         const delay = ev.detail?.delay;
         if (delay) {
             this.state.blockState = this.BLOCK_STATES.BLOCKED;
-            this.showBlockedUITimer = setTimeout(showBlockedUI, delay);
+            this.showBlockedUITimer = browser.setTimeout(showBlockedUI, delay);
         } else {
             showBlockedUI();
         }

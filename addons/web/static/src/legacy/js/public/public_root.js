@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/legacy/js/public/public_root - Legacy PublicRoot widget that bootstraps the OWL app and public widget registry */
 
@@ -17,7 +18,10 @@ import { App, Component, whenReady } from "@odoo/owl";
 import { RPCError } from "@web/core/network/rpc";
 import { patch } from "@web/core/utils/patch";
 
-const { Settings } = luxon;
+// Accessed lazily — luxon is a global from a legacy bundle that may not be
+// available yet when this native ESM module first evaluates (e.g. error pages).
+/** @type {() => import("luxon").Settings} */
+const getLuxonSettings = () => luxon.Settings;
 
 // Load localizations outside the PublicRoot to not wait for DOM ready (but
 // wait for them in PublicRoot)
@@ -105,9 +109,9 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
         }
 
         // Auto scroll
-        if (window.location.hash.indexOf("scrollTop=") > -1) {
-            this.el.scrollTop =
-                +window.location.hash.match(/scrollTop=([0-9]+)/)[1];
+        const scrollTopMatch = window.location.hash.match(/scrollTop=([0-9]+)/);
+        if (scrollTopMatch) {
+            this.el.scrollTop = +scrollTopMatch[1];
         }
 
         return Promise.all(defs);
@@ -343,7 +347,7 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
                 throw e;
             }
         } finally {
-            this.stopFromEventHandler = true;
+            this.startFromEventHandler = false;
         }
     },
     /**
@@ -435,7 +439,7 @@ export async function createPublicRoot(RootWidget) {
         translatableAttributes: ["data-tooltip"],
     });
     const locale = pyToJsLocale(lang) || browser.navigator.language;
-    Settings.defaultLocale = locale;
+    getLuxonSettings().defaultLocale = locale;
     const [root] = await Promise.all([
         app.mount(document.body),
         publicRoot.attachTo(document.body),

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { useAssignUserCommand } from "@mail/views/web/fields/assign_user_command_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
@@ -13,7 +14,7 @@ import {
 } from "@web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { Many2XAvatarUserAutocomplete } from "../avatar_autocomplete/avatar_many2x_autocomplete";
+import { Many2XAvatarUserAutocomplete } from "../avatar_autocomplete/avatar_many2x_autocomplete.js";
 
 export class Many2ManyAvatarUserTagsList extends TagsList {
     static template = "mail.Many2ManyAvatarUserTagsList";

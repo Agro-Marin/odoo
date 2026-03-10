@@ -210,11 +210,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_action_stock_lot_form"
-        parent="menu_stock_inventory_control"
-        action="action_stock_lot_form"
-        sequence="101"
-        groups="stock.group_production_lot" />
-
 </odoo>

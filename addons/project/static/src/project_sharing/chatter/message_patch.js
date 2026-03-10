@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { Message } from "@mail/core/common/message";
 
 import { patch } from "@web/core/utils/patch";

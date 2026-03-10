@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/dropdown/dropdown_hooks - Reactive DropdownState class and hooks for open/close control */
 

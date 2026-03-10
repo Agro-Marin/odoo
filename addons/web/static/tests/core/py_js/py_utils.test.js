@@ -46,9 +46,9 @@ describe("formatAST", () => {
     test("simple arithmetic", () => {
         expect(checkAST("1 + 2", "addition")).toBe(true);
         expect(checkAST("+(1 + 2)", "other addition, prefix")).toBe(true);
-        expect(checkAST("1 - 2", "substraction")).toBe(true);
-        expect(checkAST("-1 - 2", "other substraction")).toBe(true);
-        expect(checkAST("-(1 + 2)", "other substraction")).toBe(true);
+        expect(checkAST("1 - 2", "subtraction")).toBe(true);
+        expect(checkAST("-1 - 2", "other subtraction")).toBe(true);
+        expect(checkAST("-(1 + 2)", "other subtraction")).toBe(true);
         expect(checkAST("1 + 2 + 3", "addition of 3 integers")).toBe(true);
         expect(checkAST("a + b", "addition of two variables")).toBe(true);
         expect(checkAST("42 % 5", "modulo operator")).toBe(true);
@@ -116,7 +116,7 @@ describe("formatAST", () => {
     });
 
     test("various expressions", () => {
-        expect(checkAST("(a - b).days", "substraction and .days")).toBe(true);
+        expect(checkAST("(a - b).days", "subtraction and .days")).toBe(true);
         expect(checkAST("a + day == date(2002, 3, 3)")).toBe(true);
         const expr = `[("type", "=", "in"), ("day", "<=", time.strftime("%Y-%m-%d")), ("day", ">", (context_today() - datetime.timedelta(days = 15)).strftime("%Y-%m-%d"))]`;
         expect(checkAST(expr)).toBe(true);

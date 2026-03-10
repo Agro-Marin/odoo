@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/debug_items - Debug menu items for editing actions and views in the admin editor */
 

@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { browser } from "@web/core/browser/browser";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 
-import { fields, Record } from "./record";
+import { fields, Record } from "./record.js";
 export const CHAT_HUB_KEY = "mail.ChatHub";
 export const CHAT_HUB_COMPACT_LS = "mail.user_setting.chathub_compact";
 

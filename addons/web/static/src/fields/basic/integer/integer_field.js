@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/integer/integer_field - Numeric input field for Integer columns with locale-aware formatting */
 
@@ -9,7 +10,7 @@ import { formatInteger } from "@web/fields/formatters";
 import { parseInteger } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-import { NumericInputFieldBase } from "../numeric_input_field_base";
+import { NumericInputFieldBase } from "../numeric_input_field_base.js";
 
 export class IntegerField extends NumericInputFieldBase {
     static template = "web.IntegerField";

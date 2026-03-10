@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/datetime/datetime_picker_service - Service managing date picker popover lifecycle, positioning, and input synchronization */
 
@@ -120,6 +121,8 @@ export const datetimePickerService = {
                 }
 
                 function enable() {
+                    /** @type {Array<[HTMLElement, string, EventListener]>} */
+                    const addedListeners = [];
                     for (const [el, value] of zip(
                         getInputs(),
                         ensureArray(pickerProps.value),
@@ -138,16 +141,29 @@ export const datetimePickerService = {
                             inputEl.addEventListener("click", onInputClick);
                             inputEl.addEventListener("focus", onInputFocus);
                             inputEl.addEventListener("keydown", onInputKeydown);
+                            addedListeners.push(
+                                [inputEl, "change", onInputChange],
+                                [inputEl, "click", onInputClick],
+                                [inputEl, "focus", onInputFocus],
+                                [inputEl, "keydown", onInputKeydown],
+                            );
                         }
                     }
                     const calendarIconGroupEl = getInput(
                         0,
-                    )?.parentElement.querySelector(".o_input_group_date_icon");
+                    )?.parentElement?.querySelector(".o_input_group_date_icon");
+                    const onCalendarIconClick = () => open(0);
                     if (calendarIconGroupEl) {
                         calendarIconGroupEl.classList.add("cursor-pointer");
-                        calendarIconGroupEl.addEventListener("click", () => open(0));
+                        calendarIconGroupEl.addEventListener("click", onCalendarIconClick);
+                        addedListeners.push([calendarIconGroupEl, "click", onCalendarIconClick]);
                     }
-                    return () => {};
+                    return () => {
+                        for (const [el, event, handler] of addedListeners) {
+                            el.removeEventListener(event, handler);
+                            listenedElements.delete(el);
+                        }
+                    };
                 }
 
                 /**
@@ -280,6 +296,7 @@ export const datetimePickerService = {
                             ) {
                                 return saveAndClose();
                             }
+                            break;
                         }
                     }
                 }

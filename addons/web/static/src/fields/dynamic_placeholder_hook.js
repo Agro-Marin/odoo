@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/dynamic_placeholder_hook - OWL hook that opens a dynamic placeholder popover on trigger key */
 
@@ -7,7 +8,7 @@ import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { DynamicPlaceholderPopover } from "./dynamic_placeholder_popover";
+import { DynamicPlaceholderPopover } from "./dynamic_placeholder_popover.js";
 
 export function useDynamicPlaceholder(elementRef) {
     const TRIGGER_KEY = "#";

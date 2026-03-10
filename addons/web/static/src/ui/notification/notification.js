@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/notification/notification - Individual notification toast with auto-close progress bar and action buttons */
 
-import { Component, onMounted, useRef } from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 
 const AUTOCLOSE_DELAY = 4000;
 
@@ -56,12 +57,19 @@ export class Notification extends Component {
     setup() {
         this.autocloseProgress = useRef("autoclose_progress_bar");
         onMounted(() => this.startNotificationTimer());
+        onWillUnmount(() => this.stopNotificationTimer());
     }
 
     /** Pause the auto-close timer (e.g. on mouse hover). */
     freeze() {
         this.startedTimestamp = false;
-        this.autocloseProgress.el.style.width = "0";
+        if (this._rafHandle) {
+            cancelAnimationFrame(this._rafHandle);
+            this._rafHandle = null;
+        }
+        if (this.autocloseProgress.el) {
+            this.autocloseProgress.el.style.width = "0";
+        }
     }
 
     /** Restart the auto-close timer from the beginning. */
@@ -92,9 +100,17 @@ export class Notification extends Component {
                 if (this.autocloseProgress.el) {
                     this.autocloseProgress.el.style.width = `${(1 - currentProgress) * 100}%`;
                 }
-                requestAnimationFrame(cb);
+                this._rafHandle = requestAnimationFrame(cb);
             }
         };
         cb();
+    }
+
+    stopNotificationTimer() {
+        this.startedTimestamp = null;
+        if (this._rafHandle) {
+            cancelAnimationFrame(this._rafHandle);
+            this._rafHandle = null;
+        }
     }
 }

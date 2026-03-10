@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 import {registry} from "@web/core/registry";

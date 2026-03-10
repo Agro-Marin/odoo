@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { calendarView } from "@web/views/calendar/calendar_view";
 
-import { ActivityCalendarRender } from "./activity_calendar_renderer";
+import { ActivityCalendarRender } from "./activity_calendar_renderer.js";
 
 const activityCalendarView = {
     ...calendarView,

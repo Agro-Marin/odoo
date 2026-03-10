@@ -1,14 +1,15 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/construct_tree_from_domain - Parses an Odoo domain string into a condition tree structure */
 
 import { Domain } from "@web/core/domain";
 import { formatAST } from "@web/core/py_js/py";
 
-import { addChild, connector, toValue } from "./condition_tree";
+import { addChild, connector, toValue } from "./condition_tree.js";
 /** @import { AST } from "@web/core/py_js/py_parser" */
 /** @import { DomainRepr } from "@web/core/domain" */
-/** @import { Tree } from "./condition_tree" */
+/** @import { Tree } from "./condition_tree.js" */
 
 /**
  * @param {AST[]} ASTs

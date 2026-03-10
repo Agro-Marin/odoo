@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import contextlib
 import datetime
 import logging
@@ -48,11 +47,13 @@ _notify_conn: psycopg.Connection | None = None
 _notify_lock = threading.Lock()
 
 
-def _get_notify_conn():
+def _get_notify_conn_locked():
     """Return a persistent autocommit connection to the ``postgres`` database.
 
     Lazily opened on first call, reused thereafter.  Reconnects
     transparently if the connection was lost.
+
+    Must only be called when the caller already holds ``_notify_lock``.
     """
     global _notify_conn  # noqa: PLW0603
     if _notify_conn is None or _notify_conn.closed:
@@ -61,12 +62,28 @@ def _get_notify_conn():
     return _notify_conn
 
 
-def _close_notify_conn():
+def _close_notify_conn_locked():
+    """Close the notify connection without acquiring ``_notify_lock``.
+
+    Must only be called when the caller already holds ``_notify_lock``.
+    """
     global _notify_conn  # noqa: PLW0603
     if _notify_conn is not None:
         with contextlib.suppress(Exception):
             _notify_conn.close()
         _notify_conn = None
+
+
+def _close_notify_conn():
+    """Close the persistent notify connection, if open.
+
+    Acquires ``_notify_lock`` to prevent closing the connection under a
+    concurrent ``_send_pg_notify`` call (e.g. at server shutdown).
+    Do NOT call this while already holding ``_notify_lock``; use
+    ``_close_notify_conn_locked()`` instead.
+    """
+    with _notify_lock:
+        _close_notify_conn_locked()
 
 
 def _send_pg_notify(payloads):
@@ -79,35 +96,55 @@ def _send_pg_notify(payloads):
     Uses a persistent direct connection with ``autocommit=True`` (not
     the pool) so NOTIFY is sent immediately regardless of the caller's
     transaction state and without pool contention.
+
+    Retries once on any exception (e.g. transient connection drop) with a
+    fresh connection.  Re-raises on the second failure so the caller can
+    decide how to handle it; notifications will be lost in that case.
     """
+    _query = psycopg.sql.SQL("SELECT {}('imbus', %s)").format(
+        psycopg.sql.Identifier(ODOO_NOTIFY_FUNCTION)
+    )
     with _notify_lock:
-        conn = _get_notify_conn()
-        try:
-            for payload in payloads:
-                conn.execute(
-                    psycopg.sql.SQL("SELECT {}('imbus', %s)").format(
-                        psycopg.sql.Identifier(ODOO_NOTIFY_FUNCTION)
-                    ),
-                    (payload,),
-                )
-        except Exception:
-            _close_notify_conn()
-            raise
+        for attempt in range(2):
+            conn = _get_notify_conn_locked()
+            try:
+                for payload in payloads:
+                    conn.execute(_query, (payload,))
+                return
+            except Exception:
+                _close_notify_conn_locked()
+                if attempt == 1:
+                    raise
 
 
 # ---------------------------------------------------------
 # Bus
 # ---------------------------------------------------------
 def json_dump(v):
+    """Serialize ``v`` to a JSON string using the shared orjson default encoder."""
     return json_dumps(v, default=orjson_default)
 
+
 def hashable(key):
+    """Convert ``key`` to a hashable form suitable for use in a dict/set.
+
+    Lists are converted to tuples; all other types are returned unchanged.
+    Callers must ensure the value is actually hashable after conversion.
+    """
     if isinstance(key, list):
         key = tuple(key)
     return key
 
 
 def channel_with_db(dbname, channel):
+    """Qualify a raw channel with the database name to produce a scoped channel key.
+
+    Accepted forms and their output:
+    - ``Model`` instance           → ``(dbname, model_name, record_id)``
+    - ``(Model, subchannel)``      → ``(dbname, model_name, record_id, subchannel)``
+    - ``str``                      → ``(dbname, channel_str)``
+    - anything else (e.g. tuple)   → passed through unchanged (pre-qualified)
+    """
     if isinstance(channel, models.Model):
         return (dbname, channel._name, channel.id)
     if isinstance(channel, tuple) and len(channel) == 2 and isinstance(channel[0], models.Model):
@@ -147,11 +184,27 @@ class BusBus(models.Model):
 
     @api.autovacuum
     def _gc_messages(self):
-        gc_retention_seconds = int(
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("bus.gc_retention_seconds", DEFAULT_GC_RETENTION_SECONDS)
-        )
+        """Delete bus messages older than the configured retention window.
+
+        Falls back to ``DEFAULT_GC_RETENTION_SECONDS`` if the parameter is
+        absent, non-numeric, or non-positive (a zero or negative value would
+        wipe the entire table by making timeout_ago >= now).
+        """
+        try:
+            gc_retention_seconds = int(
+                self.env["ir.config_parameter"]
+                .sudo()
+                .get_param("bus.gc_retention_seconds", DEFAULT_GC_RETENTION_SECONDS)
+            )
+        except (ValueError, TypeError):
+            gc_retention_seconds = DEFAULT_GC_RETENTION_SECONDS
+        if gc_retention_seconds <= 0:
+            _logger.warning(
+                "bus.gc_retention_seconds is %d (must be > 0); using default %d seconds.",
+                gc_retention_seconds,
+                DEFAULT_GC_RETENTION_SECONDS,
+            )
+            gc_retention_seconds = DEFAULT_GC_RETENTION_SECONDS
         timeout_ago = fields.Datetime.now() - datetime.timedelta(seconds=gc_retention_seconds)
         # Direct SQL to avoid ORM overhead; this way we can delete millions of rows quickly.
         # This is a low-level table with no expected references, and doing this avoids
@@ -252,32 +305,42 @@ class ImDispatch(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True, name=f'{__name__}.Bus')
         self._channels_to_ws = {}
+        # Serialises all mutations to _channels_to_ws and the loop's
+        # snapshot read, preventing races between the dispatch loop and
+        # concurrent subscribe/unsubscribe calls from websocket threads.
+        self._lock = threading.Lock()
 
     def subscribe(self, channels, last, db, websocket):
-        """
-        Subcribe to bus notifications. Every notification related to the
-        given channels will be sent through the websocket. If a subscription
-        is already present, overwrite it.
+        """Subscribe to bus notifications.
+
+        Every notification related to the given channels will be sent through
+        the websocket. Replaces any existing subscription for this websocket.
         """
         channels = {hashable(channel_with_db(db, c)) for c in channels}
-        for channel in channels:
-            self._channels_to_ws.setdefault(channel, set()).add(websocket)
         outdated_channels = websocket._channels - channels
-        self._clear_outdated_channels(websocket, outdated_channels)
+        with self._lock:
+            for channel in channels:
+                self._channels_to_ws.setdefault(channel, set()).add(websocket)
+            for channel in outdated_channels:
+                ws_set = self._channels_to_ws.get(channel)
+                if ws_set is not None:
+                    ws_set.discard(websocket)
+                    if not ws_set:
+                        del self._channels_to_ws[channel]
         websocket.subscribe(channels, last)
         with contextlib.suppress(RuntimeError):
             if not self.is_alive():
                 self.start()
 
     def unsubscribe(self, websocket):
-        self._clear_outdated_channels(websocket, websocket._channels)
-
-    def _clear_outdated_channels(self, websocket, outdated_channels):
-        """ Remove channels from channel to websocket map. """
-        for channel in outdated_channels:
-            self._channels_to_ws[channel].remove(websocket)
-            if not self._channels_to_ws[channel]:
-                self._channels_to_ws.pop(channel)
+        """Remove a websocket from all channel subscriptions."""
+        with self._lock:
+            for channel in websocket._channels:
+                ws_set = self._channels_to_ws.get(channel)
+                if ws_set is not None:
+                    ws_set.discard(websocket)
+                    if not ws_set:
+                        del self._channels_to_ws[channel]
 
     def loop(self):
         """Dispatch postgres notifications to the relevant websockets.
@@ -296,11 +359,12 @@ class ImDispatch(threading.Thread):
                     channels = []
                     for notif in conn.notifies(timeout=0):
                         channels.extend(orjson.loads(notif.payload))
-                    # relay notifications to websockets that have
-                    # subscribed to the corresponding channels.
-                    websockets = set()
-                    for channel in channels:
-                        websockets.update(self._channels_to_ws.get(hashable(channel), []))
+                    # Snapshot websockets under lock, then dispatch outside
+                    # to avoid holding the lock while calling websocket code.
+                    with self._lock:
+                        websockets = set()
+                        for channel in channels:
+                            websockets.update(self._channels_to_ws.get(hashable(channel), []))
                     for websocket in websockets:
                         websocket.trigger_notification_dispatching()
 

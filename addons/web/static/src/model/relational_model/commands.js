@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/commands - x2many ORM command constants and factory functions */
 
@@ -18,14 +19,14 @@ export const x2ManyCommands = {
     // (0, virtualID | false, { values })
     CREATE: 0,
     create(virtualID, values) {
-        delete values.id;
-        return [x2ManyCommands.CREATE, virtualID || false, values];
+        const { id: _, ...vals } = values;
+        return [x2ManyCommands.CREATE, virtualID || false, vals];
     },
     // (1, id, { values })
     UPDATE: 1,
     update(id, values) {
-        delete values.id;
-        return [x2ManyCommands.UPDATE, id, values];
+        const { id: _, ...vals } = values;
+        return [x2ManyCommands.UPDATE, id, vals];
     },
     // (2, id[, _])
     DELETE: 2,

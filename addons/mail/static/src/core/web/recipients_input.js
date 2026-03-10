@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { parseEmail } from "@mail/utils/common/format";
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
@@ -10,8 +11,8 @@ import { useService } from "@web/core/utils/hooks";
 import { useSelectCreate } from "@web/fields/relational/many2x_autocomplete";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { RecipientsInputTagsList } from "./recipients_input_tags_list";
-import { RecipientsPopover } from "./recipients_popover";
+import { RecipientsInputTagsList } from "./recipients_input_tags_list.js";
+import { RecipientsPopover } from "./recipients_popover.js";
 
 export class RecipientsInput extends Component {
     static template = "mail.RecipientsInput";

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/effects/rainbow_man - Animated rainbow celebration overlay with configurable message and fadeout */
 

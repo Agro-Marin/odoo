@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/format/colors - Color conversions between RGB, HSL, hex, and gradient opacity manipulation */
 
@@ -326,6 +327,9 @@ export function isCSSColor(cssColor) {
 export function mixCssColors(cssColor1, cssColor2, weight) {
     const rgba1 = convertCSSColorToRgba(cssColor1);
     const rgba2 = convertCSSColorToRgba(cssColor2);
+    if (!rgba1 || !rgba2) {
+        return false;
+    }
     const rgb1 = [rgba1.red, rgba1.green, rgba1.blue];
     const rgb2 = [rgba2.red, rgba2.green, rgba2.blue];
     const [r, g, b] = rgb1.map((_, idx) =>

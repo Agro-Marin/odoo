@@ -1,4 +1,3 @@
-// @ts-nocheck
 // @odoo-module ignore
 /// <reference lib="webworker" />
 
@@ -42,16 +41,14 @@ const getTextFromResponse = async (response) => {
     const reader = response.clone().body.getReader();
     const decoder = new TextDecoder();
     let result = "";
-    async function read() {
+    while (true) {
         const { value, done } = await reader.read();
         if (done) {
-            reader.releaseLock();
-            return;
+            break;
         }
         result += decoder.decode(value, { stream: true });
-        await read();
     }
-    await read();
+    reader.releaseLock();
     return result;
 };
 
@@ -67,11 +64,12 @@ const storeDataOnCache = async (url, response) => {
     // store on ram, the session info
     sessionInfo = extractSessionInfo(htmlBody);
     const cache = await caches.open(cacheName);
+    const body = sessionInfo
+        ? htmlBody.replace(sessionInfo, "@@@session_info_secret@@@")
+        : htmlBody;
     return cache.put(
         url.endsWith(offLineURL) ? url : homepageURL,
-        new Response(htmlBody.replace(sessionInfo, "@@@session_info_secret@@@"), {
-            headers: response.headers,
-        }),
+        new Response(body, { headers: response.headers }),
     );
 };
 
@@ -89,6 +87,9 @@ const readDataOnCache = async (url) => {
     }
     // if you come from /odoo to project the url is now /odoo/project, but it doesn't exist in cache so use /odoo instead
     if (!response) {
+        if (url === homepageURL) {
+            return undefined; // homepage itself is not cached — nothing to serve
+        }
         return readDataOnCache(homepageURL);
     }
     const htmlBody = await getTextFromResponse(response);
@@ -176,7 +177,7 @@ self.addEventListener("fetch", (event) => {
         (event.request.mode === "navigate" &&
             event.request.destination === "document") ||
         // request.mode = navigate isn't supported in all browsers => check for http header accept:text/html
-        event.request.headers.get("accept").includes("text/html")
+        event.request.headers.get("accept")?.includes("text/html")
     ) {
         event.respondWith(navigateOrDisplayOfflinePage(event.request));
     }

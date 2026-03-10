@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { listView } from '@web/views/list/list_view';
 import { registry } from "@web/core/registry";
-import { StockReportSearchModel } from "../search/stock_report_search_model";
-import { StockReportSearchPanel } from '../search/stock_report_search_panel';
+import { StockReportSearchModel } from "../search/stock_report_search_model.js";
+import { StockReportSearchPanel } from '../search/stock_report_search_panel.js';
 
 
 export const StockReportListView = {

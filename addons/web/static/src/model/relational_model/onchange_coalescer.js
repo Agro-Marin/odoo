@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/onchange_coalescer - Debounce rapid field changes into a single coalesced onchange RPC call */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /**
  * @module @web/model/types - Shared type definitions for ORM field metadata and search parameters

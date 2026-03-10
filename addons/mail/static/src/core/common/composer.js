@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { lastLeaf } from "@html_editor/utils/dom_traversal";
 import { Wysiwyg } from "@html_editor/wysiwyg";
 import { ActionList } from "@mail/core/common/action_list";

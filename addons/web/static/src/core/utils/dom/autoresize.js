@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dom/autoresize - useAutoresize hook to auto-grow input/textarea elements on content change */
 
@@ -149,5 +150,7 @@ export function resizeTextArea(textarea, options = {}) {
     textarea.style.height = "auto";
     const height = Math.max(minimumHeight, textarea.scrollHeight + heightOffset);
     Object.assign(textarea.style, previousStyle, { height: `${height}px` });
-    textarea.parentElement.style.height = `${height}px`;
+    if (textarea.parentElement) {
+        textarea.parentElement.style.height = `${height}px`;
+    }
 }

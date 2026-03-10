@@ -1,14 +1,15 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/kanban_view - Kanban view descriptor registered in the view registry */
 
 import { registry } from "@web/core/registry";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 
-import { KanbanArchParser } from "./kanban_arch_parser";
-import { KanbanCompiler } from "./kanban_compiler";
-import { KanbanController } from "./kanban_controller";
-import { KanbanRenderer } from "./kanban_renderer";
+import { KanbanArchParser } from "./kanban_arch_parser.js";
+import { KanbanCompiler } from "./kanban_compiler.js";
+import { KanbanController } from "./kanban_controller.js";
+import { KanbanRenderer } from "./kanban_renderer.js";
 
 /**
  * Kanban view descriptor registered in the "views" registry.

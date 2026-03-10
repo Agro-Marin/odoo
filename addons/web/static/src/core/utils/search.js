@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/search - Fuzzy text search with consecutive-letter scoring and normalized matching */
 

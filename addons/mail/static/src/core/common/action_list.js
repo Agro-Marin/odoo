@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { CallDropdown } from "@mail/discuss/call/common/call_dropdown";
 import { attClassObjectToString } from "@mail/utils/common/format";
 import { Component, onWillUnmount } from "@odoo/owl";

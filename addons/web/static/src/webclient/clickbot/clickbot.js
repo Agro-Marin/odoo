@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/clickbot/clickbot - Automated UI testing bot that clicks through all apps, views, and filters to verify stability */
 

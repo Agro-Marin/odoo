@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/utils - Shared helpers for value disambiguation, ID checking, model resolution, and default paths */
 
-/** @import { Value } from "./condition_tree" */
+/** @import { Value } from "./condition_tree.js" */
 
 /**
  * Determine whether a value is ambiguous and needs explicit typing.

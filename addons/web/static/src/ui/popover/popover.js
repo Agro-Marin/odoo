@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/popover/popover - Positioned popover component with click-away close, hotkey escape, and arrow rendering */
 
@@ -251,12 +252,17 @@ export class Popover extends Component {
         // opening animation (only once)
         if (this.props.animation && !this.animationDone) {
             this.position.lock();
-            this.animate(direction).finished.then(() => {
-                this.animationDone = true;
-                if (!this.props.fixedPosition) {
-                    this.position.unlock();
-                }
-            });
+            this.animate(direction).finished.then(
+                () => {
+                    this.animationDone = true;
+                    if (!this.props.fixedPosition) {
+                        this.position.unlock();
+                    }
+                },
+                () => {
+                    // Animation cancelled (popover closed mid-animation) — ignore
+                },
+            );
         }
 
         if (this.props.fixedPosition) {

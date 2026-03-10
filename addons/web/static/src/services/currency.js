@@ -1,9 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/currency - Currency lookup, formatting, and exchange rate fetching */
 
 import { reactive } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";
+import { parseDate, toLocaleDateString } from "@web/core/l10n/dates";
 import { formatFloat, humanNumber } from "@web/core/utils/format/numbers";
 import { nbsp } from "@web/core/utils/format/strings";
 import { user } from "@web/services/user";
@@ -27,18 +29,26 @@ export function getCurrency(id) {
  * Fetch inverse exchange rates for all known currencies relative to the
  * active company's currency. Returns a reactive object that auto-updates
  * when the disk cache detects changes.
- * @returns {Promise<Record<number, number>>} currency id → inverse rate
+ * @returns {Promise<Record<number, {rate: number, date: string}>>} currency id → rate info
  */
 export async function getCurrencyRates() {
-    /** @type {Record<number, number>} */
+    /** @type {Record<number, {rate: number, date: string}>} */
     const rates = reactive({});
 
     /**
-     * @param {Array<{id: number, inverse_rate: number}>} records
-     * @returns {Record<number, number>}
+     * @param {Array<{id: number, inverse_rate: number, rate_date: string}>} records
+     * @returns {Record<number, {rate: number, date: string}>}
      */
     function recordsToRates(records) {
-        return Object.fromEntries(records.map((r) => [r.id, r.inverse_rate]));
+        return Object.fromEntries(
+            records.map((r) => [
+                r.id,
+                {
+                    rate: r.inverse_rate,
+                    date: parseDate(r.rate_date),
+                },
+            ]),
+        );
     }
 
     const model = "res.currency";
@@ -51,7 +61,7 @@ export async function getCurrencyRates() {
     const params = {
         model,
         method,
-        args: [Object.keys(currencies).map(Number), ["inverse_rate"]],
+        args: [Object.keys(currencies).map(Number), ["inverse_rate", "rate_date"]],
         kwargs: { context },
     };
     const records = await rpc(url, params, {

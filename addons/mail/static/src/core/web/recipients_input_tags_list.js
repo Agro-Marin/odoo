@@ -1,8 +1,9 @@
+/** @odoo-module */
 import { onWillUpdateProps, toRaw, useEffect, useRef, useState } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { RecipientsInputTagsListPopover } from "./recipients_input_tags_list_popover";
+import { RecipientsInputTagsListPopover } from "./recipients_input_tags_list_popover.js";
 
 /**
  * Override of the TagsList so that the email address of each recipients can be checked.

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { attClassObjectToString } from "@mail/utils/common/format";
 import { Component, useSubEnv } from "@odoo/owl";
 import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";

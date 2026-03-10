@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/parsers - Field value parsers for all ORM field types (date, float, integer, monetary, percentage, etc.) */
 

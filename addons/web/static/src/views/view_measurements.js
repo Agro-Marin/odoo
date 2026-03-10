@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_measurements - Computes available report measures from field definitions and active selections */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/form_error_dialog/form_error_dialog - Error dialog shown on form save failure with discard/redirect/stay options */
 

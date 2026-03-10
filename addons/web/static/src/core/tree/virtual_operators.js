@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/virtual_operators - Introduces and eliminates virtual operators (between, in range, any/all) in condition trees */
 
-/** @import { Tree, Options } from "./condition_tree" */
+/** @import { Tree, Options } from "./condition_tree.js" */
 
 import {
     applyTransformations,
@@ -17,7 +18,7 @@ import {
     operate,
     rewriteNConsecutiveChildren,
     TRUE_TREE,
-} from "./condition_tree";
+} from "./condition_tree.js";
 
 function splitPath(path) {
     const pathParts = typeof path === "string" ? path.split(".") : [];

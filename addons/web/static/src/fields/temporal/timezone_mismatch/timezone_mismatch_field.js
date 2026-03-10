@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/temporal/timezone_mismatch/timezone_mismatch_field - Timezone selection field that warns when browser and user timezones differ */
 

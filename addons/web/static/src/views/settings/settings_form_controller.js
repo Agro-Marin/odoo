@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/settings_form_controller - Controller for res.config.settings with search filtering and save-via-Apply behavior */
 
@@ -8,8 +9,8 @@ import { pick } from "@web/core/utils/collections/objects";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { formView } from "@web/views/form/form_view";
 
-import { SettingsConfirmationDialog } from "./settings_confirmation_dialog";
-import { SettingsFormRenderer } from "./settings_form_renderer";
+import { SettingsConfirmationDialog } from "./settings_confirmation_dialog.js";
+import { SettingsFormRenderer } from "./settings_form_renderer.js";
 
 /**
  * Controller for the res.config.settings form view.

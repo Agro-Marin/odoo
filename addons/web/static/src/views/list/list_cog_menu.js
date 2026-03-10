@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_cog_menu - List-view cog menu that hides registry items when records are selected */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_buttons - Parses arch button nodes into structured click-param descriptors */
 

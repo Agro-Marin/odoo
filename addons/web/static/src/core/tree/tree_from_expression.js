@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/tree_from_expression - High-level expression-to-tree conversion with virtual operator introduction */
 
 /** @import { Tree, Options } from "@web/core/tree/condition_tree" */
 
-import { constructTreeFromExpression } from "./construct_tree_from_expression";
+import { constructTreeFromExpression } from "./construct_tree_from_expression.js";
 import { introduceVirtualOperators } from "@web/core/tree/virtual_operators";
 
 /**

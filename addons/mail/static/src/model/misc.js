@@ -1,3 +1,4 @@
+/** @odoo-module */
 /** @typedef {import("./record").Record} Record */
 /** @typedef {import("./record_list").RecordList} RecordList */
 

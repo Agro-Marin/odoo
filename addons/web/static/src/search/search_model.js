@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/search_model - Search state machine managing facets, domains, groupbys, favorites, and comparisons */
 
@@ -8,10 +9,10 @@ import { evaluateExpr } from "@web/core/py_js/py";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { user } from "@web/services/user";
 
-import * as panelState from "./search_panel/search_panel_state";
-import * as queryMut from "./search_query_mutations";
-import { SearchArchParser } from "./search_arch_parser";
-import { computeSearchContext, computeSearchItemContext } from "./search_context";
+import * as panelState from "./search_panel/search_panel_state.js";
+import * as queryMut from "./search_query_mutations.js";
+import { SearchArchParser } from "./search_arch_parser.js";
+import { computeSearchContext, computeSearchItemContext } from "./search_context.js";
 import {
     computeCategoryDomain,
     computeDateFilterDomain,
@@ -21,34 +22,34 @@ import {
     computeGroupDomain,
     computeSearchItemDomain,
     computeSearchPanelDomain,
-} from "./search_domain";
-import { enrichSearchItem } from "./search_enrichment";
-import { buildFacets } from "./search_facets";
+} from "./search_domain.js";
+import { enrichSearchItem } from "./search_enrichment.js";
+import { buildFacets } from "./search_facets.js";
 import {
     buildIrFilterDescription,
     irFilterToFavorite,
     reconciliateFavorites,
-} from "./search_favorites";
+} from "./search_favorites.js";
 import {
     computeGroupBy,
     computeOrderBy,
     computeSearchItemGroupBys,
     getQueryGroups,
     getSelectedGeneratorIds,
-} from "./search_group_by";
+} from "./search_group_by.js";
 import {
     fetchPropertiesDefinition as _fetchPropertiesDefinition,
     fillSearchViewItemsProperty as _fillSearchViewItemsProperty,
     getSearchItemsProperties as _getSearchItemsProperties,
-} from "./search_properties";
-import { splitAndAddDomain as _splitAndAddDomain } from "./search_split_domain";
+} from "./search_properties.js";
+import { splitAndAddDomain as _splitAndAddDomain } from "./search_split_domain.js";
 import {
     arrayToMap,
     execute,
     extractSearchDefaults,
     mapToArray,
-} from "./search_state";
-import { getIntervalOptions } from "./utils/dates";
+} from "./search_state.js";
+import { getIntervalOptions } from "./utils/dates.js";
 
 /** @import { Context } from "@web/core/context" */
 /** @import { DomainListRepr } from "@web/core/domain" */
@@ -312,7 +313,7 @@ export class SearchModel extends EventBus {
 
         const { context, domain, groupBy, orderBy } = config;
 
-        this.globalContext = { ...context };
+        this.globalContext = toRaw({ ...context });
         this.globalDomain = domain || [];
         this.globalGroupBy = groupBy || [];
         this.globalOrderBy = orderBy || [];

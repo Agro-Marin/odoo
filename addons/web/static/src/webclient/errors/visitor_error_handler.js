@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/errors/visitor_error_handler - Error handler that swallows all tracebacks for non-internal (portal/public) users */
 

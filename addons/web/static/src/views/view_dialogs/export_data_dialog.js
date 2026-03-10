@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_dialogs/export_data_dialog - Export configuration dialog: field selection, template management, and format options */
 

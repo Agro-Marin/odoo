@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/relational_active_actions - Reactive OWL hook for computing x2many field CRUD permissions */
 

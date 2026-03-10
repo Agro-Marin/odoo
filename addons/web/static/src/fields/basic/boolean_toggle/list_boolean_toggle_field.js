@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/boolean_toggle/list_boolean_toggle_field - List-view variant of the Boolean toggle switch */
 
 import { registry } from "@web/core/registry";
 
-import { BooleanToggleField, booleanToggleField } from "./boolean_toggle_field";
+import { BooleanToggleField, booleanToggleField } from "./boolean_toggle_field.js";
 export class ListBooleanToggleField extends BooleanToggleField {
     static template = "web.ListBooleanToggleField";
 

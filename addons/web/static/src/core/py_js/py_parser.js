@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/py_js/py_parser - Pratt parser that converts Python token streams into AST nodes */
 
-import { binaryOperators, comparators } from "./py_tokenizer";
+import { binaryOperators, comparators } from "./py_tokenizer.js";
 
 // -----------------------------------------------------------------------------
 // Types
@@ -41,6 +42,30 @@ class ParserError extends Error {}
 
 const chainedOperators = new Set(comparators);
 const infixOperators = new Set([...binaryOperators, ...comparators]);
+
+/**
+ * A lightweight cursor wrapping a token array for O(1) consumption.
+ * Replaces Array.shift() (O(n)) with index-based access.
+ */
+class TokenCursor {
+    /** @param {Token[]} tokens */
+    constructor(tokens) {
+        this._tokens = tokens;
+        this._pos = 0;
+    }
+    /** Peek at the current token without consuming it. */
+    peek() {
+        return this._tokens[this._pos];
+    }
+    /** Consume and return the current token, advancing the position. */
+    next() {
+        return this._tokens[this._pos++];
+    }
+    /** Number of unconsumed tokens remaining. */
+    get remaining() {
+        return this._tokens.length - this._pos;
+    }
+}
 
 /**
  * Compute the "binding power" of a symbol
@@ -100,7 +125,7 @@ export function bp(symbol) {
 }
 
 /**
- * Compute binding power of a symbol
+ * Compute binding power of a token.
  *
  * @param {Token} token
  * @returns {number}
@@ -110,7 +135,7 @@ function bindingPower(token) {
 }
 
 /**
- * Check if a token is a symbol of a given value
+ * Check if a token is a symbol of a given value.
  *
  * @param {Token} token
  * @param {string} value
@@ -122,10 +147,10 @@ function isSymbol(token, value) {
 
 /**
  * @param {Token} current
- * @param {Token[]} tokens
+ * @param {TokenCursor} cur
  * @returns {AST}
  */
-function parsePrefix(current, tokens) {
+function parsePrefix(current, cur) {
     switch (current.type) {
         case 0 /* Number */:
             return { type: 0 /* Number */, value: current.value };
@@ -150,34 +175,34 @@ function parsePrefix(current, tokens) {
                     return {
                         type: 6 /* UnaryOperator */,
                         op: current.value,
-                        right: _parse(tokens, 130),
+                        right: _parse(cur, 130),
                     };
                 case "not":
                     return {
                         type: 6 /* UnaryOperator */,
                         op: current.value,
-                        right: _parse(tokens, 50),
+                        right: _parse(cur, 50),
                     };
                 case "(": {
                     const content = [];
                     let isTuple = false;
-                    while (tokens[0] && !isSymbol(tokens[0], ")")) {
-                        content.push(_parse(tokens, 0));
-                        if (tokens[0]) {
-                            if (tokens[0] && isSymbol(tokens[0], ",")) {
+                    while (cur.peek() && !isSymbol(cur.peek(), ")")) {
+                        content.push(_parse(cur, 0));
+                        if (cur.peek()) {
+                            if (cur.peek() && isSymbol(cur.peek(), ",")) {
                                 isTuple = true;
-                                tokens.shift();
-                            } else if (!isSymbol(tokens[0], ")")) {
+                                cur.next();
+                            } else if (!isSymbol(cur.peek(), ")")) {
                                 throw new ParserError("parsing error");
                             }
                         } else {
                             throw new ParserError("parsing error");
                         }
                     }
-                    if (!tokens[0] || !isSymbol(tokens[0], ")")) {
+                    if (!cur.peek() || !isSymbol(cur.peek(), ")")) {
                         throw new ParserError("parsing error");
                     }
-                    tokens.shift();
+                    cur.next();
                     isTuple = isTuple || content.length === 0;
                     return isTuple
                         ? { type: 10 /* Tuple */, value: content }
@@ -185,44 +210,44 @@ function parsePrefix(current, tokens) {
                 }
                 case "[": {
                     const value = [];
-                    while (tokens[0] && !isSymbol(tokens[0], "]")) {
-                        value.push(_parse(tokens, 0));
-                        if (tokens[0]) {
-                            if (isSymbol(tokens[0], ",")) {
-                                tokens.shift();
-                            } else if (!isSymbol(tokens[0], "]")) {
+                    while (cur.peek() && !isSymbol(cur.peek(), "]")) {
+                        value.push(_parse(cur, 0));
+                        if (cur.peek()) {
+                            if (isSymbol(cur.peek(), ",")) {
+                                cur.next();
+                            } else if (!isSymbol(cur.peek(), "]")) {
                                 throw new ParserError("parsing error");
                             }
                         }
                     }
-                    if (!tokens[0] || !isSymbol(tokens[0], "]")) {
+                    if (!cur.peek() || !isSymbol(cur.peek(), "]")) {
                         throw new ParserError("parsing error");
                     }
-                    tokens.shift();
+                    cur.next();
                     return { type: 4 /* List */, value };
                 }
                 case "{": {
                     /** @type {Record<string, AST>} */
                     const dict = {};
-                    while (tokens[0] && !isSymbol(tokens[0], "}")) {
-                        const key = _parse(tokens, 0);
+                    while (cur.peek() && !isSymbol(cur.peek(), "}")) {
+                        const key = _parse(cur, 0);
                         if (
                             (key.type !== 1 /* String */ &&
                                 key.type !== 0) /* Number */ ||
-                            !tokens[0] ||
-                            !isSymbol(tokens[0], ":")
+                            !cur.peek() ||
+                            !isSymbol(cur.peek(), ":")
                         ) {
                             throw new ParserError("parsing error");
                         }
-                        tokens.shift();
-                        const value = _parse(tokens, 0);
+                        cur.next();
+                        const value = _parse(cur, 0);
                         dict[key.value] = value;
-                        if (isSymbol(tokens[0], ",")) {
-                            tokens.shift();
+                        if (cur.peek() && isSymbol(cur.peek(), ",")) {
+                            cur.next();
                         }
                     }
                     // remove the } token
-                    if (!tokens.shift()) {
+                    if (!cur.next()) {
                         throw new ParserError("parsing error");
                     }
                     return { type: 11 /* Dictionary */, value: dict };
@@ -235,14 +260,14 @@ function parsePrefix(current, tokens) {
 /**
  * @param {AST} left
  * @param {Token} current
- * @param {Token[]} tokens
+ * @param {TokenCursor} cur
  * @returns {AST}
  */
-function parseInfix(left, current, tokens) {
+function parseInfix(left, current, cur) {
     switch (current.type) {
         case 2 /* Symbol */:
             if (infixOperators.has(current.value)) {
-                let right = _parse(tokens, bindingPower(current));
+                let right = _parse(cur, bindingPower(current));
                 if (current.value === "and" || current.value === "or") {
                     return {
                         type: 14 /* BooleanOperator */,
@@ -270,17 +295,17 @@ function parseInfix(left, current, tokens) {
                 };
                 while (
                     chainedOperators.has(current.value) &&
-                    tokens[0] &&
-                    tokens[0].type === 2 /* Symbol */ &&
-                    chainedOperators.has(tokens[0].value)
+                    cur.peek() &&
+                    cur.peek().type === 2 /* Symbol */ &&
+                    chainedOperators.has(cur.peek().value)
                 ) {
-                    const nextToken = tokens.shift();
+                    const nextToken = cur.next();
                     /** @type {ASTBinaryOperator} */
                     const nextRight = {
                         type: 7 /* BinaryOperator */,
                         op: /** @type {string} */ (nextToken.value),
                         left: right,
-                        right: _parse(tokens, bindingPower(nextToken)),
+                        right: _parse(cur, bindingPower(nextToken)),
                     };
                     op = {
                         type: 14 /* BooleanOperator */,
@@ -298,21 +323,21 @@ function parseInfix(left, current, tokens) {
                     const args = [];
                     /** @type {Record<string, AST>} */
                     const kwargs = {};
-                    while (tokens[0] && !isSymbol(tokens[0], ")")) {
-                        const arg = _parse(tokens, 0);
+                    while (cur.peek() && !isSymbol(cur.peek(), ")")) {
+                        const arg = _parse(cur, 0);
                         if (arg.type === 9 /* Assignment */) {
                             kwargs[arg.name.value] = arg.value;
                         } else {
                             args.push(arg);
                         }
-                        if (tokens[0] && isSymbol(tokens[0], ",")) {
-                            tokens.shift();
+                        if (cur.peek() && isSymbol(cur.peek(), ",")) {
+                            cur.next();
                         }
                     }
-                    if (!tokens[0] || !isSymbol(tokens[0], ")")) {
+                    if (!cur.peek() || !isSymbol(cur.peek(), ")")) {
                         throw new ParserError("parsing error");
                     }
-                    tokens.shift();
+                    cur.next();
                     return {
                         type: 8 /* FunctionCall */,
                         fn: left,
@@ -325,17 +350,17 @@ function parseInfix(left, current, tokens) {
                         return {
                             type: 9 /* Assignment */,
                             name: left,
-                            value: _parse(tokens, 10),
+                            value: _parse(cur, 10),
                         };
                     }
                     break;
                 case "[": {
                     // lookup in dictionary
-                    const key = _parse(tokens);
-                    if (!tokens[0] || !isSymbol(tokens[0], "]")) {
+                    const key = _parse(cur);
+                    if (!cur.peek() || !isSymbol(cur.peek(), "]")) {
                         throw new ParserError("parsing error");
                     }
-                    tokens.shift();
+                    cur.next();
                     return {
                         type: 12 /* Lookup */,
                         target: left,
@@ -343,12 +368,12 @@ function parseInfix(left, current, tokens) {
                     };
                 }
                 case "if": {
-                    const condition = _parse(tokens);
-                    if (!tokens[0] || !isSymbol(tokens[0], "else")) {
+                    const condition = _parse(cur);
+                    if (!cur.peek() || !isSymbol(cur.peek(), "else")) {
                         throw new ParserError("parsing error");
                     }
-                    tokens.shift();
-                    const ifFalse = _parse(tokens);
+                    cur.next();
+                    const ifFalse = _parse(cur);
                     return {
                         type: 13 /* If */,
                         condition,
@@ -362,15 +387,15 @@ function parseInfix(left, current, tokens) {
 }
 
 /**
- * @param {Token[]} tokens
- * @param {number} [bp]
+ * @param {TokenCursor} cur
+ * @param {number} [bpVal]
  * @returns {AST}
  */
-function _parse(tokens, bp = 0) {
-    const token = tokens.shift();
-    let expr = parsePrefix(token, tokens);
-    while (tokens[0] && bindingPower(tokens[0]) > bp) {
-        expr = parseInfix(expr, tokens.shift(), tokens);
+function _parse(cur, bpVal = 0) {
+    const token = cur.next();
+    let expr = parsePrefix(token, cur);
+    while (cur.peek() && bindingPower(cur.peek()) > bpVal) {
+        expr = parseInfix(expr, cur.next(), cur);
     }
     return expr;
 }
@@ -380,15 +405,16 @@ function _parse(tokens, bp = 0) {
 // -----------------------------------------------------------------------------
 
 /**
- * Parse a list of tokens
+ * Parse a list of tokens.
  *
  * @param {Token[]} tokens
  * @returns {AST}
  */
 export function parse(tokens) {
     if (tokens.length) {
-        const ast = _parse(tokens, 0);
-        if (tokens.length) {
+        const cur = new TokenCursor(tokens);
+        const ast = _parse(cur, 0);
+        if (cur.remaining) {
             throw new ParserError("Token(s) unused");
         }
         return ast;
@@ -403,8 +429,8 @@ export function parse(tokens) {
  */
 export function parseArgs(args, spec) {
     const last = args.at(-1);
-    const unnamedArgs = typeof last === "object" ? args.slice(0, -1) : args;
-    const kwargs = typeof last === "object" ? last : {};
+    const unnamedArgs = typeof last === "object" && last !== null ? args.slice(0, -1) : args;
+    const kwargs = typeof last === "object" && last !== null ? last : {};
     for (const [index, val] of unnamedArgs.entries()) {
         kwargs[spec[index]] = val;
     }

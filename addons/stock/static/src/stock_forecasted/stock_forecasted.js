@@ -1,13 +1,14 @@
+/** @odoo-module */
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { View } from "@web/views/view";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 
-import { ForecastedButtons } from "./forecasted_buttons";
-import { ForecastedDetails } from "./forecasted_details";
-import { ForecastedHeader } from "./forecasted_header";
-import { ForecastedWarehouseFilter } from "./forecasted_warehouse_filter";
+import { ForecastedButtons } from "./forecasted_buttons.js";
+import { ForecastedDetails } from "./forecasted_details.js";
+import { ForecastedHeader } from "./forecasted_header.js";
+import { ForecastedWarehouseFilter } from "./forecasted_warehouse_filter.js";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 

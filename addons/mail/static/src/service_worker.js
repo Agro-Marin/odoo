@@ -1,3 +1,4 @@
+/** @odoo-module */
 /* eslint-env serviceworker */
 
 /* global idbKeyval */

@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/column_progress - Progress bar with colored segments for kanban column group aggregates */
 
 import { Component } from "@odoo/owl";
 
-import { AnimatedNumber } from "./animated_number";
+import { AnimatedNumber } from "./animated_number.js";
 
 /** Renders a progress bar with colored segments for a kanban column group, showing aggregate totals. */
 export class ColumnProgress extends Component {

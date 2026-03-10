@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 
 import { CalendarModel } from '@web/views/calendar/calendar_model';
 import { ProjectModelMixin } from '../project_model_mixin.js';

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/overlay/overlay_container - Renders overlay entries (popovers, dialogs, effects) with nested click-away tracking */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/calendar_model - Calendar event data loading, date range computation, filter sections, and timezone handling */
 
@@ -26,8 +27,8 @@ import {
     computeCalendarRange,
     computeFiltersDomain,
     computeRangeDomain,
-} from "./calendar_date_range";
-import { normalizeCalendarRecord } from "./calendar_record";
+} from "./calendar_date_range.js";
+import { normalizeCalendarRecord } from "./calendar_record.js";
 
 const { DateTime } = luxon;
 
@@ -364,7 +365,7 @@ export class CalendarModel extends Model {
             const filterIds = filters
                 .filter((f) => f.type === "record")
                 .map((f) => f.recordId);
-            if (filterIds) {
+            if (filterIds.length) {
                 const data = {
                     [info.filterFieldName]: active,
                 };
@@ -439,7 +440,7 @@ export class CalendarModel extends Model {
             data[this.meta.fieldMapping.date_stop] =
                 (partialRecord.isAllDay && this.hasAllDaySlot
                     ? "date"
-                    : this.dateStartType) === "date"
+                    : this.dateStopType) === "date"
                     ? serializeDate(end)
                     : serializeDateTime(end);
         }

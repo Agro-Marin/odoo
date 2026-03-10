@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/kanban_renderer - Card layout, column grouping, drag-and-drop reorder, and quick-create for kanban view */
 
@@ -25,12 +26,12 @@ import { useBounceButton } from "@web/views/view_hook";
 import { isNull } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
-import { ColumnProgress } from "./column_progress";
-import { KanbanColumnExamplesDialog } from "./kanban_column_examples_dialog";
-import { KanbanColumnQuickCreate } from "./kanban_column_quick_create";
-import { KanbanHeader } from "./kanban_header";
-import { KanbanRecord } from "./kanban_record";
-import { KanbanRecordQuickCreate } from "./kanban_record_quick_create";
+import { ColumnProgress } from "./column_progress.js";
+import { KanbanColumnExamplesDialog } from "./kanban_column_examples_dialog.js";
+import { KanbanColumnQuickCreate } from "./kanban_column_quick_create.js";
+import { KanbanHeader } from "./kanban_header.js";
+import { KanbanRecord } from "./kanban_record.js";
+import { KanbanRecordQuickCreate } from "./kanban_record_quick_create.js";
 
 const DRAGGABLE_GROUP_TYPES = ["many2one"];
 

@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dnd/draggable_hook_builder_owl - OWL-lifecycle adapter for the draggable hook builder */
 
 import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
-import { makeDraggableHook as nativeMakeDraggableHook } from "./draggable_hook_builder";
+import { makeDraggableHook as nativeMakeDraggableHook } from "./draggable_hook_builder.js";
 
 /**
  * Set of default `makeDraggableHook` setup hooks that makes use of Owl lifecycle

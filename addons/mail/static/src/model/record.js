@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { markup, toRaw } from "@odoo/owl";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 
@@ -10,7 +11,7 @@ import {
     isRelation,
     modelRegistry,
     OR_SYM,
-} from "./misc";
+} from "./misc.js";
 
 /** @typedef {import("./misc").FieldDefinition} FieldDefinition */
 /** @typedef {import("./record_list").RecordList} RecordList */

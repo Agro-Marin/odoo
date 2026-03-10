@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ActionList } from "@mail/core/common/action_list";
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { Composer } from "@mail/core/common/composer";
@@ -36,9 +37,9 @@ import { renderToElement } from "@web/core/utils/render";
 import { getOrigin, url } from "@web/core/utils/urls";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { discussComponentRegistry } from "./discuss_component_registry";
-import { useMessageActions } from "./message_actions";
-import { NotificationMessage } from "./notification_message";
+import { discussComponentRegistry } from "./discuss_component_registry.js";
+import { useMessageActions } from "./message_actions.js";
+import { NotificationMessage } from "./notification_message.js";
 
 /**
  * @typedef {Object} Props

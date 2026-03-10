@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/user_groups/res_user_group_ids_popover - Popover showing group implication details (implied-by, implies, disjoint) */
 

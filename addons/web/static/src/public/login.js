@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/login - Login form interaction that adds a loading effect on submit */
 
 import { registry } from "@web/core/registry";
 import { addLoadingEffect } from "@web/core/utils/dom/ui";
 
-import { Interaction } from "./interaction";
+import { Interaction } from "./interaction.js";
 export class Login extends Interaction {
     static selector = ".oe_login_form";
     dynamicContent = {

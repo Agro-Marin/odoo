@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { KanbanRecord } from "@web/views/kanban/kanban_record";
 export class RottingKanbanRecord extends KanbanRecord {
     /**

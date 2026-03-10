@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/action_service - Action manager that routes server/client actions to views, dialogs, and URL redirects */
 
@@ -31,19 +32,19 @@ import { UPDATE_METHODS } from "@web/services/orm_service";
 import { user } from "@web/services/user";
 import { View, ViewNotFoundError } from "@web/views/view";
 
-import { executeActionButton } from "./action_button_executor";
-import { DIALOG_SIZES } from "./action_constants";
-import { ActionDialog } from "./action_dialog";
+import { executeActionButton } from "./action_button_executor.js";
+import { DIALOG_SIZES } from "./action_constants.js";
+import { ActionDialog } from "./action_dialog.js";
 import {
     buildActionInfo,
     buildActionViews,
     buildViewInfo,
-} from "./action_info_builders";
-import { getActionParams, makeActionState } from "./action_state";
-import { findView, getActionMode } from "./action_views";
-import { buildBreadcrumbs, controllersFromState } from "./breadcrumb_manager";
-import { executeReportAction } from "./reports/report_executor";
-import { SkeletonView } from "./skeleton_view";
+} from "./action_info_builders.js";
+import { getActionParams, makeActionState } from "./action_state.js";
+import { findView, getActionMode } from "./action_views.js";
+import { buildBreadcrumbs, controllersFromState } from "./breadcrumb_manager.js";
+import { executeReportAction } from "./reports/report_executor.js";
+import { SkeletonView } from "./skeleton_view.js";
 
 class BlankComponent extends Component {
     static props = ["onMounted", "withControlPanel", "*"];
@@ -455,8 +456,16 @@ export function makeActionManager(env, router = _router) {
         browser.sessionStorage.setItem("current_state", JSON.stringify(state));
         _openURL(router.stateToUrl(state));
         // restore the current action from the current window
-        browser.sessionStorage.setItem("current_action", currentAction);
-        browser.sessionStorage.setItem("current_state", currentState);
+        if (currentAction !== null) {
+            browser.sessionStorage.setItem("current_action", currentAction);
+        } else {
+            browser.sessionStorage.removeItem("current_action");
+        }
+        if (currentState !== null) {
+            browser.sessionStorage.setItem("current_state", currentState);
+        } else {
+            browser.sessionStorage.removeItem("current_state");
+        }
     }
 
     /**
@@ -929,7 +938,11 @@ export function makeActionManager(env, router = _router) {
         } else {
             const next = await /** @type {any} */ (clientAction)(env, action, options);
             if (next) {
-                return doAction(next, options);
+                const depth = (options._actionDepth || 0) + 1;
+                if (depth > 20) {
+                    throw new Error("Action recursion limit exceeded (max 20)");
+                }
+                return doAction(next, { ...options, _actionDepth: depth });
             }
         }
     }
@@ -1195,7 +1208,7 @@ export function makeActionManager(env, router = _router) {
         if (actionParams) {
             // Params valid => performs a "doAction"
             const { actionRequest, options } = actionParams;
-            if (options.index) {
+            if (options.index !== undefined) {
                 options.newStack = newStack.slice(0, options.index);
                 delete options.index;
             } else {

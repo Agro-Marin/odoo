@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/errors/error_handlers - Registry-based error handlers that route exceptions to appropriate dialogs or notifications */
 
@@ -21,7 +22,7 @@ import {
     ErrorDialog,
     NetworkErrorDialog,
     RPCErrorDialog,
-} from "./error_dialogs";
+} from "./error_dialogs.js";
 
 const errorHandlerRegistry = registry.category("error_handlers");
 const errorDialogRegistry = registry.category("error_dialogs");
@@ -65,7 +66,7 @@ export function rpcErrorHandler(env, error, originalError) {
                 ErrorComponent = errorDialogRegistry.get(exceptionName);
             }
         }
-        if (!ErrorComponent && originalError.data.context) {
+        if (!ErrorComponent && originalError.data?.context) {
             const exceptionClass = originalError.data.context.exception_class;
             if (errorDialogRegistry.contains(exceptionClass)) {
                 ErrorComponent = errorDialogRegistry.get(exceptionClass);

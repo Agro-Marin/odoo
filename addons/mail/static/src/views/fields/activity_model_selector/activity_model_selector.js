@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Component, useState } from "@odoo/owl";
 import { ModelSelector } from "@web/components/model_selector/model_selector";
 import { _t } from "@web/core/l10n/translation";

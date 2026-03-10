@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { _t } from "@web/core/l10n/translation";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { NotebookTaskListRenderer } from '../notebook_task_one2many_field/notebook_task_list_renderer.js';

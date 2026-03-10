@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/settings/settings_page - Top-level settings page with app tabs, swipe navigation, and URL hash-based tab/anchor selection */
 
@@ -32,9 +33,9 @@ export class SettingsPage extends Component {
                 if (this.props.modules.map((m) => m.key).includes(hash)) {
                     selectedTab = hash;
                 } else {
-                    const plop = this.props.anchors.find((a) => a.settingId === hash);
-                    if (plop) {
-                        selectedTab = plop.app;
+                    const anchor = this.props.anchors.find((a) => a.settingId === hash);
+                    if (anchor) {
+                        selectedTab = anchor.app;
                     }
                 }
             }
@@ -51,7 +52,7 @@ export class SettingsPage extends Component {
                     return;
                 }
 
-                const { scrollTop } = this.scrollMap[currentTab] || 0;
+                const { scrollTop } = this.scrollMap[currentTab] || { scrollTop: 0 };
                 settingsEl.scrollTop = scrollTop;
             },
             () => [this.settingsRef.el, this.state.selectedTab],

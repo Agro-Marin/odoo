@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/float_toggle/float_toggle_field - Cyclic button that steps through a list of float values on click */
 

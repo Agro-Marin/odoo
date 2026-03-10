@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/errors/offline_fail_to_fetch_error_handler - Error handler converting browser "Failed to fetch" TypeErrors into ConnectionLostError */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module search/search_context - Context computation utilities for SearchModel */
 
@@ -22,7 +23,7 @@ export function computeSearchItemContext(activeItem, searchItems) {
             let context = {};
             if (searchItem.context) {
                 const self = activeItem.autocompleteValues.map(
-                    (autocompleValue) => autocompleValue.value,
+                    (autocompleteValue) => autocompleteValue.value,
                 );
                 context = evaluateExpr(searchItem.context, { self });
                 if (typeof context !== "object") {

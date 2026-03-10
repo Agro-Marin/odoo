@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/action_button_executor - Executes action buttons (type=object/action/special) with RPC, context filtering, and UI blocking */
 
@@ -18,7 +19,7 @@ import { evaluateExpr } from "@web/core/py_js/py";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { user } from "@web/services/user";
 
-import { CTX_KEY_REGEX, EMBEDDED_ACTIONS_CTX_KEYS } from "./action_constants";
+import { CTX_KEY_REGEX, EMBEDDED_ACTIONS_CTX_KEYS } from "./action_constants.js";
 
 /** @typedef {import("@web/core/utils/concurrency").KeepLast} KeepLast */
 /** @typedef {Object} DoActionButtonParams */
@@ -187,17 +188,20 @@ export async function executeActionButton(
     // attribute on the button, the priority is given to the button attribute
     const effect = params.effect ? evaluateExpr(params.effect) : action.effect;
     const { onClose, stackPosition, viewType } = params;
-    await ctx.doAction(action, {
-        newWindow,
-        onClose,
-        stackPosition,
-        viewType,
-    });
-    if (params.close) {
-        await ctx.executeCloseAction();
-    }
-    if (blockUi) {
-        ctx.env.services.ui.unblock();
+    try {
+        await ctx.doAction(action, {
+            newWindow,
+            onClose,
+            stackPosition,
+            viewType,
+        });
+        if (params.close) {
+            await ctx.executeCloseAction();
+        }
+    } finally {
+        if (blockUi) {
+            ctx.env.services.ui.unblock();
+        }
     }
     if (effect) {
         ctx.env.services.effect.add(effect);

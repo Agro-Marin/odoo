@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";

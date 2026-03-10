@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/search_bar_menu/search_bar_menu - Dropdown menu grouping Filter, Group By, Favorites, and search panels */
 

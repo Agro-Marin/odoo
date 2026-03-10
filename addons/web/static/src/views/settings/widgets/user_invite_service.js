@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/widgets/user_invite_service - Service that fetches and caches pending user invitation data from /base_setup/data */
 

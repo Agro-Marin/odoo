@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";
 import { browser } from "@web/core/browser/browser";
 import { useService } from "@web/core/utils/hooks";

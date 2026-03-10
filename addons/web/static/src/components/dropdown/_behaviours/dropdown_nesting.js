@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/dropdown/_behaviours/dropdown_nesting - Parent-child nesting state and close propagation logic for nested dropdowns */
 

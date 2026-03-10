@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/pivot/pivot_renderer - Renders the pivot table HTML with expandable row/column headers, measures dropdown, and XLSX export */
 

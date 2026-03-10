@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/effects/effect_service - Service that triggers visual effects (rainbow man) via the effects registry */
 
@@ -6,7 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 
-import { RainbowMan } from "./rainbow_man";
+import { RainbowMan } from "./rainbow_man.js";
 
 const effectRegistry = registry.category("effects");
 

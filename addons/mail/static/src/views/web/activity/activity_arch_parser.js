@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { visitXML } from "@web/core/utils/dom/xml";
 import { Field } from "@web/fields/field";
 export class ActivityArchParser {

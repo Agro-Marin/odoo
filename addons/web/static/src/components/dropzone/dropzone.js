@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/dropzone/dropzone - Visual drop target overlay that tracks drag enter/leave and fires onDrop */
 

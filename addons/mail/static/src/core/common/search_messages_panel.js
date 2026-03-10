@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { SearchMessageInput } from "@mail/core/common/search_message_input";
 import { SearchMessageResult } from "@mail/core/common/search_message_result";
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
@@ -5,7 +6,7 @@ import { Component, onWillUpdateProps } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 
-import { useMessageSearch } from "./message_search_hook";
+import { useMessageSearch } from "./message_search_hook.js";
 /**
  * @typedef {Object} Props
  * @property {import("@mail/core/common/thread_model").Thread} thread

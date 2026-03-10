@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/context - Builds an evaluation context by merging and evaluating Python expressions */
 
-import { evaluateExpr, parseExpr } from "./py_js/py";
-import { BUILTINS } from "./py_js/py_builtin";
-import { evaluate } from "./py_js/py_interpreter";
+import { evaluateExpr, parseExpr } from "./py_js/py.js";
+import { BUILTINS } from "./py_js/py_builtin.js";
+import { evaluate } from "./py_js/py_interpreter.js";
 
 /** @typedef {any} AST */
 

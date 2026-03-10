@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/color_picker/color_picker_field - Predefined color palette picker field for Integer columns */
 

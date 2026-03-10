@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/float/float_field - Numeric input field for Float columns with locale-aware formatting */
 
@@ -9,7 +10,7 @@ import { formatFloat } from "@web/fields/formatters";
 import { parseFloat } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-import { NumericInputFieldBase } from "../numeric_input_field_base";
+import { NumericInputFieldBase } from "../numeric_input_field_base.js";
 
 export class FloatField extends NumericInputFieldBase {
     static template = "web.FloatField";

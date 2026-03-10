@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/debug/debug_menu - Extended debug menu with command palette integration */
 
@@ -9,7 +10,7 @@ import { useService } from "@web/core/utils/hooks";
 import { useCommand } from "@web/services/commands/command_hook";
 import { DebugMenuBasic } from "@web/services/debug/debug_menu_basic";
 
-import { useEnvDebugContext } from "./debug_context";
+import { useEnvDebugContext } from "./debug_context.js";
 
 /**
  * Extended debug menu that also registers debug tools as a command palette

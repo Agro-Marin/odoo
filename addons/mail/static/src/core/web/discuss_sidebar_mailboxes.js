@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ThreadIcon } from "@mail/core/common/thread_icon";
 import { discussSidebarItemsRegistry } from "@mail/core/public_web/discuss_sidebar";
 import { useHover } from "@mail/utils/common/hooks";

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/operation - Arithmetic operation class for numeric field transformations */
 

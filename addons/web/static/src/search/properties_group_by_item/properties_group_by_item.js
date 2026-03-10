@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/properties_group_by_item/properties_group_by_item - Group-by dropdown item that lazily loads property definitions for grouping */
 

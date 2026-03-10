@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { DiscussNotificationSettings } from "@mail/discuss/core/common/discuss_notification_settings";
 import { Component, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";

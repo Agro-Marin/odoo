@@ -1,3 +1,4 @@
+/** @odoo-module */
 const { DateTime } = luxon;
 
 /**

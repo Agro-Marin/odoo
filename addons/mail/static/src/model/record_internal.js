@@ -1,12 +1,13 @@
+/** @odoo-module */
 /** @typedef {import("./record").Record} Record */
 /** @typedef {import("./record_list").RecordList} RecordList */
 
 import { onChange } from "@mail/utils/common/misc";
 import { reactive, toRaw } from "@odoo/owl";
 
-import { IS_DELETED_SYM, IS_RECORD_SYM, isRelation } from "./misc";
-import { RecordList } from "./record_list";
-import { RecordUses } from "./record_uses";
+import { IS_DELETED_SYM, IS_RECORD_SYM, isRelation } from "./misc.js";
+import { RecordList } from "./record_list.js";
+import { RecordUses } from "./record_uses.js";
 
 export class RecordInternal {
     [IS_RECORD_SYM] = true;

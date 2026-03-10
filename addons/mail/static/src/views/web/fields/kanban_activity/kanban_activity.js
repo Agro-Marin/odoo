@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ActivityButton } from "@mail/core/web/activity_button";
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";

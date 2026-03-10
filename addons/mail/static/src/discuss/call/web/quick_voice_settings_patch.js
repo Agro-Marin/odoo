@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { QuickVoiceSettings } from "@mail/discuss/call/common/quick_voice_settings";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";

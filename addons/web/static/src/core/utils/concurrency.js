@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/concurrency - Async primitives: Mutex, KeepLast, Race, Deferred, and delay */
 
@@ -116,12 +117,19 @@ export class Mutex {
                 this._unlockedProm = undefined;
             };
         }
-        const always = () =>
-            Promise.resolve(action()).finally(() => {
+        const always = () => {
+            let result;
+            try {
+                result = action();
+            } catch (e) {
+                result = Promise.reject(e);
+            }
+            return Promise.resolve(result).finally(() => {
                 if (--this._queueSize === 0) {
                     this._unlock();
                 }
             });
+        };
         this._lock = this._lock.then(always, always);
         return this._lock;
     }
@@ -152,6 +160,8 @@ export class Race {
         this.currentPromResolver = null;
         /** @type {((error: any) => void) | null} */
         this.currentPromRejecter = null;
+        /** @type {number} Generation counter to protect against stale callbacks */
+        this._generation = 0;
     }
     /**
      * Register a new promise. If there is an ongoing race, the promise is added
@@ -164,22 +174,30 @@ export class Race {
      */
     add(promise) {
         if (!this.currentProm) {
+            this._generation++;
+            const gen = this._generation;
             const { promise, resolve, reject } = Promise.withResolvers();
             this.currentProm = promise;
             this.currentPromResolver = (value) => {
+                if (this._generation !== gen) {
+                    return; // stale callback from a previous race — ignore
+                }
                 this.currentProm = null;
                 this.currentPromResolver = null;
                 this.currentPromRejecter = null;
                 resolve(value);
             };
             this.currentPromRejecter = (error) => {
+                if (this._generation !== gen) {
+                    return; // stale callback from a previous race — ignore
+                }
                 this.currentProm = null;
                 this.currentPromResolver = null;
                 this.currentPromRejecter = null;
                 reject(error);
             };
         }
-        promise.then(this.currentPromResolver).catch(this.currentPromRejecter);
+        promise.then(this.currentPromResolver, this.currentPromRejecter);
         return this.currentProm;
     }
     /**

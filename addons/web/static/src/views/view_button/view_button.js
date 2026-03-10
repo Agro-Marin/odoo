@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_button/view_button - Renders arch button elements with debouncing, tooltips, and Bootstrap class resolution */
 

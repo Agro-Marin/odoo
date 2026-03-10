@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/domain_selector_dialog/domain_selector_dialog - Modal dialog for editing and validating an Odoo domain filter */
 

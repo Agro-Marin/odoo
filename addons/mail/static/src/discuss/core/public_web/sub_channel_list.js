@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { SubChannelPreview } from "@mail/discuss/core/public_web/sub_channel_preview";

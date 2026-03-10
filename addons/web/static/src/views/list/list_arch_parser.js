@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_arch_parser - Parses list view XML arch into column definitions, groupby configs, buttons, and decorations */
 

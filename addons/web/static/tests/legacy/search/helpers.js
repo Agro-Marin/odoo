@@ -235,7 +235,7 @@ export async function groupByMenu(el, fieldName) {
 
 export async function deleteFavorite(el, favoriteFinder) {
     const favorite = findItem(el, `.o_favorite_menu .o_menu_item`, favoriteFinder);
-    await click(findItem(favorite, "i.fa-trash-o"));
+    await click(findItem(favorite, "i.fa-regular.fa-trash-can"));
 }
 
 export async function toggleSaveFavorite(el) {

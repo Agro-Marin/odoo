@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/database_manager - DOM event handlers for the database manager page (eye toggle, modals, master password) */
 

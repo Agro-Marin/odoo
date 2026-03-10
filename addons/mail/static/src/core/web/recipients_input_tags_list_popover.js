@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { parseEmail } from "@mail/utils/common/format";
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { isEmail } from "@web/core/utils/format/strings";

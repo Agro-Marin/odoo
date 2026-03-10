@@ -1,12 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/urls - URL construction, origin resolution, image URL generation, and redirect handling */
 
 import { browser } from "@web/core/browser/browser";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
-
-const { DateTime } = /** @type {any} */ (luxon);
 
 class RedirectionError extends Error {}
 
@@ -19,7 +18,7 @@ class RedirectionError extends Error {}
  */
 export function objectToUrlEncodedString(obj) {
     return Object.entries(obj)
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v || "")}`)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v ?? "")}`)
         .join("&");
 }
 
@@ -97,6 +96,7 @@ export function imageUrl(
         Object.assign(urlParams, { crop });
     }
     if (unique) {
+        const { DateTime } = /** @type {any} */ (luxon);
         if (unique instanceof DateTime) {
             urlParams.unique = unique.ts;
         } else {

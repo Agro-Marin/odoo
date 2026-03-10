@@ -1,9 +1,10 @@
+/** @odoo-module */
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 
-import { ImStatus } from "./im_status";
-import { Thread } from "./thread_model";
+import { ImStatus } from "./im_status.js";
+import { Thread } from "./thread_model.js";
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread} thread

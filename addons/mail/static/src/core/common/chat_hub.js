@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Action } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
 import { CHAT_HUB_COMPACT_LS } from "@mail/core/common/chat_hub_model";
@@ -12,7 +13,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
-import { ChatBubble } from "./chat_bubble";
+import { ChatBubble } from "./chat_bubble.js";
 export class ChatHub extends Component {
     static components = { ActionList, ChatBubble, ChatWindow, Dropdown };
     static props = [];

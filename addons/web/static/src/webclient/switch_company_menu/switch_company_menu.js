@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/switch_company_menu/switch_company_menu - Company switcher systray dropdown with multi-select, search, and access-rights verification */
 

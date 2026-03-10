@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/skeleton_view - Shimmer loading placeholder shown during view transitions to replace blank screens */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_grid_state - Pure state object materializing flat row arrays for index-based list view grid navigation */
 

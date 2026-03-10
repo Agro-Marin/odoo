@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_utils - Shared utilities for view controllers (class names, active actions, archive, formatting) */
 

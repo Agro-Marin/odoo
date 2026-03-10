@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { SearchModel } from "@web/search/search_model";
 
 export class AccountProductCatalogSearchModel extends SearchModel {

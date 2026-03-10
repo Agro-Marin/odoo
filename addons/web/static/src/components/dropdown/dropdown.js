@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/dropdown/dropdown - Core dropdown component with popover positioning, nesting, and keyboard navigation */
 
@@ -363,6 +364,10 @@ export class Dropdown extends Component {
             items: this.props.items,
             slots: this.props.slots,
         };
+        // Capture focus target before opening so it isn't shifted to the popover
+        this._focusedElBeforeOpen = /** @type {HTMLElement | null} */ (
+            document.activeElement
+        );
         this.popover.open(this.target, props);
     }
 
@@ -375,9 +380,6 @@ export class Dropdown extends Component {
     }
 
     onOpened() {
-        this._focusedElBeforeOpen = /** @type {HTMLElement | null} */ (
-            document.activeElement
-        );
         this.activeEl = this.uiService.activeElement;
         this.navigation.registerHotkeys();
         this.navigation.update();

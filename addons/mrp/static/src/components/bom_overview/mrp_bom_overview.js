@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { useService, useBus } from "@web/core/utils/hooks";
-import { BomOverviewControlPanel } from "../bom_overview_control_panel/mrp_bom_overview_control_panel";
-import { BomOverviewTable } from "../bom_overview_table/mrp_bom_overview_table";
+import { BomOverviewControlPanel } from "../bom_overview_control_panel/mrp_bom_overview_control_panel.js";
+import { BomOverviewTable } from "../bom_overview_table/mrp_bom_overview_table.js";
 import { Component, EventBus, onWillStart, useSubEnv, useState } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 

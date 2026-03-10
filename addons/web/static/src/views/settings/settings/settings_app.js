@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/settings/settings_app - Container for a single app's settings tab content, hidden when search yields no matches */
 

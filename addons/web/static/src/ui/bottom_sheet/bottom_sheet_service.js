@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/bottom_sheet/bottom_sheet_service - Service for programmatically showing mobile bottom sheet overlays */
 

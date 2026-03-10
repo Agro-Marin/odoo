@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/legacy/js/public/minimal_dom - Async handler protection and button debouncing utilities for public DOM events */
 
@@ -21,7 +22,7 @@ export const BUTTON_HANDLER_SELECTOR =
  * @param {(...args: any[]) => any} fct
  *      The function which is to be used as a handler. If a promise
  *      is returned, it is used to determine when the handler's action is
- *      finished. Otherwise, the return is used as jQuery uses it.
+ *      finished.
  * @param {((...args: any[]) => boolean) | boolean} [preventDefault]
  * @param {((...args: any[]) => boolean) | boolean} [stopPropagation]
  * @param {((...args: any[]) => boolean) | boolean} [stopImmediatePropagation]
@@ -85,7 +86,7 @@ export function makeAsyncHandler(
  * @param {(...args: any[]) => any} fct
  *      The function which is to be used as a button click handler. If a
  *      promise is returned, it is used to determine when the button can be
- *      re-enabled. Otherwise, the return is used as jQuery uses it.
+ *      re-enabled.
  * @param {((...args: any[]) => boolean) | boolean} [preventDefault]
  * @param {((...args: any[]) => boolean) | boolean} [stopPropagation]
  * @param {((...args: any[]) => boolean) | boolean} [stopImmediatePropagation]

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/dropdown/checkbox_item - Dropdown menu item variant with an integrated checkbox toggle */
 

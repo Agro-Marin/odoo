@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/menus/menu_providers - Command palette providers for app and menu item fuzzy search */
 

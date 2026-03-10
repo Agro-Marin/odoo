@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/graph/graph_model - Chart data fetching, groupBy processing, measure aggregation, and dataset preparation */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/temporal/datetime/list_datetime_field - List-view variant of datetime/date fields with auto-resizing input */
 
@@ -11,7 +12,7 @@ import {
     dateRangeField,
     DateTimeField,
     dateTimeField,
-} from "./datetime_field";
+} from "./datetime_field.js";
 
 export class ListDateTimeField extends DateTimeField {
     setup() {

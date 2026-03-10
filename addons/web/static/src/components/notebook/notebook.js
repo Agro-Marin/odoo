@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/notebook/notebook - Tabbed notebook component that renders one page at a time with tab navigation */
 
@@ -116,7 +117,11 @@ export class Notebook extends Component {
 
     /** @returns {Object | undefined} the active page descriptor, if it has a Component */
     get page() {
-        const page = this.pages.find((e) => e[0] === this.state.currentPage)[1];
+        const entry = this.pages.find((e) => e[0] === this.state.currentPage);
+        if (!entry) {
+            return undefined;
+        }
+        const page = entry[1];
         return page.Component && page;
     }
 
@@ -162,9 +167,11 @@ export class Notebook extends Component {
                 pages.push([id, v]);
             }
             if (v.isDisabled) {
-                this.disabledPages.push(k);
+                this.disabledPages.push(id);
             }
         }
+        // Sort by index ascending so earlier insertions don't shift later ones
+        pagesWithIndex.sort((a, b) => a[1].index - b[1].index);
         for (const page of pagesWithIndex) {
             pages.splice(page[1].index, 0, page);
         }

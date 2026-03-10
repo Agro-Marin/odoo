@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { browser } from "@web/core/browser/browser";

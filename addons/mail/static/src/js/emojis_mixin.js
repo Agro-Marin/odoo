@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { markup } from "@odoo/owl";
 import { htmlReplace, htmlReplaceAll } from "@web/core/utils/dom/html";
 /**

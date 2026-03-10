@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { createElement, append } from "@web/core/utils/dom/xml";
 import { Notebook } from "@web/components/notebook/notebook";

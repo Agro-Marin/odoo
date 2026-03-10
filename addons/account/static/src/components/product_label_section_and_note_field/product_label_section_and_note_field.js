@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { _t } from "@web/core/l10n/translation";
 import { buildM2OFieldDescription, extractM2OFieldProps, m2oSupportedOptions } from "@web/fields/relational/many2one/many2one_field";
 import { registry } from "@web/core/registry";

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/record_save - Save logic extracted from RelationalRecord */
 
@@ -10,9 +11,9 @@
 
 import { markRaw, markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { FetchRecordError } from "./errors";
-import { getBasicEvalContext } from "./field_context";
-import { getFieldsSpec } from "./field_spec";
+import { FetchRecordError } from "./errors.js";
+import { getBasicEvalContext } from "./field_context.js";
+import { getFieldsSpec } from "./field_spec.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
@@ -61,7 +62,8 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     if (
         record.model._urgentSave &&
         record.model.useSendBeaconToSaveUrgently &&
-        !record.model.env.inDialog
+        !record.model.env.inDialog &&
+        record.resId // sendBeacon cannot return the new ID for creation
     ) {
         // We are trying to save urgently because the user is closing the page. To
         // ensure that the save succeeds, we can't do a classic rpc, as these requests
@@ -82,6 +84,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         });
         const succeeded = navigator.sendBeacon(route, blob);
         if (succeeded) {
+            record._values = markRaw({ ...record._values, ...record._changes });
             record._changes = markRaw({});
             record.dirty = false;
         } else {
@@ -125,6 +128,12 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         specification: fieldSpec,
         next_id: nextId,
     };
+    // Optimistic locking: send write_date so the server can detect concurrent edits
+    if (record.resId && record._values.write_date) {
+        const wd = record._values.write_date;
+        // write_date may be a Luxon DateTime or a string
+        kwargs.last_write_date = typeof wd === "string" ? wd : wd.toISO();
+    }
     /** @type {Record<string, any>[]} */
     let records;
     try {

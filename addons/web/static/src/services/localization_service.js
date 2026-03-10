@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/localization_service - Fetches translations and configures Luxon locale, numbering system, and date/number formats */
 
@@ -97,7 +98,13 @@ export const localizationService = {
                 dateTimeFormat: `${dateFormat} ${timeFormat}`,
                 decimalPoint: userLocalization.decimal_point,
                 direction: userLocalization.direction,
-                grouping: JSON.parse(userLocalization.grouping),
+                grouping: (() => {
+                    try {
+                        return JSON.parse(userLocalization.grouping);
+                    } catch {
+                        return [3, 0];
+                    }
+                })(),
                 multiLang: result.multi_lang,
                 thousandsSep: userLocalization.thousands_sep,
                 weekStart: userLocalization.week_start,
@@ -109,7 +116,9 @@ export const localizationService = {
             JSON.stringify({ lang }),
         );
 
-        const translationProm = fetchTranslations(storedTranslations?.hash);
+        const translationProm = fetchTranslations(storedTranslations?.hash).catch(
+            (e) => console.warn("Background translation fetch failed:", e),
+        );
         if (storedTranslations) {
             updateTranslations(storedTranslations);
         } else {

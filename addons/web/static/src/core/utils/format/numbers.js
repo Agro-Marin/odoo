@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/format/numbers - Locale-aware number formatting, parsing, rounding, and human-readable display */
 
@@ -28,6 +29,9 @@ export function clamp(num, min, max) {
  * @returns {number[]}
  */
 export function range(start, stop, step = 1) {
+    if (step === 0) {
+        throw new Error("range() step argument must not be zero");
+    }
     const array = [];
     const nsteps = Math.floor((stop - start) / step);
     for (let i = 0; i < nsteps; i++) {
@@ -51,9 +55,13 @@ export function range(start, stop, step = 1) {
  *    - "DOWN" always rounds towards 0.
  */
 export function roundPrecision(value, precision, method = "HALF-UP") {
-    if (!value) {
+    if (value === 0) {
         return 0;
-    } else if (!precision || precision < 0) {
+    }
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        return NaN;
+    }
+    if (!precision || precision < 0) {
         precision = 1;
     }
     let roundingFactor = precision;
@@ -246,7 +254,7 @@ export function formatFloat(value, options = {}) {
         const intDigitsCount =
             value !== 0 ? Math.floor(Math.log10(Math.abs(value))) + 1 : 1;
         // We estimate the maximum decimal digits we can display without showing rounding errors,
-        // by substracting the number of integer digits to 15, as floats have 15-16 digits precision.
+        // by subtracting the number of integer digits from 15, as floats have 15-16 digits precision.
         const maxDecDigits = Math.max(15 - intDigitsCount, 0);
         // We display maximum 6 digits or the number of significant digits (if it's lower)
         precision = Math.min(6, maxDecDigits);

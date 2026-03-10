@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/search_panel/search_panel_state - Search panel section management extracted from SearchModel */
 
@@ -14,8 +15,8 @@ import { Domain } from "@web/core/domain";
 import {
     createCategoryTree as buildCategoryTree,
     createFilterTree as buildFilterTree,
-} from "./search_panel_fetch";
-import { hasValues } from "../search_state";
+} from "./search_panel_fetch.js";
+import { hasValues } from "../search_state.js";
 
 /** @import { SearchModel, Category, Filter, Section, SectionPredicate } from "@web/search/search_model" */
 /** @import { DomainListRepr } from "@web/core/domain" */

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/pivot/pivot_measurements - Builds measure specs (fieldName:aggregator) and data comparison logic for the pivot model */
 
@@ -60,7 +61,7 @@ export function getMeasurements(group, config) {
         }
         if (
             metaData.measures[fieldName].type === "boolean" &&
-            measurement instanceof Boolean
+            typeof measurement === "boolean"
         ) {
             measurement = measurement ? 1 : 0;
         }

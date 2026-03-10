@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/media/attachment_image/attachment_image_field - Read-only image display field for Many2one attachment references */
 

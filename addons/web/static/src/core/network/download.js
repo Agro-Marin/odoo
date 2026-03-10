@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/network/download - File download via RPC with content-disposition filename extraction */
 
@@ -6,7 +7,7 @@ import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError, makeErrorFromResponse } from "@web/core/network/rpc";
 
-import { parse } from "./content_disposition";
+import { parse } from "./content_disposition.js";
 
 /* eslint-disable */
 /**
@@ -254,7 +255,7 @@ download._download = (options) =>
         } else {
             xhr.open("POST", options.url);
             data = new FormData();
-            Object.entries(options.data).forEach((entry) => {
+            Object.entries(options.data || {}).forEach((entry) => {
                 const [key, value] = entry;
                 data.append(key, value);
             });

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { cookie } from "@web/core/browser/cookie";
 import { getColor, getCustomColor } from "@web/core/colors/colors";
 import { useService } from "@web/core/utils/hooks";

@@ -43,8 +43,7 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def is_a_bot(cls) -> bool:
         user_agent = request.httprequest.user_agent.string.lower()
-        # We don't use regexp and ustr voluntarily
-        # timeit has been done to check the optimum method
+        # Substring matching benchmarked faster than regexp for this use case
         return any(bot in user_agent for bot in CRAWLER_USER_AGENTS)
 
     @classmethod
@@ -85,6 +84,7 @@ class IrHttp(models.AbstractModel):
         }
 
     def color_scheme(self) -> str:
+        """Return the color scheme for the web client. Override to support dark/system."""
         return "light"
 
     def content_density(self) -> str:
@@ -103,12 +103,134 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def lazy_session_info(self) -> dict[str, Any]:
+        """Return session fields that can be loaded lazily after page render."""
         return {}
 
-    def session_info(self) -> dict[str, Any]:
+    def _base_session_info(self) -> dict[str, Any]:
+        """Build the session fields shared by both backend and frontend.
+
+        Returns identity, feature flags, profiling, currencies, bundle
+        params, and config-parameter-driven limits.  Both ``session_info``
+        and ``get_frontend_session_info`` extend this base.
+        """
         user = self.env.user
         session_uid = request.session.uid
-        version_info = odoo.service.common.exp_version()
+        ir_config_sudo = self.env["ir.config_parameter"].sudo()
+
+        info = {
+            "uid": session_uid,
+            "is_system": user._is_system() if session_uid else False,
+            "is_admin": user._is_admin() if session_uid else False,
+            "is_public": user._is_public(),
+            "is_internal_user": user._is_internal(),
+            "registry_hash": hmac(
+                self.env(su=True),
+                "webclient-cache",
+                self.env.registry.registry_sequence,
+            ),
+            "profile_session": request.session.get("profile_session"),
+            "profile_collectors": request.session.get("profile_collectors"),
+            "profile_params": request.session.get("profile_params"),
+            "show_effect": bool(ir_config_sudo.get_param("base.show_effect")),
+            "currencies": self.env["res.currency"].get_all_currencies(),
+            "quick_login": str2bool(
+                ir_config_sudo.get_param("web.quick_login", default=True), True
+            ),
+            "bundle_params": {
+                "lang": request.session.context.get("lang", DEFAULT_LANG),
+            },
+            "test_mode": config["test_enable"],
+        }
+        if request.session.debug:
+            info["bundle_params"]["debug"] = request.session.debug
+        if session_uid:
+            version_info = odoo.service.common.exp_version()
+            info["server_version"] = version_info.get("server_version")
+            info["server_version_info"] = version_info.get("server_version_info")
+        return info
+
+    def _get_config_limits(self, ir_config_sudo: Any) -> dict[str, int]:
+        """Read numeric config parameters with safe fallbacks.
+
+        :param ir_config_sudo: sudoed ``ir.config_parameter`` model
+        """
+        try:
+            max_file_upload_size = int(
+                ir_config_sudo.get_param(
+                    "web.max_file_upload_size",
+                    default=DEFAULT_MAX_CONTENT_LENGTH,
+                )
+            )
+        except ValueError, TypeError:
+            max_file_upload_size = DEFAULT_MAX_CONTENT_LENGTH
+        try:
+            active_ids_limit = int(
+                ir_config_sudo.get_param("web.active_ids_limit", default="20000")
+            )
+        except ValueError, TypeError:
+            active_ids_limit = 20000
+        return {
+            "max_file_upload_size": max_file_upload_size,
+            "active_ids_limit": active_ids_limit,
+        }
+
+    def _get_user_companies_info(self) -> dict[str, Any]:
+        """Build the multi-company hierarchy dict for internal users.
+
+        Uses ``prefetch_fields=False`` to avoid loading all company fields
+        during session init, making this resilient to schema changes.
+        """
+        user = self.env.user
+        user_companies = (
+            self.env(context=dict(self.env.context, prefetch_fields=False))[
+                "res.company"
+            ]
+            .browse(user._get_company_ids())
+            .sudo()
+        )
+        disallowed_ancestors = user_companies.parent_ids - user_companies
+        full_hierarchy = disallowed_ancestors + user_companies
+
+        # Pre-compute visible IDs and each company's filtered child_ids
+        # in one pass, avoiding N recordset intersections below.
+        hierarchy_ids = set(full_hierarchy._ids)
+        children_in_hierarchy = {
+            comp.id: [cid for cid in comp.child_ids._ids if cid in hierarchy_ids]
+            for comp in full_hierarchy
+        }
+        return {
+            "current_company": user.company_id.id,
+            "allowed_companies": {
+                comp.id: {
+                    "id": comp.id,
+                    "name": comp.name,
+                    "sequence": comp.sequence,
+                    "child_ids": children_in_hierarchy.get(comp.id, []),
+                    "parent_id": comp.parent_id.id,
+                    "currency_id": comp.currency_id.id,
+                }
+                for comp in user_companies
+            },
+            "disallowed_ancestor_companies": {
+                comp.id: {
+                    "id": comp.id,
+                    "name": comp.name,
+                    "sequence": comp.sequence,
+                    "child_ids": children_in_hierarchy.get(comp.id, []),
+                    "parent_id": comp.parent_id.id,
+                }
+                for comp in disallowed_ancestors
+            },
+        }
+
+    def session_info(self) -> dict[str, Any]:
+        """Build the full backend session info injected as ``odoo.__session_info__``.
+
+        Extends ``_base_session_info`` with user context, partner data,
+        config limits, and multi-company hierarchy for internal users.
+        """
+        user = self.env.user
+        session_uid = request.session.uid
 
         if session_uid:
             user_context = dict(self.env["res.users"].context_get())
@@ -117,173 +239,56 @@ class IrHttp(models.AbstractModel):
         else:
             user_context = {}
 
-        IrConfigSudo = self.env["ir.config_parameter"].sudo()
-        try:
-            max_file_upload_size = int(
-                IrConfigSudo.get_param(
-                    "web.max_file_upload_size",
-                    default=DEFAULT_MAX_CONTENT_LENGTH,
-                )
-            )
-        except (ValueError, TypeError):
-            max_file_upload_size = DEFAULT_MAX_CONTENT_LENGTH
-        try:
-            active_ids_limit = int(
-                IrConfigSudo.get_param("web.active_ids_limit", default="20000")
-            )
-        except (ValueError, TypeError):
-            active_ids_limit = 20000
-        is_internal_user = user._is_internal()
-        session_info = {
-            "uid": session_uid,
-            "is_system": user._is_system() if session_uid else False,
-            "is_admin": user._is_admin() if session_uid else False,
-            "is_public": user._is_public(),
-            "is_internal_user": is_internal_user,
-            "user_context": user_context,
-            "db": self.env.cr.dbname,
-            "registry_hash": hmac(
-                self.env(su=True),
-                "webclient-cache",
-                self.env.registry.registry_sequence,
+        info = self._base_session_info()
+        version_info = odoo.service.common.exp_version()
+        ir_config_sudo = self.env["ir.config_parameter"].sudo()
+
+        info.update(
+            self._get_config_limits(ir_config_sudo),
+            user_context=user_context,
+            db=self.env.cr.dbname,
+            server_version=version_info.get("server_version"),
+            server_version_info=version_info.get("server_version_info"),
+            user_settings=(
+                self.env["res.users.settings"]
+                ._find_or_create_for_user(user)
+                ._res_users_settings_format()
             ),
-            "user_settings": self.env["res.users.settings"]
-            ._find_or_create_for_user(user)
-            ._res_users_settings_format(),
-            "server_version": version_info.get("server_version"),
-            "server_version_info": version_info.get("server_version_info"),
-            "support_url": "https://www.odoo.com/buy",
-            "name": user.name,
-            "username": user.login,
-            "quick_login": str2bool(
-                IrConfigSudo.get_param("web.quick_login", default=True), True
-            ),
-            "partner_write_date": fields.Datetime.to_string(user.partner_id.write_date),
-            "partner_display_name": user.partner_id.display_name,
-            "partner_id": (
+            support_url="https://www.odoo.com/buy",
+            name=user.name,
+            username=user.login,
+            partner_write_date=fields.Datetime.to_string(user.partner_id.write_date),
+            partner_display_name=user.partner_id.display_name,
+            partner_id=(
                 user.partner_id.id if session_uid and user.partner_id else None
             ),
-            "web.base.url": IrConfigSudo.get_param("web.base.url", default=""),
-            "active_ids_limit": active_ids_limit,
-            "profile_session": request.session.get("profile_session"),
-            "profile_collectors": request.session.get("profile_collectors"),
-            "profile_params": request.session.get("profile_params"),
-            "max_file_upload_size": max_file_upload_size,
-            "home_action_id": user.action_id.id,
-            "currencies": self.env["res.currency"].get_all_currencies(),
-            "bundle_params": {
-                "lang": request.session.context.get("lang", DEFAULT_LANG),
-            },
-            "test_mode": config["test_enable"],
-            "view_info": self.env["ir.ui.view"].get_view_info(),
-            "groups": {
+            home_action_id=user.action_id.id,
+            view_info=self.env["ir.ui.view"].get_view_info(),
+            groups={
                 "base.group_allow_export": (
                     user.has_group("base.group_allow_export") if session_uid else False
                 ),
             },
-        }
-        if request.session.debug:
-            session_info["bundle_params"]["debug"] = request.session.debug
-        if is_internal_user:
-            # We need sudo since a user may not have access to ancestor companies
-            # We use `_get_company_ids` because it is cached and we sudo it because env.user return a sudo user.
-            # Use prefetch_fields=False to avoid prefetching all company fields during session init,
-            # making this resilient to schema changes (similar to res.users.context_get and ir.config_parameter.init)
-            user_companies = (
-                self.env(context=dict(self.env.context, prefetch_fields=False))[
-                    "res.company"
-                ]
-                .browse(user._get_company_ids())
-                .sudo()
-            )
-            disallowed_ancestor_companies_sudo = (
-                user_companies.parent_ids - user_companies
-            )
-            all_companies_in_hierarchy_sudo = (
-                disallowed_ancestor_companies_sudo + user_companies
-            )
-            # Pre-compute the set of visible IDs and each company's
-            # filtered child_ids in one pass, avoiding N recordset
-            # intersections inside the dict comprehensions below.
-            hierarchy_ids = set(all_companies_in_hierarchy_sudo._ids)
-            children_in_hierarchy = {
-                comp.id: [cid for cid in comp.child_ids._ids if cid in hierarchy_ids]
-                for comp in all_companies_in_hierarchy_sudo
-            }
-            session_info.update(
-                {
-                    # current_company should be default_company
-                    "user_companies": {
-                        "current_company": user.company_id.id,
-                        "allowed_companies": {
-                            comp.id: {
-                                "id": comp.id,
-                                "name": comp.name,
-                                "sequence": comp.sequence,
-                                "child_ids": children_in_hierarchy.get(comp.id, []),
-                                "parent_id": comp.parent_id.id,
-                                "currency_id": comp.currency_id.id,
-                            }
-                            for comp in user_companies
-                        },
-                        "disallowed_ancestor_companies": {
-                            comp.id: {
-                                "id": comp.id,
-                                "name": comp.name,
-                                "sequence": comp.sequence,
-                                "child_ids": children_in_hierarchy.get(comp.id, []),
-                                "parent_id": comp.parent_id.id,
-                            }
-                            for comp in disallowed_ancestor_companies_sudo
-                        },
-                    },
-                    "show_effect": bool(IrConfigSudo.get_param("base.show_effect")),
-                }
-            )
-        return session_info
+        )
+        info["web.base.url"] = ir_config_sudo.get_param("web.base.url", default="")
+
+        if info["is_internal_user"]:
+            info["user_companies"] = self._get_user_companies_info()
+        return info
 
     @api.model
     def get_frontend_session_info(self) -> dict[str, Any]:
-        user = self.env.user
+        """Build the minimal session info for frontend/portal pages.
+
+        Extends ``_base_session_info`` with frontend-specific flags.
+        """
         session_uid = request.session.uid
-        IrConfigSudo = self.env["ir.config_parameter"].sudo()
-        session_info = {
-            "is_admin": user._is_admin() if session_uid else False,
-            "is_system": user._is_system() if session_uid else False,
-            "is_public": user._is_public(),
-            "is_internal_user": user._is_internal(),
-            "is_website_user": user._is_public() if session_uid else False,
-            "uid": session_uid,
-            "registry_hash": hmac(
-                self.env(su=True),
-                "webclient-cache",
-                self.env.registry.registry_sequence,
-            ),
-            "is_frontend": True,
-            "profile_session": request.session.get("profile_session"),
-            "profile_collectors": request.session.get("profile_collectors"),
-            "profile_params": request.session.get("profile_params"),
-            "show_effect": bool(IrConfigSudo.get_param("base.show_effect")),
-            "currencies": self.env["res.currency"].get_all_currencies(),
-            "quick_login": str2bool(
-                IrConfigSudo.get_param("web.quick_login", default=True), True
-            ),
-            "bundle_params": {
-                "lang": request.session.context.get("lang", DEFAULT_LANG),
-            },
-            "test_mode": config["test_enable"],
-        }
-        if request.session.debug:
-            session_info["bundle_params"]["debug"] = request.session.debug
-        if session_uid:
-            version_info = odoo.service.common.exp_version()
-            session_info.update(
-                {
-                    "server_version": version_info.get("server_version"),
-                    "server_version_info": version_info.get("server_version_info"),
-                }
-            )
-        return session_info
+        info = self._base_session_info()
+        info.update(
+            is_website_user=self.env.user._is_public() if session_uid else False,
+            is_frontend=True,
+        )
+        return info
 
     @api.deprecated("Deprecated since 19.0, use get_all_currencies on 'res.currency'")
     def get_currencies(self) -> list[dict[str, Any]]:

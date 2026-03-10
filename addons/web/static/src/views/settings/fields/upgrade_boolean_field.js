@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/fields/upgrade_boolean_field - Boolean field for settings that shows an Enterprise upgrade dialog when checked */
 
@@ -6,7 +7,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { BooleanField, booleanField } from "@web/fields/basic/boolean/boolean_field";
 
-import { UpgradeDialog } from "./upgrade_dialog";
+import { UpgradeDialog } from "./upgrade_dialog.js";
 /**
  *  The upgrade boolean field is intended to be used in config settings.
  *  When checked, an upgrade popup is showed to the user.

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/properties/properties_field - Dynamic property field editor with drag-and-drop reordering and inline definition */
 
@@ -24,8 +25,8 @@ import { user } from "@web/services/user";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { PropertyDefinition } from "./property_definition";
-import { PropertyValue } from "./property_value";
+import { PropertyDefinition } from "./property_definition.js";
+import { PropertyValue } from "./property_value.js";
 
 export class PropertiesField extends Component {
     static template = "web.PropertiesField";
@@ -886,12 +887,15 @@ export class PropertiesField extends Component {
         const propertyName = this.movePopoverToProperty;
         this.movePopoverToProperty = null;
 
-        const popover = document
-            .querySelector(".o_field_property_definition")
-            .closest(".o_popover");
+        const popoverContent = document.querySelector(".o_field_property_definition");
+        const popover = popoverContent?.closest(".o_popover");
         const target = document.querySelector(
             `*[property-name="${propertyName}"] .o_field_property_open_popover`,
         );
+
+        if (!popover || !target) {
+            return;
+        }
 
         reposition(
             /** @type {HTMLElement} */ (popover),

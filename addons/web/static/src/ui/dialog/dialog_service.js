@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/dialog/dialog_service - Service for programmatically opening, stacking, and closing modal dialogs */
 

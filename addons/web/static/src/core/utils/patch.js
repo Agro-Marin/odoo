@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/patch - Reversible monkey-patching for class prototypes and object properties */
 

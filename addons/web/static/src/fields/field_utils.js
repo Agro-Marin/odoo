@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/field_utils - Shared utilities for field extractProps and configuration */
 

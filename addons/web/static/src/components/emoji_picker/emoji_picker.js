@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/emoji_picker/emoji_picker - Emoji picker with category navigation, fuzzy search, and recent emoji tracking */
 

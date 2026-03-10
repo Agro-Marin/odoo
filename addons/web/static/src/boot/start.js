@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/boot/start - Initializes session data, caches, and mounts the root web client component */
 

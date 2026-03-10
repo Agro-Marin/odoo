@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/formatters - Field value formatters for all ORM field types (date, float, monetary, selection, etc.) */
 
@@ -245,7 +246,7 @@ export function formatInteger(value, options = {}) {
         return "";
     }
     if (options.isPassword) {
-        return "*".repeat(value.length);
+        return "*".repeat(String(value).length);
     }
     if (options.humanReadable) {
         return humanNumber(value, options);
@@ -253,6 +254,9 @@ export function formatInteger(value, options = {}) {
     const grouping = options.grouping || l10n.grouping;
     const thousandsSep =
         "thousandsSep" in options ? options.thousandsSep : l10n.thousandsSep;
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        return "";
+    }
     return insertThousandsSep(value.toFixed(0), thousandsSep, grouping);
 }
 formatInteger.extractOptions = ({ attrs, options }) => ({
@@ -297,6 +301,9 @@ export function formatMany2one(value, options) {
  * @returns {string}
  */
 export function formatX2many(value) {
+    if (!value) {
+        return _t("No records");
+    }
     const count = value.currentIds.length;
     if (count === 0) {
         return _t("No records");

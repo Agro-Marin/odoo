@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/kanban_compiler - Template compiler transforming kanban card/menu arch into OWL-compatible templates */
 

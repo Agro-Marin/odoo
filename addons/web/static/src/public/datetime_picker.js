@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/datetime_picker - Public interaction that attaches a datetime picker to data-widget elements */
 

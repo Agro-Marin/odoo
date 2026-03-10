@@ -593,17 +593,15 @@
                 </t>
         </t>
 
-        <div class="header">
-                <div class="row">
-                        <div class="col-3">
-                                <span t-out="context_timestamp(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M')" />
-                        </div>
-                        <div class="col-2 offset-2 text-center">
-                                <span t-out="company.name" />
-                        </div>
-                        <div class="col-2 offset-3 text-end">
-                                <span class="page" /> / <span class="topage" />
-                        </div>
+        <div class="header" style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;">
+                <div>
+                        <span t-out="context_timestamp(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M')" />
+                </div>
+                <div style="text-align: center;">
+                        <span t-out="company.name" />
+                </div>
+                <div style="text-align: end;">
+                        <span class="page" /> / <span class="topage" />
                 </div>
         </div>
         <div class="article" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">

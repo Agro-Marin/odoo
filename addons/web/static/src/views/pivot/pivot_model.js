@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/pivot/pivot_model - Pivot table data loading, group tree expansion, measure aggregation, and cell computation */
 
@@ -13,7 +14,7 @@ import { addPropertyFieldDefs, Model } from "@web/model/model";
 import { DEFAULT_INTERVAL } from "@web/search/utils/dates";
 import { computeReportMeasures, processMeasure } from "@web/views/view_measurements";
 
-import { formatPivotForExport } from "./pivot_export";
+import { formatPivotForExport } from "./pivot_export.js";
 import {
     addGroup,
     findGroup,
@@ -22,20 +23,20 @@ import {
     hasData,
     pruneTree,
     sortTree,
-} from "./pivot_group_tree";
+} from "./pivot_group_tree.js";
 import {
     getCellValue,
     getCurrencyIds,
     getMeasurements,
     getMeasureSpecs,
-} from "./pivot_measurements";
-import { getTableHeaders, getTableRows } from "./pivot_table";
+} from "./pivot_measurements.js";
+import { getTableHeaders, getTableRows } from "./pivot_table.js";
 import {
     getGroupBySpecs,
     getGroupDomain,
     getGroupLabels,
     getGroupValues,
-} from "./pivot_value_utils";
+} from "./pivot_value_utils.js";
 
 /**
  * Pivot Model

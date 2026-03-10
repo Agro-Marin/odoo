@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/form_cog_menu/form_cog_menu - Form-view variant of the cog menu with save-before-action behavior */
 

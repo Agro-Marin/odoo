@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/layout - Top-level view layout assembling ControlPanel, SearchPanel, and content slots */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/debug/profiling/profiling_systray_item - Systray indicator icon shown when Python profiling is active */
 

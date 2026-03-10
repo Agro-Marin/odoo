@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { onExternalClick } from "@mail/utils/common/hooks";
 import {
     Component,

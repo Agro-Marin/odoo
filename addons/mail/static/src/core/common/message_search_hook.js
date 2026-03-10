@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { useSequential } from "@mail/utils/common/hooks";
 import { markup, onWillUnmount, useState } from "@odoo/owl";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";

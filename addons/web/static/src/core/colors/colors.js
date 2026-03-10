@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/colors/colors - Predefined color palettes for charts and graph visualizations */
 

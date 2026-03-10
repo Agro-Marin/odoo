@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { Thread } from "@mail/core/common/thread_model";
 import { fields } from "@mail/model/misc";
 

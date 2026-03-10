@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/format/strings - String helpers: sprintf, escapeRegExp, email validation, intersperse */
 
@@ -59,12 +60,10 @@ export function escape(value) {
     if (typeof value !== "string") {
         return String(value ?? "");
     }
-    let result = value;
-    for (const [char, replacer] of HTML_ESCAPED_CHARACTERS) {
-        result = result.replaceAll(char, replacer);
-    }
-    return result;
+    return value.replace(_HTML_ESCAPE_RE, (ch) => _HTML_ESCAPE_MAP[ch]);
 }
+const _HTML_ESCAPE_MAP = Object.fromEntries(HTML_ESCAPED_CHARACTERS);
+const _HTML_ESCAPE_RE = /[&<>'"`]/g;
 
 /**
  * Escapes a pattern to use as a RegExp.
@@ -115,8 +114,9 @@ export function hashCode(...strings) {
 
     // Convert the possibly negative number hash code into an 8 character
     // hexadecimal string
-    return (hash + 16 ** 8).toString(16).slice(-8);
+    return (hash + _HEX_8).toString(16).slice(-8);
 }
+const _HEX_8 = 16 ** 8;
 
 /**
  * Intersperses ``separator`` in ``str`` at the positions indicated by
@@ -157,13 +157,13 @@ export function intersperse(str, indices, separator) {
             section = indices[--i];
         }
         const start = Math.max(0, last - section);
-        result.unshift(str.slice(start, last));
+        result.push(str.slice(start, last));
         last -= section;
     }
-    const substr = last > 0 ? str.slice(0, last) : "";
-    if (substr) {
-        result.unshift(substr);
+    if (last > 0) {
+        result.push(str.slice(0, last));
     }
+    result.reverse();
     return result.join(separator || "");
 }
 
@@ -266,7 +266,12 @@ export function sprintf(str, ...substitutions) {
             }
             raw[raw.length - 1] += str[i];
         }
-        return String.raw({ raw }, ...substitutions);
+        // Pad substitutions to match the number of %s placeholders so that
+        // excess %s tokens produce empty strings instead of literal "undefined".
+        const padded = substitutions.length >= raw.length - 1
+            ? substitutions
+            : [...substitutions, ...Array(raw.length - 1 - substitutions.length).fill("")];
+        return String.raw({ raw }, ...padded);
     }
 }
 

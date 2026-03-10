@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/commands/default_providers - Default command palette providers: hotkey badges, clickable elements, setup registry */
 
@@ -10,7 +11,7 @@ import { getVisibleElements } from "@web/core/utils/dom/ui";
 import { capitalize } from "@web/core/utils/format/strings";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 
-import { DefaultCommandItem } from "./command_palette";
+import { DefaultCommandItem } from "./command_palette.js";
 
 const commandSetupRegistry = registry.category("command_setup");
 commandSetupRegistry.add(

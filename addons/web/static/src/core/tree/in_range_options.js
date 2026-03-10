@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/in_range_options - Date range option labels for "in range" virtual operator */
 

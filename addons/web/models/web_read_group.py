@@ -15,7 +15,7 @@ from typing import Any
 from odoo import api, models
 from odoo.fields import Domain
 from odoo.models import BaseModel, regex_order
-from odoo.orm._typing import DomainType
+from odoo.api import DomainType
 from odoo.tools import unique
 
 from .web_read_group_helpers import AND

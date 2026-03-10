@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/kanban_column_quick_create - Inline quick-create widget for adding new kanban columns (groups) */
 

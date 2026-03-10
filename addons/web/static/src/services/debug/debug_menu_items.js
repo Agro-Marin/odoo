@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /**
  * Debug menu item factories for the default debug category.

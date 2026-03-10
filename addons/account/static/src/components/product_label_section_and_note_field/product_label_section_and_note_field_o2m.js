@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import {
     SectionAndNoteFieldOne2Many,
     sectionAndNoteFieldOne2Many,

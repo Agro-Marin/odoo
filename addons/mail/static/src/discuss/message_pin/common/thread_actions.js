@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { PinnedMessagesPanel } from "@mail/discuss/message_pin/common/pinned_messages_panel";
 import { useChildSubEnv } from "@odoo/owl";

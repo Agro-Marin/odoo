@@ -1,3 +1,4 @@
+/** @odoo-module */
 export class RecordUses {
     /**
      * Track the uses of a record. Each record contains a single `RecordUses`:

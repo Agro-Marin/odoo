@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/position/utils - Compute optimal popper placement with direction/variant flipping and RTL support */
 
@@ -352,7 +353,7 @@ export function reposition(popper, target, options) {
     const { top, left, maxHeight } = solution;
     popper.style.top = `${top}px`;
     popper.style.left = `${left}px`;
-    if (maxHeight) {
+    if (maxHeight !== undefined) {
         const existingMaxHeight = getComputedStyle(popper).maxHeight;
         popper.style.maxHeight =
             existingMaxHeight !== "none"

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/interaction_service - Core service that discovers, mounts, and manages Interaction instances on DOM elements */
 
@@ -6,9 +7,9 @@ import { appTranslateFn } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 
-import { Colibri } from "./colibri";
-import { Interaction } from "./interaction";
-import { PairSet } from "./utils";
+import { Colibri } from "./colibri.js";
+import { Interaction } from "./interaction.js";
+import { PairSet } from "./utils.js";
 /**
  * Website Core
  *

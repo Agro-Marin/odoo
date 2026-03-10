@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/select_menu/select_menu - Searchable dropdown select menu with multi-select tags and keyboard navigation */
 
@@ -400,7 +401,7 @@ export class SelectMenu extends Component {
                 );
             } else {
                 if (this.props.autoSort) {
-                    filteredOptions.sort((optionA, optionB) =>
+                    filteredOptions = filteredOptions.toSorted((optionA, optionB) =>
                         optionA.label.localeCompare(optionB.label),
                     );
                 }

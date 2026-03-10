@@ -839,28 +839,4 @@
                 name="stock.action_install_barcode" type="action">Install</a> the barcode app </p>
     </template>
 
-    <menuitem 
-        id="in_picking" 
-        name="Receipts"
-        parent="menu_stock_transfers"
-        action="stock.method_action_picking_tree_incoming"
-        sequence="20"
-        groups="stock.group_stock_manager,stock.group_stock_user" />
-
-    <menuitem 
-        id="out_picking" 
-        name="Deliveries" 
-        parent="menu_stock_transfers"
-        action="stock.method_action_picking_tree_outgoing" 
-        sequence="21"
-        groups="stock.group_stock_manager,stock.group_stock_user" />
-
-    <menuitem 
-        id="int_picking" 
-        name="Internal" 
-        parent="menu_stock_transfers"
-        action="stock.method_action_picking_tree_internal" 
-        sequence="22"
-        groups="stock.group_stock_multi_locations" />
-
 </odoo>

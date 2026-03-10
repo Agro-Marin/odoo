@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Deferred } from "@bus/workers/bus_worker_utils";
 
 export class ElectionWorker {

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/static_list_command_engine - Command application logic extracted from StaticList */
 
@@ -10,14 +11,14 @@
  * Receives the StaticList instance as first argument (delegation pattern).
  */
 
-import { x2ManyCommands } from "./commands";
+import { x2ManyCommands } from "./commands.js";
 import {
     absorbUnlinkIntoSet,
     isUpdateRedundant,
     shouldEmitDelete,
     shouldEmitUnlink,
-} from "./command_builder";
-import { getId } from "./field_context";
+} from "./command_builder.js";
+import { getId } from "./field_context.js";
 
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
 
@@ -261,9 +262,12 @@ export function applyCommands(
         return list.model
             ._loadRecords({ ...list.config, resIds })
             .then((recordValues) => {
+                const valuesById = Object.fromEntries(
+                    recordValues.map((v) => [v.id, v]),
+                );
                 for (let i = 0; i < recordsToLoad.length; i++) {
                     const record = recordsToLoad[i];
-                    record._applyValues(recordValues[i]);
+                    record._applyValues(valuesById[record.resId] || recordValues[i]);
                     const commands = list._unknownRecordCommands[record.resId];
                     if (commands) {
                         delete list._unknownRecordCommands[record.resId];

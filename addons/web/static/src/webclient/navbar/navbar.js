@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/navbar/navbar - Main navigation bar with app switcher, sub-menus, systray items, and mobile sidebar */
 

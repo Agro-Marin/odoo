@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { useService } from "@web/core/utils/hooks";
 import { ListRenderer } from "@web/views/list/list_renderer";
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/settings_form_view - View descriptor for the settings form view (base_setup) with custom record, model, and compiler */
 
@@ -8,9 +9,9 @@ import { intersection } from "@web/core/utils/collections/arrays";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { formView } from "@web/views/form/form_view";
 
-import { SettingsFormCompiler } from "./settings_form_compiler";
-import { SettingsFormController } from "./settings_form_controller";
-import { SettingsFormRenderer } from "./settings_form_renderer";
+import { SettingsFormCompiler } from "./settings_form_compiler.js";
+import { SettingsFormController } from "./settings_form_controller.js";
+import { SettingsFormRenderer } from "./settings_form_renderer.js";
 
 /** Record subclass that handles header-field changes with confirmation dialogs. */
 class SettingRecord extends formView.Model.Record {

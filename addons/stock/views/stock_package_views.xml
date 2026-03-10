@@ -189,12 +189,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_package"
-        name="Packages"
-        parent="menu_stock_inventory_control"
-        action="action_package_view"
-        sequence="102"
-        groups="stock.group_tracking_lot" />
-
 </odoo>

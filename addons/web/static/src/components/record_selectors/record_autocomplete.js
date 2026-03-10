@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/record_selectors/record_autocomplete - Autocomplete search for records with name_search and "Search More" dialog */
 

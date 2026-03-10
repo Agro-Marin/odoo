@@ -1,3 +1,4 @@
+/** @odoo-module */
 import {
     OutOfFocusService,
     outOfFocusService,

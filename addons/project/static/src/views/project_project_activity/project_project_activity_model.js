@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { ActivityModel } from "@mail/views/web/activity/activity_model";
 import { ProjectModelMixin } from "../project_model_mixin.js";
 

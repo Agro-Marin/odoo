@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/widgets/signature/signature - Widget opening a signature drawing dialog and writing the captured image to a Binary field */
 

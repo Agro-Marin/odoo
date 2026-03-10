@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/browser/router - URL routing: parse, serialize, and push browser history state */
 
@@ -9,7 +10,7 @@ import { omit, pick } from "@web/core/utils/collections/objects";
 import { isNumeric } from "@web/core/utils/format/strings";
 import { compareUrls, objectToUrlEncodedString } from "@web/core/utils/urls";
 
-import { browser } from "./browser";
+import { browser } from "./browser.js";
 
 // Keys that are serialized in the URL as path segments instead of query string
 export const PATH_KEYS = ["resId", "action", "active_id", "model"];
@@ -27,7 +28,11 @@ function isScopedApp() {
  * @returns {string|number}
  */
 function cast(value) {
-    return !value || isNaN(/** @type {any} */ (value)) ? value : Number(value);
+    if (!value) {
+        return value;
+    }
+    const n = Number(value);
+    return Number.isFinite(n) && String(n) === value ? n : value;
 }
 
 /**
@@ -36,11 +41,18 @@ function cast(value) {
  */
 
 function parseString(str) {
+    if (!str) {
+        return Object.create(null);
+    }
     const parts = str.split("&");
-    const result = {};
+    const result = Object.create(null);
     for (const part of parts) {
         const eqIdx = part.indexOf("=");
-        const key = eqIdx === -1 ? part : part.slice(0, eqIdx);
+        const rawKey = eqIdx === -1 ? part : part.slice(0, eqIdx);
+        const key = decodeURIComponent(rawKey);
+        if (key === "__proto__" || key === "constructor" || key === "prototype") {
+            continue;
+        }
         const value = eqIdx === -1 ? "" : part.slice(eqIdx + 1);
         const decoded = decodeURIComponent(value || "");
         result[key] = cast(decoded);
@@ -163,10 +175,16 @@ function stateToUrl(state) {
         }
     }
     if (state.active_id && typeof state.active_id !== "number") {
-        pathKeysToOmit.splice(pathKeysToOmit.indexOf("active_id"), 1);
+        const idx = pathKeysToOmit.indexOf("active_id");
+        if (idx !== -1) {
+            pathKeysToOmit.splice(idx, 1);
+        }
     }
     if (state.resId && typeof state.resId !== "number" && state.resId !== "new") {
-        pathKeysToOmit.splice(pathKeysToOmit.indexOf("resId"), 1);
+        const idx = pathKeysToOmit.indexOf("resId");
+        if (idx !== -1) {
+            pathKeysToOmit.splice(idx, 1);
+        }
     }
     const search = objectToUrlEncodedString(omit(state, ...pathKeysToOmit));
     const start_url = startUrl();
@@ -289,6 +307,7 @@ export function startRouter() {
  */
 browser.addEventListener("popstate", (ev) => {
     browser.clearTimeout(pushTimeout);
+    pushArgs = { replace: false, reload: false, state: {} };
     if (!ev.state) {
         // We are coming from a click on an anchor.
         // Add the current state to the history entry so that a future loadstate behaves as expected.
@@ -323,6 +342,9 @@ browser.addEventListener("pageshow", (ev) => {
  * This also alows the mobile app to not open an in-app browser for them.
  */
 browser.addEventListener("click", (ev) => {
+    if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) {
+        return;
+    }
     const target = /** @type {Element} */ (ev.target);
     if (ev.defaultPrevented || target.closest("[contenteditable]")) {
         return;
@@ -347,11 +369,9 @@ browser.addEventListener("click", (ev) => {
             ev.preventDefault();
             state = router.urlToState(url);
             if (url.pathname.startsWith("/odoo") && url.hash) {
-                browser.history.pushState({}, "", url.href);
+                browser.history.pushState({ nextState: state }, "", url.href);
             }
-            new Promise((res) => setTimeout(res, 0)).then(() =>
-                routerBus.trigger("ROUTE_CHANGE"),
-            );
+            setTimeout(() => routerBus.trigger("ROUTE_CHANGE"), 0);
         }
     }
 });

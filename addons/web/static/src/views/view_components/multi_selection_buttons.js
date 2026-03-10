@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_components/multi_selection_buttons - Floating toolbar with Add/Cancel/Delete for multi-record selection in calendar/gantt views */
 
@@ -15,7 +16,7 @@ import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { FormArchParser } from "@web/views/form/form_arch_parser";
 
-import { MultiCreatePopover } from "./multi_create_popover";
+import { MultiCreatePopover } from "./multi_create_popover.js";
 
 /** Floating toolbar with Add/Cancel/Delete actions for multi-record selection in calendar/gantt views, with a multi-create popover. */
 export class MultiSelectionButtons extends Component {

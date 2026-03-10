@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
 import { useHover } from "@mail/utils/common/hooks";

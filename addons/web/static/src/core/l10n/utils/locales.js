@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/l10n/utils/locales - Bidirectional JS (BCP 47) to Python (XPG) locale conversion */
 

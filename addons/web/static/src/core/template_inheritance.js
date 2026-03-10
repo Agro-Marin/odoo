@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/template_inheritance - XPath-based QWeb template inheritance (apply, validate, deep clone) */
 

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Component } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 /**

@@ -105,18 +105,4 @@
                 (0, 0, {'view_mode': 'form', 'view_id': ref('stock.view_stock_package_type_form')})]" />
     </record>
 
-    <menuitem
-        id="menu_delivery"
-        name="Delivery"
-        parent="stock.menu_stock_config_settings"
-        groups="stock.group_stock_manager"
-        sequence="50" />
-
-    <menuitem
-        id="menu_packaging_types"
-        name="Package Types"
-        parent="menu_delivery"
-        action="action_package_type_view"
-        groups="stock.group_tracking_lot" />
-
 </odoo>

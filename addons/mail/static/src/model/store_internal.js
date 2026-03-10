@@ -1,11 +1,12 @@
+/** @odoo-module */
 /** @typedef {import("./record").Record} Record */
 /** @typedef {import("./record_list").RecordList} RecordList */
 
 import { htmlEscape, markup, toRaw } from "@odoo/owl";
 import { deserializeDate, deserializeDateTime } from "@web/core/l10n/dates";
 
-import { IS_DELETED_SYM, IS_DELETING_SYM, isCommand, isMany } from "./misc";
-import { RecordInternal } from "./record_internal";
+import { IS_DELETED_SYM, IS_DELETING_SYM, isCommand, isMany } from "./misc.js";
+import { RecordInternal } from "./record_internal.js";
 const Markup = markup().constructor;
 
 export class StoreInternal extends RecordInternal {

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { ProductNameAndDescriptionField } from "@product/product_name_and_description/product_name_and_description";
 import { many2OneField } from "@web/fields/relational/many2one/many2one_field";

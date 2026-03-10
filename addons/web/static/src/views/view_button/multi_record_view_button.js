@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_button/multi_record_view_button - ViewButton variant for list/kanban headers that operates on multiple selected records */
 
-import { ViewButton } from "./view_button";
+import { ViewButton } from "./view_button.js";
 
 /** ViewButton variant for list/kanban headers that operates on multiple selected records at once. */
 export class MultiRecordViewButton extends ViewButton {

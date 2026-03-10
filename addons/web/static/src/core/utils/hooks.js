@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/hooks - OWL component hooks: useService, useBus, useAutofocus, useOwnedDialogs, useForwardRefToParent */
 

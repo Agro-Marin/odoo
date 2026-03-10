@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/widgets/res_config_dev_tool - Developer Tools settings widget for toggling debug modes and installing demo data */
 

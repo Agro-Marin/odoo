@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { isToday } from "@mail/utils/common/dates";
 import { Component } from "@odoo/owl";
 

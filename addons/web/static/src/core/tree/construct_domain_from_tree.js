@@ -1,13 +1,14 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/construct_domain_from_tree - Converts a condition tree into an Odoo domain string representation */
 
 /** @import { AST } from "@web/core/py_js/py_parser" */
-/** @import { Tree, Condition, Value } from "./condition_tree" */
+/** @import { Tree, Condition, Value } from "./condition_tree.js" */
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 
-import { isBool, isNot } from "./ast_utils";
+import { isBool, isNot } from "./ast_utils.js";
 import {
     astFromValue,
     condition,
@@ -15,7 +16,7 @@ import {
     FALSE_TREE,
     isTree,
     TRUE_TREE,
-} from "./condition_tree";
+} from "./condition_tree.js";
 
 /**
  * Wrap an AST node in a `bool()` call unless it is already boolean-like.

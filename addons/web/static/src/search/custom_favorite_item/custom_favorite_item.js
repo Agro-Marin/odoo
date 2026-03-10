@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/custom_favorite_item/custom_favorite_item - Dropdown form for saving the current search as a named favorite filter */
 

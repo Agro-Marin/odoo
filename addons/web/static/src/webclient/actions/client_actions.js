@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/client_actions - Built-in client actions (display_notification, soft_reload, reload_context) */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/network/rpc_cache - Encrypted RAM/IndexedDB cache for RPC responses */
 
@@ -143,7 +144,13 @@ export class RPCCache {
     }
 
     async checkSize() {
-        const { usage } = await navigator.storage.estimate();
+        let usage;
+        try {
+            ({ usage } = await navigator.storage.estimate());
+        } catch {
+            // StorageManager may be unavailable in insecure contexts
+            return;
+        }
         if (usage > MAX_STORAGE_SIZE) {
             console.warn(
                 `Deleting indexedDB database as maximum storage size is reached`,
@@ -185,30 +192,40 @@ export class RPCCache {
             const prom = new Promise((resolve, reject) => {
                 const fromCache = new Deferred();
                 let fromCacheValue;
-                const onFullfilled = (result) => {
+                const onFulfilled = (result) => {
                     resolve(result);
-                    // call the pending request callbacks with the result
+                    // Always notify pending callbacks — subscribers explicitly
+                    // requested server data via `update: "always"`. The RPC result
+                    // is fresh regardless of whether the cache was invalidated.
                     const hasChanged =
                         !!fromCacheValue && !jsonEqual(fromCacheValue, result);
                     request.callbacks.forEach((cb) => cb(deepCopy(result), hasChanged));
                     if (request.invalidated) {
+                        // Cache was invalidated mid-flight: don't persist stale
+                        // data, but callbacks above already delivered the result.
                         return result;
                     }
                     delete this.pendingRequests[requestKey];
                     // update the ram and optionally the disk caches with the latest data
                     this.ramCache.write(table, key, Promise.resolve(result));
                     if (type === "disk") {
-                        this.crypto.encrypt(result).then((encryptedResult) => {
-                            this.indexedDB
-                                .write(table, key, encryptedResult)
-                                .catch((e) => {
-                                    if (e instanceof IDBQuotaExceededError) {
-                                        this.indexedDB.deleteDatabase();
-                                    } else {
-                                        throw e;
-                                    }
-                                });
-                        });
+                        this.crypto
+                            .encrypt(result)
+                            .then((encryptedResult) => {
+                                this.indexedDB
+                                    .write(table, key, encryptedResult)
+                                    .catch((e) => {
+                                        if (e instanceof IDBQuotaExceededError) {
+                                            this.indexedDB.deleteDatabase();
+                                        } else {
+                                            throw e;
+                                        }
+                                    });
+                            })
+                            .catch(() => {
+                                // Encryption can fail if SubtleCrypto is unavailable
+                                // (e.g. insecure context). Silently skip disk caching.
+                            });
                     }
                     return result;
                 };
@@ -221,12 +238,14 @@ export class RPCCache {
                         }
                     }
                     if (fromCacheValue) {
-                        // promise has already been fullfilled with the cached value
-                        throw error;
+                        // Promise was already fulfilled with cached value — log the
+                        // background refresh failure but don't show an error dialog.
+                        console.warn("RPC cache: background refresh failed", error);
+                        return;
                     }
                     reject(error);
                 };
-                fallback().then(onFullfilled, onRejected);
+                fallback().then(onFulfilled, onRejected);
 
                 // speed up the request by using the caches
                 if (ramValue) {

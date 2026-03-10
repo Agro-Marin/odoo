@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_compiler - Base view compiler: transforms XML arch nodes into OWL template elements with attribute and slot helpers */
 
@@ -18,8 +19,8 @@ import {
     getTag,
 } from "@web/core/utils/dom/xml";
 
-import { BUTTON_CLICK_PARAMS } from "./view_buttons";
-import { toStringExpression } from "./view_utils";
+import { BUTTON_CLICK_PARAMS } from "./view_buttons.js";
+import { toStringExpression } from "./view_utils.js";
 const BUTTON_STRING_PROPS = ["string", "size", "title", "icon", "id", "disabled"];
 const INTERP_REGEXP = /(\{\{|#\{)(.*?)(\}{1,2})/g;
 
@@ -230,14 +231,14 @@ export class ViewCompiler {
             return;
         }
         const recordExpr = params.recordExpr || "__comp__.props.record";
-        let isVisileExpr = `!__comp__.evaluateBooleanExpr(${JSON.stringify(
+        let isVisibleExpr = `!__comp__.evaluateBooleanExpr(${JSON.stringify(
             invisible,
         )},${recordExpr}.evalContextWithVirtualIds)`;
         if (compiled.hasAttribute("t-if")) {
             const formerTif = compiled.getAttribute("t-if");
-            isVisileExpr = `( ${formerTif} ) and ${isVisileExpr}`;
+            isVisibleExpr = `( ${formerTif} ) and ${isVisibleExpr}`;
         }
-        compiled.setAttribute("t-if", isVisileExpr);
+        compiled.setAttribute("t-if", isVisibleExpr);
         return compiled;
     }
 

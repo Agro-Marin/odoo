@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { CallContextMenu } from "@mail/discuss/call/common/call_context_menu";
 import { CallDropdown } from "@mail/discuss/call/common/call_dropdown";
 import { CallParticipantVideo } from "@mail/discuss/call/common/call_participant_video";

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/burger_menu/burger_user_menu/burger_user_menu - Mobile variant of the user menu shown inside the burger menu overlay */
 

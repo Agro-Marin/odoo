@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/tree_editor/tree_editor_components - Shared input, select, range, and list sub-components for tree editor value entry */
 

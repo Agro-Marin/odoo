@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/dialog/confirmation_dialog - Standard confirm/cancel dialog with async button handling */
 

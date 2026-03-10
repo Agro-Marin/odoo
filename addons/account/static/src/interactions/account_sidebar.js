@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { Sidebar } from "@portal/interactions/sidebar";
 import { registry } from "@web/core/registry";
 

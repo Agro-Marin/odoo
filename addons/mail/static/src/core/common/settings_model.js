@@ -1,10 +1,11 @@
+/** @odoo-module */
 import { hasHardwareAcceleration } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { debounce } from "@web/core/utils/timing";
 
-import { fields, Record } from "./record";
+import { fields, Record } from "./record.js";
 export const MESSAGE_SOUND = "mail.user_setting.message_sound";
 export const USE_BLUR_LS = "mail_user_setting_use_blur";
 

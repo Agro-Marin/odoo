@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/kanban_header - Column header with group title, record count, progress bar, and fold/edit/delete cog menu */
 
@@ -14,7 +15,7 @@ import { utils } from "@web/ui/block/ui_service";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
 
-import { ColumnProgress } from "./column_progress";
+import { ColumnProgress } from "./column_progress.js";
 
 /** Popover component displaying field-based tooltip info for a kanban group header. */
 class KanbanHeaderTooltip extends Component {

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/static_list_utils - Sorting comparators, record duplication, and sort-direction cycling for StaticList */
 
@@ -23,12 +24,19 @@
  * @returns {boolean} true if v1 < v2
  */
 
-import { x2ManyCommands } from "./commands";
+import { x2ManyCommands } from "./commands.js";
 
 function compareFieldValues(v1, v2, fieldType) {
     if (fieldType === "many2one") {
         v1 = v1 ? v1.display_name : "";
         v2 = v2 ? v2.display_name : "";
+    } else if (fieldType === "integer" || fieldType === "float" || fieldType === "monetary") {
+        v1 = v1 ?? 0;
+        v2 = v2 ?? 0;
+    } else {
+        // For char, text, date, datetime, selection, etc. — treat falsy as empty string
+        v1 = v1 ?? "";
+        v2 = v2 ?? "";
     }
     return v1 < v2;
 }

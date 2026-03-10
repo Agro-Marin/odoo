@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Composer } from "@mail/core/common/composer";
 import { useMessageSearch } from "@mail/core/common/message_search_hook";
 import { Thread } from "@mail/core/common/thread";
@@ -20,7 +21,7 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useService } from "@web/core/utils/hooks";
 
-import { MeetingSideActions } from "./meeting_side_actions";
+import { MeetingSideActions } from "./meeting_side_actions.js";
 
 /** @typedef {"chat"|"invite"} MeetingPanel */
 

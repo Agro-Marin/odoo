@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
 import { toRaw, useComponent, useState } from "@odoo/owl";
@@ -9,7 +10,7 @@ import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 
-import { discussComponentRegistry } from "./discuss_component_registry";
+import { discussComponentRegistry } from "./discuss_component_registry.js";
 const { DateTime } = luxon;
 
 export const messageActionsRegistry = registry.category("mail.message/actions");

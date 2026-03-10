@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/relational_model - Top-level data model orchestrating records, groups, and lists with ORM loading and onchange */
 
@@ -11,26 +12,26 @@ import { Deferred, KeepLast, Mutex } from "@web/core/utils/concurrency";
 import { orderByToString } from "@web/core/utils/order_by";
 import { Model } from "@web/model/model";
 
-import { DynamicGroupList } from "./dynamic_group_list";
-import { DynamicRecordList } from "./dynamic_record_list";
-import { FetchRecordError } from "./errors";
-import { getBasicEvalContext, getId } from "./field_context";
-import { makeActiveField } from "./field_metadata";
-import { getFieldsSpec } from "./field_spec";
+import { DynamicGroupList } from "./dynamic_group_list.js";
+import { DynamicRecordList } from "./dynamic_record_list.js";
+import { FetchRecordError } from "./errors.js";
+import { getBasicEvalContext, getId } from "./field_context.js";
+import { makeActiveField } from "./field_metadata.js";
+import { getFieldsSpec } from "./field_spec.js";
 import {
     extractInfoFromGroupData,
     getAggregateSpecifications,
     getGroupServerValue,
-} from "./field_values";
-import { Group } from "./group";
-import { RelationalRecord } from "./record";
-import { StaticList } from "./static_list";
+} from "./field_values.js";
+import { Group } from "./group.js";
+import { RelationalRecord } from "./record.js";
+import { StaticList } from "./static_list.js";
 
 /** @import { Context } from "@web/core/context" */
 /** @import { DomainListRepr } from "@web/core/domain" */
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
 /** @import { ServiceFactories as Services } from "services" */
-/** @import { DataPoint } from "./datapoint" */
+/** @import { DataPoint } from "./datapoint.js" */
 
 /**
  * @typedef {{

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { DiscussSearch } from "@mail/core/public_web/discuss_search";
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { useService } from "@web/core/utils/hooks";

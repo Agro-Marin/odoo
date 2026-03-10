@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { useHover } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";

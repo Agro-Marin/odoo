@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { useService } from "@web/core/utils/hooks";
 import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
 

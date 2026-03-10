@@ -56,11 +56,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_stock_references"
-        parent="menu_stock_procurement"
-        action="action_stock_reference"
-        sequence="99"
-        groups="base.group_no_one" />
-
 </odoo>

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/properties/property_definition_selection - Sortable option editor for property definition selection/tags types */
 

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { MailAttachmentDropzone } from "@mail/core/common/mail_attachment_dropzone";
 import { EventBus, toRaw, useEffect, useRef, useSubEnv } from "@odoo/owl";
 import { useCustomDropzone } from "@web/components/dropzone/dropzone_hook";

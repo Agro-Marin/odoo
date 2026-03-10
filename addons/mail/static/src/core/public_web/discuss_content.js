@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ActionList } from "@mail/core/common/action_list";
 import { AutoresizeInput } from "@mail/core/common/autoresize_input";
 import { Composer } from "@mail/core/common/composer";

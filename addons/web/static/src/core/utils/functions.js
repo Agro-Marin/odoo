@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/functions - memoize and uniqueId general-purpose function helpers */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/url/url_field - URL input field with clickable hyperlink in readonly mode */
 

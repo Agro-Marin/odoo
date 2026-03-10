@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/utils/dates - Date period/quarter/interval option definitions and domain generators for search filters */
 
@@ -328,6 +329,9 @@ export function getSelectedOptions(referenceMoment, searchItem, selectedOptionId
     const periodOptions = getPeriodOptions(referenceMoment, searchItem.optionsParams);
     for (const optionId of selectedOptionIds) {
         const option = periodOptions.find((option) => option.id === optionId);
+        if (!option) {
+            continue;
+        }
         const granularity = option.granularity;
         if (!selectedOptions[granularity]) {
             selectedOptions[granularity] = [];

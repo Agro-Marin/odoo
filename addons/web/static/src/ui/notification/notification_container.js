@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/notification/notification_container - Renders all active notifications with fade-out transitions */
 
 import { Component, useState, xml } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
 
-import { Notification } from "./notification";
+import { Notification } from "./notification.js";
 /** Renders all active notifications with fade-out transitions. */
 export class NotificationContainer extends Component {
     static props = {

@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/dynamic_record_list - Server-backed flat record list with pagination, CRUD, and domain-based selection */
 
-import { DynamicList } from "./dynamic_list";
+import { DynamicList } from "./dynamic_list.js";
 
-/** @import { RelationalRecord } from "./record" */
+/** @import { RelationalRecord } from "./record.js" */
 
 export class DynamicRecordList extends DynamicList {
     static type = "DynamicRecordList";

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/form_renderer - Compiles form arch into an OWL template and manages autofocus, sticky statusbar, and field ID uniqueness */
 
@@ -25,10 +26,10 @@ import { ViewButton } from "@web/views/view_button/view_button";
 import { useViewCompiler } from "@web/views/view_compiler";
 import { Widget } from "@web/views/widgets/widget";
 
-import { FormCompiler } from "./form_compiler";
-import { FormLabel } from "./form_label";
-import { Setting } from "./setting/setting";
-import { StatusBarButtons } from "./status_bar_buttons/status_bar_buttons";
+import { FormCompiler } from "./form_compiler.js";
+import { FormLabel } from "./form_label.js";
+import { Setting } from "./setting/setting.js";
+import { StatusBarButtons } from "./status_bar_buttons/status_bar_buttons.js";
 
 /**
  * Renderer for the form view.

@@ -1,8 +1,10 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_components/multi_currency_popover - Popover showing a monetary value converted into each active company currency */
 
 import { Component, onWillStart, useExternalListener, useState } from "@odoo/owl";
+import { toLocaleDateString } from "@web/core/l10n/dates";
 import { useService } from "@web/core/utils/hooks";
 import { formatMonetary } from "@web/fields/formatters";
 import { getCurrency, getCurrencyRates } from "@web/services/currency";
@@ -35,12 +37,13 @@ export class MultiCurrencyPopover extends Component {
     /** @returns {Array<Object>} non-default currencies with their rates and converted values */
     get currencies() {
         return this.props.currencyIds.reduce((currencies, currencyId) => {
-            if (currencyId !== this.defaultCurrency) {
+            if (currencyId && currencyId !== this.defaultCurrency) {
                 currencies.push({
                     ...getCurrency(currencyId),
                     id: currencyId,
-                    rate: this.state.rates[currencyId],
-                    value: this.props.value / this.state.rates[currencyId],
+                    rate: this.state.rates[currencyId].rate,
+                    date: toLocaleDateString(this.state.rates[currencyId].date),
+                    value: this.props.value / this.state.rates[currencyId].rate,
                 });
             }
             return currencies;

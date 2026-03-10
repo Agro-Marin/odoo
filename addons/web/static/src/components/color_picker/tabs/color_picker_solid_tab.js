@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/color_picker/tabs/color_picker_solid_tab - Color picker tab rendering the preset solid color palette grid */
 

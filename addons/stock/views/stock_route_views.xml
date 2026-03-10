@@ -103,12 +103,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_routes_config"
-        action="action_routes_form"
-        name="Routes"
-        parent="menu_warehouse_config"
-        sequence="4"
-        groups="stock.group_adv_location" />
-
 </odoo>

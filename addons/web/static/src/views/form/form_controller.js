@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/form_controller - Form view lifecycle: record save, discard, duplicate, archive, pager navigation, and error recovery */
 
@@ -44,12 +45,12 @@ import { useDeleteRecords } from "@web/views/view_hook";
 import { buildActionMenuItems, useControllerServices } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
-import { ButtonBox } from "./button_box/button_box";
-import { FormCogMenu } from "./form_cog_menu/form_cog_menu";
-import { FormCompiler } from "./form_compiler";
-import { FormErrorDialog } from "./form_error_dialog/form_error_dialog";
-import { FormStatusIndicator } from "./form_status_indicator/form_status_indicator";
-import { loadSubViews, useFormViewInDialog } from "./form_utils";
+import { ButtonBox } from "./button_box/button_box.js";
+import { FormCogMenu } from "./form_cog_menu/form_cog_menu.js";
+import { FormCompiler } from "./form_compiler.js";
+import { FormErrorDialog } from "./form_error_dialog/form_error_dialog.js";
+import { FormStatusIndicator } from "./form_status_indicator/form_status_indicator.js";
+import { loadSubViews, useFormViewInDialog } from "./form_utils.js";
 
 /**
  * Controller for the form view.
@@ -197,7 +198,11 @@ export class FormController extends Component {
         if (footers.length) {
             this.footerArchInfo = { ...this.archInfo };
             this.footerArchInfo.xmlDoc = createElement("t");
-            this.footerArchInfo.xmlDoc.append(...footers);
+            // Clone footers to avoid mutating the shared archInfo.xmlDoc
+            for (const footer of footers) {
+                this.footerArchInfo.xmlDoc.append(footer.cloneNode(true));
+                footer.remove();
+            }
             this.footerArchInfo.arch = this.footerArchInfo.xmlDoc.outerHTML;
             this.archInfo.arch = this.archInfo.xmlDoc.outerHTML;
         }
@@ -266,7 +271,7 @@ export class FormController extends Component {
                         !isInEdition &&
                         !this.rootRef.el
                             .querySelector(".o_content")
-                            .contains(document.activeElement)
+                            ?.contains(document.activeElement)
                     ) {
                         const elementToFocus = this.rootRef.el.querySelector(
                             ".o_content button.btn-primary",
@@ -462,13 +467,19 @@ export class FormController extends Component {
     }
 
     beforeVisibilityChange() {
-        if (document.visibilityState === "hidden" && this.formInDialog === 0) {
-            return this.model.root.save().catch(() => {});
+        if (
+            document.visibilityState === "hidden" &&
+            this.formInDialog === 0 &&
+            !this.model.root.isNew
+        ) {
+            return this.model.root
+                .save()
+                .catch((e) => console.warn("Auto-save on tab switch failed:", e));
         }
     }
 
     async beforeLeave({ forceLeave } = /** @type {any} */ ({})) {
-        if (this.model.root.dirty && !forceLeave) {
+        if ((await this.model.root.isDirty()) && !forceLeave) {
             return this.save({
                 reload: false,
                 onError: (error, options) => this.onSaveError(error, options, true),

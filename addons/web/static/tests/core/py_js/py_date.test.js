@@ -252,7 +252,7 @@ describe("relativedelta relative : period is plural", () => {
         expect(evaluateExpr(expr)).toBe("2001-04-02");
     });
 
-    test("adding/substracting relative delta and date -- shifts order of magnitude", () => {
+    test("adding/subtracting relative delta and date -- shifts order of magnitude", () => {
         const expr =
             "(relativedelta(hours=14) + datetime.datetime(hour=15,day=3,month=4,year=2001)).strftime('%Y-%m-%d %H:%M:%S')";
         expect(evaluateExpr(expr)).toBe("2001-04-04 05:00:00");
@@ -278,7 +278,7 @@ describe("relativedelta relative : period is plural", () => {
         expect(evaluateExpr(expr6)).toBe("2000-11-03");
     });
 
-    test("substracting date and relative delta", () => {
+    test("subtracting date and relative delta", () => {
         const expr1 =
             "(datetime.date(day=3,month=4,year=2001) - relativedelta(days=-1)).strftime('%Y-%m-%d')";
         expect(evaluateExpr(expr1)).toBe("2001-04-04");
@@ -335,7 +335,7 @@ describe("relativedelta absolute : period is singular", () => {
         expect(evaluateExpr(expr)).toBe("2001-04-01");
     });
 
-    test("substracting date and relative delta", () => {
+    test("subtracting date and relative delta", () => {
         const expr1 =
             "(datetime.date(day=3,month=4,year=2001) - relativedelta(day=1)).strftime('%Y-%m-%d')";
         expect(evaluateExpr(expr1)).toBe("2001-04-01");
@@ -353,7 +353,7 @@ describe("relativedelta absolute : period is singular", () => {
 });
 
 describe("relative delta weekday", () => {
-    test("add or substract weekday", () => {
+    test("add or subtract weekday", () => {
         const expr1 =
             "(datetime.date(day=3,month=4,year=2001) - relativedelta(day=1, weekday=3)).strftime('%Y-%m-%d')";
         expect(evaluateExpr(expr1)).toBe("2001-04-05");

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/char/char_field - Single-line text input field for Char columns */
 
@@ -12,7 +13,7 @@ import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
 
-import { TextInputFieldBase } from "../text_input_field_base";
+import { TextInputFieldBase } from "../text_input_field_base.js";
 
 export class CharField extends TextInputFieldBase {
     static template = "web.CharField";

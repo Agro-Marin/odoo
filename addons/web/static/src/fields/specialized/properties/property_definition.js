@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/properties/property_definition - Property type and configuration editor for defining dynamic property fields */
 
@@ -15,9 +16,9 @@ import { uuid } from "@web/core/utils/format/strings";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
-import { PropertyDefinitionSelection } from "./property_definition_selection";
-import { PropertyTags } from "./property_tags";
-import { PropertyValue } from "./property_value";
+import { PropertyDefinitionSelection } from "./property_definition_selection.js";
+import { PropertyTags } from "./property_tags.js";
+import { PropertyValue } from "./property_value.js";
 
 export class PropertyDefinition extends Component {
     static template = "web.PropertyDefinition";
@@ -494,6 +495,6 @@ export class PropertyDefinition extends Component {
      */
     _typeLabel(propertyType) {
         const allTypes = this.availablePropertyTypes;
-        return allTypes.find((type) => type[0] === propertyType)[1];
+        return allTypes.find((type) => type[0] === propertyType)?.[1] ?? propertyType;
     }
 }

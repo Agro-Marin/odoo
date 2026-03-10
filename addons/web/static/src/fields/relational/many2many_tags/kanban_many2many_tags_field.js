@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2many_tags/kanban_many2many_tags_field - Kanban-view variant of Many2many tags showing only colored tags */
 
 import { registry } from "@web/core/registry";
 
-import { Many2ManyTagsField, many2ManyTagsField } from "./many2many_tags_field";
+import { Many2ManyTagsField, many2ManyTagsField } from "./many2many_tags_field.js";
 export class KanbanMany2ManyTagsField extends Many2ManyTagsField {
     static template = "web.KanbanMany2ManyTagsField";
 

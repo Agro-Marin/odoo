@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/numpad_decimal_hook - OWL hook that replaces numpad decimal key with the locale decimal separator */
 
