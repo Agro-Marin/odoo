@@ -717,6 +717,15 @@ export class Message extends Record {
     }
 
     async setDone() {
+        // Optimistic UI update: immediately mark as read so the notification
+        // disappears without waiting for the bus notification.
+        if (this.needaction) {
+            this.needaction = false;
+            this.store.inbox.messages.delete(this);
+            if (this.thread) {
+                this.thread.message_needaction_counter--;
+            }
+        }
         await this.store.env.services.orm.silent.call(
             "mail.message",
             "set_message_done",
