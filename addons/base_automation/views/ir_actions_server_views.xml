@@ -1,36 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- List view for workflow actions (used in automation form Actions tab) -->
     <record id="view_ir_actions_server_tree_workflow" model="ir.ui.view">
         <field name="name">ir.actions.server.tree.workflow</field>
         <field name="model">ir.actions.server</field>
         <field name="priority">1</field>
         <field name="arch" type="xml">
-            <list
-                string="Workflow Actions"
-                decoration-success="action_state == 'done'"
-                decoration-info="action_state == 'ready'"
-                decoration-warning="action_state == 'in_progress'"
-                decoration-danger="action_state == 'error'"
-                decoration-muted="action_state == 'waiting'">
+            <list string="Workflow Actions">
                 <field name="sequence" widget="handle" />
                 <field name="name" />
                 <field name="state" string="Type" optional="hide" />
-                <field name="action_state" />
-                <field name="is_ready" readonly="1" optional="show" />
                 <field name="predecessor_ids" widget="many2many_tags" optional="show" />
                 <field name="successor_ids" widget="many2many_tags" optional="hide" />
-                <button
-                    name="action_reset"
-                    type="object"
-                    icon="fa-undo"
-                    string="Reset"
-                    invisible="action_state == 'waiting'"
-                    help="Reset this action to waiting state" />
             </list>
         </field>
     </record>
 
+    <!-- Automation shortcut button on server action form -->
     <record id="view_server_action_form" model="ir.ui.view">
         <field name="name">Server Actions</field>
         <field name="model">ir.actions.server</field>
@@ -52,43 +39,13 @@
         </field>
     </record>
 
-    <!-- ========================================================================
-         Workflow DAG Enhancements for ir.actions.server
-         ======================================================================== -->
-
+    <!-- Dependencies page on server action form (DAG topology only, no runtime state) -->
     <record id="view_ir_actions_server_form_workflow_dag" model="ir.ui.view">
         <field name="name">ir.actions.server.form.workflow.dag</field>
         <field name="model">ir.actions.server</field>
         <field name="inherit_id" ref="base.view_server_action_form" />
         <field name="arch" type="xml">
 
-            <!-- Add status bar for workflow state -->
-            <xpath expr="//form/sheet" position="before">
-                <header>
-                    <field name="action_state"
-                        widget="statusbar"
-                        statusbar_visible="waiting,ready,in_progress,done"
-                        invisible="usage != 'base_automation' or not base_automation_id" />
-                </header>
-            </xpath>
-
-            <!-- Add workflow state button in button box -->
-            <xpath expr="//div[@name='button_box']" position="inside">
-                <button
-                    name="action_reset"
-                    type="object"
-                    class="oe_stat_button"
-                    icon="fa-undo"
-                    invisible="usage != 'base_automation' or action_state == 'waiting'"
-                    groups="base.group_user">
-                    <div class="o_field_widget o_stat_info">
-                        <span class="o_stat_text">Reset</span>
-                        <span class="o_stat_text">State</span>
-                    </div>
-                </button>
-            </xpath>
-
-            <!-- Add Dependencies page in notebook -->
             <xpath expr="//notebook" position="inside">
                 <page string="Dependencies"
                     name="dependencies"
@@ -96,55 +53,46 @@
                     groups="base.group_user">
 
                     <group>
-                        <group string="Workflow State">
-                            <field name="action_state" readonly="1" widget="badge" />
-                            <field name="is_ready" readonly="1" widget="boolean_toggle" />
-                        </group>
                         <group string="Dependency Info">
                             <label for="predecessor_ids" />
                             <div>
                                 <field name="predecessor_ids"
                                     widget="many2many_tags"
                                     domain="[('base_automation_id', '=', base_automation_id), ('id', '!=', id)]"
-                                    options="{'color_field': 'action_state', 'no_create': True}" />
+                                    options="{'no_create': True}" />
                                 <div class="text-muted small mt-1">
-                                    <i class="fa-solid fa-info-circle" /> This action will execute after
-                                    all predecessors complete </div>
+                                    <i class="fa-solid fa-info-circle" />
+                                    This action executes after all predecessors complete.
+                                </div>
                             </div>
 
                             <label for="successor_ids" />
                             <div>
                                 <field name="successor_ids"
                                     widget="many2many_tags"
-                                    readonly="1"
-                                    options="{'color_field': 'action_state'}" />
+                                    readonly="1" />
                                 <div class="text-muted small mt-1">
-                                    <i class="fa-solid fa-info-circle" /> These actions depend on this one completing </div>
+                                    <i class="fa-solid fa-info-circle" />
+                                    These actions are unblocked when this one completes.
+                                </div>
                             </div>
                         </group>
                     </group>
 
-                    <group string="Error Details" invisible="action_state != 'error'">
-                        <field name="error_message" nolabel="1" readonly="1" class="text-danger" />
-                    </group>
-
-                    <separator string="Dependency Graph Tips" class="mt-4" />
+                    <separator string="How Dependencies Work" class="mt-4" />
                     <div class="alert alert-info" role="alert">
-                        <h5><i class="fa-regular fa-lightbulb" /> How Dependencies Work</h5>
                         <ul class="mb-0">
-                            <li><strong>No predecessors:</strong> Action is ready immediately (root
-                                action)</li>
-                            <li><strong>One predecessor:</strong> Action waits for that action to
-                                complete</li>
-                            <li><strong>Multiple predecessors:</strong> Action waits for ALL
-                                predecessors to complete</li>
-                            <li><strong>Cycles prevented:</strong> You cannot create circular
-                                dependencies</li>
+                            <li><strong>No predecessors:</strong> Action starts immediately (root action)</li>
+                            <li><strong>One predecessor:</strong> Waits for that action to complete</li>
+                            <li><strong>Multiple predecessors:</strong> Waits for ALL to complete (AND join)</li>
+                            <li><strong>Execution state</strong> is tracked per-run in <code>automation.runtime.line</code></li>
                         </ul>
                     </div>
 
                     <div class="alert alert-warning" role="alert" invisible="predecessor_ids">
-                        <i class="fa-solid fa-triangle-exclamation" title="Warning" /> This is a <strong>root action</strong> (no dependencies). It will be ready as soon as the workflow starts. </div>
+                        <i class="fa-solid fa-triangle-exclamation" title="Warning" />
+                        This is a <strong>root action</strong> — it starts as soon as the workflow runs.
+                    </div>
 
                 </page>
             </xpath>
