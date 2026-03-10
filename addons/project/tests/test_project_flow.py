@@ -286,13 +286,13 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
         stages = task._get_default_personal_stage_create_vals(self.env.user.id)
         self.assertEqual(
-            task.personal_stage_id.stage_id.name,
+            task.personal_triage_id.step_id.name,
             stages[0].get("name"),
             "tasks assigned to the current user should be in the right default stage",
         )
 
     def test_send_rating_review(self) -> None:
-        won_stage = self.project_goats.type_ids[-1]
+        won_stage = self.project_goats.workflow_step_ids[-1]
         won_stage.write(
             {
                 "rating_active": True,
@@ -327,7 +327,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
 
         with self.mock_mail_gateway():
-            tasks.with_user(self.user_projectmanager).write({"stage_id": won_stage.id})
+            tasks.with_user(self.user_projectmanager).write({"step_id": won_stage.id})
 
         tasks.invalidate_model(["rating_ids"])
         for task in tasks:
@@ -376,7 +376,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                 "subject": "Test",
                 "body_html": "<p>Test</p>",
                 "auto_delete": True,
-                "model_id": self.env.ref("project.model_project_project_stage").id,
+                "model_id": self.env.ref("project.model_project_phase").id,
             }
         )
         project_A = self.env["project.project"].create(
@@ -387,18 +387,18 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                 "partner_id": self.partner_1.id,
             }
         )
-        init_stage = project_A.stage_id.name
+        init_stage = project_A.phase_id.name
 
-        project_stage = self.env.ref("project.project_project_stage_1")
-        self.assertNotEqual(project_A.stage_id, project_stage)
+        project_stage = self.env.ref("project.project_phase_1")
+        self.assertNotEqual(project_A.phase_id, project_stage)
 
         # Assign email template
         project_stage.mail_template_id = mail_template.id
         self.flush_tracking()
         init_nb_log = len(project_A.message_ids)
-        project_A.stage_id = project_stage.id
+        project_A.phase_id = project_stage.id
         self.flush_tracking()
-        self.assertNotEqual(init_stage, project_A.stage_id.name)
+        self.assertNotEqual(init_stage, project_A.phase_id.name)
 
         self.assertEqual(
             len(project_A.message_ids),
@@ -544,14 +544,14 @@ class TestProjectFlow(TestProjectCommon, MailCase):
         )
 
     def test_do_not_copy_project_stage(self) -> None:
-        stage = self.env["project.project.stage"].create(
+        stage = self.env["project.phase"].create(
             {"name": "Custom stage"}
         )  # Default sequence is 50
-        self.project_pigs.stage_id = stage.id
-        project_copy = self.project_pigs.with_context(default_stage_id=stage.id).copy()
+        self.project_pigs.phase_id = stage.id
+        project_copy = self.project_pigs.with_context(default_phase_id=stage.id).copy()
         self.assertNotEqual(
-            project_copy.stage_id,
-            self.project_pigs.stage_id,
+            project_copy.phase_id,
+            self.project_pigs.phase_id,
             "Copied project should have lowest sequence stage",
         )
 

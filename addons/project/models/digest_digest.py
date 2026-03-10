@@ -23,7 +23,7 @@ class DigestDigest(models.Model):
             "project.task",
             "kpi_project_task_opened_value",
             additional_domain=[
-                ("stage_id.fold", "=", False),
+                ("step_id.fold", "=", False),
                 ("project_id", "!=", False),
             ],
         )
@@ -32,6 +32,6 @@ class DigestDigest(models.Model):
         res = super()._compute_kpis_actions(company, user)
         res["kpi_project_task_opened"] = (
             "project.open_view_project_all?menu_id=%s"
-            % self.env.ref("project.menu_main_pm").id
+            % self.env.ref("project.menu_project_root").id
         )
         return res

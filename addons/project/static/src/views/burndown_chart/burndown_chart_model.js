@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { GraphModel } from "@web/views/graph/graph_model";
 import { sortBy } from "@web/core/utils/collections/arrays";
@@ -21,7 +22,7 @@ export class BurndownChartModel extends GraphModel {
             !context.active_id || !context.default_project_id
                 ? []
                 : [["project_ids", "in", context.active_id]];
-        const data = await this.orm.webSearchRead("project.task.type", searchDomain, {
+        const data = await this.orm.webSearchRead("project.workflow.step", searchDomain, {
             specification: {
                 name: {},
                 sequence: {},
@@ -40,7 +41,7 @@ export class BurndownChartModel extends GraphModel {
     async load(searchParams) {
         const { context, groupBy } = searchParams;
 
-        if (groupBy.includes("stage_id")) {
+        if (groupBy.includes("step_id")) {
             if (context.stage_name_and_sequence_per_id && context.default_project_id) {
                 this.stageSeqAndNamePerId = context.stage_name_and_sequence_per_id;
             } else {
@@ -60,11 +61,11 @@ export class BurndownChartModel extends GraphModel {
         super._prepareData();
         const { groupBy } = this.searchParams;
         const { mode } = this.metaData;
-        if (mode === "line" && groupBy.includes("stage_id")) {
+        if (mode === "line" && groupBy.includes("step_id")) {
             this.data.datasets = sortBy(this.data.datasets, (dataSet) => {
                 const firstIdentifier = [...dataSet.identifiers][0];
                 const group = Object.assign(...JSON.parse(firstIdentifier));
-                const val = group.stage_id;
+                const val = group.step_id;
                 if (Array.isArray(val)) {
                     return this.stageSeqAndNamePerId[val[0]]?.sequence || -1;
                 }

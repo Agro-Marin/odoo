@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { onWillStart, useEffect } from "@odoo/owl";
 import { user } from "@web/services/user";
 import { FormControllerWithHTMLExpander } from '@resource/views/form_with_html_expander/form_controller_with_html_expander'
-import { ProjectTemplateDropdown } from "../components/project_template_dropdown";
+import { ProjectTemplateDropdown } from "../components/project_template_dropdown.js";
 
 export class ProjectProjectFormController extends FormControllerWithHTMLExpander {
     static template = "project.ProjectFormView";

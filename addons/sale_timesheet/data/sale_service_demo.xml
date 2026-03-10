@@ -100,7 +100,7 @@
             <field name="user_id" eval=""/>
             <field name="account_id" ref="account_analytic_account_project_support"/>
             <field name="allow_billable" eval="True" />
-            <field name="type_ids" eval="[Command.link(ref('project.project_stage_0')), Command.link(ref('project.project_stage_1')), Command.link(ref('project.project_stage_2'))]"/>
+            <field name="workflow_step_ids" eval="[Command.link(ref('project.project_stage_0')), Command.link(ref('project.project_stage_1')), Command.link(ref('project.project_stage_2'))]"/>
             <field name="label_tasks">Services</field>
             <field name="privacy_visibility">followers</field>
         </record>
@@ -421,7 +421,7 @@
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_timesheet.sale_line_construction_41'))]"/>
             <value eval="{
                 'milestone_id': ref('project.project_home_construction_milestone_3'),
-                'stage_id': ref('project.project_stage_1'),
+                'step_id': ref('project.project_stage_1'),
                 'user_ids':[Command.link(ref('base.user_admin'))],
                 'state': '03_approved',
             }"/>
@@ -430,7 +430,7 @@
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_timesheet.sale_line_construction_42'))]"/>
             <value eval="{
                 'milestone_id': ref('project.project_home_construction_milestone_3'),
-                'stage_id': ref('project.project_stage_1'),
+                'step_id': ref('project.project_stage_1'),
                 'user_ids': [Command.link(ref('base.user_demo'))],
             }"/>
         </function>
@@ -438,7 +438,7 @@
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_timesheet.sale_line_construction_43'))]"/>
             <value eval="{
                 'milestone_id': ref('project.project_home_construction_milestone_2'),
-                'stage_id': ref('project.project_stage_1'),
+                'step_id': ref('project.project_stage_1'),
                 'user_ids':[Command.link(ref('base.user_admin'))],
                 'state': '03_approved',
             }"/>
@@ -446,7 +446,7 @@
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_timesheet.sale_line_construction_44'))]"/>
             <value eval="{
-                'stage_id': ref('project.project_stage_1'),
+                'step_id': ref('project.project_stage_1'),
                 'user_ids': [Command.link(ref('base.user_demo'))],
                 'state': '03_approved',
             }"/>
@@ -575,37 +575,37 @@
         <!-- Tasks progress -->
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_line_11'))]"/>
-            <value eval="{'stage_id': ref('project.project_stage_1')}"/>
+            <value eval="{'step_id': ref('project.project_stage_1')}"/>
         </function>
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_line_13'))]"/>
-            <value eval="{'stage_id': ref('project.project_stage_1')}"/>
+            <value eval="{'step_id': ref('project.project_stage_1')}"/>
         </function>
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_line_15'))]"/>
-            <value eval="{'stage_id': ref('project.project_stage_2')}"/>
+            <value eval="{'step_id': ref('project.project_stage_2')}"/>
         </function>
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_line_16'))]"/>
-            <value eval="{'stage_id': ref('project.project_stage_1')}"/>
+            <value eval="{'step_id': ref('project.project_stage_1')}"/>
         </function>
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_line_21'))]"/>
-            <value eval="{'stage_id': ref('project.project_stage_1')}"/>
+            <value eval="{'step_id': ref('project.project_stage_1')}"/>
         </function>
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_line_22'))]"/>
-            <value eval="{'stage_id': ref('project.project_stage_1')}"/>
+            <value eval="{'step_id': ref('project.project_stage_1')}"/>
         </function>
 
         <!-- Personal stages for SOL tasks -->
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id.sale_line_id', '=', ref('sale_line_13')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_admin_2')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_admin_2')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id.sale_line_id', '=', ref('sale_line_22')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_demo_1')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_demo_1')}"/>
         </function>
 
         <!-- Activities for SOL tasks -->
@@ -1274,7 +1274,7 @@
             <field name="sale_line_id" ref="sale_timesheet.sale_line_13"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_1"/>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_1'))]"/>
-            <field name="stage_id" ref="project.project_stage_2"/>
+            <field name="step_id" ref="project.project_stage_2"/>
             <field name="partner_id" ref="base.res_partner_2"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
         </record>
@@ -1284,7 +1284,7 @@
             <field name="sale_line_id" ref="sale_timesheet.sale_line_13"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_1"/>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_1'))]"/>
-            <field name="stage_id" ref="project.project_stage_2"/>
+            <field name="step_id" ref="project.project_stage_2"/>
             <field name="partner_id" ref="base.res_partner_2"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="milestone_id" ref="sale_timesheet.agr_milestone_0" />
@@ -1295,7 +1295,7 @@
             <field name="sale_line_id" ref="sale_timesheet.sale_line_13"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_1"/>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_1'))]"/>
-            <field name="stage_id" ref="project.project_stage_1"/>
+            <field name="step_id" ref="project.project_stage_1"/>
             <field name="partner_id" ref="base.res_partner_2"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="milestone_id" ref="sale_timesheet.agr_milestone_0" />
@@ -1304,8 +1304,8 @@
         <record id="project_agr_task_4" model="project.task">
             <field name="name">Furniture Delivery</field>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_1'))]"/>
-            <field name="stage_id" ref="project.project_stage_1"/>
-            <field name="state">1_done</field>
+            <field name="step_id" ref="project.project_stage_1"/>
+            <field name="state">done</field>
             <field name="sale_line_id" ref="sale_timesheet.sale_line_13"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_1"/>
             <field name="partner_id" ref="base.res_partner_2"/>
@@ -1319,8 +1319,8 @@
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_2"/>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]"/>
-            <field name="stage_id" ref="project.project_stage_1"/>
-            <field name="state">1_done</field>
+            <field name="step_id" ref="project.project_stage_1"/>
+            <field name="state">done</field>
             <field name="partner_id" ref="base.res_partner_4"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
         </record>
@@ -1330,7 +1330,7 @@
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_2"/>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]"/>
-            <field name="stage_id" ref="project.project_stage_2"/>
+            <field name="step_id" ref="project.project_stage_2"/>
             <field name="partner_id" ref="base.res_partner_4"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin')), Command.link(ref('base.user_demo'))]"/>
         </record>
@@ -1340,7 +1340,7 @@
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_2"/>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]"/>
-            <field name="stage_id" ref="project.project_stage_1"/>
+            <field name="step_id" ref="project.project_stage_1"/>
             <field name="partner_id" ref="base.res_partner_4"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_demo'))]"/>
         </record>
@@ -1357,7 +1357,7 @@
         <record id="project_dpc_task_4" model="project.task">
             <field name="name">Carpet fitting</field>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]"/>
-            <field name="stage_id" ref="project.project_stage_0"/>
+            <field name="step_id" ref="project.project_stage_0"/>
             <field name="state">02_changes_requested</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(days=4)"/>
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22"/>
@@ -1389,7 +1389,7 @@
         <record id="project_dpc_task_5" model="project.task">
             <field name="name">Electricity</field>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]"/>
-            <field name="stage_id" ref="project.project_stage_2"/>
+            <field name="step_id" ref="project.project_stage_2"/>
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_2"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(days=4)"/>
@@ -1435,7 +1435,7 @@
         <record id="project_dpc_task_6" model="project.task">
             <field name="name">Ceiling fan</field>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]"/>
-            <field name="stage_id" ref="project.project_stage_0"/>
+            <field name="step_id" ref="project.project_stage_0"/>
             <field name="state">02_changes_requested</field>
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_2"/>
@@ -1446,7 +1446,7 @@
         <record id="project_dpc_task_7" model="project.task">
             <field name="name">Plumbing</field>
             <field name="project_id" search="[('sale_order_id', '=', ref('sale_timesheet.sale_order_2'))]"/>
-            <field name="stage_id" ref="project.project_stage_0"/>
+            <field name="step_id" ref="project.project_stage_0"/>
             <field name="state">02_changes_requested</field>
             <field name="sale_line_id" ref="sale_timesheet.sale_line_22"/>
             <field name="sale_order_id" ref="sale_timesheet.sale_order_2"/>
@@ -1475,49 +1475,49 @@
         <!-- Admin personal stages -->
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_agr_task_3')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_admin_1')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_admin_1')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_agr_task_4')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_admin_2')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_admin_2')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_dpc_task_1')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_admin_3')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_admin_3')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_dpc_task_4')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_admin_3')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_admin_3')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_agr_task_1')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_admin_5')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_admin_5')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_agr_task_2')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_admin_5')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_admin_5')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_dpc_task_2')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_admin_5')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_admin_5')}"/>
         </function>
 
         <!-- Demo personal stages -->
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_dpc_task_6')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_demo_2')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_demo_2')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_dpc_task_3')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_demo_3')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_demo_3')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_dpc_task_2')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_demo_5')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_demo_5')}"/>
         </function>
         <function model="project.task.stage.personal" name="write">
             <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_dpc_task_5')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project.project_personal_stage_demo_5')}"/>
+            <value eval="{'triage_id': ref('project.project_personal_stage_demo_5')}"/>
         </function>
 
 

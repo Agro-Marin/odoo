@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 
 import { useService } from "@web/core/utils/hooks";
@@ -6,7 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 
 import { Field, getPropertyFieldInfo } from "@web/fields/field";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-import { SubtaskCreate } from "./subtask_kanban_create/subtask_kanban_create";
+import { SubtaskCreate } from "./subtask_kanban_create/subtask_kanban_create.js";
 
 export class SubtaskKanbanList extends Component {
     static components = {
@@ -47,7 +48,7 @@ export class SubtaskKanbanList extends Component {
             this.state.prevSubtaskCount = currentCount;
             this.state.isLoad = false;
             this.state.subtasks = this.list.records
-                .filter((subtask) => !["1_done", "1_canceled"].includes(subtask.data.state));
+                .filter((subtask) => !["done", "canceled"].includes(subtask.data.state));
         }
         return this.state.subtasks;
     }

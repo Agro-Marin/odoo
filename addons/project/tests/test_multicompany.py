@@ -164,7 +164,7 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
                 "alias_name": "project+companya",
                 "partner_id": cls.partner_1.id,
                 "company_id": cls.company_a.id,
-                "type_ids": [
+                "workflow_step_ids": [
                     (
                         0,
                         0,
@@ -190,7 +190,7 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
                 "alias_name": "project+companyb",
                 "partner_id": cls.partner_1.id,
                 "company_id": cls.company_b.id,
-                "type_ids": [
+                "workflow_step_ids": [
                     (
                         0,
                         0,

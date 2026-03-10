@@ -274,10 +274,10 @@ class TestProjectSubtasks(TestProjectCommon):
         """The stage of the new child must be the default one of the project"""
         parent_task = self.task_1.with_context({"tracking_disable": True})
 
-        stage_a = self.env["project.task.type"].create({"name": "a", "sequence": 1})
-        stage_b = self.env["project.task.type"].create({"name": "b", "sequence": 10})
-        self.project_pigs.type_ids |= stage_a
-        self.project_pigs.type_ids |= stage_b
+        stage_a = self.env["project.workflow.step"].create({"name": "a", "sequence": 1})
+        stage_b = self.env["project.workflow.step"].create({"name": "b", "sequence": 10})
+        self.project_pigs.workflow_step_ids |= stage_a
+        self.project_pigs.workflow_step_ids |= stage_b
 
         child_task = parent_task.create(
             {
@@ -287,21 +287,21 @@ class TestProjectSubtasks(TestProjectCommon):
             }
         ).with_context({"tracking_disable": True})
         self.assertEqual(
-            child_task.stage_id,
+            child_task.step_id,
             stage_a,
             "Stage should be set on the subtask since it inheritted the project of its parent.",
         )
 
         child_task.project_id = parent_task.project_id
         self.assertEqual(
-            child_task.stage_id,
+            child_task.step_id,
             stage_a,
             "The stage of the child task should be the default one of the project.",
         )
 
-        parent_task.stage_id = stage_b
+        parent_task.step_id = stage_b
         self.assertEqual(
-            child_task.stage_id,
+            child_task.step_id,
             stage_a,
             "The stage of the child task should remain the same while changing parent task stage.",
         )
@@ -315,14 +315,14 @@ class TestProjectSubtasks(TestProjectCommon):
             }
         ).with_context({"tracking_disable": True})
         self.assertEqual(
-            other_child_task.stage_id,
+            other_child_task.step_id,
             stage_a,
             "The stage of the child task should be the default one of the project even if parent stage id is different.",
         )
 
         other_child_task.project_id = self.project_goats
         self.assertEqual(
-            other_child_task.stage_id.name,
+            other_child_task.step_id.name,
             "New",
             "The stage of the child task should be the default one of the display project id, once set.",
         )

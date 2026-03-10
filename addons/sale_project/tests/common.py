@@ -31,7 +31,7 @@ class TestSaleProjectCommon(TestSaleCommon):
         cls.project_template = Project.create({
             'name': 'Project TEMPLATE for services',
         })
-        cls.project_template_state = cls.env['project.task.type'].create({
+        cls.project_template_state = cls.env['project.workflow.step'].create({
             'name': 'Only stage in project template',
             'sequence': 1,
             'project_ids': [(4, cls.project_template.id)]

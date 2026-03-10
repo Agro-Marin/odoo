@@ -14,7 +14,7 @@ from . import test_project_sharing_ui
 from . import test_project_stage_multicompany
 from . import test_project_subtasks
 from . import test_project_tags_filter
-from . import test_project_task_type
+from . import test_project_workflow_step
 from . import test_project_template
 from . import test_project_template_ui
 from . import test_project_ui

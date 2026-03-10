@@ -29,8 +29,8 @@ beforeEach(() => {
             date_deadline: "2024-01-09 07:00:00",
             create_date: "2024-01-03 12:00:00",
             project_id: 1,
-            stage_id: 1,
-            state: "01_in_progress",
+            step_id: 1,
+            state: "in_progress",
             user_ids: [],
             display_name: "Task-1",
         },
@@ -38,8 +38,8 @@ beforeEach(() => {
             id: 10,
             name: "Task-10",
             project_id: 1,
-            stage_id: 1,
-            state: "01_in_progress",
+            step_id: 1,
+            state: "in_progress",
             user_ids: [],
             display_name: "Task-10",
         },
@@ -47,8 +47,8 @@ beforeEach(() => {
             id: 11,
             name: "Task-11",
             project_id: 1,
-            stage_id: 1,
-            state: "1_done",
+            step_id: 1,
+            state: "done",
             user_ids: [],
             display_name: "Task-11",
             is_closed: true,
@@ -65,12 +65,12 @@ const calendarMountParams = {
         <calendar date_start="date_deadline" mode="month"
                     js_class="project_task_calendar">
             <field name="project_id" widget="project" invisible="context.get('default_project_id', False)"/>
-            <field name="stage_id" invisible="not project_id or not stage_id" widget="task_stage_with_state_selection"/>
+            <field name="step_id" invisible="not project_id or not step_id" widget="task_step_with_state_selection"/>
         </calendar>
     `,
 };
 
-test("test Project Task Calendar Popover with task_stage_with_state_selection widget", async () => {
+test("test Project Task Calendar Popover with task_step_with_state_selection widget", async () => {
     await mountView(calendarMountParams);
 
     await click("a.fc-daygrid-event");
@@ -79,17 +79,17 @@ test("test Project Task Calendar Popover with task_stage_with_state_selection wi
     // There is a timeout set in the useCalendarPopover.
     await runAllTimers();
 
-    expect(queryOne(".o_field_task_stage_with_state_selection > div").childElementCount).toBe(2);
+    expect(queryOne(".o_field_task_step_with_state_selection > div").childElementCount).toBe(2);
 });
 
-test("test task_stage_with_state_selection widget with non-editable state", async () => {
+test("test task_step_with_state_selection widget with non-editable state", async () => {
     await mountView({
         ...calendarMountParams,
         arch: `
             <calendar date_start="date_deadline" mode="month"
                         js_class="project_task_calendar">
                 <field name="project_id" widget="project" invisible="context.get('default_project_id', False)"/>
-                <field name="stage_id" invisible="not project_id or not stage_id" widget="task_stage_with_state_selection" options="{'state_readonly': True}"/>
+                <field name="step_id" invisible="not project_id or not step_id" widget="task_step_with_state_selection" options="{'state_readonly': True}"/>
             </calendar>
         `,
     });
@@ -105,14 +105,14 @@ test("test task_stage_with_state_selection widget with non-editable state", asyn
     expect(".project_task_state_selection_menu").toHaveCount(0);
 });
 
-test("test task_stage_with_state_selection widget with editable state", async () => {
+test("test task_step_with_state_selection widget with editable state", async () => {
     await mountView({
         ...calendarMountParams,
         arch: `
             <calendar date_start="date_deadline" mode="month"
                         js_class="project_task_calendar">
                 <field name="project_id" widget="project" invisible="context.get('default_project_id', False)"/>
-                <field name="stage_id" invisible="not project_id or not stage_id" widget="task_stage_with_state_selection" options="{'state_readonly': False}"/>
+                <field name="step_id" invisible="not project_id or not step_id" widget="task_step_with_state_selection" options="{'state_readonly': False}"/>
             </calendar>
         `,
     });
@@ -139,8 +139,8 @@ test("Display closed tasks as past event", async () => {
         date_deadline: "2024-01-09 07:00:00",
         create_date: "2024-01-03 12:00:00",
         project_id: 1,
-        stage_id: 1,
-        state: "1_done",
+        step_id: 1,
+        state: "done",
         user_ids: [],
         display_name: "Task-2",
     });
@@ -150,8 +150,8 @@ test("Display closed tasks as past event", async () => {
         date_deadline: "2024-01-09 07:00:00",
         create_date: "2024-01-03 12:00:00",
         project_id: 1,
-        stage_id: 1,
-        state: "1_canceled",
+        step_id: 1,
+        state: "canceled",
         user_ids: [],
         display_name: "Task-3",
     });
@@ -161,8 +161,8 @@ test("Display closed tasks as past event", async () => {
         date_deadline: "2024-01-09 07:00:00",
         create_date: "2024-01-03 12:00:00",
         project_id: 1,
-        stage_id: 1,
-        state: "1_canceled",
+        step_id: 1,
+        state: "canceled",
         user_ids: [],
         display_name: "Task-4",
         is_closed: true,
@@ -286,7 +286,7 @@ test("project.task (calendar): toggle sub-tasks", async () => {
             id: 1,
             project_id: 1,
             name: "Task 1",
-            stage_id:  1,
+            step_id:  1,
             display_in_project: true,
             date_deadline: "2024-01-09 07:00:00",
             create_date: "2024-01-03 12:00:00",
@@ -295,7 +295,7 @@ test("project.task (calendar): toggle sub-tasks", async () => {
             id: 2,
             project_id: 1,
             name: "Task 2",
-            stage_id:  1,
+            step_id:  1,
             display_in_project: false,
             date_deadline: "2024-01-09 07:00:00",
             create_date: "2024-01-03 12:00:00",

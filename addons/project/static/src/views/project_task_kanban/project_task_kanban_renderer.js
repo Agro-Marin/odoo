@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { KanbanRenderer } from '@web/views/kanban/kanban_renderer';
-import { ProjectTaskKanbanRecord } from './project_task_kanban_record';
-import { ProjectTaskKanbanHeader } from './project_task_kanban_header';
+import { ProjectTaskKanbanRecord } from './project_task_kanban_record.js';
+import { ProjectTaskKanbanHeader } from './project_task_kanban_header.js';
 import { useService } from '@web/core/utils/hooks';
 import { onWillStart } from "@odoo/owl";
 import { user } from "@web/services/user";
@@ -30,7 +31,7 @@ export class ProjectTaskKanbanRenderer extends KanbanRenderer {
             super.canCreateGroup() &&
             ((!!this.props.list.context.default_project_id == this.props.list.isGroupedByStage &&
                 this.isProjectManager) ||
-                this.props.list.groupByField.name === "personal_stage_type_id")
+                this.props.list.groupByField.name === "triage_id")
         );
     }
 }

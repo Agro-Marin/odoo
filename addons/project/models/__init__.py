@@ -1,15 +1,16 @@
 from . import account_analytic_account
 from . import mail_message
-from . import project_project_stage
+from . import project_phase
 from . import project_task_recurrence
 
-# `project_task_stage_personal` has to be loaded before `project_project` and `project_milestone`
-from . import project_task_stage_personal
+# project_task_triage must be loaded before project_project and project_milestone
+from . import project_task_triage
 from . import project_milestone
 from . import project_project
 from . import project_role
 from . import project_task
-from . import project_task_type
+from . import project_workflow_step
+from . import project_triage
 from . import project_tags
 from . import project_collaborator
 from . import project_update

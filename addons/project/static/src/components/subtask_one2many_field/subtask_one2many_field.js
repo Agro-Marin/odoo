@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { pick } from "@web/core/utils/collections/objects";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 
-import { SubtaskListRenderer } from "./subtask_list_renderer";
+import { SubtaskListRenderer } from "./subtask_list_renderer.js";
 
 export class SubtaskOne2ManyField extends X2ManyField {
     static components = {

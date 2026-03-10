@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { ListController } from '@web/views/list/list_controller';
-import { ProjectRightSidePanel } from '../../components/project_right_side_panel/project_right_side_panel';
+import { ProjectRightSidePanel } from '../../components/project_right_side_panel/project_right_side_panel.js';
 
 export class ProjectUpdateListController extends ListController {
     static template = "project.ProjectUpdateListView";

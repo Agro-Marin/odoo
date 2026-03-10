@@ -121,7 +121,7 @@
                     </group>
                 </page>
                 </xpath>
-                <xpath expr="//field[@name='depend_on_ids']/list//field[@name='company_id']" position="after">
+                <xpath expr="//field[@name='predecessor_ids']/list//field[@name='company_id']" position="after">
                     <field name="progress" column_invisible="True" groups="hr_timesheet.group_hr_timesheet_user"/>
                     <field name="allocated_hours" widget="timesheet_uom_no_toggle" sum="Total Allocated Time" optional="hide" groups="hr_timesheet.group_hr_timesheet_user"/>
                     <field name="effective_hours" widget="timesheet_uom" sum="Effective Hours" optional="hide" groups="hr_timesheet.group_hr_timesheet_user" column_invisible="context.get('template_project')"/>
@@ -202,7 +202,7 @@
             <field name="model">project.task</field>
             <field name="inherit_id" ref="project.view_project_task_graph"/>
             <field name="arch" type="xml">
-                <xpath expr="//field[@name='stage_id']" position='after'>
+                <xpath expr="//field[@name='step_id']" position='after'>
                     <field name="allocated_hours" widget="timesheet_uom" groups="hr_timesheet.group_hr_timesheet_user"/>
                     <field name="allocated_hours" widget="timesheet_uom" invisible="1" groups="!hr_timesheet.group_hr_timesheet_user"/>
                     <field name="remaining_hours" widget="timesheet_uom" groups="hr_timesheet.group_hr_timesheet_user"/>

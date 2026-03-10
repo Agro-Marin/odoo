@@ -10,7 +10,7 @@ class TestTaskTemplatesTour(HttpCase):
         cls.project_with_templates = cls.env["project.project"].create(
             {
                 "name": "Project with Task Template",
-                "type_ids": [
+                "workflow_step_ids": [
                     Command.create(
                         {
                             "name": "New",

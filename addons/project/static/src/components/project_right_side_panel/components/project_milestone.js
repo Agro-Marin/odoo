@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { formatDate } from "@web/core/l10n/dates";
 import { useService } from '@web/core/utils/hooks';
 import { Component, useState, onWillUpdateProps } from "@odoo/owl";

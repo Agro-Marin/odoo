@@ -52,8 +52,8 @@ class ProjectTask(models.Model):
         if any(
             key in self.env.context
             for key in (
-                "default_personal_stage_type_ids",
-                "default_personal_stage_type_id",
+                "default_triage_ids",
+                "default_triage_id",
             )
         ):
             return self.env["hr.employee"].search(

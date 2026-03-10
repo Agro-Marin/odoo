@@ -4,7 +4,7 @@ import { stepUtils } from "@web_tour/tour_utils";
 registry.category("web_tour.tours").add('burndown_chart_tour', {
     url: '/odoo',
     steps: () => [stepUtils.showAppsMenuItem(), {
-    trigger: '.o_app[data-menu-xmlid="project.menu_main_pm"]',
+    trigger: '.o_app[data-menu-xmlid="project.menu_project_root"]',
     run: "click",
 }, {
     content: 'Open "Burndown Chart Test" project menu',

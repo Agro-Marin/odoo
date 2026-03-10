@@ -248,8 +248,8 @@ class SaleOrderLine(models.Model):
             project = self.env['project.project'].create(values)
 
         # Avoid new tasks to go to 'Undefined Stage'
-        if not project.type_ids:
-            project.type_ids = self.env['project.task.type'].create([{
+        if not project.workflow_step_ids:
+            project.workflow_step_ids = self.env['project.workflow.step'].create([{
                 'name': name,
                 'fold': fold,
                 'sequence': sequence,

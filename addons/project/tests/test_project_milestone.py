@@ -488,7 +488,7 @@ class TestProjectMilestone(TestProjectCommon):
         # J. Same case as F but subtask is closed -> no update of its milestone
         self.task_1.project_id = task_2.project_id = self.project_pigs
         self.task_1.milestone_id = task_2.milestone_id = self.milestone_pigs
-        task_2.state = "1_done"
+        task_2.state = "done"
         self.assertEqual(task_2.milestone_id, self.milestone_pigs)
         self.assertEqual(self.task_1.milestone_id, self.milestone_pigs)
 
@@ -518,7 +518,7 @@ class TestProjectMilestone(TestProjectCommon):
         self.task_1.write(
             {
                 "milestone_id": self.milestone_pigs.id,
-                "state": "1_done",
+                "state": "done",
             }
         )
         self.milestone_goats.write(

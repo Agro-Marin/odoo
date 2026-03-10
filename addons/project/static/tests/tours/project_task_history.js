@@ -53,7 +53,7 @@ registry.category("web_tour.tours").add("project_task_history_tour", {
     url: "/odoo?debug=1,tests",
     steps: () => [stepUtils.showAppsMenuItem(), {
         content: "Open the project app",
-        trigger: ".o_app[data-menu-xmlid='project.menu_main_pm']",
+        trigger: ".o_app[data-menu-xmlid='project.menu_project_root']",
         run: "click",
     },
     {
@@ -212,7 +212,7 @@ registry.category("web_tour.tours").add("project_task_last_history_steps_tour", 
     url: "/odoo?debug=1,tests",
     steps: () => [stepUtils.showAppsMenuItem(), {
         content: "Open the project app",
-        trigger: ".o_app[data-menu-xmlid='project.menu_main_pm']",
+        trigger: ".o_app[data-menu-xmlid='project.menu_project_root']",
         run: "click",
     },
     {

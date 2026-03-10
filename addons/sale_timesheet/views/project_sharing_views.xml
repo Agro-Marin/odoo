@@ -21,7 +21,7 @@
                 <field name="remaining_hours_available" column_invisible="True"/>
                 <field name="remaining_hours_so" optional="hide" widget="timesheet_uom" column_invisible="not parent.allow_timesheets"/>
             </xpath>
-            <xpath expr="//field[@name='depend_on_ids']/list/field[@name='remaining_hours']" position="after">
+            <xpath expr="//field[@name='predecessor_ids']/list/field[@name='remaining_hours']" position="after">
                 <field name="remaining_hours_available" column_invisible="True"/>
                 <field name="remaining_hours_so" optional="hide" widget="timesheet_uom" column_invisible="not parent.allow_timesheets"/>
             </xpath>

@@ -9,8 +9,8 @@
     'version': '1.1',
     'depends': ['project', 'sms'],
     'data': [
-        'views/project_stage_views.xml',
-        'views/project_task_type_views.xml',
+        'views/project_phase_views.xml',
+        'views/project_workflow_step_views.xml',
         'views/project_project_views.xml',
         'views/project_task_views.xml',
         'security/ir.model.access.csv',

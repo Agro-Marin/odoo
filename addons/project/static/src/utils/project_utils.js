@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * List of colors according to the selection value, see `project_update.py`
  */

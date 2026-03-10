@@ -9,17 +9,17 @@ defineProjectModels();
 
 describe.current.tags("desktop");
 
-test("project.task (list): cannot edit stage_id with different projects", async () => {
+test("project.task (list): cannot edit step_id with different projects", async () => {
     ProjectTask._records = [
         {
             id: 1,
             project_id: 1,
-            stage_id: 1,
+            step_id: 1,
         },
         {
             id: 2,
             project_id: 2,
-            stage_id: 1,
+            step_id: 1,
         },
     ];
 
@@ -29,7 +29,7 @@ test("project.task (list): cannot edit stage_id with different projects", async 
         arch: `
             <list multi_edit="1" js_class="project_task_list">
                 <field name="project_id"/>
-                <field name="stage_id"/>
+                <field name="step_id"/>
             </list>
         `,
     });
@@ -37,12 +37,12 @@ test("project.task (list): cannot edit stage_id with different projects", async 
     const [firstRow, secondRow] = queryAll(".o_data_row");
     await check(".o_list_record_selector input", { root: firstRow });
     await animationFrame();
-    expect(queryAll("[name=stage_id]")).not.toHaveClass("o_readonly_modifier");
+    expect(queryAll("[name=step_id]")).not.toHaveClass("o_readonly_modifier");
 
     await check(".o_list_record_selector input", { root: secondRow });
     await animationFrame();
-    expect(queryOne("[name=stage_id]", { root: firstRow })).toHaveClass("o_readonly_modifier");
-    expect(queryOne("[name=stage_id]", { root: secondRow })).toHaveClass("o_readonly_modifier");
+    expect(queryOne("[name=step_id]", { root: firstRow })).toHaveClass("o_readonly_modifier");
+    expect(queryOne("[name=step_id]", { root: secondRow })).toHaveClass("o_readonly_modifier");
 });
 
 test("project.task (list): toggle sub-tasks", async () => {
@@ -51,14 +51,14 @@ test("project.task (list): toggle sub-tasks", async () => {
             id: 1,
             project_id: 1,
             name: "Task 1",
-            stage_id:  1,
+            step_id:  1,
             display_in_project: true,
         },
         {
             id: 2,
             project_id: 1,
             name: "Task 2",
-            stage_id:  1,
+            step_id:  1,
             display_in_project: false,
         }
     ];
@@ -68,7 +68,7 @@ test("project.task (list): toggle sub-tasks", async () => {
         arch: `
             <list multi_edit="1" js_class="project_task_list">
                 <field name="project_id"/>
-                <field name="stage_id"/>
+                <field name="step_id"/>
             </list>
         `,
     });

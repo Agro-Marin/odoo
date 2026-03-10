@@ -18,14 +18,14 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
             'body': '{{ object.name }}',
             'model_id': cls.env['ir.model'].sudo().search([('model', '=', 'project.task')]).id,
         })
-        cls.task_stage_with_sms = cls.project_portal.type_ids[-1]
+        cls.task_stage_with_sms = cls.project_portal.workflow_step_ids[-1]
         cls.task_stage_with_sms.write({'sms_template_id': cls.sms_template.id})
 
         cls.sms_template_2 = cls.env['sms.template'].sudo().create({
             'body': '{{ object.name }}',
             'model_id': cls.env['ir.model'].sudo().search([('model', '=', 'project.project')]).id,
         })
-        cls.project_stage_with_sms = cls.project_portal.stage_id.browse(2)
+        cls.project_stage_with_sms = cls.project_portal.phase_id.browse(2)
         cls.project_stage_with_sms.write({'sms_template_id': cls.sms_template_2.id})
 
         cls.project_portal.write({
@@ -42,27 +42,27 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
         """
         with self.mockSMSGateway():
             self.task_portal.with_user(self.user_portal).write({
-                'stage_id': self.task_stage_with_sms.id,
+                'step_id': self.task_stage_with_sms.id,
             })
-        self.assertEqual(self.task_portal.stage_id, self.task_stage_with_sms)
+        self.assertEqual(self.task_portal.step_id, self.task_stage_with_sms)
         self.assertSMSIapSent([])  # no sms sent since the author is the recipient
 
         self.task_portal.write({
             'partner_id': self.user_projectuser.partner_id.id,
-            'stage_id': self.project_portal.type_ids[0].id,
+            'step_id': self.project_portal.workflow_step_ids[0].id,
         })
         with self.mockSMSGateway():
             self.task_portal.with_user(self.user_portal).write({
-                'stage_id': self.task_stage_with_sms.id,
+                'step_id': self.task_stage_with_sms.id,
             })
-        self.assertEqual(self.task_portal.stage_id, self.task_stage_with_sms)
+        self.assertEqual(self.task_portal.step_id, self.task_stage_with_sms)
         self.assertSMSIapSent([self.user_projectuser.partner_id.phone])
 
         with self.mockSMSGateway():
             self.project_portal.write({
-                'stage_id': self.project_stage_with_sms.id,
+                'phase_id': self.project_stage_with_sms.id,
             })
-        self.assertEqual(self.project_portal.stage_id, self.project_stage_with_sms)
+        self.assertEqual(self.project_portal.phase_id, self.project_stage_with_sms)
         self.assertSMSIapSent([self.project_portal.partner_id.phone])
 
     @tagged('post_install', '-at_install')
@@ -85,18 +85,18 @@ class TestProjectSharingWithSms(TestProjectSharingCommon, SMSCommon):
         self.assertTrue(self.task_cow.with_user(self.user_projectuser).has_access('write'))
         with self.mockSMSGateway():
             self.task_cow.with_user(self.user_projectuser).write({
-                'stage_id': self.task_stage_with_sms.id,
+                'step_id': self.task_stage_with_sms.id,
             })
-        self.assertEqual(self.task_cow.stage_id, self.task_stage_with_sms)
+        self.assertEqual(self.task_cow.step_id, self.task_stage_with_sms)
         self.assertSMSIapSent([])  # no sms sent since the author is the recipient
 
         self.task_cow.write({
             'partner_id': self.user_portal.partner_id.id,
-            'stage_id': self.project_cows.type_ids[0].id,
+            'step_id': self.project_cows.workflow_step_ids[0].id,
         })
         with self.mockSMSGateway():
             self.task_cow.with_user(self.user_projectuser).write({
-                'stage_id': self.task_stage_with_sms.id,
+                'step_id': self.task_stage_with_sms.id,
             })
-        self.assertEqual(self.task_cow.stage_id, self.task_stage_with_sms)
+        self.assertEqual(self.task_cow.step_id, self.task_stage_with_sms)
         self.assertSMSIapSent([self.user_portal.partner_id.phone])

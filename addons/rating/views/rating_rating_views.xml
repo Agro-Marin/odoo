@@ -239,7 +239,7 @@
         <!-- Add menu entry in Technical/Discuss -->
         <menuitem name="Ratings"
             id="rating_rating_menu_technical"
-            parent="mail.mail_menu_technical"
+            parent="mail.menu_mail_discuss_technical"
             action="rating_rating_action"
             sequence="30"/>
 

@@ -43,7 +43,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                 "name": "Goats",
                 "partner_id": cls.partner_1.id,
                 "privacy_visibility": "followers",
-                "type_ids": [
+                "workflow_step_ids": [
                     (
                         0,
                         0,
@@ -156,7 +156,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
         internal_followers = (
             self.user_projectuser.partner_id + self.user_projectmanager.partner_id
         )
-        self.project_followers.type_ids = [(5, 0)]
+        self.project_followers.workflow_step_ids = [(5, 0)]
 
         incoming_cc = (
             f'"New Cc" <new.cc@test.agrolait.com>, {self.partner_2.email_formatted}'
@@ -174,7 +174,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
             )
             self.flush_tracking()
         self.assertEqual(task.project_id, self.project_followers)
-        self.assertFalse(task.stage_id)
+        self.assertFalse(task.step_id)
 
         self.assertEqual(len(task.message_ids), 1)
         self.assertMailNotifications(
@@ -303,7 +303,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                 self.assertEqual(task.name, f"Test from {author.email_formatted}")
                 self.assertEqual(task.partner_id, author)
                 self.assertEqual(task.project_id, self.project_followers)
-                self.assertEqual(task.stage_id, self.project_followers.type_ids[0])
+                self.assertEqual(task.step_id, self.project_followers.workflow_step_ids[0])
                 # followers: email cc is added in followers at creation time, aka only recognized partners
                 self.assertEqual(
                     task.message_partner_ids,

@@ -12,7 +12,7 @@
             <xpath expr="//field[@name='child_ids']/list/field[@name='partner_id']" position="attributes">
                 <attribute name="context">{'res_partner_search_mode': 'customer'}</attribute>
             </xpath>
-            <xpath expr="//field[@name='depend_on_ids']/list/field[@name='partner_id']" position="attributes">
+            <xpath expr="//field[@name='predecessor_ids']/list/field[@name='partner_id']" position="attributes">
                 <attribute name="context">{'res_partner_search_mode': 'customer'}</attribute>
             </xpath>
         </field>

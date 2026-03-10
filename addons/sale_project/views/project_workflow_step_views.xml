@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="task_type_edit_inherit_sale_project" model="ir.ui.view">
-        <field name="name">project.task.type.form.inherit.sale_project</field>
-        <field name="model">project.task.type</field>
-        <field name="inherit_id" ref="project.task_type_edit"/>
+    <record id="workflow_step_edit_inherit_sale_project" model="ir.ui.view">
+        <field name="name">project.workflow.step.form.inherit.sale_project</field>
+        <field name="model">project.workflow.step</field>
+        <field name="inherit_id" ref="project.workflow_step_edit"/>
         <field name="arch" type="xml">
             <xpath expr="//span[@name='rating_status_helper']" position="replace">
                 <span name="rating_status_helper">

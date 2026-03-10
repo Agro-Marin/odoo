@@ -242,12 +242,12 @@ class TestProjectUpdate(TestProjectCommon):
         self.assertListEqual(
             project_update_data_list, [self.project_pigs.task_count, 0, 0]
         )
-        self.task_1.state = "1_done"
+        self.task_1.state = "done"
         project_update_data_list = create_project_update_view()
         self.assertListEqual(
             project_update_data_list, [self.project_pigs.task_count, 1, 50]
         )
-        self.task_2.state = "1_canceled"
+        self.task_2.state = "canceled"
         self.task_2.copy()
         project_update_data_list = create_project_update_view()
         self.assertListEqual(

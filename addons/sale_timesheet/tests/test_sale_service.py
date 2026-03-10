@@ -265,7 +265,7 @@ class TestSaleService(TestCommonSaleTimesheet):
             'allow_timesheets': True,
             'active': False,  # this template is archived
         })
-        Stage = self.env['project.task.type'].with_context(default_project_id=project_template2.id)
+        Stage = self.env['project.workflow.step'].with_context(default_project_id=project_template2.id)
         stage1_tmpl2 = Stage.create({
             'name': 'Stage 1',
             'sequence': 1

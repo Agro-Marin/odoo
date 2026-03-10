@@ -37,7 +37,7 @@
                     <header>
                         <button name="action_open_share_project_wizard" string="Share Project" type="object" class="oe_highlight" groups="project.group_project_manager"
                         invisible="privacy_visibility in ['followers', 'employees'] or is_template" context="{'default_access_mode': 'read'}" data-hotkey="r"/>
-                        <field name="stage_id" widget="statusbar_duration" options="{'clickable': '1', 'fold_field': 'fold'}" groups="project.group_project_stages" domain="[('company_id', 'in', (company_id, False))]"/>
+                        <field name="phase_id" widget="statusbar_duration" options="{'clickable': '1', 'fold_field': 'fold'}" groups="project.group_project_stages" domain="[('company_id', 'in', (company_id, False))]"/>
                     </header>
                 <sheet string="Project">
                     <div class="oe_button_box" name="button_box" groups="base.group_user">
@@ -124,7 +124,7 @@
                                             <field name="allow_recurring_tasks"/>
                                         </setting>
                                         <setting class="col-lg-12" id="task_dependencies_setting" help="Determine the order in which to perform tasks">
-                                            <field name="allow_task_dependencies"/>
+                                            <field name="allow_dependencies"/>
                                         </setting>
                                         <setting class="col-lg-12" id="project_milestone_setting" help="Track major progress points that must be reached to achieve success">
                                             <field name="allow_milestones"/>
@@ -149,7 +149,7 @@
                     <field name="name" string="Project"/>
                     <field name="tag_ids"/>
                     <field name="user_id" string="Project Manager"/>
-                    <field name="stage_id" groups="project.group_project_stages"/>
+                    <field name="phase_id" groups="project.group_project_stages"/>
                     <field name="partner_id" string="Customer" filter_domain="[('partner_id', 'child_of', self)]" invisible="context.get('default_is_template')"/>
                     <field name="activity_user_id" string="Activities of"/>
                     <field name="activity_type_id" string="Activity type"/>
@@ -179,7 +179,7 @@
                         domain="[('my_activity_date_deadline', '&gt;', 'today')]"/>
                     <group>
                         <filter string="Project Manager" name="Manager" context="{'group_by': 'user_id'}"/>
-                        <filter string="Stage" name="groupby_stage" context="{'group_by': 'stage_id'}" groups="project.group_project_stages"/>
+                        <filter string="Stage" name="groupby_stage" context="{'group_by': 'phase_id'}" groups="project.group_project_stages"/>
                         <filter string="Status" name="status" context="{'group_by': 'last_update_status'}" invisible="context.get('default_is_template')"/>
                         <filter string="Tags" name="tags" context="{'group_by': 'tag_ids'}"/>
                         <filter string="Company" name="company" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
@@ -220,8 +220,8 @@
                     <field name="last_update_color" column_invisible="True"/>
                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                     <field name="last_update_status" string="Status" nolabel="1" width="20px" optional="show" widget="project_state_selection" invisible="is_template"/>
-                    <field name="stage_id_color" column_invisible="1"/>
-                    <field name="stage_id" domain="[('company_id', 'in', (company_id, False))]" optional="show" widget="badge" options="{'no_open': True, 'color_field': 'stage_id_color'}" />
+                    <field name="phase_color" column_invisible="1"/>
+                    <field name="phase_id" domain="[('company_id', 'in', (company_id, False))]" optional="show" widget="badge" options="{'no_open': True, 'color_field': 'phase_color'}" />
                     <button string="View Tasks" name="action_view_tasks" type="object"/>
                 </list>
             </field>
@@ -234,7 +234,7 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <list position="attributes">
-                    <attribute name="default_group_by">stage_id</attribute>
+                    <attribute name="default_group_by">phase_id</attribute>
                 </list>
             </field>
         </record>
@@ -262,7 +262,7 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <list position="attributes">
-                    <attribute name="default_group_by">stage_id</attribute>
+                    <attribute name="default_group_by">phase_id</attribute>
                 </list>
             </field>
         </record>
@@ -491,7 +491,7 @@
             <field name="inherit_id" ref="view_project_kanban"/>
             <field name="arch" type="xml">
                 <xpath expr="//kanban" position="attributes">
-                    <attribute name="default_group_by">stage_id</attribute>
+                    <attribute name="default_group_by">phase_id</attribute>
                 </xpath>
             </field>
         </record>
@@ -515,7 +515,7 @@
             <field name="inherit_id" ref="view_project_config_kanban"/>
             <field name="arch" type="xml">
                 <xpath expr="//kanban" position="attributes">
-                    <attribute name="default_group_by">stage_id</attribute>
+                    <attribute name="default_group_by">phase_id</attribute>
                 </xpath>
             </field>
         </record>
@@ -532,13 +532,13 @@
                     scales="month,year"
                     event_open_popup="true"
                     quick_create="0"
-                    color="stage_id_color"
+                    color="phase_color"
                     js_class="project_project_calendar">
                     <field name="partner_id" invisible="not partner_id"/>
                     <field name="user_id" widget="many2one_avatar_user" invisible="not user_id"/>
                     <field name="is_favorite" widget="project_is_favorite" nolabel="1" string="Favorite"/>
-                    <field name="stage_id_color" invisible="1"/>
-                    <field name="stage_id" groups="project.group_project_stages" invisible="not stage_id"/>
+                    <field name="phase_color" invisible="1"/>
+                    <field name="phase_id" groups="project.group_project_stages" invisible="not phase_id"/>
                     <field name="last_update_color" invisible="1"/>
                     <field name="last_update_status" string="Status" widget="status_with_color" invisible="last_update_status == 'to_define'"/>
                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" invisible="not tag_ids"/>

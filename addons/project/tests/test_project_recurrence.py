@@ -40,15 +40,15 @@ class TestProjectRecurrence(TransactionCase):
             }
         )
 
-        cls.stage_a = cls.env["project.task.type"].create({"name": "a"})
-        cls.stage_b = cls.env["project.task.type"].create({"name": "b"})
+        cls.stage_a = cls.env["project.workflow.step"].create({"name": "a"})
+        cls.stage_b = cls.env["project.workflow.step"].create({"name": "b"})
         cls.project_recurring = (
             cls.env["project.project"]
             .with_context({"mail_create_nolog": True})
             .create(
                 {
                     "name": "Recurring",
-                    "type_ids": [
+                    "workflow_step_ids": [
                         (4, cls.stage_a.id),
                         (4, cls.stage_b.id),
                     ],
@@ -108,7 +108,7 @@ class TestProjectRecurrence(TransactionCase):
             form.name = "name"
             form.description = "description"
             form.priority = "1"
-            form.stage_id = self.stage_b
+            form.step_id = self.stage_b
             form.tag_ids.add(self.env["project.tags"].search([], limit=1))
             form.date_deadline = self.date_01_01 + relativedelta(weeks=1)
             form.user_ids = self.user
@@ -120,7 +120,7 @@ class TestProjectRecurrence(TransactionCase):
             task = form.save()
 
         with freeze_time(self.date_01_01 + relativedelta(months=1)):
-            task.state = "1_done"
+            task.state = "done"
         other_task = task.recurrence_id.task_ids - task
 
         self.assertEqual(
@@ -141,7 +141,7 @@ class TestProjectRecurrence(TransactionCase):
                 f"Next occurrence's {copied_field} should have been copied",
             )
 
-        for reset_field in ["priority", "stage_id", "state"]:
+        for reset_field in ["priority", "step_id", "state"]:
             self.assertNotEqual(
                 other_task[reset_field],
                 task[reset_field],
@@ -162,7 +162,7 @@ class TestProjectRecurrence(TransactionCase):
             task = form.save()
 
         with freeze_time(self.date_01_01 + relativedelta(days=30)):
-            task.state = "1_done"
+            task.state = "done"
         self.assertEqual(
             len(task.recurrence_id.task_ids),
             2,
@@ -171,7 +171,7 @@ class TestProjectRecurrence(TransactionCase):
 
         last_recurring_task = task.recurrence_id.task_ids.filtered(lambda t: t != task)
         with freeze_time(self.date_01_01 + relativedelta(days=32)):
-            last_recurring_task.state = "1_done"
+            last_recurring_task.state = "done"
         self.assertEqual(
             len(task.recurrence_id.task_ids),
             2,
@@ -211,11 +211,11 @@ class TestProjectRecurrence(TransactionCase):
             task = form.save()
 
         with freeze_time(self.date_01_01 + relativedelta(day=1)):
-            task.state = "1_done"
+            task.state = "done"
             other_task = self.project_recurring.task_ids - task
 
         with freeze_time(self.date_01_01 + relativedelta(day=2)):
-            other_task.state = "1_done"
+            other_task.state = "done"
 
         task_c, task_b, task_a = self.env["project.task"].search(
             [("project_id", "=", self.project_recurring.id)]
@@ -245,7 +245,7 @@ class TestProjectRecurrence(TransactionCase):
             1,
             "recurrence should have a single task",
         )
-        task.state = "1_done"
+        task.state = "done"
         self.assertEqual(
             len(task.recurrence_id.task_ids),
             2,
@@ -253,7 +253,7 @@ class TestProjectRecurrence(TransactionCase):
         )
 
     def test_recurrence_copy_task_dependency(self) -> None:
-        self.project_recurring.allow_task_dependencies = True
+        self.project_recurring.allow_dependencies = True
         parent_task = (
             self.env["project.task"]
             .with_context({"mail_create_nolog": True})
@@ -316,13 +316,13 @@ class TestProjectRecurrence(TransactionCase):
         node3 = parent_task.child_ids[2]
 
         # Dependencies
-        node1.dependent_ids = node2
-        node2.dependent_ids = node3
-        side_task1.dependent_ids = node2
-        node3.dependent_ids = side_task2
+        node1.successor_ids = node2
+        node2.successor_ids = node3
+        side_task1.successor_ids = node2
+        node3.successor_ids = side_task2
 
         # Task recurrence trigger
-        parent_task.state = "1_done"
+        parent_task.state = "done"
         parent_task_copy = self.env["project.task"].browse(
             parent_task.recurrence_id._get_last_task_id_per_recurrence_id().get(
                 parent_task.recurrence_id.id
@@ -357,105 +357,105 @@ class TestProjectRecurrence(TransactionCase):
         )
 
         self.assertNotEqual(
-            node1.dependent_ids.ids,
-            parent_copy_node1.dependent_ids.ids,
+            node1.successor_ids.ids,
+            parent_copy_node1.successor_ids.ids,
             "The dependencies of the original and copied node1 should be different",
         )
         self.assertEqual(
-            node1.depend_on_ids.ids,
-            parent_copy_node1.depend_on_ids.ids,
+            node1.predecessor_ids.ids,
+            parent_copy_node1.predecessor_ids.ids,
             "The dependencies of the original and copied node1 should be different",
         )
         self.assertNotEqual(
-            node2.dependent_ids.ids,
-            parent_copy_node2.dependent_ids.ids,
+            node2.successor_ids.ids,
+            parent_copy_node2.successor_ids.ids,
             "The dependencies of the original and copied node2 should be different",
         )
         self.assertNotEqual(
-            node2.depend_on_ids.ids,
-            parent_copy_node2.depend_on_ids.ids,
+            node2.predecessor_ids.ids,
+            parent_copy_node2.predecessor_ids.ids,
             "The dependencies of the original and copied node2 should be different",
         )
         self.assertEqual(
-            node3.dependent_ids.ids,
-            parent_copy_node3.dependent_ids.ids,
+            node3.successor_ids.ids,
+            parent_copy_node3.successor_ids.ids,
             "The dependencies of the original and copied node3 should be different",
         )
         self.assertNotEqual(
-            node3.depend_on_ids.ids,
-            parent_copy_node3.depend_on_ids.ids,
+            node3.predecessor_ids.ids,
+            parent_copy_node3.predecessor_ids.ids,
             "The dependencies of the original and copied node3 should be different",
         )
 
         # However, the dependency structure of the orginal and newly created nodes should be the same
         self.assertEqual(
-            parent_copy_node1.dependent_ids.ids,
+            parent_copy_node1.successor_ids.ids,
             parent_copy_node2.ids,
             "Node1copy - Node2copy relation should be present",
         )
         self.assertEqual(
-            parent_copy_node2.dependent_ids.ids,
+            parent_copy_node2.successor_ids.ids,
             parent_copy_node3.ids,
             "Node2copy - Node3copy relation should be present",
         )
         self.assertEqual(
-            parent_copy_node3.dependent_ids.ids,
+            parent_copy_node3.successor_ids.ids,
             side_task2.ids,
             "Node3 - SideTask2 relation should be present",
         )
 
-        self.assertEqual(len(parent_copy_node1.depend_on_ids), 0)
+        self.assertEqual(len(parent_copy_node1.predecessor_ids), 0)
         self.assertCountEqual(
-            parent_copy_node2.depend_on_ids.ids,
+            parent_copy_node2.predecessor_ids.ids,
             [parent_copy_node1.id, side_task1.id],
             "Node2copy - Node1copy and Node2copy - SideTask1 relations should be present",
         )
         self.assertEqual(
-            parent_copy_node3.depend_on_ids.ids,
+            parent_copy_node3.predecessor_ids.ids,
             parent_copy_node2.ids,
             "Node3copy - Node2copy relation should be present",
         )
 
         # The original nodes dependencies should remain untouched by the creation of the new nodes
         self.assertEqual(
-            node1.dependent_ids.ids,
+            node1.successor_ids.ids,
             node2.ids,
             "Node1 - Node2 relation should be present",
         )
         self.assertEqual(
-            node2.dependent_ids.ids,
+            node2.successor_ids.ids,
             node3.ids,
             "Node2 - Node3 relation should be present",
         )
         self.assertEqual(
-            node3.dependent_ids.ids,
+            node3.successor_ids.ids,
             side_task2.ids,
             "Node3 - SideTask2 relation should be present",
         )
 
-        self.assertEqual(len(node1.depend_on_ids), 0)
+        self.assertEqual(len(node1.predecessor_ids), 0)
         self.assertCountEqual(
-            node2.depend_on_ids.ids,
+            node2.predecessor_ids.ids,
             [node1.id, side_task1.id],
             "Node2 - Node1 and Node2 - SideTask1 relations should be present",
         )
         self.assertEqual(
-            node3.depend_on_ids.ids,
+            node3.predecessor_ids.ids,
             node2.ids,
             "Node3 - Node2 relation should be present",
         )
 
         # The side tasks should now have dependencies from both the original and copied tasks
         self.assertCountEqual(
-            side_task1.dependent_ids.ids,
+            side_task1.successor_ids.ids,
             [node2.id, parent_copy_node2.id],
             "SideTask1 - Node2 and SideTask1 - Node2copy relations should be present",
         )
-        self.assertEqual(len(side_task2.dependent_ids), 0)
+        self.assertEqual(len(side_task2.successor_ids), 0)
 
-        self.assertEqual(len(side_task1.depend_on_ids), 0)
+        self.assertEqual(len(side_task1.predecessor_ids), 0)
         self.assertCountEqual(
-            side_task2.depend_on_ids.ids,
+            side_task2.predecessor_ids.ids,
             [node3.id, parent_copy_node3.id],
             "SideTask2 - Node3 and SideTask2 - Node3copy relations should be present",
         )
@@ -532,14 +532,14 @@ class TestProjectRecurrence(TransactionCase):
             {
                 "project_id": self.project_recurring.id,
                 "name": "Test task",
-                "stage_id": self.stage_b.id,
+                "step_id": self.stage_b.id,
                 "user_ids": [Command.set([self.user.id, self.user_projectuser.id])],
                 "recurring_task": True,
                 "repeat_type": "forever",
             }
         )
         self.user_projectuser.action_archive()
-        task.write({"state": "1_done"})
+        task.write({"state": "done"})
         self.assertEqual((task.recurrence_id.task_ids - task).user_ids, self.user)
 
     def test_recurrent_sub_tasks_without_archive_user(self) -> None:
@@ -555,7 +555,7 @@ class TestProjectRecurrence(TransactionCase):
             {
                 "project_id": self.project_recurring.id,
                 "name": "Task A",
-                "stage_id": self.stage_b.id,
+                "step_id": self.stage_b.id,
                 "recurring_task": True,
                 "repeat_type": "forever",
                 "child_ids": [
@@ -563,7 +563,7 @@ class TestProjectRecurrence(TransactionCase):
                         {
                             "project_id": self.project_recurring.id,
                             "name": "Sub task A",
-                            "stage_id": self.stage_b.id,
+                            "step_id": self.stage_b.id,
                             "user_ids": [
                                 Command.set([self.user.id, self.user_projectuser.id])
                             ],
@@ -573,7 +573,7 @@ class TestProjectRecurrence(TransactionCase):
             }
         )
         self.user_projectuser.action_archive()
-        parent_task.write({"state": "1_done"})
+        parent_task.write({"state": "done"})
         self.assertEqual(
             (parent_task.recurrence_id.task_ids - parent_task).child_ids.user_ids,
             self.user,
@@ -611,14 +611,14 @@ class TestProjectRecurrence(TransactionCase):
                 "user_ids": [(4, employee.id)],
                 "recurring_task": True,
                 "repeat_type": "forever",
-                "state": "01_in_progress",
+                "state": "in_progress",
             }
         )
 
         self.env.invalidate_all()
-        task.with_user(employee).write({"state": "1_done"})
+        task.with_user(employee).write({"state": "done"})
         self.assertEqual(
             task.state,
-            "1_done",
+            "done",
             "The employee should be able to mark the task as done.",
         )

@@ -9,28 +9,28 @@
                 <search string="Tasks">
                     <field name="name" string="Tasks" filter_domain="[('name', 'ilike', self)]"/>
                     <field name="tag_ids"/>
-                    <field name="stage_id"/>
+                    <field name="step_id"/>
                     <field name="milestone_id" groups="project.group_project_milestone" invisible="not context.get('allow_milestones', True)"/>
                     <field name="partner_id" operator="child_of" invisible="context.get('template_project')"/>
                     <filter string="Unassigned" name="unassigned" domain="[('user_ids', '=', False)]"/>
                     <separator invisible="context.get('default_project_id')"/>
                     <filter string="Favorite Projects" name="favorite_projects" domain="[('project_id.is_favorite', '=', True)]" invisible="context.get('default_project_id')"/>
-                    <separator groups="project.group_project_task_dependencies" invisible="not context.get('allow_task_dependencies', True)"/>
-                    <filter string="Blocking" name="blocking" domain="[('is_closed', '=', False), ('dependent_ids', '!=', False)]" groups="project.group_project_task_dependencies" invisible="not context.get('allow_task_dependencies', True)"/>
+                    <separator groups="project.group_project_task_dependencies" invisible="not context.get('allow_dependencies', True)"/>
+                    <filter string="Blocking" name="blocking" domain="[('is_closed', '=', False), ('successor_ids', '!=', False)]" groups="project.group_project_task_dependencies" invisible="not context.get('allow_dependencies', True)"/>
                     <separator/>
                     <filter string="Creation Date" name="creation_date_filter" date="create_date"/>
                     <separator/>
                     <filter string="Open" name="open_tasks" domain="[('is_closed', '=', False)]"/>
                     <filter string="Closed" name="closed_tasks" domain="[('is_closed', '=', True)]"/>
-                    <filter string="Closed On" name="closed_on" domain="[('is_closed', '=', True)]" date="date_last_stage_update"
+                    <filter string="Closed On" name="closed_on" domain="[('is_closed', '=', True)]" date="date_last_status_change"
                         invisible="context.get('template_project')">
-                        <filter name="create_date_last_30_days" string="Last 30 Days" domain="[('date_last_stage_update', '&gt;=', 'today -30d +1d')]"/>
-                        <filter name="create_date_last_365_days" string="Last 365 Days" domain="[('date_last_stage_update', '&gt;=', 'today -365d +1d')]"/>
+                        <filter name="create_date_last_30_days" string="Last 30 Days" domain="[('date_last_status_change', '&gt;=', 'today -30d +1d')]"/>
+                        <filter name="create_date_last_365_days" string="Last 365 Days" domain="[('date_last_status_change', '&gt;=', 'today -365d +1d')]"/>
                     </filter>
                     <separator/>
                     <filter string="Templates" context="{'render_task_templates': True}" name="templates" domain="[('has_template_ancestor', '=', True)]"/>
                     <group>
-                        <filter string="Stage" name="stage" context="{'group_by': 'stage_id'}"/>
+                        <filter string="Stage" name="stage" context="{'group_by': 'step_id'}"/>
                         <filter string="Milestone" name="milestone" context="{'group_by': 'milestone_id'}" groups="project.group_project_milestone" invisible="not context.get('allow_milestones', True)"/>
                         <filter string="Priority" name="groupby_priority" context="{'group_by': 'priority'}"/>
                         <filter string="Tags" name="tags" context="{'group_by': 'tag_ids'}"/>
@@ -51,10 +51,10 @@
             <field name="mode">primary</field>
             <field name="priority">999</field>
             <field name="arch" type="xml">
-                 <field name="stage_id" position="before">
+                 <field name="step_id" position="before">
                     <field name="user_ids" filter_domain="[('user_ids.name', 'ilike', self), ('user_ids.active', 'in', [True, False])]"/>
                 </field>
-                <field name="stage_id" position="after">
+                <field name="step_id" position="after">
                     <field name="project_id" string="Project"/>
                 </field>
                 <field name="partner_id" position="after">
@@ -142,12 +142,12 @@
             <field name="arch" type="xml">
                 <graph string="Tasks" sample="1" js_class="project_task_graph">
                     <field name="project_id" invisible="context.get('default_project_id', False)"/>
-                    <field name="stage_id"/>
+                    <field name="step_id"/>
                     <field name="working_hours_open" widget="float_time"/>
                     <field name="working_hours_close" widget="float_time"/>
                     <field name="color" invisible="1"/>
                     <field name="sequence" invisible="1"/>
-                    <field name="stage_id_color" invisible="1"/>
+                    <field name="step_color" invisible="1"/>
                     <field name="rating_last_value" string="Rating (/5)"/>
                 </graph>
             </field>
@@ -163,7 +163,7 @@
                 <xpath expr="//field[@name='project_id']" position="attributes">
                     <attribute name="invisible">True</attribute>
                 </xpath>
-                <xpath expr="//field[@name='stage_id']" position="after">
+                <xpath expr="//field[@name='step_id']" position="after">
                     <field name="user_ids"/>
                 </xpath>
             </field>
@@ -178,7 +178,7 @@
                     <field name="project_id" type="row"/>
                     <field name="color" invisible="1"/>
                     <field name="sequence" invisible="1"/>
-                    <field name="stage_id_color" invisible="1"/>
+                    <field name="step_color" invisible="1"/>
                     <field name="allocated_hours" widget="float_time"/>
                     <field name="working_hours_close" widget="float_time"/>
                     <field name="working_hours_open" widget="float_time"/>
@@ -196,7 +196,7 @@
                     <field name="user_ids" type="row"/>
                 </xpath>
                 <xpath expr="//field[@name='project_id']" position="after">
-                    <field name="stage_id" type="col"/>
+                    <field name="step_id" type="col"/>
                 </xpath>
                 <xpath expr="//field[@name='project_id']" position="attributes">
                     <attribute name="invisible">True</attribute>
@@ -326,23 +326,23 @@
             <field name="arch" type="xml">
                 <form string="Task" class="o_form_project_tasks" js_class="project_task_form">
                     <field name="recurrence_id" invisible="1" />
-                    <field name="allow_task_dependencies" invisible="1" />
+                    <field name="allow_dependencies" invisible="1" />
                     <field name="rating_last_value" invisible="1"/>
                     <field name="rating_count" invisible="1"/>
                     <field name="allow_milestones" invisible="1" />
                     <field name="parent_id" invisible="1"/>
                     <field name="company_id" invisible="1"/>
                     <field name="is_closed" invisible="1"/>
-                    <field name="depend_on_count" invisible="1"/>
-                    <field name="closed_depend_on_count" invisible="1"/>
+                    <field name="predecessor_count" invisible="1"/>
+                    <field name="closed_predecessor_count" invisible="1"/>
                     <field name="html_field_history_metadata" invisible="1"/>
                     <field name="is_template" invisible="1"/>
                     <field name="is_rotting" invisible="1"/>
                     <field name="rotting_days" invisible="1"/>
                     <header>
-                        <field name="stage_id" widget="rotting_statusbar_duration" options="{'clickable': '1', 'fold_field': 'fold'}" invisible="not project_id and not stage_id"/>
+                        <field name="step_id" widget="rotting_statusbar_duration" options="{'clickable': '1', 'fold_field': 'fold'}" invisible="not project_id and not step_id"/>
                         <field name="state" widget="statusbar" options="{'clickable': '1', 'fold_field': 'fold'}" invisible="1"/>
-                        <field name="personal_stage_type_id" widget="statusbar" options="{'clickable': '1', 'fold_field': 'fold'}" invisible="project_id" domain="[('user_id', '=', uid)]" string="Personal Stage"/>
+                        <field name="triage_id" widget="statusbar" options="{'clickable': '1', 'fold_field': 'fold'}" invisible="project_id" domain="[('user_id', '=', uid)]" string="Personal Stage"/>
                     </header>
                     <!-- Used in inherited views to display the eventual warnings -->
                     <t name="warning_section"/>
@@ -392,8 +392,8 @@
                                 </span>
                             </div>
                         </button>
-                        <button name="action_dependent_tasks" type="object" invisible="dependent_tasks_count == 0 or not allow_task_dependencies" class="oe_stat_button" icon="fa-check" groups="project.group_project_task_dependencies">
-                            <field name="dependent_tasks_count" widget="statinfo" string="Blocked Tasks" />
+                        <button name="action_dependent_tasks" type="object" invisible="successor_count == 0 or not allow_dependencies" class="oe_stat_button" icon="fa-check" groups="project.group_project_task_dependencies">
+                            <field name="successor_count" widget="statinfo" string="Blocked Tasks" />
                         </button>
                         <!-- Dummy tag used to organize buttons -->
                         <span id="end_button_box" invisible="1"/>
@@ -437,7 +437,7 @@
                             <field name="partner_id" nolabel="0" widget="res_partner_many2one" class="o_task_customer_field" invisible="not project_id or has_template_ancestor or has_project_template"/>
                             <label for="date_deadline"/>
                             <div id="date_deadline_and_recurring_task" class="d-inline-flex w-100">
-                                <field name="date_deadline" nolabel="1" decoration-danger="date_deadline and date_deadline &lt; current_date and state not in ['1_done', '1_canceled']"/>
+                                <field name="date_deadline" nolabel="1" decoration-danger="date_deadline and date_deadline &lt; current_date and state not in ['done', 'canceled']"/>
                                 <field name="recurring_task" nolabel="1" class="ms-0" style="width: fit-content;"
                                        widget="boolean_icon" options="{'icon': 'fa-repeat'}"
                                        invisible="not active or parent_id or not allow_recurring_tasks"
@@ -478,7 +478,7 @@
                                         'default_tag_ids': tag_ids,
                                    }"
                                    widget="subtasks_one2many">
-                                <list editable="bottom" decoration-muted="state in ['1_done','1_canceled']" open_form_view="True">
+                                <list editable="bottom" decoration-muted="state in ['done','canceled']" open_form_view="True">
                                     <field name="active" column_invisible="True"/>
                                     <field name="is_template" column_invisible="True"/>
                                     <field name="allow_milestones" column_invisible="True"/>
@@ -500,7 +500,7 @@
                                     <field name="user_ids" widget="many2many_avatar_user" optional="show"/>
                                     <field name="company_id" groups="base.group_multi_company" optional="hide"/>
                                     <field name="company_id" column_invisible="True"/>
-                                    <field name="date_deadline" invisible="state in ['1_done', '1_canceled']" optional="hide" decoration-danger="date_deadline and date_deadline &lt; current_date"/>
+                                    <field name="date_deadline" invisible="state in ['done', 'canceled']" optional="hide" decoration-danger="date_deadline and date_deadline &lt; current_date"/>
                                     <field name="priority" widget="priority" optional="hide" width="70px"/>
                                     <field name="activity_ids" string="Next Activity" widget="list_activity" optional="hide"/>
                                     <field name="my_activity_date_deadline" string="My Deadline" widget="remaining_days" options="{'allow_order': '1'}" optional="hide"/>
@@ -509,12 +509,12 @@
                                         class="fw-bold" widget="badge" optional="hide" invisible="rating_last_text == 'none'" column_invisible="True"/>
                                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                                     <field name="create_date" optional="hide"/>
-                                    <field name="stage_id" optional="hide" context="{'default_project_id': project_id}"/>
+                                    <field name="step_id" optional="hide" context="{'default_project_id': project_id}"/>
                                 </list>
                             </field>
                         </page>
-                        <page name="task_dependencies" string="Blocked By" invisible="not allow_task_dependencies" groups="project.group_project_task_dependencies">
-                            <field name="depend_on_ids"
+                        <page name="task_dependencies" string="Blocked By" invisible="not allow_dependencies" groups="project.group_project_task_dependencies">
+                            <field name="predecessor_ids"
                                    nolabel="1"
                                    mode="list,kanban"
                                    context="{
@@ -524,11 +524,11 @@
                                         'list_view_ref': 'project.open_view_all_tasks_list_view',
                                         'search_default_open_tasks': 1,
                                         'kanban_view_ref': 'project.project_sub_task_view_kanban_mobile',
-                                        'closed_X2M_count': closed_depend_on_count,
+                                        'closed_X2M_count': closed_predecessor_count,
                                         'default_is_template': is_template,
                                    }"
                                    widget="notebook_task_one2many">
-                                <list editable="bottom" decoration-muted="state in ['1_done','1_canceled']" open_form_view="True">
+                                <list editable="bottom" decoration-muted="state in ['done','canceled']" open_form_view="True">
                                     <field name="allow_milestones" column_invisible="True"/>
                                     <field name="parent_id" column_invisible="True" />
                                     <field name="subtask_count" column_invisible="True"/>
@@ -547,7 +547,7 @@
                                     <field name="user_ids" widget="many2many_avatar_user" optional="show"/>
                                     <field name="company_id" optional="hide" groups="base.group_multi_company" />
                                     <field name="company_id" column_invisible="True"/>
-                                    <field name="date_deadline" invisible="state in ['1_done', '1_canceled']" optional="hide" decoration-danger="date_deadline and date_deadline &lt; current_date"/>
+                                    <field name="date_deadline" invisible="state in ['done', 'canceled']" optional="hide" decoration-danger="date_deadline and date_deadline &lt; current_date"/>
                                     <field name="priority" widget="priority" optional="hide" width="70px"/>
                                     <field name="activity_ids" string="Next Activity" widget="list_activity" optional="hide"/>
                                     <field name="my_activity_date_deadline" string="My Deadline" widget="remaining_days" options="{'allow_order': '1'}" optional="hide"/>
@@ -556,7 +556,7 @@
                                         class="fw-bold" widget="badge" optional="hide" invisible="rating_last_text == 'none'" column_invisible="True"/>
                                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                                     <field name="create_date" optional="hide"/>
-                                    <field name="stage_id" optional="hide"/>
+                                    <field name="step_id" optional="hide"/>
                                 </list>
                             </field>
                         </page>
@@ -570,7 +570,7 @@
                                 </group>
                                 <group invisible="is_template or has_project_template">
                                     <field name="date_assign" groups="base.group_no_one"/>
-                                    <field name="date_last_stage_update" groups="base.group_no_one"/>
+                                    <field name="date_last_status_change" groups="base.group_no_one"/>
                                 </group>
                                 <group string="Working Time to Assign" invisible="working_hours_open == 0.0">
                                     <field name="working_hours_open" widget="float_time" string="Hours"/>
@@ -612,7 +612,7 @@
                                invisible="context.get('default_project_id', False)"
                                placeholder="Private"
                                class="o_project_task_project_field"
-                               domain="[('type_ids', 'in', context.get('default_stage_id'))] if context.get('default_stage_id') else []"
+                               domain="[('workflow_step_ids', 'in', context.get('default_step_id'))] if context.get('default_step_id') else []"
                                required="is_template"
                         />
                         <field name="user_ids" options="{'no_open': True}"
@@ -652,7 +652,7 @@
             <field name="arch" type="xml">
                 <kanban
                     highlight_color="color"
-                    default_group_by="stage_id"
+                    default_group_by="step_id"
                     class="o_kanban_small_column o_kanban_project_tasks"
                     on_create="quick_create"
                     quick_create_view="project.quick_create_task_form"
@@ -660,7 +660,7 @@
                     js_class="project_task_kanban" sample="1"
                     default_order="priority desc, sequence, state, date_deadline asc, id desc"
                 >
-                    <field name="stage_id"/>
+                    <field name="step_id"/>
                     <field name="rating_count"/>
                     <field name="rating_avg"/>
                     <field name="rating_active"/>
@@ -670,7 +670,7 @@
                     <field name="subtask_count"/>
                     <field name="is_template"/>
                     <field name="has_project_template"/>
-                    <progressbar field="state" colors='{"1_done": "success-done", "1_canceled": "danger", "03_approved": "success", "02_changes_requested": "warning", "04_waiting_normal": "info", "01_in_progress": "200" }'/>
+                    <progressbar field="state" colors='{"done": "success-done", "canceled": "danger", "approved": "success", "changes_requested": "warning", "waiting": "info", "in_progress": "200" }'/>
                     <templates>
                         <t t-name="menu" t-if="!selection_mode" groups="base.group_user">
                             <a t-if="widget.editable" role="menuitem" type="set_cover" class="dropdown-item" data-field="displayed_image_id">Set Cover Image</a>
@@ -680,7 +680,7 @@
                             <field name="color" widget="kanban_color_picker"/>
                         </t>
                         <t t-name="card">
-                            <main t-att-class="['1_done', '1_canceled'].includes(record.state.raw_value) ? 'opacity-50' : ''">
+                            <main t-att-class="['done', 'canceled'].includes(record.state.raw_value) ? 'opacity-50' : ''">
                                 <field name="name" class="fw-bold fs-5"/>
                                 <div class="text-muted d-flex flex-column">
                                     <field t-if="record.parent_id.raw_value" invisible="context.get('default_parent_id', False)" name="parent_id"/>
@@ -689,7 +689,7 @@
                                     <field t-if="record.allow_milestones.raw_value and record.milestone_id.raw_value" t-att-class="record.has_late_and_unreached_milestone.raw_value and !record.state.raw_value.startsWith('1_') ? 'text-danger' : ''" name="milestone_id" options="{'no_open': True}"/>
                                 </div>
                                 <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
-                                <field t-if="record.date_deadline.raw_value" invisible="state in ['1_done', '1_canceled']" name="date_deadline" widget="remaining_days"/>
+                                <field t-if="record.date_deadline.raw_value" invisible="state in ['done', 'canceled']" name="date_deadline" widget="remaining_days"/>
                                 <field name="task_properties" widget="properties"/>
                                 <field name="displayed_image_id" widget="attachment_image"/>
                                 <footer t-if="!selection_mode" class="pt-1">
@@ -755,16 +755,16 @@
                     <field name="user_ids" optional="show" widget="many2many_avatar_user"/>
                     <field name="company_id" groups="base.group_multi_company" optional="hide" column_invisible="context.get('default_project_id')" options="{'no_create': True}"/>
                     <field name="company_id" column_invisible="True"/>
-                    <field name="date_deadline" optional="hide" widget="remaining_days" invisible="state in ['1_done', '1_canceled']"/>
+                    <field name="date_deadline" optional="hide" widget="remaining_days" invisible="state in ['done', 'canceled']"/>
                     <field name="priority" widget="priority" optional="show" width="70px"/>
                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="show" context="{'project_id': project_id}"/>
                     <field name="create_date" optional="hide"/>
-                    <field name="date_last_stage_update" optional="hide" column_invisible="context.get('template_project')"/>
+                    <field name="date_last_status_change" optional="hide" column_invisible="context.get('template_project')"/>
                     <field name="state" widget="project_task_state_selection" nolabel="1" width="20px" options="{'is_toggle_mode': false}"/>
-                    <field name="stage_id_color" column_invisible="1"/>
+                    <field name="step_color" column_invisible="1"/>
                     <field name="is_rotting" column_invisible="True"/>
                     <field name="rotting_days" column_invisible="True"/>
-                    <field name="stage_id" column_invisible="context.get('set_visible', False)" optional="show" widget="badge_rotting" options="{'no_open': True}"/>
+                    <field name="step_id" column_invisible="context.get('set_visible', False)" optional="show" widget="badge_rotting" options="{'no_open': True}"/>
                 </list>
             </field>
         </record>
@@ -797,8 +797,8 @@
                 <xpath expr="//field[@name='partner_id']" position="after">
                     <field name="parent_id" optional="hide" invisible="not project_id" context="{'search_view_ref': 'project.view_task_search_form', 'search_default_project_id': project_id, 'default_project_id': project_id}" groups="base.group_no_one"/>
                 </xpath>
-                <xpath expr="//field[@name='stage_id']" position="after">
-                    <field name="personal_stage_type_id" string="Personal Stage" optional="hide"
+                <xpath expr="//field[@name='step_id']" position="after">
+                    <field name="triage_id" string="Personal Stage" optional="hide"
                         column_invisible="context.get('template_project')"/>
                 </xpath>
             </field>
@@ -813,7 +813,7 @@
             <field name="priority">2</field>
             <field name="arch" type="xml">
                 <list position="attributes">
-                    <attribute name="default_group_by">stage_id</attribute>
+                    <attribute name="default_group_by">step_id</attribute>
                 </list>
             </field>
         </record>
@@ -824,7 +824,7 @@
             <field eval="2" name="priority"/>
             <field name="arch" type="xml">
                 <calendar date_start="date_deadline" string="Tasks" mode="month"
-                          color="stage_id_color" event_limit="5" hide_time="true"
+                          color="step_color" event_limit="5" hide_time="true"
                           event_open_popup="true" quick_create="0" show_unusual_days="True"
                           js_class="project_task_calendar"
                           scales="day,week,month,year">
@@ -837,9 +837,9 @@
                     <field name="partner_id" invisible="not partner_id"/>
                     <field name="priority" widget="priority" readonly="1"/>
                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" invisible="not tag_ids"/>
-                    <field name="stage_id_color" invisible="1"/>
-                    <field name="stage_id" invisible="not project_id or not stage_id" widget="task_stage_with_state_selection" filters="1"/>
-                    <field name="personal_stage_id" string="Personal Stage" options="{'no_open': True}" invisible="project_id or not personal_stage_id"/>
+                    <field name="step_color" invisible="1"/>
+                    <field name="step_id" invisible="not project_id or not step_id" widget="task_step_with_state_selection" filters="1"/>
+                    <field name="personal_triage_id" string="Personal Stage" options="{'no_open': True}" invisible="project_id or not personal_triage_id"/>
                     <field name="task_properties" invisible="not task_properties"/>
                 </calendar>
             </field>
@@ -857,8 +857,8 @@
                 <xpath expr="//field[@name='project_id']" position="attributes">
                     <attribute name="filters">1</attribute>
                 </xpath>
-                <xpath expr="//field[@name='stage_id']" position="replace">
-                    <field name="stage_id" invisible="not project_id or not stage_id" widget="task_stage_with_state_selection"/>
+                <xpath expr="//field[@name='step_id']" position="replace">
+                    <field name="step_id" invisible="not project_id or not step_id" widget="task_step_with_state_selection"/>
                 </xpath>
             </field>
         </record>
@@ -914,7 +914,7 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <xpath expr="//kanban" position="attributes">
-                    <attribute name="default_group_by">personal_stage_type_id</attribute>
+                    <attribute name="default_group_by">triage_id</attribute>
                     <attribute name="examples"/>
                 </xpath>
             </field>
@@ -939,7 +939,7 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <list position="attributes">
-                    <attribute name="default_group_by">personal_stage_type_id</attribute>
+                    <attribute name="default_group_by">triage_id</attribute>
                 </list>
             </field>
         </record>
@@ -1018,7 +1018,7 @@
             <field name="arch" type="xml">
                <xpath expr="//field[@name='project_id']" position="replace">
                     <field name="milestone_id" type="row"/>
-                    <field name="stage_id" type="col"/>
+                    <field name="step_id" type="col"/>
                 </xpath>
             </field>
         </record>

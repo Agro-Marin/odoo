@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { append, createElement, setAttributes } from "@web/core/utils/dom/xml";
 import { registry } from "@web/core/registry";
 import { SIZES } from "@web/ui/block/ui_service";

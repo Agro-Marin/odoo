@@ -32,7 +32,7 @@ class ProjectProject(models.Model):
     ]
     _order = "sequence, name, id"
     _rating_satisfaction_days = 30  # takes 30 days by default
-    _track_duration_field = "stage_id"
+    _track_duration_field = "phase_id"
 
     def __compute_task_count(
         self,
@@ -73,9 +73,9 @@ class ProjectProject(models.Model):
             additional_domain=[("state", "in", [*CLOSED_STATES])],
         )
 
-    def _default_stage_id(self) -> int | bool:
+    def _default_phase_id(self) -> int | bool:
         # Since project stages are order by sequence first, this should fetch the one with the lowest sequence number.
-        return self.env["project.project.stage"].search([], limit=1)
+        return self.env["project.phase"].search([], limit=1)
 
     @api.model
     def _search_is_favorite(self, operator: str, value: Any) -> list:
@@ -146,20 +146,20 @@ class ProjectProject(models.Model):
     )
 
     # Not `required` since this is an option to enable in project settings.
-    stage_id = fields.Many2one(
-        "project.project.stage",
-        string="Stage",
+    phase_id = fields.Many2one(
+        "project.phase",
+        string="Phase",
         ondelete="restrict",
         groups="project.group_project_stages",
         tracking=True,
         index=True,
         copy=False,
-        default=_default_stage_id,
+        default=_default_phase_id,
         group_expand="_read_group_expand_full",
     )
-    stage_id_color = fields.Integer(
-        string="Stage Color",
-        related="stage_id.color",
+    phase_color = fields.Integer(
+        string="Phase Color",
+        related="phase_id.color",
         export_string_translation=False,
     )
 
@@ -231,9 +231,9 @@ class ProjectProject(models.Model):
         compute="_compute_access_instruction_message",
         export_string_translation=False,
     )
-    allow_task_dependencies = fields.Boolean(
+    allow_dependencies = fields.Boolean(
         "Task Dependencies",
-        inverse="_inverse_allow_task_dependencies",
+        inverse="_inverse_allow_dependencies",
     )
     allow_milestones = fields.Boolean(
         "Milestones",
@@ -266,12 +266,12 @@ class ProjectProject(models.Model):
         string="Show Project on Dashboard",
         export_string_translation=False,
     )
-    type_ids = fields.Many2many(
-        "project.task.type",
-        "project_task_type_rel",
+    workflow_step_ids = fields.Many2many(
+        "project.workflow.step",
+        "project_workflow_step_project_rel",
         "project_id",
-        "type_id",
-        string="Tasks Stages",
+        "step_id",
+        string="Workflow Steps",
         export_string_translation=False,
     )
     tasks = fields.One2many(
@@ -421,14 +421,14 @@ class ProjectProject(models.Model):
     def _onchange_company_id(self) -> None:
         if (
             self.env.user.has_group("project.group_project_stages")
-            and self.stage_id.company_id
-            and self.stage_id.company_id != self.company_id
+            and self.phase_id.company_id
+            and self.phase_id.company_id != self.company_id
         ):
-            self.stage_id = (
-                self.env["project.project.stage"]
+            self.phase_id = (
+                self.env["project.phase"]
                 .search(
                     [("company_id", "in", [self.company_id.id, False])],
-                    order=f"sequence asc, {self.env['project.project.stage']._order}",
+                    order=f"sequence asc, {self.env['project.phase']._order}",
                     limit=1,
                 )
                 .id
@@ -696,10 +696,10 @@ class ProjectProject(models.Model):
         for project in self:
             project.update_count = update_count_per_project.get(project, 0)
 
-    @api.depends("type_ids.rating_active")
+    @api.depends("workflow_step_ids.rating_active")
     def _compute_show_ratings(self) -> None:
         projects_with_rating_active = (
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .search_fetch(
                 domain=[
                     ("project_ids", "in", self.ids),
@@ -712,12 +712,12 @@ class ProjectProject(models.Model):
         for project in self:
             project.show_ratings = project in projects_with_rating_active
 
-    def _inverse_allow_task_dependencies(self) -> None:
+    def _inverse_allow_dependencies(self) -> None:
         """Reset state for waiting tasks in the project if the feature is disabled
         or recompute the tasks with dependencies if the project has the feature enabled again
         """
         project_with_task_dependencies_feature = self.filtered(
-            "allow_task_dependencies"
+            "allow_dependencies"
         )
         projects_without_task_dependencies_feature = (
             self - project_with_task_dependencies_feature
@@ -731,12 +731,12 @@ class ProjectProject(models.Model):
                         "in",
                         project_with_task_dependencies_feature.ids,
                     ),
-                    ("depend_on_ids.state", "in", ProjectTask.OPEN_STATES),
+                    ("predecessor_ids.state", "in", ProjectTask.OPEN_STATES),
                     ("state", "in", ProjectTask.OPEN_STATES),
                 ]
             )
         ):
-            open_tasks_with_dependencies.state = "04_waiting_normal"
+            open_tasks_with_dependencies.state = "blocked"
         if projects_without_task_dependencies_feature and (
             waiting_tasks := ProjectTask.search(
                 [
@@ -745,13 +745,13 @@ class ProjectProject(models.Model):
                         "in",
                         projects_without_task_dependencies_feature.ids,
                     ),
-                    ("state", "=", "04_waiting_normal"),
+                    ("state", "=", "blocked"),
                 ]
             )
         ):
-            waiting_tasks.state = "01_in_progress"
+            waiting_tasks.state = "in_progress"
         res = self._check_project_group_with_field(
-            "allow_task_dependencies", "project.group_project_task_dependencies"
+            "allow_dependencies", "project.group_project_task_dependencies"
         )
         # Hide/Show task waiting subtype when task dependencies feature is disabled/enabled
         if res or res is False:
@@ -771,10 +771,10 @@ class ProjectProject(models.Model):
     @api.model
     def _map_tasks_default_values(self, project: Self) -> dict:
         """Get the default value for the copied task on project duplication.
-        The stage_id, name field will be set for each task in the overwritten copy_data function in project.task
+        The phase_id, name field will be set for each task in the overwritten copy_data function in project.task
         """
         return {
-            "state": "01_in_progress",
+            "state": "in_progress",
             "company_id": project.company_id.id,
             "project_id": project.id,
         }
@@ -788,7 +788,7 @@ class ProjectProject(models.Model):
             .with_context(active_test=False)
             .search([("project_id", "=", self.id), ("parent_id", "=", False)])
         )
-        if self.allow_task_dependencies and "task_mapping" not in self.env.context:
+        if self.allow_dependencies and "task_mapping" not in self.env.context:
             self = self.with_context(task_mapping={})
         # preserve task name and stage, normally altered during copy
         defaults = self._map_tasks_default_values(project)
@@ -829,7 +829,7 @@ class ProjectProject(models.Model):
             mail_auto_subscribe_no_notify=True,
             mail_create_nosubscribe=True,
         )
-        copy_context.pop("default_stage_id", None)
+        copy_context.pop("default_phase_id", None)
         new_projects = super(ProjectProject, self.with_context(copy_context)).copy(
             default=default
         )
@@ -839,7 +839,7 @@ class ProjectProject(models.Model):
             for follower in old_project.message_follower_ids:
                 new_project.message_subscribe(
                     partner_ids=follower.partner_id.ids,
-                    subtype_ids=follower.subtype_ids.ids,
+                    subworkflow_step_ids=follower.subworkflow_step_ids.ids,
                 )
             if old_project.allow_milestones:
                 new_project.milestone_ids = self.milestone_ids.copy().ids
@@ -959,8 +959,8 @@ class ProjectProject(models.Model):
         res = super().name_create(name)
         if res:
             # We create a default stage `new` for projects created on the fly.
-            self.browse(res[0]).type_ids += (
-                self.env["project.task.type"].sudo().create({"name": _("New")})
+            self.browse(res[0]).workflow_step_ids += (
+                self.env["project.workflow.step"].sudo().create({"name": _("New")})
             )
         return res
 
@@ -974,25 +974,25 @@ class ProjectProject(models.Model):
                 if "label_tasks" in vals and not vals["label_tasks"]:
                     vals["label_tasks"] = task_label
         if self.env.user.has_group("project.group_project_stages"):
-            if "default_stage_id" in self.env.context:
-                stage = self.env["project.project.stage"].browse(
-                    self.env.context["default_stage_id"]
+            if "default_phase_id" in self.env.context:
+                stage = self.env["project.phase"].browse(
+                    self.env.context["default_phase_id"]
                 )
                 # The project's company_id must be the same as the stage's company_id
                 if stage.company_id:
                     for vals in vals_list:
-                        if vals.get("stage_id"):
+                        if vals.get("phase_id"):
                             continue
                         vals["company_id"] = stage.company_id.id
             else:
                 companies_ids = [
                     vals.get("company_id", False) for vals in vals_list
                 ] + [False]
-                stages = self.env["project.project.stage"].search(
+                stages = self.env["project.phase"].search(
                     [("company_id", "in", companies_ids)]
                 )
                 for vals in vals_list:
-                    if vals.get("stage_id"):
+                    if vals.get("phase_id"):
                         continue
                     # Pick the stage with the lowest sequence with no company or project's company
                     stage_domain = (
@@ -1003,7 +1003,7 @@ class ProjectProject(models.Model):
                     stage = stages.filtered(
                         lambda s, d=stage_domain: s.company_id.id in d
                     )[:1]
-                    vals["stage_id"] = stage.id
+                    vals["phase_id"] = stage.id
 
         for vals in vals_list:
             if vals.pop("is_favorite", False):
@@ -1030,10 +1030,10 @@ class ProjectProject(models.Model):
                 self -= projects_already_with_company
             if (
                 company_id not in (None, *self.company_id.ids)
-                and self.stage_id.company_id
+                and self.phase_id.company_id
             ):
-                ProjectStage = self.env["project.project.stage"]
-                vals["stage_id"] = ProjectStage.search(
+                ProjectStage = self.env["project.phase"]
+                vals["phase_id"] = ProjectStage.search(
                     [("company_id", "in", (company_id, False))],
                     order=f"sequence asc, {ProjectStage._order}",
                     limit=1,
@@ -1081,15 +1081,15 @@ class ProjectProject(models.Model):
 
         res = super().write(vals) if vals else True
 
-        if "allow_task_dependencies" in vals and not vals.get(
-            "allow_task_dependencies"
+        if "allow_dependencies" in vals and not vals.get(
+            "allow_dependencies"
         ):
             self.env["project.task"].search(
                 [
                     ("project_id", "in", self.ids),
-                    ("state", "=", "04_waiting_normal"),
+                    ("state", "=", "blocked"),
                 ]
-            ).write({"state": "01_in_progress"})
+            ).write({"state": "in_progress"})
 
         if "allow_recurring_tasks" in vals and not vals["allow_recurring_tasks"]:
             self.env["project.task"].search(
@@ -1131,7 +1131,7 @@ class ProjectProject(models.Model):
     @api.ondelete(at_uninstall=False)
     def _check_project_group_at_removal(self) -> None:
         self._check_project_group_with_field(
-            "allow_task_dependencies", "project.group_project_task_dependencies"
+            "allow_dependencies", "project.group_project_task_dependencies"
         )
         self._check_project_group_with_field(
             "allow_milestones", "project.group_project_milestone"
@@ -1161,17 +1161,17 @@ class ProjectProject(models.Model):
     def message_subscribe(
         self,
         partner_ids: list[int] | None = None,
-        subtype_ids: list[int] | None = None,
+        subworkflow_step_ids: list[int] | None = None,
     ) -> bool:
         """Subscribe to newly created task but not all existing active task when subscribing to a project.
         User update notification preference of project its propagated to all the tasks that the user is
         currently following.
         """
         res = super().message_subscribe(
-            partner_ids=partner_ids, subtype_ids=subtype_ids
+            partner_ids=partner_ids, subworkflow_step_ids=subworkflow_step_ids
         )
-        if subtype_ids:
-            project_subtypes = self.env["mail.message.subtype"].browse(subtype_ids)
+        if subworkflow_step_ids:
+            project_subtypes = self.env["mail.message.subtype"].browse(subworkflow_step_ids)
             task_subtypes = (
                 project_subtypes.mapped("parent_id")
                 | project_subtypes.filtered(lambda sub: sub.internal or sub.default)
@@ -1182,10 +1182,10 @@ class ProjectProject(models.Model):
                     if partners:
                         task.message_subscribe(
                             partner_ids=list(partners),
-                            subtype_ids=task_subtypes,
+                            subworkflow_step_ids=task_subtypes,
                         )
                 self.update_ids.message_subscribe(
-                    partner_ids=partner_ids, subtype_ids=subtype_ids
+                    partner_ids=partner_ids, subworkflow_step_ids=subworkflow_step_ids
                 )
         return res
 
@@ -1210,12 +1210,12 @@ class ProjectProject(models.Model):
             defaults["project_id"] = self.id
         return values
 
-    @api.constrains("stage_id")
+    @api.constrains("phase_id")
     def _ensure_stage_has_same_company(self) -> None:
         for project in self:
             if (
-                project.stage_id.company_id
-                and project.stage_id.company_id != project.company_id
+                project.phase_id.company_id
+                and project.phase_id.company_id != project.company_id
             ):
                 raise UserError(
                     _(
@@ -1224,14 +1224,14 @@ class ProjectProject(models.Model):
                         "from the project or from the stage. Alternatively, you can update the company "
                         "information for these records to align them under the same company.",
                         project_company=project.company_id.name,
-                        stage_company=project.stage_id.company_id.name,
+                        stage_company=project.phase_id.company_id.name,
                     )
                     if project.company_id
                     else _(
                         "This project is not associated with any company, while the stage is associated with %s. "
                         "There are a couple of options to consider: either change the project's company "
                         "to align with the stage's company or remove the company designation from the stage",
-                        project.stage_id.company_id.name,
+                        project.phase_id.company_id.name,
                     )
                 )
 
@@ -1270,7 +1270,7 @@ class ProjectProject(models.Model):
 
     def _get_project_features_mapping(self) -> dict:
         return {
-            "allow_task_dependencies": "project.group_project_task_dependencies",
+            "allow_dependencies": "project.group_project_task_dependencies",
             "allow_milestones": "project.group_project_milestone",
             "allow_recurring_tasks": "project.group_project_recurring_tasks",
         }
@@ -1299,11 +1299,11 @@ class ProjectProject(models.Model):
         project = self[0]
         if (
             self.env.user.has_group("project.group_project_stages")
-            and "stage_id" in changes
-            and project.stage_id.mail_template_id
+            and "phase_id" in changes
+            and project.phase_id.mail_template_id
         ):
-            res["stage_id"] = (
-                project.stage_id.mail_template_id,
+            res["phase_id"] = (
+                project.phase_id.mail_template_id,
                 {
                     "auto_delete_keep_log": False,
                     "subtype_id": self.env["ir.model.data"]._xmlid_to_res_id(
@@ -1316,7 +1316,7 @@ class ProjectProject(models.Model):
 
     def _track_subtype(self, init_values: dict[str, Any]) -> Self:
         self.ensure_one()
-        if "stage_id" in init_values:
+        if "phase_id" in init_values:
             return self.env.ref("project.mt_project_stage_change")
         return super()._track_subtype(init_values)
 
@@ -1324,7 +1324,7 @@ class ProjectProject(models.Model):
         res = super()._mail_get_message_subtypes()
         if len(self) == 1:
             waiting_subtype = self.env.ref("project.mt_project_task_waiting")
-            if not self.allow_task_dependencies and waiting_subtype in res:
+            if not self.allow_dependencies and waiting_subtype in res:
                 res -= waiting_subtype
         return res
 
@@ -1363,7 +1363,7 @@ class ProjectProject(models.Model):
             {
                 "stage_name_and_sequence_per_id": {
                     stage.id: {"sequence": stage.sequence, "name": stage.name}
-                    for stage in self.type_ids
+                    for stage in self.workflow_step_ids
                 }
             }
         )
@@ -1423,7 +1423,7 @@ class ProjectProject(models.Model):
                 "active_test": self.active,
                 "active_id": self.id,
                 "allow_milestones": self.allow_milestones,
-                "allow_task_dependencies": self.allow_task_dependencies,
+                "allow_dependencies": self.allow_dependencies,
             }
         )
         action["context"] = context
@@ -1666,7 +1666,7 @@ class ProjectProject(models.Model):
                                     "sequence": stage.sequence,
                                     "name": stage.name,
                                 }
-                                for stage in self.type_ids
+                                for stage in self.workflow_step_ids
                             },
                         }
                     ),
