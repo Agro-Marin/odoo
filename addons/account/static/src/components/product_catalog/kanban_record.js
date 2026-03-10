@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { useSubEnv } from "@odoo/owl";
 import { ProductCatalogKanbanRecord } from "@product/product_catalog/kanban_record";
-import { ProductCatalogAccountMoveLine } from "./account_move_line";
+import { ProductCatalogAccountMoveLine } from "./account_move_line.js";
 import { patch } from "@web/core/utils/patch";
 
 patch(ProductCatalogKanbanRecord.prototype, {

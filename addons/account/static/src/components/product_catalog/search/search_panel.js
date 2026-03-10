@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillStart, useState } from '@odoo/owl';
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { rpc } from '@web/core/network/rpc';
