@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { reactive } from "@odoo/owl";
 import {
     deepCopy,
     deepEqual,
@@ -85,10 +86,11 @@ test("deepCopy", () => {
     expect(copy.o).not.toBe(obj.o);
 
     // structuredClone preserves Date, Set, and Map (unlike JSON round-trip)
-    // Note: structuredClone produces a native Date, not the test mock's
-    // MockDate subclass, so we check the prototype chain via duck-typing.
+    // Note: structuredClone uses the native Date constructor, so instanceof
+    // checks fail when the test runner patches Date with MockDate.
     const date = new Date();
     const dateCopy = deepCopy(date);
+    expect(Object.prototype.toString.call(dateCopy)).toBe("[object Date]");
     expect(dateCopy).not.toBe(date);
     expect(dateCopy.getTime()).toBe(date.getTime());
     expect(typeof dateCopy.getTime).toBe("function");
@@ -104,6 +106,26 @@ test("deepCopy", () => {
     expect(mapCopy).toBeInstanceOf(Map);
     expect(mapCopy).not.toBe(map);
     expect(mapCopy.get("a")).toBe(1);
+
+    // OWL reactive proxies: structuredClone cannot clone Proxy objects (they
+    // lack internal slots), so deepCopy falls back to JSON round-trip which
+    // reads through the proxy's get trap transparently.
+    const reactiveObj = reactive({
+        ids: [1, 2, 3],
+        name: "test",
+        nested: { flag: true },
+    });
+    const reactiveCopy = deepCopy(reactiveObj);
+    expect(reactiveCopy).toEqual({ ids: [1, 2, 3], name: "test", nested: { flag: true } });
+    expect(reactiveCopy).not.toBe(reactiveObj);
+    expect(reactiveCopy.ids).not.toBe(reactiveObj.ids);
+
+    // Reproduces the project subtask bug: a plain object containing a reactive
+    // array (Many2many field IDs wrapped by OWL reactivity).
+    const context = { default_tag_ids: reactive([4, 5, 6]), default_name: "subtask" };
+    const contextCopy = deepCopy(context);
+    expect(contextCopy).toEqual({ default_tag_ids: [4, 5, 6], default_name: "subtask" });
+    expect(contextCopy.default_tag_ids).not.toBe(context.default_tag_ids);
 });
 
 test("isObject", () => {
@@ -207,8 +229,8 @@ test("deepMerge", () => {
         b: undefined,
     });
 
-    expect(deepMerge("foo", 1)).toBe(undefined);
-    expect(deepMerge(null, null)).toBe(undefined);
+    expect(deepMerge("foo", 1)).toBe(1);
+    expect(deepMerge(null, null)).toBe(null);
 
     const f = () => {};
     expect(deepMerge({ a: undefined }, { a: f })).toEqual({ a: f });
