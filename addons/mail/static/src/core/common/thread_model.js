@@ -700,6 +700,15 @@ export class Thread extends Record {
     }
 
     async markAllMessagesAsRead() {
+        // Optimistic UI update: immediately clear needaction messages so the
+        // notification item disappears without waiting for the bus notification.
+        const inbox = this.store.inbox;
+        const messages = [...this.needactionMessages];
+        for (const message of messages) {
+            message.needaction = false;
+            inbox.messages.delete(message);
+        }
+        this.message_needaction_counter = 0;
         await this.store.env.services.orm.silent.call(
             "mail.message",
             "mark_all_as_read",
@@ -710,7 +719,6 @@ export class Thread extends Record {
                 ],
             ],
         );
-        this.message_needaction_counter = 0;
     }
 
     async markAsFetched() {
