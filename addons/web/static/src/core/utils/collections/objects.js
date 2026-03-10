@@ -38,11 +38,11 @@ export const deepEqual = (obj1, obj2) => shallowEqual(obj1, obj2, deepEqual);
  * - no support for circular objects
  * - no support for specific classes, that will at best be lost and at worst crash (Map, Set etc.)
  * @template T
- * @param {T} object
+ * @param {T} object An object that is fully JSON stringifiable
  * @return {T}
  */
 export function deepCopy(object) {
-    return structuredClone(object);
+    return object && JSON.parse(JSON.stringify(object));
 }
 
 /**
