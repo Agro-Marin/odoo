@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { useState, onRendered } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { BooleanToggleField, booleanToggleField } from "@web/fields/basic/boolean_toggle/boolean_toggle_field";

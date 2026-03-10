@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/components - ErrorHandler component that catches child rendering errors */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/sample_data - Sample data constants and text arrays for fake record generation */
 

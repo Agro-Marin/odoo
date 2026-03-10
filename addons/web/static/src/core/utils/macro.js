@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/macro - Step-based macro engine for automated UI interaction sequences */
 

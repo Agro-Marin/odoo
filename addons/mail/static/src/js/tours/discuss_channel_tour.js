@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -7,7 +8,7 @@ registry.category("web_tour.tours").add("discuss_channel_tour", {
     steps: () => [
         {
             isActive: ["enterprise"],
-            trigger: "a[data-menu-xmlid='mail.menu_root_discuss']",
+            trigger: "a[data-menu-xmlid='mail.menu_mail_root']",
             content: _t("Open Discuss App"),
             tooltipPosition: "bottom",
             run: "click",

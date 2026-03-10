@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/py_js/py_tokenizer - Lexer that splits Python expression strings into typed tokens */
 
@@ -240,6 +241,8 @@ const ContStr = group(
     '([uU])?"([^\n"\\\\]*(?:\\\\.[^\n"\\\\]*)*)"',
 );
 const PseudoToken = Whitespace + group(Number, Funny, ContStr, Name);
+/** Module-level regex — reused across tokenize() calls, reset via lastIndex. */
+const pseudoprog = new RegExp(PseudoToken, "g");
 const NumberPattern = new RegExp("^" + Number + "$");
 const StringPattern = new RegExp("^" + ContStr + "$");
 const NamePattern = new RegExp("^" + Name + "$");
@@ -260,8 +263,8 @@ export function tokenize(str) {
     const tokens = [];
     const max = str.length;
     let end = 0;
-    // /g flag makes repeated exec() have memory
-    const pseudoprog = new RegExp(PseudoToken, "g");
+    // /g flag makes repeated exec() have memory — reuse module-level regex
+    pseudoprog.lastIndex = 0;
     while (pseudoprog.lastIndex < max) {
         const pseudomatch = pseudoprog.exec(str);
         if (!pseudomatch) {

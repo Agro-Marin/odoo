@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/field - Generic Field component that resolves and renders the appropriate field widget from the registry */
 
@@ -12,7 +13,7 @@ import { X2M_TYPES } from "@web/fields/field_types";
 import { getFieldContext } from "@web/model/relational_model/utils";
 import { utils } from "@web/ui/block/ui_service";
 
-import { getTooltipInfo } from "./field_tooltip";
+import { getTooltipInfo } from "./field_tooltip.js";
 
 const isSmall = utils.isSmall;
 

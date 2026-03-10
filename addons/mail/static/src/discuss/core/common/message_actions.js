@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { registerMessageAction } from "@mail/core/common/message_actions";
 import { toRaw } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

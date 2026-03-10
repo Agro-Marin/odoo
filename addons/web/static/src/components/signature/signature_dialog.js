@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/signature/signature_dialog - Dialog wrapper for capturing and uploading a signature */
 
 import { Component, useState } from "@odoo/owl";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-import { NameAndSignature } from "./name_and_signature";
+import { NameAndSignature } from "./name_and_signature.js";
 export class SignatureDialog extends Component {
     static template = "web.SignatureDialog";
     static components = { Dialog, NameAndSignature };

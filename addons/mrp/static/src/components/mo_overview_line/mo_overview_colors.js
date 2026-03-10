@@ -1,3 +1,4 @@
+/** @odoo-module */
 const PRODUCTION_DECORATORS = {
     draft: "secondary",
     confirmed: "info",

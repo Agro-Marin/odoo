@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/domain_selector/domain_selector - Visual domain builder that converts between string domains and tree editors */
 
@@ -19,7 +20,7 @@ import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 
-import { getDefaultCondition } from "./utils";
+import { getDefaultCondition } from "./utils.js";
 
 const ARCHIVED_CONDITION = condition("active", "in", [true, false]);
 const ARCHIVED_DOMAIN = `[("active", "in", [True, False])]`;

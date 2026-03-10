@@ -1,13 +1,14 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/calendar_view - Calendar view descriptor registered in the view registry */
 
 import { registry } from "@web/core/registry";
 
-import { CalendarArchParser } from "./calendar_arch_parser";
-import { CalendarController } from "./calendar_controller";
-import { CalendarModel } from "./calendar_model";
-import { CalendarRenderer } from "./calendar_renderer";
+import { CalendarArchParser } from "./calendar_arch_parser.js";
+import { CalendarController } from "./calendar_controller.js";
+import { CalendarModel } from "./calendar_model.js";
+import { CalendarRenderer } from "./calendar_renderer.js";
 /** Calendar view descriptor registered in the view registry. */
 export const calendarView = {
     type: "calendar",

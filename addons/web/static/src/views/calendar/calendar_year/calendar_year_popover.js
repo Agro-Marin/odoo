@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/calendar_year/calendar_year_popover - Popover listing grouped records when clicking a day cell in year view */
 

@@ -122,10 +122,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_action_stock_warehouse"
-        parent="menu_warehouse_config"
-        action="action_stock_warehouse"
-        sequence="1" />
-
 </odoo>

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { CallInvitation } from "@mail/discuss/call/common/call_invitation";
 import { onChange } from "@mail/utils/common/misc";
 import { Component } from "@odoo/owl";

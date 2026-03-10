@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/form_utils - Utility functions for form views (sub-view loading, discard hooks, toolbar setup) */
 

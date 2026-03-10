@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/kanban_column_examples_dialog - Dialog showcasing example column layouts for kanban board setup */
 

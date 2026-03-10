@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/graph/graph_controller - Controller wiring GraphModel to GraphRenderer with search bar and sample data support */
 

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
 
 export class ActivityMarkAsDone extends Component {

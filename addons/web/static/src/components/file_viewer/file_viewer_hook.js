@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/file_viewer/file_viewer_hook - Factory and hook for opening/closing a file viewer as a main component */
 
 import { onWillDestroy } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 
-import { FileViewer } from "./file_viewer";
+import { FileViewer } from "./file_viewer.js";
 let id = 1;
 
 export function createFileViewer() {

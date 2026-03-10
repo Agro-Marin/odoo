@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Composer } from "@mail/core/common/composer";
 import { markup, useRef } from "@odoo/owl";
 import { markEventHandled } from "@web/core/utils/dom/events";

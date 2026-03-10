@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/control_panel/control_panel - Control panel UI with search bar, breadcrumbs, filter/groupby menus, and embedded actions */
 
@@ -311,10 +312,10 @@ export class ControlPanel extends Component {
     scrollingElementResizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
             const target = /** @type {any} */ (entry.target);
-            if (this.scrollingElementHeight !== target.scrollingElementHeight) {
+            if (this.scrollingElementHeight !== target.scrollHeight) {
                 this.oldScrollTop +=
-                    target.scrollingElementHeight - this.scrollingElementHeight;
-                this.scrollingElementHeight = target.scrollingElementHeight;
+                    target.scrollHeight - this.scrollingElementHeight;
+                this.scrollingElementHeight = target.scrollHeight;
             }
         }
     });
@@ -728,12 +729,12 @@ export class ControlPanel extends Component {
         this.state.embeddedInfos.embeddedActions =
             this.state.embeddedInfos.embeddedActions.sort((a, b) => {
                 const indexA = order.indexOf(a.id);
-                if (!indexA) {
-                    return -1;
-                }
                 const indexB = order.indexOf(b.id);
-                if (!indexB) {
+                if (indexA === -1) {
                     return 1;
+                }
+                if (indexB === -1) {
+                    return -1;
                 }
                 return indexA - indexB;
             });

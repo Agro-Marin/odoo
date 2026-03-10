@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
@@ -17,7 +18,7 @@ export class OutdatedPageWatcherService {
         this.legacy_multi_tab = legacy_multi_tab;
         this.lastNotificationId =
             legacy_multi_tab.getSharedValue("last_notification_id");
-        this.closeNotificationFn;
+        this.closeNotificationFn = undefined;
         let wasBusAlreadyConnected;
         bus_service.addEventListener(
             "BUS:WORKER_STATE_UPDATED",

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/field_values - Server value parsing, aggregation constants, and default value helpers */
 
@@ -14,15 +15,15 @@ import {
 import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { unique } from "@web/core/utils/collections/arrays";
-import { x2ManyCommands } from "./commands";
+import { x2ManyCommands } from "./commands.js";
 
 const granularityToInterval = {
     hour: { hours: 1 },
     day: { days: 1 },
     week: { days: 7 },
-    month: { month: 1 },
-    quarter: { month: 4 },
-    year: { year: 1 },
+    month: { months: 1 },
+    quarter: { months: 3 },
+    year: { years: 1 },
 };
 
 export const AGGREGATABLE_FIELD_TYPES = ["float", "integer", "monetary"]; // types that can be aggregated in grouped views

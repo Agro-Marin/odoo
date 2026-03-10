@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/bottom_sheet/bottom_sheet - Mobile-friendly slide-up panel with drag-to-dismiss and snap points */
 
@@ -31,6 +32,10 @@ export class BottomSheet extends Component {
 
         class: { optional: true },
         role: { optional: true, type: String },
+
+        // Behavior props
+        onBack: { optional: true, type: Function },
+        preventDismissOnContentScroll: { optional: true, type: Boolean },
 
         // Technical props
         ref: { optional: true, type: Function },
@@ -163,6 +168,9 @@ export class BottomSheet extends Component {
 
         // Update progress value
         this.updateProgressValue(scrollTop);
+
+        // Re-enable snapping after dimensions are updated
+        this.state.isSnappingEnabled = true;
     }
 
     /**

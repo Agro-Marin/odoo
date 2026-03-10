@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module search/search_group_by - GroupBy/OrderBy computation utilities for SearchModel */
 
-import { rankInterval } from "./utils/dates";
+import { rankInterval } from "./utils/dates.js";
 
 /**
  * Reconstruct (active) groups from query elements and search items.

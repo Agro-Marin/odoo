@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/domain_contains_expressions - Checks whether a domain string contains dynamic Python expressions */
 

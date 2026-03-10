@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/pager/pager - Pagination component with prev/next navigation and editable page range input */
 
@@ -162,6 +163,9 @@ export class Pager extends Component {
      * @param {boolean} [hasNavigated]
      */
     async update(offset, limit, hasNavigated) {
+        if (this.state.isDisabled) {
+            return;
+        }
         this.state.isDisabled = true;
         try {
             await this.props.onUpdate({ offset, limit }, hasNavigated);

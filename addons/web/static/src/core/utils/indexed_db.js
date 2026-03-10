@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/indexed_db - IndexedDB wrapper with versioned schema, quota management, and mutex locking */
 
-import { Mutex } from "./concurrency";
+import { Mutex } from "./concurrency.js";
 
 const VERSION_TABLE = "__DBVersion__";
 const VERSION_KEY = "__version__";

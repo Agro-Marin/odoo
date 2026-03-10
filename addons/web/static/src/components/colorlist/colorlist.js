@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/colorlist/colorlist - Expandable color swatch picker for selecting from predefined Odoo color indices */
 

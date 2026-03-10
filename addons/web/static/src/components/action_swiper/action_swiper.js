@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/action_swiper/action_swiper - Touch swipe component that triggers actions on left/right swipe gestures */
 

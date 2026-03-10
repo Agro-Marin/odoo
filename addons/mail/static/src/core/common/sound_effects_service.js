@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { url } from "@web/core/utils/urls";

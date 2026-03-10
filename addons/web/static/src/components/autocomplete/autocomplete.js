@@ -1,9 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/autocomplete/autocomplete - Generic autocomplete dropdown with multi-source results, keyboard navigation, and debounced search */
 
 import {
     Component,
+    onWillUnmount,
     onWillUpdateProps,
     useExternalListener,
     useRef,
@@ -115,24 +117,14 @@ export class AutoComplete extends Component {
             }
         }, this.timeout);
 
-        useExternalListener(
-            window,
-            "scroll",
-            this.externalClose,
-            /** @type {any} */ (true),
-        );
-        useExternalListener(
-            window,
-            "pointerdown",
-            this.externalClose,
-            /** @type {any} */ (true),
-        );
-        useExternalListener(
-            window,
-            "mousemove",
-            () => (this.mouseSelectionActive = true),
-            /** @type {any} */ (true),
-        );
+        // Global listeners are registered only while the dropdown is open
+        // to avoid firing on every mouse movement / scroll when closed.
+        // Arrow functions capture `this` — required because addEventListener
+        // does not preserve component context like OWL's useExternalListener.
+        this._externalClose = (/** @type {Event} */ ev) => this.externalClose(ev);
+        this._onMouseMove = () => (this.mouseSelectionActive = true);
+        this._globalCleanups = [];
+        onWillUnmount(() => this._removeGlobalListeners());
 
         this.hotkey = useService("hotkey");
         this.hotkeysToRemove = [];
@@ -201,6 +193,7 @@ export class AutoComplete extends Component {
 
     open(useInput = false) {
         this.state.open = true;
+        this._addGlobalListeners();
         return this.loadSources(useInput);
     }
 
@@ -208,6 +201,27 @@ export class AutoComplete extends Component {
         this.state.open = false;
         this.state.activeSourceOption = null;
         this.mouseSelectionActive = false;
+        this._removeGlobalListeners();
+    }
+
+    _addGlobalListeners() {
+        if (this._globalCleanups.length) {
+            return; // already registered
+        }
+        const add = (target, event, handler, capture = false) => {
+            target.addEventListener(event, handler, capture);
+            this._globalCleanups.push(() => target.removeEventListener(event, handler, capture));
+        };
+        add(window, "scroll", this._externalClose, true);
+        add(window, "pointerdown", this._externalClose);
+        add(window, "mousemove", this._onMouseMove, true);
+    }
+
+    _removeGlobalListeners() {
+        for (const cleanup of this._globalCleanups) {
+            cleanup();
+        }
+        this._globalCleanups = [];
     }
 
     cancel() {
@@ -310,6 +324,7 @@ export class AutoComplete extends Component {
             this.state.navigationRev++;
         }
 
+        let maxIterations = this.sources.reduce((n, s) => n + s.options.length, 0) + 1;
         do {
             if (this.state.activeSourceOption) {
                 let [sourceIndex, optionIndex] = this.state.activeSourceOption;
@@ -349,7 +364,7 @@ export class AutoComplete extends Component {
                     }
                 }
             }
-        } while (this.activeOption?.unselectable);
+        } while (this.activeOption?.unselectable && --maxIterations > 0);
     }
 
     onInputBlur() {

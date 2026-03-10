@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module search/search_domain - Domain computation utilities for SearchModel */
 
 import { Domain } from "@web/core/domain";
 
-import { constructDateDomain } from "./utils/dates";
+import { constructDateDomain } from "./utils/dates.js";
 /**
  * Compute the domain based on the current active categories.
  * If `excludedCategoryId` is provided, that category is excluded.

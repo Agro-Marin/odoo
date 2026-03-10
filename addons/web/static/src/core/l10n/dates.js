@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/l10n/dates - Luxon-based date/datetime parsing, formatting, serialization, and locale-aware week helpers */
 
@@ -6,7 +7,7 @@ import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { memoize } from "@web/core/utils/functions";
 
-import { isInRange, today } from "./date_utils";
+import { isInRange, today } from "./date_utils.js";
 
 // Re-export extracted modules for backward compatibility
 export {
@@ -14,7 +15,7 @@ export {
     deserializeDateTime,
     serializeDate,
     serializeDateTime,
-} from "./date_serialization";
+} from "./date_serialization.js";
 export {
     areDatesEqual,
     clampDate,
@@ -23,7 +24,7 @@ export {
     getStartOfLocalWeek,
     isInRange,
     today,
-} from "./date_utils";
+} from "./date_utils.js";
 
 const { DateTime, Settings } = /** @type {any} */ (luxon);
 

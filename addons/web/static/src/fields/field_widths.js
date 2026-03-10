@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/field_widths - Default column widths per field type for list views */
 

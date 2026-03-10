@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/color/color_field - Native color picker input field for Char columns */
 

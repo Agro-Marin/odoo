@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/model - Abstract base Model class with OWL lifecycle integration and sample data fallback */
 
@@ -16,7 +17,7 @@ import { RPCError } from "@web/core/network/rpc";
 import { Deferred, Race } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 
-import { buildSampleORM } from "./sample_server";
+import { buildSampleORM } from "./sample_server.js";
 
 /** @import { OdooEnv } from "@web/env" */
 /** @import { SearchParams } from "@web/model/types" */

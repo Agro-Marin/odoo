@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { NO_MEMBERS_DEFAULT_OPEN_LS } from "@mail/core/public_web/discuss_app_model";
 import { ChannelMemberList } from "@mail/discuss/core/common/channel_member_list";

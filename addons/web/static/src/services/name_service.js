@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/name_service - Batched and cached display_name lookups across arbitrary models */
 
@@ -117,6 +118,14 @@ export const nameService = {
                                         ? displayNames[resId]
                                         : ERROR_INACCESSIBLE_OR_MISSING,
                                 );
+                            }
+                        })
+                        .catch((error) => {
+                            for (const resId of idsInBatch) {
+                                if (mapping[resId]) {
+                                    mapping[resId].reject(error);
+                                    delete mapping[resId];
+                                }
                             }
                         });
                 }

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/block/ui_service - UI service: viewport size tracking, active element management, block/unblock, and focus trapping */
 
@@ -10,7 +11,7 @@ import { useService } from "@web/core/utils/hooks";
 import { throttleForAnimation } from "@web/core/utils/timing";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
-import { BlockUI } from "./block_ui";
+import { BlockUI } from "./block_ui.js";
 export const SIZES = { XS: 0, SM: 1, MD: 2, LG: 3, XL: 4, XXL: 5 };
 
 /**

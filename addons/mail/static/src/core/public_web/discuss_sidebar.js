@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { DISCUSS_SIDEBAR_COMPACT_LS } from "@mail/core/public_web/discuss_app_model";
 import { Component, onMounted, useSubEnv } from "@odoo/owl";
 import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";
@@ -5,8 +6,8 @@ import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
-import { ActionList } from "../common/action_list";
-import { DiscussSearch } from "./discuss_search";
+import { ActionList } from "../common/action_list.js";
+import { DiscussSearch } from "./discuss_search.js";
 
 export const discussSidebarItemsRegistry = registry.category(
     "mail.discuss_sidebar_items",

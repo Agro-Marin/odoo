@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dom/html - Safe HTML creation, text highlighting, and markup-aware content helpers */
 

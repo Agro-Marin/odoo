@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/notification/notification_service - Service that manages toast notifications displayed in the top-right corner */
 
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 
-import { NotificationContainer } from "./notification_container";
+import { NotificationContainer } from "./notification_container.js";
 /**
  * @typedef {Object} NotificationButton
  * @property {string} name

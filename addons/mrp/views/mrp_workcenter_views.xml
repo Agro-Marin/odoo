@@ -412,12 +412,6 @@
             </field>
         </record>
 
-        <menuitem id="menu_view_resource_search_mrp"
-            action="mrp_workcenter_action"
-            groups="group_mrp_routings"
-            parent="menu_mrp_configuration"
-            sequence="90"/>
-
     <record id="oee_loss_form_view" model="ir.ui.view">
         <field name="name">mrp.workcenter.productivity.loss.form</field>
         <field name="model">mrp.workcenter.productivity.loss</field>
@@ -580,10 +574,5 @@
         </field>
     </record>
 
-    <menuitem id="menu_mrp_workcenter_productivity_report"
-          parent="menu_mrp_reporting"
-          action="mrp_workcenter_productivity_report"
-          groups="group_mrp_routings"
-          sequence="12"/>
     </data>
 </odoo>

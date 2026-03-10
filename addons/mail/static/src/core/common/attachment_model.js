@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { fields, Record } from "@mail/core/common/record";
 import { assignDefined } from "@mail/utils/common/misc";
 import { generatePdfThumbnail } from "@mail/utils/common/pdf_thumbnail";

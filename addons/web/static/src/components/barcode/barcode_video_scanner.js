@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/barcode/barcode_video_scanner - Camera-based barcode scanner using BarcodeDetector API with ZXing fallback */
 
@@ -20,8 +21,8 @@ import { _t } from "@web/core/l10n/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { delay } from "@web/core/utils/concurrency";
 
-import { CropOverlay } from "./crop_overlay";
-import { buildZXingBarcodeDetector, isVideoElementReady } from "./ZXingBarcodeDetector";
+import { CropOverlay } from "./crop_overlay.js";
+import { buildZXingBarcodeDetector, isVideoElementReady } from "./ZXingBarcodeDetector.js";
 
 export class BarcodeVideoScanner extends Component {
     static template = "web.BarcodeVideoScanner";

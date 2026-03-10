@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/breadcrumb_manager - Breadcrumb building, display-name loading, and virtual controller reconstruction for the action service */
 
@@ -55,8 +56,10 @@ export function buildBreadcrumbs(stack, { stateToUrl, restore }) {
  */
 async function loadBreadcrumbs(controllers, breadcrumbCache) {
     const toFetch = [];
-    const keys = [];
-    for (const { action, state, displayName } of controllers) {
+    // Track which controllers have associated keys (non-skipped ones)
+    const controllerKeys = [];
+    for (const controller of controllers) {
+        const { action, state, displayName } = controller;
         if (
             action.id === "menu" ||
             (action.type === "ir.actions.client" && !displayName)
@@ -65,7 +68,7 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
         }
         const actionInfo = pick(state, "action", "model", "resId");
         const key = JSON.stringify(actionInfo);
-        keys.push(key);
+        controllerKeys.push({ controller, key });
         if (displayName) {
             breadcrumbCache[key] = { display_name: displayName };
         }
@@ -78,15 +81,21 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
         const req = rpc("/web/action/load_breadcrumbs", { actions: toFetch });
         for (const [i, info] of toFetch.entries()) {
             const key = JSON.stringify(info);
-            breadcrumbCache[key] = req.then((res) => {
-                breadcrumbCache[key] = res[i];
-                return res[i];
-            });
+            breadcrumbCache[key] = req.then(
+                (res) => {
+                    breadcrumbCache[key] = res[i];
+                    return res[i];
+                },
+                (error) => {
+                    delete breadcrumbCache[key];
+                    throw error;
+                },
+            );
         }
     }
-    const results = await Promise.all(keys.map((k) => breadcrumbCache[k]));
+    const results = await Promise.all(controllerKeys.map((ck) => breadcrumbCache[ck.key]));
     const controllersToRemove = [];
-    for (const [controller, res] of zip(controllers, results)) {
+    for (const [{ controller }, res] of zip(controllerKeys, results)) {
         if ("display_name" in res) {
             controller.displayName = res.display_name;
         } else {

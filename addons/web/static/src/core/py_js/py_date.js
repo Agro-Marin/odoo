@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/py_js/py_date - Python date, datetime, time, and relativedelta emulation in JavaScript */
 
@@ -10,12 +11,12 @@ import {
     tmxxx,
     ValueError,
     ymd2ord,
-} from "./py_date_helpers";
-import { parseArgs } from "./py_parser";
-import { PyTimeDelta } from "./py_timedelta";
+} from "./py_date_helpers.js";
+import { parseArgs } from "./py_parser.js";
+import { PyTimeDelta } from "./py_timedelta.js";
 
 // Re-export for backward compatibility
-export { PyTimeDelta } from "./py_timedelta";
+export { PyTimeDelta } from "./py_timedelta.js";
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ export class PyDate {
      * @param {PyTimeDelta | PyDate} other
      * @returns {PyDate | PyTimeDelta}
      */
-    substract(other) {
+    subtract(other) {
         if (other instanceof PyTimeDelta) {
             return this.add(other.negate());
         }
@@ -277,11 +278,33 @@ export class PyDateTime {
     }
 
     /**
-     * @param {PyTimeDelta} timedelta
-     * @returns {PyDateTime}
+     * Subtract a timedelta or another datetime from this datetime.
+     *
+     * @param {PyTimeDelta | PyDateTime} other
+     * @returns {PyDateTime | PyTimeDelta}
      */
-    substract(timedelta) {
-        return this.add(timedelta.negate());
+    subtract(other) {
+        if (other instanceof PyTimeDelta) {
+            return this.add(other.negate());
+        }
+        if (other instanceof PyDateTime) {
+            const daysDiff = this.toordinal() - other.toordinal();
+            const secsDiff =
+                (this.hour * 3600 + this.minute * 60 + this.second) -
+                (other.hour * 3600 + other.minute * 60 + other.second);
+            const usDiff = this.microsecond - other.microsecond;
+            return PyTimeDelta.create({
+                days: daysDiff,
+                seconds: secsDiff,
+                microseconds: usDiff,
+            });
+        }
+        throw new NotSupportedError();
+    }
+
+    /** @returns {number} */
+    toordinal() {
+        return ymd2ord(this.year, this.month, this.day);
     }
 
     /** @returns {string} */
@@ -508,7 +531,7 @@ export class PyRelativeDelta {
      * @param {PyRelativeDelta} delta
      * @returns {PyDateTime|PyDate}
      */
-    static substract(date, delta) {
+    static subtract(date, delta) {
         return PyRelativeDelta.add(date, delta.negate());
     }
 
@@ -545,7 +568,7 @@ export class PyRelativeDelta {
 
     isEqual(other) {
         // For now we don't do normalization in the constructor (or create method).
-        // That is, we only compute the overflows at the time we add or substract.
+        // That is, we only compute the overflows at the time we add or subtract.
         // This is why we can't support isEqual for now.
         throw new NotSupportedError();
     }

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2one_reference_integer/many2one_reference_integer_field - Integer display field for Many2oneReference columns showing the record ID */
 

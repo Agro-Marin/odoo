@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/search_state - State serialization, shared constants, and section helpers for SearchModel */
 

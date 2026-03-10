@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/resizable_panel/resizable_panel - Side panel component with drag handle for interactive width resizing */
 
@@ -197,7 +198,7 @@ export class ResizablePanel extends Component {
     };
     static defaultProps = {
         onResize: () => {},
-        width: 400,
+        initialWidth: 400,
         minWidth: 400,
         class: "",
         handleSide: "end",

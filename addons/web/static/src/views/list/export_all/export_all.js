@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/export_all/export_all - Cog-menu item triggering direct XLSX export of all records */
 

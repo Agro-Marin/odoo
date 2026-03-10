@@ -1,14 +1,15 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/form_view - View registry descriptor for the standard form view */
 
 import { registry } from "@web/core/registry";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 
-import { FormArchParser } from "./form_arch_parser";
-import { FormCompiler } from "./form_compiler";
-import { FormController } from "./form_controller";
-import { FormRenderer } from "./form_renderer";
+import { FormArchParser } from "./form_arch_parser.js";
+import { FormCompiler } from "./form_compiler.js";
+import { FormController } from "./form_controller.js";
+import { FormRenderer } from "./form_renderer.js";
 
 /** View registry descriptor for the standard form view. */
 export const formView = {

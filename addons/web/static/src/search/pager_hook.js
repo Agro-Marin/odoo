@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/pager_hook - OWL hook that injects reactive pager props into the sub-environment */
 

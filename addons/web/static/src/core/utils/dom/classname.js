@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dom/classname - Helpers to add, merge, and toggle CSS classes from strings or objects */
 
@@ -59,12 +60,9 @@ function toClassObj(classDefinition) {
         return classDefinition;
     } else if (typeof classDefinition === "string") {
         const classObj = {};
-        classDefinition
-            .trim()
-            .split(/\s+/)
-            .forEach((s) => {
-                classObj[s] = true;
-            });
+        for (const s of classDefinition.trim().split(/\s+/)) {
+            classObj[s] = true;
+        }
         return classObj;
     } else {
         console.warn(

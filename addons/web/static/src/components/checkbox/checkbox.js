@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/checkbox/checkbox - Accessible checkbox component with label slot and hotkey support */
 

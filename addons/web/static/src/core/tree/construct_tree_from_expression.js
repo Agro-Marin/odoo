@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/construct_tree_from_expression - Parses a Python expression string into a condition tree structure */
 
@@ -134,7 +135,7 @@ function _getConditionFromIntersection(ast, options, negate = false) {
     }
 
     // left/right exchange
-    if (isValidPath2(left, options) === isValidPath2(right, options)) {
+    if (!isValidPath2(left, options) && !isValidPath2(right, options)) {
         return null;
     }
     if (!isValidPath2(left, options)) {
@@ -156,8 +157,7 @@ function _getConditionFromIntersection(ast, options, negate = false) {
     if (isSet(right)) {
         if (!right.args[0]) {
             right = { type: 4, value: [] };
-        }
-        if ([4, 10].includes(right.args[0].type)) {
+        } else if ([4, 10].includes(right.args[0].type)) {
             right = right.args[0];
         }
     }

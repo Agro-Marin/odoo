@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Gif } from "@mail/core/common/gif";
 import { LinkPreviewConfirmDelete } from "@mail/core/common/link_preview_confirm_delete";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";

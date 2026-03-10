@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/text_input_field_base - Abstract base class for text input fields with translation and dynamic placeholder support */
 

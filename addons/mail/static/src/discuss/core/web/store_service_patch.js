@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Store } from "@mail/core/common/store_service";
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { compareDatetime } from "@mail/utils/common/misc";

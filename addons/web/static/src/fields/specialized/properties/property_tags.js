@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/properties/property_tags - Tag list component with color picker for property tag values */
 

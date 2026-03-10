@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/setting/setting - Individual setting row with label, help text, and company-dependent icon */
 

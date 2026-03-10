@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/search_query_mutations - Query mutation methods extracted from SearchModel */
 
@@ -12,8 +13,8 @@
 import { _t } from "@web/core/l10n/translation";
 import { rpcBus } from "@web/core/network/rpc";
 
-import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP, SPECIAL } from "./search_state";
-import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates";
+import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP, SPECIAL } from "./search_state.js";
+import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
 
 /** @import { SearchModel } from "@web/search/search_model" */
 
@@ -299,10 +300,14 @@ export function toggleDateFilter(searchModel, searchItemId, generatorId) {
             );
             searchModel.query.push({ searchItemId, generatorId });
             if (!yearSelected(searchModel._getSelectedGeneratorIds(searchItemId))) {
-                const { defaultYearId } = getPeriodOptions(
+                const periodOption = getPeriodOptions(
                     searchModel.referenceMoment,
                     searchItem.optionsParams,
                 ).find((o) => o.id === generatorId);
+                if (!periodOption) {
+                    break;
+                }
+                const { defaultYearId } = periodOption;
                 searchModel.query.push({
                     searchItemId,
                     generatorId: defaultYearId,

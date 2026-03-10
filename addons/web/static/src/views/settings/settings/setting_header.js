@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/settings/setting_header - Setting variant for header-type fields displayed in the app header row */
 

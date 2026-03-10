@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ImStatus } from "@mail/core/common/im_status";
 import { cleanTerm } from "@mail/utils/common/format";
 import { Component, useState } from "@odoo/owl";
@@ -6,7 +7,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-import { ChannelInvitation } from "../common/channel_invitation";
+import { ChannelInvitation } from "../common/channel_invitation.js";
 
 const commandSetupRegistry = registry.category("command_setup");
 const commandProviderRegistry = registry.category("command_provider");

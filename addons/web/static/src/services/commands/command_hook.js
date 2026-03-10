@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/commands/command_hook - useCommand hook to register/unregister commands with component lifecycle */
 
 import { useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-/** @import { CommandOptions } from "./command_service" */
+/** @import { CommandOptions } from "./command_service.js" */
 
 /**
  * This hook will subscribe/unsubscribe the given subscription

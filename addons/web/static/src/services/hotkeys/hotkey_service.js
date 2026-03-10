@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/hotkeys/hotkey_service - Keyboard shortcut registration, dispatch, and overlay access-key management */
 

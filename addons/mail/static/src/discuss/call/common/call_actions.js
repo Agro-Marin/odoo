@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { attClassObjectToString } from "@mail/utils/common/format";
 import { useComponent, useState } from "@odoo/owl";
@@ -6,9 +7,9 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
-import { QuickVideoSettings } from "./quick_video_settings";
-import { QuickVoiceSettings } from "./quick_voice_settings";
-import { CALL_PROMOTE_FULLSCREEN } from "./thread_model_patch";
+import { QuickVideoSettings } from "./quick_video_settings.js";
+import { QuickVoiceSettings } from "./quick_voice_settings.js";
+import { CALL_PROMOTE_FULLSCREEN } from "./thread_model_patch.js";
 export const callActionsRegistry = registry.category("discuss.call/actions");
 export const CALL_ICON_DEAFEN = "fa-solid fa-deaf";
 export const CALL_ICON_MUTED = "fa-solid fa-microphone-slash";

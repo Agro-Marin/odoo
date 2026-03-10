@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 
-import { MessageCardList } from "./message_card_list";
+import { MessageCardList } from "./message_card_list.js";
 /**
  * @typedef {Object} Props
  * @property {import("@mail/core/common/thread_model").Thread} thread

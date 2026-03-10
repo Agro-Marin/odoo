@@ -1,13 +1,14 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/commands/command_service - Service that registers, manages, and opens the command palette */
 
 import { Component, EventBus } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 
-import { CommandPalette } from "./command_palette";
-/** @import { CommandPaletteConfig } from "./command_palette" */
-/** @import { HotkeyOptions } from "../hotkeys/hotkey_service" */
+import { CommandPalette } from "./command_palette.js";
+/** @import { CommandPaletteConfig } from "./command_palette.js" */
+/** @import { HotkeyOptions } from "../hotkeys/hotkey_service.js" */
 
 /**
  * @typedef {{

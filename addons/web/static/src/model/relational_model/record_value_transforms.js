@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/record_value_transforms - Stateless value formatting, defaults, and eval context extraction */
 
@@ -45,6 +46,9 @@ export function formatServerValue(fieldType, value) {
                 ? `${value.resModel},${value.resId}`
                 : false;
         case "properties":
+            if (!value) {
+                return false;
+            }
             return value.map((property) => {
                 property = { ...property };
                 for (const key of ["value", "default"]) {
@@ -160,6 +164,8 @@ export function computeDataContext(data, fields, textValues, resId) {
             dataContext[fieldName] = serializeDateTime(value);
         } else if (value && field.type === "many2one") {
             dataContext[fieldName] = value.id;
+        } else if (value && field.type === "many2one_reference") {
+            dataContext[fieldName] = value ? value.resId : false;
         } else if (value && field.type === "reference") {
             dataContext[fieldName] = `${value.resModel},${value.resId}`;
         } else if (field.type === "properties") {

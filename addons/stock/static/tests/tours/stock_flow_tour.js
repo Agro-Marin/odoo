@@ -11,7 +11,7 @@ registry.category("web_tour.tours").add("test_basic_stock_flow_with_minimal_acce
             run: "click",
         },
         {
-            trigger: ".o-dropdown-item[data-menu-xmlid='stock.in_picking']",
+            trigger: ".o-dropdown-item[data-menu-xmlid='stock.menu_stock_picking_incoming']",
             run: "click",
         },
         {
@@ -66,7 +66,7 @@ registry.category("web_tour.tours").add("test_basic_stock_flow_with_minimal_acce
             run: "click",
         },
         {
-            trigger: ".o-dropdown-item[data-menu-xmlid='stock.out_picking']",
+            trigger: ".o-dropdown-item[data-menu-xmlid='stock.menu_stock_picking_outgoing']",
             run: "click",
         },
         {

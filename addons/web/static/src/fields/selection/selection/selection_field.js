@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/selection/selection/selection_field - Standard dropdown selection field for Selection and Many2one columns */
 

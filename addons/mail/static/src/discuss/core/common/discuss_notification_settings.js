@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { MESSAGE_SOUND } from "@mail/core/common/settings_model";
 import { Component, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

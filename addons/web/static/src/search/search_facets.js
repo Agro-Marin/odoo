@@ -1,13 +1,14 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module search/search_facets - Facet building utilities for SearchModel */
 
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
 
-import { SPECIAL } from "./search_state";
-import { INTERVAL_OPTIONS } from "./utils/dates";
-import { FACET_COLORS, FACET_ICONS } from "./utils/misc";
+import { SPECIAL } from "./search_state.js";
+import { INTERVAL_OPTIONS } from "./utils/dates.js";
+import { FACET_COLORS, FACET_ICONS } from "./utils/misc.js";
 /**
  * Build the facets array from active query groups.
  *

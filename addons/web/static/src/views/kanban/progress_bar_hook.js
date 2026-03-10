@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/progress_bar_hook - Progress bar state computation, active bar filtering, and per-group aggregate tracking for kanban columns */
 
@@ -205,7 +206,7 @@ class ProgressBarState {
             }
         }
         value ||= 0;
-        if (aggregateField.type === "monetary" && aggregateField.currency_field) {
+        if (aggregateField && aggregateField.type === "monetary" && aggregateField.currency_field) {
             const aggValues = _findGroup(
                 this._aggregateValues,
                 groupByField,

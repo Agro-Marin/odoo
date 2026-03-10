@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dnd/draggable - useDraggable OWL hook for free-form element dragging */
 

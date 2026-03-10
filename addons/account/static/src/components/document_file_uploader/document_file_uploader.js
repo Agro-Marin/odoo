@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { useService } from "@web/core/utils/hooks";
 import { FileUploader } from "@web/fields/file_handler";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";

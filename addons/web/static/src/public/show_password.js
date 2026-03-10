@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/show_password - Interaction that toggles password field visibility via an eye icon button */
 

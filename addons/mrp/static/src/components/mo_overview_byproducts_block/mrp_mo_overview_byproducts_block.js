@@ -1,5 +1,6 @@
-import { MoOverviewOperationsBlock } from "../mo_overview_operations_block/mrp_mo_overview_operations_block";
-import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line";
+/** @odoo-module */
+import { MoOverviewOperationsBlock } from "../mo_overview_operations_block/mrp_mo_overview_operations_block.js";
+import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
 
 export class MoOverviewByproductsBlock extends MoOverviewOperationsBlock {
     static components = {

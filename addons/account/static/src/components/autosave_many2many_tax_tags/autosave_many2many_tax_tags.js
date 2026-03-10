@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import {

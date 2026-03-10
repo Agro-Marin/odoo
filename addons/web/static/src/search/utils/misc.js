@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/utils/misc - Shared constants for search facet icons, colors, and groupable field types */
 

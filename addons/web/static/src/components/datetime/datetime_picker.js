@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/datetime/datetime_picker - Calendar grid date/time picker with range selection and time input */
 
@@ -557,7 +558,7 @@ export class DateTimePicker extends Component {
 
         if (this.props.range) {
             if (result.isSelected) {
-                const [selectStart, selectEnd] = this.selectedRange.sort();
+                const [selectStart, selectEnd] = this.selectedRange.toSorted();
                 result.isSelectStart = !selectStart || isInRange(selectStart, range);
                 result.isSelectEnd = !selectEnd || isInRange(selectEnd, range);
             }
@@ -577,10 +578,10 @@ export class DateTimePicker extends Component {
                 new Time({
                     hour:
                         index === 1 && !this.values[1]
-                            ? (val || DateTime.local()).hour + 1
+                            ? Math.min((val || DateTime.local()).hour + 1, 23)
                             : (val || DateTime.local()).hour,
-                    minute: val?.minute || 0,
-                    second: val?.second || 0,
+                    minute: val?.minute ?? 0,
+                    second: val?.second ?? 0,
                 }),
         );
 

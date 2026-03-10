@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { patch } from "@web/core/utils/patch";
 import { router } from "@web/core/browser/router";
 import { session } from "@web/session";

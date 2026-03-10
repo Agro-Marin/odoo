@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";

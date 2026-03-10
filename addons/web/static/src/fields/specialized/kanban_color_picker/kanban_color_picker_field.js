@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/kanban_color_picker/kanban_color_picker_field - Inline color palette picker for kanban card color selection */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/form/form_status_indicator/form_status_indicator - Save/discard indicator shown when the form record is dirty or invalid */
 
@@ -22,8 +23,12 @@ export class FormStatusIndicator extends Component {
             "FIELD_IS_DIRTY",
             (ev) => (this.state.fieldIsDirty = ev.detail),
         );
+        this.saveButton = useRef("save");
         useEffect(
             () => {
+                if (!this.saveButton.el) {
+                    return;
+                }
                 if (!this.props.model.root.isNew && this.indicatorMode === "invalid") {
                     this.saveButton.el.setAttribute("disabled", "1");
                 } else {
@@ -32,8 +37,6 @@ export class FormStatusIndicator extends Component {
             },
             () => [this.props.model.root.isValid, this.state.fieldIsDirty],
         );
-
-        this.saveButton = useRef("save");
     }
 
     /** @returns {boolean} whether to show save/discard buttons */

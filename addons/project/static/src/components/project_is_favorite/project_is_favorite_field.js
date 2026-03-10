@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { booleanFavoriteField } from "@web/fields/basic/boolean_favorite/boolean_favorite_field";
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/email/email_field - Email input field with mailto link in readonly mode */
 

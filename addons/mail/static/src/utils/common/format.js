@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { htmlEscape, markup } from "@odoo/owl";
 import { loadEmoji, loader } from "@web/components/emoji_picker/emoji_picker";
 import { router } from "@web/core/browser/router";

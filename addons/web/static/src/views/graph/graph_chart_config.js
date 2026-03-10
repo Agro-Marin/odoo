@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/graph/graph_chart_config - Pure chart configuration building extracted from GraphRenderer */
 
@@ -23,7 +24,7 @@ import { registry } from "@web/core/registry";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { formatFloat, formatMonetary } from "@web/fields/formatters";
 
-import { SEP } from "./graph_model";
+import { SEP } from "./graph_model.js";
 
 const NO_DATA = _t("No data");
 const fmtRegistry = registry.category("formatters");

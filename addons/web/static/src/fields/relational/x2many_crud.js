@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/x2many_crud - OWL hook providing CRUD operations (save, update, remove) for x2many fields */
 

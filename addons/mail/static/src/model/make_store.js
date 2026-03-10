@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { markRaw, reactive, toRaw } from "@odoo/owl";
 
 import {
@@ -6,12 +7,12 @@ import {
     isRelation,
     modelRegistry,
     STORE_SYM,
-} from "./misc";
-import { ModelInternal } from "./model_internal";
-import { Record } from "./record";
-import { RecordInternal } from "./record_internal";
-import { Store } from "./store";
-import { StoreInternal } from "./store_internal";
+} from "./misc.js";
+import { ModelInternal } from "./model_internal.js";
+import { Record } from "./record.js";
+import { RecordInternal } from "./record_internal.js";
+import { Store } from "./store.js";
+import { StoreInternal } from "./store_internal.js";
 
 /** @returns {import("models").Store} */
 export function makeStore(env, { localRegistry } = {}) {

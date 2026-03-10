@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/errors/uncaught_errors - Base classes for uncaught errors intercepted by the error service */
 
-import { getErrorTechnicalName } from "./error_utils";
+import { getErrorTechnicalName } from "./error_utils.js";
 
 /**
  * Uncaught Errors have 4 properties:

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/text/text_field - Multi-line textarea input field for Text columns */
 
@@ -13,7 +14,7 @@ import { parseInteger } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
 
-import { TextInputFieldBase } from "../text_input_field_base";
+import { TextInputFieldBase } from "../text_input_field_base.js";
 
 export class TextField extends TextInputFieldBase {
     static template = "web.TextField";

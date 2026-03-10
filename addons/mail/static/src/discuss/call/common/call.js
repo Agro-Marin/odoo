@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ACTION_TAGS } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
 import { BlurPerformanceWarning } from "@mail/discuss/call/common/blur_performance_warning";

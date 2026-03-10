@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/search_panel/search_panel - Sidebar filter panel with category trees and grouped checkbox filters */
 
@@ -281,8 +282,8 @@ export class SearchPanel extends Component {
         for (const { groups, values, icon, color } of filters) {
             let filterValues;
             if (groups) {
-                filterValues = Object.keys(groups)
-                    .map((groupId) => nameOfCheckedValues(groups[groupId].values))
+                filterValues = [...groups.values()]
+                    .map((group) => nameOfCheckedValues(group.values))
                     .flat();
             } else if (values) {
                 filterValues = nameOfCheckedValues(values);
@@ -413,7 +414,11 @@ export class SearchPanel extends Component {
      * headers according to the state of their values.
      */
     updateGroupHeadersChecked() {
-        const groups = document.querySelectorAll(".o_search_panel_filter_group");
+        const container = this.root.el;
+        if (!container) {
+            return;
+        }
+        const groups = container.querySelectorAll(".o_search_panel_filter_group");
         for (const group of groups) {
             const header = /** @type {HTMLInputElement} */ (
                 group.querySelector(":scope .o_search_panel_group_header input")

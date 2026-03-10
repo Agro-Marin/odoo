@@ -111,12 +111,4 @@
         <field name="view_mode">list</field>
     </record>
 
-    <menuitem
-        id="menu_storage_categoty_config"
-        action="action_stock_storage_category"
-        name="Storage Categories"
-        parent="menu_warehouse_config"
-        sequence="6"
-        groups="stock.group_stock_multi_locations" />
-
 </odoo>

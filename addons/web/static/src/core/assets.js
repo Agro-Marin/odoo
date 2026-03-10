@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/assets - Lazy-loads CSS/JS asset bundles into documents with caching */
 
 import { Component, onWillStart, whenReady, xml } from "@odoo/owl";
 import { session } from "@web/session";
 
-import { registry } from "./registry";
+import { registry } from "./registry.js";
 
 /**
  * @typedef {{

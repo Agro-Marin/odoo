@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /**
  * Pivot table layout helpers.
@@ -13,8 +14,8 @@
 
 import { _t } from "@web/core/l10n/translation";
 
-import { getLeafCounts } from "./pivot_group_tree";
-import { getCellCurrency, getCellValue, getMeasuresRow } from "./pivot_measurements";
+import { getLeafCounts } from "./pivot_group_tree.js";
+import { getCellCurrency, getCellValue, getMeasuresRow } from "./pivot_measurements.js";
 
 /**
  * Returns the list of header rows of the pivot table: the col group rows

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dom/ui - DOM visibility, proximity, and tabable-element queries */
 

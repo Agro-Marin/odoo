@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/ast_utils - AST manipulation helpers for boolean wrapping, negation, and path validation */
 
 /** @import { AST } from "@web/core/py_js/py_parser" */
 
-import { COMPARATORS, TERM_OPERATORS_NEGATION_EXTENDED } from "./operators";
+import { COMPARATORS, TERM_OPERATORS_NEGATION_EXTENDED } from "./operators.js";
 
 /**
  * @param {AST} ast

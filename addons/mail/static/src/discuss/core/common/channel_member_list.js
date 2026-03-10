@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ImStatus } from "@mail/core/common/im_status";
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";

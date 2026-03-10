@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { patch } from "@web/core/utils/patch";
 patch(ActionPanel.prototype, {

@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { KanbanRenderer } from '@web/views/kanban/kanban_renderer';
 import { ProjectTaskKanbanRecord } from './project_task_kanban_record.js';
 import { ProjectTaskKanbanHeader } from './project_task_kanban_header.js';

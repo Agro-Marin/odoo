@@ -1,15 +1,16 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/graph/graph_view - Graph view descriptor registered in the view registry */
 
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 
-import { GraphArchParser } from "./graph_arch_parser";
-import { GraphController } from "./graph_controller";
-import { GraphModel } from "./graph_model";
-import { GraphRenderer } from "./graph_renderer";
-import { GraphSearchModel } from "./graph_search_model";
+import { GraphArchParser } from "./graph_arch_parser.js";
+import { GraphController } from "./graph_controller.js";
+import { GraphModel } from "./graph_model.js";
+import { GraphRenderer } from "./graph_renderer.js";
+import { GraphSearchModel } from "./graph_search_model.js";
 const viewRegistry = registry.category("views");
 
 /**

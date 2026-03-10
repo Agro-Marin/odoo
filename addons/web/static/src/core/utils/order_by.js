@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/order_by - Converts between OrderTerm arrays and SQL-like "field ASC/DESC" strings */
 

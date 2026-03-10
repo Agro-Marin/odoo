@@ -1,9 +1,10 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/py_js/py_utils - AST-to-value conversion and AST-to-string formatting for Python expressions */
 
-import { PyDate, PyDateTime } from "./py_date";
-import { bp } from "./py_parser";
+import { PyDate, PyDateTime } from "./py_date.js";
+import { bp } from "./py_parser.js";
 
 // -----------------------------------------------------------------------------
 // Types

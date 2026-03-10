@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_aggregates - Hook computing column aggregates and multi-currency popovers for the list view */
 
-/** @odoo-module **/
+/** @odoo-module */
 
 import { onWillStart, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
@@ -130,7 +131,7 @@ export function useListAggregates({
                 }, new Set());
             }
             return values.reduce(
-                (set, value) => set.add(value[currencyField]?.id),
+                (set, value) => set.add(value[currencyField]?.id || false),
                 new Set(),
             );
         },
@@ -197,19 +198,21 @@ export function useListAggregates({
                             if (currencies.size > 1) {
                                 multiCurrency = true;
                                 currencyId = user.activeCompany.currency_id;
-                                for (const i in values) {
-                                    let currency = values[i][currencyField].id;
+                                for (let i = 0; i < values.length; i++) {
+                                    let currency = values[i][currencyField]?.id;
                                     if (
                                         /** @type {any} */ (list).isGrouped &&
                                         !list.selection.length
                                     ) {
                                         currency =
-                                            values[i][currencyField].length > 1
+                                            values[i][currencyField]?.length > 1
                                                 ? currencyId
-                                                : values[i][currencyField][0];
+                                                : values[i][currencyField]?.[0];
                                     }
                                     if (currency !== currencyId) {
-                                        fieldValues[i] *= state.currencyRates[currency];
+                                        fieldValues[i] *= currency
+                                            ? state.currencyRates[currency].rate
+                                            : 1;
                                     }
                                 }
                             }

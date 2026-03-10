@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";

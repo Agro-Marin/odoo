@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Record } from "@mail/model/record";
 
 export class MailMessageSubtype extends Record {

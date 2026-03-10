@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2one_avatar/kanban_many2one_avatar_field - Kanban-view Many2one field displaying an avatar image */
 

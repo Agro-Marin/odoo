@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { CONNECTION_TYPES } from "@mail/discuss/call/common/rtc_service";
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

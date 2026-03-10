@@ -80,7 +80,7 @@ kbd {
  &:before {
  @include o-position-absolute(0);
  transform: translate(-1.5em, 90%);
- font: 900 .7em/1em "Font Awesome 7 Pro";
+ font: 900 .7em/1em "Font Awesome 7 Free";
  color: $link-color;
  content: "\f00c";
  }
@@ -98,7 +98,7 @@ kbd {
  &::after {
  @include o-position-absolute(0, $left: 90%);
  transform: translate(0, 90%);
- font: 900 .7em/1em "Font Awesome 7 Pro";
+ font: 900 .7em/1em "Font Awesome 7 Free";
  color: $link-color;
  display: inline-block;
  content: "\f00c";

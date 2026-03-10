@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/display/statusbar/statusbar_field - Horizontal pipeline status bar for Selection and Many2one columns */
 

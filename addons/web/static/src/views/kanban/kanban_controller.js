@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/kanban_controller - Controller for the kanban view with grouping, quick-create, and progress bar support */
 
@@ -21,9 +22,9 @@ import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
 import { SelectionBox } from "@web/views/view_components/selection_box";
 
-import { KanbanCogMenu } from "./kanban_cog_menu";
-import { KanbanRenderer } from "./kanban_renderer";
-import { useProgressBar } from "./progress_bar_hook";
+import { KanbanCogMenu } from "./kanban_cog_menu.js";
+import { KanbanRenderer } from "./kanban_renderer.js";
+import { useProgressBar } from "./progress_bar_hook.js";
 
 const QUICK_CREATE_FIELD_TYPES = [
     "char",
@@ -193,17 +194,21 @@ export class KanbanController extends MultiRecordController {
                         const { scrollPositions } = this.props.state || {};
                         if (scrollPositions) {
                             const { scrollLeft, columnScrollTops } = scrollPositions;
-                            this.rootRef.el.querySelector(".o_renderer").scrollLeft =
-                                scrollLeft;
+                            const renderer = this.rootRef.el?.querySelector(".o_renderer");
+                            if (renderer) {
+                                renderer.scrollLeft = scrollLeft;
+                            }
                             const groups = this.model.root.groups;
                             for (const [serverValue, scrollTop] of columnScrollTops) {
                                 const group = groups.find(
                                     (g) => g.serverValue === serverValue,
                                 );
                                 if (group) {
-                                    const sel = `.o_kanban_group[data-id=${group.id}]`;
-                                    this.rootRef.el.querySelector(sel).scrollTop =
-                                        scrollTop;
+                                    const sel = `.o_kanban_group[data-id="${group.id}"]`;
+                                    const el = this.rootRef.el?.querySelector(sel);
+                                    if (el) {
+                                        el.scrollTop = scrollTop;
+                                    }
                                 }
                             }
                         }

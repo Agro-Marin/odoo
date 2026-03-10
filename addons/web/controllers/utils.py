@@ -1,5 +1,7 @@
 import collections
 import logging
+from collections.abc import Iterator  # noqa: TC003 — runtime import required (PEP 649)
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import babel.messages.pofile
@@ -14,7 +16,7 @@ from odoo.tools.translate import JAVASCRIPT_TRANSLATION_COMMENT
 _logger = logging.getLogger(__name__)
 
 
-def _is_local_url(url):
+def _is_local_url(url: str | None) -> bool:
     """Return True if *url* is a safe local redirect target.
 
     Rejects absolute URLs, protocol-relative URLs, and empty strings
@@ -29,7 +31,7 @@ def _is_local_url(url):
     return not parsed.scheme and not parsed.netloc
 
 
-def clean_action(action, env):
+def clean_action(action: dict, env: Any) -> dict:
     action_type = action.setdefault("type", "ir.actions.act_window_close")
     if action_type == "ir.actions.act_window" and not action.get("views"):
         generate_views(action)
@@ -59,14 +61,19 @@ def clean_action(action, env):
     return cleaned_action
 
 
-def ensure_db(redirect="/web/database/selector", db=None):
-    # This helper should be used in web client auth="none" routes
-    # if those routes needs a db to work with.
-    # If the heuristics does not find any database, then the users will be
-    # redirected to db selector or any url specified by `redirect` argument.
-    # If the db is taken out of a query parameter, it will be checked against
-    # `http.db_filter()` in order to ensure it's legit and thus avoid db
-    # forgering that could lead to xss attacks.
+def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -> None:
+    """Ensure a valid database is selected for the current request.
+
+    Used in ``auth="none"`` routes that still need a database.  Applies
+    heuristics in order: explicit ``db`` param > session > monodb.
+    Redirects to *redirect* (default: database selector) when no database
+    can be resolved.  Validates against ``http.db_filter()`` to prevent
+    database forgery / XSS.
+
+    :param redirect: URL to redirect to when no database is found
+    :param db: explicit database name to use (skips heuristics)
+    :raises werkzeug.exceptions.HTTPException: redirect when no db resolved
+    """
     if db is None:
         db = (raw_db := request.params.get("db")) and raw_db.strip()
 
@@ -84,7 +91,7 @@ def ensure_db(redirect="/web/database/selector", db=None):
         r = request.httprequest
         url_redirect = urlsplit(r.base_url)
         if r.query_string:
-            # in P3, request.query_string is bytes, the rest is text, can't mix them
+            # query_string is bytes, the rest is text — decode before joining
             query_string = iri_to_uri(r.query_string.decode())
             url_redirect = url_redirect._replace(query=query_string)
         request.session.db = db
@@ -113,8 +120,7 @@ def ensure_db(redirect="/web/database/selector", db=None):
         werkzeug.exceptions.abort(request.redirect(request.httprequest.url, 302))
 
 
-# I think generate_views should go into js ActionManager
-def generate_views(action):
+def generate_views(action: dict) -> None:
     """
     While the server generates a sequence called "views" computing dependencies
     between a bunch of stuff for views coming directly from the database
@@ -153,17 +159,15 @@ def generate_views(action):
     action["views"] = [(view_id, view_modes[0])]
 
 
-def get_action(env, path_part):
-    """
-    Get a ir.actions.actions() given an action typically found in a
-    "/odoo"-like url.
+def get_action(env: Any, path_part: str) -> Any:
+    """Resolve an action from a URL path segment.
 
-    The action can take one of the following forms:
-    * "action-" followed by a record id
-    * "action-" followed by a xmlid
-    * "m-" followed by a model name (act_window's res_model)
-    * a dotted model name (act_window's res_model)
-    * a path (ir.action's path)
+    Accepted formats:
+    * ``action-<id>`` — record id
+    * ``action-<xmlid>`` — XML id
+    * ``m-<model>`` — model name (act_window's res_model)
+    * ``<dotted.model>`` — model name
+    * ``<path>`` — ir.actions path
     """
     Actions = env["ir.actions.actions"]
 
@@ -201,7 +205,7 @@ def get_action(env, path_part):
     return action
 
 
-def get_action_triples(env, path, *, start_pos=0):
+def get_action_triples(env: Any, path: str, *, start_pos: int = 0) -> Iterator[tuple[int | None, Any, int | None]]:
     """
     Extract the triples (active_id, action, record_id) from a "/odoo"-like path.
 
@@ -242,9 +246,9 @@ def get_action_triples(env, path, *, start_pos=0):
             active_id = record_id
 
 
-def _get_login_redirect_url(uid, redirect=None):
+def _get_login_redirect_url(uid: int, redirect: str | None = None) -> str:
     """Decide if user requires a specific post-login redirect, e.g. for 2FA, or if they are
-    fully logged and can proceed to the requested URL
+    fully logged and can proceed to the requested URL.
     """
     if request.session.uid:  # fully logged
         if redirect and _is_local_url(redirect):
@@ -266,11 +270,13 @@ def _get_login_redirect_url(uid, redirect=None):
     return urlunsplit(parsed._replace(query=urlencode(qs)))
 
 
-def is_user_internal(uid):
+def is_user_internal(uid: int) -> bool:
+    """Check if a user is an internal (employee) user."""
     return request.env["res.users"].browse(uid)._is_internal()
 
 
-def _local_web_translations(trans_file):
+def _local_web_translations(trans_file: str) -> list[dict[str, str]] | None:
+    """Parse a .po file and extract JavaScript translation entries."""
     try:
         with file_open(trans_file, filter_ext=(".po")) as t_file:
             po = babel.messages.pofile.read_po(t_file)

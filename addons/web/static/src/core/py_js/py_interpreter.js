@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/py_js/py_interpreter - AST-walking interpreter for Python expressions used in domains and QWeb */
 
-import { BUILTINS, EvaluationError, execOnIterable } from "./py_builtin";
+import { BUILTINS, EvaluationError, execOnIterable } from "./py_builtin.js";
 import {
     NotSupportedError,
     PyDate,
@@ -10,9 +11,9 @@ import {
     PyRelativeDelta,
     PyTime,
     PyTimeDelta,
-} from "./py_date";
-import { parseArgs } from "./py_parser";
-import { PY_DICT, toPyDict } from "./py_utils";
+} from "./py_date.js";
+import { parseArgs } from "./py_parser.js";
+import { PY_DICT, toPyDict } from "./py_utils.js";
 
 // -----------------------------------------------------------------------------
 // Types
@@ -26,32 +27,27 @@ import { PY_DICT, toPyDict } from "./py_utils";
 // Constants and helpers
 // -----------------------------------------------------------------------------
 
-const isTrue = BUILTINS.bool;
+// Lazy-initialized on first call to evaluate() — avoids TDZ when
+// py_builtin.js hasn't finished executing yet (native ESM circular import).
+let isTrue;
 
-/**
- * @param {import("./py_parser").ASTUnaryOperator} ast
- * @param {Object} context
- * @returns {any}
- */
-function applyUnaryOp(ast, context) {
-    const value = evaluate(ast.right, context);
-    switch (ast.op) {
-        case "-":
-            if (value instanceof Object && value.negate) {
-                return value.negate();
-            }
-            return -value;
-        case "+":
-            return value;
-        case "not":
-            return !isTrue(value);
-    }
-    throw new EvaluationError(`Unknown unary operator: ${ast.op}`);
-}
+/** Properties that must never be accessed via bracket or dot notation in expressions. */
+const BLOCKED_PROPERTIES = new Set([
+    "constructor",
+    "__proto__",
+    "prototype",
+    "__defineGetter__",
+    "__defineSetter__",
+    "__lookupGetter__",
+    "__lookupSetter__",
+]);
+
+/** Maximum AST evaluation depth to prevent stack overflow from crafted expressions. */
+const MAX_EVAL_DEPTH = 100;
 
 /**
  * We want to maintain this order:
- *   None < number (boolean) < dict < string < list < dict
+ *   None < number (boolean) < dict < string < list
  * So, each type is mapped to a number to represent that order
  *
  * @param {any} val
@@ -141,124 +137,19 @@ function isIn(left, right) {
     if (typeof right === "string" && typeof left === "string") {
         return right.includes(left);
     }
-    if (typeof right === "object") {
-        return left in right;
+    if (right instanceof Set) {
+        return right.has(left);
+    }
+    if (right != null && typeof right === "object") {
+        return Object.hasOwn(right, left);
     }
     return false;
-}
-
-/**
- * @param {import("./py_parser").ASTBinaryOperator} ast
- * @param {object} context
- * @returns {any}
- */
-function applyBinaryOp(ast, context) {
-    const left = evaluate(ast.left, context);
-    const right = evaluate(ast.right, context);
-    switch (ast.op) {
-        case "+": {
-            const relativeDeltaOnLeft = left instanceof PyRelativeDelta;
-            const relativeDeltaOnRight = right instanceof PyRelativeDelta;
-            if (relativeDeltaOnLeft || relativeDeltaOnRight) {
-                const date = relativeDeltaOnLeft ? right : left;
-                const delta = relativeDeltaOnLeft ? left : right;
-                return PyRelativeDelta.add(date, delta);
-            }
-
-            const timeDeltaOnLeft = left instanceof PyTimeDelta;
-            const timeDeltaOnRight = right instanceof PyTimeDelta;
-            if (timeDeltaOnLeft && timeDeltaOnRight) {
-                return left.add(right);
-            }
-            if (timeDeltaOnLeft) {
-                if (right instanceof PyDate || right instanceof PyDateTime) {
-                    return right.add(left);
-                } else {
-                    throw new NotSupportedError();
-                }
-            }
-            if (timeDeltaOnRight) {
-                if (left instanceof PyDate || left instanceof PyDateTime) {
-                    return left.add(right);
-                } else {
-                    throw new NotSupportedError();
-                }
-            }
-            if (Array.isArray(left) && Array.isArray(right)) {
-                return [...left, ...right];
-            }
-
-            return left + right;
-        }
-        case "-": {
-            const isRightDelta = right instanceof PyRelativeDelta;
-            if (isRightDelta) {
-                return PyRelativeDelta.substract(left, right);
-            }
-
-            const timeDeltaOnRight = right instanceof PyTimeDelta;
-            if (timeDeltaOnRight) {
-                if (left instanceof PyTimeDelta) {
-                    return left.substract(right);
-                } else if (left instanceof PyDate || left instanceof PyDateTime) {
-                    return left.substract(right);
-                } else {
-                    throw new NotSupportedError();
-                }
-            }
-
-            if (left instanceof PyDate) {
-                return left.substract(right);
-            }
-            return left - right;
-        }
-        case "*": {
-            const timeDeltaOnLeft = left instanceof PyTimeDelta;
-            const timeDeltaOnRight = right instanceof PyTimeDelta;
-            if (timeDeltaOnLeft || timeDeltaOnRight) {
-                const number = timeDeltaOnLeft ? right : left;
-                const delta = timeDeltaOnLeft ? left : right;
-                return delta.multiply(number); // check number type?
-            }
-
-            return left * right;
-        }
-        case "/":
-            return left / right;
-        case "%":
-            return ((left % right) + right) % right;
-        case "//":
-            if (left instanceof PyTimeDelta) {
-                return left.divide(right); // check number type?
-            }
-            return Math.floor(left / right);
-        case "**":
-            return left ** right;
-        case "==":
-            return isEqual(left, right);
-        case "<>":
-        case "!=":
-            return !isEqual(left, right);
-        case "<":
-            return isLess(left, right);
-        case ">":
-            return isLess(right, left);
-        case ">=":
-            return isEqual(left, right) || isLess(right, left);
-        case "<=":
-            return isEqual(left, right) || isLess(left, right);
-        case "in":
-            return isIn(left, right);
-        case "not in":
-            return !isIn(left, right);
-    }
-    throw new EvaluationError(`Unknown binary operator: ${ast.op}`);
 }
 
 const DICT = {
     get(...args) {
         const { key, defValue } = parseArgs(args, ["key", "defValue"]);
-        if (key in this) {
+        if (Object.hasOwn(this, key)) {
             return this[key];
         } else if (defValue !== undefined) {
             return defValue;
@@ -351,22 +242,9 @@ function methods(_class) {
     );
 }
 
-const allowedFns = new Set([
-    BUILTINS.time.strftime,
-    BUILTINS.set,
-    BUILTINS.bool,
-    BUILTINS.min,
-    BUILTINS.max,
-    BUILTINS.context_today,
-    BUILTINS.datetime.datetime.now,
-    BUILTINS.datetime.datetime.combine,
-    BUILTINS.datetime.date.today,
-    ...methods(BUILTINS.relativedelta),
-    ...Object.values(BUILTINS.datetime).flatMap((obj) => methods(obj)),
-    ...Object.values(SET),
-    ...Object.values(DICT),
-    ...Object.values(STRING),
-]);
+// Lazy-initialized on first call to evaluate() — avoids TDZ when
+// py_builtin.js hasn't finished executing yet (native ESM circular import).
+let allowedFns;
 
 const unboundFn = Symbol("unbound function");
 
@@ -376,10 +254,37 @@ const unboundFn = Symbol("unbound function");
  * @returns {any}
  */
 export function evaluate(ast, context = {}) {
+    // Lazy-init on first call (after all modules have settled)
+    if (!isTrue) {
+        isTrue = BUILTINS.bool;
+        allowedFns = new Set([
+            BUILTINS.time.strftime,
+            BUILTINS.set,
+            BUILTINS.bool,
+            BUILTINS.min,
+            BUILTINS.max,
+            BUILTINS.len,
+            BUILTINS.abs,
+            BUILTINS.int,
+            BUILTINS.float,
+            BUILTINS.str,
+            BUILTINS.round,
+            BUILTINS.context_today,
+            BUILTINS.datetime.datetime.now,
+            BUILTINS.datetime.datetime.combine,
+            BUILTINS.datetime.date.today,
+            ...methods(BUILTINS.relativedelta),
+            ...Object.values(BUILTINS.datetime).flatMap((obj) => methods(obj)),
+            ...Object.values(SET),
+            ...Object.values(DICT),
+            ...Object.values(STRING),
+        ]);
+    }
     const dicts = new Set();
     let pyContext;
-    const evalContext = Object.create(context);
-    if (!evalContext.context) {
+    let evalDepth = 0;
+    const evalContext = Object.assign(Object.create(null), context);
+    if (!("context" in evalContext)) {
         Object.defineProperty(evalContext, "context", {
             get() {
                 if (!pyContext) {
@@ -390,7 +295,163 @@ export function evaluate(ast, context = {}) {
         });
     }
 
+    /**
+     * Apply a unary operator within the current evaluation scope.
+     * Defined here (instead of module-level) to reuse _evaluate and dicts.
+     */
+    function _applyUnaryOp(ast) {
+        const value = _evaluate(ast.right);
+        switch (ast.op) {
+            case "-":
+                if (value instanceof Object && value.negate) {
+                    return value.negate();
+                }
+                return -value;
+            case "+":
+                return value;
+            case "not":
+                return !isTrue(value);
+            case "~":
+                return ~value;
+        }
+        throw new EvaluationError(`Unknown unary operator: ${ast.op}`);
+    }
+
+    /**
+     * Apply a binary operator within the current evaluation scope.
+     * Defined here (instead of module-level) to reuse _evaluate and dicts.
+     */
+    function _applyBinaryOp(ast) {
+        const left = _evaluate(ast.left);
+        const right = _evaluate(ast.right);
+        switch (ast.op) {
+            case "+": {
+                const relativeDeltaOnLeft = left instanceof PyRelativeDelta;
+                const relativeDeltaOnRight = right instanceof PyRelativeDelta;
+                if (relativeDeltaOnLeft || relativeDeltaOnRight) {
+                    const date = relativeDeltaOnLeft ? right : left;
+                    const delta = relativeDeltaOnLeft ? left : right;
+                    return PyRelativeDelta.add(date, delta);
+                }
+
+                const timeDeltaOnLeft = left instanceof PyTimeDelta;
+                const timeDeltaOnRight = right instanceof PyTimeDelta;
+                if (timeDeltaOnLeft && timeDeltaOnRight) {
+                    return left.add(right);
+                }
+                if (timeDeltaOnLeft) {
+                    if (right instanceof PyDate || right instanceof PyDateTime) {
+                        return right.add(left);
+                    } else {
+                        throw new NotSupportedError();
+                    }
+                }
+                if (timeDeltaOnRight) {
+                    if (left instanceof PyDate || left instanceof PyDateTime) {
+                        return left.add(right);
+                    } else {
+                        throw new NotSupportedError();
+                    }
+                }
+                if (Array.isArray(left) && Array.isArray(right)) {
+                    return [...left, ...right];
+                }
+
+                return left + right;
+            }
+            case "-": {
+                const isRightDelta = right instanceof PyRelativeDelta;
+                if (isRightDelta) {
+                    return PyRelativeDelta.subtract(left, right);
+                }
+
+                const timeDeltaOnRight = right instanceof PyTimeDelta;
+                if (timeDeltaOnRight) {
+                    if (left instanceof PyTimeDelta) {
+                        return left.subtract(right);
+                    } else if (left instanceof PyDate || left instanceof PyDateTime) {
+                        return left.subtract(right);
+                    } else {
+                        throw new NotSupportedError();
+                    }
+                }
+
+                if (left instanceof PyDate || left instanceof PyDateTime) {
+                    return left.subtract(right);
+                }
+                return left - right;
+            }
+            case "*": {
+                const timeDeltaOnLeft = left instanceof PyTimeDelta;
+                const timeDeltaOnRight = right instanceof PyTimeDelta;
+                if (timeDeltaOnLeft || timeDeltaOnRight) {
+                    const number = timeDeltaOnLeft ? right : left;
+                    const delta = timeDeltaOnLeft ? left : right;
+                    return delta.multiply(number);
+                }
+
+                return left * right;
+            }
+            case "/":
+                if (right === 0) {
+                    throw new EvaluationError("ZeroDivisionError: division by zero");
+                }
+                return left / right;
+            case "%":
+                if (right === 0) {
+                    throw new EvaluationError("ZeroDivisionError: modulo by zero");
+                }
+                return ((left % right) + right) % right;
+            case "//":
+                if (left instanceof PyTimeDelta) {
+                    return left.divide(right);
+                }
+                if (right === 0) {
+                    throw new EvaluationError("ZeroDivisionError: floor division by zero");
+                }
+                return Math.floor(left / right);
+            case "**":
+                return left ** right;
+            case "==":
+                return isEqual(left, right);
+            case "<>":
+            case "!=":
+                return !isEqual(left, right);
+            case "<":
+                return isLess(left, right);
+            case ">":
+                return isLess(right, left);
+            case ">=":
+                return isEqual(left, right) || isLess(right, left);
+            case "<=":
+                return isEqual(left, right) || isLess(left, right);
+            case "in":
+                return isIn(left, right);
+            case "not in":
+                return !isIn(left, right);
+            case "is":
+                return left === null ? right === null : left === right;
+            case "is not":
+                return left === null ? right !== null : left !== right;
+            case "|":
+                return left | right;
+            case "^":
+                return left ^ right;
+            case "&":
+                return left & right;
+            case "<<":
+                return left << right;
+            case ">>":
+                return left >> right;
+        }
+        throw new EvaluationError(`Unknown binary operator: ${ast.op}`);
+    }
+
     function _innerEvaluate(ast) {
+        if (++evalDepth > MAX_EVAL_DEPTH) {
+            throw new EvaluationError("Maximum expression depth exceeded");
+        }
+        try {
         switch (ast.type) {
             case 0 /* Number */:
             case 1 /* String */:
@@ -408,9 +469,9 @@ export function evaluate(ast, context = {}) {
             case 2 /* Boolean */:
                 return ast.value;
             case 6 /* UnaryOperator */:
-                return applyUnaryOp(ast, evalContext);
+                return _applyUnaryOp(ast);
             case 7 /* BinaryOperator */:
-                return applyBinaryOp(ast, evalContext);
+                return _applyBinaryOp(ast);
             case 14 /* BooleanOperator */: {
                 const left = _evaluate(ast.left);
                 if (ast.op === "and") {
@@ -451,6 +512,9 @@ export function evaluate(ast, context = {}) {
             case 12 /* Lookup */: {
                 const dict = _evaluate(ast.target);
                 const key = _evaluate(ast.key);
+                if (BLOCKED_PROPERTIES.has(key)) {
+                    throw new EvaluationError(`Access to '${key}' is forbidden`);
+                }
                 return dict[key];
             }
             case 13 /* If */: {
@@ -474,6 +538,9 @@ export function evaluate(ast, context = {}) {
                     result = DICT[ast.key];
                     left = toPyDict(left);
                 } else {
+                    if (BLOCKED_PROPERTIES.has(ast.key)) {
+                        throw new EvaluationError(`Access to '${ast.key}' is forbidden`);
+                    }
                     result = left[ast.key];
                 }
                 if (typeof result === "function") {
@@ -487,6 +554,9 @@ export function evaluate(ast, context = {}) {
             }
         }
         throw new EvaluationError(`AST of type ${ast.type} cannot be evaluated`);
+        } finally {
+            evalDepth--;
+        }
     }
 
     /**

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/phone/phone_field - Phone number input field with tel: link in readonly mode */
 

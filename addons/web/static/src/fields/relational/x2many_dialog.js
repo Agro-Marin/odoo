@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/x2many_dialog - Form dialog component for creating and editing x2many inline records */
 
@@ -359,7 +360,7 @@ export function useOpenX2ManyRecord({
     }
 
     let recordIsOpen = false;
-    return (params) => {
+    return async (params) => {
         if (recordIsOpen) {
             return;
         }
@@ -377,7 +378,7 @@ export function useOpenX2ManyRecord({
         };
 
         try {
-            return openRecord(params);
+            return await openRecord(params);
         } catch (e) {
             recordIsOpen = false;
             throw e;

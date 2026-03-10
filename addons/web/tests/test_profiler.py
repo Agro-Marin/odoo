@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from odoo.libs.json import dumps as json_dumps
@@ -52,7 +52,7 @@ class TestProfilingWeb(ProfilingHttpCase):
         )
 
         # Enable profiling and start blank profiling
-        expiration = datetime.now(UTC) + timedelta(seconds=50)
+        expiration = datetime.now() + timedelta(seconds=50)
         self.env["ir.config_parameter"].set_param(
             "base.profiling_enabled_until", expiration
         )
@@ -91,7 +91,7 @@ class TestProfilingWeb(ProfilingHttpCase):
 @tagged("post_install", "-at_install", "profiling", "web_http", "web_profiler")
 class TestProfilingModes(ProfilingHttpCase):
     def test_profile_collectors(self):
-        expiration = datetime.now(UTC) + timedelta(seconds=50)
+        expiration = datetime.now() + timedelta(seconds=50)
         self.env["ir.config_parameter"].set_param(
             "base.profiling_enabled_until", expiration
         )
@@ -129,7 +129,7 @@ class TestProfilingPublic(ProfilingHttpCase):
             "error: Profiling is not enabled on this database. Please contact an administrator.",
         )
 
-        expiration = datetime.now(UTC) + timedelta(seconds=50)
+        expiration = datetime.now() + timedelta(seconds=50)
         self.env["ir.config_parameter"].set_param(
             "base.profiling_enabled_until", expiration
         )

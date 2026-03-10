@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/temporal/remaining_days/remaining_days_field - Deadline countdown field showing remaining days with color-coded urgency */
 

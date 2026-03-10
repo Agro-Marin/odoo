@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/widgets/demo_data_service - Service that checks whether demo data is active in the current database */
 

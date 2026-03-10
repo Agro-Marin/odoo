@@ -22,7 +22,7 @@ class WebManifest(http.Controller):
         except AccessError:
             return []
         menu_roots = request.env["ir.ui.menu"].get_user_roots()
-        datas = (
+        menu_data_records = (
             request.env["ir.model.data"]
             .sudo()
             .search(
@@ -35,12 +35,12 @@ class WebManifest(http.Controller):
         )
         shortcuts = []
         for module in module_ids:
-            data = datas.filtered(lambda res, m=module: res.module == m.name)
+            data = menu_data_records.filtered(lambda res, m=module: res.module == m.name)
             if data:
                 shortcuts.append(
                     {
                         "name": module.display_name,
-                        "url": f"/odoo?menu_id={data.mapped('res_id')[0]}",
+                        "url": f"/odoo?menu_id={data[0].res_id}",
                         "description": module.summary,
                         "icons": [
                             {
@@ -238,9 +238,10 @@ class WebManifest(http.Controller):
     def _get_scoped_app_icons(self, app_id: str) -> list[dict[str, str]]:
         try:
             file_path(f"{app_id}/static/description/icon.svg")
-            src = f"{app_id}/static/description/icon.svg"
         except FileNotFoundError:
             src = self._icon_path()
+        else:
+            src = f"{app_id}/static/description/icon.svg"
         return [
             {
                 "src": f"/{src}",

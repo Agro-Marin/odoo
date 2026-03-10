@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/collections/arrays - Array helpers: groupBy, sortBy, unique, intersection, cartesian, zip */
 
-import { shallowEqual as _shallowEqual } from "./objects";
+import { shallowEqual as _shallowEqual } from "./objects.js";
 
 /**
  * @template T
@@ -277,5 +278,8 @@ export function slidingWindow(arr, width) {
  * @returns {number}
  */
 export function rotate(i, arr, inc = 1) {
+    if (!arr.length) {
+        throw new Error("Cannot rotate on an empty array");
+    }
     return (arr.length + i + inc) % arr.length;
 }

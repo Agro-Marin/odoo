@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Component, onMounted, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
 export class AutoresizeInput extends Component {

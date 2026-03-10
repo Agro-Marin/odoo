@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/hooks/full_calendar_hook - Hook managing FullCalendar instance lifecycle (load, render, refresh, destroy) */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/boolean_toggle/boolean_toggle_field - Toggle switch field widget for Boolean columns */
 

@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { GraphRenderer } from "@web/views/graph/graph_renderer";
 import { ProjectTaskAnalysisRendererMixin } from "../project_task_analysis_renderer_mixin.js";
 

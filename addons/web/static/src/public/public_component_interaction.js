@@ -1,10 +1,11 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/public_component_interaction - Interaction that mounts OWL components declared via owl-component HTML elements */
 
 import { registry } from "@web/core/registry";
 
-import { Interaction } from "./interaction";
+import { Interaction } from "./interaction.js";
 export class PublicComponentInteraction extends Interaction {
     static selector = "owl-component[name]";
 

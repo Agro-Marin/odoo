@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/properties/property_text - Auto-resizing textarea component for property text values */
 

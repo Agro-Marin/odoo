@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";
 import { WelcomePage } from "@mail/discuss/core/public/welcome_page";
 import { browser } from "@web/core/browser/browser";

@@ -179,8 +179,11 @@ class TestReports(odoo.tests.HttpCase):
         ):
             mock_request.session = self.authenticate(admin.login, admin.login)
 
-            # Simulate a WeasyPrint rendering failure
-            mock_weasyprint.return_value.write_pdf.side_effect = Exception(
+            # Simulate a WeasyPrint rendering failure.
+            # The refactored code calls HTML().render().write_pdf(), so
+            # the render() call is where _render_body catches and wraps
+            # exceptions as UserError.
+            mock_weasyprint.return_value.render.side_effect = Exception(
                 "rendering failed"
             )
 

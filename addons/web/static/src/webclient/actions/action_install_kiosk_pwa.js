@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/action_install_kiosk_pwa - Client action dialog displaying a kiosk PWA installation URL */
 
@@ -6,7 +7,7 @@ import { Component, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
-import { standardActionServiceProps } from "./action_service";
+import { standardActionServiceProps } from "./action_service.js";
 /**
  * Client action to use in a dialog to display the URL of a Kiosk, containing a
  * link to Install the corresponding PWA

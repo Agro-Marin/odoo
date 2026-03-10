@@ -1,8 +1,9 @@
+/** @odoo-module */
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-import { discussComponentRegistry } from "./discuss_component_registry";
+import { discussComponentRegistry } from "./discuss_component_registry.js";
 
 export class MessageConfirmDialog extends Component {
     static components = { Dialog };

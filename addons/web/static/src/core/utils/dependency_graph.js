@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dependency_graph - Iterative DFS cycle detection for directed dependency graphs */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field - Chart.js graph field for accounting journal dashboard data */
 
@@ -22,7 +23,7 @@ export class JournalDashboardGraphField extends Component {
     setup() {
         this.chart = null;
         this.canvasRef = useRef("canvas");
-        this.data = JSON.parse(this.props.record.data[this.props.name]);
+        this.data = JSON.parse(this.props.record.data[this.props.name] || "[]");
 
         onWillStart(async () => await loadBundle("web.chartjs_lib"));
 
@@ -43,6 +44,9 @@ export class JournalDashboardGraphField extends Component {
     renderChart() {
         if (this.chart) {
             this.chart.destroy();
+        }
+        if (!this.data.length) {
+            return;
         }
         let config;
         if (this.props.graphType === "line") {

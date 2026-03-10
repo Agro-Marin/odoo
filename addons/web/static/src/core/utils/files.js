@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/files - File size validation and upload hook for multipart form submissions */
 
@@ -48,9 +49,14 @@ export function useFileUploader() {
      * @param {Object} params
      */
     return async (route, params) => {
-        if ((params.ufile && params.ufile.length) || params.file) {
-            const fileSize = (params.ufile && params.ufile[0].size) || params.file.size;
-            if (!checkFileSize(fileSize, notification)) {
+        if (params.ufile && params.ufile.length) {
+            for (const file of params.ufile) {
+                if (!checkFileSize(file.size, notification)) {
+                    return null;
+                }
+            }
+        } else if (params.file) {
+            if (!checkFileSize(params.file.size, notification)) {
                 return null;
             }
         }
@@ -78,7 +84,9 @@ export function resizeBlobImg(blob, params = {}) {
     };
     return new Promise((resolve, reject) => {
         const img = new Image();
+        const objectUrl = URL.createObjectURL(blob);
         img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
             if (width < img.width || height < img.height) {
                 const canvas = document.createElement("canvas");
                 canvas.width = width;
@@ -118,8 +126,9 @@ export function resizeBlobImg(blob, params = {}) {
             }
         };
         img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
             reject(new Error(_t("The resizing of the image failed")));
         };
-        img.src = URL.createObjectURL(blob);
+        img.src = objectUrl;
     });
 }

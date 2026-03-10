@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
@@ -15,7 +16,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
-import { DiscussContent } from "./discuss_content";
+import { DiscussContent } from "./discuss_content.js";
 
 export class MessagingMenu extends Component {
     static components = {

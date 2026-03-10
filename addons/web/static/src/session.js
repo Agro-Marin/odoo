@@ -1,3 +1,4 @@
+/** @odoo-module */
 /** @module @web/session - Server-provided session data injected by the Odoo HTTP controller */
 
 /** @type {Record<string, any>} */

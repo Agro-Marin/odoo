@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/temporal/datetime/datetime_field - Date and datetime field widget with inline editing and picker integration */
 

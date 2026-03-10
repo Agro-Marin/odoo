@@ -93,8 +93,15 @@ class RecordSnapshot(dict):
             self_value = self[field_name]
             other_value = {} if force else other.get(field_name) or {}
             if other_value:
-                # other may be a snapshot for a real record, adapt its x2many ids
-                other_value = {NewId(id_): snap for id_, snap in other_value.items()}
+                # When other is a snapshot of a real record, its x2many keys are
+                # plain ints; wrap them in NewId to match self_value's keys.
+                # Skip wrapping when keys are already NewId (new-record snapshot)
+                # because double-wrapping breaks equality (NewId.__bool__ is False).
+                first_key = next(iter(other_value))
+                if not isinstance(first_key, NewId):
+                    other_value = {
+                        NewId(id_): snap for id_, snap in other_value.items()
+                    }
 
             # commands for removed lines
             field = self.record._fields[field_name]

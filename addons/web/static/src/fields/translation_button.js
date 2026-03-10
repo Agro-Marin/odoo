@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/translation_button - Translation button component and useTranslationDialog hook for translatable fields */
 
@@ -7,7 +8,7 @@ import { localization } from "@web/core/l10n/localization";
 import { useOwnedDialogs } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
 
-import { TranslationDialog } from "./translation_dialog";
+import { TranslationDialog } from "./translation_dialog.js";
 
 /**
  * Prepares a function that will open the dialog that allows to edit translation

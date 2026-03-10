@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/burger_menu/mobile_switch_company_menu/mobile_switch_company_menu - Mobile company switcher with collapsible toggle for many companies */
 

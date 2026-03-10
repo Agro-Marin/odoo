@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ImStatus } from "@mail/core/common/im_status";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";

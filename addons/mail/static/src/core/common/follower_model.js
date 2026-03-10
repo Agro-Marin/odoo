@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { fields, Record } from "@mail/core/common/record";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";

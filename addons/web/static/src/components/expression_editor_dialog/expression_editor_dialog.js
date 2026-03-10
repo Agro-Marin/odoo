@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/expression_editor_dialog/expression_editor_dialog - Modal dialog for editing Python expressions with validation preview */
 

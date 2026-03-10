@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { fields, Record } from "@mail/core/common/record";
 import { Deferred } from "@web/core/utils/concurrency";
 /**

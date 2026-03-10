@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/tree_editor/tree_editor_value_editors - Field-type-specific value editor configurations for tree editor conditions */
 

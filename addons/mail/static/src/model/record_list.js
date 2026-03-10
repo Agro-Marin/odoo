@@ -1,6 +1,7 @@
+/** @odoo-module */
 import { markRaw, reactive, toRaw } from "@odoo/owl";
 
-import { isRecord } from "./misc";
+import { isRecord } from "./misc.js";
 
 /** @param {RecordList} reclist */
 function getInverse(reclist) {

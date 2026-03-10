@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/record_selectors/multi_record_selector - Multi-value record picker with tag display and autocomplete search */
 
@@ -7,9 +8,9 @@ import { isId } from "@web/core/tree/utils";
 import { _t } from "@web/core/l10n/translation";
 import { imageUrl } from "@web/core/utils/urls";
 
-import { BaseRecordSelector } from "./base_record_selector";
-import { RecordAutocomplete } from "./record_autocomplete";
-import { useTagNavigation } from "./tag_navigation_hook";
+import { BaseRecordSelector } from "./base_record_selector.js";
+import { RecordAutocomplete } from "./record_autocomplete.js";
+import { useTagNavigation } from "./tag_navigation_hook.js";
 
 export class MultiRecordSelector extends BaseRecordSelector {
     static props = {

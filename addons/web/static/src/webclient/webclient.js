@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/webclient - Root OWL component bootstrapping the action manager, navbar, and main components container */
 
@@ -20,8 +21,8 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { useOwnDebugContext } from "@web/services/debug/debug_context";
 import { DebugMenu } from "@web/services/debug/debug_menu";
 
-import { ActionContainer } from "./actions/action_container";
-import { NavBar } from "./navbar/navbar";
+import { ActionContainer } from "./actions/action_container.js";
+import { NavBar } from "./navbar/navbar.js";
 
 /**
  * Root OWL component of the Odoo web client.

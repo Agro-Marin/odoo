@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { MailGuest } from "@mail/core/common/mail_guest_model";
 import { fields } from "@mail/core/common/record";
 import { patch } from "@web/core/utils/patch";

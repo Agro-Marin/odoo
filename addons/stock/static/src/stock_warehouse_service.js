@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { browser } from "@web/core/browser/browser";
 import { UPDATE_METHODS } from "@web/services/orm_service";

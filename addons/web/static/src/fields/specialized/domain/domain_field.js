@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/specialized/domain/domain_field - Domain expression editor field with record count and selector UI */
 

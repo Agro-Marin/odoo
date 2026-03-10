@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/highlight_text/highlight_text - Component rendering text with the current search term highlighted via markup */
 

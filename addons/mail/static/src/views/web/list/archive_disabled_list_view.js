@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
 
-import { ArchiveDisabledListController } from "./archive_disabled_list_controller";
+import { ArchiveDisabledListController } from "./archive_disabled_list_controller.js";
 
 export const archiveDisabledListView = {
     ...listView,

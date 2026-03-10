@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { PeerToPeer } from "@mail/discuss/call/common/peer_to_peer";
 import { registry } from "@web/core/registry";
 export const discussP2P = {

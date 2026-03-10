@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Record } from "@mail/core/common/record";
 
 export class MailActivityType extends Record {

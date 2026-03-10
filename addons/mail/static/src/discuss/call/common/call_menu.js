@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ActionList } from "@mail/core/common/action_list";
 import { useCallActions } from "@mail/discuss/call/common/call_actions";
 import { Component, useSubEnv } from "@odoo/owl";

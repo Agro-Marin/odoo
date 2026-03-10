@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/search_bar/search_bar - Search bar with autocomplete suggestions, facet display, and keyboard navigation */
 
@@ -472,7 +473,11 @@ export class SearchBar extends Component {
                 // the item but use the current query. Typical usecase is when scanning a barcode,
                 // as the keystrokes are closer than when a user uses a regular keyboard.
                 label = this.state.query;
-                value = parseValue(this.state.query.trim(), fieldType);
+                try {
+                    value = parseValue(this.state.query.trim(), fieldType);
+                } catch {
+                    // Rapid typing produced an unparseable intermediate value — keep original
+                }
             }
             this.env.searchModel.addAutoCompletionValues(searchItemId, {
                 label,

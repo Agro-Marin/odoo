@@ -1,10 +1,11 @@
+/** @odoo-module */
 import {
     StatusBarDurationField,
     statusBarDurationField,
 } from "@mail/views/fields/statusbar_duration/statusbar_duration_field";
 import { registry } from "@web/core/registry";
 
-import { getRottingDaysTitle } from "./rotting_widget";
+import { getRottingDaysTitle } from "./rotting_widget.js";
 export class RottingStatusBarDurationField extends StatusBarDurationField {
     static template = "mail.RottingStatusBarDurationField";
 

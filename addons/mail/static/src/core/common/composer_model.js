@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { fields, OR, Record } from "@mail/core/common/record";
 import {
     convertBrToLineBreak,

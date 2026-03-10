@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /**
  * Registers the default command palette categories with their display sequence.

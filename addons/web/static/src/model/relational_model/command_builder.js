@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/command_builder - x2many ORM command serialization and deduplication (CREATE, UPDATE, LINK, SET, DELETE, UNLINK) */
 
-import { x2ManyCommands } from "./commands";
+import { x2ManyCommands } from "./commands.js";
 
 /**
  * Pure command building and deduplication logic for x2many fields.
@@ -69,6 +70,9 @@ export function serializeCommands(commands, params) {
             }
         } else if (command[0] === CREATE || command[0] === UPDATE) {
             const record = getRecord(command[1]);
+            if (!record) {
+                continue; // stale command referencing a deleted/abandoned record
+            }
             if (command[0] === CREATE && record?.resId) {
                 // Record was created in x2many dialog and already saved to DB.
                 // Replace CREATE with LINK to avoid re-creating.

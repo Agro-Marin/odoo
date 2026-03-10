@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/hooks/square_selection_hook - Drag-to-select date range hook for month-view calendar cells */
 

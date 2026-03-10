@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/display/gauge/gauge_field - Chart.js doughnut gauge visualization for numeric fields */
 
@@ -132,7 +133,7 @@ export const gaugeField = {
         },
     ],
     extractProps: ({ options }) => ({
-        maxValueField: options.max_field,
+        maxValueField: options.max_value_field,
         maxValue: options.max_value,
         title: options.title,
     }),

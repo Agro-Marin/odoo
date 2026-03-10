@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/dropzone/dropzone_hook - Hooks for attaching drag-and-drop file upload zones to DOM elements */
 

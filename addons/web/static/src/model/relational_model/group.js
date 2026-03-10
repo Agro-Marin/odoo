@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/group - Single group node within a grouped list, holding aggregates and a nested record list */
 
 import { Domain } from "@web/core/domain";
 
-import { DataPoint } from "./datapoint";
-/** @import { RelationalModelConfig } from "./relational_model" */
+import { DataPoint } from "./datapoint.js";
+/** @import { RelationalModelConfig } from "./relational_model.js" */
 
 export class Group extends DataPoint {
     static type = "Group";

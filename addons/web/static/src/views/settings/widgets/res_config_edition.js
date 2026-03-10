@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/widgets/res_config_edition - About section settings widget showing Odoo version, expiration date, and copyrights */
 

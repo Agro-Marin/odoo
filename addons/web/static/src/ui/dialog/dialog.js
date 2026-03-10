@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/dialog/dialog - Modal dialog component with dragging, hotkey escape, and active element focus trap */
 

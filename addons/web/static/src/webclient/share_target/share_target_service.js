@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/share_target/share_target_service - Service receiving shared files from the PWA service worker (Web Share Target API) */
 

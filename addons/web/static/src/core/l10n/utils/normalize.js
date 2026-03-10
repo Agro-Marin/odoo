@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/l10n/utils/normalize - Unicode normalization, case folding, and accent-insensitive string matching */
 

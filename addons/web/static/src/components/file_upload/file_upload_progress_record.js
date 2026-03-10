@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/file_upload/file_upload_progress_record - Per-record file upload overlay showing percentage and MB progress */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 
-import { FileUploadProgressBar } from "./file_upload_progress_bar";
+import { FileUploadProgressBar } from "./file_upload_progress_bar.js";
 export class FileUploadProgressRecord extends Component {
     static template = "";
     static components = {

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/calendar_year/calendar_year_renderer - Year-scale renderer displaying 12 mini month grids with background events */
 

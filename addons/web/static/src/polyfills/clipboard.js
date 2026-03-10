@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /**
  * Polyfill for the ClipboardItem constructor for browsers that partially

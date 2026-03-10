@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network/rpc";
 import { Deferred } from "@web/core/utils/concurrency";

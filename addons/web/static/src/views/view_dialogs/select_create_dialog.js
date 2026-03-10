@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_dialogs/select_create_dialog - Modal with embedded list/kanban for selecting existing records or creating new ones (Many2one/Many2many) */
 
@@ -9,7 +10,7 @@ import { renderToMarkup } from "@web/core/utils/render";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { View } from "@web/views/view";
 
-import { FormViewDialog } from "./form_view_dialog";
+import { FormViewDialog } from "./form_view_dialog.js";
 
 let _defaultNoContentHelp;
 function getDefaultNoContentHelp() {

@@ -1,17 +1,18 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/settings_form_renderer - FormRenderer subclass registering settings-specific sub-components (search highlight, tabs) */
 
 import { useState } from "@odoo/owl";
 import { FormRenderer } from "@web/views/form/form_renderer";
 
-import { FormLabelHighlightText } from "./highlight_text/form_label_highlight_text";
-import { HighlightText } from "./highlight_text/highlight_text";
-import { SearchableSetting } from "./settings/searchable_setting";
-import { SettingHeader } from "./settings/setting_header";
-import { SettingsApp } from "./settings/settings_app";
-import { SettingsBlock } from "./settings/settings_block";
-import { SettingsPage } from "./settings/settings_page";
+import { FormLabelHighlightText } from "./highlight_text/form_label_highlight_text.js";
+import { HighlightText } from "./highlight_text/highlight_text.js";
+import { SearchableSetting } from "./settings/searchable_setting.js";
+import { SettingHeader } from "./settings/setting_header.js";
+import { SettingsApp } from "./settings/settings_app.js";
+import { SettingsBlock } from "./settings/settings_block.js";
+import { SettingsPage } from "./settings/settings_page.js";
 /** FormRenderer subclass that registers settings-specific sub-components. */
 export class SettingsFormRenderer extends FormRenderer {
     static components = {

@@ -1,12 +1,13 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/datetime/datetime_input - Date/time text input component that opens a DateTimePicker popover */
 
 import { Component } from "@odoo/owl";
 import { omit } from "@web/core/utils/collections/objects";
 
-import { DateTimePicker } from "./datetime_picker";
-import { useDateTimePicker } from "./datetime_picker_hook";
+import { DateTimePicker } from "./datetime_picker.js";
+import { useDateTimePicker } from "./datetime_picker_hook.js";
 /** @typedef {luxon["DateTime"]["prototype"]} DateTime */
 
 /**

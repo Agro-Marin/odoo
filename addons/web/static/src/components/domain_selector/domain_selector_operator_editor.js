@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/domain_selector/domain_selector_operator_editor - Maps field types to their valid domain comparison operators */
 

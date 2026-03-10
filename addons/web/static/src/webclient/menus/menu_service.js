@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/menus/menu_service - Service that loads, caches, and navigates the Odoo menu tree */
 

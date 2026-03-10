@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/boolean/boolean_field - Checkbox field widget for Boolean columns */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dnd/sortable_owl - OWL-lifecycle adapter for useSortable with reactive state */
 

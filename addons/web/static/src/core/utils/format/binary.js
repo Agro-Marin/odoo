@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/format/binary - Binary size detection, base64 length calculation, and human-readable byte formatting */
 

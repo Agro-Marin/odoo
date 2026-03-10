@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/x2many/list_x2many_field - Read-only list-view summary field for One2many and Many2many columns */
 

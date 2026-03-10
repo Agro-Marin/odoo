@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/l10n/localization - Shared reactive localization object (date/number formats, direction, locale) */
 

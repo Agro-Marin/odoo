@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { ColumnProgress } from "@web/views/kanban/column_progress";
 export class RottingColumnProgress extends ColumnProgress {
     static template = "mail.RottingColumnProgress";

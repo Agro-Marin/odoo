@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/hooks/record_observer - OWL hook for observing record value changes in field components */
 

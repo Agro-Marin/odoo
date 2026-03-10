@@ -1,3 +1,4 @@
+/** @odoo-module */
 class AudioProcessor extends AudioWorkletProcessor {
     constructor(options) {
         super();

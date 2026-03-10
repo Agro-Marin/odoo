@@ -48,7 +48,7 @@ test("ErrorDialog with traceback", async () => {
     expect(queryAllTexts("main .clearfix p")).toEqual([
         "Odoo Error",
         "Something bad happened",
-        "Occured on 2019-03-11 09:30:00 GMT",
+        "Occurred on 2019-03-11 09:30:00 GMT",
     ]);
     expect("main .clearfix code").toHaveText("ERROR_NAME");
     expect("div.o_error_detail").toHaveCount(1);
@@ -81,7 +81,7 @@ test("Client ErrorDialog with traceback", async () => {
     expect(queryAllTexts("main .clearfix p")).toEqual([
         "Odoo Client Error",
         "Something bad happened",
-        "Occured on 2019-03-11 09:30:00 GMT",
+        "Occurred on 2019-03-11 09:30:00 GMT",
     ]);
     expect("main .clearfix code").toHaveText("ERROR_NAME");
     expect("div.o_error_detail").toHaveCount(1);
@@ -98,7 +98,7 @@ test("button clipboard copy error traceback", async () => {
     patchWithCleanup(navigator.clipboard, {
         writeText(value) {
             expect(value).toBe(
-                `${error.name}\n\n${error.message}\n\nOccured on 2019-03-11 09:30:00 GMT\n\n${error.traceback}`,
+                `${error.name}\n\n${error.message}\n\nOccurred on 2019-03-11 09:30:00 GMT\n\n${error.traceback}`,
             );
         },
     });

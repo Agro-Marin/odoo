@@ -1,15 +1,16 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/record - Field value management, change tracking, dirty state, and save/discard for individual records */
 
 import { markRaw, toRaw } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 
-import { DataPoint } from "./datapoint";
-import { getBasicEvalContext, getFieldContext } from "./field_context";
-import { createPropertyActiveField } from "./field_metadata";
-import { parseServerValue } from "./field_values";
-import { Operation } from "./operation";
+import { DataPoint } from "./datapoint.js";
+import { getBasicEvalContext, getFieldContext } from "./field_context.js";
+import { createPropertyActiveField } from "./field_metadata.js";
+import { parseServerValue } from "./field_values.js";
+import { Operation } from "./operation.js";
 import {
     preprocessMany2oneChanges,
     preprocessMany2OneReferenceChanges,
@@ -17,16 +18,16 @@ import {
     preprocessX2manyChanges,
     preprocessPropertiesChanges,
     preprocessHtmlChanges,
-} from "./record_preprocessors";
-import { save } from "./record_save";
-import { isFieldInvisible, isFieldReadonly, isFieldRequired } from "./record_utils";
-import { findUnsetRequiredFields } from "./record_validator";
+} from "./record_preprocessors.js";
+import { save } from "./record_save.js";
+import { isFieldInvisible, isFieldReadonly, isFieldRequired } from "./record_utils.js";
+import { findUnsetRequiredFields } from "./record_validator.js";
 import {
     computeDataContext,
     formatServerValue,
     getDefaultValues,
     getTextValues,
-} from "./record_value_transforms";
+} from "./record_value_transforms.js";
 
 /**
  * @template {keyof any} K
@@ -301,7 +302,6 @@ export class RelationalRecord extends DataPoint {
      * @param {string} fieldName
      */
     async resetFieldValidity(fieldName) {
-        this.dirty = true;
         return this._resetFieldValidity(fieldName);
     }
 

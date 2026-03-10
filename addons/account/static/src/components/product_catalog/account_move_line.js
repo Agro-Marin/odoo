@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { ProductCatalogOrderLine } from "@product/product_catalog/order_line/order_line";
 
 export class ProductCatalogAccountMoveLine extends ProductCatalogOrderLine {

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/boot/main - Entry point that launches the web client (replaced in enterprise) */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/debug/debug_menu_basic - Base debug menu dropdown grouped by section (Record, UI, Security, etc.) */
 
@@ -9,7 +10,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { groupBy, sortBy } from "@web/core/utils/collections/arrays";
 
-import { useEnvDebugContext } from "./debug_context";
+import { useEnvDebugContext } from "./debug_context.js";
 
 const debugSectionRegistry = registry.category("debug_section");
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2one/many2one_field - Standard Many2one field with autocomplete, create, and open actions */
 
@@ -8,7 +9,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-import { computeM2OProps, Many2One } from "./many2one";
+import { computeM2OProps, Many2One } from "./many2one.js";
 
 /** @type {import("registries").FieldsRegistryItemShape["supportedOptions"]} */
 export const m2oSupportedOptions = [

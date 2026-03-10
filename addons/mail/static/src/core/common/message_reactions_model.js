@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { AND, fields, Record } from "@mail/core/common/record";
 import { rpc } from "@web/core/network/rpc";
 export class MessageReactions extends Record {

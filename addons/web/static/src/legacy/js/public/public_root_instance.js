@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/legacy/js/public/public_root_instance - Singleton PublicRoot widget instance creation and lazy-loader registration */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/network/rpc - JSON-RPC client with error classification, request bus events, and XHR settings */
 
@@ -151,6 +152,7 @@ rpc._rpc = function (url, params, settings) {
         params: params,
     };
     const request = settings.xhr || new XHR();
+    let aborted = false;
     const { promise, resolve, reject } = Promise.withResolvers();
     rpcBus.trigger("RPC:REQUEST", { data, url, settings });
     // handle success
@@ -186,8 +188,11 @@ rpc._rpc = function (url, params, settings) {
         rpcBus.trigger("RPC:RESPONSE", { data, settings, error });
         reject(error);
     });
-    // handle failure
+    // handle failure (skip if already aborted — abort fires its own RPC:RESPONSE)
     request.addEventListener("error", () => {
+        if (aborted) {
+            return;
+        }
         const error = new ConnectionLostError(url);
         rpcBus.trigger("RPC:RESPONSE", { data, settings, error });
         reject(error);
@@ -205,6 +210,7 @@ rpc._rpc = function (url, params, settings) {
      *                  ignored rpc's in order to unblock the ui and not display an error.
      */
     /** @type {any} */ (promise).abort = function (rejectError = true) {
+        aborted = true;
         if (request.abort) {
             request.abort();
         }

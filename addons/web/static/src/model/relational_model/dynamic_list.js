@@ -1,16 +1,17 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/dynamic_list - Abstract paginated list with sorting, domain filtering, and drag-and-drop resequencing */
 
 import { _t } from "@web/core/l10n/translation";
 import { unique } from "@web/core/utils/collections/arrays";
-import { x2ManyCommands } from "./commands";
+import { x2ManyCommands } from "./commands.js";
 
-import { DataPoint } from "./datapoint";
-import { getFieldsSpec } from "./field_spec";
-import { Operation } from "./operation";
-import { RelationalRecord } from "./record";
-import { resequence } from "./resequence";
+import { DataPoint } from "./datapoint.js";
+import { getFieldsSpec } from "./field_spec.js";
+import { Operation } from "./operation.js";
+import { RelationalRecord } from "./record.js";
+import { resequence } from "./resequence.js";
 
 const DEFAULT_HANDLE_FIELD = "sequence";
 

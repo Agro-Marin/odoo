@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { CallSettings } from "@mail/discuss/call/common/call_settings";
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";

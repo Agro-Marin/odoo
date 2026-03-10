@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2many_tags/many2many_tags_field - Colored tag list field with autocomplete for Many2many relations */
 
@@ -17,10 +18,10 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { m2oSupportedOptions } from "../many2one/many2one_field";
-import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete";
-import { useActiveActions } from "../relational_active_actions";
-import { useX2ManyCrud } from "../x2many_crud";
+import { m2oSupportedOptions } from "../many2one/many2one_field.js";
+import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.js";
+import { useActiveActions } from "../relational_active_actions.js";
+import { useX2ManyCrud } from "../x2many_crud.js";
 
 class Many2ManyTagsFieldColorListPopover extends Component {
     static template = "web.Many2ManyTagsFieldColorListPopover";
@@ -111,7 +112,7 @@ export class Many2ManyTagsField extends Component {
                 },
                 onRecordSaved: (record) => {
                     const records = this.props.record.data[this.props.name].records;
-                    return records.find((r) => r.resId === record.resId).load();
+                    return records.find((r) => r.resId === record.resId)?.load();
                 },
             }),
         );

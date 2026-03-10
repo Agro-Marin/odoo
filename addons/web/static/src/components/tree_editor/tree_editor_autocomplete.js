@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/tree_editor/tree_editor_autocomplete - Record autocomplete variants for single and multi-value domain/expression editors */
 

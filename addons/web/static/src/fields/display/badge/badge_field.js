@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/display/badge/badge_field - Read-only badge pill for Selection and Many2one columns */
 

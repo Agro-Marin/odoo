@@ -1,8 +1,9 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_optional_fields - Hook managing localStorage-backed optional column visibility for the list view */
 
-/** @odoo-module **/
+/** @odoo-module */
 
 /**
  * Hook encapsulating optional field visibility management for the list view.

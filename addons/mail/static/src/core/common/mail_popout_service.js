@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { App } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { appTranslateFn } from "@web/core/l10n/translation";

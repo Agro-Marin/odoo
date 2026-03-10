@@ -1,3 +1,4 @@
+/** @odoo-module */
 class BiquadBandpassFilter {
     constructor(sampleRate, frequency, Q) {
         this.x1 = 0;

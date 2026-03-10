@@ -1,3 +1,4 @@
+/** @odoo-module */
 import "@mail/discuss/core/public_web/discuss_app_model_patch";
 
 import { DiscussApp } from "@mail/core/public_web/discuss_app_model";

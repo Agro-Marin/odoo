@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/debug/debug_context - Debug context manager that collects and merges debug menu items by category */
 
@@ -42,7 +43,7 @@ class DebugContext {
     /** @param {string[]} defaultCategories - initial category names to register */
     constructor(defaultCategories) {
         /** @type {Map<string, any>} */
-        this.categories = new Map(defaultCategories.map((cat) => [cat, [{}]]));
+        this.categories = new Map(defaultCategories.map((cat) => [cat, new Set([{}])]));
     }
 
     /**

@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Discuss } from "@mail/core/public_web/discuss";
 import { useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";

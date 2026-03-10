@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/static_list_sort - Sorting and resequencing logic extracted from StaticList */
 
@@ -10,7 +11,7 @@
  */
 
 import { pick } from "@web/core/utils/collections/objects";
-import { compareRecords, computeNextOrderBy } from "./static_list_utils";
+import { compareRecords, computeNextOrderBy } from "./static_list_utils.js";
 
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
 
@@ -103,8 +104,8 @@ export async function resequence(list, movedId, targetId) {
         toReorder.reverse();
     }
 
-    const sequences = toReorder.map(getSequence);
-    const offset = sequences.length && Math.min(...sequences);
+    const sequences = toReorder.map(getSequence).filter((s) => s != null && !isNaN(s));
+    const offset = sequences.length ? Math.min(...sequences) : 0;
 
     const proms = [];
     for (const [i, record] of Object.entries(toReorder)) {

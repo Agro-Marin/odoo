@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module views/list/list_column_utils - Column processing utilities for ListRenderer */
 

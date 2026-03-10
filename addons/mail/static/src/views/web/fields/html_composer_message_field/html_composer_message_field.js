@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
 import { fillEmpty } from "@html_editor/utils/dom";
 import { isEmpty } from "@html_editor/utils/dom_info";
@@ -5,9 +6,9 @@ import { markup } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 
-import { HtmlMailField, htmlMailField } from "../html_mail_field/html_mail_field";
-import { ContentExpandablePlugin } from "./content_expandable_plugin";
-import { MentionPlugin } from "./mention_plugin";
+import { HtmlMailField, htmlMailField } from "../html_mail_field/html_mail_field.js";
+import { ContentExpandablePlugin } from "./content_expandable_plugin.js";
+import { MentionPlugin } from "./mention_plugin.js";
 export class HtmlComposerMessageField extends HtmlMailField {
     setup() {
         super.setup();

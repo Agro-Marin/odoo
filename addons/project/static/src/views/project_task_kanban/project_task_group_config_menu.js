@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { onWillStart } from "@odoo/owl";
 import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_keyboard_edit - Edit-mode keyboard handlers (enter/escape, tab, multi-edit) for list view inline editing */
 

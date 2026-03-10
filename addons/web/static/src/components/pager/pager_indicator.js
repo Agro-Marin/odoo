@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/pager/pager_indicator - Floating toast indicator showing current page position on pager updates */
 
@@ -8,7 +9,7 @@ import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 
-import { PAGER_UPDATED_EVENT, pagerBus } from "./pager";
+import { PAGER_UPDATED_EVENT, pagerBus } from "./pager.js";
 
 export class PagerIndicator extends Component {
     static template = "web.PagerIndicator";

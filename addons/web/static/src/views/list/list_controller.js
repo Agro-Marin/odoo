@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_controller - List view orchestrator: pagination, selection, inline editing, multi-edit, and export */
 
@@ -22,8 +23,8 @@ import { ViewButton } from "@web/views/view_button/view_button";
 import { executeButtonCallback } from "@web/views/view_button/view_button_hook";
 import { SelectionBox } from "@web/views/view_components/selection_box";
 
-import { ListCogMenu } from "./list_cog_menu";
-import { ListConfirmationDialog } from "./list_confirmation_dialog";
+import { ListCogMenu } from "./list_cog_menu.js";
+import { ListConfirmationDialog } from "./list_confirmation_dialog.js";
 
 // -----------------------------------------------------------------------------
 
@@ -438,8 +439,11 @@ export class ListController extends MultiRecordController {
             if (this.env.isSmall) {
                 this.rootRef.el.scrollTop = 0;
             } else {
-                this.rootRef.el.querySelector(".o_content .o_list_renderer").scrollTop =
-                    0;
+                const renderer =
+                    this.rootRef.el.querySelector(".o_content .o_list_renderer");
+                if (renderer) {
+                    renderer.scrollTop = 0;
+                }
             }
         }
     }

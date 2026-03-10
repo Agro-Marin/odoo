@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/ui/tooltip/tooltip_service - Service for data-tooltip attribute-driven tooltips with hover/touch support */
 
@@ -163,7 +164,11 @@ export const tooltipService = {
                     position: dataset.tooltipPosition,
                 };
                 if (dataset.tooltipInfo) {
-                    params.info = JSON.parse(dataset.tooltipInfo);
+                    try {
+                        params.info = JSON.parse(dataset.tooltipInfo);
+                    } catch {
+                        // Malformed tooltip data attribute — skip info
+                    }
                 }
                 if (dataset.tooltipDelay) {
                     params.delay = parseInt(dataset.tooltipDelay, 10);

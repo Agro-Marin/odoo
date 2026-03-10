@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/calendar/calendar_utils - Utility functions for calendar record-to-event conversion, color mapping, and date formatting */
 

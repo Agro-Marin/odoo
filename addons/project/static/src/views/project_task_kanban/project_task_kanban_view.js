@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 
 import { rottingKanbanView } from "@mail/js/rotting_mixin/rotting_kanban_view";

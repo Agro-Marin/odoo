@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { ProjectModelMixin } from "./project_model_mixin.js";
 

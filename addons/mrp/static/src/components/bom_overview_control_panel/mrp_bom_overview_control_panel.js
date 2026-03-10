@@ -1,5 +1,6 @@
+/** @odoo-module */
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { BomOverviewDisplayFilter } from "../bom_overview_display_filter/mrp_bom_overview_display_filter";
+import { BomOverviewDisplayFilter } from "../bom_overview_display_filter/mrp_bom_overview_display_filter.js";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/l10n/translation";

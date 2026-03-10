@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/caps_lock_warning - Interaction that detects Caps Lock state and toggles a warning on password inputs */
 

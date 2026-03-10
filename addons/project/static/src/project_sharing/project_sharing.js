@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { browser } from "@web/core/browser/browser";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { MainComponentsContainer } from "@web/components/main_components_container";

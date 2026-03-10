@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/public/colibri - Mini-framework runtime that manages Interaction lifecycles, dynamic content, and event bindings for public pages */
 

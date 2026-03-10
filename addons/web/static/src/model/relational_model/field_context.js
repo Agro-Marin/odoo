@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/field_context - Context and domain resolution for relational fields */
 

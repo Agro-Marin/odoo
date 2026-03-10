@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/collections/cache - Generic key-path cache with lazy value computation */
 

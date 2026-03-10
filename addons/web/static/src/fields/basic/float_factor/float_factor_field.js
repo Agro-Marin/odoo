@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/float_factor/float_factor_field - Float field that applies a multiplication factor for display and storage */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field - Avatar tag list field for Many2many relations with user images */
 

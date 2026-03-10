@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dom/xml - XML parse, serialize, create, and manipulate DOM elements */
 

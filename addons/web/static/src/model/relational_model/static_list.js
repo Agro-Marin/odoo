@@ -1,22 +1,23 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/static_list - In-memory x2many list: add, remove, reorder records and generate ORM commands */
 
 import { markRaw } from "@odoo/owl";
 import { intersection } from "@web/core/utils/collections/arrays";
 import { omit } from "@web/core/utils/collections/objects";
-import { x2ManyCommands } from "./commands";
+import { x2ManyCommands } from "./commands.js";
 
-import { serializeCommands } from "./command_builder";
-import { DataPoint } from "./datapoint";
-import { getBasicEvalContext, getId } from "./field_context";
-import { completeActiveFields, patchActiveFields } from "./field_metadata";
-import { fromUnityToServerValues } from "./field_values";
-import { applyCommands } from "./static_list_command_engine";
-import { resequence, sort as sortRecords, sortBy } from "./static_list_sort";
-import { copyRecordData } from "./static_list_utils";
+import { serializeCommands } from "./command_builder.js";
+import { DataPoint } from "./datapoint.js";
+import { getBasicEvalContext, getId } from "./field_context.js";
+import { completeActiveFields, patchActiveFields } from "./field_metadata.js";
+import { fromUnityToServerValues } from "./field_values.js";
+import { applyCommands } from "./static_list_command_engine.js";
+import { resequence, sort as sortRecords, sortBy } from "./static_list_sort.js";
+import { copyRecordData } from "./static_list_utils.js";
 
-/** @import { RelationalRecord } from "./record" */
+/** @import { RelationalRecord } from "./record.js" */
 
 export class StaticList extends DataPoint {
     static type = "StaticList";
@@ -687,6 +688,22 @@ export class StaticList extends DataPoint {
     _clearCommands() {
         this._commands = [];
         this._unknownRecordCommands = {};
+        this._pruneCache();
+    }
+
+    /**
+     * Remove cache entries for records no longer referenced by _currentIds.
+     * Prevents unbounded cache growth during long editing sessions with
+     * repeated add/delete cycles on x2many fields.
+     */
+    _pruneCache() {
+        const activeIds = new Set(this._currentIds);
+        for (const id in this._cache) {
+            if (!activeIds.has(id) && !activeIds.has(Number(id))) {
+                delete this._cache[id];
+            }
+        }
+        this._extendedRecords.clear();
     }
 
     _discard() {
@@ -711,6 +728,7 @@ export class StaticList extends DataPoint {
             .map((resId) => this._cache[resId]);
         if (!this._savePoint) {
             this._applyCommands(this._initialCommands);
+            this._pruneCache();
         }
         this._savePoint = undefined;
     }

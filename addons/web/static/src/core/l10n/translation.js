@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/l10n/translation - Runtime i18n: _t() tagged-template translator with markup-safe interpolation */
 
@@ -165,6 +166,11 @@ export class TranslatedString extends String {
 
     /** @returns {string} */
     toString() {
+        return this.valueOf();
+    }
+
+    /** @returns {string} Ensure JSON.stringify uses the translated value, not the source. */
+    toJSON() {
         return this.valueOf();
     }
 

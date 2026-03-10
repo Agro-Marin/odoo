@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/multi_record_controller - Base controller class for multi-record views (list, kanban) */
 

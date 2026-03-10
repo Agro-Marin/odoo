@@ -49,8 +49,6 @@ class OdooModuleLoader {
 
     reportErrors: (errors: OdooModuleErrors) => Promise<void>;
 
-    sortFactories: () => void;
-
     startModule: (name: string) => OdooModule;
 
     startModules: () => void;

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/debug_items - Debug menu entries: view arch inspection, field metadata, asset management, and technical info */
 

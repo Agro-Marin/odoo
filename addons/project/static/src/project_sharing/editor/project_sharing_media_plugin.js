@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { ImageCropPlugin } from "@html_editor/main/media/image_crop_plugin";
 import { ImageSavePlugin } from "@html_editor/main/media/image_save_plugin";
 import { MediaPlugin } from "@html_editor/main/media/media_plugin";

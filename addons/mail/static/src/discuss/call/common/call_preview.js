@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Action, ACTION_TAGS } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
 import {

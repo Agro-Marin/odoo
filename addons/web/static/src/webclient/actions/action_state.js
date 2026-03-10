@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/action_state - URL state serialization/deserialization for the action service (router integration) */
 
@@ -13,7 +14,7 @@ import { registry } from "@web/core/registry";
 import { omit, pick, shallowEqual } from "@web/core/utils/collections/objects";
 import { user } from "@web/services/user";
 
-import { parseActiveIds } from "./action_constants";
+import { parseActiveIds } from "./action_constants.js";
 
 /**
  * Serialize a controller stack into a URL-pushable state object.
@@ -88,7 +89,12 @@ export function getActionParams(state) {
     const options = {};
     let actionRequest = null;
     const storedAction = browser.sessionStorage.getItem("current_action");
-    const lastAction = JSON.parse(storedAction || "{}");
+    let lastAction;
+    try {
+        lastAction = JSON.parse(storedAction || "{}");
+    } catch {
+        lastAction = {};
+    }
     // If this method is called because of a company switch, the
     // stored allowed_company_ids is incorrect.
     delete lastAction.context?.allowed_company_ids;
@@ -176,6 +182,9 @@ export function getActionParams(state) {
             const nextState = { actionStack: actionStack.slice(0, -1) };
             Object.assign(nextState, nextState.actionStack.at(-1));
             const params = getActionParams(nextState);
+            if (!params) {
+                return null;
+            }
             // Place the controller at the found position in the action stack to remove all the
             // invalid virtual controllers.
             if (params.options && params.options.index === undefined) {

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/dropdown/_behaviours/dropdown_popover - Popover content renderer for dropdown menus with item list and slot support */
 

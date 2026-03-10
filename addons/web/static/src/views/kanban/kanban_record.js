@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/kanban_record - Individual kanban card component with compiled template, color strips, cover images, and action handling */
 
@@ -21,10 +22,10 @@ import { useViewCompiler } from "@web/views/view_compiler";
 import { getFormattedValue } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
-import { KANBAN_CARD_ATTRIBUTE, KANBAN_MENU_ATTRIBUTE } from "./kanban_arch_parser";
-import { KanbanCompiler } from "./kanban_compiler";
-import { KanbanCoverImageDialog } from "./kanban_cover_image_dialog";
-import { KanbanDropdownMenuWrapper } from "./kanban_dropdown_menu_wrapper";
+import { KANBAN_CARD_ATTRIBUTE, KANBAN_MENU_ATTRIBUTE } from "./kanban_arch_parser.js";
+import { KanbanCompiler } from "./kanban_compiler.js";
+import { KanbanCoverImageDialog } from "./kanban_cover_image_dialog.js";
+import { KanbanDropdownMenuWrapper } from "./kanban_dropdown_menu_wrapper.js";
 
 const { COLORS } = ColorList;
 

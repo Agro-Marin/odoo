@@ -1,9 +1,10 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/py_js/py_timedelta - Python timedelta emulation: normalized duration stored as (days, seconds, microseconds) */
 
-import { divmod } from "./py_date_helpers";
-import { parseArgs } from "./py_parser";
+import { divmod } from "./py_date_helpers.js";
+import { parseArgs } from "./py_parser.js";
 
 const TIME_DELTA_KEYS =
     "weeks days hours minutes seconds milliseconds microseconds".split(" ");
@@ -149,7 +150,7 @@ export class PyTimeDelta {
      * @param {PyTimeDelta} other
      * @returns {PyTimeDelta}
      */
-    substract(other) {
+    subtract(other) {
         return PyTimeDelta.create({
             days: this.days - other.days,
             seconds: this.seconds - other.seconds,

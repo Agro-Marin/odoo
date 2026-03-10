@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/dropdown/accordion_item - Collapsible accordion panel with animated expand/collapse transitions */
 

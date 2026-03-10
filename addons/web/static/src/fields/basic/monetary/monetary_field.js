@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/basic/monetary/monetary_field - Currency-aware numeric input field for Monetary columns */
 

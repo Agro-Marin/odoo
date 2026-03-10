@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/record - Standalone OWL component for loading and displaying a single record */
 

@@ -1,13 +1,14 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/dynamic_group_list - Server-backed grouped list with expand/collapse, cross-group record moves, and progress bars */
 
 import { Domain } from "@web/core/domain";
 
-import { DynamicList } from "./dynamic_list";
-import { getGroupServerValue } from "./field_values";
+import { DynamicList } from "./dynamic_list.js";
+import { getGroupServerValue } from "./field_values.js";
 
-/** @import { RelationalRecord } from "./record" */
+/** @import { RelationalRecord } from "./record.js" */
 
 export const MOVABLE_RECORD_TYPES = [
     "char",

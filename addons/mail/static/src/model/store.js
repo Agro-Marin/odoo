@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { reactive, toRaw } from "@odoo/owl";
 
-import { modelRegistry, STORE_SYM } from "./misc";
-import { Record } from "./record";
+import { modelRegistry, STORE_SYM } from "./misc.js";
+import { Record } from "./record.js";
 
 /** @typedef {import("./record_list").RecordList} RecordList */
 

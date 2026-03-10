@@ -1,12 +1,13 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/record_selectors/record_selector - Single-value record picker with avatar display and autocomplete */
 
 import { isId } from "@web/core/tree/utils";
 import { _t } from "@web/core/l10n/translation";
 
-import { BaseRecordSelector } from "./base_record_selector";
-import { RecordAutocomplete } from "./record_autocomplete";
+import { BaseRecordSelector } from "./base_record_selector.js";
+import { RecordAutocomplete } from "./record_autocomplete.js";
 
 export class RecordSelector extends BaseRecordSelector {
     static props = {

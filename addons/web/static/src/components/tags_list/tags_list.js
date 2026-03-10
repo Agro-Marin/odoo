@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/tags_list/tags_list - Renders a list of colored tags with optional visibility limit and overflow counter */
 

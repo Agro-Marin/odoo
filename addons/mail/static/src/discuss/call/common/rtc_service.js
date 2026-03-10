@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { fields, Record } from "@mail/core/common/record";
 import { BlurManager } from "@mail/discuss/call/common/blur_manager";
 import { CallInfiniteMirroringWarning } from "@mail/discuss/call/common/call_infinite_mirroring_warning";
@@ -17,7 +18,7 @@ import { memoize } from "@web/core/utils/functions";
 import { debounce } from "@web/core/utils/timing";
 import { url } from "@web/core/utils/urls";
 
-import { CallAction } from "./call_actions";
+import { CallAction } from "./call_actions.js";
 let sequence = 1;
 const getSequence = () => sequence++;
 

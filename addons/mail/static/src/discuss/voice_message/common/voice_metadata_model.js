@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { fields } from "@mail/model/misc";
 import { Record } from "@mail/model/record";
 

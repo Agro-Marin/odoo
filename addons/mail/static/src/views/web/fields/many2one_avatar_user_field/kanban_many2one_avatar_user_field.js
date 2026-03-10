@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -12,7 +13,7 @@ import {
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
 
-import { Avatar } from "../avatar/avatar";
+import { Avatar } from "../avatar/avatar.js";
 
 export class KanbanMany2OneAvatarUserField extends Component {
     static template = "mail.KanbanMany2OneAvatarUserField";

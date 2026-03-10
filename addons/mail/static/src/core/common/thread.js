@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { DateSection } from "@mail/core/common/date_section";
 import { Message } from "@mail/core/common/message";
 import { Record } from "@mail/core/common/record";
@@ -24,7 +25,7 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { escape } from "@web/core/utils/format/strings";
 import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
 
-import { NotificationMessage } from "./notification_message";
+import { NotificationMessage } from "./notification_message.js";
 
 export const PRESENT_VIEWPORT_THRESHOLD = 1;
 /**

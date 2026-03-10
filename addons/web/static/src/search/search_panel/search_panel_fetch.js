@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/search/search_panel/search_panel_fetch - Search panel section tree creation utilities */
 

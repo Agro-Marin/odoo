@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/file_upload/file_upload_progress_container - Container that renders progress indicators for all active file uploads */
 

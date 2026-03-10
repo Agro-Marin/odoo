@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/graph/graph_renderer - Chart.js integration for rendering bar, line, and pie charts with tooltips and legends */
 
@@ -31,7 +32,7 @@ import {
     styleBarChartData,
     styleLineChartData,
     stylePieChartData,
-} from "./graph_chart_config";
+} from "./graph_chart_config.js";
 
 export class GraphRenderer extends Component {
     static template = "web.GraphRenderer";

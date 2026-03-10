@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/pwa/pwa_service - PWA install service: manages beforeinstallprompt, manifest fetch, and Safari fallback */
 
@@ -13,7 +14,7 @@ import {
 import { registry } from "@web/core/registry";
 import { get } from "@web/services/http_service";
 
-import { InstallPrompt } from "./install_prompt";
+import { InstallPrompt } from "./install_prompt.js";
 
 const serviceRegistry = registry.category("services");
 
@@ -229,7 +230,7 @@ export const pwaService = {
                         if (onDone) {
                             onDone({});
                         }
-                        this.decline();
+                        decline();
                     },
                 });
             }

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/debug/profiling/profiling_qweb - Field widget visualizing QWeb template profiling data as a flamegraph */
 

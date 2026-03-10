@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/settings/widgets/res_config_invite_users - Settings widget for inviting users by email with validation and pending-invitation list */
 
@@ -133,7 +134,7 @@ class ResConfigInviteUsers extends Component {
         );
 
         try {
-            if (emailsLeftToProcess) {
+            if (emailsLeftToProcess.length) {
                 await this.orm.call("res.users", "web_create_users", [
                     emailsLeftToProcess,
                 ]);

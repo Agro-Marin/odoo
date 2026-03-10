@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/errors - Error types and handlers for record fetch failures */
 

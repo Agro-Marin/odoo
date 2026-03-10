@@ -5,7 +5,7 @@ from odoo import api, models, tools
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.orm._typing import DomainType
+from odoo.api import DomainType
 
 _logger = logging.getLogger(__name__)
 

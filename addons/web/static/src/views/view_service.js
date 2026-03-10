@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_service - Service that loads, caches, and invalidates view descriptions (arch, filters, action menus) */
 

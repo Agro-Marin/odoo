@@ -1,8 +1,59 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/browser/feature_detection - Browser and device capability checks (Chrome, mobile, touch, PWA) */
 
-import { browser } from "./browser";
+import { browser } from "./browser.js";
+
+// -----------------------------------------------------------------------------
+// UA-based detection cache
+// -----------------------------------------------------------------------------
+//
+// All user-agent–based checks are pure functions of a single immutable input
+// (navigator.userAgent), which never changes during a page lifecycle. We compute
+// all results once per unique UA string and cache them. The cache auto-invalidates
+// when the UA changes — this only happens in tests that patch browser.navigator.
+
+/** @type {string | undefined} */
+let _cachedUA;
+
+/** @type {ReturnType<typeof _computeUAResults> | undefined} */
+let _uaResults;
+
+/**
+ * Compute all UA-based detection results from a single pass.
+ *
+ * @param {string} ua - navigator.userAgent value
+ */
+function _computeUAResults(ua) {
+    const chrome = /Chrome/i.test(ua);
+    return {
+        chrome,
+        firefox: /Firefox/i.test(ua),
+        edge: /Edg/i.test(ua),
+        safari: !chrome && ua.includes("Safari"),
+        android: /Android/i.test(ua),
+        iosUA: /(iPad|iPhone|iPod)/i.test(ua),
+        otherMobile: /(webOS|BlackBerry|Windows Phone)/i.test(ua),
+        mac: /Mac/i.test(ua),
+        iosApp: /OdooMobile \(iOS\)/i.test(ua),
+        androidApp: /OdooMobile.+Android/i.test(ua),
+    };
+}
+
+/**
+ * Return the cached UA results, recomputing if the user agent has changed.
+ * In production this computes once; in tests it recomputes when browser.navigator
+ * is patched to a different UA string.
+ */
+function _getUA() {
+    const ua = browser.navigator.userAgent || "";
+    if (ua !== _cachedUA) {
+        _cachedUA = ua;
+        _uaResults = _computeUAResults(ua);
+    }
+    return /** @type {NonNullable<typeof _uaResults>} */ (_uaResults);
+}
 
 // -----------------------------------------------------------------------------
 // Feature detection
@@ -14,7 +65,7 @@ import { browser } from "./browser";
  * @returns {boolean}
  */
 export function isBrowserChrome() {
-    return /Chrome/i.test(browser.navigator.userAgent);
+    return _getUA().chrome;
 }
 
 /**
@@ -23,7 +74,7 @@ export function isBrowserChrome() {
  * @returns {boolean}
  */
 export function isBrowserFirefox() {
-    return /Firefox/i.test(browser.navigator.userAgent);
+    return _getUA().firefox;
 }
 
 /**
@@ -32,7 +83,7 @@ export function isBrowserFirefox() {
  * @returns {boolean}
  */
 export function isBrowserMicrosoftEdge() {
-    return /Edg/i.test(browser.navigator.userAgent);
+    return _getUA().edge;
 }
 
 /**
@@ -41,42 +92,42 @@ export function isBrowserMicrosoftEdge() {
  * @returns {boolean}
  */
 export function isBrowserSafari() {
-    return !isBrowserChrome() && browser.navigator.userAgent?.includes("Safari");
+    return _getUA().safari;
 }
 
 /**
  * @returns {boolean}
  */
 export function isAndroid() {
-    return /Android/i.test(browser.navigator.userAgent);
+    return _getUA().android;
 }
 
 /**
  * @returns {boolean}
  */
 export function isIOS() {
-    let isIOSPlatform = false;
-    if ("platform" in browser.navigator) {
-        isIOSPlatform = browser.navigator.platform === "MacIntel";
+    if (_getUA().iosUA) {
+        return true;
     }
-    return (
-        /(iPad|iPhone|iPod)/i.test(browser.navigator.userAgent) ||
-        (isIOSPlatform && maxTouchPoints() > 1)
-    );
+    // iPad Safari reports as "MacIntel" — detect via touch capability
+    if ("platform" in browser.navigator) {
+        return browser.navigator.platform === "MacIntel" && maxTouchPoints() > 1;
+    }
+    return false;
 }
 
 /**
  * @returns {boolean}
  */
 export function isOtherMobileOS() {
-    return /(webOS|BlackBerry|Windows Phone)/i.test(browser.navigator.userAgent);
+    return _getUA().otherMobile;
 }
 
 /**
  * @returns {boolean}
  */
 export function isMacOS() {
-    return /Mac/i.test(browser.navigator.userAgent);
+    return _getUA().mac;
 }
 
 /**
@@ -90,14 +141,14 @@ export function isMobileOS() {
  * @returns {boolean}
  */
 export function isIosApp() {
-    return /OdooMobile \(iOS\)/i.test(browser.navigator.userAgent);
+    return _getUA().iosApp;
 }
 
 /**
  * @returns {boolean}
  */
 export function isAndroidApp() {
-    return /OdooMobile.+Android/i.test(browser.navigator.userAgent);
+    return _getUA().androidApp;
 }
 
 /**

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/record_preprocessors - Field change preprocessing extracted from RelationalRecord */
 
@@ -12,9 +13,9 @@
 
 import { markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { x2ManyCommands } from "./commands";
-import { getBasicEvalContext, getFieldContext } from "./field_context";
-import { getFieldsSpec } from "./field_spec";
+import { x2ManyCommands } from "./commands.js";
+import { getBasicEvalContext, getFieldContext } from "./field_context.js";
+import { getFieldsSpec } from "./field_spec.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
@@ -110,6 +111,10 @@ export async function preprocessMany2OneReferenceChanges(record, changes) {
                     fieldName,
                     relation,
                 ).then((v) => {
+                    if (!v) {
+                        changes[fieldName] = false;
+                        return;
+                    }
                     const m2o =
                         /** @type {{ id: number, display_name: string }} */ (v);
                     changes[fieldName] = {
@@ -140,6 +145,10 @@ export async function preprocessReferenceChanges(record, changes) {
                     fieldName,
                     value.resModel,
                 ).then((v) => {
+                    if (!v) {
+                        changes[fieldName] = false;
+                        return;
+                    }
                     const m2o =
                         /** @type {{ id: number, display_name: string }} */ (v);
                     changes[fieldName] = {
@@ -208,7 +217,8 @@ export function preprocessPropertiesChanges(record, changes) {
                         "This record belongs to a different parent so you can not change this property.",
                     ),
                 );
-                return;
+                delete changes[fieldName];
+                continue;
             }
             changes[propertyFieldName] = propertiesData.map((property) =>
                 property.name === propertyName ? { ...property, value } : property,

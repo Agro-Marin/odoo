@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/browser/hotkeys - Pure keyboard event utilities (no service dependencies) */
 

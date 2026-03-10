@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dnd/draggable_hook_builder - Factory for configurable drag-and-drop OWL hooks with touch and scroll support */
 
@@ -21,7 +22,7 @@ import {
     safePrevent,
     toFunction,
     WHITE_LISTED_KEYS,
-} from "./draggable_hook_builder_utils";
+} from "./draggable_hook_builder_utils.js";
 
 export { DRAGGED_CLASS };
 

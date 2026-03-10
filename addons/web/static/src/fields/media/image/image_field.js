@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/media/image/image_field - Image upload, preview, and zoom field for Binary image columns */
 

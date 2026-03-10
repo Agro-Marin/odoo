@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/burger_menu/burger_menu - Fullscreen mobile menu displaying user menu, company switcher, and current app sub-menus */
 
@@ -8,8 +9,8 @@ import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
 
-import { BurgerUserMenu } from "./burger_user_menu/burger_user_menu";
-import { MobileSwitchCompanyMenu } from "./mobile_switch_company_menu/mobile_switch_company_menu";
+import { BurgerUserMenu } from "./burger_user_menu/burger_user_menu.js";
+import { MobileSwitchCompanyMenu } from "./mobile_switch_company_menu/mobile_switch_company_menu.js";
 
 /**
  * This file includes the widget Menu in mobile to render the BurgerMenu which

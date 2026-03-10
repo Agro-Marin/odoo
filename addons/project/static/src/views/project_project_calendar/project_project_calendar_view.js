@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { calendarView } from "@web/views/calendar/calendar_view";
 import { ProjectProjectCalendarController } from "./project_project_calendar_controller.js";

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/record_utils - Pure utility functions for field attribute evaluation (invisible, readonly, required) */
 
@@ -16,7 +17,7 @@
 
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 
-import { formatServerValue } from "./record_value_transforms";
+import { formatServerValue } from "./record_value_transforms.js";
 // ---------------------------------------------------------------------------
 // Field attribute evaluation
 // ---------------------------------------------------------------------------

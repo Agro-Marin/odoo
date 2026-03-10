@@ -1,11 +1,12 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/tree/domain_from_tree - High-level tree-to-domain conversion with virtual operator elimination */
 
-/** @import { Tree } from "./condition_tree" */
+/** @import { Tree } from "./condition_tree.js" */
 
-import { constructDomainFromTree } from "./construct_domain_from_tree";
-import { eliminateVirtualOperators } from "./virtual_operators";
+import { constructDomainFromTree } from "./construct_domain_from_tree.js";
+import { eliminateVirtualOperators } from "./virtual_operators.js";
 
 /**
  * Convert a condition tree to an Odoo domain string.

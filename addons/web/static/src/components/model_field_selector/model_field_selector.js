@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/model_field_selector/model_field_selector - Field path selector with breadcrumb display and popover field browser */
 
@@ -7,7 +8,7 @@ import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-import { ModelFieldSelectorPopover } from "./model_field_selector_popover";
+import { ModelFieldSelectorPopover } from "./model_field_selector_popover.js";
 
 export class ModelFieldSelector extends Component {
     static template = "web._ModelFieldSelector";

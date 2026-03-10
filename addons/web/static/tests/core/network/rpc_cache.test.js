@@ -931,7 +931,7 @@ test("DiskCache: multiple consecutive calls, fallback fails", async () => {
     // Each next call (before the end of the first call) retrieves the same result as the first call.
     // The fallback fails.
     // Each call receives as value the disk value, callbacks aren't executed.
-    expect.errors(1);
+    // Background refresh failure is logged as warning (not error) since cached data was already served.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -997,7 +997,8 @@ test("DiskCache: multiple consecutive calls, fallback fails", async () => {
     await tick();
 
     expect.verifySteps([]);
-    expect.verifyErrors(["my RPCError"]);
+    // No error raised — cached data was already served, background failure is
+    // silently warned to avoid disrupting the user with an error dialog.
 });
 
 test("DiskCache: multiple consecutive calls, empty cache, fallback fails", async () => {

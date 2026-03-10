@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/list/list_renderer - Table rendering, inline editing, column resize, and drag-and-drop for list view */
 
@@ -36,14 +37,14 @@ import { useBounceButton } from "@web/views/view_hook";
 import { getFormattedValue } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
-import { useMagicColumnWidths } from "./column_width_hook";
-import { useListAggregates } from "./list_aggregates";
-import { ListAggregatesRow } from "./list_aggregates_row";
+import { useMagicColumnWidths } from "./column_width_hook.js";
+import { useListAggregates } from "./list_aggregates.js";
+import { ListAggregatesRow } from "./list_aggregates_row.js";
 import {
     getPropertyFieldColumns as getPropertyFieldColumnsUtil,
     processAllColumns,
-} from "./list_column_utils";
-import { ListGridState } from "./list_grid_state";
+} from "./list_column_utils.js";
+import { ListGridState } from "./list_grid_state.js";
 import {
     countRecordsInGroup,
     getAggregateColumns as getAggregateColumnsUtil,
@@ -51,11 +52,11 @@ import {
     getGroupNameCellColSpan as getGroupNameCellColSpanUtil,
     getGroupPagerCellColspan as getGroupPagerCellColspanUtil,
     getLastAggregateIndex as getLastAggregateIndexUtil,
-} from "./list_group_layout";
-import { containsActiveElement, useListKeyboardNavigation } from "./list_keyboard_nav";
-import { useListOptionalFields } from "./list_optional_fields";
-import { useListSelection } from "./list_selection";
-import { useListVirtualization } from "./list_virtualization";
+} from "./list_group_layout.js";
+import { containsActiveElement, useListKeyboardNavigation } from "./list_keyboard_nav.js";
+import { useListOptionalFields } from "./list_optional_fields.js";
+import { useListSelection } from "./list_selection.js";
+import { useListVirtualization } from "./list_virtualization.js";
 
 /**
  * @typedef {import('@web/model/relational_model/dynamic_list').DynamicList} DynamicList
@@ -241,6 +242,7 @@ export class ListRenderer extends Component {
         });
         onWillRender(() => {
             this.editedRecord = this.props.list.editedRecord;
+            this._readonlyCache = new Map();
 
             performance.mark("list:processAllColumns:start");
             this.allColumns = /** @type {Column[]} */ (
@@ -789,17 +791,23 @@ export class ListRenderer extends Component {
             return "";
         }
 
+        // Per-render cache for the full cell class string (column + record dependent)
+        const cacheKey = `cell:${column.id},${record.id}`;
+        const cached = this._readonlyCache?.get(cacheKey);
+        if (cached !== undefined) {
+            return cached;
+        }
+
         if (!this.cellClassByColumn[column.id]) {
             const classNames = ["o_data_cell"];
             if (column.type === "button_group") {
                 classNames.push("o_list_button");
             } else if (column.type === "field") {
                 classNames.push("o_field_cell");
-                if (
-                    column.attrs &&
-                    column.attrs.class &&
-                    this.canUseFormatter(column, record)
-                ) {
+                if (column.attrs && column.attrs.class && !column.widget) {
+                    // When a widget is used, arch classes are delegated only to
+                    // the <Field> component (via getFieldClass) so that layout
+                    // classes like d-flex do not conflict with the cell layout.
                     classNames.push(column.attrs.class);
                 }
                 const typeClass = FIELD_CLASSES[this.fields[column.name].type];
@@ -810,39 +818,27 @@ export class ListRenderer extends Component {
                     classNames.push(`o_${column.widget}_cell`);
                 }
             }
-            this.cellClassByColumn[column.id] = classNames;
+            this.cellClassByColumn[column.id] = classNames.join(" ");
         }
-        const classNames = [...this.cellClassByColumn[column.id]];
+        let result = this.cellClassByColumn[column.id];
         if (column.type === "field") {
-            if (
-                evaluateBooleanExpr(
-                    /** @type {any} */ (column.required),
-                    record.evalContextWithVirtualIds,
-                )
-            ) {
-                classNames.push("o_required_modifier");
+            const evalCtx = record.evalContextWithVirtualIds;
+            if (evaluateBooleanExpr(/** @type {any} */ (column.required), evalCtx)) {
+                result += " o_required_modifier";
             }
             if (record.isFieldInvalid(column.name)) {
-                classNames.push("o_invalid_cell");
+                result += " o_invalid_cell";
             }
             if (this.isCellReadonly(column, record)) {
-                classNames.push("o_readonly_modifier");
+                result += " o_readonly_modifier";
             }
             if (this.canUseFormatter(column, record)) {
-                // generate field decorations classNames (only if field-specific decorations
-                // have been defined in an attribute, e.g. decoration-danger="other_field = 5")
-                // only handle the text-decoration.
                 const decorations = /** @type {Record<string, string>} */ (
                     column.decorations
                 );
                 for (const decoName in decorations) {
-                    if (
-                        evaluateBooleanExpr(
-                            decorations[decoName],
-                            record.evalContextWithVirtualIds,
-                        )
-                    ) {
-                        classNames.push(getClassNameFromDecoration(decoName));
+                    if (evaluateBooleanExpr(decorations[decoName], evalCtx)) {
+                        result += ` ${getClassNameFromDecoration(decoName)}`;
                     }
                 }
             }
@@ -851,12 +847,13 @@ export class ListRenderer extends Component {
                 this.editedRecord &&
                 this.isCellReadonly(column, this.editedRecord)
             ) {
-                classNames.push("text-muted");
+                result += " text-muted";
             } else {
-                classNames.push("cursor-pointer");
+                result += " cursor-pointer";
             }
         }
-        return classNames.join(" ");
+        this._readonlyCache?.set(cacheKey, result);
+        return result;
     }
 
     /**
@@ -864,7 +861,12 @@ export class ListRenderer extends Component {
      * @param {RelationalRecord} record
      */
     isCellReadonly(column, record) {
-        return !!(
+        const cacheKey = `${column.id},${record.id}`;
+        let result = this._readonlyCache?.get(cacheKey);
+        if (result !== undefined) {
+            return result;
+        }
+        result = !!(
             this.isRecordReadonly(record) ||
             (column.relatedPropertyField &&
                 record.selected &&
@@ -874,6 +876,8 @@ export class ListRenderer extends Component {
                 record.evalContextWithVirtualIds,
             )
         );
+        this._readonlyCache?.set(cacheKey, result);
+        return result;
     }
 
     /**
@@ -1089,10 +1093,10 @@ export class ListRenderer extends Component {
                 this.focusCell(column);
                 this.nav.cellToFocus = null;
             } else {
-                const recordIndex = this.props.list.records.indexOf(record);
+                const recordId = record.id;
                 await this.resequencePromise;
-                // row might have changed record after resequence
-                record = this.props.list.records[recordIndex] || record;
+                // row might have changed position after resequence — look up by id
+                record = this.props.list.records.find((r) => r.id === recordId) || record;
                 await this.props.list.enterEditMode(record);
                 this.nav.cellToFocus = { column, record };
                 if (
@@ -1114,7 +1118,7 @@ export class ListRenderer extends Component {
                 }
             }
         } else if (this.editedRecord && this.editedRecord !== record) {
-            this.props.list.leaveEditMode();
+            await this.props.list.leaveEditMode();
         } else if (!this.props.archInfo.noOpen) {
             this.props.openRecord(record, { newWindow });
         }

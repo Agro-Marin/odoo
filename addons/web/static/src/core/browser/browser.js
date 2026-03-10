@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/browser/browser - Patchable browser API facade (localStorage, fetch, setTimeout, etc.) for testability */
 
@@ -59,8 +60,6 @@ export const browser = {
     localStorage,
     sessionStorage,
     fetch: window.fetch.bind(window),
-    innerHeight: window.innerHeight,
-    innerWidth: window.innerWidth,
     ontouchstart: window.ontouchstart,
     BroadcastChannel: window.BroadcastChannel,
     visualViewport: window.visualViewport,
@@ -114,8 +113,8 @@ export function makeRAMLocalStorage() {
         get length() {
             return Object.keys(store).length;
         },
-        key() {
-            return "";
+        key(index) {
+            return Object.keys(store)[index] ?? null;
         },
     };
 }

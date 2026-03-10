@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/services/orm_service - ORM RPC client for CRUD, read_group, and x2many command helpers */
 
@@ -374,14 +375,18 @@ export const ormService = {
     async: [
         "call",
         "create",
-        "nameGet",
-        "read",
         "formattedReadGroup",
-        "webReadGroup",
+        "formattedReadGroupingSets",
+        "read",
         "search",
+        "searchCount",
         "searchRead",
         "unlink",
+        "webRead",
+        "webReadGroup",
         "webResequence",
+        "webSave",
+        "webSaveMulti",
         "webSearchRead",
         "write",
     ],

@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { DocumentFileUploader } from "../document_file_uploader/document_file_uploader.js";

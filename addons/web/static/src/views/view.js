@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view - Generic view loader: resolves arch, fields, and compiler then renders the appropriate view component */
 
@@ -26,7 +27,7 @@ import { useDebugCategory } from "@web/services/debug/debug_context";
 import { session } from "@web/session";
 import { useActionLinks } from "@web/views/view_hook";
 
-import { computeViewClassName } from "./view_utils";
+import { computeViewClassName } from "./view_utils.js";
 
 /**
  * @typedef Config

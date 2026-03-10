@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/barcode/barcode_dialog - Dialog wrapper for the barcode video scanner with error state handling */
 
@@ -9,7 +10,7 @@ import { Dialog } from "@web/ui/dialog/dialog";
 import {
     BarcodeVideoScanner,
     isBarcodeScannerSupported,
-} from "./barcode_video_scanner";
+} from "./barcode_video_scanner.js";
 
 export class BarcodeDialog extends Component {
     static template = "web.BarcodeDialog";

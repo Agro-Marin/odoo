@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/kanban/kanban_cog_menu - Kanban cog menu that hides registry items during multi-select operations */
 

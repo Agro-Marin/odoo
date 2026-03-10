@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2many_binary/many2many_binary_field - File attachment list field for Many2many relations to ir.attachment */
 
@@ -9,7 +10,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-import { useX2ManyCrud } from "../x2many_crud";
+import { useX2ManyCrud } from "../x2many_crud.js";
 
 export class Many2ManyBinaryField extends Component {
     static template = "web.Many2ManyBinaryField";

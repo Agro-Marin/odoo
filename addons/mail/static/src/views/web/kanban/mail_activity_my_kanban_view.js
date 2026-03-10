@@ -1,7 +1,8 @@
+/** @odoo-module */
 import { registry } from "@web/core/registry";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 
-import { MailActivityMyKanbanController } from "./mail_activity_my_kanban_controller";
+import { MailActivityMyKanbanController } from "./mail_activity_my_kanban_controller.js";
 
 export const mailActivityMyKanbanView = {
     ...kanbanView,

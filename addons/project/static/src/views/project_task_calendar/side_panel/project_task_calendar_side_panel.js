@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { CalendarSidePanel } from "@web/views/calendar/calendar_side_panel/calendar_side_panel";
 
 import { ProjectTaskCalendarListToPlan } from "../project_task_calendar_list_to_plan/project_task_calendar_list_to_plan.js";

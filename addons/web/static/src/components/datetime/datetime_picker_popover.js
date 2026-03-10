@@ -1,12 +1,13 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/datetime/datetime_picker_popover - Popover wrapper that hosts a DateTimePicker with keyboard dismiss support */
 
 import { Component } from "@odoo/owl";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 
-import { DateTimePicker } from "./datetime_picker";
-/** @import { DateTimePickerProps } from "./datetime_picker" */
+import { DateTimePicker } from "./datetime_picker.js";
+/** @import { DateTimePickerProps } from "./datetime_picker.js" */
 
 /**
  * @typedef DateTimePickerPopoverProps

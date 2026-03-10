@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Chatter } from "@mail/chatter/web_portal/chatter";
 import { AttachmentView } from "@mail/core/common/attachment_view";
 import { onMounted, onWillUnmount, useState } from "@odoo/owl";

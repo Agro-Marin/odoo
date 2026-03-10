@@ -1,3 +1,4 @@
+/** @odoo-module */
 export class BaseWorker {
     constructor(name) {
         this.name = name;

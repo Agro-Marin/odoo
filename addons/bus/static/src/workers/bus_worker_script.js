@@ -1,9 +1,10 @@
+/** @odoo-module */
 /* eslint-env worker */
 /* eslint-disable no-restricted-globals */
 
-import { BaseWorker } from "./base_worker";
-import { ElectionWorker } from "./election_worker";
-import { WebsocketWorker } from "./websocket_worker";
+import { BaseWorker } from "./base_worker.js";
+import { ElectionWorker } from "./election_worker.js";
+import { WebsocketWorker } from "./websocket_worker.js";
 
 (function () {
     const baseWorker = new BaseWorker(self.name);

@@ -1,9 +1,10 @@
+/** @odoo-module */
 import { Thread } from "@mail/core/common/thread_model";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { rpc } from "@web/core/network/rpc";
 import { patch } from "@web/core/utils/patch";
 
-import { fields } from "../common/record";
+import { fields } from "../common/record.js";
 /** @type {import("models").Thread} */
 const threadPatch = {
     setup() {
@@ -23,7 +24,7 @@ const threadPatch = {
             /** @this {import("models").Thread} */
             compute() {
                 if (
-                    this.store.discuss.isActive &&
+                    this.store.discuss?.isActive &&
                     !this.store.env.services.ui.isSmall
                 ) {
                     return this.eq(this.store.discuss.thread);

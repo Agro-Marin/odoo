@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/pivot/pivot_view - Pivot view descriptor registered in the view registry */
 
@@ -8,8 +9,8 @@ import { PivotArchParser } from "@web/views/pivot/pivot_arch_parser";
 import { PivotModel } from "@web/views/pivot/pivot_model";
 import { PivotRenderer } from "@web/views/pivot/pivot_renderer";
 
-import { PivotController } from "./pivot_controller";
-import { PivotSearchModel } from "./pivot_search_model";
+import { PivotController } from "./pivot_controller.js";
+import { PivotSearchModel } from "./pivot_search_model.js";
 
 const viewRegistry = registry.category("views");
 

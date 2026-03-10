@@ -28,6 +28,7 @@ from . import test_web_redirect
 from . import test_web_benchmark
 from . import test_web_perf_regression
 from . import test_web_read_group
+from . import test_web_save
 from . import test_web_search_read
 from . import test_webmanifest
 from . import test_res_config_settings

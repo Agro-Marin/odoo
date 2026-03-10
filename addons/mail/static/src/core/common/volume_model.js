@@ -1,4 +1,5 @@
-import { fields, OR, Record } from "./record";
+/** @odoo-module */
+import { fields, OR, Record } from "./record.js";
 
 export class Volume extends Record {
     static id = OR("partner_id", "guest_id");

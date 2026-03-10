@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/utils/dom/dvu - Dynamic viewport units with virtual keyboard and visualViewport tracking */
 

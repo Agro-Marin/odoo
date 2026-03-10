@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { Follower } from "@mail/core/web/follower";
 import { FollowerSubtypeDialog } from "@mail/core/web/follower_subtype_dialog";
 import { useVisible } from "@mail/utils/common/hooks";

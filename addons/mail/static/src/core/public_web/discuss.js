@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { DiscussContent } from "@mail/core/public_web/discuss_content";
 import { DiscussSidebar } from "@mail/core/public_web/discuss_sidebar";
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";

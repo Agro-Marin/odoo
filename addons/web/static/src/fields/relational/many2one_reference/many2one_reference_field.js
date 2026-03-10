@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/fields/relational/many2one_reference/many2one_reference_field - Many2one field for Many2oneReference columns with dynamic relation model */
 

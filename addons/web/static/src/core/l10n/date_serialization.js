@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/core/l10n/date_serialization - Server-format date serialization and deserialization with WeakMap caching */
 

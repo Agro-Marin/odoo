@@ -15,8 +15,8 @@ import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 
-import { ReportAction } from "./report_action";
-import { downloadReport, getReportUrl } from "./utils";
+import { ReportAction } from "./report_action.js";
+import { downloadReport, getReportUrl } from "./utils.js";
 
 /**
  * Execute a report action as a client-side HTML preview.

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/view_components/view_scale_selector - Dropdown for switching between time scales (day/week/month/year) in calendar and gantt views */
 

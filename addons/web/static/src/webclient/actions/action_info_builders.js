@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/webclient/actions/action_info_builders - Builds props, config, and state for client action and view controllers */
 
@@ -27,7 +28,7 @@ export function buildActionInfo(action, props, { pushState }) {
         resId: actionProps.resId ?? false,
         // Do not default to false: action_state.js serializes non-null values,
         // and false would leak "active_id":false into the URL state.
-        active_id: action.context.active_id,
+        active_id: action.context?.active_id,
     };
     actionProps.updateActionState = (controller, patchState) => {
         const oldState = { ...currentState };
@@ -82,7 +83,7 @@ export function buildViewInfo(view, action, views, props = {}, callbacks) {
     const context = action.context || {};
     let groupBy = context.group_by || [];
     if (typeof groupBy === "string") {
-        groupBy = [groupBy];
+        groupBy = groupBy ? [groupBy] : [];
     }
     const openFormView = (
         resId,
@@ -160,7 +161,7 @@ export function buildViewInfo(view, action, views, props = {}, callbacks) {
         resId: viewProps.resId,
         // Do not default to false: action_state.js serializes non-null values,
         // and false would leak "active_id":false into the URL state.
-        active_id: action.context.active_id,
+        active_id: action.context?.active_id,
     };
     viewProps.updateActionState = (controller, patchState) => {
         const oldState = { ...currentState };

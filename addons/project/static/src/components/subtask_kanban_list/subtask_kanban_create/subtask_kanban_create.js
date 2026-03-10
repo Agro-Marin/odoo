@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { Component, useState, useRef } from "@odoo/owl";
 
 import { _t } from "@web/core/l10n/translation";

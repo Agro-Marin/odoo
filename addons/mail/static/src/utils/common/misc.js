@@ -1,3 +1,4 @@
+/** @odoo-module */
 import { reactive } from "@odoo/owl";
 import { AssetsLoadingError, getBundle } from "@web/core/assets";
 import { rpc } from "@web/core/network/rpc";

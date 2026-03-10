@@ -1,10 +1,11 @@
+/** @odoo-module */
 import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_service";
 import { onWillUnmount, status, useComponent, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 
-import { Mp3Encoder } from "./mp3_encoder";
+import { Mp3Encoder } from "./mp3_encoder.js";
 export const patchable = {
     makeFile(file) {
         return file;

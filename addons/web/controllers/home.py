@@ -66,9 +66,10 @@ class Home(http.Controller):
         return request.redirect_query("/odoo", query=request.params)
 
     def _web_client_readonly(self, rule: Any, args: Any) -> bool:
+        """Determine if the web client route should use a read-only cursor."""
         return False
 
-    # ideally, this route should be `auth="user"` but that don't work in non-monodb mode.
+    # ideally, this route should be `auth="user"` but that doesn't work in non-monodb mode.
     @http.route(
         ["/web", "/odoo", "/odoo/<path:subpath>", "/scoped_app/<path:subpath>"],
         type="http",
@@ -76,7 +77,12 @@ class Home(http.Controller):
         readonly=_web_client_readonly,
     )
     def web_client(self, s_action: str | None = None, **kw: Any) -> Response:
+        """Serve the main web client HTML page.
 
+        Validates authentication, builds session info, and renders the
+        ``web.webclient_bootstrap`` template with asset bundles.
+        Uses ``auth="none"`` to support non-monodb mode.
+        """
         # Ensure we have both a database and a user
         ensure_db()
         if not request.session.uid:
@@ -107,9 +113,7 @@ class Home(http.Controller):
             # the webclient page, which is cache-control: "no-store" (see below)
             # Reuse session security related fields, to change the key when a security event
             # occurs for the user, like a password or 2FA change.
-            hmac_payload = (
-                request.env.user._session_token_get_values()
-            )  # already ordered
+            hmac_payload = request.env.user._session_token_get_values()  # already ordered
             session_info = context.get("session_info")
             session_info["browser_cache_secret"] = hmac(
                 request.env(su=True), "browser_cache_key", hmac_payload
@@ -145,13 +149,9 @@ class Home(http.Controller):
         return request.make_response(
             json_dumps(menus),
             [
-                # this method must specify a content-type application/json instead of using the default text/html set because
-                # the type of the route is set to HTTP, but the rpc is made with a get and expects JSON
+                # Content-Type must be application/json: route type is HTTP but the client expects JSON
                 ("Content-Type", "application/json"),
-                (
-                    "Cache-Control",
-                    "public, max-age=" + str(http.STATIC_CACHE_LONG),
-                ),
+                ("Cache-Control", f"public, max-age={http.STATIC_CACHE_LONG}"),
             ],
         )
 

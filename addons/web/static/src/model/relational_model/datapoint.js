@@ -1,13 +1,14 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/model/relational_model/datapoint - Abstract reactive base class for all data model nodes (records, lists, groups) */
 
 import { markRaw } from "@odoo/owl";
 import { Reactive } from "@web/core/utils/reactive";
 
-import { getId } from "./field_context";
+import { getId } from "./field_context.js";
 /** @import { Field, FieldInfo } from "@web/model/types" */
-/** @import { RelationalModel, RelationalModelConfig } from "./relational_model" */
+/** @import { RelationalModel, RelationalModelConfig } from "./relational_model.js" */
 
 export class DataPoint extends Reactive {
     /**
@@ -45,9 +46,14 @@ export class DataPoint extends Reactive {
     }
 
     get fieldNames() {
-        return Object.keys(this.activeFields).filter(
-            (fieldName) => !this.fields[fieldName].relatedPropertyField,
-        );
+        const af = this.activeFields;
+        if (!this._fieldNames || this._fieldNamesSource !== af) {
+            this._fieldNamesSource = af;
+            this._fieldNames = Object.keys(af).filter(
+                (fieldName) => !this.fields[fieldName].relatedPropertyField,
+            );
+        }
+        return this._fieldNames;
     }
 
     get resModel() {

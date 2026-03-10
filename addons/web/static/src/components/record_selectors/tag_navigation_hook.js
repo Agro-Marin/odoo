@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/record_selectors/tag_navigation_hook - Keyboard navigation hook for moving between and deleting tags in record selectors */
 

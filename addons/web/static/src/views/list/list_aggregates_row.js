@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module views/list/list_aggregates_row - Footer aggregate row component for ListRenderer */
 
@@ -7,12 +8,12 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
-import { useListAggregates } from "./list_aggregates";
-import { processAllColumns } from "./list_column_utils";
+import { useListAggregates } from "./list_aggregates.js";
+import { processAllColumns } from "./list_column_utils.js";
 import {
     getAggregateColumns as getAggregateColumnsUtil,
     getGroupNameCellColSpan as getGroupNameCellColSpanUtil,
-} from "./list_group_layout";
+} from "./list_group_layout.js";
 
 /**
  * Renders the single footer row (`<tr>`) inside the list `<tfoot>`.

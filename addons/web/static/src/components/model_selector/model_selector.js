@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/components/model_selector/model_selector - Autocomplete component for searching and selecting Odoo model names */
 

@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module */
 import { Component } from "@odoo/owl";
 
 export class ProjectRightSidePanelSection extends Component {

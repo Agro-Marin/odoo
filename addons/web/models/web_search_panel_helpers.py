@@ -10,7 +10,7 @@ from typing import Any
 
 from odoo import api, models
 from odoo.fields import Domain
-from odoo.orm._typing import DomainType
+from odoo.api import DomainType
 
 from .web_read import lazymapping
 from .web_read_group_helpers import AND

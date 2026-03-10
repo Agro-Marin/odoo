@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module */
 
 /** @module @web/views/widgets/attach_document/attach_document - Widget button that uploads files as ir.attachment records and optionally calls a model action */
 

@@ -43,23 +43,6 @@ $report-text-colors: null;
     display: none;
 }
 
-// Bootstrap responsive columns (col-N) need explicit widths in PDF context
-// because WeasyPrint doesn't evaluate Bootstrap's media-query breakpoints.
-// Without these, col-2/col-3/col-4/col-5/col-6 collapse to content width.
-@for $i from 1 through 12 {
-    .col-#{$i} {
-        flex: 0 0 auto;
-        width: calc(100% * #{$i} / 12);
-    }
-}
-
-// Bootstrap offset classes — same reasoning as col-N above.
-@for $i from 1 through 11 {
-    .offset-#{$i} {
-        margin-left: calc(100% * #{$i} / 12);
-    }
-}
-
 .col {
     flex: 1 0 0%;
 }
