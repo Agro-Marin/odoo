@@ -100,9 +100,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_action_attachment"
-        parent="base.next_id_9"
-        action="action_attachment" />
-
 </odoo>

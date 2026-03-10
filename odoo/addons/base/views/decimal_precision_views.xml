@@ -31,9 +31,5 @@
         <field name="name">Decimal Accuracy</field>
         <field name="res_model">decimal.precision</field>
     </record>
-    <menuitem
-        id="menu_decimal_precision_form"
-        parent="base.next_id_9"
-        action="action_decimal_precision_form" />
 
 </odoo>

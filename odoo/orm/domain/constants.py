@@ -7,7 +7,9 @@ This module contains all the operator constants used in domain expressions:
 - Internal operator mappings for negation and inversion
 """
 
-STANDARD_CONDITION_OPERATORS = frozenset(
+from typing import Final
+
+STANDARD_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(
     [
         "any",
         "not any",
@@ -57,7 +59,7 @@ This should be supported in the framework at all levels.
     around the value
 """
 
-CONDITION_OPERATORS = set(
+CONDITION_OPERATORS: set[str] = set(
     STANDARD_CONDITION_OPERATORS
 )  # modifiable (for optimizations only)
 """
@@ -67,16 +69,18 @@ optimization function. See the respective optimization functions for the
 details.
 """
 
-INTERNAL_CONDITION_OPERATORS = frozenset(("any!", "not any!"))
+INTERNAL_CONDITION_OPERATORS: Final[frozenset[str]] = frozenset(("any!", "not any!"))
 
-SUBDOMAIN_OPERATORS = frozenset(("any", "any!", "not any", "not any!"))
+SUBDOMAIN_OPERATORS: Final[frozenset[str]] = frozenset(
+    ("any", "any!", "not any", "not any!")
+)
 """Operators whose value must be parsed as a Domain when ``internal=True``.
 
 Referenced by ``Domain.__new__`` in both the single-condition fast path
 and the stack-based parser.  Keeping this as a named constant prevents
 the two code paths from diverging."""
 
-NEGATIVE_CONDITION_OPERATORS = {
+NEGATIVE_CONDITION_OPERATORS: Final[dict[str, str]] = {
     "not any": "any",
     "not any!": "any!",
     "not in": "in",
@@ -90,7 +94,7 @@ NEGATIVE_CONDITION_OPERATORS = {
 """A subset of operators with a 'negative' semantic, mapping to the 'positive' operator."""
 
 # negations for operators (used in DomainNot)
-INVERSE_OPERATOR = {
+INVERSE_OPERATOR: Final[dict[str, str]] = {
     # from NEGATIVE_CONDITION_OPERATORS
     "not any": "any",
     "not any!": "any!",
@@ -113,7 +117,7 @@ INVERSE_OPERATOR = {
 }
 """Dict to find the inverses of the operators."""
 
-INVERSE_INEQUALITY = {
+INVERSE_INEQUALITY: Final[dict[str, str]] = {
     "<": ">=",
     ">": "<=",
     ">=": "<",
@@ -122,8 +126,8 @@ INVERSE_INEQUALITY = {
 """Dict to find the inverse of inequality operators.
 Handled differently because of null values."""
 
-TRUE_LEAF = (1, "=", 1)
-FALSE_LEAF = (0, "=", 1)
+TRUE_LEAF: Final[tuple[int, str, int]] = (1, "=", 1)
+FALSE_LEAF: Final[tuple[int, str, int]] = (0, "=", 1)
 
 __all__ = [
     "CONDITION_OPERATORS",

@@ -18,7 +18,6 @@ See Also
 --------
 - ``odoo.tools.orm_profiler`` — Aggregate per-model/operation stats per transaction
 - ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
-- ``odoo.tools.mixin_profiler`` — Method-level profiler (per-method timing)
 - ``odoo.tests.benchmark`` — Micro-benchmark statistical utilities
 - ``.claude/rules/profiling.md`` — Decision tree: which tool to use when
 """

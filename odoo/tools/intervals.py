@@ -11,7 +11,7 @@ New code should import from odoo.libs.intervals directly.
 import warnings
 
 warnings.warn(
-    "odoo.tools.intervals is deprecated. " "Use odoo.libs.intervals instead.",
+    "odoo.tools.intervals is deprecated. Use odoo.libs.intervals instead.",
     DeprecationWarning,
     stacklevel=2,
 )

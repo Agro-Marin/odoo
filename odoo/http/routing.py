@@ -1,9 +1,8 @@
-"""Route decorator and routing rule generation."""
-
 import functools
 import inspect
 import logging
 import warnings
+from typing import TYPE_CHECKING, Any
 
 from odoo.libs.func import filter_kwargs
 from odoo.tools import unique
@@ -12,10 +11,13 @@ from .controller import Controller
 from .dispatcher import _dispatchers
 from .wrappers import Response
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator, Iterable
+
 _logger = logging.getLogger(__name__)
 
 
-def route(route=None, **routing):
+def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
     """
     Decorate a controller method in order to route incoming requests
     matching the given URL and options to the decorated method.
@@ -70,7 +72,7 @@ def route(route=None, **routing):
         by default for ``auth='bearer'``. ``True`` by default otherwise.
     """
 
-    def decorator(endpoint):
+    def decorator(endpoint: Callable) -> Callable:
         fname = f"<function {endpoint.__module__}.{endpoint.__name__}>"
 
         # Sanitize the routing
@@ -78,12 +80,12 @@ def route(route=None, **routing):
             warnings.warn(
                 "Since 19.0, @route(type='json') is a deprecated alias to @route(type='jsonrpc')",
                 DeprecationWarning,
-                stacklevel=3,
+                stacklevel=2,
             )
             routing["type"] = "jsonrpc"
-        assert (
-            routing.get("type", "http") in _dispatchers
-        ), f"@route(type={routing['type']!r}) is not one of {_dispatchers.keys()}"
+        assert routing.get("type", "http") in _dispatchers, (
+            f"@route(type={routing['type']!r}) is not one of {_dispatchers.keys()}"
+        )
         if route:
             routing["routes"] = [route] if isinstance(route, str) else route
         wrong = routing.pop("method", None)
@@ -117,7 +119,9 @@ def route(route=None, **routing):
     return decorator
 
 
-def _generate_routing_rules(modules, nodb_only, converters=None):
+def _generate_routing_rules(
+    modules: list[str], nodb_only: bool, converters: dict | None = None
+) -> Generator[tuple[str, Any]]:
     """
     Two-fold algorithm used to (1) determine which method in the
     controller inheritance tree should bind to what URL with respect to
@@ -126,12 +130,12 @@ def _generate_routing_rules(modules, nodb_only, converters=None):
     overrides.
     """
 
-    def is_valid(cls):
+    def is_valid(cls: type) -> bool:
         """Determine if the class is defined in an addon."""
         path = cls.__module__.split(".")
         return path[:2] == ["odoo", "addons"] and path[2] in modules
 
-    def get_leaf_classes(cls):
+    def get_leaf_classes(cls: type) -> list[type]:
         """
         Find the classes that have no child and that have ``cls`` as
         ancestor.
@@ -144,7 +148,7 @@ def _generate_routing_rules(modules, nodb_only, converters=None):
             result.append(cls)
         return result
 
-    def build_controllers():
+    def build_controllers() -> Generator[Controller]:
         """
         Create dummy controllers that inherit only from the controllers
         defined at the given ``modules`` (often system wide modules or
@@ -177,10 +181,9 @@ def _generate_routing_rules(modules, nodb_only, converters=None):
 
     for ctrl in build_controllers():
         for method_name, method in inspect.getmembers(ctrl, inspect.ismethod):
-
             # Skip this method if it is not @route decorated anywhere in
             # the hierarchy
-            def is_method_a_route(cls):
+            def is_method_a_route(cls: type) -> bool:
                 return (
                     getattr(
                         getattr(cls, method_name, None),
@@ -239,7 +242,9 @@ def _generate_routing_rules(modules, nodb_only, converters=None):
                 yield (url, endpoint)
 
 
-def _check_and_complete_route_definition(controller_cls, submethod, merged_routing):
+def _check_and_complete_route_definition(
+    controller_cls: type, submethod: Any, merged_routing: dict[str, Any]
+) -> None:
     """Verify and complete the route definition.
 
     * Ensure 'type' is defined on each method's own routing.
@@ -264,7 +269,7 @@ def _check_and_complete_route_definition(controller_cls, submethod, merged_routi
     child_readonly = submethod.original_routing.get("readonly")
     if child_readonly not in (None, parent_readonly) and not callable(child_readonly):
         _logger.warning(
-            "The endpoint %s made the route %s altough its parent was defined as %s. Setting the route read/write.",
+            "The endpoint %s made the route %s although its parent was defined as %s. Setting the route read/write.",
             f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}",
             "readonly" if child_readonly else "read/write",
             "readonly" if parent_readonly else "read/write",

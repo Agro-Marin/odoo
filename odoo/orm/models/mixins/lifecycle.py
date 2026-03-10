@@ -17,7 +17,7 @@ from collections import defaultdict
 from odoo.tools.translate import _
 
 from ... import decorators as api
-from ..._typing import DomainType, IdType
+from ..._typing import DomainType, IdType  # noqa: TC003 — runtime import required (PEP 649)
 
 if typing.TYPE_CHECKING:
     from collections.abc import Collection
@@ -48,8 +48,7 @@ class LifecycleMixin:
                  in the form ``module.key``, or an empty list when there's no External
                  ID for a record, e.g.::
 
-                     { 'id': ['module.ext_id', 'module.ext_id_bis'],
-                       'id2': [] }
+                     {"id": ["module.ext_id", "module.ext_id_bis"], "id2": []}
         """
         result = defaultdict(list)
         domain: DomainType = [
@@ -78,8 +77,7 @@ class LifecycleMixin:
                  (to be usable as a function field),
                  e.g.::
 
-                     { 'id': 'module.ext_id',
-                       'id2': '' }
+                     {"id": "module.ext_id", "id2": ""}
         """
         results = self._get_external_ids()
         return {key: val[0] if val else "" for key, val in results.items()}
@@ -197,7 +195,8 @@ class LifecycleMixin:
                 )
 
     def onchange(self, values: dict, field_names: list[str], fields_spec: dict) -> dict:
-        raise NotImplementedError("onchange() is implemented in module 'web'")
+        msg = "onchange() is implemented in module 'web'"
+        raise NotImplementedError(msg)
 
     def _get_placeholder_filename(self, field: str) -> str | bool:
         """Returns the filename of the placeholder to use,

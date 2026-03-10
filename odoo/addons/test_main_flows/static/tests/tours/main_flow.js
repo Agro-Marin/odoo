@@ -12,7 +12,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
             return step;
         }),
         ...stepUtils.goToAppSteps(
-            "sale.sale_menu_root",
+            "sale.menu_sale_root",
             markup(
                 _t("Organize your sales activities with the <b>Sales app</b>."),
             ),
@@ -1222,7 +1222,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         ),
         ...stepUtils.toggleHomeMenu(),
         ...stepUtils.goToAppSteps(
-            "sale.sale_menu_root",
+            "sale.menu_sale_root",
             markup(
                 _t("Organize your sales activities with the <b>Sales app</b>."),
             ),
@@ -1241,7 +1241,7 @@ registry.category("web_tour.tours").add("main_flow_tour", {
         {
             isActive: ["desktop"],
             trigger:
-                ".o_menu_sections button[data-menu-xmlid='sale.sale_order_menu']",
+                ".o_menu_sections button[data-menu-xmlid='sale.menu_sale_orders']",
             content: _t("Go to Sales menu"),
             tooltipPosition: "bottom",
             run: "click",

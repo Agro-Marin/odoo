@@ -4,7 +4,7 @@ import logging
 import os
 import platform
 import random
-import select
+import selectors
 import signal
 import socket
 import subprocess
@@ -14,6 +14,7 @@ import time
 from collections import deque
 from io import BytesIO
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import psutil
 import psycopg
@@ -54,8 +55,10 @@ if not inotify:
 try:
     from setproctitle import setproctitle
 except ImportError:
-    def setproctitle(x):
+
+    def setproctitle(x: str) -> None:
         return None
+
 
 import odoo
 from odoo import api, db
@@ -71,6 +74,9 @@ from odoo.tools.misc import dumpstacks, stripped_sys_argv
 import odoo.addons
 from .db import list_dbs
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 _logger = logging.getLogger(__name__)
 
 SLEEP_INTERVAL = 60  # 1 min
@@ -83,7 +89,7 @@ thread_local = threading.local()
 thread_local.rpc_model_method = ""
 
 
-def memory_info(process) -> int:
+def memory_info(process: Any) -> int:
     """Return the resident memory (RSS) of the process in bytes.
 
     VMS (virtual memory size) is unreliable on modern Python (3.13+): the new
@@ -94,7 +100,8 @@ def memory_info(process) -> int:
     return process.memory_info().rss
 
 
-def set_limit_memory_hard():
+def set_limit_memory_hard() -> None:
+    """Set RLIMIT_AS to the configured hard memory limit for the current process."""
     if platform.system() != "Linux":
         return
     limit_memory_hard = config["limit_memory_hard"]
@@ -106,7 +113,8 @@ def set_limit_memory_hard():
         resource.setrlimit(rlimit, (limit_memory_hard, hard))
 
 
-def empty_pipe(fd):
+def empty_pipe(fd: int) -> None:
+    """Drain all data from a non-blocking pipe file descriptor."""
     try:
         while os.read(fd, 1):
             pass
@@ -114,7 +122,8 @@ def empty_pipe(fd):
         pass
 
 
-def cron_database_list():
+def cron_database_list() -> list[str]:
+    """Return the list of databases to consider for cron processing."""
     return config["db_name"] or list_dbs(True)
 
 
@@ -122,7 +131,7 @@ def cron_database_list():
 # Werkzeug WSGI servers patched
 # ----------------------------------------------------------
 class LoggingBaseWSGIServerMixIn:
-    def handle_error(self, request, client_address):
+    def handle_error(self, request: Any, client_address: tuple[str, int]) -> None:
         if isinstance(sys.exception(), BrokenPipeError):
             return
         _logger.exception(
@@ -136,7 +145,7 @@ class BaseWSGIServerNoBind(LoggingBaseWSGIServerMixIn, werkzeug.serving.BaseWSGI
     use this class, sets the socket and calls the process_request() manually
     """
 
-    def __init__(self, app):
+    def __init__(self, app: Any) -> None:
         werkzeug.serving.BaseWSGIServer.__init__(
             self, "127.0.0.1", 0, app, handler=CommonRequestHandler
         )
@@ -144,13 +153,13 @@ class BaseWSGIServerNoBind(LoggingBaseWSGIServerMixIn, werkzeug.serving.BaseWSGI
         if self.socket:
             self.socket.close()
 
-    def server_activate(self):
+    def server_activate(self) -> None:
         # dont listen as we use PreforkServer#socket
         pass
 
 
 class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
-    def log_error(self, format, *args):
+    def log_error(self, format: str, *args: Any) -> None:
         # Socket timeouts on idle connections are not errors — they are
         # expected from browser pre-connects, keep-alive probes, and
         # connection pools.  Downgrade to DEBUG to avoid log noise.
@@ -159,7 +168,7 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
             return
         super().log_error(format, *args)
 
-    def log_request(self, code="-", size="-"):
+    def log_request(self, code: str | int = "-", size: str | int = "-") -> None:
         try:
             path = uri_to_iri(self.path)
             fragment = thread_local.rpc_model_method
@@ -191,7 +200,7 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
 
 
 class RequestHandler(CommonRequestHandler):
-    def setup(self):
+    def setup(self) -> None:
         # timeout to avoid chrome headless preconnect during tests
         if config["test_enable"]:
             self.timeout = 5
@@ -200,7 +209,7 @@ class RequestHandler(CommonRequestHandler):
         me = threading.current_thread()
         me.name = f"odoo.service.http.request.{me.ident}"
 
-    def make_environ(self):
+    def make_environ(self) -> dict[str, Any]:
         environ = super().make_environ()
         # Add the TCP socket to environ in order for the websocket
         # connections to use it.
@@ -212,7 +221,7 @@ class RequestHandler(CommonRequestHandler):
             self.protocol_version = "HTTP/1.1"
         return environ
 
-    def send_header(self, keyword, value):
+    def send_header(self, keyword: str, value: str) -> None:
         # Prevent WSGIRequestHandler from sending the "Connection: close" header
         # which is incompatible with WebSocket connections.
         if (
@@ -225,7 +234,7 @@ class RequestHandler(CommonRequestHandler):
             return
         super().send_header(keyword, value)
 
-    def end_headers(self, *a, **kw):
+    def end_headers(self, *a: Any, **kw: Any) -> None:
         super().end_headers(*a, **kw)
         # After end_headers, werkzeug assumes the connection is closed and discards
         # incoming data. For WebSocket upgrades, replace rfile/wfile to prevent that.
@@ -242,7 +251,7 @@ class ThreadedWSGIServerReloadable(
     socket open when a reload happens.
     """
 
-    def __init__(self, host, port, app):
+    def __init__(self, host: str, port: int, app: Any) -> None:
         # The ODOO_MAX_HTTP_THREADS environment variable allows to limit the amount of concurrent
         # socket connections accepted by a threaded server, implicitly limiting the amount of
         # concurrent threads running for http requests handling.
@@ -265,7 +274,7 @@ class ThreadedWSGIServerReloadable(
         # so the server waits for them when shutting down gracefully.
         self.daemon_threads = False
 
-    def server_bind(self):
+    def server_bind(self) -> None:
         SD_LISTEN_FDS_START = 3
         if os.environ.get("LISTEN_FDS") == "1" and os.environ.get("LISTEN_PID") == str(
             os.getpid()
@@ -284,11 +293,11 @@ class ThreadedWSGIServerReloadable(
                 self.server_port,
             )
 
-    def server_activate(self):
+    def server_activate(self) -> None:
         if not self.reload_socket:
             super().server_activate()
 
-    def process_request(self, request, client_address):
+    def process_request(self, request: Any, client_address: tuple[str, int]) -> None:
         """
         Start a new thread to process the request.
         Override the default method of class socketserver.ThreadingMixIn
@@ -303,7 +312,7 @@ class ThreadedWSGIServerReloadable(
         t.start_time = time.monotonic()
         t.start()
 
-    def _handle_request_noblock(self):
+    def _handle_request_noblock(self) -> None:
         if self.max_http_threads and not self.http_threads_sem.acquire(timeout=0.1):
             # If the semaphore is full we will return immediately to the upstream (most probably
             # socketserver.BaseServer's serve_forever loop  which will retry immediately as the
@@ -313,7 +322,7 @@ class ThreadedWSGIServerReloadable(
         # upstream _handle_request_noblock will handle errors and call shutdown_request in any cases
         super()._handle_request_noblock()
 
-    def shutdown_request(self, request):
+    def shutdown_request(self, request: Any) -> None:
         if self.max_http_threads:
             # upstream is supposed to call this function no matter what happens during processing
             self.http_threads_sem.release()
@@ -324,7 +333,8 @@ class ThreadedWSGIServerReloadable(
 # FileSystem Watcher for autoreload and cache invalidation
 # ----------------------------------------------------------
 class FSWatcherBase:
-    def handle_file(self, path):
+    def handle_file(self, path: str) -> bool | None:
+        """Check if a changed file is a Python source and trigger autoreload."""
         if path.endswith(".py") and not Path(path).name.startswith(".~"):
             try:
                 source = Path(path).read_bytes() + b"\n"
@@ -350,29 +360,29 @@ class FSWatcherBase:
 
 
 class FSWatcherWatchdog(FSWatcherBase):
-    def __init__(self):
+    def __init__(self) -> None:
         self.observer = Observer()
         for path in odoo.addons.__path__:
             _logger.info("Watching addons folder %s", path)
             self.observer.schedule(self, path, recursive=True)
 
-    def dispatch(self, event):
+    def dispatch(self, event: Any) -> None:
         if isinstance(event, (FileCreatedEvent, FileModifiedEvent, FileMovedEvent)):
             if not event.is_directory:
                 path = getattr(event, "dest_path", "") or event.src_path
                 self.handle_file(path)
 
-    def start(self):
+    def start(self) -> None:
         self.observer.start()
         _logger.info("AutoReload watcher running with watchdog")
 
-    def stop(self):
+    def stop(self) -> None:
         self.observer.stop()
         self.observer.join()
 
 
 class FSWatcherInotify(FSWatcherBase):
-    def __init__(self):
+    def __init__(self) -> None:
         self.started = False
         # ignore warnings from inotify in case we have duplicate addons paths.
         inotify.adapters._LOGGER.setLevel(logging.ERROR)
@@ -384,7 +394,7 @@ class FSWatcherInotify(FSWatcherBase):
             paths_to_watch, mask=INOTIFY_LISTEN_EVENTS, block_duration_s=0.5
         )
 
-    def run(self):
+    def run(self) -> None:
         _logger.info("AutoReload watcher running with inotify")
         dir_creation_events = {"IN_MOVED_TO", "IN_CREATE"}
         while self.started:
@@ -404,7 +414,7 @@ class FSWatcherInotify(FSWatcherBase):
                             if self.handle_file(str(root / file)):
                                 return
 
-    def start(self):
+    def start(self) -> None:
         self.started = True
         self.thread = threading.Thread(
             target=self.run, name="odoo.service.autoreload.watcher"
@@ -412,7 +422,7 @@ class FSWatcherInotify(FSWatcherBase):
         self.thread.daemon = True
         self.thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         self.started = False
         self.thread.join()
         del self.watcher  # ensures inotify watches are freed up before reexec
@@ -424,17 +434,17 @@ class FSWatcherInotify(FSWatcherBase):
 
 
 class CommonServer:
-    _on_stop_funcs = []
+    _on_stop_funcs: list[Callable] = []
 
-    def __init__(self, app):
+    def __init__(self, app: Any) -> None:
         self.app = app
         # config
-        self.interface = config["http_interface"] or "0.0.0.0"
-        self.port = config["http_port"]
+        self.interface: str = config["http_interface"] or "0.0.0.0"
+        self.port: int = config["http_port"]
         # runtime
-        self.pid = os.getpid()
+        self.pid: int = os.getpid()
 
-    def close_socket(self, sock):
+    def close_socket(self, sock: socket.socket) -> None:
         """Closes a socket instance cleanly
         :param sock: the network socket to close
         :type sock: socket.socket
@@ -459,11 +469,11 @@ class CommonServer:
         sock.close()
 
     @classmethod
-    def on_stop(cls, func):
-        """Register a cleanup function to be executed when the server stops"""
+    def on_stop(cls, func: Callable) -> None:
+        """Register a cleanup function to be executed when the server stops."""
         cls._on_stop_funcs.append(func)
 
-    def stop(self):
+    def stop(self) -> None:
         for func in self._on_stop_funcs:
             try:
                 _logger.debug("on_close call %s", func)
@@ -473,7 +483,7 @@ class CommonServer:
 
 
 class ThreadedServer(CommonServer):
-    def __init__(self, app):
+    def __init__(self, app: Any) -> None:
         super().__init__(app)
         self.main_thread_id = threading.current_thread().ident
         # Variable keeping track of the number of calls to the signal handler defined
@@ -485,7 +495,7 @@ class ThreadedServer(CommonServer):
         self.limits_reached_threads = set()
         self.limit_reached_time = None
 
-    def signal_handler(self, sig, frame):
+    def signal_handler(self, sig: int, frame: Any) -> None:
         if sig in [signal.SIGINT, signal.SIGTERM]:
             # shutdown on kill -INT or -TERM
             self.quit_signals_received += 1
@@ -507,7 +517,7 @@ class ThreadedServer(CommonServer):
             # interrupt run() to start shutdown
             raise KeyboardInterrupt
 
-    def process_limit(self):
+    def process_limit(self) -> None:
         memory = memory_info(psutil.Process(os.getpid()))
         if config["limit_memory_soft"] and memory > config["limit_memory_soft"]:
             _logger.warning("Server memory limit (%s) reached.", memory)
@@ -552,7 +562,7 @@ class ThreadedServer(CommonServer):
         else:
             self.limit_reached_time = None
 
-    def cron_thread(self, number):
+    def cron_thread(self, number: int) -> None:
         # Steve Reich timing style with thundering herd mitigation.
         #
         # On startup, all workers bind on a notification channel in
@@ -584,55 +594,58 @@ class ThreadedServer(CommonServer):
             )
             all_db_names = []
             alive_time = time.monotonic()
-            while (
-                config["limit_time_worker_cron"] <= 0
-                or (time.monotonic() - alive_time) <= config["limit_time_worker_cron"]
-            ):
-                select.select([pg_conn], [], [], SLEEP_INTERVAL + number)
-                time.sleep(number / 100)
-                try:
-                    notified = OrderedSet(
-                        notif.payload
-                        for notif in pg_conn.notifies(timeout=0)
-                        if notif.channel == "cron_trigger"
-                    )
-                except Exception:
-                    if pg_conn.closed:
-                        # connection closed, just exit the loop
-                        return
-                    raise
-
-                if time.time() - SLEEP_INTERVAL > check_all_time:
-                    # check all databases
-                    # last time we checked them was `now - SLEEP_INTERVAL`
-                    check_all_time = time.time()
-                    # process notified databases first, then the other ones
-                    all_db_names = OrderedSet(cron_database_list())
-                    db_names = [
-                        *(db for db in notified if db in all_db_names),
-                        *(db for db in all_db_names if db not in notified),
-                    ]
-                else:
-                    # restrict to notified databases only
-                    db_names = notified.intersection(all_db_names)
-                    if not db_names:
-                        continue
-
-                _logger.debug(
-                    "cron%d polling for jobs (notified: %s)", number, notified
-                )
-                for db_name in db_names:
-                    thread = threading.current_thread()
-                    thread.start_time = time.monotonic()
+            with selectors.DefaultSelector() as _sel:
+                _sel.register(pg_conn, selectors.EVENT_READ)
+                while (
+                    config["limit_time_worker_cron"] <= 0
+                    or (time.monotonic() - alive_time)
+                    <= config["limit_time_worker_cron"]
+                ):
+                    _sel.select(timeout=SLEEP_INTERVAL + number)
+                    time.sleep(number / 100)
                     try:
-                        IrCron._process_jobs(db_name)
-                    except Exception:
-                        _logger.warning(
-                            "cron%d encountered an Exception:",
-                            number,
-                            exc_info=True,
+                        notified = OrderedSet(
+                            notif.payload
+                            for notif in pg_conn.notifies(timeout=0)
+                            if notif.channel == "cron_trigger"
                         )
-                    thread.start_time = None
+                    except Exception:
+                        if pg_conn.closed:
+                            # connection closed, just exit the loop
+                            return
+                        raise
+
+                    if time.time() - SLEEP_INTERVAL > check_all_time:
+                        # check all databases
+                        # last time we checked them was `now - SLEEP_INTERVAL`
+                        check_all_time = time.time()
+                        # process notified databases first, then the other ones
+                        all_db_names = OrderedSet(cron_database_list())
+                        db_names = [
+                            *(db for db in notified if db in all_db_names),
+                            *(db for db in all_db_names if db not in notified),
+                        ]
+                    else:
+                        # restrict to notified databases only
+                        db_names = notified.intersection(all_db_names)
+                        if not db_names:
+                            continue
+
+                    _logger.debug(
+                        "cron%d polling for jobs (notified: %s)", number, notified
+                    )
+                    for db_name in db_names:
+                        thread = threading.current_thread()
+                        thread.start_time = time.monotonic()
+                        try:
+                            IrCron._process_jobs(db_name)
+                        except Exception:
+                            _logger.warning(
+                                "cron%d encountered an Exception:",
+                                number,
+                                exc_info=True,
+                            )
+                        thread.start_time = None
 
         while True:
             conn = db.db_connect("postgres")
@@ -645,7 +658,7 @@ class ThreadedServer(CommonServer):
                 config["limit_time_worker_cron"],
             )
 
-    def cron_spawn(self):
+    def cron_spawn(self) -> None:
         """Start the above runner function in a daemon thread.
 
         The thread is a typical daemon thread: it will never quit and must be
@@ -664,7 +677,7 @@ class ThreadedServer(CommonServer):
             t.start()
             _logger.debug("cron%d started!", i)
 
-    def http_spawn(self):
+    def http_spawn(self) -> None:
         self.httpd = ThreadedWSGIServerReloadable(self.interface, self.port, self.app)
         threading.Thread(
             target=self.httpd.serve_forever,
@@ -672,7 +685,7 @@ class ThreadedServer(CommonServer):
             daemon=True,
         ).start()
 
-    def start(self, stop=False):
+    def start(self, stop: bool = False) -> None:
         _logger.debug("Setting signal handlers")
         set_limit_memory_hard()
         if os.name == "posix":
@@ -695,7 +708,7 @@ class ThreadedServer(CommonServer):
             # some tests need the http daemon to be available...
             self.http_spawn()
 
-    def stop(self):
+    def stop(self) -> None:
         """Shutdown the WSGI server. Wait for non daemon threads."""
         if server_phoenix:
             _logger.info("Initiating server reload")
@@ -714,7 +727,7 @@ class ThreadedServer(CommonServer):
 
         # Manually join() all threads before calling sys.exit() to allow a second signal
         # to trigger _force_quit() in case some non-daemon threads won't exit cleanly.
-        # threading.Thread.join() should not mask signals (at least in python 2.5).
+        # threading.Thread.join() should not mask signals.
         me = threading.current_thread()
         _logger.debug("current thread: %r", me)
         for thread in threading.enumerate():
@@ -745,7 +758,7 @@ class ThreadedServer(CommonServer):
         _logger.debug("--")
         logging.shutdown()
 
-    def run(self, preload=None, stop=False):
+    def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
         """Start the http server and the cron thread then wait for a signal.
 
         The first SIGINT or SIGTERM signal will initiate a graceful shutdown while
@@ -817,17 +830,18 @@ class ThreadedServer(CommonServer):
         self.stop()
         return None
 
-    def reload(self):
+    def reload(self) -> None:
+        """Send SIGHUP to self to trigger a graceful reload."""
         os.kill(self.pid, signal.SIGHUP)
 
 
 class EventServer(CommonServer):
-    def __init__(self, app):
+    def __init__(self, app: Any) -> None:
         super().__init__(app)
         self.port = config["gevent_port"]
         self.httpd = None
 
-    def process_limits(self):
+    def process_limits(self) -> None:
         restart = False
         if self.ppid != os.getppid():
             _logger.warning("EventServer Parent changed: %s", self.pid)
@@ -842,13 +856,14 @@ class EventServer(CommonServer):
         if restart:
             os.kill(self.pid, signal.SIGTERM)
 
-    def watchdog(self, beat=4):
+    def watchdog(self, beat: int = 4) -> None:
+        """Periodically check memory and parent PID; send SIGTERM if limits exceeded."""
         self.ppid = os.getppid()
         while True:
             self.process_limits()
             time.sleep(beat)
 
-    def start(self):
+    def start(self) -> None:
         set_limit_memory_hard()
         if os.name == "posix":
             signal.signal(signal.SIGQUIT, dumpstacks)
@@ -880,13 +895,14 @@ class EventServer(CommonServer):
             )
             raise
 
-    def stop(self):
+    def stop(self) -> None:
         self.httpd.shutdown()
         super().stop()
 
-    def run(self, preload, stop):
+    def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
         self.start()
         self.stop()
+        return None
 
 
 class PreforkServer(CommonServer):
@@ -896,7 +912,7 @@ class PreforkServer(CommonServer):
     dispatcher to will parse the first HTTP request line.
     """
 
-    def __init__(self, app):
+    def __init__(self, app: Any) -> None:
         super().__init__(app)
         # config
         self.population = config["workers"]
@@ -915,24 +931,27 @@ class PreforkServer(CommonServer):
         self.queue = deque()
         self.long_polling_pid = None
 
-    def pipe_new(self):
+    def pipe_new(self) -> tuple[int, int]:
+        """Create a new non-blocking, close-on-exec pipe pair."""
         return os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
 
-    def pipe_ping(self, pipe):
+    def pipe_ping(self, pipe: tuple[int, int]) -> None:
+        """Write a single byte to the write end of a pipe to wake the master."""
         try:
             os.write(pipe[1], b".")
         except OSError as e:
             if e.errno not in [errno.EAGAIN, errno.EINTR]:
                 raise
 
-    def signal_handler(self, sig, frame):
+    def signal_handler(self, sig: int, frame: Any) -> None:
         if len(self.queue) < 5 or sig == signal.SIGCHLD:
             self.queue.append(sig)
             self.pipe_ping(self.pipe)
         else:
             _logger.warning("Dropping signal: %s", sig)
 
-    def worker_spawn(self, klass, workers_registry):
+    def worker_spawn(self, klass: type, workers_registry: dict) -> Worker | None:
+        """Fork a new worker of the given class and register it."""
         self.generation += 1
         worker = klass(self)
         pid = os.fork()
@@ -945,13 +964,15 @@ class PreforkServer(CommonServer):
             worker.run()
             sys.exit(0)
 
-    def long_polling_spawn(self):
+    def long_polling_spawn(self) -> None:
+        """Spawn the evented long-polling subprocess."""
         nargs = stripped_sys_argv()
         cmd = [sys.executable, sys.argv[0], "evented"] + nargs[1:]
         popen = subprocess.Popen(cmd)
         self.long_polling_pid = popen.pid
 
-    def worker_pop(self, pid):
+    def worker_pop(self, pid: int) -> None:
+        """Unregister and clean up a worker by PID."""
         if pid == self.long_polling_pid:
             self.long_polling_pid = None
         if pid in self.workers:
@@ -964,7 +985,8 @@ class PreforkServer(CommonServer):
             except OSError:
                 return
 
-    def worker_kill(self, pid, sig):
+    def worker_kill(self, pid: int, sig: int) -> None:
+        """Send a signal to a worker, unregistering it on ESRCH or SIGKILL."""
         try:
             os.kill(pid, sig)
             if sig == signal.SIGKILL:
@@ -973,7 +995,8 @@ class PreforkServer(CommonServer):
             if e.errno == errno.ESRCH:
                 self.worker_pop(pid)
 
-    def process_signals(self):
+    def process_signals(self) -> None:
+        """Drain the signal queue and act on each pending signal."""
         while self.queue:
             sig = self.queue.popleft()
             if sig in [signal.SIGINT, signal.SIGTERM]:
@@ -996,7 +1019,7 @@ class PreforkServer(CommonServer):
                 # decrease number of workers
                 self.population -= 1
 
-    def process_zombie(self):
+    def process_zombie(self) -> None:
         # reap dead workers
         while True:
             try:
@@ -1013,7 +1036,8 @@ class PreforkServer(CommonServer):
                     break
                 raise
 
-    def process_timeout(self):
+    def process_timeout(self) -> None:
+        """Kill workers that have exceeded their watchdog timeout."""
         now = time.monotonic()
         for pid, worker in list(self.workers.items()):
             if (
@@ -1028,7 +1052,7 @@ class PreforkServer(CommonServer):
                 )
                 self.worker_kill(pid, signal.SIGKILL)
 
-    def process_spawn(self):
+    def process_spawn(self) -> None:
         # Before spawning any process, check the registry signaling
         registries = Registry.registries.snapshot
 
@@ -1054,15 +1078,19 @@ class PreforkServer(CommonServer):
             check_registries()
             self.worker_spawn(WorkerCron, self.workers_cron)
 
-    def sleep(self):
+    def sleep(self) -> None:
+        """Wait for worker pings or internal wakeups, updating watchdog timestamps."""
         try:
             # map of fd -> worker
             fds = {w.watchdog_pipe[0]: w for w in self.workers.values()}
-            fd_in = list(fds) + [self.pipe[0]]
             # check for ping or internal wakeups
-            ready = select.select(fd_in, [], [], self.beat)
+            with selectors.DefaultSelector() as sel:
+                for fd in list(fds) + [self.pipe[0]]:
+                    sel.register(fd, selectors.EVENT_READ)
+                ready = sel.select(self.beat)
             # update worker watchdogs
-            for fd in ready[0]:
+            for key, _ in ready:
+                fd = key.fileobj
                 if fd in fds:
                     fds[fd].watchdog_time = time.monotonic()
                 empty_pipe(fd)
@@ -1070,7 +1098,7 @@ class PreforkServer(CommonServer):
             if e.args[0] != errno.EINTR:
                 raise
 
-    def start(self):
+    def start(self) -> None:
         # wakeup pipe, python doesn't throw EINTR when a syscall is interrupted
         # by a signal simulating a pseudo SA_RESTART. We write to a pipe in the
         # signal handler to overcome this behaviour
@@ -1120,7 +1148,8 @@ class PreforkServer(CommonServer):
                 self.socket.bind((self.interface, self.port))
                 self.socket.listen(8 * self.population)
 
-    def fork_and_reload(self):
+    def fork_and_reload(self) -> None:
+        """Fork: parent re-execs the new server; child waits for SIGHUP then shuts down."""
         _logger.info("Reloading server")
         pid = os.fork()
         if pid != 0:
@@ -1151,7 +1180,8 @@ class PreforkServer(CommonServer):
         else:
             _logger.info("New server has started")
 
-    def stop_workers_gracefully(self):
+    def stop_workers_gracefully(self) -> None:
+        """Signal all workers to finish their current request then exit."""
         _logger.info("Stopping workers gracefully")
 
         if self.long_polling_pid is not None:
@@ -1191,7 +1221,7 @@ class PreforkServer(CommonServer):
             self.sleep()
             self.process_timeout()
 
-    def stop(self, graceful=True):
+    def stop(self, graceful: bool = True) -> None:
         global server_phoenix  # noqa: PLW0603
         if server_phoenix:
             # PreforkServer reloads gracefully, disable outdated mechanism
@@ -1213,7 +1243,8 @@ class PreforkServer(CommonServer):
         for pid in list(self.workers):
             self.worker_kill(pid, signal.SIGTERM)
 
-    def run(self, preload, stop):
+    def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
+        """Start the prefork server, optionally stopping after preloading registries."""
         self.start()
 
         rc = preload_registries(preload)
@@ -1251,7 +1282,7 @@ class PreforkServer(CommonServer):
 class Worker:
     """Workers"""
 
-    def __init__(self, multi):
+    def __init__(self, multi: PreforkServer) -> None:
         self.multi = multi
         self.watchdog_time = time.monotonic()
         self.watchdog_pipe = multi.pipe_new()
@@ -1266,19 +1297,20 @@ class Worker:
         self.request_max = multi.limit_request
         self.request_count = 0
 
-    def setproctitle(self, title=""):
+    def setproctitle(self, title: str = "") -> None:
         setproctitle(f"odoo: {self.__class__.__name__} {self.pid} {title}")
 
-    def close(self):
+    def close(self) -> None:
+        """Close all pipe file descriptors held by this worker."""
         os.close(self.watchdog_pipe[0])
         os.close(self.watchdog_pipe[1])
         os.close(self.eintr_pipe[0])
         os.close(self.eintr_pipe[1])
 
-    def signal_handler(self, sig, frame):
+    def signal_handler(self, sig: int, frame: Any) -> None:
         self.alive = False
 
-    def signal_time_expired_handler(self, n, stack):
+    def signal_time_expired_handler(self, n: int, stack: Any) -> None:
         # TODO: print actual RUSAGE_SELF (since last check_limits) instead of
         #       just repeating the config setting
         _logger.info(
@@ -1287,20 +1319,20 @@ class Worker:
             config["limit_time_cpu"],
         )
         # We dont suicide in such case
-        raise Exception("CPU time limit exceeded.")
+        msg = "CPU time limit exceeded."
+        raise Exception(msg)
 
-    def sleep(self):
+    def sleep(self) -> None:
+        """Wait for wakeup events or timeout, draining the wakeup pipe."""
         try:
-            select.select(
-                [self.multi.socket, self.wakeup_fd_r], [], [], self.multi.beat
-            )
+            self._selector.select(timeout=self.multi.beat)
             # clear wakeup pipe if we were interrupted
             empty_pipe(self.wakeup_fd_r)
         except OSError as e:
             if e.args[0] != errno.EINTR:
                 raise
 
-    def check_limits(self):
+    def check_limits(self) -> None:
         # If our parent changed suicide
         if self.ppid != os.getppid():
             _logger.info("Worker (%s) Parent changed", self.pid)
@@ -1334,10 +1366,11 @@ class Worker:
             (int(cpu_time + config["limit_time_cpu"]), hard),
         )
 
-    def process_work(self):
+    def process_work(self) -> None:
+        """Process one unit of work. Subclasses override this."""
         pass
 
-    def start(self):
+    def start(self) -> None:
         self.pid = os.getpid()
         self.setproctitle()
         _logger.info("Worker %s (%s) alive", self.__class__.__name__, self.pid)
@@ -1360,11 +1393,16 @@ class Worker:
         signal.signal(signal.SIGTTOU, signal.SIG_DFL)
 
         signal.set_wakeup_fd(self.wakeup_fd_w)
+        self._selector = selectors.DefaultSelector()
+        self._selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
 
-    def stop(self):
-        pass
+    def stop(self) -> None:
+        """Release resources held by this worker after the run loop exits."""
+        if hasattr(self, "_selector"):
+            self._selector.close()
 
-    def run(self):
+    def run(self) -> None:
+        """Entry point for the forked worker process."""
         try:
             self.start()
             t = threading.Thread(
@@ -1386,7 +1424,8 @@ class Worker:
             # should we use 3 to abort everything ?
             sys.exit(1)
 
-    def _runloop(self):
+    def _runloop(self) -> None:
+        """Main work loop run in a daemon thread inside the worker process."""
         signal.pthread_sigmask(
             signal.SIG_BLOCK,
             {
@@ -1417,7 +1456,7 @@ class Worker:
 class WorkerHTTP(Worker):
     """HTTP Request workers"""
 
-    def __init__(self, multi):
+    def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
 
         # The ODOO_HTTP_SOCKET_TIMEOUT environment variable allows to control socket timeout for
@@ -1428,7 +1467,7 @@ class WorkerHTTP(Worker):
         sock_timeout = os.environ.get("ODOO_HTTP_SOCKET_TIMEOUT")
         self.sock_timeout = float(sock_timeout) if sock_timeout else 2
 
-    def process_request(self, client, addr):
+    def process_request(self, client: socket.socket, addr: tuple[str, int]) -> None:
         client.setblocking(1)
         client.settimeout(self.sock_timeout)
         client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -1445,7 +1484,7 @@ class WorkerHTTP(Worker):
             pass
         self.request_count += 1
 
-    def process_work(self):
+    def process_work(self) -> None:
         try:
             client, addr = self.multi.socket.accept()
             self.process_request(client, addr)
@@ -1453,15 +1492,16 @@ class WorkerHTTP(Worker):
             if e.errno not in (errno.EAGAIN, errno.ECONNABORTED):
                 raise
 
-    def start(self):
+    def start(self) -> None:
         Worker.start(self)
+        self._selector.register(self.multi.socket, selectors.EVENT_READ)
         self.server = BaseWSGIServerNoBind(self.multi.app)
 
 
 class WorkerCron(Worker):
     """Cron workers"""
 
-    def __init__(self, multi):
+    def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
         self.alive_time = time.monotonic()
         self.watchdog_timeout = (
@@ -1472,14 +1512,14 @@ class WorkerCron(Worker):
         self.db_queue: deque[str] = deque()
         self.db_count: int = 0
 
-    def sleep(self):
+    def sleep(self) -> None:
         # Really sleep once all the databases have been processed.
         if not self.db_queue:
             interval = SLEEP_INTERVAL + self.pid % 10  # chorus effect
 
-            # simulate interruptible sleep with select(wakeup_fd, timeout)
+            # Wait for an OS signal (wakeup pipe) or a Postgres NOTIFY.
             try:
-                select.select([self.wakeup_fd_r, self.dbcursor._cnx], [], [], interval)
+                self._pg_selector.select(timeout=interval)
                 # clear pg_conn/wakeup pipe if we were interrupted
                 time.sleep(self.pid / 100 % 0.1)
                 empty_pipe(self.wakeup_fd_r)
@@ -1487,7 +1527,7 @@ class WorkerCron(Worker):
                 if e.args[0] != errno.EINTR:
                     raise
 
-    def check_limits(self):
+    def check_limits(self) -> None:
         super().check_limits()
 
         if (
@@ -1513,8 +1553,15 @@ class WorkerCron(Worker):
         else:
             _logger.warning("PG cluster in recovery mode, cron trigger not activated")
         self.dbcursor.commit()
+        # Rebuild the selector: wakeup pipe (OS signals) + postgres socket (NOTIFY).
+        # Called on initial connect and on reconnect after connection loss.
+        if hasattr(self, "_pg_selector"):
+            self._pg_selector.close()
+        self._pg_selector = selectors.DefaultSelector()
+        self._pg_selector.register(self.wakeup_fd_r, selectors.EVENT_READ)
+        self._pg_selector.register(self.dbcursor._cnx, selectors.EVENT_READ)
 
-    def process_work(self):
+    def process_work(self) -> None:
         """Process a single database."""
         _logger.debug("WorkerCron (%s) polling for jobs", self.pid)
 
@@ -1529,7 +1576,8 @@ class WorkerCron(Worker):
                 )
             except psycopg.OperationalError:
                 _logger.warning(
-                    "WorkerCron (%s) lost postgres connection, reconnecting...", self.pid
+                    "WorkerCron (%s) lost postgres connection, reconnecting...",
+                    self.pid,
                 )
                 with contextlib.suppress(Exception):
                     self.dbcursor._cnx.close()
@@ -1564,16 +1612,22 @@ class WorkerCron(Worker):
                 self.db_count - self.request_max,
             )
 
-    def start(self):
+    def start(self) -> None:
         os.nice(10)  # mommy always told me to be nice with others...
         Worker.start(self)
+        # WorkerCron uses _pg_selector for its sleep; _selector (which only
+        # has wakeup_fd_r) is redundant here — release it immediately.
+        self._selector.close()
+        del self._selector
         if self.multi.socket:
             self.multi.socket.close()
 
         self._connect_postgres()
 
-    def stop(self):
+    def stop(self) -> None:
         super().stop()
+        if hasattr(self, "_pg_selector"):
+            self._pg_selector.close()
         self.dbcursor._cnx.close()
         self.dbcursor.close()
 
@@ -1586,7 +1640,8 @@ server = None
 server_phoenix = False
 
 
-def load_server_wide_modules():
+def load_server_wide_modules() -> None:
+    """Import all server-wide modules listed in the configuration."""
     with gc.disabling_gc():
         for m in config["server_wide_modules"]:
             try:
@@ -1600,7 +1655,7 @@ def load_server_wide_modules():
                 _logger.exception("Failed to load server-wide module `%s`.%s", m, msg)
 
 
-def _reexec(updated_modules=None):
+def _reexec(updated_modules: list[str] | None = None) -> None:
     """Reexecute odoo-server process with (nearly) the same arguments."""
     if osutil.is_running_as_nt_service():
         subprocess.call(
@@ -1617,7 +1672,7 @@ def _reexec(updated_modules=None):
     os.execve(sys.executable, args, os.environ)
 
 
-def preload_registries(dbnames):
+def preload_registries(dbnames: list[str] | None) -> int:
     """Preload a registries, possibly run a test file."""
     # TODO: move all config checks to args dont check tools.config here
     dbnames = dbnames or []
@@ -1689,7 +1744,7 @@ def preload_registries(dbnames):
     return rc
 
 
-def start(preload=None, stop=False):
+def start(preload: list[str] | None = None, stop: bool = False) -> int:
     """Start the odoo http server and cron processor."""
     global server
 
@@ -1762,8 +1817,8 @@ def start(preload=None, stop=False):
     return rc or 0
 
 
-def restart():
-    """Restart the server"""
+def restart() -> None:
+    """Restart the server."""
     if os.name == "nt":
         # run in a thread to let the current thread return response to the caller.
         threading.Thread(target=_reexec).start()

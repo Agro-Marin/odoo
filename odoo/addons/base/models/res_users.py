@@ -26,6 +26,7 @@ from odoo.http import DEFAULT_LANG, request
 from odoo.libs.datetime.tz import all_timezones
 from odoo.libs.datetime.tz import timezone as get_timezone
 from odoo.libs.json import dumps as json_dumps
+from odoo.orm._typing import DomainType, ValuesType
 from odoo.tools import (
     SQL,
     email_domain_extract,
@@ -34,7 +35,6 @@ from odoo.tools import (
     reset_cached_properties,
 )
 from odoo.tools.password import CryptContext
-from odoo.orm._typing import DomainType, ValuesType
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -124,14 +124,6 @@ class ResUsers(models.Model):
     _order = "name, login"
     _allow_sudo_commands = False
 
-    def _check_company_domain(self, companies: Self | str | None) -> Domain:
-        if not companies:
-            return Domain.TRUE
-        company_ids = (
-            companies if isinstance(companies, str) else models.to_record_ids(companies)
-        )
-        return Domain("company_ids", "in", company_ids)
-
     @property
     def SELF_READABLE_FIELDS(self) -> list[str]:
         """The list of fields a user can read on their own user record.
@@ -193,6 +185,108 @@ class ResUsers(models.Model):
         writeable = frozenset(self.SELF_WRITEABLE_FIELDS)
         return readable, writeable
 
+    @api.model
+    @tools.ormcache("self.env.uid")
+    def context_get(self) -> frozendict:
+        # use read() to not read other fields: this must work while modifying
+        # the schema of models res.users or res.partner
+        # use prefetch_fields=False to prevent fetching fields that may not have DB columns yet
+        try:
+            context = self.env.user.with_context(prefetch_fields=False).read(
+                ["lang", "tz"], load=False
+            )[0]
+        except IndexError:
+            # user not found, no context information
+            return frozendict()
+        context.pop("id")
+
+        # ensure lang is set and available
+        # context > request > company > english > any lang installed
+        langs = [code for code, _ in self.env["res.lang"].get_installed()]
+        lang = context.get("lang")
+        if lang not in langs:
+            lang = request.best_lang if request else None
+            if lang not in langs:
+                lang = self.env.user.with_context(
+                    prefetch_fields=False
+                ).company_id.partner_id.lang
+                if lang not in langs:
+                    lang = DEFAULT_LANG
+                    if lang not in langs:
+                        lang = langs[0] if langs else DEFAULT_LANG
+        context["lang"] = lang
+
+        # ensure uid is set
+        context["uid"] = self.env.uid
+
+        return frozendict(context)
+
+    @tools.ormcache("self.id")
+    def _get_company_ids(self) -> tuple[int, ...]:
+        # use search() instead of `self.company_ids` to avoid extra query for `active_test`
+        domain = [("active", "=", True), ("user_ids", "in", self.id)]
+        return self.env["res.company"].search(domain)._ids
+
+    @api.model
+    @tools.ormcache("uid", "passwd_hash")
+    def _check_uid_passwd_cached(self, uid: int, passwd: str, passwd_hash: str) -> None:
+        """Cache-backed credential verification keyed on a hash, not plaintext."""
+        user = self.with_user(uid).env.user
+        if not user.active:
+            raise AccessDenied
+        credential = {
+            "login": user.login,
+            "password": passwd,
+            "type": "password",
+        }
+        user._check_credentials(credential, {"interactive": False})
+
+    @tools.ormcache("sid")
+    def _compute_session_token(self, sid: str) -> str | bool:
+        """Compute a session token given a session id and a user id"""
+        # retrieve the fields used to generate the session token
+        field_values = self._session_token_get_values()
+        return self._session_token_hash_compute(sid, field_values)
+
+    @tools.ormcache("self.id")
+    def _get_group_ids(self) -> tuple[int, ...]:
+        """Return ``self``'s group ids (as a tuple)."""
+        self.ensure_one()
+        # `with_context({})` because this method is decorated with `@ormcache('self._ids')`,
+        # it cannot depend on the context (e.g. `active_test`, `lang`, ...)
+        return self.with_context({}).all_group_ids._ids
+
+    @tools.ormcache(cache="stable")
+    def _crypt_context(self) -> CryptContext:
+        """Passlib CryptContext instance used to encrypt and verify
+        passwords. Can be overridden if technical, legal or political matters
+        require different kdfs than the provided default.
+
+        The work factor of the default KDF can be configured using the
+        ``password.hashing.rounds`` ICP.
+        """
+        cfg = self.env["ir.config_parameter"].sudo()
+        return CryptContext(
+            # kdf which can be verified by the context. The default encryption
+            # kdf is the first of the list
+            ["pbkdf2_sha512", "plaintext"],
+            # deprecated algorithms are still verified as usual, but
+            # ``needs_update`` will indicate that the stored hash should be
+            # replaced by a more recent algorithm.
+            deprecated=["auto"],
+            pbkdf2_sha512__rounds=max(
+                MIN_ROUNDS, int(cfg.get_param("password.hashing.rounds", 0))
+            ),
+        )
+
+    def _check_company_domain(self, companies: Self | str | None) -> Domain:
+        if not companies:
+            return Domain.TRUE
+        company_ids = (
+            companies if isinstance(companies, str) else models.to_record_ids(companies)
+        )
+        return Domain("company_ids", "in", company_ids)
+
     def _default_groups(self) -> Self:
         """Default groups for employees
 
@@ -206,13 +300,16 @@ class ResUsers(models.Model):
             groups += default_group.implied_ids
         return groups
 
+    def _default_view_group_hierarchy(self) -> dict[str, Any]:
+        return self.env["res.groups"]._get_view_group_hierarchy()
+
     partner_id = fields.Many2one(
         "res.partner",
+        string="Related Partner",
         required=True,
         ondelete="restrict",
         bypass_search_access=True,
         index=True,
-        string="Related Partner",
         help="Partner-related data of the user",
     )
     login = fields.Char(required=True, help="Used to log into the system")
@@ -239,7 +336,9 @@ class ResUsers(models.Model):
     )
     active = fields.Boolean(default=True)
     active_partner = fields.Boolean(
-        related="partner_id.active", readonly=True, string="Partner is Active"
+        related="partner_id.active",
+        readonly=True,
+        string="Partner is Active",
     )
     action_id = fields.Many2one(
         "ir.actions.actions",
@@ -249,7 +348,9 @@ class ResUsers(models.Model):
     log_ids = fields.One2many("res.users.log", "create_uid", string="User log entries")
     device_ids = fields.One2many("res.device", "user_id", string="User devices")
     login_date = fields.Datetime(
-        related="log_ids.create_date", string="Latest Login", readonly=False
+        related="log_ids.create_date",
+        string="Latest Login",
+        readonly=False,
     )
     share = fields.Boolean(
         compute="_compute_share",
@@ -258,10 +359,15 @@ class ResUsers(models.Model):
         store=True,
         help="External user with limited access, created only for the purpose of sharing data.",
     )
-    companies_count = fields.Integer(
-        compute="_compute_companies_count", string="Number of Companies"
-    )
     tz_offset = fields.Char(compute="_compute_tz_offset", string="Timezone offset")
+
+    # overridden inherited fields to bypass access rights, in case you have
+    # access to the user but not its corresponding partner
+    name = fields.Char(related="partner_id.name", inherited=True, readonly=False)
+    email = fields.Char(related="partner_id.email", inherited=True, readonly=False)
+    email_domain_placeholder = fields.Char(compute="_compute_email_domain_placeholder")
+    phone = fields.Char(related="partner_id.phone", inherited=True, readonly=False)
+
     res_users_settings_ids = fields.One2many("res.users.settings", "user_id")
     # Provide a target for relateds that is not a x2Many field.
     res_users_settings_id = fields.Many2one(
@@ -271,6 +377,10 @@ class ResUsers(models.Model):
         search="_search_res_users_settings_id",
     )
 
+    companies_count = fields.Integer(
+        compute="_compute_companies_count",
+        string="Number of Companies",
+    )
     # Special behavior for this field: res.company.search() will only return the companies
     # available to the current user (should be the user's companies?), when the user_preference
     # context is set.
@@ -290,13 +400,6 @@ class ResUsers(models.Model):
         string="Companies",
         default=lambda self: self.env.company.ids,
     )
-
-    # overridden inherited fields to bypass access rights, in case you have
-    # access to the user but not its corresponding partner
-    name = fields.Char(related="partner_id.name", inherited=True, readonly=False)
-    email = fields.Char(related="partner_id.email", inherited=True, readonly=False)
-    email_domain_placeholder = fields.Char(compute="_compute_email_domain_placeholder")
-    phone = fields.Char(related="partner_id.phone", inherited=True, readonly=False)
 
     group_ids = fields.Many2many(
         "res.groups",
@@ -334,9 +437,6 @@ class ResUsers(models.Model):
         compute_sudo=True,
     )
 
-    def _default_view_group_hierarchy(self) -> dict[str, Any]:
-        return self.env["res.groups"]._get_view_group_hierarchy()
-
     view_group_hierarchy = fields.Json(
         string="Technical field for user group setting",
         store=False,
@@ -350,10 +450,6 @@ class ResUsers(models.Model):
         string="Role",
     )
 
-    _login_key = models.Constraint(
-        "UNIQUE (login)", "You can not have two users with the same login!"
-    )
-
     def init(self) -> None:
         cr = self.env.cr
 
@@ -361,11 +457,13 @@ class ResUsers(models.Model):
         # automatically encrypted at startup: look for passwords which don't
         # match the "extended" MCF and pass those through passlib.
         # Alternative: iterate on *all* passwords and use CryptContext.identify
-        cr.execute(r"""
+        cr.execute(
+            r"""
             SELECT id, password FROM res_users
             WHERE password IS NOT NULL
             AND password !~ '^\$[^$]+\$[^$]+\$.'
-            """)
+            """
+        )
         rows = cr.fetchall()
         if rows:
             ctx = self._crypt_context()
@@ -376,6 +474,92 @@ class ResUsers(models.Model):
                 ["password"]
             )
 
+    _login_key = models.Constraint(
+        "UNIQUE (login)", "You can not have two users with the same login!"
+    )
+
+    @api.constrains("company_id", "company_ids", "active")
+    def _check_user_company(self) -> None:
+        for user in self.filtered(lambda u: u.active):
+            if user.company_id not in user.company_ids:
+                raise ValidationError(
+                    _(
+                        "Company %(company_name)s is not in the allowed companies for user %(user_name)s (%(company_allowed)s).",
+                        company_name=user.company_id.name,
+                        user_name=user.name,
+                        company_allowed=", ".join(user.mapped("company_ids.name")),
+                    )
+                )
+
+    @api.constrains("action_id")
+    def _check_action_id(self) -> None:
+        action_open_website = self.env.ref(
+            "base.action_open_website", raise_if_not_found=False
+        )
+        if action_open_website and any(
+            user.action_id.id == action_open_website.id for user in self
+        ):
+            raise ValidationError(
+                _('The "App Switcher" action cannot be selected as home action.')
+            )
+        # Sudo required: ir.actions.* is restricted to group_system.
+        # Access-rights admins (group_erp_manager) manage users and their
+        # home actions, but lack read access on action models. The sudo here
+        # is narrow — only used to read action.type for constraint validation,
+        # not to expose action data. Proper fix: read ACL for group_erp_manager
+        # on ir.actions.*.
+        users_sudo = self.sudo()
+        client_ids = []
+        window_ids = []
+        for user in users_sudo:
+            if user.action_id.type == "ir.actions.client":
+                client_ids.append(user.action_id.id)
+            elif user.action_id.type == "ir.actions.act_window":
+                window_ids.append(user.action_id.id)
+
+        if client_ids:
+            for action in self.env["ir.actions.client"].browse(client_ids):
+                if action.tag == "reload":
+                    raise ValidationError(
+                        _(
+                            'The "%s" action cannot be selected as home action.',
+                            action.name,
+                        )
+                    )
+        if window_ids:
+            for action in self.env["ir.actions.act_window"].browse(window_ids):
+                if action.context and "active_id" in action.context:
+                    raise ValidationError(
+                        _(
+                            'The action "%s" cannot be set as the home action because it requires a record to be selected beforehand.',
+                            action.name,
+                        )
+                    )
+
+    @api.constrains("group_ids")
+    def _check_disjoint_groups(self) -> None:
+        """We check that no users are both portal and users (same with public).
+        This could typically happen because of implied groups.
+        """
+        user_type_groups = self.env["res.groups"]._get_user_type_groups()
+        for user in self:
+            disjoint_groups = user.all_group_ids & user_type_groups
+            if len(disjoint_groups) > 1:
+                raise ValidationError(
+                    _(
+                        "User %(user)s cannot be at the same time in exclusive groups %(groups)s.",
+                        user=repr(user.name),
+                        groups=", ".join(repr(g.display_name) for g in disjoint_groups),
+                    )
+                )
+
+    @api.constrains("group_ids")
+    def _check_at_least_one_administrator(self) -> None:
+        if not self.env.registry._init_modules:
+            return  # ignore the constraint when updating the module 'base'
+        if not self.env.ref("base.group_system").user_ids:
+            raise ValidationError(_("You must have at least an administrator user."))
+
     def _set_password(self) -> None:
         ctx = self._crypt_context()
         for user in self:
@@ -383,7 +567,8 @@ class ResUsers(models.Model):
 
     def _set_encrypted_password(self, uid: int, pw: str) -> None:
         if self._crypt_context().identify(pw) == "plaintext":
-            raise ValueError("Refusing to store a plaintext password — encrypt first.")
+            msg = "Refusing to store a plaintext password — encrypt first."
+            raise ValueError(msg)
 
         self.env.cr.execute("UPDATE res_users SET password=%s WHERE id=%s", (pw, uid))
         self.browse(uid).invalidate_recordset(["password"])
@@ -624,88 +809,6 @@ class ResUsers(models.Model):
     def onchange_parent_id(self) -> dict[str, Any] | None:
         return self.partner_id.onchange_parent_id()
 
-    @api.constrains("company_id", "company_ids", "active")
-    def _check_user_company(self) -> None:
-        for user in self.filtered(lambda u: u.active):
-            if user.company_id not in user.company_ids:
-                raise ValidationError(
-                    _(
-                        "Company %(company_name)s is not in the allowed companies for user %(user_name)s (%(company_allowed)s).",
-                        company_name=user.company_id.name,
-                        user_name=user.name,
-                        company_allowed=", ".join(user.mapped("company_ids.name")),
-                    )
-                )
-
-    @api.constrains("action_id")
-    def _check_action_id(self) -> None:
-        action_open_website = self.env.ref(
-            "base.action_open_website", raise_if_not_found=False
-        )
-        if action_open_website and any(
-            user.action_id.id == action_open_website.id for user in self
-        ):
-            raise ValidationError(
-                _('The "App Switcher" action cannot be selected as home action.')
-            )
-        # Sudo required: ir.actions.* is restricted to group_system.
-        # Access-rights admins (group_erp_manager) manage users and their
-        # home actions, but lack read access on action models. The sudo here
-        # is narrow — only used to read action.type for constraint validation,
-        # not to expose action data. Proper fix: read ACL for group_erp_manager
-        # on ir.actions.*.
-        users_sudo = self.sudo()
-        client_ids = []
-        window_ids = []
-        for user in users_sudo:
-            if user.action_id.type == "ir.actions.client":
-                client_ids.append(user.action_id.id)
-            elif user.action_id.type == "ir.actions.act_window":
-                window_ids.append(user.action_id.id)
-
-        if client_ids:
-            for action in self.env["ir.actions.client"].browse(client_ids):
-                if action.tag == "reload":
-                    raise ValidationError(
-                        _(
-                            'The "%s" action cannot be selected as home action.',
-                            action.name,
-                        )
-                    )
-        if window_ids:
-            for action in self.env["ir.actions.act_window"].browse(window_ids):
-                if action.context and "active_id" in action.context:
-                    raise ValidationError(
-                        _(
-                            'The action "%s" cannot be set as the home action because it requires a record to be selected beforehand.',
-                            action.name,
-                        )
-                    )
-
-    @api.constrains("group_ids")
-    def _check_disjoint_groups(self) -> None:
-        """We check that no users are both portal and users (same with public).
-        This could typically happen because of implied groups.
-        """
-        user_type_groups = self.env["res.groups"]._get_user_type_groups()
-        for user in self:
-            disjoint_groups = user.all_group_ids & user_type_groups
-            if len(disjoint_groups) > 1:
-                raise ValidationError(
-                    _(
-                        "User %(user)s cannot be at the same time in exclusive groups %(groups)s.",
-                        user=repr(user.name),
-                        groups=", ".join(repr(g.display_name) for g in disjoint_groups),
-                    )
-                )
-
-    @api.constrains("group_ids")
-    def _check_at_least_one_administrator(self) -> None:
-        if not self.env.registry._init_modules:
-            return  # ignore the constraint when updating the module 'base'
-        if not self.env.ref("base.group_system").user_ids:
-            raise ValidationError(_("You must have at least an administrator user."))
-
     def onchange(
         self,
         values: dict[str, Any],
@@ -720,14 +823,15 @@ class ResUsers(models.Model):
         # intercept. We sudo-fetch here to warm the cache so that subsequent
         # field accesses in onchange logic find values without triggering checks.
         if self == self.env.user:
-            [
-                self.sudo()[field_name]
-                for field_name in self._self_accessible_fields()[0]
-            ]
+            user_sudo = self.sudo()
+            for field_name in self._self_accessible_fields()[0]:
+                user_sudo[field_name]  # warm ORM cache
         return super().onchange(values, field_names, fields_spec)
 
     def read(
-        self, fields: collections.abc.Sequence[str] | None = None, load: str = "_classic_read"
+        self,
+        fields: collections.abc.Sequence[str] | None = None,
+        load: str = "_classic_read",
     ) -> list[ValuesType]:
         readable, _ = self._self_accessible_fields()
         if (
@@ -787,10 +891,7 @@ class ResUsers(models.Model):
             self.partner_id.action_unarchive()
         if self == self.env.user and vals:
             writeable = self._self_accessible_fields()[1]
-            for key in list(vals):
-                if key not in writeable:
-                    break
-            else:
+            if all(key in writeable for key in vals):
                 if "company_id" in vals:
                     if vals["company_id"] not in self.env.user.company_ids.ids:
                         del vals["company_id"]
@@ -803,8 +904,10 @@ class ResUsers(models.Model):
             # Sync partner company_id for partners that have one set (non-global)
             # and where it differs from the new user company.
             partners_to_sync = self.filtered(
-                lambda u: u.partner_id.company_id
-                and u.partner_id.company_id.id != vals["company_id"]
+                lambda u: (
+                    u.partner_id.company_id
+                    and u.partner_id.company_id.id != vals["company_id"]
+                )
             ).partner_id
             if partners_to_sync:
                 partners_to_sync.write({"company_id": vals["company_id"]})
@@ -906,48 +1009,6 @@ class ResUsers(models.Model):
             if "login" not in default:
                 vals["login"] = _("%s (copy)", user.login)
         return vals_list
-
-    @api.model
-    @tools.ormcache("self.env.uid")
-    def context_get(self) -> frozendict:
-        # use read() to not read other fields: this must work while modifying
-        # the schema of models res.users or res.partner
-        # use prefetch_fields=False to prevent fetching fields that may not have DB columns yet
-        try:
-            context = self.env.user.with_context(prefetch_fields=False).read(
-                ["lang", "tz"], load=False
-            )[0]
-        except IndexError:
-            # user not found, no context information
-            return frozendict()
-        context.pop("id")
-
-        # ensure lang is set and available
-        # context > request > company > english > any lang installed
-        langs = [code for code, _ in self.env["res.lang"].get_installed()]
-        lang = context.get("lang")
-        if lang not in langs:
-            lang = request.best_lang if request else None
-            if lang not in langs:
-                lang = self.env.user.with_context(
-                    prefetch_fields=False
-                ).company_id.partner_id.lang
-                if lang not in langs:
-                    lang = DEFAULT_LANG
-                    if lang not in langs:
-                        lang = langs[0] if langs else DEFAULT_LANG
-        context["lang"] = lang
-
-        # ensure uid is set
-        context["uid"] = self.env.uid
-
-        return frozendict(context)
-
-    @tools.ormcache("self.id")
-    def _get_company_ids(self) -> tuple[int, ...]:
-        # use search() instead of `self.company_ids` to avoid extra query for `active_test`
-        domain = [("active", "=", True), ("user_ids", "in", self.id)]
-        return self.env["res.company"].search(domain)._ids
 
     @api.model
     def action_get(self) -> dict[str, Any]:
@@ -1063,20 +1124,6 @@ class ResUsers(models.Model):
             passwd_hash = sha256(passwd.encode()).hexdigest()
             self._check_uid_passwd_cached(uid, passwd, passwd_hash)
 
-    @api.model
-    @tools.ormcache("uid", "passwd_hash")
-    def _check_uid_passwd_cached(self, uid: int, passwd: str, passwd_hash: str) -> None:
-        """Cache-backed credential verification keyed on a hash, not plaintext."""
-        user = self.with_user(uid).env.user
-        if not user.active:
-            raise AccessDenied
-        credential = {
-            "login": user.login,
-            "password": passwd,
-            "type": "password",
-        }
-        user._check_credentials(credential, {"interactive": False})
-
     def _get_session_token_fields(self) -> set[str]:
         return {"id", "login", "password", "active"}
 
@@ -1100,13 +1147,6 @@ class ResUsers(models.Model):
             "where": SQL("res_users.id = %s", self.id),
             "group_by": SQL("res_users.id"),
         }
-
-    @tools.ormcache("sid")
-    def _compute_session_token(self, sid: str) -> str | bool:
-        """Compute a session token given a session id and a user id"""
-        # retrieve the fields used to generate the session token
-        field_values = self._session_token_get_values()
-        return self._session_token_hash_compute(sid, field_values)
 
     def _session_token_get_values(self) -> tuple[tuple[str, Any], ...] | bool:
         self.env.cr.execute(
@@ -1363,14 +1403,6 @@ class ResUsers(models.Model):
             self._get_group_ids() if self.id else self.all_group_ids._origin._ids
         )
 
-    @tools.ormcache("self.id")
-    def _get_group_ids(self) -> tuple[int, ...]:
-        """Return ``self``'s group ids (as a tuple)."""
-        self.ensure_one()
-        # `with_context({})` because this method is decorated with `@ormcache('self._ids')`,
-        # it cannot depend on the context (e.g. `active_test`, `lang`, ...)
-        return self.with_context({}).all_group_ids._ids
-
     def _action_show(self) -> dict[str, Any]:
         """If self is a singleton, directly access the form view. If it is a recordset, open a list view"""
         view_id = self.env.ref("base.view_users_form").id
@@ -1461,29 +1493,6 @@ class ResUsers(models.Model):
     @api.model
     def get_company_currency_id(self) -> int:
         return self.env.company.currency_id.id
-
-    @tools.ormcache(cache="stable")
-    def _crypt_context(self) -> CryptContext:
-        """Passlib CryptContext instance used to encrypt and verify
-        passwords. Can be overridden if technical, legal or political matters
-        require different kdfs than the provided default.
-
-        The work factor of the default KDF can be configured using the
-        ``password.hashing.rounds`` ICP.
-        """
-        cfg = self.env["ir.config_parameter"].sudo()
-        return CryptContext(
-            # kdf which can be verified by the context. The default encryption
-            # kdf is the first of the list
-            ["pbkdf2_sha512", "plaintext"],
-            # deprecated algorithms are still verified as usual, but
-            # ``needs_update`` will indicate that the stored hash should be
-            # replaced by a more recent algorithm.
-            deprecated=["auto"],
-            pbkdf2_sha512__rounds=max(
-                MIN_ROUNDS, int(cfg.get_param("password.hashing.rounds", 0))
-            ),
-        )
 
     @contextlib.contextmanager
     def _assert_can_auth(self, user: int | str | None = None) -> Generator[None]:
@@ -1668,12 +1677,16 @@ class UsersMultiCompany(models.Model):
             # A newly created portal user for a foreign company would be
             # invisible at read time, making u.company_ids inaccessible.
             to_remove = users.filtered(
-                lambda u: len(u.sudo().company_ids) <= 1
-                and group_multi_company_id in u.group_ids.ids
+                lambda u: (
+                    len(u.sudo().company_ids) <= 1
+                    and group_multi_company_id in u.group_ids.ids
+                )
             )
             to_add = users.filtered(
-                lambda u: len(u.sudo().company_ids) > 1
-                and group_multi_company_id not in u.group_ids.ids
+                lambda u: (
+                    len(u.sudo().company_ids) > 1
+                    and group_multi_company_id not in u.group_ids.ids
+                )
             )
             if to_remove:
                 to_remove.write({"group_ids": [Command.unlink(group_multi_company_id)]})
@@ -1691,12 +1704,16 @@ class UsersMultiCompany(models.Model):
         if group_multi_company_id:
             # See create() above: same record rule concern applies here.
             to_remove = self.filtered(
-                lambda u: len(u.sudo().company_ids) <= 1
-                and group_multi_company_id in u.group_ids.ids
+                lambda u: (
+                    len(u.sudo().company_ids) <= 1
+                    and group_multi_company_id in u.group_ids.ids
+                )
             )
             to_add = self.filtered(
-                lambda u: len(u.sudo().company_ids) > 1
-                and group_multi_company_id not in u.group_ids.ids
+                lambda u: (
+                    len(u.sudo().company_ids) > 1
+                    and group_multi_company_id not in u.group_ids.ids
+                )
             )
             if to_remove:
                 to_remove.write({"group_ids": [Command.unlink(group_multi_company_id)]})

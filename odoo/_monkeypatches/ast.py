@@ -7,7 +7,7 @@ _logger = logging.getLogger(__name__)
 orig_literal_eval = ast.literal_eval
 
 
-def literal_eval(expr):
+def literal_eval(expr: str | bytes | ast.AST) -> object:
     # limit the size of the expression to avoid segmentation faults
     # the default limit is set to 100KiB
     # can be overridden by setting the ODOO_LIMIT_LITEVAL_BUFFER buffer_size_environment variable
@@ -24,10 +24,11 @@ def literal_eval(expr):
             )
 
     if isinstance(expr, str) and len(expr) > buffer_size:
-        raise ValueError("expression can't exceed buffer limit")
+        msg = "expression can't exceed buffer limit"
+        raise ValueError(msg)
 
     return orig_literal_eval(expr)
 
 
-def patch_module():
-    ast.literal_eval = literal_eval
+def patch_module() -> None:
+    ast.literal_eval = literal_eval  # type: ignore[assignment]

@@ -34,7 +34,7 @@ _ooxml_dirs = {
 }
 
 
-def _check_ooxml(data):
+def _check_ooxml(data: bytes) -> str | bool:
     with io.BytesIO(data) as f, zipfile.ZipFile(f) as z:
         filenames = z.namelist()
         # OOXML documents should have a [Content_Types].xml file for early
@@ -64,7 +64,7 @@ _mime_validator = re.compile(
 )
 
 
-def _check_open_container_format(data):
+def _check_open_container_format(data: bytes) -> str | bool:
     # Open Document Format for Office Applications (OpenDocument) Version 1.2
     #
     # Part 3: Packages
@@ -113,7 +113,7 @@ _ppt_pattern = re.compile(
 )
 
 
-def _check_olecf(data):
+def _check_olecf(data: bytes) -> str | bool:
     """Pre-OOXML Office formats are OLE Compound Files which all use the same
     file signature ("magic bytes") and should have a subheader at offset 512
     (0x200).
@@ -134,14 +134,14 @@ def _check_olecf(data):
     return False
 
 
-def _check_svg(data):
+def _check_svg(data: bytes) -> str | None:
     """This simply checks the existence of the opening and ending SVG tags."""
     if b"<svg" in data and b"/svg" in data:
         return "image/svg+xml"
     return None
 
 
-def _check_webp(data):
+def _check_webp(data: bytes) -> str | None:
     """This checks the presence of the WEBP and VP8 in the RIFF."""
     if data[8:15] == b"WEBPVP8":
         return "image/webp"
@@ -201,7 +201,9 @@ _mime_mappings = (
 )
 
 
-def _odoo_guess_mimetype(bin_data: bytes, default="application/octet-stream"):
+def _odoo_guess_mimetype(
+    bin_data: bytes, default: str = "application/octet-stream"
+) -> str:
     """Attempts to guess the mime type of the provided binary data, similar
     to but significantly more limited than libmagic.
 
@@ -242,7 +244,7 @@ def _odoo_guess_mimetype(bin_data: bytes, default="application/octet-stream"):
 import magic
 
 
-def guess_mimetype(bin_data, default=None):
+def guess_mimetype(bin_data: bytes | bytearray, default: str | None = None) -> str:
     """Guess the MIME type of binary data using libmagic.
 
     Falls back to MS Office sub-checkers for CDFV2/ZIP containers.
@@ -250,7 +252,8 @@ def guess_mimetype(bin_data, default=None):
     if isinstance(bin_data, bytearray):
         bin_data = bytes(bin_data[:MIMETYPE_HEAD_SIZE])
     elif not isinstance(bin_data, bytes):
-        raise TypeError("`bin_data` must be bytes or bytearray")
+        msg = "`bin_data` must be bytes or bytearray"
+        raise TypeError(msg)
     mimetype = magic.from_buffer(bin_data[:MIMETYPE_HEAD_SIZE], mime=True)
     if mimetype in ("application/CDFV2", "application/x-ole-storage"):
         # Those are the generic file format that Microsoft Office
@@ -284,7 +287,7 @@ def guess_mimetype(bin_data, default=None):
     return mimetype
 
 
-def neuter_mimetype(mimetype, user):
+def neuter_mimetype(mimetype: str, user: object) -> str:
     wrong_type = "ht" in mimetype or "xml" in mimetype or "svg" in mimetype
     if wrong_type and not user._is_system():
         return "text/plain"
@@ -294,7 +297,7 @@ def neuter_mimetype(mimetype, user):
 _extension_pattern = re.compile(r"\w+")
 
 
-def get_extension(filename):
+def get_extension(filename: str) -> str:
     # A file has no extension if it has no dot (ignoring the leading one
     # of hidden files) or that what follow the last dot is not a single
     # word, e.g. "Mr. Doe"
@@ -319,7 +322,7 @@ def get_extension(filename):
     return ""
 
 
-def fix_filename_extension(filename, mimetype):
+def fix_filename_extension(filename: str, mimetype: str) -> str:
     """Make sure the filename ends with an extension of the mimetype.
 
     :param str filename: the filename with an unsafe extension

@@ -21,7 +21,6 @@ Methods:
 import functools
 import logging
 import typing
-from collections.abc import Callable
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
@@ -38,6 +37,8 @@ from ...helpers import (
 from ...primitives import NO_ACCESS
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
     from ...fields import Field
 
 _lt = LazyTranslate("base")
@@ -128,7 +129,7 @@ class AccessMixin:
                     ", ".join(repr(g.display_name) for g in groups),
                 )
             error_msg += _(
-                "\nUser: %(user)s" "\nGroups: %(allowed_groups_msg)s",
+                "\nUser: %(user)s\nGroups: %(allowed_groups_msg)s",
                 user=self.env.uid,
                 allowed_groups_msg=allowed_groups_msg,
             )
@@ -202,7 +203,7 @@ class AccessMixin:
         """
         return self.env.su or not self._check_access(operation)
 
-    def _filtered_access(self, operation: str):
+    def _filtered_access(self, operation: str) -> Self:
         """Return the subset of ``self`` for which the current user is allowed
         to perform ``operation``. The method is fully equivalent to::
 
@@ -261,7 +262,9 @@ class AccessMixin:
     @api.deprecated(
         "check_access_rights() is deprecated since 18.0; use check_access() instead."
     )
-    def check_access_rights(self, operation, raise_exception=True):
+    def check_access_rights(
+        self, operation: str, raise_exception: bool = True
+    ) -> bool | None:
         """Verify that the given operation is allowed for the current user accord to ir.model.access.
 
         :param str operation: one of ``create``, ``read``, ``write``, ``unlink``
@@ -277,7 +280,7 @@ class AccessMixin:
     @api.deprecated(
         "check_access_rule() is deprecated since 18.0; use check_access() instead."
     )
-    def check_access_rule(self, operation):
+    def check_access_rule(self, operation: str) -> None:
         """Verify that the given operation is allowed for the current user according to ir.rules.
 
         :param str operation: one of ``create``, ``read``, ``write``, ``unlink``
@@ -302,7 +305,7 @@ class AccessMixin:
             return Domain("company_id", "in", unquote(f"{companies} + [False]"))
         return Domain("company_id", "in", to_record_ids(companies) + [False])
 
-    def _check_company(self, fnames=None):
+    def _check_company(self, fnames: list[str] | None = None) -> None:
         """Check the companies of the values of the given field names.
 
         :param list fnames: names of relational fields to check

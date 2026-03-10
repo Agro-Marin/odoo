@@ -4,9 +4,15 @@ import contextlib
 import inspect
 import logging
 import sys
+from collections.abc import Iterator
 from pathlib import PurePath
+from typing import TYPE_CHECKING, Any
 from unittest import SkipTest
 from unittest import TestCase as _TestCase
+
+if TYPE_CHECKING:
+    import types
+    from collections.abc import Generator
 
 _logger = logging.getLogger(__name__)
 
@@ -17,13 +23,15 @@ _subtest_msg_sentinel = object()
 
 
 class _Outcome:
-    def __init__(self, test, result):
+    def __init__(self, test: TestCase, result: Any) -> None:
         self.result = result
         self.success = True
         self.test = test
 
     @contextlib.contextmanager
-    def testPartExecutor(self, test_case, isTest=False):
+    def testPartExecutor(
+        self, test_case: TestCase, isTest: bool = False
+    ) -> Generator[None]:
         try:
             yield
         except KeyboardInterrupt:
@@ -45,7 +53,9 @@ class _Outcome:
             # exc_info -> frame -> exc_info
             exc_info = None
 
-    def _complete_traceback(self, initial_tb):
+    def _complete_traceback(
+        self, initial_tb: types.TracebackType
+    ) -> types.TracebackType:
         Traceback = type(initial_tb)
 
         # make the set of frames in the traceback
@@ -108,7 +118,7 @@ class TestCase(_TestCase):
     _moduleSetUpFailed = False
 
     # pylint: disable=super-init-not-called
-    def __init__(self, methodName="runTest"):
+    def __init__(self, methodName: str = "runTest") -> None:
         """Create an instance of the class that will use the named test
         method when executed. Raises a ValueError if the instance does
         not have a method with the specified name.
@@ -118,9 +128,7 @@ class TestCase(_TestCase):
         if methodName != "runTest" and not hasattr(self, methodName):
             # we allow instantiation with no explicit method name
             # but not an *incorrect* or missing method name
-            raise ValueError(
-                f"no such test method in {self.__class__}: {methodName}"
-            )
+            raise ValueError(f"no such test method in {self.__class__}: {methodName}")
         self._cleanups = []
         self._subtest = None
 
@@ -135,7 +143,7 @@ class TestCase(_TestCase):
         self.addTypeEqualityFunc(frozenset, "assertSetEqual")
         self.addTypeEqualityFunc(str, "assertMultiLineEqual")
 
-    def addCleanup(self, function, *args, **kwargs):
+    def addCleanup(self, function: Any, *args: Any, **kwargs: Any) -> None:
         """Add a function, with arguments, to be called when the test is
         completed. Functions added are called on a LIFO basis and are
         called after tearDown on test failure or success.
@@ -144,16 +152,18 @@ class TestCase(_TestCase):
         self._cleanups.append((function, args, kwargs))
 
     @classmethod
-    def addClassCleanup(cls, function, *args, **kwargs):
+    def addClassCleanup(cls, function: Any, *args: Any, **kwargs: Any) -> None:
         """Same as addCleanup, except the cleanup items are called even if
         setUpClass fails (unlike tearDownClass)."""
         cls._class_cleanups.append((function, args, kwargs))
 
-    def shortDescription(self):
+    def shortDescription(self) -> None:
         return None
 
     @contextlib.contextmanager
-    def subTest(self, msg=_subtest_msg_sentinel, **params):
+    def subTest(
+        self, msg: Any = _subtest_msg_sentinel, **params: Any
+    ) -> Generator[None]:
         """Return a context manager that will return the enclosed block
         of code in a subtest identified by the optional message and
         keyword parameters.  A failure in the subtest marks the test
@@ -173,7 +183,7 @@ class TestCase(_TestCase):
         finally:
             self._subtest = parent
 
-    def _addError(self, result, test, exc_info):
+    def _addError(self, result: Any, test: TestCase, exc_info: tuple | None) -> None:
         """
         This method is similar to feed_errors_to_result in python<=3.10
         but only manage one error at a time
@@ -190,19 +200,19 @@ class TestCase(_TestCase):
             else:
                 result.addError(test, exc_info)
 
-    def _callSetUp(self):
+    def _callSetUp(self) -> None:
         self.setUp()
 
-    def _callTestMethod(self, method):
+    def _callTestMethod(self, method: Any) -> None:
         method()
 
-    def _callTearDown(self):
+    def _callTearDown(self) -> None:
         self.tearDown()
 
-    def _callCleanup(self, function, *args, **kwargs):
+    def _callCleanup(self, function: Any, *args: Any, **kwargs: Any) -> None:
         function(*args, **kwargs)
 
-    def run(self, result):
+    def run(self, result: Any) -> Any:
         result.startTest(self)
 
         testMethod = getattr(self, self._testMethodName)
@@ -246,7 +256,7 @@ class TestCase(_TestCase):
             # clear the outcome, no more needed
             self._outcome = None
 
-    def doCleanups(self):
+    def doCleanups(self) -> None:
         """Execute all cleanup functions. Normally called for you after
         tearDown."""
 
@@ -256,7 +266,7 @@ class TestCase(_TestCase):
                 self._callCleanup(function, *args, **kwargs)
 
     @classmethod
-    def doClassCleanups(cls):
+    def doClassCleanups(cls) -> None:
         """Execute all class cleanup functions. Normally called for you after
         tearDownClass."""
         cls.tearDown_exceptions = []
@@ -276,25 +286,27 @@ class TestCase(_TestCase):
         module = module.replace(".", "/")
         return f"/{module}.py:{self.__class__.__name__}.{self._testMethodName}"
 
-    def get_log_metadata(self):
+    def get_log_metadata(self) -> dict[str, str]:
+        """Return metadata dict for log records emitted by this test."""
         return {
             "canonical_tag": self.canonical_tag,
         }
 
 
 class _SubTest(TestCase):
-
-    def __init__(self, test_case, message, params):
+    def __init__(
+        self, test_case: TestCase, message: Any, params: dict[str, Any]
+    ) -> None:
         super().__init__()
         self._message = message
         self.test_case = test_case
         self.params = params
         self.failureException = test_case.failureException
 
-    def runTest(self):
+    def runTest(self) -> None:
         raise NotImplementedError("subtests cannot be run directly")
 
-    def _subDescription(self):
+    def _subDescription(self) -> str:
         parts = []
         if self._message is not _subtest_msg_sentinel:
             parts.append(f"[{self._message}]")
@@ -303,8 +315,8 @@ class _SubTest(TestCase):
             parts.append(f"({params_desc})")
         return " ".join(parts) or "(<subtest>)"
 
-    def id(self):
+    def id(self) -> str:
         return f"{self.test_case.id()} {self._subDescription()}"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.test_case} {self._subDescription()}"

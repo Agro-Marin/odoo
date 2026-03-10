@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import odoo.release
 from odoo.exceptions import AccessDenied
@@ -6,7 +7,7 @@ from odoo.modules.registry import Registry
 
 _logger = logging.getLogger(__name__)
 
-RPC_VERSION_1 = {
+RPC_VERSION_1: dict[str, Any] = {
     "server_version": odoo.release.version,
     "server_version_info": odoo.release.version_info,
     "server_serie": odoo.release.serie,
@@ -14,11 +15,18 @@ RPC_VERSION_1 = {
 }
 
 
-def exp_login(db, login, password):
+def exp_login(db: str, login: str, password: str) -> int | bool:
+    """Authenticate via login/password and return the user id or False."""
     return exp_authenticate(db, login, password, None)
 
 
-def exp_authenticate(db, login, password, user_agent_env):
+def exp_authenticate(
+    db: str,
+    login: str,
+    password: str,
+    user_agent_env: dict | None,
+) -> int | bool:
+    """Authenticate a user and return the uid, or False on failure."""
     if not user_agent_env:
         user_agent_env = {}
     with Registry(db).cursor() as cr:
@@ -37,11 +45,13 @@ def exp_authenticate(db, login, password, user_agent_env):
             return False
 
 
-def exp_version():
+def exp_version() -> dict[str, Any]:
+    """Return the RPC version information dict."""
     return RPC_VERSION_1
 
 
-def dispatch(method, params):
+def dispatch(method: str, params: list | tuple) -> Any:
+    """Dispatch a common-service RPC call to the matching ``exp_*`` function."""
     g = globals()
     exp_method_name = f"exp_{method}"
     if exp_method_name in g:

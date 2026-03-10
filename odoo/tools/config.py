@@ -9,13 +9,18 @@ import os
 import sys
 import tempfile
 import warnings
+from collections.abc import Iterator
 from os.path import expandvars, normcase
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from odoo import release
 from odoo.libs.filesystem import appdirs
 from odoo.libs.func import classproperty
 from odoo.tools.password import CryptContext
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 crypt_context = CryptContext(
     schemes=["pbkdf2_sha512", "plaintext"],
@@ -33,7 +38,7 @@ REQUIRED_SERVER_WIDE_MODULES = ["base", "web"]
 
 
 class _Empty:
-    def __repr__(self):
+    def __repr__(self) -> str:
         return ""
 
 
@@ -89,7 +94,7 @@ class _OdooOption(optparse.Option):
             "without_demo": self.config._format_without_demo,
         }
 
-    def __init__(self, *opts, **attrs):
+    def __init__(self, *opts: str, **attrs: Any) -> None:
         self.my_default = attrs.pop("my_default", None)
         self.cli_loadable = attrs.pop("cli_loadable", True)
         env_name = attrs.pop("env_name", None)
@@ -130,7 +135,7 @@ class _OdooOption(optparse.Option):
                 f"cannot set env_name to an option that is not indexed: {self}"
             )
 
-    def __str__(self):
+    def __str__(self) -> str:
         out = []
         if self.cli_loadable:
             out.append(super().__str__())  # e.g. -i/--init
@@ -140,19 +145,20 @@ class _OdooOption(optparse.Option):
 
 
 class _FileOnlyOption(_OdooOption):
-    def __init__(self, **attrs):
+    def __init__(self, **attrs: Any) -> None:
         super().__init__(**attrs, cli_loadable=False, help=optparse.SUPPRESS_HELP)
 
-    def _check_opt_strings(self, opts):
+    def _check_opt_strings(self, opts: list[str]) -> None:
         if opts:
-            raise TypeError("No option can be supplied")
+            msg = "No option can be supplied"
+            raise TypeError(msg)
 
-    def _set_opt_strings(self, opts):
+    def _set_opt_strings(self, opts: list[str]) -> None:
         return
 
 
 class _PosixOnlyOption(_OdooOption):
-    def __init__(self, *opts, **attrs):
+    def __init__(self, *opts: str, **attrs: Any) -> None:
         if os.name != "posix":
             attrs["help"] = optparse.SUPPRESS_HELP
             attrs["cli_loadable"] = False
@@ -162,7 +168,7 @@ class _PosixOnlyOption(_OdooOption):
         super().__init__(*opts, **attrs)
 
 
-def _deduplicate_loggers(loggers):
+def _deduplicate_loggers(loggers: list[str]) -> Generator[str]:
     """Avoid saving multiple logging levels for the same loggers to a save
     file, that just takes space and the list can potentially grow unbounded
     if for some odd reason people use :option`--save`` all the time.
@@ -177,13 +183,13 @@ def _deduplicate_loggers(loggers):
 
 
 class configmanager:
-    def __init__(self):
-        self._default_options = {}
-        self._file_options = {}
-        self._env_options = {}
-        self._cli_options = {}
-        self._runtime_options = {}
-        self.options = collections.ChainMap(
+    def __init__(self) -> None:
+        self._default_options: dict[str, Any] = {}
+        self._file_options: dict[str, Any] = {}
+        self._env_options: dict[str, Any] = {}
+        self._cli_options: dict[str, Any] = {}
+        self._runtime_options: dict[str, Any] = {}
+        self.options: collections.ChainMap[str, Any] = collections.ChainMap(
             self._runtime_options,
             self._cli_options,
             self._env_options,
@@ -192,13 +198,13 @@ class configmanager:
         )
 
         # dictionary mapping option destination (keys in self.options) to OdooOptions.
-        self.options_index = {}
+        self.options_index: dict[str, _OdooOption] = {}
 
         # list of nargs='?' options, indexed by short/long option (-x, --xx)
-        self.optional_options = {}
+        self.optional_options: dict[str, _OdooOption] = {}
 
         # map old name -> new name
-        self.aliases = {
+        self.aliases: dict[str, str] = {
             "import_image_maxbytes": "import_file_maxbytes",
             "import_image_regex": "import_url_regex",
             "import_image_timeout": "import_file_timeout",
@@ -209,7 +215,7 @@ class configmanager:
         self._parse_config()
 
     @property
-    def rcfile(self):
+    def rcfile(self) -> str:
         self._warn(
             "Since 19.0, use odoo.tools.config['config'] instead",
             DeprecationWarning,
@@ -218,7 +224,7 @@ class configmanager:
         return self["config"]
 
     @rcfile.setter
-    def rcfile(self, rcfile):
+    def rcfile(self, rcfile: str) -> None:
         self._warn(
             f"Since 19.0, use odoo.tools.config['config'] = {rcfile!r} instead",
             DeprecationWarning,
@@ -226,7 +232,7 @@ class configmanager:
         )
         self._runtime_options["config"] = rcfile
 
-    def _build_cli(self):
+    def _build_cli(self) -> optparse.OptionParser:
         OdooOption = type("OdooOption", (_OdooOption,), {"config": self})
         FileOnlyOption = type("FileOnlyOption", (_FileOnlyOption, OdooOption), {})
         PosixOnlyOption = type("PosixOnlyOption", (_PosixOnlyOption, OdooOption), {})
@@ -1014,7 +1020,7 @@ class configmanager:
 
         return parser
 
-    def _load_default_options(self):
+    def _load_default_options(self) -> None:
         self._default_options.clear()
         self._default_options.update(
             {
@@ -1052,17 +1058,17 @@ class configmanager:
     _warn_entries = []  # until logging is configured and the entries flushed
 
     @classmethod
-    def _log(cls, loglevel, message, *args, **kwargs):
+    def _log(cls, loglevel: int, message: str, *args: Any, **kwargs: Any) -> None:
         # is replaced by logger.log once logging is ready
         cls._log_entries.append((loglevel, message, args, kwargs))
 
     @classmethod
-    def _warn(cls, message, *args, **kwargs):
+    def _warn(cls, message: str, *args: Any, **kwargs: Any) -> None:
         # is replaced by warnings.warn once logging is ready
         cls._warn_entries.append((message, args, kwargs))
 
     @classmethod
-    def _flush_log_and_warn_entries(cls):
+    def _flush_log_and_warn_entries(cls) -> None:
         for loglevel, message, args, kwargs in cls._log_entries:
             _dangerous_logger.log(loglevel, message, *args, **kwargs)
         cls._log_entries.clear()
@@ -1113,7 +1119,7 @@ class configmanager:
         modules.module.initialize_sys_path()
         return opt
 
-    def _parse_config(self, args=None):
+    def _parse_config(self, args: list[str] | None = None) -> optparse.Values:
         # preprocess the args to add support for nargs='?'
         for arg_no, arg in enumerate(args or ()):
             if option := self.optional_options.get(arg):
@@ -1145,7 +1151,7 @@ class configmanager:
 
         return opt
 
-    def _load_env_options(self):
+    def _load_env_options(self) -> None:
         self._env_options.clear()
         environ = os.environ
         for option_name, option in self.options_index.items():
@@ -1160,7 +1166,7 @@ class configmanager:
                 DeprecationWarning,
             )
 
-    def _load_cli_options(self, opt):
+    def _load_cli_options(self, opt: optparse.Values) -> None:
         # odoo.cli.command.main parses the config twice, the second time
         # without --addons-path but expect the value to be persisted
         addons_path = self._cli_options.pop("addons_path", None)
@@ -1184,7 +1190,7 @@ class configmanager:
                 handler for comma in opt.log_handler for handler in comma
             ]
 
-    def _postprocess_options(self):
+    def _postprocess_options(self) -> None:
         self._runtime_options.clear()
 
         # check for mutualy exclusive / dependant options
@@ -1290,7 +1296,7 @@ class configmanager:
                     self.options_index["db_name"],
                 )
 
-    def _warn_deprecated_options(self):
+    def _warn_deprecated_options(self) -> None:
         if self["http_enable"] and not self.http_socket_activation:
             for map_ in self.options.maps:
                 if "http_interface" in map_:
@@ -1351,7 +1357,7 @@ class configmanager:
                     )
 
     @classmethod
-    def _is_addons_path(cls, path):
+    def _is_addons_path(cls, path: str) -> bool:
         for f in os.listdir(path):
             modpath = Path(path, f)
 
@@ -1363,7 +1369,9 @@ class configmanager:
         return False
 
     @classmethod
-    def _check_addons_path(cls, option, opt, value):
+    def _check_addons_path(
+        cls, option: optparse.Option, opt: str, value: str
+    ) -> list[str]:
         ad_paths = []
         for path in map(cls._normalize, cls._check_comma(option, opt, value)):
             if not Path(path).is_dir():
@@ -1387,7 +1395,9 @@ class configmanager:
         return ad_paths
 
     @classmethod
-    def _check_upgrade_path(cls, option, opt, value):
+    def _check_upgrade_path(
+        cls, option: optparse.Option, opt: str, value: str
+    ) -> list[str]:
         upgrade_path = []
         for path in map(cls._normalize, cls._check_comma(option, opt, value)):
             if not Path(path).is_dir():
@@ -1411,7 +1421,7 @@ class configmanager:
         return upgrade_path
 
     @classmethod
-    def _check_scripts(cls, option, opt, value):
+    def _check_scripts(cls, option: optparse.Option, opt: str, value: str) -> list[str]:
         pre_upgrade_scripts = []
         for path in map(cls._normalize, cls._check_comma(option, opt, value)):
             if not Path(path).is_file():
@@ -1427,7 +1437,7 @@ class configmanager:
         return pre_upgrade_scripts
 
     @classmethod
-    def _is_upgrades_path(cls, path):
+    def _is_upgrades_path(cls, path: str) -> bool:
         module = "*"
         version = "*"
         return any(
@@ -1436,7 +1446,7 @@ class configmanager:
         )
 
     @classmethod
-    def _check_bool(cls, option, opt, value):
+    def _check_bool(cls, option: optparse.Option | None, opt: str, value: str) -> bool:
         if value.lower() in ("1", "yes", "true", "on"):
             return True
         if value.lower() in ("0", "no", "false", "off"):
@@ -1446,15 +1456,19 @@ class configmanager:
         )
 
     @classmethod
-    def _check_comma(cls, option_name, option, value):
+    def _check_comma(
+        cls, option_name: optparse.Option | str, option: str, value: str
+    ) -> list[str]:
         return [v for s in value.split(",") if (v := s.strip())]
 
     @classmethod
-    def _check_path(cls, option, opt, value):
+    def _check_path(cls, option: optparse.Option, opt: str, value: str) -> str:
         return cls._normalize(value)
 
     @classmethod
-    def _check_without_demo(cls, option, opt, value):
+    def _check_without_demo(
+        cls, option: optparse.Option | None, opt: str, value: str
+    ) -> bool:
         # invert the result because it is stored in "with_demo"
         try:
             return not cls._check_bool(option, opt, value)
@@ -1468,7 +1482,7 @@ class configmanager:
             )
             return value == "None"
 
-    def parse(self, option_name, value):
+    def parse(self, option_name: str, value: str) -> Any:
         if not isinstance(value, str):
             e = f"can only cast strings: {value!r}"
             raise TypeError(e)
@@ -1482,18 +1496,18 @@ class configmanager:
         return check_func(option, option_name, value)
 
     @classmethod
-    def _format_string(cls, value):
+    def _format_string(cls, value: Any) -> str:
         return str(value)
 
     @classmethod
-    def _format_list(cls, value):
+    def _format_list(cls, value: list[Any]) -> str:
         return ",".join(filter(bool, (str(elem).strip() for elem in value)))
 
     @classmethod
-    def _format_without_demo(cls, value):
+    def _format_without_demo(cls, value: Any) -> str:
         return str(bool(value))
 
-    def format(self, option_name, value):
+    def format(self, option_name: str, value: Any) -> str:
         option = self.options_index[option_name]
         if option.action in ("store_true", "store_false"):
             format_func = self.parser.option_class.TYPE_FORMATTER["bool"]
@@ -1501,7 +1515,7 @@ class configmanager:
             format_func = self.parser.option_class.TYPE_FORMATTER[option.type]
         return format_func(value)
 
-    def load(self):
+    def load(self) -> None:
         self._warn(
             "Since 19.0, use config._load_file_options instead",
             DeprecationWarning,
@@ -1509,7 +1523,7 @@ class configmanager:
         )
         self._load_file_options(self["config"])
 
-    def _load_file_options(self, rcfile):
+    def _load_file_options(self, rcfile: str) -> None:
         self._file_options.clear()
         p = configparser.RawConfigParser()
         try:
@@ -1552,7 +1566,7 @@ class configmanager:
         except configparser.NoSectionError:
             pass
 
-    def save(self, keys=None):
+    def save(self, keys: list[str] | None = None) -> None:
         p = configparser.RawConfigParser()
         rc_exists = Path(self["config"]).exists()
         if rc_exists and keys:
@@ -1586,15 +1600,15 @@ class configmanager:
             # what to do if impossible?
             sys.stderr.write("ERROR: couldn't create the config directory\n")
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         return self.options.get(key, default)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: Any) -> None:
         if isinstance(value, str) and key in self.options_index:
             value = self.parse(key, value)
         self.options[key] = value
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         return self.options[key]
 
     @functools.cached_property
@@ -1635,13 +1649,13 @@ class configmanager:
             assert os.access(d, os.W_OK), "%s: directory is not writable" % d
         return d
 
-    def filestore(self, dbname):
+    def filestore(self, dbname: str) -> str:
         return str(Path(self["data_dir"], "filestore", dbname))
 
-    def set_admin_password(self, new_password):
+    def set_admin_password(self, new_password: str) -> None:
         self.options["admin_passwd"] = crypt_context.hash(new_password)
 
-    def verify_admin_password(self, password):
+    def verify_admin_password(self, password: str) -> bool:
         """Verifies the super-admin password, possibly updating the stored hash if needed"""
         stored_hash = self.options["admin_passwd"]
         if not stored_hash:
@@ -1663,12 +1677,12 @@ class configmanager:
         )
 
     @classmethod
-    def _normalize(cls, path):
+    def _normalize(cls, path: str) -> str:
         if not path:
             return ""
         return normcase(str(Path(expandvars(path.strip())).expanduser().resolve()))
 
-    def _get_sources(self, name):
+    def _get_sources(self, name: str) -> dict[str, Any]:
         """Extract the option from the many sources"""
         return {
             **{

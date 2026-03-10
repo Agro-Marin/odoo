@@ -26,26 +26,33 @@ class frozendict[K, T](dict[K, T]):
 
     __slots__ = ("_hash",)
 
-    def __delitem__(self, key):
-        raise NotImplementedError("'__delitem__' not supported on frozendict")
+    def __delitem__(self, key: K) -> None:
+        msg = "'__delitem__' not supported on frozendict"
+        raise NotImplementedError(msg)
 
-    def __setitem__(self, key, val):
-        raise NotImplementedError("'__setitem__' not supported on frozendict")
+    def __setitem__(self, key: K, val: T) -> None:
+        msg = "'__setitem__' not supported on frozendict"
+        raise NotImplementedError(msg)
 
-    def clear(self):
-        raise NotImplementedError("'clear' not supported on frozendict")
+    def clear(self) -> None:
+        msg = "'clear' not supported on frozendict"
+        raise NotImplementedError(msg)
 
-    def pop(self, key, default=None):
-        raise NotImplementedError("'pop' not supported on frozendict")
+    def pop(self, key: K, default: T | None = None) -> T:
+        msg = "'pop' not supported on frozendict"
+        raise NotImplementedError(msg)
 
-    def popitem(self):
-        raise NotImplementedError("'popitem' not supported on frozendict")
+    def popitem(self) -> tuple[K, T]:
+        msg = "'popitem' not supported on frozendict"
+        raise NotImplementedError(msg)
 
-    def setdefault(self, key, default=None):
-        raise NotImplementedError("'setdefault' not supported on frozendict")
+    def setdefault(self, key: K, default: T | None = None) -> T:
+        msg = "'setdefault' not supported on frozendict"
+        raise NotImplementedError(msg)
 
-    def update(self, *args, **kwargs):
-        raise NotImplementedError("'update' not supported on frozendict")
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        msg = "'update' not supported on frozendict"
+        raise NotImplementedError(msg)
 
     def __hash__(self) -> int:  # type: ignore
         try:

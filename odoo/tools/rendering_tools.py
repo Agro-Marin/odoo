@@ -10,13 +10,6 @@ from odoo.tools import safe_eval
 INLINE_TEMPLATE_REGEX = re.compile(r"\{\{(.+?)(\|\|\|\s*(.*?))?\}\}")
 
 
-def relativedelta_proxy(*args, **kwargs):
-    # dateutil.relativedelta is an old-style class and cannot be directly
-    # instanciated wihtin a jinja2 expression, so a lambda "proxy" is
-    # is needed, apparently
-    return relativedelta.relativedelta(*args, **kwargs)
-
-
 template_env_globals = {
     "str": str,
     "quote": lambda s, safe="/:": quote(str(s), safe=safe),
@@ -36,8 +29,8 @@ template_env_globals = {
 }
 
 
-def parse_inline_template(text):
-    groups = []
+def parse_inline_template(text: str) -> list[tuple[str, str, str]]:
+    groups: list[tuple[str, str, str]] = []
     current_literal_index = 0
     for match in INLINE_TEMPLATE_REGEX.finditer(text):
         literal = text[current_literal_index : match.start()]
@@ -54,7 +47,7 @@ def parse_inline_template(text):
     return groups
 
 
-def convert_inline_template_to_qweb(template):
+def convert_inline_template_to_qweb(template: str | None) -> Markup:
     template_instructions = parse_inline_template(template or "")
     preview_markup = []
     for string, expression, default in template_instructions:
@@ -67,7 +60,9 @@ def convert_inline_template_to_qweb(template):
     return Markup("").join(preview_markup)
 
 
-def render_inline_template(template_instructions, variables):
+def render_inline_template(
+    template_instructions: list[tuple[str, str, str]], variables: dict[str, object]
+) -> str:
     results = []
     for string, expression, default in template_instructions:
         results.append(string)
@@ -92,7 +87,7 @@ class QWebErrorInfo:
         element: str | None,
         source: list[tuple[int | str, str, str]],
         surrounding: str,
-    ):
+    ) -> None:
         self.error = error
         self.template = ref_name
         self.ref = ref
@@ -101,7 +96,7 @@ class QWebErrorInfo:
         self.source = source
         self.surrounding = surrounding
 
-    def __str__(self):
+    def __str__(self) -> str:
         info = [self.error]
         if self.template is not None:
             info.append(f"Template: {self.template}")
@@ -122,9 +117,9 @@ class QWebErrorInfo:
 class QWebError(Exception):
     """Exception wrapping a QWebErrorInfo with rendering context."""
 
-    def __init__(self, qweb: QWebErrorInfo):
+    def __init__(self, qweb: QWebErrorInfo) -> None:
         super().__init__("Error while rendering the template")
         self.qweb = qweb
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{super().__str__()}:\n    {self.qweb}"

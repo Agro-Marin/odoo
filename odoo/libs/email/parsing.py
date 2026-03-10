@@ -4,14 +4,15 @@ Pure Python email helpers with no Odoo dependencies.
 """
 
 import base64
+import contextlib
 import email.utils
 import re
 from urllib.parse import urlparse
 
 import idna
-import contextlib
 
-def getaddresses(fieldvalues):
+
+def getaddresses(fieldvalues: list[str]) -> list[tuple[str, str]]:
     """Wrapper for email.utils.getaddresses with strict=False (Python 3.13+)."""
     return email.utils.getaddresses(fieldvalues, strict=False)
 
@@ -87,11 +88,12 @@ def email_split_tuples(text: str) -> list[tuple[str, str]]:
     :returns: List of (name, email) tuples
     """
 
-    def _parse_based_on_spaces(pair):
+    def _parse_based_on_spaces(pair: tuple[str, str]) -> tuple[str, str]:
         name, email = pair
         if not name and email and " " in email:
             inside_pairs = getaddresses([email.replace(" ", ",")])
-            name_parts, found_email = [], False
+            name_parts: list[str] = []
+            found_email: str | bool = False
             for pair in inside_pairs:
                 if pair[1] and "@" not in pair[1]:
                     name_parts.append(pair[1])

@@ -6,8 +6,7 @@ import os
 import re
 import textwrap
 import uuid
-from collections import OrderedDict
-from contextlib import closing, suppress
+from contextlib import suppress
 from datetime import UTC
 from pathlib import Path
 from subprocess import PIPE, Popen
@@ -28,7 +27,12 @@ from odoo.libs.constants import (
     DOTTED_ASSET_EXTENSIONS as EXTENSIONS,
 )
 from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
-from odoo.libs.web.js_transpiler import is_odoo_module, transpile_javascript
+from odoo.libs.web.js_transpiler import (
+    is_native_module,
+    is_odoo_module,
+    transpile_javascript,
+    url_to_module_path,
+)
 from odoo.tools import SQL, OrderedSet, misc, profiler
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_open, file_path
@@ -38,6 +42,15 @@ _logger = logging.getLogger(__name__)
 
 class CompileError(RuntimeError):
     pass
+
+
+try:
+    from odoo.tools.sass_embedded import SassCompileError
+except ImportError:
+    # Fallback if protobuf module is not available; CompileError alone
+    # covers the CLI-based Sass compiler path.
+    class SassCompileError(CompileError):  # type: ignore[no-redef]
+        """Placeholder when sass_embedded is unavailable."""
 
 
 class AssetError(Exception):
@@ -81,6 +94,7 @@ class AssetsBundle:
         self.name = name
         self.env = request.env if env is None else env
         self.javascripts = []
+        self.native_modules = []
         self.templates = []
         self.stylesheets = []
         self.css_errors = []
@@ -131,13 +145,20 @@ class AssetsBundle:
             if js:
                 match extension:
                     case "js":
-                        self.javascripts.append(JavascriptAsset(self, **params))
+                        asset = JavascriptAsset(self, **params)
+                        if asset.is_native:
+                            self.native_modules.append(asset)
+                        else:
+                            self.javascripts.append(asset)
                     case "xml":
                         self.templates.append(XMLAsset(self, **params))
 
     def get_links(self) -> list[str]:
-        """
-        :returns a list of tuple. a tuple can be (url, None) or (None, inlineContent)
+        """Return the list of asset URLs for this bundle.
+
+        Native ESM modules are excluded from the concatenated bundle — they are
+        served individually and loaded via import map + ``<script type="module">``.
+        Use :meth:`get_native_module_data` to get their URLs and import map entries.
         """
         response = []
 
@@ -149,6 +170,73 @@ class AssetsBundle:
 
         return self.external_assets + response
 
+    def get_native_module_data(self) -> dict:
+        """Return import map entries and module URLs for native ESM modules.
+
+        Returns a dict with:
+        - ``import_map``: ``{specifier: url}`` entries for the import map
+        - ``module_urls``: list of URLs for ``<script type="module">`` tags
+        - ``preload_urls``: list of URLs for ``<link rel="modulepreload">``
+        - ``native_checksum``: SHA256 hex digest of all native module descriptors
+        - ``legacy_native_deps``: set of native specifiers that legacy modules
+          depend on (used to build a slim bridge — only these need registering
+          in ``odoo.loader.modules``)
+        """
+        if not self.native_modules:
+            return {
+                "import_map": {},
+                "module_urls": [],
+                "preload_urls": [],
+                "native_checksum": "",
+                "legacy_native_deps": set(),
+            }
+
+        # Compute a version hash over all native modules for cache-busting.
+        # Individual files use their static URL (the import map can't use
+        # versioned paths since import specifiers are fixed), but the overall
+        # checksum is used to version the import map script tag itself.
+        h = hashlib.sha256()
+        import_map = {}
+        module_urls = []
+        native_specifiers = set()
+        for asset in self.native_modules:
+            spec = asset.module_path
+            url = asset.url
+            # Append ?v=<last_modified> for browser cache busting on
+            # individual native module files.  The import map resolves
+            # bare specifiers to these versioned URLs.
+            if asset.last_modified:
+                url = f"{url}?v={asset.last_modified}"
+            import_map[spec] = url
+            module_urls.append(url)
+            native_specifiers.add(spec)
+            h.update(asset.unique_descriptor.encode())
+        native_checksum = h.hexdigest()[:7]
+
+        # Determine which native modules are depended on by legacy modules.
+        # We parse their raw source (already cached by the is_native check)
+        # to extract import specifiers.  A simple regex on the raw source is
+        # sufficient because import statements follow a predictable syntax.
+        import re as re_mod
+        _import_re = re_mod.compile(r'''(?:from|import)\s+["'](@[^"']+)["']''')
+        legacy_native_deps = set()
+        for asset in self.javascripts:
+            if not asset.is_transpiled:
+                continue
+            # Use raw_content (pre-transpilation) where import statements are
+            for match in _import_re.finditer(asset.raw_content):
+                dep = match.group(1)
+                if dep in native_specifiers:
+                    legacy_native_deps.add(dep)
+
+        return {
+            "import_map": import_map,
+            "module_urls": module_urls,
+            "preload_urls": module_urls,
+            "native_checksum": native_checksum,
+            "legacy_native_deps": legacy_native_deps,
+        }
+
     def get_link(self, asset_type: str) -> str:
         unique = self.get_version(asset_type) if not self.is_debug_assets else "debug"
         extension = asset_type if self.is_debug_assets else f"min.{asset_type}"
@@ -158,15 +246,16 @@ class AssetsBundle:
         return self.get_checksum(asset_type)[0:7]
 
     def get_checksum(self, asset_type: str) -> str:
-        """
-        Not really a full checksum.
-        We compute a SHA512/256 on the rendered bundle + combined linked files last_modified date
+        """Compute a SHA256 over rendered bundle + linked files last_modified.
+
+        Native ESM modules are included in the JS checksum so that changes
+        to any module (legacy or native) invalidate the bundle cache.
         """
         if asset_type not in self._checksum_cache:
             if asset_type == "css":
                 assets = self.stylesheets
             elif asset_type == "js":
-                assets = self.javascripts + self.templates
+                assets = self.javascripts + self.templates + self.native_modules
             else:
                 raise ValueError(f"Asset type {asset_type} not known")
 
@@ -214,9 +303,9 @@ class AssetsBundle:
             attachments._file_delete(fpath)
 
     def is_css(self, extension: str) -> bool:
-        return extension in ["css", "min.css", "css.map"]
+        return extension in {"css", "min.css", "css.map"}
 
-    def _clean_attachments(self, extension: str, keep_url: str) -> bool:
+    def _clean_attachments(self, extension: str, keep_url: str) -> None:
         """Takes care of deleting any outdated ir.attachment records associated to a bundle before
         saving a fresh one.
 
@@ -238,8 +327,6 @@ class AssetsBundle:
         ]
 
         attachments = ira.sudo().search(domain)
-        # avoid to invalidate cache if it's already empty (mainly useful for test)
-
         if attachments:
             _logger.info(
                 "Deleting attachments %s (matching %s) because it was replaced with %s",
@@ -248,9 +335,6 @@ class AssetsBundle:
                 keep_url,
             )
             self._unlink_attachments(attachments)
-            # clear_cache was removed
-
-        return True
 
     def get_attachments(self, extension: str, ignore_version: bool = False) -> Any:
         """Return the ir.attachment records for a given bundle. This method takes care of mitigating
@@ -352,19 +436,15 @@ class AssetsBundle:
         # and allow to only clear the current direction bundle
         # (this applies to css bundles only)
         fname = f"{self.name}.{extension}"
-        mimetype = (
-            "text/css"
-            if extension in ["css", "min.css"]
-            else (
-                "text/xml"
-                if extension in ["xml", "min.xml"]
-                else (
-                    "application/json"
-                    if extension in ["js.map", "css.map"]
-                    else "application/javascript"
-                )
-            )
-        )
+        match extension:
+            case "css" | "min.css":
+                mimetype = "text/css"
+            case "xml" | "min.xml":
+                mimetype = "text/xml"
+            case "js.map" | "css.map":
+                mimetype = "application/json"
+            case _:
+                mimetype = "application/javascript"
         unique = self.get_version("css" if self.is_css(extension) else "js")
         url = self.get_asset_url(
             unique=unique,
@@ -447,7 +527,7 @@ class AssetsBundle:
         )
         generator = SourceMapGenerator(
             source_root="/".join(
-                [".." for i in range(len(self.get_asset_url().split("/")) - 2)]
+                [".." for _ in range(len(self.get_asset_url().split("/")) - 2)]
             )
             + "/",
         )
@@ -472,7 +552,7 @@ class AssetsBundle:
                 )
 
             content_bundle_list.append(asset.with_header(asset.content, minimal=False))
-            content_line_count += len(asset.content.split("\n")) + line_header
+            content_line_count += asset.content.count("\n") + 1 + line_header
 
         content_bundle = ";\n".join(content_bundle_list)
         if template_bundle:
@@ -537,7 +617,7 @@ class AssetsBundle:
 
         return "\n".join(content)
 
-    def xml(self) -> list[dict[str, Any]] | str:
+    def xml(self) -> list[dict[str, Any]]:
         """
         Create a list of blocks. A block can have one of the two types "templates" or "extensions".
         A template with no parent or template with t-inherit-mode="primary" goes in a block of type "templates".
@@ -576,7 +656,7 @@ class AssetsBundle:
                 inherit_mode = None
                 if inherit_from:
                     inherit_mode = template_tree.get("t-inherit-mode", "primary")
-                    if inherit_mode not in ["primary", "extension"]:
+                    if inherit_mode not in {"primary", "extension"}:
                         addon = asset.url.split("/")[1]
                         return asset.generate_error(
                             self.env._(
@@ -589,7 +669,7 @@ class AssetsBundle:
                     if block is None or block["type"] != "extensions":
                         block = {
                             "type": "extensions",
-                            "extensions": OrderedDict(),
+                            "extensions": {},
                         }
                         blocks.append(block)
                     block["extensions"].setdefault(inherit_from, [])
@@ -640,28 +720,21 @@ body::before {{
 }}
 
 css_error_message {{
-  content: "{error_message.replace('"', r'\"')}";
+  content: "{error_message}";
 }}
 """,
                 ]
             )
             return self.save_attachment(extension, css)
 
-        matches = []
-        css = re.sub(
-            self.rx_css_import,
-            lambda matchobj: matches.append(matchobj.group(0)) or "",
-            css,
-        )
+        # Extract @import rules (they must appear at the top of the bundle)
+        import_rules = self.rx_css_import.findall(css)
+        css = self.rx_css_import.sub("", css)
 
         if is_minified:
-            # move up all @import rules to the top
-            matches.append(css)
-            css = "\n".join(matches)
-
-            return self.save_attachment(extension, css)
-        else:
-            return self.css_with_sourcemap("\n".join(matches))
+            # Move all @import rules to the top
+            return self.save_attachment(extension, "\n".join(import_rules + [css]))
+        return self.css_with_sourcemap("\n".join(import_rules))
 
     def css_with_sourcemap(self, content_import_rules: str) -> Any:
         """Create the ir.attachment representing the not-minified content of the bundleCSS
@@ -676,14 +749,14 @@ css_error_message {{
         debug_asset_url = self.get_asset_url(unique="debug")
         generator = SourceMapGenerator(
             source_root="/".join(
-                [".." for i in range(len(debug_asset_url.split("/")) - 2)]
+                [".." for _ in range(len(debug_asset_url.split("/")) - 2)]
             )
             + "/",
         )
 
         # adds the @import rules at the beginning of the bundle
         content_bundle_list = [content_import_rules]
-        content_line_count = len(content_import_rules.split("\n"))
+        content_line_count = content_import_rules.count("\n") + 1
         for asset in self.stylesheets:
             if asset.content:
                 content = asset.with_header(asset.content)
@@ -696,7 +769,7 @@ css_error_message {{
                     content,
                 )
                 content_bundle_list.append(content)
-                content_line_count += len(content.split("\n"))
+                content_line_count += content.count("\n") + 1
 
         content_bundle = (
             "\n".join(content_bundle_list)
@@ -714,103 +787,95 @@ css_error_message {{
         return css_attachment
 
     def preprocess_css(self, debug: bool = False, old_attachments: Any = None) -> str:
+        """Compile SCSS/Less to CSS, apply RTL and autoprefixing.
+
+        All SCSS (or Less) files are concatenated and compiled as a single
+        document (required because Sass variables are globally scoped with
+        ``@import``).  UUID markers (``/*! <uuid> */``) injected by
+        ``get_source()`` survive Sass compilation and are used to split the
+        compiled output back into per-file fragments — each fragment is
+        reassigned to its source asset so that per-file headers and source
+        maps work correctly.
         """
-        Checks if the bundle contains any sass/less content, then compiles it to css.
-        If user language direction is Right to Left then consider css files to call run_rtlcss,
-        css files are also stored in ir.attachment after processing done by rtlcss.
-        Returns the bundle's flat css.
-        """
-        if self.stylesheets:
-            compiled = ""
-            for atype in (
-                ScssStylesheetAsset,
-                LessStylesheetAsset,
-            ):
-                assets = [
-                    asset for asset in self.stylesheets if isinstance(asset, atype)
-                ]
-                if assets:
-                    source = "\n".join([asset.get_source() for asset in assets])
-                    compiled += self.compile_css(assets[0].compile, source)
+        if not self.stylesheets:
+            return ""
 
-            if self.autoprefix:
-                compiled = self.autoprefix_css(compiled)
+        compiled = ""
+        for atype in (ScssStylesheetAsset, LessStylesheetAsset):
+            assets = [
+                asset for asset in self.stylesheets if isinstance(asset, atype)
+            ]
+            if assets:
+                source = "\n".join(asset.get_source() for asset in assets)
+                compiled += self.compile_css(assets[0].compile, source)
 
-            # We want to run rtlcss on normal css, so merge it in compiled
-            if self.rtl:
-                stylesheet_assets = [
-                    asset
-                    for asset in self.stylesheets
-                    if not isinstance(
-                        asset,
-                        (ScssStylesheetAsset, LessStylesheetAsset),
-                    )
-                ]
-                compiled += "\n".join(
-                    [asset.get_source() for asset in stylesheet_assets]
+        if self.autoprefix:
+            compiled = self.autoprefix_css(compiled)
+
+        # RTL: merge plain CSS into compiled output, then transform the whole
+        if self.rtl:
+            plain_css_assets = [
+                asset
+                for asset in self.stylesheets
+                if not isinstance(asset, (ScssStylesheetAsset, LessStylesheetAsset))
+            ]
+            compiled += "\n".join(asset.get_source() for asset in plain_css_assets)
+            compiled = self.run_rtlcss(compiled)
+
+        if not self.css_errors and old_attachments:
+            self._unlink_attachments(old_attachments)
+
+        # Split compiled output back into per-file fragments using UUID markers
+        fragments = self.rx_css_split.split(compiled)
+        at_rules = fragments.pop(0)
+        if at_rules:
+            # Sass moves @at-rules to the top for CSS 2.1 compatibility
+            self.stylesheets.insert(0, StylesheetAsset(self, inline=at_rules))
+        assets_by_id = {a.id: a for a in self.stylesheets}
+        while fragments:
+            asset_id = fragments.pop(0)
+            asset = assets_by_id.get(asset_id)
+            if asset is None:
+                raise RuntimeError(
+                    f"CSS asset {asset_id!r} not found in stylesheets — "
+                    "compiled output is out of sync with the asset list"
                 )
-                compiled = self.run_rtlcss(compiled)
-
-            if not self.css_errors and old_attachments:
-                self._unlink_attachments(old_attachments)
-                old_attachments = None
-
-            fragments = self.rx_css_split.split(compiled)
-            at_rules = fragments.pop(0)
-            if at_rules:
-                # Sass and less moves @at-rules to the top in order to stay css 2.1 compatible
-                self.stylesheets.insert(0, StylesheetAsset(self, inline=at_rules))
-            while fragments:
-                asset_id = fragments.pop(0)
-                asset = next(
-                    (a for a in self.stylesheets if a.id == asset_id),
-                    None,
-                )
-                if asset is None:
-                    raise RuntimeError(
-                        f"CSS asset {asset_id!r} not found in stylesheets — "
-                        "compiled output is out of sync with the asset list"
-                    )
-                asset._content = fragments.pop(0)
+            asset._content = fragments.pop(0)
 
         return "\n".join(asset.minify() for asset in self.stylesheets)
 
     def compile_css(self, compiler: Any, source: str) -> str:
-        """Sanitizes @import rules, remove duplicates @import rules, then compile"""
-        imports = []
+        """Sanitize @import rules, remove duplicates, then compile."""
+        seen_imports: list[str] = []
 
-        def handle_compile_error(e: Exception, source: str) -> str:
-            error = self.get_preprocessor_error(str(e), source=source)
-            _logger.warning(error)
-            self.css_errors.append(error)
-            return ""
-
-        def sanitize(matchobj: re.Match) -> str:
+        def sanitize_import(matchobj: re.Match) -> str:
             ref = matchobj.group(2)
             line = f'@import "{ref}"{matchobj.group(3)}'
             if (
                 "." not in ref
-                and line not in imports
+                and line not in seen_imports
                 and not ref.startswith((".", "/", "~"))
             ):
-                imports.append(line)
+                seen_imports.append(line)
                 return line
             msg = (
-                "Local import '%s' is forbidden for security reasons. Please remove all @import {your_file} imports in your custom files. In Odoo you have to import all files in the assets, and not through the @import statement."
-                % ref
+                f"Local import {ref!r} is forbidden for security reasons."
+                " Remove @import statements from custom files;"
+                " in Odoo, import files via the assets bundle instead."
             )
             _logger.warning(msg)
             self.css_errors.append(msg)
             return ""
 
-        source = re.sub(self.rx_preprocess_imports, sanitize, source)
+        source = re.sub(self.rx_preprocess_imports, sanitize_import, source)
 
         try:
-            compiled = compiler(source)
-        except CompileError as e:
-            return handle_compile_error(e, source=source)
-
-        return compiled.strip()
+            return compiler(source).strip()
+        except (CompileError, SassCompileError) as e:
+            error = self._format_compiler_error(str(e))
+            _logger.warning(error)
+            self.css_errors.append(error)
+            return ""
 
     def autoprefix_css(self, source: str) -> str:
         """Post-process compiled CSS to add required vendor prefixes."""
@@ -826,38 +891,39 @@ css_error_message {{
         )
 
     def run_rtlcss(self, source: str) -> str:
-        rtlcss = "rtlcss"
+        """Transform CSS for right-to-left languages using rtlcss."""
+        rtlcss_bin = "rtlcss"
         if os.name == "nt":
             try:
-                rtlcss = misc.find_in_path("rtlcss.cmd")
+                rtlcss_bin = misc.find_in_path("rtlcss.cmd")
             except OSError:
-                rtlcss = "rtlcss"
+                pass
 
-        cmd = [rtlcss, "-c", file_path("base/data/rtlcss.json"), "-"]
+        cmd = [rtlcss_bin, "-c", file_path("base/data/rtlcss.json"), "-"]
 
         try:
-            rtlcss = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, encoding="utf-8")
+            proc = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, encoding="utf-8")
         except OSError:
-            # Check the presence of rtlcss, if rtlcss not available then we should return normal less file
+            # Check if rtlcss is installed at all
             try:
-                Popen(["rtlcss", "--version"], stdout=PIPE, stderr=PIPE)
+                check = Popen(["rtlcss", "--version"], stdout=PIPE, stderr=PIPE)
+                check.communicate()
             except OSError:
                 _logger.warning(
-                    "You need https://rtlcss.com/ to convert css file to right to left compatiblity. Use: npm install -g rtlcss"
+                    "rtlcss is required for RTL CSS support. Install with: npm install -g rtlcss"
                 )
                 return source
 
-            msg = "Could not execute command %r" % cmd[0]
+            msg = f"Could not execute command {rtlcss_bin!r}"
             _logger.error(msg)
             self.css_errors.append(msg)
             return ""
 
-        out, err = rtlcss.communicate(input=source)
-        if rtlcss.returncode or (source and not out):
-            if rtlcss.returncode:
-                error = self.get_rtlcss_error(
-                    err or f"Process exited with return code {rtlcss.returncode}",
-                    source=source,
+        out, err = proc.communicate(input=source)
+        if proc.returncode or (source and not out):
+            if proc.returncode:
+                error = self._format_compiler_error(
+                    err or f"Process exited with return code {proc.returncode}",
                 )
             else:
                 error = "rtlcss: error processing payload\n"
@@ -866,32 +932,32 @@ css_error_message {{
             return ""
         return out.strip()
 
-    def get_preprocessor_error(self, stderr: str, source: str | None = None) -> str:
-        """Improve and remove sensitive information from sass/less compiler error messages."""
+    def _format_compiler_error(self, stderr: str) -> str:
+        """Clean up and contextualize a CSS compiler error message.
+
+        Strips Dart Sass noise ("Load paths", "--trace" hints) and appends
+        the bundle name and list of preprocessed source files.
+        """
         error = stderr.split("Load paths", maxsplit=1)[0].replace(
             "  Use --trace for backtrace.", ""
         )
-        error += (
-            f"This error occurred while compiling the bundle '{self.name}' containing:"
-        )
+        error += f"This error occurred while compiling the bundle {self.name!r} containing:"
         for asset in self.stylesheets:
             if isinstance(asset, PreprocessedCSS):
                 error += f"\n    - {asset.url or '<inline sass>'}"
         return error
 
-    def get_rtlcss_error(self, stderr: str, source: str | None = None) -> str:
-        """Improve and remove sensitive information from sass/less compilator error messages"""
-        error = stderr.split("Load paths", maxsplit=1)[0].replace(
-            "  Use --trace for backtrace.", ""
-        )
-        return f"{error}This error occurred while compiling the bundle {self.name!r} containing:"
+    def get_preprocessor_error(self, stderr: str, **_kw: Any) -> str:
+        """Deprecated: use ``_format_compiler_error``."""
+        return self._format_compiler_error(stderr)
+
+    def get_rtlcss_error(self, stderr: str, **_kw: Any) -> str:
+        """Deprecated: use ``_format_compiler_error``."""
+        return self._format_compiler_error(stderr)
 
 
 class WebAsset:
-    _content = None
-    _filename = None
-    _ir_attach = None
-    _id = None
+    """Base class for all asset types (JS, CSS, XML)."""
 
     def __init__(
         self,
@@ -903,25 +969,25 @@ class WebAsset:
     ) -> None:
         self.bundle = bundle
         self.inline = inline
-        self._filename = filename
         self.url = url
+        self._filename = filename
+        self._content: str | None = None
+        self._ir_attach: Any = None
         self._last_modified = last_modified
         if not inline and not url:
             raise ValueError(
-                "An asset should either be inlined or url linked, defined in bundle '%s'"
-                % bundle.name
+                f"An asset should either be inlined or url linked, defined in bundle {bundle.name!r}"
             )
 
     def generate_error(self, msg: str) -> str:
+        """Log and return an error message contextualized with the asset URL."""
         msg = f"{msg!r} in file {self.url!r}"
-        _logger.error(msg)  # log it in the python console in all cases.
+        _logger.error(msg)
         return msg
 
     @functools.cached_property
     def id(self) -> str:
-        if self._id is None:
-            self._id = str(uuid.uuid4())
-        return self._id
+        return str(uuid.uuid4())
 
     @functools.cached_property
     def unique_descriptor(self) -> str:
@@ -951,7 +1017,7 @@ class WebAsset:
                 self.stat()
             if (
                 self._filename and self.bundle and self.bundle.is_debug_assets
-            ):  # usually _last_modified should be set exept in debug=assets
+            ):  # usually _last_modified should be set except in debug=assets
                 self._last_modified = Path(self._filename).stat().st_mtime
             elif self._ir_attach:
                 self._last_modified = self._ir_attach.write_date.replace(tzinfo=UTC).timestamp()
@@ -966,13 +1032,11 @@ class WebAsset:
         return self._content
 
     def _fetch_content(self) -> str:
-        """Fetch content from file or database"""
+        """Fetch content from file or database."""
         try:
             self.stat()
             if self._filename:
-                with closing(
-                    file_open(self._filename, "rb", filter_ext=EXTENSIONS)
-                ) as fp:
+                with file_open(self._filename, "rb", filter_ext=EXTENSIONS) as fp:
                     return fp.read().decode("utf-8")
             else:
                 return self._ir_attach.raw.decode()
@@ -996,6 +1060,7 @@ class JavascriptAsset(WebAsset):
     def __init__(self, bundle: AssetsBundle, **kwargs: Any) -> None:
         super().__init__(bundle, **kwargs)
         self._is_transpiled = None
+        self._is_native = None
         self._converted_content = None
 
     def generate_error(self, msg: str) -> str:
@@ -1007,14 +1072,31 @@ class JavascriptAsset(WebAsset):
         return self.bundle.get_version("js")
 
     @property
+    def is_native(self) -> bool:
+        """Whether this file uses ``@odoo-module native`` (browser-native ESM)."""
+        if self._is_native is None:
+            self._is_native = bool(is_native_module(self.url, self.raw_content))
+        return self._is_native
+
+    @property
+    def module_path(self) -> str:
+        """The ``@module/path`` identifier (e.g. ``@web/core/registry``)."""
+        return url_to_module_path(self.url)
+
+    @property
+    def raw_content(self) -> str:
+        """Raw file content before transpilation (cached by WebAsset)."""
+        return super().content
+
+    @property
     def is_transpiled(self) -> bool:
         if self._is_transpiled is None:
-            self._is_transpiled = bool(is_odoo_module(self.url, super().content))
+            self._is_transpiled = bool(is_odoo_module(self.url, self.raw_content))
         return self._is_transpiled
 
     @property
     def content(self) -> str:
-        content = super().content
+        content = self.raw_content
         if self.is_transpiled:
             if not self._converted_content:
                 self._converted_content = transpile_javascript(self.url, content)

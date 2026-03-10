@@ -32,7 +32,12 @@ import sys
 from pathlib import Path
 
 
-def user_data_dir(appname=None, appauthor=None, version=None, roaming=False):
+def user_data_dir(
+    appname: str | None = None,
+    appauthor: str | None = None,
+    version: str | None = None,
+    roaming: bool = False,
+) -> str:
     r"""Return full path to the user-specific data dir for this application.
 
         "appname" is the name of application.
@@ -83,7 +88,12 @@ def user_data_dir(appname=None, appauthor=None, version=None, roaming=False):
     return path
 
 
-def site_data_dir(appname=None, appauthor=None, version=None, multipath=False):
+def site_data_dir(
+    appname: str | None = None,
+    appauthor: str | None = None,
+    version: str | None = None,
+    multipath: bool = False,
+) -> str:
     r"""Return full path to the user-shared data dir for this application.
 
         "appname" is the name of application.
@@ -141,7 +151,7 @@ def site_data_dir(appname=None, appauthor=None, version=None, multipath=False):
         if appname:
             if version:
                 appname = str(Path(appname, version))
-            pathlist = [os.sep.join([x, appname]) for x in pathlist]
+            pathlist = [str(Path(x) / appname) for x in pathlist]
 
         if multipath:
             path = os.pathsep.join(pathlist)
@@ -154,7 +164,12 @@ def site_data_dir(appname=None, appauthor=None, version=None, multipath=False):
     return path
 
 
-def user_config_dir(appname=None, appauthor=None, version=None, roaming=False):
+def user_config_dir(
+    appname: str | None = None,
+    appauthor: str | None = None,
+    version: str | None = None,
+    roaming: bool = False,
+) -> str:
     """Return full path to the user-specific config dir for this application.
 
     "appname" is the name of application.
@@ -197,7 +212,12 @@ def user_config_dir(appname=None, appauthor=None, version=None, roaming=False):
     return path
 
 
-def site_config_dir(appname=None, appauthor=None, version=None, multipath=False):
+def site_config_dir(
+    appname: str | None = None,
+    appauthor: str | None = None,
+    version: str | None = None,
+    multipath: bool = False,
+) -> str:
     r"""Return full path to the user-shared data dir for this application.
 
     "appname" is the name of application.
@@ -245,7 +265,7 @@ def site_config_dir(appname=None, appauthor=None, version=None, multipath=False)
         if appname:
             if version:
                 appname = str(Path(appname, version))
-            pathlist = [os.sep.join([x, appname]) for x in pathlist]
+            pathlist = [str(Path(x) / appname) for x in pathlist]
 
         if multipath:
             path = os.pathsep.join(pathlist)
@@ -254,7 +274,12 @@ def site_config_dir(appname=None, appauthor=None, version=None, multipath=False)
     return path
 
 
-def user_cache_dir(appname=None, appauthor=None, version=None, opinion=True):
+def user_cache_dir(
+    appname: str | None = None,
+    appauthor: str | None = None,
+    version: str | None = None,
+    opinion: bool = True,
+) -> str:
     r"""Return full path to the user-specific cache dir for this application.
 
     "appname" is the name of application.
@@ -314,7 +339,12 @@ def user_cache_dir(appname=None, appauthor=None, version=None, opinion=True):
     return path
 
 
-def user_log_dir(appname=None, appauthor=None, version=None, opinion=True):
+def user_log_dir(
+    appname: str | None = None,
+    appauthor: str | None = None,
+    version: str | None = None,
+    opinion: bool = True,
+) -> str:
     r"""Return full path to the user-specific log dir for this application.
 
         "appname" is the name of application.
@@ -367,20 +397,20 @@ class AppDirs:
 
     def __init__(
         self,
-        appname,
-        appauthor=None,
-        version=None,
-        roaming=False,
-        multipath=False,
-    ):
-        self.appname = appname
-        self.appauthor = appauthor
-        self.version = version
-        self.roaming = roaming
-        self.multipath = multipath
+        appname: str,
+        appauthor: str | None = None,
+        version: str | None = None,
+        roaming: bool = False,
+        multipath: bool = False,
+    ) -> None:
+        self.appname: str = appname
+        self.appauthor: str | None = appauthor
+        self.version: str | None = version
+        self.roaming: bool = roaming
+        self.multipath: bool = multipath
 
     @property
-    def user_data_dir(self):
+    def user_data_dir(self) -> str:
         return user_data_dir(
             self.appname,
             self.appauthor,
@@ -389,7 +419,7 @@ class AppDirs:
         )
 
     @property
-    def site_data_dir(self):
+    def site_data_dir(self) -> str:
         return site_data_dir(
             self.appname,
             self.appauthor,
@@ -398,7 +428,7 @@ class AppDirs:
         )
 
     @property
-    def user_config_dir(self):
+    def user_config_dir(self) -> str:
         return user_config_dir(
             self.appname,
             self.appauthor,
@@ -407,7 +437,7 @@ class AppDirs:
         )
 
     @property
-    def site_config_dir(self):
+    def site_config_dir(self) -> str:
         return site_data_dir(
             self.appname,
             self.appauthor,
@@ -416,18 +446,18 @@ class AppDirs:
         )
 
     @property
-    def user_cache_dir(self):
+    def user_cache_dir(self) -> str:
         return user_cache_dir(self.appname, self.appauthor, version=self.version)
 
     @property
-    def user_log_dir(self):
+    def user_log_dir(self) -> str:
         return user_log_dir(self.appname, self.appauthor, version=self.version)
 
 
 # ---- internal support stuff
 
 
-def _get_win_folder_from_registry(csidl_name):
+def _get_win_folder_from_registry(csidl_name: str) -> str:
     """This is a fallback technique at best. I'm not sure if using the
     registry for this guarantees us the correct answer for all CSIDL_*
     names.
@@ -448,7 +478,7 @@ def _get_win_folder_from_registry(csidl_name):
     return dir
 
 
-def _get_win_folder_with_pywin32(csidl_name):
+def _get_win_folder_with_pywin32(csidl_name: str) -> str:
     from win32com.shell import shell, shellcon
 
     dir = shell.SHGetFolderPath(0, getattr(shellcon, csidl_name), 0, 0)
@@ -477,7 +507,7 @@ def _get_win_folder_with_pywin32(csidl_name):
     return dir
 
 
-def _get_win_folder_with_ctypes(csidl_name):
+def _get_win_folder_with_ctypes(csidl_name: str) -> str:
     import ctypes
 
     csidl_const = {

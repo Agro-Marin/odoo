@@ -106,15 +106,23 @@ class Float(Field[float]):
 
         To round a quantity with the precision of the unit of measure::
 
-            fields.Float.round(self.product_uom_qty, precision_rounding=self.product_uom_id.rounding)
+            fields.Float.round(
+                self.product_uom_qty, precision_rounding=self.product_uom_id.rounding
+            )
 
         To check if the quantity is zero with the precision of the unit of measure::
 
-            fields.Float.is_zero(self.product_uom_qty, precision_rounding=self.product_uom_id.rounding)
+            fields.Float.is_zero(
+                self.product_uom_qty, precision_rounding=self.product_uom_id.rounding
+            )
 
         To compare two quantities::
 
-            field.Float.compare(self.product_uom_qty, self.qty_done, precision_rounding=self.product_uom_id.rounding)
+            field.Float.compare(
+                self.product_uom_qty,
+                self.qty_done,
+                precision_rounding=self.product_uom_id.rounding,
+            )
 
         The compare helper uses the __cmp__ semantics for historic purposes, therefore
         the proper, idiomatic way to use this helper is like so:
@@ -232,7 +240,6 @@ class Float(Field[float]):
         return ""
 
     round = staticmethod(float_round)
-    is_zero = staticmethod(float_is_zero)
     compare = staticmethod(float_compare)
 
 
@@ -289,14 +296,16 @@ class Monetary(Field[float]):
         return self.currency_field or (
             "currency_id"
             if "currency_id" in model._fields
-            else "x_currency_id" if "x_currency_id" in model._fields else None
+            else "x_currency_id"
+            if "x_currency_id" in model._fields
+            else None
         )
 
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
-        assert (
-            self.get_currency_field(model) in model._fields
-        ), f"Field {self} with unknown currency_field {self.get_currency_field(model)!r}"
+        assert self.get_currency_field(model) in model._fields, (
+            f"Field {self} with unknown currency_field {self.get_currency_field(model)!r}"
+        )
 
     def setup_related(self, model: BaseModel) -> None:
         super().setup_related(model)
@@ -304,9 +313,9 @@ class Monetary(Field[float]):
             self.currency_field = self.related_field.get_currency_field(
                 model.env[self.related_field.model_name]
             )
-        assert (
-            self.get_currency_field(model) in model._fields
-        ), f"Field {self} with unknown currency_field {self.get_currency_field(model)!r}"
+        assert self.get_currency_field(model) in model._fields, (
+            f"Field {self} with unknown currency_field {self.get_currency_field(model)!r}"
+        )
 
     @override
     def convert_to_column(
@@ -430,7 +439,9 @@ class Monetary(Field[float]):
         return records.browse(
             record_id
             for record_id, record_sudo in zip(
-                records._ids, records.sudo().with_context(prefetch_fields=False), strict=False
+                records._ids,
+                records.sudo().with_context(prefetch_fields=False),
+                strict=False,
             )
             if not (
                 (value := field_cache.get(record_id))

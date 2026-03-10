@@ -8,8 +8,8 @@ mapped, filtered, grouped, sorted, and update.
 import functools
 import typing
 from collections import defaultdict
-from collections.abc import Callable
 from operator import itemgetter
+from typing import Self
 
 from odoo.libs._field_access import batch_cache_filter as _batch_cache_filter
 from odoo.libs._field_access import batch_cache_get as _batch_cache_get
@@ -21,9 +21,12 @@ from odoo.tools import SQL
 from odoo.tools.misc import PENDING, SENTINEL
 
 from ... import decorators as api
-from ..._typing import DomainType, Self
+from ..._typing import DomainType
 from ...domain import Domain
 from ...parsing import regex_order
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable
 
 T = typing.TypeVar("T")
 
@@ -101,7 +104,7 @@ class TraversalMixin:
     def mapped(self, func: Callable[[Self], T]) -> list[T]: ...
 
     @api.private
-    def mapped(self, func):
+    def mapped(self, func: str | Callable) -> list | Self:
         """Apply ``func`` on all records in ``self``, and return the result as a
         list or a recordset (if ``func`` return recordsets). In the latter
         case, the order of the returned recordset is arbitrary.
@@ -119,13 +122,13 @@ class TraversalMixin:
         .. code-block:: python3
 
             # returns a list of names
-            records.mapped('name')
+            records.mapped("name")
 
             # returns a recordset of partners
-            records.mapped('partner_id')
+            records.mapped("partner_id")
 
             # returns the union of all partner banks, with duplicates removed
-            records.mapped('partner_id.bank_ids')
+            records.mapped("partner_id.bank_ids")
         """
         if not func:
             return self  # support for an empty path of fields
@@ -205,7 +208,7 @@ class TraversalMixin:
             return vals if isinstance(vals, BaseModel) else []
 
     @api.private
-    def filtered(self, func) -> Self:
+    def filtered(self, func: str | Callable[[Self], bool] | Domain) -> Self:
         """Return the records in ``self`` satisfying ``func``.
 
         :param func: a function, Domain or a dot-separated sequence of field names
@@ -260,7 +263,9 @@ class TraversalMixin:
             return self.filtered_domain(func)
         else:
             raise TypeError(f"Invalid function {func!r} to filter on {self._name}")
-        return self.browse(rec_id for rec_id, rec in zip(self._ids, self, strict=False) if func(rec))
+        return self.browse(
+            rec_id for rec_id, rec in zip(self._ids, self, strict=False) if func(rec)
+        )
 
     @typing.overload
     def grouped(self, key: str) -> dict[typing.Any, Self]: ...
@@ -269,7 +274,7 @@ class TraversalMixin:
     def grouped(self, key: Callable[[Self], T]) -> dict[T, Self]: ...
 
     @api.private
-    def grouped(self, key):
+    def grouped(self, key: str | Callable) -> dict:
         """Eagerly groups the records of ``self`` by the ``key``, returning a
         dict from the ``key``'s result to recordsets. All the resulting
         recordsets are guaranteed to be part of the same prefetch-set.
@@ -321,9 +326,7 @@ class TraversalMixin:
                         collator = {}
                         for i, rec_id in enumerate(ids):
                             group_key = (
-                                _field_get(rec_list[i])
-                                if i in miss_set
-                                else results[i]
+                                _field_get(rec_list[i]) if i in miss_set else results[i]
                             )
                             group = collator.get(group_key)
                             if group is None:
@@ -370,11 +373,17 @@ class TraversalMixin:
             return self
         predicate = Domain(domain)._as_predicate(self)
         return self.browse(
-            rec_id for rec_id, rec in zip(self._ids, self, strict=False) if predicate(rec)
+            rec_id
+            for rec_id, rec in zip(self._ids, self, strict=False)
+            if predicate(rec)
         )
 
     @api.private
-    def sorted(self, key=None, reverse: bool = False) -> Self:
+    def sorted(
+        self,
+        key: str | Callable[[Self], typing.Any] | None = None,
+        reverse: bool = False,
+    ) -> Self:
         """Return the recordset ``self`` ordered by ``key``.
 
         :param key:
@@ -391,7 +400,7 @@ class TraversalMixin:
             # sort records by name
             records.sorted(key=lambda r: r.name)
             # sort records by name in descending order, then by id
-            records.sorted('name DESC, id')
+            records.sorted("name DESC, id")
             # sort records using default order
             records.sorted()
         """
@@ -569,7 +578,7 @@ class TraversalMixin:
         return tuple(pair[0] for pair in id_key_pairs)
 
     @api.model
-    def _sorted_order_to_function(self, order: str):
+    def _sorted_order_to_function(self, order: str) -> Callable[[Self], typing.Any]:
         _env = self.env
 
         def order_to_function(order_part):
@@ -648,7 +657,7 @@ class TraversalMixin:
         return lambda rec: tuple(fn(rec) for fn in item_makers)
 
     @api.private
-    def update(self, values) -> None:
+    def update(self, values: dict[str, typing.Any]) -> None:
         """Update the records in ``self`` with ``values``."""
         for name, value in values.items():
             self[name] = value
@@ -657,7 +666,7 @@ class TraversalMixin:
     # Cycle detection
     # -------------------------------------------------------------------------
 
-    def _has_cycle(self, field_name=None) -> bool:
+    def _has_cycle(self, field_name: str | None = None) -> bool:
         """
         Return whether the records in ``self`` are in a loop by following the
         given relationship of the field.

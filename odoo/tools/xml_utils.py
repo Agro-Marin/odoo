@@ -32,12 +32,12 @@ class odoo_resolver(etree.Resolver):
     It will search filenames in the ir.attachments
     """
 
-    def __init__(self, env, prefix):
+    def __init__(self, env: object, prefix: str) -> None:
         super().__init__()
         self.env = env
         self.prefix = prefix
 
-    def resolve(self, url, id, context):
+    def resolve(self, url: str, id: object, context: object) -> object:
         """Search url in ``ir.attachment`` and return the resolved content."""
         attachment_name = f"{self.prefix}.{url}" if self.prefix else url
         attachment = self.env["ir.attachment"].search([("name", "=", attachment_name)])
@@ -46,7 +46,7 @@ class odoo_resolver(etree.Resolver):
         return None
 
 
-def _validate_xml(env, url, path, xmls):
+def _validate_xml(env: object, url: str | None, path: str | None, xmls: object) -> None:
     # Get the XSD data
     xsd_attachment = env["ir.attachment"]
     if path:
@@ -69,7 +69,12 @@ def _validate_xml(env, url, path, xmls):
     xsd_attachment.unlink()
 
 
-def _check_with_xsd(tree_or_str, stream, env=None, prefix=None):
+def _check_with_xsd(
+    tree_or_str: etree._Element | str | bytes,
+    stream: object,
+    env: object = None,
+    prefix: str | None = None,
+) -> None:
     """Check an XML against an XSD schema.
 
     This will raise a UserError if the XML file is not valid according to the
@@ -102,12 +107,12 @@ def _check_with_xsd(tree_or_str, stream, env=None, prefix=None):
 
 
 def cleanup_xml_node(
-    xml_node_or_string,
-    remove_blank_text=True,
-    remove_blank_nodes=True,
-    indent_level=0,
-    indent_space="  ",
-):
+    xml_node_or_string: etree._Element | str | bytes,
+    remove_blank_text: bool = True,
+    remove_blank_nodes: bool = True,
+    indent_level: int = 0,
+    indent_space: str = "  ",
+) -> etree._Element:
     """Clean up the sub-tree of the provided XML node.
 
     If the provided XML node is of type:
@@ -162,15 +167,15 @@ def cleanup_xml_node(
 
 
 def load_xsd_files_from_url(
-    env,
-    url,
-    file_name=None,
-    force_reload=False,
-    request_max_timeout=10,
-    xsd_name_prefix="",
-    xsd_names_filter=None,
-    modify_xsd_content=None,
-):
+    env: object,
+    url: str,
+    file_name: str | None = None,
+    force_reload: bool = False,
+    request_max_timeout: int = 10,
+    xsd_name_prefix: str = "",
+    xsd_names_filter: list[str] | None = None,
+    modify_xsd_content: object = None,
+) -> object:
     """Load XSD file or ZIP archive. Save XSD files as ir.attachment.
 
     An XSD attachment is saved as {xsd_name_prefix}.{filename} where the filename is either the filename obtained
@@ -224,7 +229,7 @@ def load_xsd_files_from_url(
         if modify_xsd_content:
             content = modify_xsd_content(content)
         if not file_name:
-            file_name = f"{url.split('/')[-1]}"
+            file_name = f"{url.rsplit('/', maxsplit=1)[-1]}"
             _logger.info("XSD name not provided, defaulting to %s", file_name)
 
         prefixed_xsd_name = (
@@ -306,8 +311,12 @@ def load_xsd_files_from_url(
 
 
 def validate_xml_from_attachment(
-    env, xml_content, xsd_name, reload_files_function=None, prefix=None
-):
+    env: object,
+    xml_content: object,
+    xsd_name: str,
+    reload_files_function: object = None,
+    prefix: str | None = None,
+) -> None:
     """Try and validate the XML content with an XSD attachment.
     If the XSD attachment cannot be found in database, skip validation without raising.
 
@@ -331,6 +340,11 @@ def validate_xml_from_attachment(
             _logger.error(arg)
 
 
-def find_xml_value(xpath, xml_element, namespaces=None):
+def find_xml_value(
+    xpath: str,
+    xml_element: etree._Element,
+    namespaces: dict | None = None,
+) -> str | None:
+    """Return the text content of the first element matching the given XPath expression."""
     element = xml_element.xpath(xpath, namespaces=namespaces)
     return element[0].text if element else None

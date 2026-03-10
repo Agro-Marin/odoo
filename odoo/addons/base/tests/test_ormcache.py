@@ -1,7 +1,6 @@
 from threading import Barrier, Thread
 
-from odoo.tests.common import TransactionCase, tagged
-from odoo.tools.cache import get_cache_key_counter
+from odoo.tests.common import TransactionCase, get_cache_key_counter, tagged
 
 
 @tagged("-at_install", "post_install")

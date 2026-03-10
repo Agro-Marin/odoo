@@ -12,11 +12,13 @@ to declaratively specify SQL constraints and indexes:
 Usage::
 
     class MyModel(models.Model):
-        _name = 'my.model'
+        _name = "my.model"
 
-        _code_uniq = models.Constraint('unique(code)', 'Code must be unique!')
-        _name_idx = models.Index('(name)')
-        _active_uniq = models.UniqueIndex('(name) WHERE active IS TRUE', 'Active name must be unique!')
+        _code_uniq = models.Constraint("unique(code)", "Code must be unique!")
+        _name_idx = models.Index("(name)")
+        _active_uniq = models.UniqueIndex(
+            "(name) WHERE active IS TRUE", "Active name must be unique!"
+        )
 """
 
 import typing
@@ -47,21 +49,21 @@ class TableObject:
     message: ConstraintMessageType = ""
     _module: str = ""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Abstract SQL object"""
         # to avoid confusion: name is unique inside the model, full_name is in the database
         self.name = ""
 
-    def __set_name__(self, owner, name):
+    def __set_name__(self, owner: type, name: str) -> None:
         # database objects should be private member fo the class:
         # first of all, you should not need to access them from any model
         # and this avoid having them in the middle of the fields when listing members
-        assert name.startswith(
-            "_"
-        ), "Names of SQL objects in a model must start with '_'"
-        assert not name.startswith(
-            f"_{owner.__name__}__"
-        ), "Names of SQL objects must not be mangled"
+        assert name.startswith("_"), (
+            "Names of SQL objects in a model must start with '_'"
+        )
+        assert not name.startswith(f"_{owner.__name__}__"), (
+            "Names of SQL objects must not be mangled"
+        )
         self.name = name[1:]
         if getattr(owner, "pool", None) is None:  # models.is_model_definition(owner)
             # only for fields on definition classes, not registry classes
@@ -76,7 +78,9 @@ class TableObject:
         name = f"{model._table}_{self.name}"
         return sql.make_identifier(name)
 
-    def get_error_message(self, model: BaseModel, diagnostics=None) -> str:
+    def get_error_message(
+        self, model: BaseModel, diagnostics: Diagnostic | None = None
+    ) -> str:
         """Build an error message for the object/constraint.
 
         :param model: Optional model on which the constraint is defined
@@ -88,7 +92,7 @@ class TableObject:
             return message(model.env, diagnostics)
         return message
 
-    def apply_to_database(self, model: BaseModel):
+    def apply_to_database(self, model: BaseModel) -> None:
         raise NotImplementedError
 
     def __str__(self) -> str:
@@ -122,10 +126,10 @@ class Constraint(TableObject):
         if message:
             self.message = message
 
-    def get_definition(self, registry: Registry):
+    def get_definition(self, registry: Registry) -> str:
         return self._definition
 
-    def apply_to_database(self, model: BaseModel):
+    def apply_to_database(self, model: BaseModel) -> None:
         cr = model.env.cr
         conname = self.full_name(model)
         definition = self.get_definition(model.pool)
@@ -165,7 +169,7 @@ class Index(TableObject):
         super().__init__()
         self._index_definition = definition
 
-    def get_definition(self, registry: Registry):
+    def get_definition(self, registry: Registry) -> str:
         if callable(self._index_definition):
             definition = self._index_definition(registry)
         else:
@@ -174,7 +178,7 @@ class Index(TableObject):
             return ""
         return f"{'UNIQUE ' if self.unique else ''}INDEX {definition}"
 
-    def apply_to_database(self, model: BaseModel):
+    def apply_to_database(self, model: BaseModel) -> None:
         cr = model.env.cr
         conname = self.full_name(model)
         definition = self.get_definition(model.pool)

@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import Any
 
 from odoo.tools.misc import OrderedSet
 
@@ -23,15 +24,15 @@ class TagsSelector:
         re.VERBOSE,
     )  # [-][tag][/module][:class][.method][[params]]
 
-    def __init__(self, spec):
+    def __init__(self, spec: str) -> None:
         """Parse the spec to determine tags to include and exclude."""
         parts = re.split(
             r",(?![^\[]*\])", spec
         )  # split on all comma not inside [] (not followed by ])
         filter_specs = [t.strip() for t in parts if t.strip()]
-        self.exclude = set()
-        self.include = set()
-        self.parameters = OrderedSet()
+        self.exclude: set[tuple] = set()
+        self.include: set[tuple] = set()
+        self.parameters: OrderedSet = OrderedSet()
 
         for filter_spec in filter_specs:
             match = self.filter_spec_re.match(filter_spec)
@@ -72,9 +73,11 @@ class TagsSelector:
         if (self.exclude or self.parameters) and not self.include:
             self.include.add(("standard", None, None, None, None))
 
-    def check(self, test):
-        """Return whether ``arg`` matches the specification: it must have at
-        least one tag in ``self.include`` and none in ``self.exclude`` for each tag category.
+    def check(self, test: Any) -> bool:
+        """Return whether ``test`` matches the specification.
+
+        It must have at least one tag in ``self.include`` and none in
+        ``self.exclude`` for each tag category.
         """
         if not hasattr(
             test, "test_tags"
@@ -95,7 +98,7 @@ class TagsSelector:
 
         test._test_params = []
 
-        def _is_matching(test_filter):
+        def _is_matching(test_filter: tuple) -> bool:
             tag, module, klass, method, file_path = test_filter
             if tag and tag not in test_tags:
                 return False

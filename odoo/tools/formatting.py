@@ -302,7 +302,14 @@ def format_time(
         utc_datetime = value.replace(tzinfo=utc)
         try:
             context_tz = get_timezone(tz_name)
-            localized_time = utc_datetime.astimezone(context_tz).timetz()
+            localized_dt = utc_datetime.astimezone(context_tz)
+            # Freeze the UTC offset as a fixed timezone so that timetz()
+            # produces a deterministic offset independent of today's DST state.
+            # ZoneInfo on a bare time uses today's date to resolve DST, which
+            # gives wrong offsets when the original date and today differ in
+            # DST status (e.g. formatting a January time in March).
+            fixed_offset = datetime.timezone(localized_dt.utcoffset())
+            localized_time = localized_dt.replace(tzinfo=fixed_offset).timetz()
         except Exception:
             localized_time = utc_datetime.timetz()
 

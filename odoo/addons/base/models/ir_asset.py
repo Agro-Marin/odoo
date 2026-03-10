@@ -8,8 +8,8 @@ from urllib.parse import urlsplit
 from odoo import api, fields, models, tools
 from odoo.libs.constants import ASSET_EXTENSIONS, EXTERNAL_ASSET
 from odoo.modules import Manifest
-from odoo.tools import misc
 from odoo.orm._typing import ValuesType
+from odoo.tools import misc
 
 _logger = getLogger(__name__)
 
@@ -24,7 +24,7 @@ REMOVE_DIRECTIVE = "remove"
 REPLACE_DIRECTIVE = "replace"
 INCLUDE_DIRECTIVE = "include"
 # Those are the directives used with a 'target' argument/field.
-DIRECTIVES_WITH_TARGET = [AFTER_DIRECTIVE, BEFORE_DIRECTIVE, REPLACE_DIRECTIVE]
+DIRECTIVES_WITH_TARGET = {AFTER_DIRECTIVE, BEFORE_DIRECTIVE, REPLACE_DIRECTIVE}
 
 
 def fs2web(path: str) -> str:
@@ -435,7 +435,7 @@ class IrAsset(models.Model):
     def _get_paths(self, path_def: str, installed: Any) -> list[tuple[str, Any, Any]]:
         """
         Returns a list of tuple (path, full_path, modified) matching a given glob (path_def).
-        The glob can only occur in the static direcory of an installed addon.
+        The glob can only occur in the static directory of an installed addon.
 
         If the path_def matches a (list of) file, the result will contain the full_path
         and the modified time.
@@ -443,9 +443,9 @@ class IrAsset(models.Model):
 
         If the path_def looks like a non aggregable path (http://, /web/assets), only return the path
         Ex: ('http://example.com/lib.js', None, -1)
-        The timestamp -1 is given to be thruthy while carrying no information.
+        The timestamp -1 is given to be truthy while carrying no information.
 
-        If the path_def is not a wildward, but may still be a valid addons path, return a False path
+        If the path_def is not a wildcard, but may still be a valid addons path, return a False path
         with No timetamp
         Ex: ('/_custom/web.asset_frontend', False, None)
 

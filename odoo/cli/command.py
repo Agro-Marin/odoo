@@ -17,7 +17,7 @@ from odoo.tools import config
 
 COMMAND_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 PROG_NAME = Path(sys.argv[0]).name
-commands = {}
+commands: dict[str, type] = {}
 """All loaded commands"""
 
 
@@ -138,7 +138,7 @@ class Command:
     epilog = None
     _parser = None  # NOTE: lazy init, not cached_property — allows subclass __init__ flexibility
 
-    def __init_subclass__(cls):
+    def __init_subclass__(cls) -> None:
         cls.name = cls.name or cls.__name__.lower()
         module = cls.__module__.rpartition(".")[2]
         if not cls.is_valid_name(cls.name):
@@ -152,11 +152,11 @@ class Command:
         commands[cls.name] = cls
 
     @property
-    def prog(self):
+    def prog(self) -> str:
         return f"{PROG_NAME} [--addons-path=PATH,...] {self.name}"
 
     @property
-    def parser(self):
+    def parser(self) -> argparse.ArgumentParser:
         if not self._parser:
             self._parser = argparse.ArgumentParser(
                 formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -167,7 +167,7 @@ class Command:
         return self._parser
 
     @classmethod
-    def is_valid_name(cls, name):
+    def is_valid_name(cls, name: str) -> re.Match[str] | None:
         return COMMAND_NAME_RE.match(name)
 
     def add_config_arguments(self, parser: argparse.ArgumentParser) -> None:
@@ -223,7 +223,7 @@ class Command:
         return db_names[0]
 
 
-def load_internal_commands():
+def load_internal_commands() -> None:
     """Load ``commands`` from ``odoo.cli``"""
     for path in odoo.cli.__path__:
         for module in Path(path).iterdir():
@@ -232,7 +232,7 @@ def load_internal_commands():
             __import__(f"odoo.cli.{module.stem}")
 
 
-def load_addons_commands(command=None):
+def load_addons_commands(command: str | None = None) -> None:
     """
     Search the addons path for modules with a ``cli/{command}.py`` file.
     In case no command is provided, discover and load all the commands.
@@ -275,7 +275,7 @@ def find_command(name: str) -> Command | None:
     return commands.get(name)
 
 
-def main():
+def main() -> None:
     args = sys.argv[1:]
 
     # The only shared option is '--addons-path=' needed to discover additional

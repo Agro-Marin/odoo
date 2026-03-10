@@ -223,9 +223,12 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
 
     # Transience
     if model_cls._transient and not model_cls._log_access:
-        raise TypeError(
+        msg = (
             "TransientModels must have log_access turned on, "
             "in order to implement their vacuum policy"
+        )
+        raise TypeError(
+            msg
         )
 
     # update the registry after all checks have passed
@@ -500,9 +503,9 @@ def _patch_company_dependent_field(
 def _validate_rec_name(model_cls: type[BaseModel]):
     """Determine and validate the _rec_name attribute."""
     if model_cls._rec_name:
-        assert (
-            model_cls._rec_name in model_cls._fields
-        ), f"Invalid _rec_name={model_cls._rec_name!r} for model {model_cls._name!r}"
+        assert model_cls._rec_name in model_cls._fields, (
+            f"Invalid _rec_name={model_cls._rec_name!r} for model {model_cls._name!r}"
+        )
     elif "name" in model_cls._fields:
         model_cls._rec_name = "name"
     elif model_cls._custom and "x_name" in model_cls._fields:

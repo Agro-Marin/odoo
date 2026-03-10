@@ -43,13 +43,20 @@ def _float_check_precision(
 ) -> float:
     if precision_rounding is not None and precision_digits is None:
         if precision_rounding <= 0:
-            raise ValueError(f"precision_rounding must be positive, got {precision_rounding}")
+            raise ValueError(
+                f"precision_rounding must be positive, got {precision_rounding}"
+            )
     elif precision_digits is not None and precision_rounding is None:
         if not float(precision_digits).is_integer() or precision_digits < 0:
-            raise ValueError(f"precision_digits must be a non-negative integer, got {precision_digits}")
+            raise ValueError(
+                f"precision_digits must be a non-negative integer, got {precision_digits}"
+            )
         precision_rounding = 10**-precision_digits
     else:
-        raise ValueError("exactly one of precision_digits and precision_rounding must be specified")
+        msg = "exactly one of precision_digits and precision_rounding must be specified"
+        raise ValueError(
+            msg
+        )
     return precision_rounding
 
 
@@ -367,7 +374,6 @@ def float_invert(value: float) -> float:
 
 
 if __name__ == "__main__":
-
     import time
 
     start = time.time()

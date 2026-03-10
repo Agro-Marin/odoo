@@ -26,7 +26,7 @@ class Help(Command):
         Use '{prog_name} <command> --help' for other individual commands options.
     """)
 
-    def run(self, args):
+    def run(self, args: list[str]) -> None:
         load_internal_commands()
         load_addons_commands()
 

@@ -14,13 +14,14 @@ import pkgutil
 import sys
 import time
 from types import ModuleType, SimpleNamespace
+from typing import Any
 
 
 class PatchImportHook:
     """Register hooks that are run on import."""
 
-    def __init__(self):
-        self.hooks = set()
+    def __init__(self) -> None:
+        self.hooks: set[str] = set()
 
     def add_hook(self, fullname: str) -> None:
         """Register a hook after a module is loaded.
@@ -29,7 +30,9 @@ class PatchImportHook:
         if fullname in sys.modules:
             patch_module(fullname)
 
-    def find_spec(self, fullname, path=None, target=None):
+    def find_spec(
+        self, fullname: str, path: Any = None, target: ModuleType | None = None
+    ) -> Any:
         if fullname not in self.hooks:
             return None  # let python use another import hook to import this fullname
 

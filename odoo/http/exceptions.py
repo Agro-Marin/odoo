@@ -1,5 +1,3 @@
-"""HTTP layer exceptions."""
-
 from http import HTTPStatus
 
 

@@ -19,11 +19,14 @@ Usage::
     result = uow.run_flush_loop(recompute_fn, flush_fn)
 """
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
-from .cache import FieldCache
-from .compute import ComputeEngine
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from .cache import FieldCache
+    from .compute import ComputeEngine
 
 
 @dataclass(slots=True)
@@ -39,7 +42,7 @@ class LoopResult:
 
     iterations: int = 0
     converged: bool = True
-    stalled_fields: list = field(default_factory=list)
+    stalled_fields: list[str] = field(default_factory=list)
 
 
 class UnitOfWork:
@@ -67,9 +70,9 @@ class UnitOfWork:
         self.cache = cache
         self.engine = engine
         self.max_iterations = max_iterations
-        self._recompute_order: dict | None = None
+        self._recompute_order: dict[Any, int] | None = None
 
-    def set_recompute_order(self, order: dict) -> None:
+    def set_recompute_order(self, order: dict[Any, int]) -> None:
         """Set the topological recompute order from ModelGraph.
 
         :param order: ``{field: priority_int}`` — lower priority = compute first
@@ -80,7 +83,7 @@ class UnitOfWork:
     # Inspection
     # ------------------------------------------------------------------
 
-    def dirty_fields(self) -> list:
+    def dirty_fields(self) -> list[Any]:
         """Return fields with dirty entries."""
         return list(self.cache.iter_dirty_fields())
 
@@ -107,7 +110,7 @@ class UnitOfWork:
     # Convergence detection
     # ------------------------------------------------------------------
 
-    def recompute_snapshot(self) -> frozenset[tuple]:
+    def recompute_snapshot(self) -> frozenset[tuple[Any, int]]:
         """Snapshot of ``(field, pending_count)`` for convergence detection.
 
         Only includes fields with at least one real (truthy) pending ID,
@@ -120,8 +123,8 @@ class UnitOfWork:
 
     def check_convergence(
         self,
-        prev_snapshot: frozenset[tuple] | None,
-        curr_snapshot: frozenset[tuple],
+        prev_snapshot: frozenset[tuple[Any, int]] | None,
+        curr_snapshot: frozenset[tuple[Any, int]],
     ) -> tuple[bool, list[str]]:
         """Check whether recomputation is making progress.
 
@@ -141,10 +144,6 @@ class UnitOfWork:
             for f, cnt in curr_snapshot
         )
         return False, stalled
-
-    def dirty_snapshot(self) -> int:
-        """Return the total number of dirty entries for monotonicity tracking."""
-        return self.cache.dirty_entry_count()
 
     def check_flush_progress(
         self, prev_dirty_count: int, curr_dirty_count: int
@@ -168,7 +167,7 @@ class UnitOfWork:
 
     def run_recompute_loop(
         self,
-        recompute_fn: Callable,
+        recompute_fn: Callable[[Any], None],
     ) -> LoopResult:
         """Execute the fixpoint recompute loop.
 
@@ -231,8 +230,8 @@ class UnitOfWork:
 
     def run_flush_loop(
         self,
-        recompute_fn: Callable,
-        flush_fn: Callable,
+        recompute_fn: Callable[[Any], None],
+        flush_fn: Callable[[list[str]], None],
     ) -> LoopResult:
         """Execute the outer flush loop: recompute → flush → repeat.
 

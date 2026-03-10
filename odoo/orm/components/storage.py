@@ -1,17 +1,16 @@
-"""Storage backend protocol and implementations for the ORM.
+"""In-memory storage backend for the ORM.
 
 This module provides:
 
-* :class:`StorageBackend` — a Protocol defining the interface for record
-  storage.  Enables testing without PostgreSQL.
 * :class:`DictBackend` — an in-memory backend for pure-Python unit tests.
 
 Usage::
 
     # In tests — no database required
     backend = DictBackend()
-    ids = backend.insert_rows("res_partner", ["name", "email"],
-                              [("Alice", "a@x.com"), ("Bob", "b@x.com")])
+    ids = backend.insert_rows(
+        "res_partner", ["name", "email"], [("Alice", "a@x.com"), ("Bob", "b@x.com")]
+    )
     rows = backend.fetch_rows("res_partner", ids, ["name"])
 
     # Search by column value (simulates WHERE clause)
@@ -21,9 +20,13 @@ Usage::
 import typing
 from collections import defaultdict
 from operator import eq, ge, gt, le, lt, ne
+from typing import Any
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Supported comparison operators for search_rows
-_OPERATORS: dict[str, typing.Callable] = {
+_OPERATORS: dict[str, Callable] = {
     "=": eq,
     "!=": ne,
     "<": lt,
@@ -33,57 +36,6 @@ _OPERATORS: dict[str, typing.Callable] = {
     "in": lambda v, vals: v in vals,
     "not in": lambda v, vals: v not in vals,
 }
-
-
-class StorageBackend(typing.Protocol):
-    """Protocol for record storage backends.
-
-    Implementations must support basic CRUD operations on tables.
-    The protocol is intentionally minimal — only the operations needed
-    for ORM field-level caching and flushing.
-    """
-
-    def fetch_rows(self, table: str, ids: list[int], columns: list[str]) -> list[tuple]:
-        """Fetch specified columns for the given record IDs.
-
-        Returns a list of tuples in the same column order as *columns*.
-        Missing IDs are silently skipped.
-        """
-        ...
-
-    def insert_rows(
-        self, table: str, columns: list[str], rows: list[tuple]
-    ) -> list[int]:
-        """Insert rows and return their new IDs."""
-        ...
-
-    def update_rows(
-        self, table: str, updates: list[tuple[int, dict[str, typing.Any]]]
-    ) -> None:
-        """Update rows.  Each entry is ``(id, {column: value})``."""
-        ...
-
-    def delete_rows(self, table: str, ids: list[int]) -> None:
-        """Delete rows by ID."""
-        ...
-
-    def search_rows(
-        self,
-        table: str,
-        column: str,
-        value: typing.Any,
-        operator: str = "=",
-    ) -> list[int]:
-        """Return IDs of rows where ``column <operator> value``.
-
-        Supports: ``=``, ``!=``, ``<``, ``<=``, ``>``, ``>=``,
-        ``in``, ``not in``.
-        """
-        ...
-
-    def next_id(self, table: str) -> int:
-        """Return the next auto-incremented ID for *table* without inserting."""
-        ...
 
 
 class DictBackend:
@@ -100,7 +52,7 @@ class DictBackend:
     __slots__ = ("_sequences", "_tables")
 
     def __init__(self) -> None:
-        self._tables: dict[str, dict[int, dict[str, typing.Any]]] = {}
+        self._tables: dict[str, dict[int, dict[str, Any]]] = {}
         self._sequences: dict[str, int] = defaultdict(int)
 
     def fetch_rows(self, table: str, ids: list[int], columns: list[str]) -> list[tuple]:
@@ -125,7 +77,7 @@ class DictBackend:
         return new_ids
 
     def update_rows(
-        self, table: str, updates: list[tuple[int, dict[str, typing.Any]]]
+        self, table: str, updates: list[tuple[int, dict[str, Any]]]
     ) -> None:
         tbl = self._tables.get(table)
         if tbl is None:
@@ -142,7 +94,7 @@ class DictBackend:
         for id_ in ids:
             tbl.pop(id_, None)
 
-    def get_row(self, table: str, id_: int) -> dict[str, typing.Any] | None:
+    def get_row(self, table: str, id_: int) -> dict[str, Any] | None:
         """Return the full row dict for a single ID, or None."""
         return self._tables.get(table, {}).get(id_)
 
@@ -158,7 +110,7 @@ class DictBackend:
         self,
         table: str,
         column: str,
-        value: typing.Any,
+        value: Any,
         operator: str = "=",
     ) -> list[int]:
         """Return IDs where ``column <operator> value``.

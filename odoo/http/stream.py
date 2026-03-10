@@ -1,10 +1,9 @@
-"""File streaming for HTTP responses."""
-
 import base64
 import contextlib
 import mimetypes
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 from zlib import adler32
 
 from werkzeug.utils import send_file as _send_file
@@ -30,28 +29,30 @@ class Stream:
     """
 
     type: str = ""  # 'data' or 'path' or 'url'
-    data = None
-    path = None
-    url = None
+    data: bytes | None = None
+    path: str | None = None
+    url: str | None = None
 
-    mimetype = None
-    as_attachment = False
-    download_name = None
-    conditional = True
-    etag = True
-    last_modified = None
-    max_age = None
-    immutable = False
-    size = None
-    public = False
+    mimetype: str | None = None
+    as_attachment: bool = False
+    download_name: str | None = None
+    conditional: bool = True
+    etag: bool | str = True
+    last_modified: float | None = None
+    max_age: int | None = None
+    immutable: bool = False
+    size: int | None = None
+    public: bool = False
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         # Remove class methods from the instances
         self.from_path = self.from_binary_field = None
         self.__dict__.update(kwargs)
 
     @classmethod
-    def from_path(cls, path, filter_ext=("",), public=False):
+    def from_path(
+        cls, path: str, filter_ext: tuple[str, ...] = ("",), public: bool = False
+    ) -> Stream:
         """
         Create a :class:`~Stream`: from an addon resource.
 
@@ -77,7 +78,7 @@ class Stream:
         )
 
     @classmethod
-    def from_binary_field(cls, record, field_name):
+    def from_binary_field(cls, record: Any, field_name: str) -> Stream:
         """Create a :class:`~Stream`: from a binary field."""
         from . import request  # lazy import
 
@@ -92,10 +93,11 @@ class Stream:
             public=record.env.user._is_public(),  # good enough
         )
 
-    def read(self):
+    def read(self) -> bytes:
         """Get the stream content as bytes."""
         if self.type == "url":
-            raise ValueError("Cannot read an URL")
+            msg = "Cannot read an URL"
+            raise ValueError(msg)
 
         if self.type == "data":
             return self.data
@@ -105,11 +107,11 @@ class Stream:
 
     def get_response(
         self,
-        as_attachment=None,
-        immutable=None,
-        content_security_policy="default-src 'none'",
-        **send_file_kwargs,
-    ):
+        as_attachment: bool | None = None,
+        immutable: bool | None = None,
+        content_security_policy: str | None = "default-src 'none'",
+        **send_file_kwargs: Any,
+    ) -> Any:
         """
         Create the corresponding :class:`~Response` for the current stream.
 
@@ -136,9 +138,9 @@ class Stream:
             "data",
             "path",
         ), f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
-        assert (
-            getattr(self, self.type) is not None
-        ), f"There is nothing to stream, missing {self.type!r} attribute."
+        assert getattr(self, self.type) is not None, (
+            f"There is nothing to stream, missing {self.type!r} attribute."
+        )
 
         if self.type == "url":
             if self.max_age is not None:

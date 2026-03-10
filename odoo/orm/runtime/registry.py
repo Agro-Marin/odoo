@@ -177,9 +177,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         # Make it available in the registries dictionary then remove it
         # if an exception is raised.
         cls.delete(db_name)
-        cls.registries[db_name] = (
-            registry  # pylint: disable=unsupported-assignment-operation
-        )
+        cls.registries[db_name] = registry  # pylint: disable=unsupported-assignment-operation
         try:
             registry.setup_signaling()
             with registry.cursor() as cr:
@@ -259,13 +257,13 @@ class Registry(Mapping[str, type["BaseModel"]]):
         self.loaded = False
         self.ready = False
 
-        self.models: dict[str, type[BaseModel]] = (
-            {}
-        )  # model name/model instance mapping
+        self.models: dict[
+            str, type[BaseModel]
+        ] = {}  # model name/model instance mapping
         self._sql_constraints = set()  # type: ignore
-        self._database_translated_fields: dict[str, str] = (
-            {}
-        )  # names and translate function names of translated fields in database {"{model}.{field_name}": "translate_func"}
+        self._database_translated_fields: dict[
+            str, str
+        ] = {}  # names and translate function names of translated fields in database {"{model}.{field_name}": "translate_func"}
         self._database_company_dependent_fields: set[str] = (
             set()
         )  # names of company dependent fields in database
@@ -276,9 +274,9 @@ class Registry(Mapping[str, type["BaseModel"]]):
         else:
             self._assertion_report = None
         self._ordinary_tables: set[str] | None = None  # cached names of regular tables
-        self._constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]] = (
-            {}
-        )  # queue of functions to call on finalization of constraints
+        self._constraint_queue: dict[
+            typing.Any, Callable[[BaseCursor], None]
+        ] = {}  # queue of functions to call on finalization of constraints
         self.__caches: dict[str, LRU] = {
             cache_name: LRU(cache_size)
             for cache_name, cache_size in _REGISTRY_CACHES.items()
@@ -369,11 +367,11 @@ class Registry(Mapping[str, type["BaseModel"]]):
     # Mapping abstract methods implementation
     # => mixin provides methods keys, items, values, get, __eq__, and __ne__
     #
-    def __len__(self):
+    def __len__(self) -> int:
         """Return the size of the registry."""
         return len(self.models)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         """Return an iterator over all model names."""
         return iter(self.models)
 
@@ -381,11 +379,11 @@ class Registry(Mapping[str, type["BaseModel"]]):
         """Return the model with the given name or raise KeyError if it doesn't exist."""
         return self.models[model_name]
 
-    def __setitem__(self, model_name: str, model: type[BaseModel]):
+    def __setitem__(self, model_name: str, model: type[BaseModel]) -> None:
         """Add or replace a model in the registry."""
         self.models[model_name] = model
 
-    def __delitem__(self, model_name: str):
+    def __delitem__(self, model_name: str) -> None:
         """Remove a (custom) model from the registry."""
         del self.models[model_name]
         # the custom model can inherit from mixins ('mail.thread', ...)
@@ -564,12 +562,12 @@ class Registry(Mapping[str, type["BaseModel"]]):
             env.flush_all()
 
     @property
-    def field_depends(self):
+    def field_depends(self) -> typing.Any:
         """Field dependencies — delegates to model_graph (single source of truth)."""
         return self.model_graph._depends
 
     @property
-    def field_depends_context(self):
+    def field_depends_context(self) -> typing.Any:
         """Context dependencies — delegates to model_graph (single source of truth)."""
         return self.model_graph._depends_context
 
@@ -1120,7 +1118,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
         return getattr(self._invalidation_flags, "registry", False)
 
     @registry_invalidated.setter
-    def registry_invalidated(self, value: bool):
+    def registry_invalidated(self, value: bool) -> None:
         self._invalidation_flags.registry = value
 
     @property
@@ -1187,7 +1185,9 @@ class Registry(Mapping[str, type["BaseModel"]]):
         row = cr.fetchone()
         assert row is not None, "No result when reading signaling sequences"
         registry_sequence, *cache_sequences_values = row
-        cache_sequences = dict(zip(_CACHES_BY_KEY, cache_sequences_values, strict=False))
+        cache_sequences = dict(
+            zip(_CACHES_BY_KEY, cache_sequences_values, strict=False)
+        )
         return registry_sequence, cache_sequences
 
     def check_signaling(self, cr: BaseCursor | None = None) -> Registry:
@@ -1330,16 +1330,21 @@ class Registry(Mapping[str, type["BaseModel"]]):
 class DummyRLock:
     """Dummy reentrant lock, to be used while running rpc and js tests"""
 
-    def acquire(self):
+    def acquire(self) -> None:
         pass
 
-    def release(self):
+    def release(self) -> None:
         pass
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self.acquire()
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(
+        self,
+        type: type[BaseException] | None,
+        value: BaseException | None,
+        traceback: typing.Any,
+    ) -> None:
         self.release()
 
 

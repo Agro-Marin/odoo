@@ -14,7 +14,7 @@ import subprocess
 import warnings
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Literal
+from typing import IO, TYPE_CHECKING, Any, Literal
 
 from dateutil.relativedelta import relativedelta
 from lxml import builder, etree
@@ -26,6 +26,9 @@ except ImportError:
 
 from odoo.exceptions import ValidationError
 from odoo.libs.text import str2bool
+
+if TYPE_CHECKING:
+    from odoo.api import Environment
 
 from .config import config
 from .misc import SKIPPED_ELEMENT_TYPES, file_open, file_path
@@ -40,7 +43,9 @@ type IdRef = dict[str, int | Literal[False]]
 class ParseError(Exception): ...
 
 
-def _get_eval_context(self, env, model_str):
+def _get_eval_context(
+    self: Any, env: Environment, model_str: str | None
+) -> dict[str, Any]:
     from odoo import fields, release
 
     context = {
@@ -59,7 +64,7 @@ def _get_eval_context(self, env, model_str):
     return context
 
 
-def _fix_multiple_roots(node):
+def _fix_multiple_roots(node: etree._Element) -> None:
     """
     Surround the children of the ``node`` element of an XML field with a
     single root "data" element, to prevent having a document with multiple
@@ -78,7 +83,7 @@ def _fix_multiple_roots(node):
         node.append(data_node)
 
 
-def _eval_xml(self, node, env):
+def _eval_xml(self: Any, node: etree._Element, env: Environment) -> Any:
     if node.tag in ("field", "value"):
         t = node.get("type", "char")
         f_model = node.get("model")
@@ -112,7 +117,7 @@ def _eval_xml(self, node, env):
                 )
                 raise
 
-        def _process(s):
+        def _process(s: str) -> str:
             matches = re.finditer(rb"[^%]%\((.*?)\)[ds]".decode("utf-8"), s)
             done = set()
             for m in matches:
@@ -124,9 +129,8 @@ def _eval_xml(self, node, env):
                 xid = self.make_xml_id(rec_id)
                 if (record_id := self.idref.get(xid)) is None:
                     record_id = self.idref[xid] = self.id_get(xid)
-                # So funny story: in Python 3, bytes(n: int) returns a
-                # bytestring of n nuls. In Python 2 it obviously returns the
-                # stringified number, which is what we're expecting here
+                # bytes(n: int) returns a bytestring of n nuls, so we
+                # must stringify the record id explicitly here.
                 s = s.replace(found, str(record_id))
             return s.replace(
                 "%%", "%"
@@ -180,7 +184,8 @@ def _eval_xml(self, node, env):
                     _eval_xml(self, n, env) for n in node.iterchildren("value")
                 )
             case "base64":
-                raise ValueError("base64 type is only compatible with file data")
+                msg = "base64 type is only compatible with file data"
+                raise ValueError(msg)
             case t:
                 raise ValueError(f"Unknown type {t!r}")
 
@@ -223,7 +228,7 @@ def _eval_xml(self, node, env):
     return None
 
 
-def nodeattr2bool(node, attr, default=False):
+def nodeattr2bool(node: etree._Element, attr: str, default: bool = False) -> bool:
     if not node.get(attr):
         return default
     val = node.get(attr).strip()
@@ -233,7 +238,9 @@ def nodeattr2bool(node, attr, default=False):
 
 
 class xml_import:
-    def get_env(self, node, eval_context=None):
+    def get_env(
+        self, node: etree._Element, eval_context: dict[str, Any] | None = None
+    ) -> Environment:
         uid = node.get("uid")
         context = node.get("context")
         if uid or context:
@@ -247,12 +254,12 @@ class xml_import:
             )
         return self.env
 
-    def make_xml_id(self, xml_id):
+    def make_xml_id(self, xml_id: str) -> str:
         if not xml_id or "." in xml_id:
             return xml_id
         return "%s.%s" % (self.module, xml_id)
 
-    def _test_xml_id(self, xml_id):
+    def _test_xml_id(self, xml_id: str) -> None:
         if "." in xml_id:
             module, id = xml_id.split(".", 1)
             assert "." not in id, """The ID reference "%s" must contain
@@ -262,11 +269,11 @@ form: module.record_id""" % (xml_id,)
                 modcnt = self.env["ir.module.module"].search_count(
                     [("name", "=", module), ("state", "=", "installed")]
                 )
-                assert (
-                    modcnt == 1
-                ), """The ID "%s" refers to an uninstalled module""" % (xml_id,)
+                assert modcnt == 1, (
+                    """The ID "%s" refers to an uninstalled module""" % (xml_id,)
+                )
 
-    def _tag_delete(self, rec):
+    def _tag_delete(self, rec: etree._Element) -> None:
         d_model = rec.get("model")
         records = self.env[d_model]
 
@@ -295,13 +302,13 @@ form: module.record_id""" % (xml_id,)
         if records:
             records.unlink()
 
-    def _tag_function(self, rec):
+    def _tag_function(self, rec: etree._Element) -> None:
         if self.noupdate and self.mode != "init":
             return
         env = self.get_env(rec)
         _eval_xml(self, rec, env)
 
-    def _tag_menuitem(self, rec, parent=None):
+    def _tag_menuitem(self, rec: etree._Element, parent: int | None = None) -> None:
         rec_id = rec.attrib["id"]
         self._test_xml_id(rec_id)
 
@@ -367,7 +374,9 @@ form: module.record_id""" % (xml_id,)
         for child in rec.iterchildren("menuitem"):
             self._tag_menuitem(child, parent=menu.id)
 
-    def _tag_record(self, rec, extra_vals=None):
+    def _tag_record(
+        self, rec: etree._Element, extra_vals: dict[str, Any] | None = None
+    ) -> tuple[str, int] | None:
         rec_model = rec.get("model")
         env = self.get_env(rec)
         rec_id = rec.get("id", "")
@@ -485,7 +494,10 @@ form: module.record_id""" % (xml_id,)
                     elif field_type == "boolean" and isinstance(f_val, str):
                         f_val = str2bool(f_val, default=True)
                     elif field_type == "one2many":
-                        sub_records.extend((child, model._fields[f_name].inverse_name) for child in field.iterchildren("record"))
+                        sub_records.extend(
+                            (child, model._fields[f_name].inverse_name)
+                            for child in field.iterchildren("record")
+                        )
                         if isinstance(f_val, str):
                             # We do not want to write on the field since we will write
                             # on the childrens' parents later
@@ -518,7 +530,7 @@ form: module.record_id""" % (xml_id,)
             self._tag_record(child_rec, extra_vals={inverse_name: record.id})
         return rec_model, record.id
 
-    def _tag_template(self, el):
+    def _tag_template(self, el: etree._Element) -> tuple[str, int] | None:
         # This helper transforms a <template> element into a <record> and forwards it
         tpl_id = el.get("id", el.get("t-name"))
         full_tpl_id = tpl_id
@@ -599,7 +611,7 @@ form: module.record_id""" % (xml_id,)
 
         return self._tag_record(record)
 
-    def _tag_asset(self, el):
+    def _tag_asset(self, el: etree._Element) -> tuple[str, int] | None:
         """
         Transforms an <asset> element into a <record> and forwards it.
         """
@@ -644,19 +656,23 @@ form: module.record_id""" % (xml_id,)
 
         return self._tag_record(record)
 
-    def id_get(self, id_str, raise_if_not_found=True):
+    def id_get(
+        self, id_str: str, raise_if_not_found: bool = True
+    ) -> int | Literal[False]:
         id_str = self.make_xml_id(id_str)
         if id_str in self.idref:
             return self.idref[id_str]
         return self.model_id_get(id_str, raise_if_not_found)[1]
 
-    def model_id_get(self, id_str, raise_if_not_found=True):
+    def model_id_get(
+        self, id_str: str, raise_if_not_found: bool = True
+    ) -> tuple[str, int | Literal[False]]:
         id_str = self.make_xml_id(id_str)
         return self.env["ir.model.data"]._xmlid_to_res_model_res_id(
             id_str, raise_if_not_found=raise_if_not_found
         )
 
-    def _tag_root(self, el):
+    def _tag_root(self, el: etree._Element) -> None:
         for rec in el:
             f = self._tags.get(rec.tag)
             if f is None:
@@ -699,14 +715,14 @@ form: module.record_id""" % (xml_id,)
                 self._sequences.pop()
 
     @property
-    def env(self):
+    def env(self) -> Environment:
         return self.envs[-1]
 
     @property
-    def noupdate(self):
+    def noupdate(self) -> bool:
         return self._noupdate[-1]
 
-    def next_sequence(self):
+    def next_sequence(self) -> int | None:
         value = self._sequences[-1]
         if value is not None:
             value = self._sequences[-1] = value + 10
@@ -714,13 +730,13 @@ form: module.record_id""" % (xml_id,)
 
     def __init__(
         self,
-        env,
-        module,
+        env: Environment,
+        module: str,
         idref: IdRef | None,
         mode: ConvertMode,
         noupdate: bool = False,
         xml_filename: str = "",
-    ):
+    ) -> None:
         self.mode = mode
         self.module = module
         self.envs = [env(context=dict(env.context, lang=None))]
@@ -738,7 +754,7 @@ form: module.record_id""" % (xml_id,)
             **dict.fromkeys(self.DATA_ROOTS, self._tag_root),
         }
 
-    def parse(self, de):
+    def parse(self, de: etree._Element) -> None:
         assert de.tag in self.DATA_ROOTS, "Root xml tag must be <odoo> or <data>."
         self._tag_root(de)
 
@@ -746,15 +762,15 @@ form: module.record_id""" % (xml_id,)
 
 
 def convert_file(
-    env,
-    module,
-    filename,
+    env: Environment,
+    module: str,
+    filename: str,
     idref: IdRef | None,
     mode: ConvertMode = "update",
-    noupdate=False,
-    kind=None,
-    pathname=None,
-):
+    noupdate: bool = False,
+    kind: str | None = None,
+    pathname: str | None = None,
+) -> None:
     if kind is not None:
         warnings.warn(
             "The `kind` argument is deprecated in Odoo 19.",
@@ -775,22 +791,23 @@ def convert_file(
         elif ext == ".js":
             pass  # .js files are valid but ignored here.
         else:
-            raise ValueError("Can't load unknown file type %s.", filename)
+            msg = "Can't load unknown file type %s."
+            raise ValueError(msg, filename)
 
 
-def convert_sql_import(env, fp):
+def convert_sql_import(env: Environment, fp: IO[bytes]) -> None:
     env.cr.execute(fp.read())  # pylint: disable=sql-injection
 
 
 def convert_csv_import(
-    env,
-    module,
-    fname,
-    csvcontent,
+    env: Environment,
+    module: str,
+    fname: str,
+    csvcontent: bytes,
     idref: IdRef | None = None,
     mode: ConvertMode = "init",
-    noupdate=False,
-):
+    noupdate: bool = False,
+) -> None:
     """Import csv file :
     quote: "
     delimiter: ,
@@ -809,7 +826,7 @@ def convert_csv_import(
 
     translate_indexes = {i for i, field in enumerate(fields) if "@" in field}
 
-    def remove_translations(row):
+    def remove_translations(row: list[str]) -> list[str]:
         return [cell for i, cell in enumerate(row) if i not in translate_indexes]
 
     fields = remove_translations(fields)
@@ -845,14 +862,14 @@ def convert_csv_import(
 
 
 def convert_xml_import(
-    env,
-    module,
-    xmlfile,
+    env: Environment,
+    module: str,
+    xmlfile: IO[bytes] | str,
     idref: IdRef | None = None,
     mode: ConvertMode = "init",
-    noupdate=False,
-    report=None,
-):
+    noupdate: bool = False,
+    report: Any = None,
+) -> None:
     doc = etree.parse(xmlfile)
     schema = str(Path(config.root_path, "import_xml.rng"))
     relaxng = etree.RelaxNG(etree.parse(schema))

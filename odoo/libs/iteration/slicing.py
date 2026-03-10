@@ -1,21 +1,11 @@
-__all__ = ["reverse_enumerate", "split_every"]
+__all__ = ["split_every"]
 
 import warnings
-from collections.abc import Callable, Collection, Iterable, Iterator, Sequence
 from itertools import islice
-from typing import overload
+from typing import TYPE_CHECKING, overload
 
-
-def reverse_enumerate[T](lst: Sequence[T]) -> Iterator[tuple[int, T]]:
-    """Like enumerate but in the other direction.
-
-    Usage::
-
-        >>> a = ['a', 'b', 'c']
-        >>> list(reverse_enumerate(a))
-        [(2, 'c'), (1, 'b'), (0, 'a')]
-    """
-    return zip(range(len(lst) - 1, -1, -1), reversed(lst), strict=False)
+if TYPE_CHECKING:
+    from collections.abc import Callable, Collection, Iterable, Iterator, Sequence
 
 
 @overload

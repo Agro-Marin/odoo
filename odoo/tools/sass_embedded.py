@@ -13,6 +13,7 @@ import logging
 import threading
 from pathlib import Path
 from subprocess import PIPE, Popen
+from typing import Self
 
 from odoo.tools import misc
 from odoo.tools.embedded_sass_pb2 import (
@@ -50,7 +51,7 @@ def _encode_varint(value: int) -> bytes:
     return bytes(parts)
 
 
-def _read_varint(stream) -> int | None:
+def _read_varint(stream: object) -> int | None:
     """Read an unsigned varint from a binary stream. Returns None on EOF."""
     result = 0
     shift = 0
@@ -64,7 +65,8 @@ def _read_varint(stream) -> int | None:
             return result
         shift += 7
         if shift >= 64:
-            raise SassProtocolError("Varint too long")
+            msg = "Varint too long"
+            raise SassProtocolError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -112,19 +114,20 @@ class SassEmbeddedCompiler:
 
     _unavailable: bool = False  # class-level: skip retrying after first failure
 
-    def __init__(self, sass_path: str | None = None):
+    def __init__(self, sass_path: str | None = None) -> None:
         self._sass_path = sass_path
         self._process: Popen | None = None
         self._lock = threading.Lock()
         self._compilation_id = 0
         self._started = False
 
-    def _start(self):
+    def _start(self) -> None:
         """Spawn the ``sass --embedded`` subprocess."""
         if self._started:
             return
         if SassEmbeddedCompiler._unavailable:
-            raise SassProtocolError("sass --embedded is unavailable")
+            msg = "sass --embedded is unavailable"
+            raise SassProtocolError(msg)
 
         sass_path = self._sass_path
         if sass_path is None:
@@ -157,7 +160,7 @@ class SassEmbeddedCompiler:
             raise SassProtocolError(f"sass --embedded exited immediately: {stderr}")
         self._started = True
 
-    def _send_packet(self, compilation_id: int, message_bytes: bytes):
+    def _send_packet(self, compilation_id: int, message_bytes: bytes) -> None:
         """Send a varint-framed packet to the compiler."""
         cid_bytes = _encode_varint(compilation_id)
         payload = cid_bytes + message_bytes
@@ -172,7 +175,8 @@ class SassEmbeddedCompiler:
         """
         length = _read_varint(self._process.stdout)
         if length is None:
-            raise SassProtocolError("Unexpected EOF from sass --embedded")
+            msg = "Unexpected EOF from sass --embedded"
+            raise SassProtocolError(msg)
 
         # Read the full payload
         payload = self._process.stdout.read(length)
@@ -195,7 +199,7 @@ class SassEmbeddedCompiler:
 
         return compilation_id, payload[idx:]
 
-    def close(self):
+    def close(self) -> None:
         """Shut down the compiler subprocess."""
         if self._process is not None:
             proc = self._process
@@ -210,10 +214,10 @@ class SassEmbeddedCompiler:
                 proc.kill()
                 proc.wait()
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *exc):
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
     def compile_string(
@@ -339,7 +343,8 @@ class SassEmbeddedCompiler:
                         resp.failure.formatted or resp.failure.message
                     )
                 else:
-                    raise SassProtocolError("CompileResponse has no result")
+                    msg = "CompileResponse has no result"
+                    raise SassProtocolError(msg)
 
             elif msg_type == "log_event":
                 event = outbound.log_event
@@ -446,7 +451,7 @@ class OdooSassImporter(SassImporter):
     Protocol's canonicalize/load two-step interface.
     """
 
-    def __init__(self, bootstrap_path: str):
+    def __init__(self, bootstrap_path: str) -> None:
         self.bootstrap_path = bootstrap_path
 
     def canonicalize(self, url: str, from_import: bool) -> str | None:
@@ -506,7 +511,7 @@ def get_sass_compiler() -> SassEmbeddedCompiler:
     return _sass_compiler
 
 
-def close_sass_compiler():
+def close_sass_compiler() -> None:
     """Shut down the singleton SassEmbeddedCompiler if running."""
     global _sass_compiler
     with _sass_lock:

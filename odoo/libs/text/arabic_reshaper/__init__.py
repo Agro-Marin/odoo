@@ -11,7 +11,6 @@
 # configuration) then constant-folding all the configuration items by hand.
 
 import re
-
 from itertools import repeat
 
 from .letters import (
@@ -86,7 +85,7 @@ GROUP_INDEX_TO_LIGATURE_FORMs = [
 ]
 
 
-def reshape(text):
+def reshape(text: str) -> str:
     if not text:
         return ""
 

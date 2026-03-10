@@ -14,7 +14,7 @@ _logger = logging.getLogger(__name__)
 class Neutralize(Command):
     """Neutralize a production database for testing: no emails sent, etc."""
 
-    def run(self, args):
+    def run(self, args: list[str]) -> None:
         parser = self.parser
         self.add_config_arguments(parser)
         parser.add_argument(

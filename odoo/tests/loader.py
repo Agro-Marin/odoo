@@ -3,6 +3,7 @@ import importlib.util
 import inspect
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from unittest import case
 
 from .. import tools
@@ -10,9 +11,12 @@ from .result import OdooTestResult
 from .suite import OdooSuite
 from .tag_selector import TagsSelector
 
+if TYPE_CHECKING:
+    from collections.abc import Generator, Iterator
 
-def get_module_test_cases(module):
-    """Return a suite of all test cases contained in the given module"""
+
+def get_module_test_cases(module: Any) -> Iterator[case.TestCase]:
+    """Return a suite of all test cases contained in the given module."""
     for obj in module.__dict__.values():
         if not isinstance(obj, type):
             continue
@@ -40,16 +44,18 @@ def get_module_test_cases(module):
             yield test_case_class(method_name)
 
 
-def get_test_modules(module):
-    """Return a list of module for the addons potentially containing tests to
-    feed get_module_test_cases()"""
+def get_test_modules(module: str) -> list[Any]:
+    """Return a list of modules for the addons potentially containing tests to
+    feed ``get_module_test_cases()``.
+    """
     results = _get_tests_modules(importlib.util.find_spec(f"odoo.addons.{module}"))
     results += list(_get_upgrade_test_modules(module))
 
     return results
 
 
-def _get_tests_modules(mod):
+def _get_tests_modules(mod: Any) -> list[Any]:
+    """Return all ``test_*`` submodules inside the addon's ``tests`` package."""
     spec = importlib.util.find_spec(".tests", mod.name)
     if not spec:
         return []
@@ -62,7 +68,8 @@ def _get_tests_modules(mod):
     ]
 
 
-def _get_upgrade_test_modules(module):
+def _get_upgrade_test_modules(module: str) -> Generator[Any]:
+    """Yield test modules found in upgrade/migration directories for the addon."""
     upgrade_modules = (
         f"odoo.upgrade.{module}",
         f"odoo.addons.{module}.migrations",
@@ -86,12 +93,12 @@ def _get_upgrade_test_modules(module):
                 yield pymod
 
 
-def make_suite(module_names, position="at_install"):
-    """Creates a test suite for all the tests in the specified modules,
-    filtered by the provided ``position`` and the current test tags
+def make_suite(module_names: list[str], position: str = "at_install") -> OdooSuite:
+    """Create a test suite for all the tests in the specified modules,
+    filtered by the provided ``position`` and the current test tags.
 
-    :param list[str] module_names: modules to load tests from
-    :param str position: "at_install" or "post_install"
+    :param module_names: modules to load tests from
+    :param position: ``"at_install"`` or ``"post_install"``
     """
     config_tags = TagsSelector(tools.config["test_tags"])
     position_tag = TagsSelector(position)
@@ -105,7 +112,10 @@ def make_suite(module_names, position="at_install"):
     return OdooSuite(sorted(tests, key=lambda t: getattr(t, "test_sequence", 0)))
 
 
-def run_suite(suite, global_report=None):
+def run_suite(
+    suite: OdooSuite, global_report: OdooTestResult | None = None
+) -> OdooTestResult:
+    """Run the given test suite and return its results."""
     # avoid dependency hell
     from ..modules import module
 

@@ -13,7 +13,7 @@ from psycopg.types.json import Json
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import common, tagged
 from odoo.tools import mute_logger, safe_eval, view_validation
-from odoo.tools.cache import get_cache_key_counter
+from odoo.tests.common import get_cache_key_counter
 
 from odoo.addons.base.models import ir_ui_view
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
@@ -4200,7 +4200,7 @@ class TestViews(ViewCase):
     def test_valid_accessibility_icon_text(self):
         self.assertWarning(
             '<form><span class="fa-solid fa-triangle-exclamation"/></form>',
-            "A <span> with fa-solid fa-warning) class (fa must have title in its tag, parents, descendants or have text",
+            "A <span> with fa class (fa-solid fa-triangle-exclamation) must have title in its tag, parents, descendants or have text",
         )
         self.assertWarning(
             '<form><button icon="fa-warning"/></form>',
@@ -4208,7 +4208,7 @@ class TestViews(ViewCase):
         )
         self.assertWarning(
             '<form><span class="fa-solid fa-triangle-exclamation"/><label for="key"/><field name="key"/></form>',
-            "A <span> with fa-solid fa-warning) class (fa must have title in its tag, parents, descendants or have text",
+            "A <span> with fa class (fa-solid fa-triangle-exclamation) must have title in its tag, parents, descendants or have text",
         )
         self.assertValid('<form><button icon="fa-warning"/>text</form>')
         self.assertValid('<form><span class="fa-solid fa-triangle-exclamation"/>text</form>')

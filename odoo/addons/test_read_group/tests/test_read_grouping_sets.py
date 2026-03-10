@@ -59,7 +59,10 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
             for grouping_set, order in zip(grouping_sets, orders, strict=False)
         ]
 
-        # Forcing order with many2one, traverse use the order of the comodel (res.partner)
+        # Forcing order with many2one, traverse use the order of the comodel (res.partner).
+        # ANY_VALUE() is used for comodel ORDER BY columns in GROUPING SETS
+        # (PG16+), making ordering non-deterministic for grouping sets that
+        # don't include the many2one field.
         with self.assertQueries(["""
             SELECT
                 GROUPING(
@@ -76,34 +79,28 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
                 )
             GROUP BY
                 GROUPING SETS (
-                    (
-                        "test_read_group_aggregate"."key",
-                        "test_read_group_aggregate"."partner_id",
-                        "test_read_group_aggregate__partner_id"."complete_name",
-                        "test_read_group_aggregate__partner_id"."id"
-                    ),
+                    ("test_read_group_aggregate"."key", "test_read_group_aggregate"."partner_id"),
                     ("test_read_group_aggregate"."key"),
-                    (
-                        "test_read_group_aggregate"."partner_id",
-                        "test_read_group_aggregate__partner_id"."complete_name",
-                        "test_read_group_aggregate__partner_id"."id"
-                    ),
+                    ("test_read_group_aggregate"."partner_id"),
                     ()
                 )
             ORDER BY
-                "test_read_group_aggregate__partner_id"."complete_name" ASC,
-                "test_read_group_aggregate__partner_id"."id" DESC,
+                ANY_VALUE("test_read_group_aggregate__partner_id"."complete_name") ASC,
+                ANY_VALUE("test_read_group_aggregate__partner_id"."id") DESC,
                 "test_read_group_aggregate"."key" ASC
         """]):
-            self.assertEqual(
-                Model._read_grouping_sets(
-                    [],
-                    grouping_sets,
-                    aggregates=["value:sum"],
-                    order="partner_id, key",
-                ),
-                expected_result,
+            actual_result = Model._read_grouping_sets(
+                [],
+                grouping_sets,
+                aggregates=["value:sum"],
+                order="partner_id, key",
             )
+            # Grouping sets that include partner_id have deterministic ordering;
+            # sets without it get non-deterministic ANY_VALUE ordering.
+            self.assertEqual(actual_result[0], expected_result[0])
+            self.assertCountEqual(actual_result[1], expected_result[1])
+            self.assertEqual(actual_result[2], expected_result[2])
+            self.assertCountEqual(actual_result[3], expected_result[3])
 
     def test_many2many_read_grouping_sets(self):
         User = self.env["test_read_group.user"]
@@ -359,6 +356,8 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             for grouping_set in grouping_sets
         ]
 
+        # ANY_VALUE() wraps comodel ORDER BY columns in GROUPING SETS,
+        # making ordering non-deterministic for sets without partner_id.
         with self.assertQueries(["""
             SELECT
                 GROUPING(
@@ -375,31 +374,25 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
                 )
             GROUP BY
                 GROUPING SETS (
-                    (
-                        "test_read_group_aggregate"."partner_id",
-                        "test_read_group_aggregate__partner_id"."complete_name",
-                        "test_read_group_aggregate__partner_id"."id",
-                        "test_read_group_aggregate"."key"
-                    ),
+                    ("test_read_group_aggregate"."partner_id", "test_read_group_aggregate"."key"),
                     ("test_read_group_aggregate"."key"),
-                    (
-                        "test_read_group_aggregate"."partner_id",
-                        "test_read_group_aggregate__partner_id"."complete_name",
-                        "test_read_group_aggregate__partner_id"."id"
-                    ),
+                    ("test_read_group_aggregate"."partner_id"),
                     ()
                 )
             ORDER BY
-                "test_read_group_aggregate__partner_id"."complete_name" ASC,
-                "test_read_group_aggregate__partner_id"."id" DESC,
+                ANY_VALUE("test_read_group_aggregate__partner_id"."complete_name") ASC,
+                ANY_VALUE("test_read_group_aggregate__partner_id"."id") DESC,
                 "test_read_group_aggregate"."key" ASC
         """]):
-            self.assertEqual(
-                Model.formatted_read_grouping_sets(
-                    [], grouping_sets, aggregates=["value:sum"]
-                ),
-                expected_result,
+            actual_result = Model.formatted_read_grouping_sets(
+                [], grouping_sets, aggregates=["value:sum"]
             )
+            # Grouping sets with partner_id have deterministic ordering;
+            # sets without it get non-deterministic ANY_VALUE ordering.
+            self.assertEqual(actual_result[0], expected_result[0])
+            self.assertCountEqual(actual_result[1], expected_result[1])
+            self.assertEqual(actual_result[2], expected_result[2])
+            self.assertCountEqual(actual_result[3], expected_result[3])
 
     def test_many2many_formatted_read_grouping_sets(self):
         User = self.env["test_read_group.user"]

@@ -20,7 +20,6 @@ import logging
 import operator
 import typing
 import warnings
-from collections.abc import Collection
 from datetime import UTC, date, datetime, time, timedelta
 
 from odoo.exceptions import MissingError
@@ -50,6 +49,8 @@ from .constants import (
 )
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Collection
+
     from ..models import BaseModel
 
 _logger = logging.getLogger("odoo.domains")
@@ -63,12 +64,12 @@ _logger = logging.getLogger("odoo.domains")
 def operator_optimization(
     operators: Collection[str],
     level: OptimizationLevel = OptimizationLevel.BASIC,
-):
-    """Register a condition operator optimization for (condition, model)"""
+) -> typing.Callable[[typing.Any], typing.Any]:
+    """Register a condition operator optimization for (condition, model)."""
     assert operators, "Missing operator to register"
     CONDITION_OPERATORS.update(operators)
 
-    def register(optimization):
+    def register(optimization: typing.Any) -> typing.Any:
         mapping = _OPTIMIZATIONS_FOR[level]
         for op in operators:
             mapping[op].append(optimization)
@@ -80,10 +81,10 @@ def operator_optimization(
 def field_type_optimization(
     field_types: Collection[str],
     level: OptimizationLevel = OptimizationLevel.BASIC,
-):
-    """Register a condition optimization by field type for (condition, model)"""
+) -> typing.Callable[[typing.Any], typing.Any]:
+    """Register a condition optimization by field type for (condition, model)."""
 
-    def register(optimization):
+    def register(optimization: typing.Any) -> typing.Any:
         mapping = _OPTIMIZATIONS_FOR[level]
         for field_type in field_types:
             mapping[field_type].append(optimization)
@@ -92,7 +93,7 @@ def field_type_optimization(
     return register
 
 
-def nary_optimization(optimization):
+def nary_optimization(optimization: typing.Any) -> typing.Any:
     """Register an optimization to a list of children of an nary domain.
 
     The function will take an iterable containing optimized children of a
@@ -114,7 +115,7 @@ def nary_optimization(optimization):
 
 def nary_condition_optimization(
     operators: Collection[str], field_types: Collection[str] | None = None
-):
+) -> typing.Callable[[typing.Any], typing.Any]:
     """Register an optimization for condition children of an nary domain.
 
     The function will take a list of domain conditions of the same field and
@@ -126,9 +127,11 @@ def nary_condition_optimization(
     `operator=CONDITION_OPERATORS` and find conditions that you want to merge.
     """
 
-    def register(optimization):
+    def register(optimization: typing.Any) -> typing.Any:
         @nary_optimization
-        def optimizer(cls, domains: list[Domain], model):
+        def optimizer(
+            cls: type[DomainNary], domains: list[Domain], model: BaseModel
+        ) -> list[Domain]:
             # find adjacent conditions with the same field and operators
             result = []
             merge_conditions: list[DomainCondition] = []
@@ -187,7 +190,8 @@ def _operator_different(condition, _):
     # already a rewrite-rule
     warnings.warn(
         "Operator '<>' is deprecated since 19.0, use '!=' directly",
-        DeprecationWarning, stacklevel=2,
+        DeprecationWarning,
+        stacklevel=2,
     )
     return DomainCondition(condition.field_expr, "!=", condition.value)
 
@@ -198,7 +202,8 @@ def _operator_equals(condition, _):
     # rewrite-rule
     warnings.warn(
         "Operator '==' is deprecated since 19.0, use '=' directly",
-        DeprecationWarning, stacklevel=2,
+        DeprecationWarning,
+        stacklevel=2,
     )
     return DomainCondition(condition.field_expr, "=", condition.value)
 
@@ -347,7 +352,8 @@ def _optimize_like_str(condition, model):
     if isinstance(value, SQL):
         warnings.warn(
             "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
-            DeprecationWarning, stacklevel=2,
+            DeprecationWarning,
+            stacklevel=2,
         )
         return condition
     if "=" in condition.operator:
@@ -441,7 +447,11 @@ def _optimize_boolean_in_all(condition, model):
     return condition
 
 
-def _value_to_date(value, env, iso_only=False):
+def _value_to_date(
+    value: object,
+    env: object,
+    iso_only: bool = False,
+) -> date | str | OrderedSet | SQL | typing.Literal[False] | None:
     # check datetime first, because it's a subclass of date
     if isinstance(value, datetime):
         return value.date()
@@ -463,7 +473,8 @@ def _value_to_date(value, env, iso_only=False):
     if isinstance(value, SQL):
         warnings.warn(
             "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
-            DeprecationWarning, stacklevel=2,
+            DeprecationWarning,
+            stacklevel=2,
         )
         return value
     raise ValueError(f"Failed to cast {value!r} into a date")
@@ -498,7 +509,11 @@ def _optimize_type_date_relative(condition, model):
     return DomainCondition(condition.field_expr, operator, value)
 
 
-def _value_to_datetime(value, env, iso_only=False):
+def _value_to_datetime(
+    value: object,
+    env: object,
+    iso_only: bool = False,
+) -> tuple[datetime | str | OrderedSet | SQL | typing.Literal[False], bool]:
     """Convert a value(s) to datetime.
 
     :returns: A tuple containing the converted value and a boolean indicating
@@ -538,13 +553,15 @@ def _value_to_datetime(value, env, iso_only=False):
         return value, True
     if isinstance(value, COLLECTION_TYPES):
         value, is_date = zip(
-            *(_value_to_datetime(v, env=env, iso_only=iso_only) for v in value), strict=False
+            *(_value_to_datetime(v, env=env, iso_only=iso_only) for v in value),
+            strict=False,
         )
         return OrderedSet(value), all(is_date)
     if isinstance(value, SQL):
         warnings.warn(
             "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
-            DeprecationWarning, stacklevel=2,
+            DeprecationWarning,
+            stacklevel=2,
         )
         return value, False
     raise ValueError(f"Failed to cast {value!r} into a datetime")
@@ -718,14 +735,16 @@ def _operator_hierarchy(condition, model):
     return DomainCondition(field.name, "in", result)
 
 
-def _operator_child_of_domain(comodel: BaseModel, parent):
+def _operator_child_of_domain(comodel: BaseModel, parent: str) -> Domain | OrderedSet:
     """Return a set of ids or a domain to find all children of given model"""
     if comodel._parent_store and parent == comodel._parent_name:
         try:
             paths = comodel.mapped("parent_path")
         except MissingError:
             paths = comodel.exists().mapped("parent_path")
-        return Domain.OR(DomainCondition("parent_path", "=like", path + "%") for path in paths)  # type: ignore
+        return Domain.OR(
+            DomainCondition("parent_path", "=like", path + "%") for path in paths
+        )  # type: ignore
     else:
         # recursively retrieve all children nodes with sudo(); the
         # filtering of forbidden records is done by the rest of the
@@ -740,7 +759,7 @@ def _operator_child_of_domain(comodel: BaseModel, parent):
     return child_ids
 
 
-def _operator_parent_of_domain(comodel: BaseModel, parent):
+def _operator_parent_of_domain(comodel: BaseModel, parent: str) -> OrderedSet:
     """Return a set of ids or a domain to find all parents of given model"""
     parent_ids: OrderedSet[int]
     if comodel._parent_store and parent == comodel._parent_name:
@@ -818,7 +837,9 @@ def _optimize_m2o_bypass_comodel_id_lookup(condition, model):
 # --------------------------------------------------
 
 
-def _merge_set_conditions(cls: type[DomainNary], conditions):
+def _merge_set_conditions(
+    cls: type[DomainNary], conditions: list[DomainCondition]
+) -> list[DomainCondition]:
     """Base function to merge equality conditions.
 
     Combine the 'in' and 'not in' conditions to a single set of values.
@@ -855,13 +876,13 @@ def _merge_set_conditions(cls: type[DomainNary], conditions):
         return [DomainCondition(field_expr, "in", union(in_sets))]
 
 
-def intersection(sets: list[OrderedSet]) -> OrderedSet:
+def intersection(sets: list[OrderedSet[typing.Any]]) -> OrderedSet[typing.Any]:
     """Intersection of a list of OrderedSets."""
     return functools.reduce(operator.and_, sets)
 
 
-def union(sets: list[OrderedSet]) -> OrderedSet:
-    """Union of a list of OrderedSets"""
+def union(sets: list[OrderedSet[typing.Any]]) -> OrderedSet[typing.Any]:
+    """Union of a list of OrderedSets."""
     return OrderedSet(elem for s in sets for elem in s)
 
 

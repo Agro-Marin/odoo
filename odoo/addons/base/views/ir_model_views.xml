@@ -191,8 +191,6 @@ record['size'] = len(record.name)
         <field name="context">{}</field>
     </record>
 
-    <menuitem id="ir_model_model_menu" parent="next_id_9" action="action_model_model" />
-
     <!-- ir model fields -->
     <record id="view_model_fields_form" model="ir.ui.view">
         <field name="model">ir.model.fields</field>
@@ -353,11 +351,6 @@ for record in self:
         <field name="context">{}</field>
     </record>
 
-    <menuitem
-        id="ir_model_model_fields"
-        parent="base.next_id_9"
-        action="action_model_fields" />
-
     <!-- ir model fields selection -->
     <record id="view_model_fields_selection_form" model="ir.ui.view">
         <field name="model">ir.model.fields.selection</field>
@@ -403,11 +396,6 @@ for record in self:
         <field name="res_model">ir.model.fields.selection</field>
         <field name="view_id" ref="view_model_fields_selection_tree" />
     </record>
-
-    <menuitem
-        id="ir_model_model_fields_selection"
-        parent="base.next_id_9"
-        action="action_model_fields_selection" />
 
     <!-- ir model data -->
     <record id="view_model_data_form" model="ir.ui.view">
@@ -474,19 +462,6 @@ for record in self:
         <field name="view_id" ref="view_model_data_list" />
     </record>
 
-    <menuitem
-        id="next_id_5"
-        name="Sequences &amp; Identifiers"
-        parent="base.menu_custom"
-        sequence="21"
-        groups="base.group_no_one" />
-
-    <menuitem
-        id="ir_model_data_menu"
-        parent="base.next_id_5"
-        action="action_model_data"
-        groups="base.group_no_one" />
-
     <!-- ir model contraints -->
     <record id="view_model_constraint_form" model="ir.ui.view">
         <field name="model">ir.model.constraint</field>
@@ -542,12 +517,6 @@ for record in self:
         <field name="search_view_id" ref="view_model_constraint_search" />
     </record>
 
-    <menuitem
-        id="ir_model_constraint_menu"
-        parent="base.next_id_9"
-        action="action_model_constraint"
-        groups="base.group_no_one" />
-
     <!-- ir model relations -->
     <record id="view_model_relation_form" model="ir.ui.view">
         <field name="model">ir.model.relation</field>
@@ -580,12 +549,6 @@ for record in self:
         <field name="res_model">ir.model.relation</field>
         <field name="view_id" ref="view_model_relation_list" />
     </record>
-
-    <menuitem
-        id="ir_model_relation_menu"
-        parent="base.next_id_9"
-        action="action_model_relation"
-        groups="base.group_no_one" />
 
     <!-- ir.model.access -->
     <record id="ir_access_view_tree" model="ir.ui.view">
@@ -674,10 +637,5 @@ for record in self:
         <field name="view_id" ref="ir_access_view_tree_edition" />
         <field name="search_view_id" ref="ir_access_view_search" />
     </record>
-
-    <menuitem
-        id="menu_ir_access_act"
-        parent="base.menu_security"
-        action="ir_access_act" />
 
 </odoo>

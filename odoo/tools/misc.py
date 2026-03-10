@@ -48,7 +48,7 @@ CANONICAL IMPORT LOCATIONS
 +----------------------------------+------------------------------------------+
 | groupby, unique, partition       | from odoo.libs.iteration import ...      |
 | topological_sort, merge_sequences| from odoo.libs.iteration import ...      |
-| reverse_enumerate, split_every   | from odoo.libs.iteration import ...      |
+| split_every                      | from odoo.libs.iteration import ...      |
 | Sentinel, SENTINEL, PENDING      | from odoo.libs.iteration import ...      |
 +----------------------------------+------------------------------------------+
 | **Text Processing**                                                         |
@@ -96,7 +96,6 @@ RE-EXPORTED FROM libs
 import collections
 import typing
 import warnings
-from collections.abc import Callable
 from difflib import HtmlDiff
 
 from lxml import etree, objectify
@@ -131,7 +130,6 @@ from odoo.libs.iteration import (
     groupby,  # Group items by key (better than itertools.groupby)
     merge_sequences,  # Merge sequences preserving order
     partition,  # Split iterable by predicate
-    reverse_enumerate,  # enumerate() in reverse
     split_every,  # Split into chunks of size n
     topological_sort,  # Sort with dependencies
     unique,  # Yield unique items preserving order
@@ -176,7 +174,6 @@ from odoo.libs.text import (
 # Canonical: from odoo.libs.utils import ...
 # -----------------------------------------------------------------------------
 from odoo.libs.utils import (
-    _PrintfArgs,  # Printf argument parser
     discardattr,  # Delete attr if exists (no error)
     format_frame,  # Format stack frame for logging
     has_list_types,  # Check if has list-like types
@@ -261,6 +258,9 @@ from .subprocess import (
     stripped_sys_argv,  # sys.argv without Odoo-specific args
 )
 
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
 __all__ = [
     "DEFAULT_SERVER_DATETIME_FORMAT",
     "DEFAULT_SERVER_DATE_FORMAT",
@@ -303,7 +303,6 @@ __all__ = [
     "real_time",
     "remove_accents",
     "replace_exceptions",
-    "reverse_enumerate",
     "split_every",
     "str2bool",
     "street_split",
@@ -348,16 +347,21 @@ class Callbacks:
 
         callbacks = Callbacks()
 
+
         # add foo
         def foo():
             print("foo")
+
 
         callbacks.add(foo)
 
         # add bar
         callbacks.add
+
+
         def bar():
             print("bar")
+
 
         # add foo again
         callbacks.add(foo)
@@ -375,13 +379,14 @@ class Callbacks:
         # register foo to process aggregated data
         @callbacks.add
         def foo():
-            print(sum(callbacks.data['foo']))
+            print(sum(callbacks.data["foo"]))
 
-        callbacks.data.setdefault('foo', []).append(1)
+
+        callbacks.data.setdefault("foo", []).append(1)
         ...
-        callbacks.data.setdefault('foo', []).append(2)
+        callbacks.data.setdefault("foo", []).append(2)
         ...
-        callbacks.data.setdefault('foo', []).append(3)
+        callbacks.data.setdefault("foo", []).append(3)
 
         # call foo(), which prints 6
         callbacks.run()
@@ -420,18 +425,24 @@ class Callbacks:
 from odoo.libs.text.html import html_escape  # noqa: E402
 
 
-def get_diff(data_from, data_to, custom_style=False, dark_color_scheme=False):
-    """
-    Return, in an HTML table, the diff between two texts.
+def get_diff(
+    data_from: tuple[str, str],
+    data_to: tuple[str, str],
+    custom_style: str | bool = False,
+    dark_color_scheme: bool = False,
+) -> str:
+    """Return, in an HTML table, the diff between two texts.
 
-    :param tuple data_from: tuple(text, name), name will be used as table header
-    :param tuple data_to: tuple(text, name), name will be used as table header
-    :param tuple custom_style: string, style css including <style> tag.
-    :param bool dark_color_scheme: true if dark color scheme is used
+    :param data_from: tuple(text, name), name will be used as table header
+    :param data_to: tuple(text, name), name will be used as table header
+    :param custom_style: CSS string including <style> tag, or False for default style
+    :param dark_color_scheme: True if dark color scheme is used
     :return: a string containing the diff in an HTML table format.
     """
 
-    def handle_style(html_diff, custom_style, dark_color_scheme):
+    def handle_style(
+        html_diff: str, custom_style: str | bool, dark_color_scheme: bool
+    ) -> str:
         """The HtmlDiff lib will add some useful classes on the DOM to
         identify elements. Simply append to those classes some BS4 ones.
         For the table to fit the modal width, some custom style is needed.
@@ -448,7 +459,9 @@ def get_diff(data_from, data_to, custom_style=False, dark_color_scheme=False):
             if dark_color_scheme
             else ("#ffc1c0", "#abf2bc", "#ffebe9", "#e6ffec")
         )
-        html_diff += custom_style or """
+        html_diff += (
+            custom_style
+            or """
             <style>
                 .modal-dialog.modal-lg:has(table.diff) {
                     max-width: 1600px;
@@ -469,7 +482,9 @@ def get_diff(data_from, data_to, custom_style=False, dark_color_scheme=False):
                 table.diff td:nth-child(3):has(>.diff_chg, .diff_sub) { background-color: %s }
                 table.diff td:nth-child(6):has(>.diff_chg, .diff_add) { background-color: %s }
             </style>
-        """ % colors
+        """
+            % colors
+        )
         return html_diff
 
     diff = HtmlDiff(tabsize=2).make_table(

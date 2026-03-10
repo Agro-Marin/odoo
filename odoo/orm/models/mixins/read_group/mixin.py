@@ -9,14 +9,15 @@ SQL generation, post-processing, and fill logic are in separate sub-mixins
 """
 
 import itertools
+import typing
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable
 from operator import itemgetter
 
 from odoo.tools import SQL, unique
 
 from .... import decorators as api
-from ...._typing import DomainType, ModelType
+from ...._typing import DomainType, ModelType  # noqa: TC003 — runtime import required (PEP 649)
 from ....constants import READ_GROUP_TIME_GRANULARITY
 from ....domain import Domain
 from ....parsing import parse_read_group_spec, regex_field_agg
@@ -24,8 +25,11 @@ from .fill import _ReadGroupFillMixin
 from .format import _ReadGroupFormatMixin
 from .sql import _ReadGroupSQLMixin
 
+if typing.TYPE_CHECKING:
+    from collections.abc import Sequence
 
-def _itemgetter_tuple(items):
+
+def _itemgetter_tuple(items: list | tuple) -> typing.Callable[[typing.Any], tuple]:
     """Create an itemgetter that always returns a tuple.
 
     Fixes itemgetter inconsistency of not returning a tuple if len(items) == 1.
@@ -94,13 +98,18 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                         # Results for ['foo']
                         [(foo1_val, baz_sum_1), (foo2_val, baz_sum_2), ...],
                         # Results for ['foo', 'bar']
-                        [(foo1_val, bar1_val, baz_sum_3), (foo2_val, bar2_val, baz_sum_4), ...],
+                        [
+                            (foo1_val, bar1_val, baz_sum_3),
+                            (foo2_val, bar2_val, baz_sum_4),
+                            ...,
+                        ],
                     ]
 
         :raise AccessError: if user is not allowed to access requested information
         """
         if not grouping_sets:
-            raise ValueError("The 'grouping_sets' parameter cannot be empty.")
+            msg = "The 'grouping_sets' parameter cannot be empty."
+            raise ValueError(msg)
 
         query = self._search(domain)
         result = [[] for __ in grouping_sets]
@@ -137,7 +146,9 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
 
                 return field.type == "many2many"
 
-            many2many_groupby_specs.extend(spec for spec in all_groupby_specs if might_duplicate_rows(self, spec))
+            many2many_groupby_specs.extend(
+                spec for spec in all_groupby_specs if might_duplicate_rows(self, spec)
+            )
 
         if (
             many2many_groupby_specs
@@ -192,7 +203,6 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             # If the problem was decomposed, make recursive calls and assemble results.
             if len(batched_calls) > 1:
                 for indexes, sub_grouping_sets in batched_calls:
-
                     sub_order_parts = []
                     all_sub_groupby = {
                         spec for groupby in sub_grouping_sets for spec in groupby
@@ -338,12 +348,14 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             *map(
                 self._read_group_postprocess_groupby,
                 all_groupby_specs,
-                columns[1:aggregates_start_index], strict=False,
+                columns[1:aggregates_start_index],
+                strict=False,
             ),
             *map(
                 self._read_group_postprocess_aggregate,
                 aggregates,
-                columns[aggregates_start_index:], strict=False,
+                columns[aggregates_start_index:],
+                strict=False,
             ),
         ]
 
@@ -552,9 +564,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         groupby = [groupby] if isinstance(groupby, str) else groupby
         lazy_groupby = groupby[:1] if lazy else groupby
 
-        annotated_groupby = (
-            {}
-        )  # Key as the name in the result, value as the explicit groupby specification
+        annotated_groupby = {}  # Key as the name in the result, value as the explicit groupby specification
         for group_spec in lazy_groupby:
             field_name, property_name, granularity = parse_read_group_spec(group_spec)
             if field_name not in self._fields:
@@ -634,7 +644,8 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             dict(
                 zip(
                     itertools.chain(annotated_groupby, annotated_aggregates),
-                    row, strict=False,
+                    row,
+                    strict=False,
                 )
             )
             for row in rows

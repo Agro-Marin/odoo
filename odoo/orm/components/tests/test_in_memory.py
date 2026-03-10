@@ -12,7 +12,7 @@ from odoo.orm.components.testing import FieldDef, InMemoryEnvironment, ModelDef
 class TestCreateAndRead(unittest.TestCase):
     """Test basic record creation and reading."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.env = InMemoryEnvironment(
             {
                 "test.model": ModelDef(
@@ -25,26 +25,26 @@ class TestCreateAndRead(unittest.TestCase):
             }
         )
 
-    def test_create_returns_id(self):
+    def test_create_returns_id(self) -> None:
         id_ = self.env.create("test.model", {"name": "Alice", "value": 42})
         self.assertEqual(id_, 1)
 
-    def test_create_auto_increment(self):
+    def test_create_auto_increment(self) -> None:
         id1 = self.env.create("test.model", {"name": "Alice"})
         id2 = self.env.create("test.model", {"name": "Bob"})
         self.assertEqual(id1, 1)
         self.assertEqual(id2, 2)
 
-    def test_read_created_value(self):
+    def test_read_created_value(self) -> None:
         id_ = self.env.create("test.model", {"name": "Alice", "value": 42})
         self.assertEqual(self.env.read("test.model", id_, "name"), "Alice")
         self.assertEqual(self.env.read("test.model", id_, "value"), 42)
 
-    def test_read_default_none(self):
+    def test_read_default_none(self) -> None:
         id_ = self.env.create("test.model", {"name": "Alice"})
         self.assertIsNone(self.env.read("test.model", id_, "value"))
 
-    def test_read_with_default(self):
+    def test_read_with_default(self) -> None:
         env = InMemoryEnvironment(
             {
                 "test.model": ModelDef(
@@ -58,7 +58,7 @@ class TestCreateAndRead(unittest.TestCase):
         id_ = env.create("test.model", {})
         self.assertEqual(env.read("test.model", id_, "name"), "Unnamed")
 
-    def test_read_with_callable_default(self):
+    def test_read_with_callable_default(self) -> None:
         counter = [0]
 
         def make_default():
@@ -84,7 +84,7 @@ class TestCreateAndRead(unittest.TestCase):
 class TestWrite(unittest.TestCase):
     """Test writing values to records."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.env = InMemoryEnvironment(
             {
                 "test.model": ModelDef(
@@ -97,12 +97,12 @@ class TestWrite(unittest.TestCase):
             }
         )
 
-    def test_write_updates_cache(self):
+    def test_write_updates_cache(self) -> None:
         id_ = self.env.create("test.model", {"name": "Alice", "value": 42})
         self.env.write("test.model", id_, {"value": 100})
         self.assertEqual(self.env.read("test.model", id_, "value"), 100)
 
-    def test_write_partial(self):
+    def test_write_partial(self) -> None:
         id_ = self.env.create("test.model", {"name": "Alice", "value": 42})
         self.env.write("test.model", id_, {"name": "Bob"})
         self.assertEqual(self.env.read("test.model", id_, "name"), "Bob")
@@ -137,14 +137,14 @@ class TestComputedFields(unittest.TestCase):
             }
         )
 
-    def test_computed_field_on_create(self):
+    def test_computed_field_on_create(self) -> None:
         env = self._make_env()
         id_ = env.create("sale.order", {"name": "SO001", "amount": 10.0, "qty": 5})
         # Reading triggers recomputation
         total = env.read("sale.order", id_, "total")
         self.assertEqual(total, 50.0)
 
-    def test_computed_field_after_write(self):
+    def test_computed_field_after_write(self) -> None:
         env = self._make_env()
         id_ = env.create("sale.order", {"name": "SO001", "amount": 10.0, "qty": 5})
         env.read("sale.order", id_, "total")  # trigger initial compute
@@ -152,7 +152,7 @@ class TestComputedFields(unittest.TestCase):
         total = env.read("sale.order", id_, "total")
         self.assertEqual(total, 100.0)
 
-    def test_compute_chain(self):
+    def test_compute_chain(self) -> None:
         """A depends on B depends on C."""
 
         def compute_b(env, model, record_id):
@@ -189,7 +189,7 @@ class TestComputedFields(unittest.TestCase):
 class TestFlush(unittest.TestCase):
     """Test flushing dirty fields to DictBackend."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.env = InMemoryEnvironment(
             {
                 "test.model": ModelDef(
@@ -202,19 +202,19 @@ class TestFlush(unittest.TestCase):
             }
         )
 
-    def test_flush_writes_to_storage(self):
+    def test_flush_writes_to_storage(self) -> None:
         id_ = self.env.create("test.model", {"name": "Alice", "value": 42})
         self.env.flush()
         self.assertEqual(self.env.storage_get("test.model", id_, "name"), "Alice")
         self.assertEqual(self.env.storage_get("test.model", id_, "value"), 42)
 
-    def test_flush_clears_dirty(self):
+    def test_flush_clears_dirty(self) -> None:
         self.env.create("test.model", {"name": "Alice"})
         self.env.flush()
         # After flush, no dirty fields
         self.assertFalse(self.env.cache.is_any_dirty())
 
-    def test_flush_with_computed_field(self):
+    def test_flush_with_computed_field(self) -> None:
         def compute_upper(env, model, record_id):
             name = env.read(model, record_id, "name")
             return (name or "").upper()
@@ -243,7 +243,7 @@ class TestFlush(unittest.TestCase):
 class TestUnknownModelField(unittest.TestCase):
     """Test error handling for unknown models/fields."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.env = InMemoryEnvironment(
             {
                 "test.model": ModelDef(
@@ -255,15 +255,15 @@ class TestUnknownModelField(unittest.TestCase):
             }
         )
 
-    def test_unknown_model_create(self):
+    def test_unknown_model_create(self) -> None:
         with self.assertRaises(KeyError):
             self.env.create("nonexistent", {"name": "x"})
 
-    def test_unknown_model_read(self):
+    def test_unknown_model_read(self) -> None:
         with self.assertRaises(KeyError):
             self.env.read("nonexistent", 1, "name")
 
-    def test_unknown_field_read(self):
+    def test_unknown_field_read(self) -> None:
         id_ = self.env.create("test.model", {"name": "Alice"})
         with self.assertRaises(KeyError):
             self.env.read("test.model", id_, "nonexistent")
@@ -272,7 +272,7 @@ class TestUnknownModelField(unittest.TestCase):
 class TestMultipleModels(unittest.TestCase):
     """Test with multiple models."""
 
-    def test_independent_id_sequences(self):
+    def test_independent_id_sequences(self) -> None:
         env = InMemoryEnvironment(
             {
                 "model.a": ModelDef(
@@ -295,7 +295,7 @@ class TestMultipleModels(unittest.TestCase):
         self.assertEqual(id_a, 1)
         self.assertEqual(id_b, 1)
 
-    def test_cross_model_read(self):
+    def test_cross_model_read(self) -> None:
         env = InMemoryEnvironment(
             {
                 "model.a": ModelDef(
@@ -328,7 +328,7 @@ class TestPendingSentinel(unittest.TestCase):
     warnings.  See MEMORY.md "PENDING sentinel — 6 hidden consumers".
     """
 
-    def test_pending_not_visible_on_read(self):
+    def test_pending_not_visible_on_read(self) -> None:
         """PENDING in cache must be treated as a miss — read returns None, not PENDING."""
 
         def compute_total(env, model, rid):
@@ -356,7 +356,7 @@ class TestPendingSentinel(unittest.TestCase):
         total = env.read("m", id_, "total")
         self.assertEqual(total, 10.0)
 
-    def test_pending_not_flushed_to_storage(self):
+    def test_pending_not_flushed_to_storage(self) -> None:
         """PENDING must never be written to storage."""
 
         def compute_slow(env, model, rid):
@@ -385,7 +385,7 @@ class TestPendingSentinel(unittest.TestCase):
         stored = env.storage_get("m", id_, "computed")
         self.assertEqual(stored, 999)
 
-    def test_pending_replaced_by_compute_result(self):
+    def test_pending_replaced_by_compute_result(self) -> None:
         """After compute, PENDING is replaced by the real value in cache."""
         call_count = [0]
 
@@ -414,7 +414,7 @@ class TestPendingSentinel(unittest.TestCase):
         self.assertEqual(env.read("m", id_, "x"), 42)
         self.assertEqual(call_count[0], 1)
 
-    def test_write_dependency_reschedules_compute(self):
+    def test_write_dependency_reschedules_compute(self) -> None:
         """Writing a dependency field reschedules the computed field, even if it was already computed."""
 
         def compute_double(env, model, rid):
@@ -451,7 +451,7 @@ class TestComputeChainRegression(unittest.TestCase):
     See MEMORY.md "_read_format fast path skipping stored-computed recomputation".
     """
 
-    def test_three_level_chain(self):
+    def test_three_level_chain(self) -> None:
         """A → B → C: writing A must propagate through B to C."""
 
         def compute_b(env, model, rid):
@@ -483,7 +483,7 @@ class TestComputeChainRegression(unittest.TestCase):
         env.write("m", id_, {"a": 2})
         self.assertEqual(env.read("m", id_, "c"), 36)
 
-    def test_diamond_dependency(self):
+    def test_diamond_dependency(self) -> None:
         r"""Diamond: D depends on both B and C, which both depend on A.
 
          A
@@ -533,7 +533,7 @@ class TestComputeChainRegression(unittest.TestCase):
         # b=6, c=4, d=10
         self.assertEqual(env.read("m", id_, "d"), 10)
 
-    def test_multiple_records_same_compute(self):
+    def test_multiple_records_same_compute(self) -> None:
         """Compute runs on all pending records, not just the one being read."""
         compute_calls = []
 
@@ -573,7 +573,7 @@ class TestFlushConvergence(unittest.TestCase):
     requiring multiple iterations of the recompute→flush cycle.
     """
 
-    def test_compute_during_flush_converges(self):
+    def test_compute_during_flush_converges(self) -> None:
         """Flush triggers compute via dependency, second iteration resolves it."""
 
         def compute_summary(env, model, rid):
@@ -602,7 +602,7 @@ class TestFlushConvergence(unittest.TestCase):
         env.flush()
         self.assertEqual(env.storage_get("m", id_, "summary"), "test:42")
 
-    def test_multiple_models_flush_order(self):
+    def test_multiple_models_flush_order(self) -> None:
         """Dirty fields across multiple models all get flushed."""
         env = InMemoryEnvironment(
             {
@@ -626,7 +626,7 @@ class TestFlushConvergence(unittest.TestCase):
         self.assertEqual(env.storage_get("order", id_o, "name"), "SO001")
         self.assertEqual(env.storage_get("line", id_l, "qty"), 5)
 
-    def test_write_after_flush_creates_new_dirty(self):
+    def test_write_after_flush_creates_new_dirty(self) -> None:
         """Writing after flush creates new dirty entries that need another flush."""
         env = InMemoryEnvironment(
             {
@@ -650,7 +650,7 @@ class TestFlushConvergence(unittest.TestCase):
 class TestCacheBehavior(unittest.TestCase):
     """Test cache semantics: None vs False vs 0 vs empty string."""
 
-    def test_none_is_valid_value(self):
+    def test_none_is_valid_value(self) -> None:
         env = InMemoryEnvironment(
             {
                 "m": ModelDef("m", {"x": FieldDef("x", "integer")}),
@@ -659,7 +659,7 @@ class TestCacheBehavior(unittest.TestCase):
         id_ = env.create("m", {})  # x defaults to None
         self.assertIsNone(env.read("m", id_, "x"))
 
-    def test_false_is_valid_value(self):
+    def test_false_is_valid_value(self) -> None:
         env = InMemoryEnvironment(
             {
                 "m": ModelDef("m", {"active": FieldDef("active", "boolean")}),
@@ -668,7 +668,7 @@ class TestCacheBehavior(unittest.TestCase):
         id_ = env.create("m", {"active": False})
         self.assertFalse(env.read("m", id_, "active"))
 
-    def test_zero_is_valid_value(self):
+    def test_zero_is_valid_value(self) -> None:
         env = InMemoryEnvironment(
             {
                 "m": ModelDef("m", {"x": FieldDef("x", "integer")}),
@@ -677,7 +677,7 @@ class TestCacheBehavior(unittest.TestCase):
         id_ = env.create("m", {"x": 0})
         self.assertEqual(env.read("m", id_, "x"), 0)
 
-    def test_empty_string_is_valid_value(self):
+    def test_empty_string_is_valid_value(self) -> None:
         env = InMemoryEnvironment(
             {
                 "m": ModelDef("m", {"s": FieldDef("s", "char")}),
@@ -686,7 +686,7 @@ class TestCacheBehavior(unittest.TestCase):
         id_ = env.create("m", {"s": ""})
         self.assertEqual(env.read("m", id_, "s"), "")
 
-    def test_overwrite_preserves_type(self):
+    def test_overwrite_preserves_type(self) -> None:
         env = InMemoryEnvironment(
             {
                 "m": ModelDef("m", {"x": FieldDef("x", "integer")}),
@@ -706,7 +706,7 @@ class TestNonStoredCompute(unittest.TestCase):
     behavior for ``store=False`` fields.
     """
 
-    def test_non_stored_computed_on_read(self):
+    def test_non_stored_computed_on_read(self) -> None:
         """Non-stored computed field returns correct value on read."""
 
         def compute_label(env, model, rid):
@@ -733,7 +733,7 @@ class TestNonStoredCompute(unittest.TestCase):
         id_ = env.create("m", {"name": "Alice"})
         self.assertEqual(env.read("m", id_, "label"), "[Alice]")
 
-    def test_non_stored_always_recomputes(self):
+    def test_non_stored_always_recomputes(self) -> None:
         """Non-stored field recomputes on every read (no caching)."""
         call_count = [0]
 
@@ -763,7 +763,7 @@ class TestNonStoredCompute(unittest.TestCase):
         self.assertEqual(env.read("m", id_, "x"), 2)  # recomputed, not cached
         self.assertEqual(call_count[0], 2)
 
-    def test_non_stored_not_flushed_to_storage(self):
+    def test_non_stored_not_flushed_to_storage(self) -> None:
         """Non-stored computed field value must not appear in storage."""
 
         def compute_upper(env, model, rid):
@@ -793,7 +793,7 @@ class TestNonStoredCompute(unittest.TestCase):
         # But reading it should still work (computed on demand)
         self.assertEqual(env.read("m", id_, "upper"), "ALICE")
 
-    def test_non_stored_reads_dependency_from_cache(self):
+    def test_non_stored_reads_dependency_from_cache(self) -> None:
         """Non-stored compute reads stored dependency value from cache."""
 
         def compute_double(env, model, rid):
@@ -830,7 +830,7 @@ class TestWriteInsideCompute(unittest.TestCase):
     fields on the record, or where inverse methods update dependent records.
     """
 
-    def test_compute_with_side_effect_write(self):
+    def test_compute_with_side_effect_write(self) -> None:
         """Compute function writes to another field as a side effect."""
 
         def compute_and_flag(env, model, rid):
@@ -861,7 +861,7 @@ class TestWriteInsideCompute(unittest.TestCase):
         self.assertAlmostEqual(total, 110.0, places=5)
         self.assertTrue(env.read("m", id_, "has_amount"))
 
-    def test_compute_writes_to_different_record(self):
+    def test_compute_writes_to_different_record(self) -> None:
         """Compute that writes to a different record (cross-record side effect)."""
 
         def compute_x(env, model, rid):
@@ -903,7 +903,7 @@ class TestStallDetection(unittest.TestCase):
     reports which fields are stuck.
     """
 
-    def test_idempotent_compute_converges(self):
+    def test_idempotent_compute_converges(self) -> None:
         """A compute that always returns the same value converges in one iteration."""
         call_count = [0]
 
@@ -933,7 +933,7 @@ class TestStallDetection(unittest.TestCase):
         # Compute was called exactly once (not repeatedly)
         self.assertEqual(call_count[0], 1)
 
-    def test_multiple_flushes_dont_recompute_clean(self):
+    def test_multiple_flushes_dont_recompute_clean(self) -> None:
         """Flushing twice without writes shouldn't trigger recomputation."""
         call_count = [0]
 
@@ -967,7 +967,7 @@ class TestStallDetection(unittest.TestCase):
 class TestRepr(unittest.TestCase):
     """Test string representation."""
 
-    def test_repr(self):
+    def test_repr(self) -> None:
         env = InMemoryEnvironment(
             {
                 "a": ModelDef("a", {}),

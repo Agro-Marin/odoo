@@ -1475,12 +1475,15 @@ Follow these patterns for external identifiers:
    * - Action
      - ``<model_name>_action``
      - ``sale_order_action``
-   * - Menu (root)
-     - ``<model_name>_menu``
-     - ``sale_order_menu``
-   * - Menu (action)
-     - ``<model_name>_menu_<action>``
-     - ``sale_order_menu_list``
+   * - Menu (root/app)
+     - ``menu_<app>_root``
+     - ``menu_sale_root``
+   * - Menu (section)
+     - ``menu_<app>_<section>``
+     - ``menu_sale_config``
+   * - Menu (action leaf)
+     - ``menu_<model_or_topic>``
+     - ``menu_stock_picking_incoming``
    * - Security group
      - ``<module>_group_<name>``
      - ``sale_group_manager``
@@ -1492,6 +1495,20 @@ Follow these patterns for external identifiers:
      - ``sale_order_action_confirm``
 
 The current module name is prefixed to XML IDs automatically.
+
+**Menu XML ID rules:**
+
+- **Always** start with ``menu_`` — never use ``_menu`` suffix, ``_menuitem`` suffix,
+  or omit the prefix entirely.
+- **Root/app menus** use ``menu_<app>_root`` (e.g., ``menu_sale_root``,
+  ``menu_stock_root``).
+- **Structural section menus** (no action) include the app context:
+  ``menu_<app>_<section>`` (e.g., ``menu_sale_config``, ``menu_stock_transfers``).
+- **Leaf/action menus** use the model name or a descriptive topic:
+  ``menu_<model_or_topic>`` (e.g., ``menu_stock_picking_incoming``,
+  ``menu_ir_model``).
+- **Never** use cryptic sequential names (``next_id_*``), abbreviations
+  (``prod_config_main``), or context-free names (``payment_menu``).
 
 
 View inheritance

@@ -10,17 +10,18 @@ This wrapper exists for backward compatibility with code that uses
 should use ``env._core`` instead.
 """
 
+import contextlib
 import logging
 import typing
-from collections.abc import Collection, Iterable, Iterator
 from pprint import pformat
 
 from odoo.exceptions import CacheMiss
 from odoo.tools import SQL, OrderedSet, Query, frozendict
 from odoo.tools.misc import PENDING, SENTINEL
-import contextlib
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Collection, Iterable, Iterator
+
     from .._typing import BaseModel, Field
     from ..primitives import IdType
     from .transaction import Transaction

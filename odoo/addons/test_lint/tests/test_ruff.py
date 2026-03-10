@@ -14,7 +14,7 @@ from pathlib import Path
 from odoo import tools
 from odoo.tools.misc import file_open
 
-from . import _checker_gettext, _checker_sql, _checker_unlink, lint_case
+from . import _checker_batch, _checker_gettext, _checker_sql, _checker_unlink, lint_case
 
 _logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ _RULE_ALIASES: dict[str, frozenset[str]] = {
     "gettext-repr": frozenset({"gettext-repr", "E8504"}),
     "missing-gettext": frozenset({"missing-gettext", "E8505"}),
     "raise-unlink-override": frozenset({"raise-unlink-override", "E8506"}),
+    "n-plus-one-query": frozenset({"n-plus-one-query", "E8507"}),
 }
 
 
@@ -102,7 +103,11 @@ class TestRuff(lint_case.LintCase):
                 continue
             _checker_sql.annotate_parents(tree)
             checker = _checker_sql.SqlInjectionChecker(path)
-            violations.extend((path, v) for v in checker.check(tree) if not _is_suppressed(source, v.lineno, "sql-injection"))
+            violations.extend(
+                (path, v)
+                for v in checker.check(tree)
+                if not _is_suppressed(source, v.lineno, "sql-injection")
+            )
 
         if violations:
             violations.sort(key=lambda t: t[0])
@@ -121,7 +126,11 @@ class TestRuff(lint_case.LintCase):
                 tree = ast.parse(source, path)
             except SyntaxError:
                 continue
-            violations.extend((path, v) for v in _checker_gettext.check(tree, path) if not _is_suppressed(source, v.lineno, v.rule))
+            violations.extend(
+                (path, v)
+                for v in _checker_gettext.check(tree, path)
+                if not _is_suppressed(source, v.lineno, v.rule)
+            )
 
         if violations:
             violations.sort(key=lambda t: t[0])
@@ -140,7 +149,11 @@ class TestRuff(lint_case.LintCase):
                 tree = ast.parse(source, path)
             except SyntaxError:
                 continue
-            violations.extend((path, v) for v in _checker_unlink.check(tree) if not _is_suppressed(source, v.lineno, "raise-unlink-override"))
+            violations.extend(
+                (path, v)
+                for v in _checker_unlink.check(tree)
+                if not _is_suppressed(source, v.lineno, "raise-unlink-override")
+            )
 
         if violations:
             violations.sort(key=lambda t: t[0])
@@ -148,3 +161,32 @@ class TestRuff(lint_case.LintCase):
                 f"- {path}:{v.lineno}" for path, v in violations
             )
             self.fail(msg)
+
+    def test_batch_queries(self):
+        """Run N+1 query checker on core module Python files.
+
+        Currently advisory-only: logs violations at WARNING level without
+        failing.  As modules are cleaned up, add them to
+        ``_BATCH_FAIL_MODULES`` to enforce the rule strictly.
+        """
+        violations = []
+        for path in self._iter_core_python_files():
+            try:
+                with file_open(path, "rb") as f:
+                    source = f.read()
+                tree = ast.parse(source, path)
+            except SyntaxError:
+                continue
+            violations.extend(
+                (path, v)
+                for v in _checker_batch.check(tree, path)
+                if not _is_suppressed(source, v.lineno, "n-plus-one-query")
+            )
+
+        if violations:
+            violations.sort(key=lambda t: t[0])
+            msg = "N+1 query patterns detected (%d):\n%s" % (
+                len(violations),
+                "\n".join(f"- {path}:{v.lineno} {v.message}" for path, v in violations),
+            )
+            _logger.warning(msg)

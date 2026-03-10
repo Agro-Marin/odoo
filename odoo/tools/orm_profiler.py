@@ -20,7 +20,6 @@ See Also
 --------
 - ``odoo.tools.nplusone`` — N+1 CRUD detection (repeated single-record calls)
 - ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
-- ``odoo.tools.mixin_profiler`` — Method-level profiler (per-method timing)
 - ``odoo.tests.benchmark`` — Micro-benchmark statistics
 - ``.claude/rules/profiling.md`` — Decision tree: which tool to use when
 """

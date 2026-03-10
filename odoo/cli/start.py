@@ -13,7 +13,7 @@ from .server import main
 class Start(Command):
     """Quickly start the odoo server with default options"""
 
-    def get_module_list(self, path):
+    def get_module_list(self, path: str | Path) -> list[str]:
         """Return module names found under ``path``."""
         base = Path(path)
         return [
@@ -22,7 +22,7 @@ class Start(Command):
             for match in base.glob(f"*/{mname}")
         ]
 
-    def run(self, cmdargs):
+    def run(self, cmdargs: list[str]) -> None:
         config.parser.prog = self.prog
         self.parser.add_argument(
             "--path",
@@ -72,7 +72,7 @@ class Start(Command):
             cmdargs.append(f"--db-filter=^{args.db_name}$")
 
         # Remove --path /-p options from the command arguments
-        def is_path_arg(index, args):
+        def is_path_arg(index: int, args: list[str]) -> bool:
             return (
                 args[index] == "-p"
                 or args[index].startswith("--path")
@@ -84,7 +84,7 @@ class Start(Command):
         main(cmdargs)
 
 
-def is_path_in_module(path):
+def is_path_in_module(path: str | Path) -> bool:
     """Check if ``path`` is inside an Odoo module directory."""
     path = Path(path)
     return any(Manifest._from_path(p) for p in (path, *path.parents))

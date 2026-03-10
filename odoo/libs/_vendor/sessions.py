@@ -1,5 +1,4 @@
-"""
-Vendored session store from werkzeug.contrib.sessions (removed in werkzeug 1.0).
+"""Vendored session store from werkzeug.contrib.sessions (removed in werkzeug 1.0).
 
 Originally from: https://github.com/pallets/werkzeug/blob/2b2c4c3/src/werkzeug/contrib/sessions.py
 Edited: removed PY2 compat, SessionMiddleware, modernized to Python 3.12+,
@@ -11,15 +10,18 @@ switched to orjson for ~5x faster session serialization.
 
 import logging
 import os
+import pathlib
 import re
 import tempfile
 from hashlib import sha1
-from os import path, replace as rename
+from os import path
+from os import replace as rename
 from time import time
 
-from odoo.libs.json import dumps_bytes as _json_dumps, loads as _json_loads
-
 from werkzeug.datastructures import CallbackDict
+
+from odoo.libs.json import dumps_bytes as _json_dumps
+from odoo.libs.json import loads as _json_loads
 
 _logger = logging.getLogger(__name__)
 _sha1_re = re.compile(r"^[a-f0-9]{40}$")
@@ -154,9 +156,9 @@ class FilesystemSessionStore(SessionStore):
         if path is None:
             path = tempfile.gettempdir()
         self.path = path
-        assert not filename_template.endswith(
-            _fs_transaction_suffix
-        ), f"filename templates may not end with {_fs_transaction_suffix}"
+        assert not filename_template.endswith(_fs_transaction_suffix), (
+            f"filename templates may not end with {_fs_transaction_suffix}"
+        )
         self.filename_template = filename_template
         self.renew_missing = renew_missing
         self.mode = mode
@@ -170,15 +172,15 @@ class FilesystemSessionStore(SessionStore):
         with os.fdopen(fd, "wb") as f:
             f.write(_json_dumps(dict(session)))
         try:
-            rename(tmp, fn)
-            os.chmod(fn, self.mode)
+            pathlib.Path(tmp).replace(fn)
+            pathlib.Path(fn).chmod(self.mode)
         except OSError:
             pass
 
     def delete(self, session):
         fn = self.get_session_filename(session.sid)
         try:
-            os.unlink(fn)
+            pathlib.Path(fn).unlink()
         except OSError:
             pass
 
@@ -186,7 +188,7 @@ class FilesystemSessionStore(SessionStore):
         if not self.is_valid_key(sid):
             return self.new()
         try:
-            with open(self.get_session_filename(sid), "rb") as f:
+            with pathlib.Path(self.get_session_filename(sid)).open("rb") as f:
                 data = _json_loads(f.read())
         except OSError:
             _logger.debug(

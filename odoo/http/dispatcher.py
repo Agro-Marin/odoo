@@ -1,9 +1,13 @@
-"""Request dispatchers for different protocols."""
-
-import collections.abc
 import logging
 from abc import ABC, abstractmethod
 from http import HTTPStatus
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import collections.abc
+    from collections.abc import Callable
+
+    from .request_class import Request
 
 import werkzeug.exceptions
 from werkzeug.exceptions import (
@@ -25,7 +29,7 @@ from .wrappers import Response
 
 _logger = logging.getLogger(__name__)
 
-_dispatchers = {}
+_dispatchers: dict[str, type[Dispatcher]] = {}
 
 
 class Dispatcher(ABC):
@@ -33,22 +37,22 @@ class Dispatcher(ABC):
     mimetypes: collections.abc.Collection[str] = ()
 
     @classmethod
-    def __init_subclass__(cls):
-        super().__init_subclass__()
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
         _dispatchers[cls.routing_type] = cls
 
-    def __init__(self, request):
+    def __init__(self, request: Request) -> None:
         self.request = request
 
     @classmethod
     @abstractmethod
-    def is_compatible_with(cls, request):
+    def is_compatible_with(cls, request: Request) -> bool:
         """
         Determine if the current request is compatible with this
         dispatcher.
         """
 
-    def pre_dispatch(self, rule, args):
+    def pre_dispatch(self, rule: Any, args: dict[str, Any]) -> None:
         """
         Prepare the system before dispatching the request to its
         controller. This method is often overridden in ir.http to
@@ -86,7 +90,7 @@ class Dispatcher(ABC):
             self.request.httprequest.max_content_length = max_content_length
 
     @abstractmethod
-    def dispatch(self, endpoint, args):
+    def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
         """
         Extract the params from the request's body and call the
         endpoint. While it is preferred to override ir.http._pre_dispatch
@@ -94,7 +98,7 @@ class Dispatcher(ABC):
         a tight control over the dispatching.
         """
 
-    def post_dispatch(self, response):
+    def post_dispatch(self, response: Response) -> None:
         """
         Manipulate the HTTP response to inject various headers, also
         save the session when it is dirty.
@@ -123,10 +127,10 @@ class HttpDispatcher(Dispatcher):
     )
 
     @classmethod
-    def is_compatible_with(cls, request):
+    def is_compatible_with(cls, request: Request) -> bool:
         return True
 
-    def dispatch(self, endpoint, args):
+    def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
         """
         Perform http-related actions such as deserializing the request
         body and query-string and checking cors/csrf while dispatching a
@@ -154,8 +158,9 @@ class HttpDispatcher(Dispatcher):
                     )
                 else:
                     _logger.warning(MISSING_CSRF_WARNING, self.request.httprequest.path)
+                msg = "Session expired (invalid CSRF token)"
                 raise werkzeug.exceptions.BadRequest(
-                    "Session expired (invalid CSRF token)"
+                    msg
                 )
 
         if self.request.db:
@@ -209,16 +214,16 @@ class JsonRPCDispatcher(Dispatcher):
     routing_type = "jsonrpc"
     mimetypes = ("application/json", "application/json-rpc")
 
-    def __init__(self, request):
+    def __init__(self, request: Request) -> None:
         super().__init__(request)
-        self.jsonrequest = {}
-        self.request_id = None
+        self.jsonrequest: dict[str, Any] = {}
+        self.request_id: Any = None
 
     @classmethod
-    def is_compatible_with(cls, request):
+    def is_compatible_with(cls, request: Request) -> bool:
         return request.httprequest.mimetype in cls.mimetypes
 
-    def dispatch(self, endpoint, args):
+    def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
         """
         `JSON-RPC 2 <http://www.jsonrpc.org/specification>`_ over HTTP.
 
@@ -290,11 +295,13 @@ class JsonRPCDispatcher(Dispatcher):
 
         return self._response(error=error)
 
-    def _response(self, result=None, error=None):
-        response = {"jsonrpc": "2.0", "id": self.request_id}
+    def _response(
+        self, result: Any = None, error: dict[str, Any] | None = None
+    ) -> Response:
+        response: dict[str, Any] = {"jsonrpc": "2.0", "id": self.request_id}
         if error is not None:
             response["error"] = error
-        if result is not None:
+        elif result is not None:
             response["result"] = result
 
         return self.request.make_json_response(response)
@@ -304,18 +311,18 @@ class Json2Dispatcher(Dispatcher):
     routing_type = "json2"
     mimetypes = ("application/json",)
 
-    def __init__(self, request):
+    def __init__(self, request: Request) -> None:
         super().__init__(request)
-        self.jsonrequest = None
+        self.jsonrequest: dict[str, Any] | None = None
 
     @classmethod
-    def is_compatible_with(cls, request):
+    def is_compatible_with(cls, request: Request) -> bool:
         return (
             request.httprequest.mimetype in cls.mimetypes
             or not request.httprequest.content_length
         )
 
-    def dispatch(self, endpoint, args):
+    def dispatch(self, endpoint: Callable, args: dict[str, Any]) -> Any:
         # "args" are the path parameters, "id" in /web/image/<id>
         if self.request.httprequest.content_length:
             try:
@@ -351,9 +358,8 @@ class Json2Dispatcher(Dispatcher):
                 message=exc.description,
                 arguments=(exc.description, exc.code),
             )
-            # strip Content-Type but keep the remaining headers
-            ct, *headers = exc.get_headers()
-            assert ct == ("Content-Type", "text/html; charset=utf-8")
+            # strip Content-Type (we set our own) but keep the remaining headers
+            headers = [(k, v) for k, v in exc.get_headers() if k != "Content-Type"]
         else:
             status = HTTPStatus.INTERNAL_SERVER_ERROR
             body = serialize_exception(exc)

@@ -1,5 +1,3 @@
-"""Session storage and management."""
-
 import base64
 import collections.abc
 import contextlib
@@ -8,6 +6,7 @@ import re
 import time
 from hashlib import sha512
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from odoo.libs._vendor import sessions
 from odoo.libs.json import dumps_bytes as _fast_dumps_bytes
@@ -23,6 +22,9 @@ from .constants import (
     get_default_session,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
+
 _base64_urlsafe_re = re.compile(r"^[A-Za-z0-9_-]{84}$")
 _session_identifier_re = re.compile(r"^[A-Za-z0-9_-]{%s}$" % STORED_SESSION_BYTES)
 
@@ -30,27 +32,27 @@ _session_identifier_re = re.compile(r"^[A-Za-z0-9_-]{%s}$" % STORED_SESSION_BYTE
 class FilesystemSessionStore(sessions.FilesystemSessionStore):
     """Place where to load and save session objects."""
 
-    def get_session_filename(self, sid):
+    def get_session_filename(self, sid: str) -> str:
         # scatter sessions across 4096 (64^2) directories
         if not self.is_valid_key(sid):
             raise ValueError(f"Invalid session id {sid!r}")
         return str(Path(self.path, sid[:2], sid))
 
-    def save(self, session):
+    def save(self, session: Session) -> None:
         dirname = Path(self.get_session_filename(session.sid)).parent
         if not dirname.is_dir():
             with contextlib.suppress(OSError):
-                dirname.mkdir(mode=0o0755)
+                dirname.mkdir(mode=0o0700)
         super().save(session)
 
-    def delete_old_sessions(self, session):
+    def delete_old_sessions(self, session: Session) -> None:
         if "gc_previous_sessions" in session:
             if session["create_time"] + SESSION_DELETION_TIMER < time.time():
                 self.delete_from_identifiers([session.sid[:STORED_SESSION_BYTES]])
                 del session["gc_previous_sessions"]
                 self.save(session)
 
-    def get(self, sid):
+    def get(self, sid: str) -> Session:
         # retro compatibility
         old_path = Path(super().get_session_filename(sid))
         session_path = Path(self.get_session_filename(sid))
@@ -58,12 +60,12 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             dirname = session_path.parent
             if not dirname.is_dir():
                 with contextlib.suppress(OSError):
-                    dirname.mkdir(mode=0o0755)
+                    dirname.mkdir(mode=0o0700)
             with contextlib.suppress(OSError):
                 old_path.rename(session_path)
         return super().get(sid)
 
-    def rotate(self, session, env, soft=False):
+    def rotate(self, session: Session, env: Any, soft: bool = False) -> None:
         # With a soft rotation, things like the CSRF token will still work. It's used for rotating
         # the session in a way that half the bytes remain to identify the user and the other half
         # to authenticate the user. Meanwhile with a hard rotation the entire session id is changed,
@@ -91,13 +93,18 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             self.delete(session)
             session.sid = self.generate_key()
         if session.uid:
-            assert env, "saving this session requires an environment"
+            if not env:
+                msg = "Saving an authenticated session requires an environment"
+                raise ValueError(
+                    msg
+                )
+
             session.session_token = security.compute_session_token(session, env)
         session.should_rotate = False
         session["create_time"] = time.time()
         self.save(session)
 
-    def vacuum(self, max_lifetime=SESSION_LIFETIME):
+    def vacuum(self, max_lifetime: int = SESSION_LIFETIME) -> None:
         from .application import root  # lazy import
 
         threshold = time.time() - max_lifetime
@@ -107,7 +114,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 if path.stat().st_mtime < threshold:
                     path.unlink()
 
-    def generate_key(self, salt=None):
+    def generate_key(self, salt: bytes | None = None) -> str:
         # The generated key is case sensitive (base64) and the length is 84 chars.
         # In the worst-case scenario, i.e. in an insensitive filesystem (NTFS for example)
         # taking into account the proportion of characters in the pool and a length
@@ -126,10 +133,10 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         hash_key = sha512(key).digest()[:-1]  # prevent base64 padding
         return base64.urlsafe_b64encode(hash_key).decode("utf-8")
 
-    def is_valid_key(self, key):
+    def is_valid_key(self, key: str) -> bool:
         return _base64_urlsafe_re.match(key) is not None
 
-    def get_missing_session_identifiers(self, identifiers):
+    def get_missing_session_identifiers(self, identifiers: Iterable[str]) -> set[str]:
         """
         :param identifiers: session identifiers whose file existence must be checked
                             identifiers are a part session sid (first 42 chars)
@@ -142,9 +149,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         # In the worst case, we have 4096 directories (64^2).
         identifiers = set(identifiers)
         base = Path(self.path)
-        directories = {
-            str(base / identifier[:2]) for identifier in identifiers
-        }
+        directories = {str(base / identifier[:2]) for identifier in identifiers}
         # Remove the identifiers for which a file is present on the filesystem.
         for directory in directories:
             with (
@@ -154,7 +159,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 identifiers.difference_update(sf.name[:42] for sf in session_files)
         return identifiers
 
-    def delete_from_identifiers(self, identifiers: list):
+    def delete_from_identifiers(self, identifiers: list[str]) -> None:
         """Delete session files matching the given identifiers."""
         files_to_unlink: list[Path] = []
         base_path = Path(self.path)
@@ -163,8 +168,9 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             # This prevent malicious user to delete sessions from a different
             # database by specifying a custom ``res.device.log``.
             if not _session_identifier_re.match(identifier):
+                msg = "Identifier format incorrect, did you pass in a string instead of a list?"
                 raise ValueError(
-                    "Identifier format incorrect, did you pass in a string instead of a list?"
+                    msg
                 )
             parent_dir = base_path / identifier[:2]
             if parent_dir.is_relative_to(base_path):
@@ -186,36 +192,36 @@ class Session(collections.abc.MutableMapping):
         "sid",
     )
 
-    def __init__(self, data, sid, new=False):
-        self.can_save = True
-        self.__data = {}
+    def __init__(self, data: dict[str, Any], sid: str, new: bool = False) -> None:
+        self.can_save: bool = True
+        self.__data: dict[str, Any] = {}
         self.update(data)
-        self.is_dirty = False
-        self.is_new = new
-        self.should_rotate = False
-        self.sid = sid
+        self.is_dirty: bool = False
+        self.is_new: bool = new
+        self.should_rotate: bool = False
+        self.sid: str = sid
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> Any:
         return self.__data[item]
 
-    def __setitem__(self, item, value):
+    def __setitem__(self, item: str, value: Any) -> None:
         if not isinstance(value, (str, int, float, bool, type(None))):
             value = _fast_loads(_fast_dumps_bytes(value))
         if item not in self.__data or self.__data[item] != value:
             self.is_dirty = True
         self.__data[item] = value
 
-    def __delitem__(self, item):
+    def __delitem__(self, item: str) -> None:
         del self.__data[item]
         self.is_dirty = True
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.__data)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self.__data)
 
-    def clear(self):
+    def clear(self) -> None:
         self.__data.clear()
         self.is_dirty = True
 
@@ -223,57 +229,57 @@ class Session(collections.abc.MutableMapping):
     # Session properties
     #
     @property
-    def uid(self):
+    def uid(self) -> int | None:
         return self.get("uid")
 
     @uid.setter
-    def uid(self, uid):
+    def uid(self, uid: int | None) -> None:
         self["uid"] = uid
 
     @property
-    def db(self):
+    def db(self) -> str | None:
         return self.get("db")
 
     @db.setter
-    def db(self, db):
+    def db(self, db: str | None) -> None:
         self["db"] = db
 
     @property
-    def login(self):
+    def login(self) -> str | None:
         return self.get("login")
 
     @login.setter
-    def login(self, login):
+    def login(self, login: str | None) -> None:
         self["login"] = login
 
     @property
-    def context(self):
+    def context(self) -> dict[str, Any] | None:
         return self.get("context")
 
     @context.setter
-    def context(self, context):
+    def context(self, context: dict[str, Any] | None) -> None:
         self["context"] = context
 
     @property
-    def debug(self):
+    def debug(self) -> str | None:
         return self.get("debug")
 
     @debug.setter
-    def debug(self, debug):
+    def debug(self, debug: str | None) -> None:
         self["debug"] = debug
 
     @property
-    def session_token(self):
+    def session_token(self) -> str | None:
         return self.get("session_token")
 
     @session_token.setter
-    def session_token(self, session_token):
+    def session_token(self, session_token: str | None) -> None:
         self["session_token"] = session_token
 
     #
     # Session methods
     #
-    def authenticate(self, env, credential):
+    def authenticate(self, env: Any, credential: dict[str, Any]) -> dict[str, Any]:
         """
         Authenticate the current user with the given db, login and
         credential. If successful, store the authentication parameters in
@@ -314,7 +320,7 @@ class Session(collections.abc.MutableMapping):
 
         return auth_info
 
-    def finalize(self, env):
+    def finalize(self, env: Any) -> None:
         """
         Finalizes a partial session, should be called on MFA validation
         to convert a partial / pre-session into a logged-in one.
@@ -336,7 +342,7 @@ class Session(collections.abc.MutableMapping):
             }
         )
 
-    def logout(self, keep_db=False):
+    def logout(self, keep_db: bool = False) -> None:
         from . import request  # lazy import
 
         db = self.db if keep_db else get_default_session()["db"]  # None
@@ -349,10 +355,10 @@ class Session(collections.abc.MutableMapping):
         if request and request.env:
             request.env["ir.http"]._post_logout()
 
-    def touch(self):
+    def touch(self) -> None:
         self.is_dirty = True
 
-    def update_trace(self, request):
+    def update_trace(self, request: Any) -> dict[str, Any] | None:
         """
         :return: dict if a device log has to be inserted, ``None`` otherwise
         """
@@ -394,7 +400,7 @@ class Session(collections.abc.MutableMapping):
         self.is_dirty = True
         return new_trace
 
-    def _delete_old_sessions(self):
+    def _delete_old_sessions(self) -> None:
         from .application import root  # lazy import
 
         root.session_store.delete_old_sessions(self)

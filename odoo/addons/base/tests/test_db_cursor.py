@@ -10,6 +10,7 @@ from psycopg_pool import PoolTimeout
 
 from odoo import api
 from odoo.db import db_connect
+from odoo.tools import SQL
 from odoo.db.cursor import _id_sequence_cache
 from odoo.db.pool import (
     ConnectionPool,
@@ -661,6 +662,49 @@ class TestCursorBulkMethods(BaseCase):
             self.assertEqual(cr.fetchall(), [(110,), (220,), (330,)])
 
 
+def _merge(cr, table, columns, rows, on_columns, *, returning="NEW.id"):
+    """Atomic upsert via MERGE (PG15+, RETURNING since PG17).
+
+    Standalone test helper — extracted from Cursor to keep the production
+    API surface minimal.
+    """
+    if not rows:
+        return []
+
+    comma = SQL(", ").join
+    col_ids = [SQL.identifier(c) for c in columns]
+    s_cols = [SQL("s.%s", SQL.identifier(c)) for c in columns]
+    on_pred = SQL(" AND ").join(
+        SQL("t.%s = s.%s", SQL.identifier(c), SQL.identifier(c)) for c in on_columns
+    )
+    update_cols = [c for c in columns if c not in on_columns]
+    assignments = comma(
+        SQL("%s = s.%s", SQL.identifier(c), SQL.identifier(c)) for c in update_cols
+    )
+
+    query = SQL(
+        """
+        MERGE INTO %(table)s t
+        USING (VALUES %(values)s) AS s(%(cols)s)
+        ON %(on_pred)s
+        WHEN MATCHED THEN
+            UPDATE SET %(assignments)s
+        WHEN NOT MATCHED THEN
+            INSERT (%(cols)s) VALUES (%(s_cols)s)
+        RETURNING %(returning)s
+        """,
+        table=SQL.identifier(table),
+        values=comma(rows),
+        cols=comma(col_ids),
+        on_pred=on_pred,
+        assignments=assignments,
+        s_cols=comma(s_cols),
+        returning=SQL(returning),
+    )
+    cr.execute(query)
+    return cr.fetchall()
+
+
 class TestMerge(BaseCase):
     """Test MERGE (atomic upsert) protocol path."""
 
@@ -670,7 +714,7 @@ class TestMerge(BaseCase):
             cr.execute(
                 "CREATE TEMP TABLE _test_mg_ins (id serial PRIMARY KEY, key text UNIQUE, val text)"
             )
-            result = cr.merge(
+            result = _merge(cr,
                 "_test_mg_ins",
                 ["key", "val"],
                 [("a", "v1"), ("b", "v2")],
@@ -687,7 +731,7 @@ class TestMerge(BaseCase):
                 "CREATE TEMP TABLE _test_mg_upd (id serial PRIMARY KEY, key text UNIQUE, val text)"
             )
             cr.execute("INSERT INTO _test_mg_upd (key, val) VALUES ('a', 'old')")
-            cr.merge(
+            _merge(cr,
                 "_test_mg_upd",
                 ["key", "val"],
                 [("a", "new")],
@@ -703,7 +747,7 @@ class TestMerge(BaseCase):
                 "CREATE TEMP TABLE _test_mg_mix (id serial PRIMARY KEY, key text UNIQUE, val int)"
             )
             cr.execute("INSERT INTO _test_mg_mix (key, val) VALUES ('existing', 10)")
-            result = cr.merge(
+            result = _merge(cr,
                 "_test_mg_mix",
                 ["key", "val"],
                 [("existing", 20), ("new_key", 30)],
@@ -720,7 +764,7 @@ class TestMerge(BaseCase):
                 "CREATE TEMP TABLE _test_mg_ret (id serial PRIMARY KEY, key text UNIQUE, val text)"
             )
             cr.execute("INSERT INTO _test_mg_ret (key, val) VALUES ('a', 'old')")
-            result = cr.merge(
+            result = _merge(cr,
                 "_test_mg_ret",
                 ["key", "val"],
                 [("a", "new"), ("b", "fresh")],
@@ -742,7 +786,7 @@ class TestMerge(BaseCase):
             cr.execute(
                 "CREATE TEMP TABLE _test_mg_empty (id serial PRIMARY KEY, key text UNIQUE, val text)"
             )
-            result = cr.merge("_test_mg_empty", ["key", "val"], [], on_columns=["key"])
+            result = _merge(cr,"_test_mg_empty", ["key", "val"], [], on_columns=["key"])
             self.assertEqual(result, [])
 
 

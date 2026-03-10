@@ -16,7 +16,7 @@ class LRU[K, V](MutableMapping[K, V]):
 
     __slots__ = ("_count", "_lock", "_ordering", "_values")
 
-    def __init__(self, count: int, pairs: Iterable[tuple[K, V]] = ()):
+    def __init__(self, count: int, pairs: Iterable[tuple[K, V]] = ()) -> None:
         if count <= 0:
             raise ValueError(f"LRU count must be positive, got {count!r}")
         self._count = count
@@ -55,7 +55,7 @@ class LRU[K, V](MutableMapping[K, V]):
         self._ordering[key] = self._ordering.pop(key, None)
         return val
 
-    def __setitem__(self, key: K, val: V):
+    def __setitem__(self, key: K, val: V) -> None:
         values = self._values
         ordering = self._ordering
         with self._lock:
@@ -81,7 +81,7 @@ class LRU[K, V](MutableMapping[K, V]):
                 values.pop(key, None)
                 ordering.pop(key, None)
 
-    def __delitem__(self, key: K):
+    def __delitem__(self, key: K) -> None:
         self.pop(key)
 
     def __len__(self) -> int:
@@ -113,7 +113,7 @@ class LRU[K, V](MutableMapping[K, V]):
                 return self._values.pop(key)
             return self._values.pop(key, default)
 
-    def clear(self):
+    def clear(self) -> None:
         with self._lock:
             self._ordering.clear()
             self._values.clear()

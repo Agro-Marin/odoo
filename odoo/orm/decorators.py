@@ -24,10 +24,10 @@ _logger = logging.getLogger("odoo.api")
 #
 
 
-def attrsetter(attr, value) -> Decorator:
+def attrsetter(attr: str, value: object) -> Decorator:
     """Return a function that sets ``attr`` on its argument and returns it."""
 
-    def setter(method):
+    def setter(method: C) -> C:
         setattr(method, attr, value)
         return method
 
@@ -49,11 +49,13 @@ def constrains(*args, sudo: bool = True) -> Decorator:
 
     Each argument must be a field name used in the check::
 
-        @api.constrains('name', 'description')
+        @api.constrains("name", "description")
         def _check_description(self):
             for record in self:
                 if record.name == record.description:
-                    raise ValidationError("Fields name and description must be different")
+                    raise ValidationError(
+                        "Fields name and description must be different"
+                    )
 
     Invoked on the records on which one of the named fields has been modified.
 
@@ -64,11 +66,11 @@ def constrains(*args, sudo: bool = True) -> Decorator:
         Set to ``False`` for constraints that should respect the current
         user's access rights, enabling user-aware validation::
 
-            @api.constrains('partner_id', sudo=False)
+            @api.constrains("partner_id", sudo=False)
             def _check_partner_access(self):
                 # self.env.su is False here — record rules apply
                 for record in self:
-                    if not record.partner_id.has_group('base.group_user'):
+                    if not record.partner_id.has_group("base.group_user"):
                         raise ValidationError("Partner must be an internal user")
 
     .. warning::
@@ -91,7 +93,7 @@ def constrains(*args, sudo: bool = True) -> Decorator:
     if args and callable(args[0]):
         args = args[0]
 
-    def decorator(method):
+    def decorator(method: C) -> C:
         method._constrains = args
         method._constrains_sudo = sudo
         return method
@@ -129,6 +131,7 @@ def ondelete(*, at_uninstall: bool) -> Decorator:
         def _unlink_if_user_inactive(self):
             if any(user.active for user in self):
                 raise UserError("Can't delete an active user!")
+
 
         # same as above but with _unlink_except_* as method name
         @api.ondelete(at_uninstall=False)
@@ -168,14 +171,18 @@ def onchange(*args: str) -> Decorator:
 
     Each argument must be a field name::
 
-        @api.onchange('partner_id')
+        @api.onchange("partner_id")
         def _onchange_partner(self):
             self.message = "Dear %s" % (self.partner_id.name or "")
 
     .. code-block:: python
 
         return {
-            'warning': {'title': "Warning", 'message': "What is this?", 'type': 'notification'},
+            "warning": {
+                "title": "Warning",
+                "message": "What is this?",
+                "type": "notification",
+            },
         }
 
     If the type is set to notification, the warning will be displayed in a notification.
@@ -220,9 +227,10 @@ def depends(*args) -> Decorator:
     method (for new-style function fields). Each argument must be a string
     that consists in a dot-separated sequence of field names::
 
-        pname = fields.Char(compute='_compute_pname')
+        pname = fields.Char(compute="_compute_pname")
 
-        @api.depends('partner_id.name', 'partner_id.is_company')
+
+        @api.depends("partner_id.name", "partner_id.is_company")
         def _compute_pname(self):
             for record in self:
                 if record.partner_id.is_company:
@@ -236,7 +244,8 @@ def depends(*args) -> Decorator:
     if args and callable(args[0]):
         args = args[0]
     elif any("id" in arg.split(".") for arg in args):
-        raise NotImplementedError("Compute method cannot depend on field 'id'.")
+        msg = "Compute method cannot depend on field 'id'."
+        raise NotImplementedError(msg)
     return attrsetter("_depends", args)
 
 
@@ -245,16 +254,21 @@ def depends_context(*args: str) -> Decorator:
     non-stored "compute" method.  Each argument is a key in the context's
     dictionary::
 
-        price = fields.Float(compute='_compute_product_price')
+        price = fields.Float(compute="_compute_product_price")
 
-        @api.depends_context('pricelist')
+
+        @api.depends_context("pricelist")
         def _compute_product_price(self):
             for product in self:
-                if product.env.context.get('pricelist'):
-                    pricelist = self.env['product.pricelist'].browse(product.env.context['pricelist'])
+                if product.env.context.get("pricelist"):
+                    pricelist = self.env["product.pricelist"].browse(
+                        product.env.context["pricelist"]
+                    )
                 else:
-                    pricelist = self.env['product.pricelist'].get_default_pricelist()
-                product.price = pricelist._get_products_price(product).get(product.id, 0.0)
+                    pricelist = self.env["product.pricelist"].get_default_pricelist()
+                product.price = pricelist._get_products_price(product).get(
+                    product.id, 0.0
+                )
 
     All dependencies must be hashable.  The following keys have special
     support:
@@ -287,8 +301,7 @@ def model[C: Callable](method: C) -> C:
     contents is not relevant, only the model is. Such a method::
 
         @api.model
-        def method(self, args):
-            ...
+        def method(self, args): ...
 
     """
     if method.__name__ == "create":
@@ -302,8 +315,7 @@ def private[C: Callable](method: C) -> C:
     called using RPC. Example::
 
         @api.private
-        def method(self, args):
-            ...
+        def method(self, args): ...
 
     If you have business methods that should not be called over RPC, you
     should prefix them with "_". This decorator may be used in case of
@@ -332,15 +344,14 @@ def deprecated(reason: str) -> Decorator:
     Usage::
 
         @api.deprecated("Since 19.0, use new_method instead")
-        def old_method(self):
-            ...
+        def old_method(self): ...
 
     :param reason: human-readable deprecation message
     """
 
-    def decorator(method):
+    def decorator(method: C) -> C:
         @wraps(method)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: object, **kwargs: object) -> object:
             warnings.warn(
                 f"Call to deprecated method {method.__qualname__}: {reason}",
                 DeprecationWarning,
@@ -349,7 +360,7 @@ def deprecated(reason: str) -> Decorator:
             return method(*args, **kwargs)
 
         wrapper._deprecated = reason
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 

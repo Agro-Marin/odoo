@@ -9,6 +9,11 @@ This module provides utilities for:
 
 import logging
 from functools import wraps
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    import types
+    from collections.abc import Callable
 
 
 class unquote(str):
@@ -31,7 +36,7 @@ class unquote(str):
 
     __slots__ = ()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self
 
 
@@ -44,44 +49,50 @@ class mute_logger(logging.Handler):
 
     Examples::
 
-        @mute_logger('odoo.plic.ploc')
+        @mute_logger("odoo.plic.ploc")
         def do_stuff():
             blahblah()
 
-        with mute_logger('odoo.foo.bar'):
+
+        with mute_logger("odoo.foo.bar"):
             do_stuff()
     """
 
-    def __init__(self, *loggers):
+    def __init__(self, *loggers: str) -> None:
         """Initialize the mute_logger.
 
         :param loggers: Logger names to mute (e.g., 'odoo.models', 'odoo.db')
         """
         super().__init__()
-        self.loggers = loggers
-        self.old_params = {}
+        self.loggers: tuple[str, ...] = loggers
+        self.old_params: dict[str, tuple[list[logging.Handler], bool]] = {}
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         for logger_name in self.loggers:
             logger = logging.getLogger(logger_name)
             self.old_params[logger_name] = (logger.handlers, logger.propagate)
             logger.propagate = False
             logger.handlers = [self]
 
-    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None = None,
+        exc_val: BaseException | None = None,
+        exc_tb: types.TracebackType | None = None,
+    ) -> None:
         for logger_name in self.loggers:
             logger = logging.getLogger(logger_name)
             logger.handlers, logger.propagate = self.old_params[logger_name]
 
-    def __call__(self, func):
+    def __call__[**P, R](self, func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
-        def deco(*args, **kwargs):
+        def deco(*args: P.args, **kwargs: P.kwargs) -> R:
             with self:
                 return func(*args, **kwargs)
 
         return deco
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         pass
 
 
@@ -92,7 +103,7 @@ class MungedTracebackLogRecord(logging.LogRecord):
     a lower level than originally intended.
     """
 
-    def getMessage(self):
+    def getMessage(self) -> str:
         return (
             super()
             .getMessage()
@@ -120,20 +131,20 @@ class lower_logging(logging.Handler):
         assert ll.had_error_log  # Verify an error was logged
     """
 
-    def __init__(self, max_level, to_level=None):
+    def __init__(self, max_level: int, to_level: int | None = None) -> None:
         """Initialize the lower_logging handler.
 
         :param max_level: Maximum log level to allow (higher levels are reduced)
         :param to_level: Level to reduce high logs to (default: same as max_level)
         """
         super().__init__()
-        self.old_handlers = None
-        self.old_propagate = None
-        self.had_error_log = False
-        self.max_level = max_level
-        self.to_level = to_level or max_level
+        self.old_handlers: list[logging.Handler] | None = None
+        self.old_propagate: bool | None = None
+        self.had_error_log: bool = False
+        self.max_level: int = max_level
+        self.to_level: int = to_level or max_level
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         logger = logging.getLogger()
         self.old_handlers = logger.handlers[:]
         self.old_propagate = logger.propagate
@@ -142,12 +153,17 @@ class lower_logging(logging.Handler):
         self.had_error_log = False
         return self
 
-    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None = None,
+        exc_val: BaseException | None = None,
+        exc_tb: types.TracebackType | None = None,
+    ) -> None:
         logger = logging.getLogger()
         logger.handlers = self.old_handlers
         logger.propagate = self.old_propagate
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         if record.levelno > self.max_level:
             record.levelname = f"_{record.levelname}"
             record.levelno = self.to_level

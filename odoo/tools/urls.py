@@ -9,7 +9,7 @@ from odoo.http import request
 from odoo.libs.web.urls import *  # noqa: F403
 
 
-def keep_query(*keep_params, **additional_params):
+def keep_query(*keep_params: str, **additional_params: object) -> str:
     """Generate a query string keeping current request parameters.
 
     Keeps the current request querystring's parameters specified
@@ -21,7 +21,7 @@ def keep_query(*keep_params, **additional_params):
 
     The ``keep_params`` arguments can use wildcards too, eg::
 
-        keep_query('search', 'shop_*', page=4)
+        keep_query("search", "shop_*", page=4)
     """
     if not keep_params and not additional_params:
         keep_params = ("*",)

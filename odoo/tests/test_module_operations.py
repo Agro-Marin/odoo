@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 sys.path.append(str(Path(__file__, "../../../").resolve()))
 
@@ -31,7 +32,8 @@ INSTALL_BLACKLIST = {
 }  # deprecated modules (cannot be installed manually through button_install anymore)
 
 
-def install(db_name, module_id, module_name):
+def install(db_name: str, module_id: int, module_name: str) -> None:
+    """Install the given module immediately."""
     with Registry(db_name).cursor() as cr:
         env = api.Environment(cr, api.SUPERUSER_ID, {})
         module = env["ir.module.module"].browse(module_id)
@@ -39,7 +41,8 @@ def install(db_name, module_id, module_name):
     _logger.info("%s installed", module_name)
 
 
-def uninstall(db_name, module_id, module_name):
+def uninstall(db_name: str, module_id: int, module_name: str) -> None:
+    """Uninstall the given module immediately."""
     with Registry(db_name).cursor() as cr:
         env = api.Environment(cr, api.SUPERUSER_ID, {})
         module = env["ir.module.module"].browse(module_id)
@@ -47,17 +50,20 @@ def uninstall(db_name, module_id, module_name):
     _logger.info("%s uninstalled", module_name)
 
 
-def cycle(db_name, module_id, module_name):
+def cycle(db_name: str, module_id: int, module_name: str) -> None:
+    """Perform a full install/uninstall/reinstall cycle for a module."""
     install(db_name, module_id, module_name)
     uninstall(db_name, module_id, module_name)
     install(db_name, module_id, module_name)
 
 
-def addons_path(value):
+def addons_path(value: str) -> Any:
+    """Validate and return an addons path value."""
     return config._check_addons_path(config.options_index["init"], "-i", value)
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the module operations test script."""
     parser = argparse.ArgumentParser(
         description="Script for testing the install / uninstall / reinstall"
         " cycle of Odoo modules. Prefer the 'cycle' subcommand to"
@@ -104,14 +110,14 @@ def parse_args():
     )
 
     cmds = parser.add_subparsers(title="subcommands", metavar="")
-    cycle = cmds.add_parser(
+    cycle_cmd = cmds.add_parser(
         "cycle",
         help="Full install/uninstall/reinstall cycle.",
         description="Installs, uninstalls, and reinstalls all modules which are"
         " not skipped or blacklisted, the database should have"
         " 'base' installed (only).",
     )
-    cycle.set_defaults(func=test_cycle)
+    cycle_cmd.set_defaults(func=test_cycle)
 
     fake_commands.add_argument(
         "--uninstall",
@@ -119,19 +125,19 @@ def parse_args():
         action=UninstallAction,
         help="Comma-separated list of modules to uninstall/reinstall. Prefer the 'uninstall' subcommand.",
     )
-    uninstall = cmds.add_parser(
+    uninstall_cmd = cmds.add_parser(
         "uninstall",
         help="Uninstallation",
         description="Uninstalls then (by default) reinstalls every specified "
         "module. Modules which are not installed before running "
         "are ignored.",
     )
-    uninstall.set_defaults(func=test_uninstall)
-    uninstall.add_argument(
+    uninstall_cmd.set_defaults(func=test_uninstall)
+    uninstall_cmd.add_argument(
         "uninstall",
         help="comma-separated list of modules to uninstall/reinstall",
     )
-    uninstall.add_argument(
+    uninstall_cmd.add_argument(
         "-n",
         "--no-reinstall",
         dest="reinstall",
@@ -145,11 +151,11 @@ def parse_args():
         help="Launch standalone scripts tagged with @standalone. Accepts a list of "
         "module names or tags separated by commas. 'all' will run all available scripts. Prefer the 'standalone' subcommand.",
     )
-    standalone = cmds.add_parser(
+    standalone_cmd = cmds.add_parser(
         "standalone", help="Run scripts tagged with @standalone"
     )
-    standalone.set_defaults(func=test_standalone)
-    standalone.add_argument(
+    standalone_cmd.set_defaults(func=test_standalone)
+    standalone_cmd.add_argument(
         "standalone",
         help="List of module names or tags separated by commas, 'all' will run all available scripts.",
     )
@@ -158,23 +164,39 @@ def parse_args():
 
 
 class UninstallAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string=None):
+    """Argparse action that routes --uninstall to the test_uninstall function."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | list | None,
+        option_string: str | None = None,
+    ) -> None:
         namespace.func = test_uninstall
         setattr(namespace, self.dest, values)
 
 
 class StandaloneAction(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string=None):
+    """Argparse action that routes --standalone to the test_standalone function."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | list | None,
+        option_string: str | None = None,
+    ) -> None:
         namespace.func = test_standalone
         setattr(namespace, self.dest, values)
 
 
-def test_cycle(args):
-    """Test full install/uninstall/reinstall cycle for all modules"""
+def test_cycle(args: argparse.Namespace) -> None:
+    """Test full install/uninstall/reinstall cycle for all modules."""
     with Registry(args.database).cursor() as cr:
         env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
 
-        def valid(module):
+        def valid(module: Any) -> bool:
             return not (
                 module.name in BLACKLIST
                 or module.name in INSTALL_BLACKLIST
@@ -204,8 +226,8 @@ def test_cycle(args):
             cycle(args.database, module_id, module_name)
 
 
-def test_uninstall(args):
-    """Tries to uninstall/reinstall one ore more modules"""
+def test_uninstall(args: argparse.Namespace) -> None:
+    """Try to uninstall/reinstall one or more modules."""
     for module_name in args.uninstall.split(","):
         with Registry(args.database).cursor() as cr:
             env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
@@ -222,8 +244,8 @@ def test_uninstall(args):
             _logger.warning("Module %r does not exist", module_name)
 
 
-def test_standalone(args):
-    """Tries to launch standalone scripts tagged with @post_testing"""
+def test_standalone(args: argparse.Namespace) -> None:
+    """Try to launch standalone scripts tagged with @post_testing."""
     odoo.service.db._check_faketime_mode(args.database)
     # load the registry once for script discovery
     registry = Registry(args.database)

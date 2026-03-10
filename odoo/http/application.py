@@ -1,6 +1,7 @@
 import functools
 import logging
 import threading
+from typing import TYPE_CHECKING
 from urllib.parse import urlencode, urlparse
 
 import werkzeug.routing
@@ -26,6 +27,9 @@ from .routing import _generate_routing_rules
 from .session import FilesystemSessionStore, Session
 from .wrappers import HTTPRequest
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
+
 _logger = logging.getLogger(__name__)
 
 # Cached ProxyFix instance — we only use it for the side effect of
@@ -33,11 +37,13 @@ _logger = logging.getLogger(__name__)
 # instantiate a new middleware on every request.
 _proxy_fix = ProxyFix_(
     lambda environ, start_response: [],
-    x_for=1, x_proto=1, x_host=1,
+    x_for=1,
+    x_proto=1,
+    x_host=1,
 )
 
 
-def _noop_start_response(status, headers):
+def _noop_start_response(status: str, headers: list[tuple[str, str]]) -> None:
     """No-op start_response for ProxyFix."""
 
 
@@ -46,7 +52,7 @@ class Application:
 
     # See also: https://www.python.org/dev/peps/pep-3333
 
-    def initialize(self):
+    def initialize(self) -> None:
         """
         Initialize the application.
 
@@ -66,7 +72,7 @@ class Application:
         manifest = module_manager.Manifest.for_addon(module_name, display_warning=False)
         return manifest.static_path if manifest is not None else None
 
-    def get_static_file(self, url, host=""):
+    def get_static_file(self, url: str, host: str = "") -> str | None:
         """
         Get the full-path of the file if the url resolves to a local
         static file, otherwise return None.
@@ -121,7 +127,7 @@ class Application:
         _logger.debug("HTTP sessions stored in: %s", path)
         return FilesystemSessionStore(path, session_class=Session, renew_missing=True)
 
-    def get_db_router(self, db):
+    def get_db_router(self, db: str | None) -> werkzeug.routing.Map:
         from . import request  # lazy import
 
         if not db:
@@ -151,7 +157,7 @@ class Application:
             )
             raise
 
-    def set_csp(self, response):
+    def set_csp(self, response: Response) -> None:
         headers = response.headers
         headers["X-Content-Type-Options"] = "nosniff"
 
@@ -163,7 +169,9 @@ class Application:
 
         headers["Content-Security-Policy"] = "default-src 'none'"
 
-    def __call__(self, environ, start_response):
+    def __call__(
+        self, environ: dict[str, object], start_response: Callable
+    ) -> Iterable[bytes]:
         """
         WSGI application entry point.
 

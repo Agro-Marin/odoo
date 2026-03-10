@@ -124,9 +124,9 @@ class _Relational(Field["BaseModel"]):
     @override
     def setup_nonrelated(self, model: BaseModel) -> None:
         super().setup_nonrelated(model)
-        assert (
-            self.comodel_name in model.pool
-        ), f"Field {self} with unknown comodel_name {self.comodel_name or '???'!r}"
+        assert self.comodel_name in model.pool, (
+            f"Field {self} with unknown comodel_name {self.comodel_name or '???'!r}"
+        )
 
     def setup_inverses(
         self, registry: Registry, inverses: Collector[Field, Field]
@@ -155,9 +155,7 @@ class _Relational(Field["BaseModel"]):
 
         if callable(self.domain):
             # will be called with another model than self's
-            return lambda recs: validated(
-                self.domain(recs.env[self.model_name])
-            )  # pylint: disable=not-callable
+            return lambda recs: validated(self.domain(recs.env[self.model_name]))  # pylint: disable=not-callable
         else:
             return validated(self.domain)
 
@@ -739,9 +737,9 @@ class _RelationalMulti(_Relational):
         assert not new_id, "Field._update_inverse can only be called with a new id"
         field_cache = self._get_cache(records.env)
         for record_id in records._ids:
-            assert (
-                not record_id
-            ), "Field._update_inverse can only be called with new records"
+            assert not record_id, (
+                "Field._update_inverse can only be called with new records"
+            )
             cache_value = field_cache.get(record_id, SENTINEL)
             if cache_value is SENTINEL:
                 records.env._core.add_patch(self, record_id, new_id)
@@ -783,6 +781,7 @@ class _RelationalMulti(_Relational):
             comodel = record.env[self.comodel_name]
             # if record is new, the field's value is new records
             if record and not record.id:
+
                 def browse(it):
                     return comodel.browse((it and NewId(it),))
             else:
@@ -997,9 +996,9 @@ class _RelationalMulti(_Relational):
         if all(record_ids):
             self.write_real(records_commands_list, create)
         else:
-            assert not any(
-                record_ids
-            ), f"{records_commands_list} contains a mix of real and new records. It is not supported."
+            assert not any(record_ids), (
+                f"{records_commands_list} contains a mix of real and new records. It is not supported."
+            )
             self.write_new(records_commands_list)
 
     def write_real(
@@ -1336,7 +1335,10 @@ class One2many(_RelationalMulti):
                 for command in commands or ():
                     match command[0]:
                         case Command.CREATE:
-                            to_create.extend(dict(command[2], **{inverse: record.id}) for record in recs)
+                            to_create.extend(
+                                dict(command[2], **{inverse: record.id})
+                                for record in recs
+                            )
                             allow_full_delete = False
                         case Command.UPDATE:
                             prefetch_ids = recs[self.name]._prefetch_ids
@@ -1871,7 +1873,9 @@ class Many2many(_RelationalMulti):
                 self.read(records.browse(missing_ids))
 
         # determine new relation {x: ys}
-        old_relation = {record.id: OrderedSet(record[self.name]._ids) for record in records}
+        old_relation = {
+            record.id: OrderedSet(record[self.name]._ids) for record in records
+        }
         new_relation = {x: OrderedSet(ys) for x, ys in old_relation.items()}
 
         # operations on new relation
@@ -1987,7 +1991,11 @@ class Many2many(_RelationalMulti):
                     corecord = comodel.browse(y)
                     try:
                         ids0 = inv_cache[corecord.id]
-                        ids1 = tuple(unique(itertools.chain(ids0, (x for x in xs if x in valid_ids))))
+                        ids1 = tuple(
+                            unique(
+                                itertools.chain(ids0, (x for x in xs if x in valid_ids))
+                            )
+                        )
                         invf._update_cache(corecord, ids1)
                     except KeyError:
                         pass
@@ -2062,6 +2070,7 @@ class Many2many(_RelationalMulti):
         model = records_commands_list[0][0].browse()
         comodel = model.env[self.comodel_name].with_context(**self.context)
         comodel = self._check_sudo_commands(comodel)
+
         def new(id_):
             return id_ and NewId(id_)
 
@@ -2130,7 +2139,11 @@ class Many2many(_RelationalMulti):
                     corecord = comodel.browse((y,))
                     try:
                         ids0 = inv_cache[corecord.id]
-                        ids1 = tuple(unique(itertools.chain(ids0, (x for x in xs if x in valid_ids))))
+                        ids1 = tuple(
+                            unique(
+                                itertools.chain(ids0, (x for x in xs if x in valid_ids))
+                            )
+                        )
                         invf._update_cache(corecord, ids1)
                     except KeyError:
                         pass

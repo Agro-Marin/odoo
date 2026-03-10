@@ -6,14 +6,15 @@ to sanitize Excel sheet names according to Microsoft Excel restrictions.
 """
 
 import re
+from typing import Final
 
 # Excel sheet name restrictions:
 # - Cannot contain: [ ] : * ? / \
 # - Maximum length: 31 characters
 # See: https://support.microsoft.com/en-us/office/rename-a-worksheet-3f1f7148-ee83-404d-8ef0-9ff99fbad1f9
 
-_INVALID_EXCEL_CHARS_RE = re.compile(r"[\[\]:*?/\\]")
-_MAX_SHEET_NAME_LENGTH = 31
+_INVALID_EXCEL_CHARS_RE: Final[re.Pattern[str]] = re.compile(r"[\[\]:*?/\\]")
+_MAX_SHEET_NAME_LENGTH: Final[int] = 31
 
 
 def sanitize_excel_sheet_name(name: str) -> str:

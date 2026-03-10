@@ -1,7 +1,11 @@
 import re
+import typing
+
+if typing.TYPE_CHECKING:
+    from odoo.cli.upgrade_code import FileManager
 
 
-def upgrade(file_manager):
+def upgrade(file_manager: FileManager) -> None:
     """Use double quote for redacted text and single quote for strings."""
     # Don't use this script in production, it is broken and only serve
     # as an example.

@@ -3,6 +3,7 @@ import logging
 import pathlib
 import sys
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 from odoo.modules.registry import Registry
 from odoo.tools import SQL, config
@@ -10,24 +11,27 @@ from odoo.tools import SQL, config
 from . import Command
 from .command import build_config_args
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 _logger = logging.getLogger(__name__)
 
 
 class Obfuscate(Command):
     """Obfuscate data in a given odoo database"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.cr = None
+        self.cr: Any = None
 
     @staticmethod  # NOTE: intentional — class-scoped decorator, works because Python
     # resolves _ensure_cr from local namespace during class body execution before
     # the staticmethod descriptor wrapping takes effect.
-    def _ensure_cr(func):
+    def _ensure_cr(func: Callable[..., Any]) -> Callable[..., Any]:
         """Decorator that ensures a database cursor is available."""
 
         @functools.wraps(func)
-        def check_cr(self, *args, **kwargs):
+        def check_cr(self: Any, *args: Any, **kwargs: Any) -> Any:
             if not self.cr:
                 msg = "No database connection"
                 raise RuntimeError(msg)
@@ -36,7 +40,7 @@ class Obfuscate(Command):
         return check_cr
 
     @_ensure_cr
-    def begin(self):
+    def begin(self) -> None:
         # NOTE: "BEGIN WORK" is redundant with psycopg's autocommit=False (auto-transaction),
         # but works in practice (PG issues a harmless warning). Left as-is since this tool
         # handles production data encryption and the transaction flow is battle-tested.
@@ -44,15 +48,15 @@ class Obfuscate(Command):
         self.cr.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
 
     @_ensure_cr
-    def commit(self):
+    def commit(self) -> None:
         self.cr.commit()
 
     @_ensure_cr
-    def rollback(self):
+    def rollback(self) -> None:
         self.cr.rollback()
 
     @_ensure_cr
-    def set_pwd(self, pwd):
+    def set_pwd(self, pwd: str) -> None:
         """Set password to cypher/uncypher datas"""
         self.cr.execute(
             "INSERT INTO ir_config_parameter (key, value) VALUES ('odoo_cyph_pwd', 'odoo_cyph_'||encode(pgp_sym_encrypt(%s, %s), 'base64')) ON CONFLICT(key) DO NOTHING",
@@ -60,7 +64,7 @@ class Obfuscate(Command):
         )
 
     @_ensure_cr
-    def check_pwd(self, pwd):
+    def check_pwd(self, pwd: str) -> bool:
         """If password is set, check if it's valid"""
         uncypher_pwd = self.uncypher_string(SQL.identifier("value"), pwd)
 
@@ -79,11 +83,11 @@ class Obfuscate(Command):
         return False
 
     @_ensure_cr
-    def clear_pwd(self):
+    def clear_pwd(self) -> None:
         """Unset password to cypher/uncypher datas"""
         self.cr.execute("DELETE FROM ir_config_parameter WHERE key='odoo_cyph_pwd' ")
 
-    def cypher_string(self, sql_field: SQL, password):
+    def cypher_string(self, sql_field: SQL, password: str) -> SQL:
         # don't double cypher fields
         return SQL(
             """CASE WHEN starts_with(%(field_name)s, 'odoo_cyph_') THEN %(field_name)s ELSE 'odoo_cyph_'||encode(pgp_sym_encrypt(%(field_name)s, %(pwd)s), 'base64') END""",
@@ -91,14 +95,14 @@ class Obfuscate(Command):
             pwd=password,
         )
 
-    def uncypher_string(self, sql_field: SQL, password):
+    def uncypher_string(self, sql_field: SQL, password: str) -> SQL:
         return SQL(
             """CASE WHEN starts_with(%(field_name)s, 'odoo_cyph_') THEN pgp_sym_decrypt(decode(substring(%(field_name)s, 11)::text, 'base64'), %(pwd)s) ELSE %(field_name)s END""",
             field_name=sql_field,
             pwd=password,
         )
 
-    def check_field(self, table, field):
+    def check_field(self, table: str, field: str) -> str | bool:
         qry = "SELECT udt_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s AND table_schema = current_schema"
         self.cr.execute(qry, [table, field])
         if self.cr.rowcount == 1:
@@ -110,7 +114,7 @@ class Obfuscate(Command):
                 return "json"
         return False
 
-    def get_all_fields(self):
+    def get_all_fields(self) -> list[tuple[str, str]]:
         qry = (
             "SELECT table_name, column_name FROM information_schema.columns"
             " WHERE table_schema = current_schema AND udt_name IN ('text', 'varchar', 'jsonb') AND NOT table_name LIKE 'ir_%' ORDER BY 1,2"
@@ -118,7 +122,14 @@ class Obfuscate(Command):
         self.cr.execute(qry)
         return self.cr.fetchall()
 
-    def convert_table(self, table, fields, pwd, with_commit=False, unobfuscate=False):
+    def convert_table(
+        self,
+        table: str,
+        fields: set[str] | list[str],
+        pwd: str,
+        with_commit: bool = False,
+        unobfuscate: bool = False,
+    ) -> None:
         cypherings = []
         cyph_fct = self.uncypher_string if unobfuscate else self.cypher_string
 
@@ -163,7 +174,7 @@ class Obfuscate(Command):
                 self.commit()
                 self.begin()
 
-    def confirm_not_secure(self):
+    def confirm_not_secure(self) -> bool:
         _logger.info(
             "The obfuscate method is not considered as safe to transfer anonymous datas to a third party."
         )
@@ -181,7 +192,7 @@ class Obfuscate(Command):
             sys.exit(0)
         return True
 
-    def run(self, cmdargs):
+    def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
         self.add_config_arguments(parser)
         parser.add_argument("--pwd", required=True, help="Cypher password")

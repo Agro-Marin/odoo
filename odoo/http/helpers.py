@@ -1,9 +1,8 @@
-"""HTTP utility functions."""
-
 import logging
 import re
 import threading
 import traceback
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote as url_quote
 
 import psycopg
@@ -16,10 +15,13 @@ from odoo.tools import config
 from .constants import SESSION_LIFETIME
 from .core import borrow_request
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping
+
 _logger = logging.getLogger(__name__)
 
 
-def content_disposition(filename, disposition_type="attachment"):
+def content_disposition(filename: str, disposition_type: str = "attachment") -> str:
     """
     Craft a ``Content-Disposition`` header, see :rfc:`6266`.
 
@@ -35,7 +37,7 @@ def content_disposition(filename, disposition_type="attachment"):
     return f"{disposition_type}; filename*=UTF-8''{url_quote(filename, safe='')}"
 
 
-def db_list(force=False, host=None):
+def db_list(force: bool = False, host: str | None = None) -> list[str]:
     """
     Get the list of available databases.
 
@@ -52,7 +54,7 @@ def db_list(force=False, host=None):
     return db_filter(dbs, host)
 
 
-def db_filter(dbs, host=None):
+def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     """
     Return the subset of ``dbs`` that match the dbfilter or the dbname
     server configuration. In case neither are configured, return ``dbs``
@@ -95,7 +97,7 @@ def db_filter(dbs, host=None):
     return list(dbs)
 
 
-def _get_rpc_dispatcher(service_name):
+def _get_rpc_dispatcher(service_name: str) -> Callable:
     """Resolve RPC dispatcher lazily to avoid circular imports."""
     match service_name:
         case "common":
@@ -108,7 +110,7 @@ def _get_rpc_dispatcher(service_name):
             raise KeyError(service_name)
 
 
-def dispatch_rpc(service_name, method, params):
+def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> Any:
     """
     Perform a RPC call.
 
@@ -126,7 +128,7 @@ def dispatch_rpc(service_name, method, params):
         return dispatch(method, params)
 
 
-def get_session_max_inactivity(env):
+def get_session_max_inactivity(env: Any) -> int:
     """Get the maximum session inactivity time in seconds."""
     if not env or env.cr._closed:
         return SESSION_LIFETIME
@@ -151,14 +153,19 @@ def get_session_max_inactivity(env):
         return SESSION_LIFETIME
 
 
-def is_cors_preflight(request, endpoint):
+def is_cors_preflight(request: Any, endpoint: Any) -> bool:
     """Check if the request is a CORS preflight request."""
     return request.httprequest.method == "OPTIONS" and endpoint.routing.get(
         "cors", False
     )
 
 
-def serialize_exception(exception, *, message=None, arguments=None):
+def serialize_exception(
+    exception: BaseException,
+    *,
+    message: str | None = None,
+    arguments: tuple | None = None,
+) -> dict[str, Any]:
     """Serialize an exception for JSON response."""
     name = type(exception).__name__
     module = type(exception).__module__

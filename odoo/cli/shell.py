@@ -5,6 +5,7 @@ import signal
 import sys
 import threading
 from pathlib import Path
+from typing import Any
 
 import odoo  # to expose in the shell
 from odoo import api
@@ -37,12 +38,14 @@ _logger = logging.getLogger(__name__)
 """
 
 
-def raise_keyboard_interrupt(*a):
+def raise_keyboard_interrupt(*a: Any) -> None:
     raise KeyboardInterrupt
 
 
 class Console(code.InteractiveConsole):
-    def __init__(self, local_vars=None, filename="<console>"):
+    def __init__(
+        self, local_vars: dict[str, Any] | None = None, filename: str = "<console>"
+    ) -> None:
         super().__init__(locals=local_vars, filename=filename)
         try:
             import readline
@@ -59,7 +62,7 @@ class Shell(Command):
 
     supported_shells = ["ipython", "ptpython", "bpython", "python"]
 
-    def init(self, args):
+    def init(self, args: list[str]) -> None:
         parser = self.parser
         parser.add_argument(
             "--shell-file",
@@ -85,7 +88,7 @@ class Shell(Command):
         server.start(preload=[], stop=True)
         signal.signal(signal.SIGINT, raise_keyboard_interrupt)
 
-    def console(self, local_vars):
+    def console(self, local_vars: dict[str, Any]) -> None:
         if not os.isatty(sys.stdin.fileno()):
             local_vars["__name__"] = "__main__"
             exec(sys.stdin.read(), local_vars)  # noqa: S102 — intentional REPL exec
@@ -117,7 +120,9 @@ class Shell(Command):
                 _logger.debug("Shell error:", exc_info=True)
         return None
 
-    def ipython(self, local_vars, pythonstartup=None):
+    def ipython(
+        self, local_vars: dict[str, Any], pythonstartup: str | None = None
+    ) -> None:
         from IPython import start_ipython
 
         argv = ["--TerminalIPythonApp.display_banner=False"] + (
@@ -127,7 +132,9 @@ class Shell(Command):
         )
         start_ipython(argv=argv, user_ns=local_vars)
 
-    def ptpython(self, local_vars, pythonstartup=None):
+    def ptpython(
+        self, local_vars: dict[str, Any], pythonstartup: str | None = None
+    ) -> None:
         from ptpython.repl import embed
 
         embed(
@@ -136,7 +143,9 @@ class Shell(Command):
             startup_paths=[pythonstartup] if pythonstartup else False,
         )
 
-    def bpython(self, local_vars, pythonstartup=None):
+    def bpython(
+        self, local_vars: dict[str, Any], pythonstartup: str | None = None
+    ) -> None:
         from bpython import embed
 
         embed(
@@ -144,14 +153,16 @@ class Shell(Command):
             args=["-q", "-i", pythonstartup] if pythonstartup else None,
         )
 
-    def python(self, local_vars, pythonstartup=None):
+    def python(
+        self, local_vars: dict[str, Any], pythonstartup: str | None = None
+    ) -> None:
         console = Console(local_vars)
         if pythonstartup:
             with Path(pythonstartup).open(encoding="utf-8") as f:
                 console.runsource(f.read(), filename=pythonstartup, symbol="exec")
         console.interact(banner="")
 
-    def shell(self, dbname):
+    def shell(self, dbname: str | None) -> None:
         local_vars = {
             "odoo": odoo,
         }
@@ -173,7 +184,7 @@ class Shell(Command):
         else:
             self.console(local_vars)
 
-    def run(self, args):
+    def run(self, args: list[str]) -> int:
         self.init(args)
         dbname = get_single_database(config["db_name"], allow_none=True)
         self.shell(dbname)

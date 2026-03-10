@@ -9,8 +9,6 @@ from psycopg.errors import InsufficientPrivilege
 
 import odoo
 import odoo.release  # noqa: F401 — side-effect: populates odoo.release namespace used by report_configuration
-from odoo.release import author as __author__  # noqa: F401
-from odoo.release import version as __version__  # noqa: F401
 from odoo.service import db, server
 from odoo.tools import config
 
@@ -20,13 +18,13 @@ from . import Command
 _logger = logging.getLogger("odoo")
 
 
-def check_root_user():
+def check_root_user() -> None:
     """Warn if the process's user is 'root' (on POSIX system)."""
     if os.name == "posix" and os.getuid() == 0:
         sys.stderr.write("Running as user 'root' is a security risk.\n")
 
 
-def check_postgres_user():
+def check_postgres_user() -> None:
     """Exit if the configured database user is 'postgres'.
 
     This function assumes the configuration has been initialized.
@@ -38,7 +36,7 @@ def check_postgres_user():
         sys.exit(1)
 
 
-def report_configuration():
+def report_configuration() -> None:
     """Log the server version and some configuration values.
 
     This function assumes the configuration has been initialized.
@@ -74,13 +72,13 @@ def report_configuration():
         )
 
 
-def rm_pid_file(main_pid):
+def rm_pid_file(main_pid: int) -> None:
     if config["pidfile"] and main_pid == os.getpid():
         with contextlib.suppress(OSError):
             Path(config["pidfile"]).unlink()
 
 
-def setup_pid_file():
+def setup_pid_file() -> None:
     """Create a file with the process id written in it.
 
     This function assumes the configuration has been initialized.
@@ -92,7 +90,7 @@ def setup_pid_file():
         atexit.register(rm_pid_file, pid)
 
 
-def main(args):
+def main(args: list[str]) -> None:
     check_root_user()
     config.parse_config(args, setup_logging=True)
     check_postgres_user()
@@ -124,6 +122,6 @@ def main(args):
 class Server(Command):
     """Start the odoo server (default command)"""
 
-    def run(self, args):
+    def run(self, args: list[str]) -> None:
         config.parser.prog = self.prog
         main(args)

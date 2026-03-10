@@ -25,6 +25,8 @@ except ImportError:
     Certificate = None
     load_pem_x509_certificate = None
 
+from typing import TYPE_CHECKING
+
 from odoo.tools.pdf import (
     ArrayObject,
     ByteStringObject,
@@ -39,8 +41,9 @@ from odoo.tools.pdf import (
     DecodedStreamObject as StreamObject,
 )
 
-from odoo.addons.base.models.res_company import ResCompany
-from odoo.addons.base.models.res_users import ResUsers
+if TYPE_CHECKING:
+    from odoo.addons.base.models.res_company import ResCompany
+    from odoo.addons.base.models.res_users import ResUsers
 
 _logger = logging.getLogger(__name__)
 
@@ -87,7 +90,9 @@ class PdfSigner:
         if not self.company or not load_pem_x509_certificate:
             return None
 
-        _dummy, sig_field_value = self._setup_form(visible_signature, field_name, signer)
+        _dummy, sig_field_value = self._setup_form(
+            visible_signature, field_name, signer
+        )
 
         if not self._perform_signature(sig_field_value):
             return None
@@ -484,8 +489,8 @@ class PdfSigner:
         )
         return True
 
-    def _get_document_data(self):
-        """Retrieves the bytes of the document from the writer"""
+    def _get_document_data(self) -> bytes:
+        """Retrieve the bytes of the document from the writer."""
         output_stream = io.BytesIO()
         self.writer.write_stream(output_stream)
         return output_stream.getvalue()

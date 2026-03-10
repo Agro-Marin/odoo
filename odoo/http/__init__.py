@@ -3,13 +3,13 @@ Odoo HTTP layer / WSGI application
 
 The main duty of this module is to prepare and dispatch all http
 requests to their corresponding controllers: from a raw http request
-arriving on the WSGI entrypoint to a :class:`~http.Request`: arriving at
+arriving on the WSGI entrypoint to a :class:`~http.Request` arriving at
 a module controller with a fully setup ORM available.
 
 Application developers mostly know this module thanks to the
-:class:`~odoo.http.Controller`: class and its companion the
-:func:`~odoo.http.route`: method decorator. Together they are used to
-register methods responsible of delivering web content to matching URLS.
+:class:`~odoo.http.Controller` class and its companion the
+:func:`~odoo.http.route` method decorator. Together they are used to
+register methods responsible for delivering web content to matching URLs.
 
 Those two are only the tip of the iceberg, below is a call graph that
 shows the various processing layers each request passes through before
@@ -54,8 +54,8 @@ Application.__call__
   request and itself in an Odoo http request. The Odoo http request is
   exposed at ``http.request`` then it is forwarded to either
   ``_serve_static``, ``_serve_nodb`` or ``_serve_db`` depending on the
-  request path and the presence of a database. It is also responsible of
-  ensuring any error is properly logged and encapsuled in a HTTP error
+  request path and the presence of a database. It is also responsible for
+  ensuring any error is properly logged and encapsulated in a HTTP error
   response.
 
 Request._serve_static
@@ -79,7 +79,7 @@ Request._serve_db
   same (but reset) read-only cursor, or a new read/write one.
 
 service.model.retrying
-  Manage the cursor, the environment and exceptions that occured while
+  Manage the cursor, the environment and exceptions that occurred while
   executing the underlying function. They recover from various
   exceptions such as serialization errors and writes in read-only
   transactions. They catches all other exceptions and attach a http
@@ -98,7 +98,7 @@ ir.http._serve_fallback
 ir.http._authenticate
   Ensure the user on the current environment fulfill the requirement of
   ``@route(auth=...)``. Using the ORM outside of abstract models is
-  unsafe prior of calling this function.
+  unsafe prior to calling this function.
 
 ir.http._pre_dispatch/Dispatcher.pre_dispatch
   Prepare the system the handle the current request, often used to save
@@ -115,8 +115,8 @@ ir.http._post_dispatch/Dispatcher.post_dispatch
 
 ir.http._handle_error
   Not present in the call-graph, is called for un-managed exceptions (SE
-  or RO) that occured inside of ``Request._retrying``. It returns a http
-  response that wraps the error that occured.
+  or RO) that occurred inside of ``Request._retrying``. It returns a http
+  response that wraps the error that occurred.
 
 This package was split from a monolithic http.py for maintainability.
 All symbols are re-exported for backward compatibility.
@@ -142,7 +142,6 @@ from .constants import (
     STORED_SESSION_BYTES,
     get_default_session,
     geoip2,
-    maxminddb,
 )
 
 # Session internals (for tests)
@@ -199,7 +198,6 @@ from .wrappers import (
     HTTPRequest,
     Response,
     FutureResponse,
-    _Response,
     Headers,
     ResponseCacheControl,
     ResponseStream,
@@ -210,7 +208,6 @@ from .request_class import Request
 
 # Dispatchers
 from .dispatcher import (
-    _dispatchers,
     Dispatcher,
     HttpDispatcher,
     JsonRPCDispatcher,
@@ -248,13 +245,14 @@ __all__ = [
     "Application",
     # Controller
     "Controller",
+    # Dispatchers
     "Dispatcher",
     # Session
     "FilesystemSessionStore",
+    # Wrappers
     "FutureResponse",
     # GeoIP
     "GeoIP",
-    # Wrappers
     "HTTPRequest",
     "Headers",
     "HttpDispatcher",
@@ -274,8 +272,8 @@ __all__ = [
     # Stream
     "Stream",
     "_Response",
+    # Routing
     "_check_and_complete_route_definition",
-    # Dispatchers
     "_dispatchers",
     "_generate_routing_rules",
     # Core
@@ -293,7 +291,6 @@ __all__ = [
     "maxminddb",
     "request",
     "root",
-    # Routing
     "route",
     "serialize_exception",
 ]

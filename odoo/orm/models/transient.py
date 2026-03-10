@@ -40,7 +40,7 @@ class TransientModel(Model):
     "maximum idle lifetime (in hours), unlimited if ``0``"
 
     @api.autovacuum
-    def _transient_vacuum(self):
+    def _transient_vacuum(self) -> tuple[str, bool]:
         """Clean the transient records.
 
         This unlinks old records from the transient model tables whenever the

@@ -31,6 +31,9 @@ from ....constants import (
 from ....domain import Domain
 from ....parsing import parse_read_group_spec
 
+if typing.TYPE_CHECKING:
+    from collections.abc import Generator
+
 
 class _ReadGroupFormatMixin:
     """Post-processing and formatting methods for read_group results.
@@ -47,7 +50,9 @@ class _ReadGroupFormatMixin:
     env: typing.Any
     pool: typing.Any
 
-    def _read_group_postprocess_groupby(self, groupby_spec, raw_values):
+    def _read_group_postprocess_groupby(
+        self, groupby_spec: str, raw_values: list
+    ) -> list:
         """Convert the given values of ``groupby_spec``
         from PostgreSQL to the format returned by method ``_read_group()``.
 
@@ -83,7 +88,9 @@ class _ReadGroupFormatMixin:
 
         return ((value if value is not None else empty_value) for value in raw_values)
 
-    def _read_group_postprocess_aggregate(self, aggregate_spec, raw_values):
+    def _read_group_postprocess_aggregate(
+        self, aggregate_spec: str, raw_values: list
+    ) -> Generator:
         """Convert the given values of ``aggregate_spec``
         from PostgreSQL to the format returned by method ``_read_group()``.
 
@@ -127,7 +134,9 @@ class _ReadGroupFormatMixin:
 
         return ((value if value is not None else empty_value) for value in raw_values)
 
-    def _read_group_format_result(self, rows_dict, lazy_groupby):
+    def _read_group_format_result(
+        self, rows_dict: list[dict], lazy_groupby: list[str]
+    ) -> None:
         """
         Helper method to format the data contained in the dictionary data by
         adding the domain corresponding to its values, the groupbys in the
@@ -245,7 +254,8 @@ class _ReadGroupFormatMixin:
         been remove on the parent).
         """
         if "." not in group:
-            raise ValueError("You must choose the property you want to group by.")
+            msg = "You must choose the property you want to group by."
+            raise ValueError(msg)
         fullname, __, func = group.partition(":")
 
         definition = self.get_property_definition(fullname)

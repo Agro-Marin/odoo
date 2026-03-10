@@ -9,6 +9,10 @@ import os
 import re
 import zipfile
 from pathlib import Path
+from typing import IO, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 WINDOWS_RESERVED = re.compile(
     r"""
@@ -24,7 +28,7 @@ WINDOWS_RESERVED = re.compile(
 _CLEAN_FILENAME_RE = re.compile(r"[^\w_.()\[\] -]+")
 
 
-def clean_filename(name, replacement=""):
+def clean_filename(name: str, replacement: str = "") -> str:
     """Strips or replaces possibly problematic or annoying characters our of
     the input string, in order to make it a valid filename in most operating
     systems (including dropping reserved Windows filenames).
@@ -56,7 +60,12 @@ def clean_filename(name, replacement=""):
     return _CLEAN_FILENAME_RE.sub(replacement, name).lstrip(".-") or "Untitled"
 
 
-def zip_dir(path, stream, include_dir=True, fnct_sort=None):  # TODO add ignore list
+def zip_dir(
+    path: str | Path,
+    stream: IO[bytes],
+    include_dir: bool = True,
+    fnct_sort: Callable | None = None,
+) -> None:  # TODO add ignore list
     """: param fnct_sort : Function to be passed to "key" parameter of built-in
     python sorted() to provide flexibility of sorting files
     inside ZIP archive according to specific requirements.
@@ -81,7 +90,8 @@ def zip_dir(path, stream, include_dir=True, fnct_sort=None):  # TODO add ignore 
 
 
 if os.name != "nt":
-    def is_running_as_nt_service():
+
+    def is_running_as_nt_service() -> bool:
         return False
 else:
     from contextlib import contextmanager
@@ -91,7 +101,7 @@ else:
 
     from odoo.release import nt_service_name
 
-    def is_running_as_nt_service():
+    def is_running_as_nt_service() -> bool:
         @contextmanager
         def close_srv(srv):
             try:

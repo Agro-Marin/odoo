@@ -5,7 +5,7 @@ if typing.TYPE_CHECKING:
     from odoo.cli.upgrade_code import FileManager
 
 
-def upgrade(file_manager: FileManager):
+def upgrade(file_manager: FileManager) -> None:
     model_properties_re = re.compile(r"\._(cr|uid|context)\b")
 
     for file in file_manager:

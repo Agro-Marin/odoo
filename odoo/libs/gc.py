@@ -28,18 +28,22 @@ import contextlib
 import gc
 import logging
 from time import thread_time_ns as _gc_time
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 _logger = logging.getLogger("gc")
 _gc_start: int = 0
-_gc_init_stats = gc.get_stats()
-_gc_timings = [0, 0, 0]
+_gc_init_stats: list[dict[str, int]] = gc.get_stats()
+_gc_timings: list[int] = [0, 0, 0]
 
 
-def _to_ms(ns):
+def _to_ms(ns: int | float) -> float:
     return round(ns / 1_000_000, 2)
 
 
-def _timing_gc_callback(event, info):
+def _timing_gc_callback(event: str, info: dict[str, Any]) -> None:
     """Called before and after each run of the gc, see gc_set_timing."""
     global _gc_start  # noqa: PLW0603
     gen = info["generation"]
@@ -56,7 +60,7 @@ def _timing_gc_callback(event, info):
             _logger.debug("collected %s in %.2fms", info, _to_ms(timing))
 
 
-def gc_set_timing(*, enable: bool):
+def gc_set_timing(*, enable: bool) -> None:
     """Enable or disable timing callback.
 
     This collects information about how much time is spent by the GC.
@@ -74,7 +78,7 @@ def gc_set_timing(*, enable: bool):
         gc.callbacks.append(_timing_gc_callback)
 
 
-def gc_info():
+def gc_info() -> dict[str, Any]:
     """Return a dict with stats about the garbage collector."""
     stats = gc.get_stats()
     times = []
@@ -97,7 +101,7 @@ def gc_info():
 
 
 @contextlib.contextmanager
-def disabling_gc():
+def disabling_gc() -> Generator[bool]:
     """Disable gc in the context manager."""
     if not gc.isenabled():
         yield False

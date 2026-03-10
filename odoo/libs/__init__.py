@@ -16,12 +16,10 @@ Subpackages:
     - numbers: Numeric utilities (float_round, float_compare, etc.)
     - profiling: Performance profiling tools (speedscope, sourcemap)
     - security: Security utilities
-    - soap: SOAP/WSDL client utilities
     - sql: SQL string utilities (escape_psql, make_identifier, etc.)
     - text: Text processing (remove_accents, human_size, street_split, etc.)
     - web: Web utilities (urls)
     - xml: XML utilities (remove_control_characters, create_xml_node, etc.)
-    - babel: Babel integration utilities
 """
 
 # Collections
@@ -49,7 +47,6 @@ from .iteration import (
     merge_sequences,
     Sentinel,
     SENTINEL,
-    reverse_enumerate,
     split_every,
 )
 
@@ -72,7 +69,6 @@ from .utils import (
     format_frame,
     named_to_positional_printf,
     replace_exceptions,
-    _PrintfArgs,
 )
 
 __all__ = [
@@ -89,7 +85,6 @@ __all__ = [
     "ReversedIterable",
     "Sentinel",
     "StackMap",
-    "_PrintfArgs",
     # Utils
     "discardattr",
     "format_frame",
@@ -108,7 +103,6 @@ __all__ = [
     # Text
     "remove_accents",
     "replace_exceptions",
-    "reverse_enumerate",
     "split_every",
     "str2bool",
     "street_split",

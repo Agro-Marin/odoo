@@ -8,6 +8,9 @@ error handling (ValidationError for XPath errors) for better user experience.
 For agnostic usage without Odoo dependencies, use odoo.libs.xml.template_inheritance directly.
 """
 
+
+from typing import TYPE_CHECKING
+
 from lxml import etree
 
 from odoo.exceptions import ValidationError
@@ -31,12 +34,15 @@ from odoo.libs.xml.template_inheritance import (
 )
 from odoo.tools.translate import LazyTranslate
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 __all__ = []
 
 _lt = LazyTranslate("base")
 
 
-def locate_node(arch, spec):
+def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | None:
     """Locate a node in a source (parent) architecture.
 
     Given a complete source (parent) architecture (i.e. the field
@@ -65,8 +71,11 @@ def locate_node(arch, spec):
 
 
 def apply_inheritance_specs(
-    source, specs_tree, inherit_branding=False, pre_locate=None
-):
+    source: etree._Element,
+    specs_tree: etree._Element,
+    inherit_branding: bool = False,
+    pre_locate: Callable[[etree._Element], None] | None = None,
+) -> etree._Element:
     """Apply an inheriting view (a descendant of the base view)
 
     Apply to a source architecture all the spec nodes (i.e. nodes
@@ -103,9 +112,7 @@ def apply_inheritance_specs(
         # names from the underlying library) so cannot be statically translated.
         if "cannot be located in parent view" in error_msg:  # pylint: disable=E8502
             raise ValueError(error_msg)
-        if (
-            "Invalid specification for moved nodes" in error_msg
-        ):  # pylint: disable=E8502
+        if "Invalid specification for moved nodes" in error_msg:  # pylint: disable=E8502
             raise ValueError(error_msg)
         if "Invalid mode attribute" in error_msg:  # pylint: disable=E8502
             raise ValueError(error_msg)

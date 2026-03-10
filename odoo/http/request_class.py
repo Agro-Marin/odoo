@@ -1,5 +1,3 @@
-"""Core request handling."""
-
 import contextlib
 import functools
 import hashlib
@@ -7,7 +5,8 @@ import hmac
 import logging
 import threading
 import time
-import warnings
+from collections.abc import Callable, Generator
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import babel.core
@@ -50,6 +49,11 @@ from .helpers import (
 from .stream import Stream
 from .wrappers import FutureResponse, HTTPRequest, Response
 
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from .session import Session
+
 _logger = logging.getLogger(__name__)
 
 
@@ -59,21 +63,21 @@ class Request:
     parameters, session utilities and request dispatching logic.
     """
 
-    def __init__(self, httprequest):
-        self.httprequest = httprequest
-        self.future_response = FutureResponse()
+    def __init__(self, httprequest: HTTPRequest) -> None:
+        self.httprequest: HTTPRequest = httprequest
+        self.future_response: FutureResponse = FutureResponse()
         self.dispatcher = _dispatchers["http"](self)  # until we match
-        # self.params = {}  # set by the Dispatcher
+        self.params: dict[str, Any] = {}
 
-        self.geoip = GeoIP(httprequest.remote_addr)
-        self.registry = None
-        self.env = None
+        self.geoip: GeoIP = GeoIP(httprequest.remote_addr)
+        self.registry: Registry | None = None
+        self.env: odoo.api.Environment | None = None
 
-    def _post_init(self):
+    def _post_init(self) -> None:
         self.session, self.db = self._get_session_and_dbname()
         self._post_init = None
 
-    def _get_session_and_dbname(self):
+    def _get_session_and_dbname(self) -> tuple[Session, str | None]:
         from .application import (
             root,
         )
@@ -122,7 +126,12 @@ class Request:
     # =====================================================
     # Getters and setters
     # =====================================================
-    def update_env(self, user=None, context=None, su=None):
+    def update_env(
+        self,
+        user: int | Any | None = None,
+        context: dict[str, Any] | None = None,
+        su: bool | None = None,
+    ) -> None:
         """Update the environment of the current request.
 
         :param user: optional user/user id to change the current user
@@ -135,43 +144,13 @@ class Request:
         self.env.transaction.default_env = self.env
         threading.current_thread().uid = self.env.uid
 
-    def update_context(self, **overrides):
+    def update_context(self, **overrides: Any) -> None:
         """
         Override the environment context of the current request with the
         values of ``overrides``. To replace the entire context, please
         use :meth:`~update_env` instead.
         """
         self.update_env(context=self.env.context | overrides)
-
-    @property
-    def context(self):
-        warnings.warn(
-            "Since 19.0, use request.env.context directly",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.env.context
-
-    @context.setter
-    def context(self, value):
-        raise NotImplementedError("Use request.update_context instead.")
-
-    @property
-    def cr(self):
-        warnings.warn(
-            "Since 19.0, use request.env.cr directly",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.env.cr
-
-    @cr.setter
-    def cr(self, value):
-        if value is None:
-            raise NotImplementedError("Close the cursor instead.")
-        raise ValueError(
-            "You cannot replace the cursor attached to the current request."
-        )
 
     @functools.cached_property
     def best_lang(self):
@@ -199,7 +178,7 @@ class Request:
     # =====================================================
     # Helpers
     # =====================================================
-    def csrf_token(self, time_limit=None):
+    def csrf_token(self, time_limit: int | None = None) -> str:
         """
         Generates and returns a CSRF token for the current session
 
@@ -212,7 +191,8 @@ class Request:
         """
         secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
         if not secret:
-            raise ValueError("CSRF protection requires a configured database secret")
+            msg = "CSRF protection requires a configured database secret"
+            raise ValueError(msg)
 
         # if no `time_limit` => distant 1y expiry so max_ts acts as salt, e.g. vs BREACH
         max_ts = int(time.time() + (time_limit or CSRF_TOKEN_SALT))
@@ -221,7 +201,7 @@ class Request:
         hm = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
         return f"{hm}o{max_ts}"
 
-    def validate_csrf(self, csrf):
+    def validate_csrf(self, csrf: str | None) -> bool:
         """
         Is the given csrf token valid ?
 
@@ -234,7 +214,8 @@ class Request:
 
         secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
         if not secret:
-            raise ValueError("CSRF protection requires a configured database secret")
+            msg = "CSRF protection requires a configured database secret"
+            raise ValueError(msg)
 
         hm, _, max_ts = csrf.rpartition("o")
         msg = f"{self.session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
@@ -249,10 +230,10 @@ class Request:
         hm_expected = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
         return consteq(hm, hm_expected)
 
-    def default_context(self):
+    def default_context(self) -> dict[str, Any]:
         return get_default_session()["context"] | {"lang": self.default_lang()}
 
-    def default_lang(self):
+    def default_lang(self) -> str:
         """Returns default user language according to request specification
 
         :returns: Preferred language if specified or 'en_US'
@@ -260,7 +241,7 @@ class Request:
         """
         return self.best_lang or DEFAULT_LANG
 
-    def get_http_params(self):
+    def get_http_params(self) -> dict[str, Any]:
         """
         Extract key=value pairs from the query string and the forms
         present in the body (both application/x-www-form-urlencoded and
@@ -275,10 +256,10 @@ class Request:
             **self.httprequest.files,
         }
 
-    def get_json_data(self):
+    def get_json_data(self) -> Any:
         return _fast_loads(self.httprequest.get_data(as_text=True))
 
-    def _get_profiler_context_manager(self):
+    def _get_profiler_context_manager(self) -> contextlib.AbstractContextManager:
         """
         Get a profiler when the profiling is enabled and the requested
         URL is profile-safe. Otherwise, get a context-manager that does
@@ -311,11 +292,17 @@ class Request:
 
         return contextlib.nullcontext()
 
-    def _inject_future_response(self, response):
+    def _inject_future_response(self, response: Response) -> Response:
         response.headers.extend(self.future_response.headers)
         return response
 
-    def make_response(self, data, headers=None, cookies=None, status=200):
+    def make_response(
+        self,
+        data: str | bytes | None,
+        headers: list[tuple[str, str]] | None = None,
+        cookies: Mapping[str, str] | None = None,
+        status: int = 200,
+    ) -> Response:
         """Helper for non-HTML responses, or HTML responses with custom
         response headers or cookies.
 
@@ -338,7 +325,13 @@ class Request:
                 response.set_cookie(k, v)
         return response
 
-    def make_json_response(self, data, headers=None, cookies=None, status=200):
+    def make_json_response(
+        self,
+        data: Any,
+        headers: list[tuple[str, str]] | None = None,
+        cookies: Mapping[str, str] | None = None,
+        status: int = 200,
+    ) -> Response:
         """Helper for JSON responses, it json-serializes ``data`` and
         sets the Content-Type header accordingly if none is provided.
 
@@ -357,14 +350,14 @@ class Request:
 
         return self.make_response(data, headers.to_wsgi_list(), cookies, status)
 
-    def not_found(self, description=None):
+    def not_found(self, description: str | None = None) -> NotFound:
         """Shortcut for a `HTTP 404
         <http://tools.ietf.org/html/rfc7231#section-6.5.4>`_ (Not Found)
         response
         """
         return NotFound(description)
 
-    def redirect(self, location, code=303, local=True):
+    def redirect(self, location: str, code: int = 303, local: bool = True) -> Response:
         if local:
             location = "/" + urlunsplit(
                 urlsplit(location)._replace(scheme="", netloc="")
@@ -373,12 +366,25 @@ class Request:
             return self.env["ir.http"]._redirect(location, code)
         return werkzeug.utils.redirect(location, code, Response=Response)
 
-    def redirect_query(self, location, query=None, code=303, local=True):
+    def redirect_query(
+        self,
+        location: str,
+        query: dict[str, str] | None = None,
+        code: int = 303,
+        local: bool = True,
+    ) -> Response:
         if query:
-            location += "?" + urlencode(query)
+            separator = "&" if "?" in location else "?"
+            location += separator + urlencode(query)
         return self.redirect(location, code=code, local=local)
 
-    def render(self, template, qcontext=None, lazy=True, **kw):
+    def render(
+        self,
+        template: str,
+        qcontext: dict[str, Any] | None = None,
+        lazy: bool = True,
+        **kw: Any,
+    ) -> Response:
         """Lazy render of a QWeb template.
 
         The actual rendering of the given template will occur at the end of
@@ -396,7 +402,7 @@ class Request:
             return response.render()
         return response
 
-    def reroute(self, path, query_string=None):
+    def reroute(self, path: str | bytes, query_string: str | None = None) -> None:
         """
         Rewrite the current request URL using the new path and query
         string. This act as a light redirection, it does not return a
@@ -424,7 +430,7 @@ class Request:
         threading.current_thread().url = httprequest.url
         self.httprequest = httprequest
 
-    def _save_session(self, env=None):
+    def _save_session(self, env: odoo.api.Environment | None = None) -> None:
         """
         Save a modified session on disk.
 
@@ -466,7 +472,7 @@ class Request:
                 httponly=True,
             )
 
-    def _set_request_dispatcher(self, rule):
+    def _set_request_dispatcher(self, rule: Any) -> None:
         routing = rule.endpoint.routing
         dispatcher_cls = _dispatchers[routing["type"]]
         if not is_cors_preflight(
@@ -492,7 +498,7 @@ class Request:
     # =====================================================
     # Routing
     # =====================================================
-    def _serve_static(self):
+    def _serve_static(self) -> Response:
         """Serve a static file from the file system."""
         from .application import (
             root,
@@ -514,7 +520,7 @@ class Request:
         except OSError:  # cover both missing file and invalid permissions
             raise NotFound(f'File "{path}" not found in module {module}.\n')
 
-    def _serve_nodb(self):
+    def _serve_nodb(self) -> Response:
         """
         Dispatch the request to its matching controller in a
         database-free environment.
@@ -549,7 +555,7 @@ class Request:
             HttpDispatcher(self).post_dispatch(response)
             return response
 
-    def _serve_db(self):
+    def _serve_db(self) -> Response:
         """Load the ORM and use it to process the request."""
         # reuse the same cursor for building, checking the registry, for
         # matching the controller endpoint and serving the data
@@ -647,7 +653,7 @@ class Request:
             if cr is not None:
                 cr.close()
 
-    def _update_served_exception(self, exc):
+    def _update_served_exception(self, exc: Exception) -> Exception:
         if isinstance(exc, HTTPException) and exc.code is None:
             return exc  # bubble up to _serve_db
         if (
@@ -661,7 +667,7 @@ class Request:
             exc.error_response = self.registry["ir.http"]._handle_error(exc)
         return exc
 
-    def _serve_ir_http_fallback(self, not_found):
+    def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
         """
         Called when no controller match the request path. Delegate to
         ``ir.http._serve_fallback`` to give modules the opportunity to
@@ -682,7 +688,7 @@ class Request:
         no_fallback.error_response = self.registry["ir.http"]._handle_error(no_fallback)
         raise no_fallback
 
-    def _serve_ir_http(self, rule, args):
+    def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
         """
         Called when a controller match the request path. Delegate to
         ``ir.http`` to serve a response.

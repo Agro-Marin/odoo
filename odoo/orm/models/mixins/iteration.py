@@ -7,7 +7,6 @@ and performing set operations (union, intersection, difference).
 
 import typing
 import warnings
-from collections.abc import Iterator, Reversible
 from itertools import batched
 from typing import Self
 
@@ -16,10 +15,12 @@ from odoo.tools import OrderedSet
 from odoo.tools.misc import ReversedIterable
 
 from ... import decorators as api
-from ..._typing import IdType
 from ...primitives import NewId
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Iterator, Reversible
+
+    from ..._typing import IdType
     from ...runtime import Environment
 
 
@@ -282,7 +283,7 @@ class IterationMixin:
                 raise TypeError(f"unsupported operand types in: {self} | {arg!r}")
         return self.browse(OrderedSet(ids))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Test whether two recordsets are equivalent (up to reordering)."""
         try:
             if self._name != other._name:
@@ -304,7 +305,7 @@ class IterationMixin:
                 )
         return NotImplemented
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         try:
             if self._name == other._name:
                 # proper subset requires strictly fewer elements
@@ -315,7 +316,7 @@ class IterationMixin:
             pass
         return NotImplemented
 
-    def __le__(self, other):
+    def __le__(self, other: object) -> bool:
         try:
             if self._name == other._name:
                 # these are much cheaper checks than a proper subset check, so
@@ -328,7 +329,7 @@ class IterationMixin:
             pass
         return NotImplemented
 
-    def __gt__(self, other):
+    def __gt__(self, other: object) -> bool:
         try:
             if self._name == other._name:
                 # proper superset requires strictly more elements
@@ -339,7 +340,7 @@ class IterationMixin:
             pass
         return NotImplemented
 
-    def __ge__(self, other):
+    def __ge__(self, other: object) -> bool:
         try:
             if self._name == other._name:
                 if not other or other in self:
@@ -352,13 +353,13 @@ class IterationMixin:
     def __int__(self) -> int:
         return self.id or 0
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self._name}{self._ids!r}"
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self._name, frozenset(self._ids)))
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: dict) -> Self:
         return self
 
     @typing.overload
@@ -367,17 +368,17 @@ class IterationMixin:
     @typing.overload
     def __getitem__(self, key: str) -> typing.Any: ...
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: int | slice | str) -> Self | typing.Any:
         """If ``key`` is an integer or a slice, return the corresponding record
         selection as an instance (attached to ``self.env``).
         Otherwise read the field ``key`` of the first record in ``self``.
 
         Examples::
 
-            inst = model.search(dom)    # inst is a recordset
-            r4 = inst[3]                # fourth record in inst
-            rs = inst[10:20]            # subset of inst
-            nm = rs['name']             # name of first record in inst
+            inst = model.search(dom)  # inst is a recordset
+            r4 = inst[3]  # fourth record in inst
+            rs = inst[10:20]  # subset of inst
+            nm = rs["name"]  # name of first record in inst
         """
         if isinstance(key, str):
             # important: one must call the field's getter

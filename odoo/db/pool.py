@@ -5,6 +5,7 @@ Uses psycopg_pool for production-grade connection pooling with health checks,
 max_lifetime rotation, background workers, and pool statistics.
 """
 
+import contextlib
 import logging
 import threading
 from time import monotonic
@@ -15,7 +16,6 @@ from psycopg_pool import ConnectionPool as _PsycopgPool
 from psycopg_pool import PoolClosed, PoolTimeout
 
 from odoo.release import MIN_PG_VERSION
-import contextlib
 
 _logger = logging.getLogger(__name__)
 _logger_conn = _logger.getChild("connection")
@@ -34,7 +34,7 @@ class _SuppressKnownPoolWarnings(logging.Filter):
        caller will get a ``PoolTimeout`` and the pool will be cleaned up.
     """
 
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         msg = record.getMessage()
         if "discarding closed connection" in msg:
             return False
@@ -129,7 +129,7 @@ class ConnectionPool:
         self._lock = threading.Lock()
         self._global_sem = threading.BoundedSemaphore(self._maxconn)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # NB: get_stats() acquires internal locks — looks expensive, but
         # __repr__ is only evaluated by logging when DEBUG is enabled
         # (Python's logger lazily evaluates %r).  Acceptable at DEBUG.
@@ -145,7 +145,7 @@ class ConnectionPool:
     def readonly(self) -> bool:
         return self._readonly
 
-    def _debug(self, msg: str, *args):
+    def _debug(self, msg: str, *args: object) -> None:
         _logger_conn.debug(("%r " + msg), self, *args)
 
     def _get_or_create_pool(
@@ -185,8 +185,7 @@ class ConnectionPool:
             # no real upside.  Override via postgresql.conf if needed.
             options = kwargs.get("options", "")
             kwargs["options"] = (
-                f"{options} -c jit=off -c work_mem=16MB"
-                f" -c idle_session_timeout=900000"
+                f"{options} -c jit=off -c work_mem=16MB -c idle_session_timeout=900000"
             ).strip()
 
             pool = _PsycopgPool(
@@ -258,7 +257,9 @@ class ConnectionPool:
         self._debug("Borrow connection backend PID %d", conn.info.backend_pid)
         return conn
 
-    def give_back(self, connection: psycopg.Connection, keep_in_pool: bool = True):
+    def give_back(
+        self, connection: psycopg.Connection, keep_in_pool: bool = True
+    ) -> None:
         """Return a connection to its pool.
 
         Releases a slot from the global semaphore after returning the
@@ -290,7 +291,7 @@ class ConnectionPool:
         finally:
             self._global_sem.release()
 
-    def close_all(self, dsn: dict | str | None = None):
+    def close_all(self, dsn: dict | str | None = None) -> None:
         """Close pool(s) — by DSN or all.
 
         :param dsn: If given, close only the pool matching this DSN.
@@ -314,7 +315,7 @@ class ConnectionPool:
             if count:
                 _logger.info("%r: Closed %d pool(s)", self, count)
 
-    def drain(self, dsn: dict | str | None = None):
+    def drain(self, dsn: dict | str | None = None) -> None:
         """Drain pool(s) — replace all idle connections with fresh ones.
 
         After module upgrades, idle connections may hold stale prepared
@@ -352,7 +353,7 @@ class ConnectionPool:
 class Connection:
     """A lightweight instance of a connection to postgres"""
 
-    __slots__ = ('__dbname', '__dsn', '__pool')
+    __slots__ = ("__dbname", "__dsn", "__pool")
 
     def __init__(self, pool: ConnectionPool, dbname: str, dsn: dict):
         self.__dbname = dbname
@@ -369,7 +370,7 @@ class Connection:
     def dbname(self) -> str:
         return self.__dbname
 
-    def cursor(self):
+    def cursor(self) -> Cursor:
         """Create a new cursor for this connection.
 
         Note: Import is done here to avoid circular imports.

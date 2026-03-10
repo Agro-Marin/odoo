@@ -8,7 +8,6 @@ See Also
 - ``odoo.tools.orm_profiler`` — Aggregate per-model/operation stats per transaction
 - ``odoo.tools.nplusone`` — N+1 CRUD detection (repeated single-record calls)
 - ``odoo.tools.profiler`` — Sampling profiler (flamegraphs, SQL tracing)
-- ``odoo.tools.mixin_profiler`` — Method-level profiler (per-method timing)
 - ``.claude/rules/profiling.md`` — Decision tree: which tool to use when
 """
 
@@ -17,12 +16,14 @@ import math
 import statistics
 import threading
 import time
-from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Self
 
 from odoo.tools.misc import real_time
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 OUTLIER_PERCENTILE = 5
 
@@ -341,14 +342,14 @@ class PerfTimer:
 
     __slots__ = ("_t0", "samples_ns")
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._t0: int = 0
         self.samples_ns: list[int] = []
 
-    def start(self):
+    def start(self) -> None:
         self._t0 = time.perf_counter_ns()
 
-    def stop(self):
+    def stop(self) -> None:
         self.samples_ns.append(time.perf_counter_ns() - self._t0)
 
     def stats(self, name: str = "", *, warmup: int = 0) -> dict:
@@ -410,7 +411,7 @@ class BenchmarkTimer:
         print(f"{t.elapsed_us:.1f} µs, {t.query_count} queries")
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.start_time: float = 0
         self.end_time: float = 0
         self.start_query_count: int = 0
@@ -418,7 +419,7 @@ class BenchmarkTimer:
         self.start_query_time: float = 0
         self.end_query_time: float = 0
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         thread = threading.current_thread()
         if not hasattr(thread, "query_count"):
             thread.query_count = 0
@@ -430,7 +431,7 @@ class BenchmarkTimer:
         self.start_time = real_time()
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.end_time = real_time()
         thread = threading.current_thread()
         self.end_query_count = thread.query_count
@@ -477,7 +478,7 @@ class BenchmarkTimer:
 # ---------------------------------------------------------------------------
 
 
-def save_results(results: list[dict], path: str):
+def save_results(results: list[dict], path: str) -> None:
     """Append benchmark results to a JSON-lines file for before/after comparison."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with Path(path).open("a") as f:
@@ -488,7 +489,12 @@ def compare_results(baseline: list[dict], current: list[dict]) -> str:
     """Compare two sets of benchmark results and return a report."""
     base_map = {r["name"]: r for r in baseline if r.get("name")}
     lines = []
-    lines.extend((f"\n{'Test':<55s} {'Base p50':>10s} {'Curr p50':>10s} {'Speedup':>8s}", "-" * 90))
+    lines.extend(
+        (
+            f"\n{'Test':<55s} {'Base p50':>10s} {'Curr p50':>10s} {'Speedup':>8s}",
+            "-" * 90,
+        )
+    )
     for r in current:
         name = r.get("name", "")
         base = base_map.get(name)

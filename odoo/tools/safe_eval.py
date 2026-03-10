@@ -13,7 +13,6 @@ import logging
 import sys
 import types
 import typing
-from collections.abc import Iterator
 from opcode import opmap, opname
 from types import CodeType
 
@@ -21,6 +20,9 @@ import werkzeug
 from psycopg import OperationalError
 
 import odoo.exceptions
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Iterator
 
 unsafe_eval = eval
 
@@ -59,7 +61,7 @@ _UNSAFE_ATTRIBUTES = [
     "f_code",
     "f_globals",
     "f_locals",
-    # Python 2 functions
+    # Legacy Python 2 attribute names (blocked for defence-in-depth; these do not exist in Python 3 but are blocked preemptively)
     "func_code",
     "func_globals",
     # Code object
@@ -84,7 +86,7 @@ _UNSAFE_ATTRIBUTES = [
 ]
 
 
-def to_opcodes(opnames, _opmap=opmap) -> Iterator[int]:
+def to_opcodes(opnames: list[str], _opmap: dict[str, int] = opmap) -> Iterator[int]:
     for x in opnames:
         if x in _opmap:
             yield _opmap[x]
@@ -484,7 +486,7 @@ _BUILTINS = {
     "divmod": divmod,
     "isinstance": isinstance,
     "range": range,
-    "xrange": range,
+    "xrange": range,  # Python 2 compat shim — user expressions may use xrange
     "zip": zip,
     "Exception": Exception,
 }
@@ -533,7 +535,8 @@ def safe_eval(
     :throws ValueError: If the expression provided uses forbidden bytecode
     """
     if type(expr) is CodeType:
-        raise TypeError("safe_eval does not allow direct evaluation of code objects.")
+        msg = "safe_eval does not allow direct evaluation of code objects."
+        raise TypeError(msg)
 
     assert context is None or type(context) is dict, "Context must be a dict"
 
@@ -584,7 +587,7 @@ def test_python_expr(expr: str, mode: str = "eval") -> str | typing.Literal[Fals
     return False
 
 
-def _check_module(value, seen=None) -> None:
+def _check_module(value: object, seen: set[int] | None = None) -> None:
     """Recursively check that no module is hidden in containers."""
     if isinstance(value, types.ModuleType):
         raise TypeError(f"""Module {value} can not be used in evaluation contexts

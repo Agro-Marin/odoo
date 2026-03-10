@@ -25,8 +25,6 @@ from odoo.orm.models.table_objects import Constraint, Index, UniqueIndex
 
 # Registration utilities
 from odoo.orm.registration import (
-    add_to_registry,
-    is_model_class,
     is_model_definition,
 )
 

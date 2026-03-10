@@ -1,5 +1,4 @@
-"""
-Vendored third-party libraries.
+"""Vendored third-party libraries.
 
 These are third-party libraries that have been vendored into Odoo
 for stability and compatibility reasons.

@@ -14,12 +14,13 @@ import hmac as hmac_lib
 import time
 import typing
 import zlib
-from collections.abc import Callable
 
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
     from odoo.api import Environment
     from odoo.orm._typing import BaseModel
 
@@ -31,7 +32,7 @@ def hmac(
     env: Environment,
     scope: str,
     message: typing.Any,
-    hash_function: Callable = hashlib.sha256,
+    hash_function: Callable[..., object] = hashlib.sha256,
 ) -> str:
     """Compute HMAC with `database.secret` config parameter as key.
 
@@ -49,7 +50,8 @@ def hmac(
     :raises ValueError: if scope is empty
     """
     if not scope:
-        raise ValueError("Non-empty scope required")
+        msg = "Non-empty scope required"
+        raise ValueError(msg)
 
     secret = env["ir.config_parameter"].get_param("database.secret")
     message = repr((scope, message))
@@ -128,7 +130,8 @@ def verify_hash_signed(env: Environment, scope: str, payload: str) -> typing.Any
     token = base64.urlsafe_b64decode(payload.encode() + b"===")
     version = token[:1]
     if version != b"\x01":
-        raise ValueError("Unknown token version")
+        msg = "Unknown token version"
+        raise ValueError(msg)
 
     expiration_value, hash_value, message = (
         token[1:9],

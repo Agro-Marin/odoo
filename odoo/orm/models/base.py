@@ -12,7 +12,6 @@ import logging
 import time
 import typing
 from collections import defaultdict
-from collections.abc import Iterable
 from inspect import getmembers
 
 from odoo.exceptions import UserError
@@ -49,6 +48,7 @@ from .mixins import (
 )
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Iterable
     from types import MappingProxyType
 
     from ..runtime import Registry
@@ -240,12 +240,12 @@ class BaseModel(
         search="_search_display_name",
     )
 
-    def _valid_field_parameter(self, field, name):
+    def _valid_field_parameter(self, field: Field, name: str) -> bool:
         """Return whether the given parameter name is valid for the field."""
         return name == "related_sudo"
 
     @api.model
-    def _post_model_setup__(self):
+    def _post_model_setup__(self) -> None:
         """Method called after the model has been setup."""
         pass
 
@@ -275,7 +275,9 @@ class BaseModel(
                     seen.add(model_name)
                     model = self.env[model_name]
                     models.append(model)
-                fields_to_flush.extend(self.env[model_name]._fields[fname] for fname in field_names)
+                fields_to_flush.extend(
+                    self.env[model_name]._fields[fname] for fname in field_names
+                )
 
         return SQL.EMPTY.join(
             [
@@ -285,7 +287,7 @@ class BaseModel(
         )
 
     @property
-    def _constraint_methods(self):
+    def _constraint_methods(self) -> list:
         """Return a list of methods implementing Python constraints."""
 
         def is_constraint(func):
@@ -330,7 +332,7 @@ class BaseModel(
         return methods
 
     @property
-    def _ondelete_methods(self):
+    def _ondelete_methods(self) -> list:
         """Return a list of methods implementing checks before unlinking."""
 
         def is_ondelete(func):
@@ -343,7 +345,7 @@ class BaseModel(
         return methods
 
     @property
-    def _onchange_methods(self):
+    def _onchange_methods(self) -> dict[str, list]:
         """Return a dictionary mapping field names to onchange methods."""
 
         def is_onchange(func):
@@ -380,7 +382,7 @@ class BaseModel(
         cls._onchange_methods = methods
         return methods
 
-    def _is_an_ordinary_table(self):
+    def _is_an_ordinary_table(self) -> bool:
         return self.pool.is_an_ordinary_table(self)
 
     def _validate_fields(
@@ -432,7 +434,7 @@ class BaseModel(
     #
 
     @api.depends(lambda self: (self._rec_name,) if self._rec_name else ())
-    def _compute_display_name(self):
+    def _compute_display_name(self) -> None:
         """Compute the value of the `display_name` field.
 
         The `display_name` field is a textual representation of the record.
@@ -543,18 +545,20 @@ class BaseModel(
                 if len(new_values) != len(old_value):
                     record[fname] = new_values
 
-    def _validate_properties_definition(self, properties_definition, field):
+    def _validate_properties_definition(
+        self, properties_definition: typing.Any, field: Field
+    ) -> None:
         """Allow to validate additional properties attributes."""
 
-    def _additional_allowed_keys_properties_definition(self):
+    def _additional_allowed_keys_properties_definition(self) -> tuple[str, ...]:
         """Allow to add more allowed key for properties."""
         return ()
 
-    def _convert_to_cache_properties_definition(self, value):
+    def _convert_to_cache_properties_definition(self, value: typing.Any) -> typing.Any:
         """Allow to patch `convert_to_cache` of the properties definition."""
         return value
 
-    def _convert_to_column_properties_definition(self, value):
+    def _convert_to_column_properties_definition(self, value: typing.Any) -> typing.Any:
         """Allow to patch `convert_to_column` of the properties definition."""
         return value
 
@@ -564,7 +568,7 @@ class BaseModel(
 
     @property
     @api.deprecated("Deprecated since 19.0, use self.env.cr directly")
-    def _cr(self):
+    def _cr(self) -> typing.Any:
         return self.env.cr
 
 

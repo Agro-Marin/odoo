@@ -1,7 +1,6 @@
 import base64
 import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from odoo.libs.web import urls
 from odoo.tests.common import BaseCase, TransactionCase
@@ -209,8 +208,8 @@ class TestFormatLangDate(TransactionCase):
         # -- test `time`
         time_part = datetime.time(16, 30, 22)
         time_part_tz = datetime.time(
-            16, 30, 22, tzinfo=ZoneInfo("America/New_York")
-        )  # 4:30 PM timezoned
+            16, 30, 22, tzinfo=datetime.timezone(datetime.timedelta(hours=-5))
+        )  # 4:30 PM with fixed UTC-5 offset (avoids DST-dependent results)
 
         self.assertEqual(
             misc.format_time(
@@ -263,7 +262,7 @@ class TestFormatLangDate(TransactionCase):
                 time_part_tz,
                 time_format="zzzz ah:mm:ss",
             ),
-            "\u5317\u7f8e\u4e1c\u90e8\u6807\u51c6\u65f6\u95f4\u0020\u4e0b\u53484:30:22",
+            "GMT-05:00\u0020\u4e0b\u53484:30:22",
         )
 
         # Check timezone conversion in format_time

@@ -9,6 +9,8 @@ from io import StringIO
 from lxml import etree
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from odoo.cli.upgrade_code import FileManager
 
 _logger = logging.getLogger(__name__)
@@ -18,15 +20,18 @@ manual = {
 }
 
 
-def template2country(template):
+def template2country(template: str) -> str:
+    """Convert a tax template name prefix to its country XML ID."""
     return f"base.{template[:2]}"
 
 
-def data_file_module_name(f):
+def data_file_module_name(f: object) -> str:
+    """Extract the module name from a data file's path."""
     return f.path.parts[f.path.parts.index("data") - 1]
 
 
-def tax_grouper(row_iter):
+def tax_grouper(row_iter: Iterator[dict[str, str]]) -> Iterator[list[dict[str, str]]]:
+    """Group CSV rows into batches where each new batch starts at a non-empty id."""
     current_batch = [next(row_iter)]
     for row in row_iter:
         if row["id"]:
@@ -37,8 +42,11 @@ def tax_grouper(row_iter):
     yield current_batch
 
 
-def tag_factor(tax_rows):
-    tag2factor = defaultdict(lambda: defaultdict(float))
+def tag_factor(tax_rows: list[dict[str, str]]) -> defaultdict:
+    """Build a mapping of {document_type: {tag: cumulative_factor_percent}}."""
+    tag2factor: defaultdict[str, defaultdict[str, float]] = defaultdict(
+        lambda: defaultdict(float)
+    )
     for row in tax_rows:
         document_type = row["repartition_line_ids/document_type"]
         factor_percent = float(row.get("repartition_line_ids/factor_percent") or 100)
@@ -48,7 +56,8 @@ def tag_factor(tax_rows):
     return tag2factor
 
 
-def test_tag_signs(tag_signs):
+def test_tag_signs(tag_signs: dict[str, dict[str, int | str]]) -> None:
+    """Assert known Belgium and Italy tag signs for regression testing."""
     assert tag_signs["base.be"]["03"] == -1, tag_signs["base.be"]
     assert tag_signs["base.be"]["49"] == 1, tag_signs["base.be"]
     assert tag_signs["base.be"]["54"] == -1, tag_signs["base.be"]
@@ -59,7 +68,13 @@ def test_tag_signs(tag_signs):
     assert tag_signs["base.it"]["4v"] == -1, tag_signs["base.it"]
 
 
-def remove_sign(tag_string, tag_signs, type_tax_use, document_type, tag2factor):
+def remove_sign(
+    tag_string: str,
+    tag_signs: dict[str, int | str],
+    type_tax_use: str,
+    document_type: str,
+    tag2factor: dict[str, float],
+) -> str:
     tags = []
     if not tag_string:
         return tag_string
@@ -90,7 +105,7 @@ def remove_sign(tag_string, tag_signs, type_tax_use, document_type, tag2factor):
     return "||".join(tags)
 
 
-def upgrade(file_manager: FileManager):
+def upgrade(file_manager: FileManager) -> None:
     tax_template_files = [
         f
         for f in file_manager

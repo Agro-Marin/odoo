@@ -30,12 +30,8 @@ MODULES_TO_IGNORE = {
     "pos_blackbox_be",  # TODO cannot update to sanitize without certification
 }
 METHODS_TO_IGNORE = {
-    # base
+    # enterprise: timer_mixin(self) vs timesheet_grid(self, try_to_match=False)
     "action_timer_stop",
-    "_get_eval_context",
-    # mail
-    "_action_done",
-    "_get_html_link",
 }
 MODEL_METHODS_TO_IGNORE = {
     (
@@ -84,8 +80,7 @@ def check_parameter(
         )
         and (
             # if parent has a default, child should have the same one
-            pparam.default is EMPTY
-            or pparam.default == cparam.default
+            pparam.default is EMPTY or pparam.default == cparam.default
         )
         and (
             # if both are annotated, then they should be similar (for typing)
@@ -126,9 +121,9 @@ def assert_valid_override(parent_signature, child_signature, is_private):
         assert parent_has_varargs, "too many positional parameters"
         cposparams = cposparams[: len(pposparams)]
     for pparam, cparam in zip(pposparams, cposparams, strict=True):
-        assert check_parameter(
-            pparam, cparam, is_private=is_private
-        ), f"wrong positional parameter {cparam.name!r}"
+        assert check_parameter(pparam, cparam, is_private=is_private), (
+            f"wrong positional parameter {cparam.name!r}"
+        )
 
     # check keywords
     kw_kinds = (KEYWORD_ONLY,) if is_private else (POSITIONAL_OR_KEYWORD, KEYWORD_ONLY)
@@ -139,9 +134,9 @@ def assert_valid_override(parent_signature, child_signature, is_private):
         if cparam is None:
             assert child_has_varkwargs, f"missing keyword parameter {name!r}"
         else:
-            assert check_parameter(
-                pparam, cparam, is_private=is_private
-            ), f"wrong keyword parameter {name!r}"
+            assert check_parameter(pparam, cparam, is_private=is_private), (
+                f"wrong keyword parameter {name!r}"
+            )
     if not parent_has_varkwargs:
         for name in ckwparams.keys() - pkwparams.keys():
             assert ckwparams[name].default is not EMPTY, "too many keyword parameters"
@@ -234,9 +229,9 @@ class TestLintOverrideSignatures(LintCase):
                                 override_signature,
                                 is_private=is_private,
                             )
-                            assert (
-                                override_decorators == original_decorators
-                            ), "decorators does not match"
+                            assert override_decorators == original_decorators, (
+                                "decorators does not match"
+                            )
                             assert_attribute_override(
                                 method, override, is_private=is_private
                             )

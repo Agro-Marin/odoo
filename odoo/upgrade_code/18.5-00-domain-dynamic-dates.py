@@ -16,13 +16,13 @@ if typing.TYPE_CHECKING:
 
 
 class NoChange(Exception):
-    pass
+    """Raised when no transformation is applicable to a domain."""
 
 
 class InvertUnaryTransformer(ast.NodeTransformer):
     """Inline constant value "-X" which is a unary operator into the constant value."""
 
-    def visit_UnaryOp(self, node: ast.UnaryOp):
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> ast.expr:
         if isinstance(node.op, ast.USub) and isinstance(
             value := node.operand, ast.Constant
         ):
@@ -32,12 +32,15 @@ class InvertUnaryTransformer(ast.NodeTransformer):
 
 
 class UpgradeDomainTransformer(ast.NodeTransformer):
-    def __init__(self):
+    """Transform legacy dynamic domain expressions to the modern string syntax."""
+
+    def __init__(self) -> None:
         super().__init__()
-        self.log = None
+        self.log: list[str] | None = None
         self._invert_transformer = InvertUnaryTransformer()
 
-    def transform(self, domain):
+    def transform(self, domain: str) -> str:
+        """Transform a domain expression string; raise NoChange if no change possible."""
         self.log = None
         node = ast.parse(domain.strip(), mode="eval")
         node = self._invert_transformer.visit(node)
@@ -48,17 +51,17 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             raise NoChange
         return ast.unparse(result)
 
-    def _cannot_parse(self, node, msg):
+    def _cannot_parse(self, node: ast.expr, msg: str = "") -> ast.expr:
         if not self.log:
             self.log = []
         self.log.append(msg + " " + ast.unparse(node))
         return node
 
-    def visit_List(self, node: ast.List):
+    def visit_List(self, node: ast.List) -> ast.expr:
         # same implementation as for tuples
         return self.visit_Tuple(node)
 
-    def visit_Tuple(self, node):
+    def visit_Tuple(self, node: ast.Tuple | ast.List) -> ast.expr:
         if len(node.elts) != 3 or not isinstance(node.elts[0], ast.Constant):
             return self.generic_visit(node)
         value_node = node.elts[2]
@@ -95,7 +98,7 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
         return node
 
     @staticmethod
-    def parse_offset_keywords(kws: list[ast.keyword]):
+    def parse_offset_keywords(kws: list[ast.keyword]) -> str | None:
         values = {
             kw.arg: kw.value.value for kw in kws if isinstance(kw.value, ast.Constant)
         }
@@ -103,7 +106,7 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             return None
         result = ""
 
-        def build(value, suffix, eq=False):
+        def build(value: int | float, suffix: str, eq: bool = False) -> None:
             nonlocal result
             if eq:
                 sign = "="
@@ -150,7 +153,7 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             return None
         return result
 
-    def visit_Call(self, node: ast.Call):
+    def visit_Call(self, node: ast.Call) -> ast.expr | str | datetime.time:
         value = None
         match node.func, node.args, node.keywords:
             case ast.Name(id="context_today"), [], []:
@@ -225,7 +228,7 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
             return value
         return self._cannot_parse(node, "call")
 
-    def visit_BinOp(self, node):
+    def visit_BinOp(self, node: ast.BinOp) -> ast.expr | str:
         left = self.visit(node.left)
         right = self.visit(node.right)
         if isinstance(left, str) and isinstance(right, str):
@@ -238,7 +241,7 @@ class UpgradeDomainTransformer(ast.NodeTransformer):
         return node
 
 
-def upgrade(file_manager: FileManager):
+def upgrade(file_manager: FileManager) -> None:
     upgrade_domain = UpgradeDomainTransformer()
     no_whitespace = functools.partial(re.compile(r"\s", re.MULTILINE).sub, "")
     for file in file_manager:
@@ -279,7 +282,7 @@ def upgrade(file_manager: FileManager):
         if not replacements:
             continue
 
-        def replacement_attr(match):
+        def replacement_attr(match: re.Match[str]) -> str:
             value = etree.fromstring(f"<x {match[0]} />").attrib["domain"]
             domain = replacements.get(no_whitespace(value))
             if not domain:
@@ -290,7 +293,7 @@ def upgrade(file_manager: FileManager):
             raw_value = repr(domain).strip('"')
             return f"{match[1]}{raw_value}{match[3]}"
 
-        def replacement_tag(match):
+        def replacement_tag(match: re.Match[str]) -> str:
             value = etree.fromstring(f"<x>{match[2]}</x>").text
             domain = replacements.get(no_whitespace(value))
             if not domain:
@@ -315,13 +318,13 @@ def upgrade(file_manager: FileManager):
         file.content = content
 
 
-def test(domain, result=""):
+def test(domain: str, result: str = "") -> None:
     output = UpgradeDomainTransformer().transform(domain)
     _logger.debug("%s", output)
     if result:
-        assert (
-            output == result
-        ), f"Failed to parse {domain!r}; got {output!r} instead of {result!r}"
+        assert output == result, (
+            f"Failed to parse {domain!r}; got {output!r} instead of {result!r}"
+        )
     else:
         assert output != domain, f"Failed to change {domain!r}"
 

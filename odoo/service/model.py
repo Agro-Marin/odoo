@@ -151,7 +151,7 @@ def dispatch(method: str, params: Sequence) -> typing.Any:
 
 
 def execute_cr(
-    cr, uid: int, obj: str, method: str, args: list | tuple, kw: dict
+    cr: typing.Any, uid: int, obj: str, method: str, args: list | tuple, kw: dict
 ) -> typing.Any:
     # clean cache etc if we retry the same transaction
     cr.reset()
@@ -169,9 +169,7 @@ def execute_cr(
     for lazy_val in _traverse_containers(result, lazy):
         lazy_val._value  # noqa: B018 — intentional attribute access to force evaluation
     if result is None:
-        _logger.debug(
-            "The method %s of the object %s returned `None`.", method, obj
-        )
+        _logger.debug("The method %s of the object %s returned `None`.", method, obj)
     return result
 
 
@@ -268,7 +266,8 @@ def retrying[T](func: Callable[[], T], env: Environment) -> T:
                 time.sleep(wait_time)
         else:
             # handled in the "if not tryleft" case
-            raise RuntimeError("unreachable")
+            msg = "unreachable"
+            raise RuntimeError(msg)
 
     except Exception:
         if not env.cr.closed:

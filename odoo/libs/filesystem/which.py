@@ -57,6 +57,10 @@ import pathlib
 import sys
 from os import F_OK, R_OK, W_OK, X_OK, access, defpath, environ, pathsep
 from os.path import dirname, exists, join, split
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 ENOENT = 2
 
@@ -80,7 +84,12 @@ else:
     defpathext = [""]
 
 
-def which_files(file, mode=F_OK | X_OK, path=None, pathext=None):
+def which_files(
+    file: str,
+    mode: int = F_OK | X_OK,
+    path: str | list[str] | None = None,
+    pathext: str | list[str] | None = None,
+) -> Iterator[str]:
     """Locate a file in a path supplied as a part of the file name,
     or the user's path, or a supplied path.
     The function yields full paths (not necessarily absolute paths),
@@ -88,43 +97,71 @@ def which_files(file, mode=F_OK | X_OK, path=None, pathext=None):
 
     >>> def test_which(expected, *args, **argd):
     ...     result = list(which_files(*args, **argd))
-    ...     assert all(path in result for path in expected) if expected else not result, 'which_files: %s != %s' % (result, expected)
+    ...     assert (
+    ...         all(path in result for path in expected) if expected else not result
+    ...     ), "which_files: %s != %s" % (result, expected)
     ...
     ...     try:
     ...         result = which(*args, **argd)
     ...         path = expected[0]
-    ...         assert split(result)[1] == split(expected[0])[1], 'which: %s not same binary %s' % (result, expected)
+    ...         assert split(result)[1] == split(expected[0])[1], (
+    ...             "which: %s not same binary %s" % (result, expected)
+    ...         )
     ...     except IOError:
     ...         result = None
-    ...         assert not expected, 'which: expecting %s' % expected
+    ...         assert not expected, "which: expecting %s" % expected
 
-    >>> if windows: cmd = environ['COMSPEC']
-    >>> if windows: test_which([cmd], 'cmd')
-    >>> if windows: test_which([cmd], 'cmd.exe')
-    >>> if windows: test_which([cmd], 'cmd', path=dirname(cmd))
-    >>> if windows: test_which([cmd], 'cmd', pathext='.exe')
-    >>> if windows: test_which([cmd], cmd)
-    >>> if windows: test_which([cmd], cmd, path='<nonexistent>')
-    >>> if windows: test_which([cmd], cmd, pathext='<nonexistent>')
-    >>> if windows: test_which([cmd], cmd[:-4])
-    >>> if windows: test_which([cmd], cmd[:-4], path='<nonexistent>')
+    >>> if windows:
+    ...     cmd = environ["COMSPEC"]
+    >>> if windows:
+    ...     test_which([cmd], "cmd")
+    >>> if windows:
+    ...     test_which([cmd], "cmd.exe")
+    >>> if windows:
+    ...     test_which([cmd], "cmd", path=dirname(cmd))
+    >>> if windows:
+    ...     test_which([cmd], "cmd", pathext=".exe")
+    >>> if windows:
+    ...     test_which([cmd], cmd)
+    >>> if windows:
+    ...     test_which([cmd], cmd, path="<nonexistent>")
+    >>> if windows:
+    ...     test_which([cmd], cmd, pathext="<nonexistent>")
+    >>> if windows:
+    ...     test_which([cmd], cmd[:-4])
+    >>> if windows:
+    ...     test_which([cmd], cmd[:-4], path="<nonexistent>")
 
-    >>> if windows: test_which([], 'cmd', path='<nonexistent>')
-    >>> if windows: test_which([], 'cmd', pathext='<nonexistent>')
-    >>> if windows: test_which([], '<nonexistent>/cmd')
-    >>> if windows: test_which([], cmd[:-4], pathext='<nonexistent>')
+    >>> if windows:
+    ...     test_which([], "cmd", path="<nonexistent>")
+    >>> if windows:
+    ...     test_which([], "cmd", pathext="<nonexistent>")
+    >>> if windows:
+    ...     test_which([], "<nonexistent>/cmd")
+    >>> if windows:
+    ...     test_which([], cmd[:-4], pathext="<nonexistent>")
 
-    >>> if not windows: sh = '/bin/sh'
-    >>> if not windows: test_which([sh], 'sh')
-    >>> if not windows: test_which([sh], 'sh', path=dirname(sh))
-    >>> if not windows: test_which([sh], 'sh', pathext='<nonexistent>')
-    >>> if not windows: test_which([sh], sh)
-    >>> if not windows: test_which([sh], sh, path='<nonexistent>')
-    >>> if not windows: test_which([sh], sh, pathext='<nonexistent>')
+    >>> if not windows:
+    ...     sh = "/bin/sh"
+    >>> if not windows:
+    ...     test_which([sh], "sh")
+    >>> if not windows:
+    ...     test_which([sh], "sh", path=dirname(sh))
+    >>> if not windows:
+    ...     test_which([sh], "sh", pathext="<nonexistent>")
+    >>> if not windows:
+    ...     test_which([sh], sh)
+    >>> if not windows:
+    ...     test_which([sh], sh, path="<nonexistent>")
+    >>> if not windows:
+    ...     test_which([sh], sh, pathext="<nonexistent>")
 
-    >>> if not windows: test_which([], 'sh', mode=W_OK)  # not running as root, are you?
-    >>> if not windows: test_which([], 'sh', path='<nonexistent>')
-    >>> if not windows: test_which([], '<nonexistent>/sh')
+    >>> if not windows:
+    ...     test_which([], "sh", mode=W_OK)  # not running as root, are you?
+    >>> if not windows:
+    ...     test_which([], "sh", path="<nonexistent>")
+    >>> if not windows:
+    ...     test_which([], "<nonexistent>/sh")
     """
     filepath, file = split(file)
 
@@ -146,14 +183,19 @@ def which_files(file, mode=F_OK | X_OK, path=None, pathext=None):
         )  # always check command without extension, even for custom pathext
 
     for dir in path:
-        basepath = join(dir, file)
+        basepath = pathlib.Path(dir) / file
         for ext in pathext:
-            fullpath = basepath + ext
+            fullpath = str(basepath) + ext
             if pathlib.Path(fullpath).exists() and access(fullpath, mode):
                 yield fullpath
 
 
-def which(file, mode=F_OK | X_OK, path=None, pathext=None):
+def which(
+    file: str,
+    mode: int = F_OK | X_OK,
+    path: str | list[str] | None = None,
+    pathext: str | list[str] | None = None,
+) -> str:
     """Locate a file in a path supplied as a part of the file name,
     or the user's path, or a supplied path.
     The function returns full path (not necessarily absolute path),

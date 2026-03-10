@@ -9,10 +9,9 @@ pure Python.
 from .cache import FieldCache
 from .compute import ComputeEngine
 from .core import OrmCore
-from .field_spec import FieldSpec
 from .model_graph import ModelGraph, TriggerTree
 from .recompute import RecomputeScheduler
-from .storage import DictBackend, StorageBackend
+from .storage import DictBackend
 from .testing import FieldDef, InMemoryEnvironment, ModelDef
 from .unit_of_work import LoopResult, UnitOfWork
 
@@ -23,7 +22,6 @@ __all__ = [
     "FieldCache",
     # Testing
     "FieldDef",
-    "FieldSpec",
     "InMemoryEnvironment",
     # Flush scheduling
     "LoopResult",
@@ -33,7 +31,6 @@ __all__ = [
     "OrmCore",
     # Recomputation scheduling
     "RecomputeScheduler",
-    "StorageBackend",
     "TriggerTree",
     "UnitOfWork",
 ]

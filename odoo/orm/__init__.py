@@ -4,7 +4,6 @@ Package Structure (layered architecture):
 
 Layer 0 — Zero-dependency foundations:
   primitives.py    Constants, Command, NewId, type aliases
-  protocols.py     RecordSetProto (runtime_checkable Protocol)
   parsing.py       Field expression / read_group spec parsing
   validation.py    Name-checking helpers (pg, object, method)
   constants.py     Read group constants (granularity, aggregates, display)

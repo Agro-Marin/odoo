@@ -14,7 +14,7 @@ from odoo.libs.datetime.tz import timezone as get_timezone
 from odoo.tools import date_utils, get_lang
 
 from .... import decorators as api
-from ...._typing import DomainType, ModelType
+from ...._typing import DomainType, ModelType  # noqa: TC003 — runtime import required (PEP 649)
 from ....constants import READ_GROUP_TIME_GRANULARITY
 from ....fields.temporal import Date, Datetime
 from ....parsing import parse_read_group_spec
@@ -45,15 +45,15 @@ class _ReadGroupFillMixin:
     @api.model
     def _read_group_fill_results(
         self,
-        domain,
-        groupby,
-        annoted_aggregates,
-        read_group_result,
-        read_group_order=None,
-    ):
+        domain: DomainType,
+        groupby: str,
+        annoted_aggregates: dict,
+        read_group_result: list[dict],
+        read_group_order: str | None = None,
+    ) -> list[dict]:
         """Helper method for filling in empty groups for all possible values of
         the field being grouped by"""
-        field_name = groupby.split(".")[0].split(":")[0]
+        field_name = groupby.split(".", maxsplit=1)[0].split(":", maxsplit=1)[0]
         field = self._fields[field_name]
         if not field or not field.group_expand:
             return read_group_result
@@ -77,6 +77,7 @@ class _ReadGroupFillMixin:
             values = group_expand(self, groups, domain).sudo()
             if read_group_order == groupby + " desc":
                 values = values.browse(reversed(values._ids))
+
             def value2key(value):
                 return value and value.id
 
@@ -85,6 +86,7 @@ class _ReadGroupFillMixin:
             values = group_expand(self, values, domain)
             if read_group_order == groupby + " desc":
                 values.reverse()
+
             def value2key(value):
                 return value
 
@@ -128,13 +130,13 @@ class _ReadGroupFillMixin:
     @api.model
     def _read_group_fill_temporal(
         self,
-        data,
-        groupby,
-        annoted_aggregates,
-        fill_from=False,
-        fill_to=False,
-        min_groups=False,
-    ):
+        data: list[dict],
+        groupby: list[str],
+        annoted_aggregates: dict,
+        fill_from: str | bool = False,
+        fill_to: str | bool = False,
+        min_groups: int | bool = False,
+    ) -> list[dict]:
         """Helper method for filling date/datetime 'holes' in a result set.
 
         We are in a use case where data are grouped by a date field (typically

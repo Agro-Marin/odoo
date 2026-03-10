@@ -1,7 +1,10 @@
 __all__ = ["groupby", "partition", "unique"]
 
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Iterator
 
 
 def groupby[T, K](
@@ -35,7 +38,9 @@ def unique[T](it: Iterable[T]) -> Iterator[T]:
             yield e
 
 
-def partition[T](pred: Callable[[T], bool], elems: Iterable[T]) -> tuple[list[T], list[T]]:
+def partition[T](
+    pred: Callable[[T], bool], elems: Iterable[T]
+) -> tuple[list[T], list[T]]:
     """Partition elements into two lists based on a predicate.
 
     Return a pair equivalent to:

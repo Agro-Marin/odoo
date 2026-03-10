@@ -1,7 +1,11 @@
 import re
+import typing
+
+if typing.TYPE_CHECKING:
+    from odoo.cli.upgrade_code import FileManager
 
 
-def upgrade(file_manager):
+def upgrade(file_manager: FileManager) -> None:
     files = [
         file for file in file_manager if file.path.suffix in (".xml", ".js", ".py")
     ]

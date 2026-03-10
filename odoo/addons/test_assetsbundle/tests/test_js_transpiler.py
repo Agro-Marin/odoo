@@ -1,6 +1,41 @@
-from odoo.libs.web.js_transpiler import transpile_javascript
+from odoo.libs.web.js_transpiler import (
+    is_native_module,
+    is_odoo_module,
+    transpile_javascript,
+)
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
+
+
+@tagged("post_install", "-at_install")
+class TestNativeModule(TransactionCase):
+    """Tests for the @odoo-module native flag."""
+
+    def test_is_native_module(self):
+        """Files with @odoo-module native should be detected as native."""
+        content = '/** @odoo-module native */\nexport function foo() {}'
+        url = "/web/static/src/core/utils/concurrency.js"
+        self.assertTrue(is_native_module(url, content))
+
+    def test_native_not_odoo_module(self):
+        """Native modules should return False for is_odoo_module (skip transpilation)."""
+        content = '/** @odoo-module native */\nexport function foo() {}'
+        url = "/web/static/src/core/utils/concurrency.js"
+        self.assertFalse(is_odoo_module(url, content))
+
+    def test_regular_module_not_native(self):
+        """Regular @odoo-module files are not native."""
+        content = '/** @odoo-module */\nimport { registry } from "@web/core/registry";'
+        url = "/web/static/src/core/registry.js"
+        self.assertFalse(is_native_module(url, content))
+        self.assertTrue(is_odoo_module(url, content))
+
+    def test_ignore_not_native(self):
+        """@odoo-module ignore files are neither native nor odoo modules."""
+        content = '// @odoo-module ignore\n(function() {})()'
+        url = "/web/static/src/module_loader.js"
+        self.assertFalse(is_native_module(url, content))
+        self.assertFalse(is_odoo_module(url, content))
 
 
 @tagged("post_install", "-at_install")

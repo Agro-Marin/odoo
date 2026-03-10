@@ -1,6 +1,7 @@
 import functools
 import re
 from threading import RLock
+from typing import Any
 
 __all__ = [
     "check_barcode_encoding",
@@ -8,14 +9,14 @@ __all__ = [
     "get_barcode_check_digit",
     "get_barcode_font",
 ]
-_barcode_init_lock = RLock()
+_barcode_init_lock: RLock = RLock()
 
 
 # Reportlab builds a T1 font cache on first barcode render; this initialization
 # is not thread-safe. The lock + lru_cache ensures it happens exactly once, even
 # when multiple threads request barcodes concurrently at server startup.
 @functools.lru_cache(1)
-def _init_barcode():
+def _init_barcode() -> tuple[Any, str]:
     with _barcode_init_lock:
         try:
             from reportlab.graphics import barcode
@@ -46,12 +47,12 @@ def _init_barcode():
         return barcode, font_name
 
 
-def createBarcodeDrawing(codeName: str, **options):
+def createBarcodeDrawing(codeName: str, **options: Any) -> Any:
     barcode, _font = _init_barcode()
     return barcode.createBarcodeDrawing(codeName, **options)
 
 
-def get_barcode_font():
+def get_barcode_font() -> str:
     """Get the barcode font for rendering."""
     _barcode, font = _init_barcode()
     return font

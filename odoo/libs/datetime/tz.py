@@ -219,8 +219,8 @@ def country_timezones() -> dict[str, list[str]]:
 
     Example::
 
-        >>> country_timezones()['US']
-        ['America/Adak', 'America/Anchorage', ...]
+        >>> 'America/New_York' in country_timezones()['US']
+        True
         >>> country_timezones()['JP']
         ['Asia/Tokyo']
     """

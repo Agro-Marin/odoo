@@ -24,7 +24,6 @@ import operator
 import types
 import typing
 import warnings
-from collections.abc import Callable, Iterable
 
 from odoo.exceptions import UserError
 from odoo.tools import SQL, OrderedSet, Query, classproperty
@@ -44,7 +43,7 @@ from .constants import (
 )
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Callable, Collection, Iterable
 
     from ..fields import Field
     from ..models import BaseModel
@@ -63,7 +62,8 @@ class OptimizationLevel(enum.IntEnum):
     FULL = enum.auto()
 
     @functools.cached_property
-    def next_level(self):
+    def next_level(self) -> OptimizationLevel:
+        """Return the next optimization level."""
         assert self is not OptimizationLevel.FULL, "FULL level is the last one"
         return OptimizationLevel(int(self) + 1)
 
@@ -137,13 +137,13 @@ class Domain:
     __slots__ = ("_opt_level",)
     _opt_level: OptimizationLevel
 
-    def __new__(cls, *args, internal: bool = False):
+    def __new__(cls, *args: object, internal: bool = False) -> Domain:
         """Build a domain AST.
 
         ```
-        Domain([('a', '=', 5), ('b', '=', 8)])
-        Domain('a', '=', 5) & Domain('b', '=', 8)
-        Domain.AND([Domain('a', '=', 5), *other_domains, Domain.TRUE])
+        Domain([("a", "=", 5), ("b", "=", 8)])
+        Domain("a", "=", 5) & Domain("b", "=", 8)
+        Domain.AND([Domain("a", "=", 5), *other_domains, Domain.TRUE])
         ```
 
         If we have one argument, it is a `Domain`, or a list representation, or a bool.
@@ -259,22 +259,24 @@ class Domain:
         return DomainCustom(to_sql, predicate)
 
     @staticmethod
-    def AND(items: Iterable) -> Domain:
+    def AND(items: Iterable[object]) -> Domain:
         """Build the conjuction of domains: (item1 AND item2 AND ...)"""
         return DomainAnd.apply(Domain(item) for item in items)
 
     @staticmethod
-    def OR(items: Iterable) -> Domain:
+    def OR(items: Iterable[object]) -> Domain:
         """Build the disjuction of domains: (item1 OR item2 OR ...)"""
         return DomainOr.apply(Domain(item) for item in items)
 
-    def __setattr__(self, name, value):
-        raise TypeError("Domain objects are immutable")
+    def __setattr__(self, name: str, value: object) -> None:
+        msg = "Domain objects are immutable"
+        raise TypeError(msg)
 
-    def __delattr__(self, name):
-        raise TypeError("Domain objects are immutable")
+    def __delattr__(self, name: str) -> None:
+        msg = "Domain objects are immutable"
+        raise TypeError(msg)
 
-    def __and__(self, other):
+    def __and__(self, other: object) -> Domain | type[NotImplemented]:
         """Domain & Domain"""
         if isinstance(other, Domain):
             # Fast path: absorbing element / identity shortcuts
@@ -283,7 +285,7 @@ class Domain:
             return DomainAnd.apply([self, other])
         return NotImplemented
 
-    def __or__(self, other):
+    def __or__(self, other: object) -> Domain | type[NotImplemented]:
         """Domain | Domain"""
         if isinstance(other, Domain):
             # Fast path: absorbing element / identity shortcuts
@@ -292,7 +294,7 @@ class Domain:
             return DomainOr.apply([self, other])
         return NotImplemented
 
-    def __invert__(self):
+    def __invert__(self) -> Domain:
         """~Domain"""
         return DomainNot(self)
 
@@ -300,7 +302,7 @@ class Domain:
         """Apply (propagate) negation onto this domain."""
         return ~self
 
-    def __add__(self, other):
+    def __add__(self, other: object) -> Domain | list[object]:
         """Domain + [...]
 
         For backward-compatibility of domain composition.
@@ -319,7 +321,8 @@ class Domain:
             )
             return self & other
         if not isinstance(other, list):
-            raise TypeError("Domain() can concatenate only lists")
+            msg = "Domain() can concatenate only lists"
+            raise TypeError(msg)
         warnings.warn(
             "Domain + list is deprecated, convert the list to a Domain first",
             DeprecationWarning,
@@ -327,7 +330,7 @@ class Domain:
         )
         return list(self) + other
 
-    def __radd__(self, other):
+    def __radd__(self, other: list[object]) -> list[object]:
         """Commutative definition of *+*"""
         # DEPRECATED: Use Domain & Domain for conjunction, not list + Domain.
         warnings.warn(
@@ -339,7 +342,7 @@ class Domain:
         # because the result may not be normalized
         return other + list(self)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         """Indicate that the domain is not true.
 
         For backward-compatibility, only the domain [] was False. Which means
@@ -356,18 +359,18 @@ class Domain:
         # )
         return not self.is_true()
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         raise NotImplementedError
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         raise NotImplementedError
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[object]:
         """For-backward compatibility, return the polish-notation domain list"""
         yield from ()
         raise NotImplementedError
 
-    def __reversed__(self):
+    def __reversed__(self) -> typing.Iterator[object]:
         """For-backward compatibility, reversed iter"""
         return reversed(list(self))
 
@@ -383,7 +386,7 @@ class Domain:
         """Return whether self is FALSE"""
         return False
 
-    def iter_conditions(self) -> Iterable[DomainCondition]:
+    def iter_conditions(self) -> typing.Iterator[DomainCondition]:
         """Yield simple conditions of the domain"""
         yield from ()
 
@@ -445,7 +448,8 @@ class Domain:
         domain, previous, count = self, None, 0
         while domain._opt_level < level:
             if (count := count + 1) > MAX_OPTIMIZE_ITERATIONS:
-                raise RecursionError("Domain.optimize: too many loops")
+                msg = "Domain.optimize: too many loops"
+                raise RecursionError(msg)
             next_level = domain._opt_level.next_level
             previous, domain = domain, domain._optimize_step(model, next_level)
             # set the optimization level if necessary (unlike DomainBool, for instance)
@@ -483,10 +487,10 @@ class DomainBool(Domain):
         object.__setattr__(self, "_opt_level", OptimizationLevel.FULL)
         return self
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return self is other  # because this class has two instances only
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.value)
 
     def is_true(self) -> bool:
@@ -495,23 +499,23 @@ class DomainBool(Domain):
     def is_false(self) -> bool:
         return not self.value
 
-    def __invert__(self):
+    def __invert__(self) -> DomainBool:
         return _FALSE_DOMAIN if self.value else _TRUE_DOMAIN
 
-    def __and__(self, other):
+    def __and__(self, other: object) -> Domain | type[NotImplemented]:
         if isinstance(other, Domain):
             return other if self.value else self
         return NotImplemented
 
-    def __or__(self, other):
+    def __or__(self, other: object) -> Domain | type[NotImplemented]:
         if isinstance(other, Domain):
             return self if self.value else other
         return NotImplemented
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[tuple[int, str, int]]:
         yield TRUE_LEAF if self.value else FALSE_LEAF
 
-    def _as_predicate(self, records):
+    def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         return lambda _: self.value
 
     def _to_sql(self, model: BaseModel, alias: str, query: Query) -> SQL:
@@ -538,31 +542,31 @@ class DomainNot(Domain):
         object.__setattr__(self, "_opt_level", OptimizationLevel.NONE)
         return self
 
-    def __invert__(self):
+    def __invert__(self) -> Domain:
         return self.child
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[object]:
         yield self.OPERATOR
         yield from self.child
 
-    def iter_conditions(self):
+    def iter_conditions(self) -> typing.Iterator[DomainCondition]:
         yield from self.child.iter_conditions()
 
-    def map_conditions(self, function) -> Domain:
+    def map_conditions(self, function: Callable[[DomainCondition], Domain]) -> Domain:
         return ~(self.child.map_conditions(function))
 
     def _optimize_step(self, model: BaseModel, level: OptimizationLevel) -> Domain:
         return self.child._optimize(model, level)._negate(model)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return self is other or (
             isinstance(other, DomainNot) and self.child == other.child
         )
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return ~hash(self.child)
 
-    def _as_predicate(self, records):
+    def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         predicate = self.child._as_predicate(records)
         return lambda rec: not predicate(rec)
 
@@ -615,19 +619,19 @@ class DomainNary(Domain):
                 result.append(child)
         return result or [cls.ZERO]
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[object]:
         yield from itertools.repeat(self.OPERATOR, len(self.children) - 1)
         for child in self.children:
             yield from child
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return self is other or (
             isinstance(other, DomainNary)
             and self.OPERATOR == other.OPERATOR
             and self.children == other.children
         )
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.OPERATOR) ^ hash(self.children)
 
     @classproperty
@@ -635,17 +639,17 @@ class DomainNary(Domain):
         """Return the inverted nary type, AND/OR"""
         raise NotImplementedError
 
-    def __invert__(self):
+    def __invert__(self) -> DomainNary:
         return self.INVERSE(tuple(~child for child in self.children))
 
-    def _negate(self, model):
+    def _negate(self, model: BaseModel) -> DomainNary:
         return self.INVERSE(tuple(child._negate(model) for child in self.children))
 
-    def iter_conditions(self):
+    def iter_conditions(self) -> typing.Iterator[DomainCondition]:
         for child in self.children:
             yield from child.iter_conditions()
 
-    def map_conditions(self, function) -> Domain:
+    def map_conditions(self, function: Callable[[DomainCondition], Domain]) -> Domain:
         return self.apply(child.map_conditions(function) for child in self.children)
 
     def _optimize_step(self, model: BaseModel, level: OptimizationLevel) -> Domain:
@@ -692,16 +696,16 @@ class DomainAnd(DomainNary):
     def INVERSE(self) -> type[DomainNary]:
         return DomainOr
 
-    def __and__(self, other):
+    def __and__(self, other: object) -> Domain | type[NotImplemented]:
         # simple optimization to append children
         if isinstance(other, DomainAnd):
             return DomainAnd(self.children + other.children)
         return super().__and__(other)
 
-    def _as_predicate(self, records):
+    def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         predicates = tuple(child._as_predicate(records) for child in self.children)
 
-        def and_predicate(record):
+        def and_predicate(record: BaseModel) -> bool:
             return all(pred(record) for pred in predicates)
 
         return and_predicate
@@ -719,16 +723,16 @@ class DomainOr(DomainNary):
     def INVERSE(self) -> type[DomainNary]:
         return DomainAnd
 
-    def __or__(self, other):
+    def __or__(self, other: object) -> Domain | type[NotImplemented]:
         # simple optimization to append children
         if isinstance(other, DomainOr):
             return DomainOr(self.children + other.children)
         return super().__or__(other)
 
-    def _as_predicate(self, records):
+    def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         predicates = tuple(child._as_predicate(records) for child in self.children)
 
-        def or_predicate(record):
+        def or_predicate(record: BaseModel) -> bool:
             return any(pred(record) for pred in predicates)
 
         return or_predicate
@@ -760,7 +764,7 @@ class DomainCustom(Domain):
         object.__setattr__(self, "_opt_level", OptimizationLevel.FULL)
         return self
 
-    def _as_predicate(self, records):
+    def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         if self._filtered is not None:
             return self._filtered
         # by default, run the SQL query
@@ -769,17 +773,17 @@ class DomainCustom(Domain):
         )
         return DomainCondition("id", "any", query)._as_predicate(records)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return (
             isinstance(other, DomainCustom)
             and self._sql == other._sql
             and self._filtered == other._filtered
         )
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self._sql) ^ hash(self._filtered)
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[object]:
         yield from ()
         raise NotImplementedError
 
@@ -800,7 +804,7 @@ class DomainCondition(Domain):
     operator: str
     value: typing.Any
 
-    def __new__(cls, field_expr: str, operator: str, value):
+    def __new__(cls, field_expr: str, operator: str, value: object) -> DomainCondition:
         """Init a new simple condition (internal init)
 
         :param field_expr: Field name or field path
@@ -823,7 +827,8 @@ class DomainCondition(Domain):
         if op != self.operator:
             warnings.warn(
                 f"Deprecated since 19.0, the domain condition {(self.field_expr, self.operator, self.value)!r} should have a lower-case operator",
-                DeprecationWarning, stacklevel=2,
+                DeprecationWarning,
+                stacklevel=2,
             )
             return DomainCondition(self.field_expr, op, self.value).checked()
         if op not in CONDITION_OPERATORS:
@@ -869,7 +874,7 @@ class DomainCondition(Domain):
             return DomainCondition(self.field_expr, op, value)
         return self
 
-    def __invert__(self):
+    def __invert__(self) -> Domain:
         # do it only for simple fields (not expressions)
         # inequalities are handled in _negate()
         if "." not in self.field_expr and (
@@ -878,7 +883,7 @@ class DomainCondition(Domain):
             return DomainCondition(self.field_expr, neg_op, self.value)
         return super().__invert__()
 
-    def _negate(self, model):
+    def _negate(self, model: BaseModel) -> Domain:
         # inverse of the operators is handled by construction
         # except for inequalities for which we must know the field's type
         if neg_op := INVERSE_INEQUALITY.get(self.operator):
@@ -893,14 +898,14 @@ class DomainCondition(Domain):
 
         return super()._negate(model)
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[tuple[str, str, object]]:
         field_expr, op, value = self.field_expr, self.operator, self.value
         # if the value is a domain or set, change it into a list
         if isinstance(value, (*COLLECTION_TYPES, Domain)):
             value = list(value)
         yield (field_expr, op, value)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return self is other or (
             isinstance(other, DomainCondition)
             and self.field_expr == other.field_expr
@@ -911,13 +916,13 @@ class DomainCondition(Domain):
             and self.value == other.value
         )
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.field_expr) ^ hash(self.operator) ^ hash(self.value)
 
-    def iter_conditions(self):
+    def iter_conditions(self) -> typing.Iterator[DomainCondition]:
         yield self
 
-    def map_conditions(self, function) -> Domain:
+    def map_conditions(self, function: Callable[[DomainCondition], Domain]) -> Domain:
         result = function(self)
         assert isinstance(result, Domain), "result of map_conditions is not a Domain"
         return result
@@ -958,9 +963,9 @@ class DomainCondition(Domain):
         - Run optimizations.
         - Check the output.
         """
-        assert (
-            level is self._opt_level.next_level
-        ), f"Trying to skip optimization level after {self._opt_level}"
+        assert level is self._opt_level.next_level, (
+            f"Trying to skip optimization level after {self._opt_level}"
+        )
 
         if level == OptimizationLevel.BASIC:
             # optimize path
@@ -1074,7 +1079,7 @@ class DomainCondition(Domain):
             )
         )
 
-    def _as_predicate(self, records):
+    def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         if not records:
             return lambda _: False
 
@@ -1137,12 +1142,12 @@ class DomainCondition(Domain):
 
     def _to_sql(self, model: BaseModel, alias: str, query: Query) -> SQL:
         field_expr, op, value = self.field_expr, self.operator, self.value
-        assert (
-            op in STANDARD_CONDITION_OPERATORS
-        ), f"Invalid operator {op!r} for SQL in domain term {(field_expr, op, value)!r}"
-        assert (
-            self._opt_level >= OptimizationLevel.FULL
-        ), f"Must fully optimize before generating the query {(field_expr, op, value)}"
+        assert op in STANDARD_CONDITION_OPERATORS, (
+            f"Invalid operator {op!r} for SQL in domain term {(field_expr, op, value)!r}"
+        )
+        assert self._opt_level >= OptimizationLevel.FULL, (
+            f"Must fully optimize before generating the query {(field_expr, op, value)}"
+        )
 
         field = self._field(model)
         model._check_field_access(field, "read")

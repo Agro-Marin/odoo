@@ -164,7 +164,7 @@ def sort_ids_by_values(
     return tuple(p[0] for p in pairs)
 
 
-def batch_group_ids(ids: tuple, values: list) -> dict:
+def batch_group_ids(ids: tuple, values: list) -> dict[object, list]:
     """Group record IDs by their corresponding values.
 
     Replaces the `defaultdict(list)` loop in `grouped()` for the no-miss case.
@@ -173,7 +173,7 @@ def batch_group_ids(ids: tuple, values: list) -> dict:
     :param values: list of group keys, same length as ids
     :return: dict mapping each distinct value to a list of IDs with that value
     """
-    result: dict = {}
+    result: dict[object, list] = {}
     _MISSING = object()
     for id_, val in zip(ids, values, strict=False):
         group = result.get(val, _MISSING)

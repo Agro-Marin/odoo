@@ -7,11 +7,14 @@ methods that handle record duplication with proper field and translation handlin
 
 import typing
 from collections import defaultdict
-from collections.abc import Collection
 from typing import Self
 
-from ..._typing import ValuesType
 from ...primitives import MAGIC_COLUMNS, Command
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Collection
+
+    from ..._typing import ValuesType
 
 
 class CopyMixin:

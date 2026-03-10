@@ -31,22 +31,30 @@ class Boolean(Field[bool]):
     __get__ = _make_scalar_get(lambda v: False if v is None else v)
 
     @override
-    def convert_to_column(self, value, record, values=None, validate=True):
+    def convert_to_column(
+        self,
+        value: typing.Any,
+        record: BaseModel,
+        values: dict[str, typing.Any] | None = None,
+        validate: bool = True,
+    ) -> bool:
         return bool(value)
 
     @override
-    def convert_to_cache(self, value, record, validate=True):
+    def convert_to_cache(
+        self, value: typing.Any, record: BaseModel, validate: bool = True
+    ) -> bool:
         return bool(value)
 
     @override
-    def convert_to_export(self, value, record):
+    def convert_to_export(self, value: typing.Any, record: BaseModel) -> bool:
         return bool(value)
 
     def _condition_to_sql(
         self,
         field_expr: str,
         operator: str,
-        value,
+        value: typing.Any,
         model: BaseModel,
         alias: str,
         query: Query,
@@ -88,18 +96,29 @@ class Json(Field):
     _column_type = ("jsonb", "jsonb")
 
     @override
-    def convert_to_record(self, value, record):
+    def convert_to_record(self, value: typing.Any, record: BaseModel) -> typing.Any:
         """Return a copy of the value"""
         return False if value is None else fast_clone(value)
 
     @override
-    def convert_to_cache(self, value, record, validate=True):
-        if value is None or value is False:
+    def convert_to_cache(
+        self, value: typing.Any, record: BaseModel, validate: bool = True
+    ) -> typing.Any:
+        if not value:
+            # Normalize all falsy values (None, False, {}, []) to None.
+            # convert_to_record maps None → False, maintaining the convention
+            # that "no value" for Json fields is False, never an empty container.
             return None
         return _fast_loads(_fast_dumps(value, default=orjson_default))
 
     @override
-    def convert_to_column(self, value, record, values=None, validate=True):
+    def convert_to_column(
+        self,
+        value: typing.Any,
+        record: BaseModel,
+        values: dict[str, typing.Any] | None = None,
+        validate: bool = True,
+    ) -> typing.Any:
         if validate:
             value = self.convert_to_cache(value, record)
         if value is None:
@@ -107,7 +126,7 @@ class Json(Field):
         return PsycopgJson(value)
 
     @override
-    def convert_to_export(self, value, record):
+    def convert_to_export(self, value: typing.Any, record: BaseModel) -> str:
         if not value:
             return ""
         return _fast_dumps(value)
@@ -125,11 +144,13 @@ class Id(Field[IdType | typing.Literal[False]]):
     readonly = True
     prefetch = False
 
-    def update_db(self, model, columns):
+    def update_db(self, model: BaseModel, columns: dict[str, typing.Any]) -> None:
         pass  # this column is created with the table
 
     @override
-    def __get__(self, record, owner=None):
+    def __get__(
+        self, record: BaseModel | None, owner: type | None = None
+    ) -> typing.Any:
         if record is None:
             return self  # the field is accessed through the class owner
 
@@ -143,11 +164,18 @@ class Id(Field[IdType | typing.Literal[False]]):
         raise ValueError(f"Expected singleton: {record}")
 
     @override
-    def __set__(self, record, value):
-        raise TypeError("field 'id' cannot be assigned")
+    def __set__(self, record: BaseModel, value: typing.Any) -> None:
+        msg = "field 'id' cannot be assigned"
+        raise TypeError(msg)
 
     @override
-    def convert_to_column(self, value, record, values=None, validate=True):
+    def convert_to_column(
+        self,
+        value: typing.Any,
+        record: BaseModel,
+        values: dict[str, typing.Any] | None = None,
+        validate: bool = True,
+    ) -> typing.Any:
         return value
 
     def to_sql(self, model: BaseModel, alias: str) -> SQL:
@@ -156,11 +184,11 @@ class Id(Field[IdType | typing.Literal[False]]):
         # id is never flushed
         return SQL.identifier(alias, self.name)
 
-    def expression_getter(self, field_expr):
+    def expression_getter(self, field_expr: str) -> typing.Any:
         if field_expr != "id.origin":
             return super().expression_getter(field_expr)
 
-        def getter(record):
+        def getter(record: BaseModel) -> typing.Any:
             return (id_ := record._ids[0]) or getattr(id_, "origin", None) or False
 
         return getter

@@ -31,11 +31,19 @@ class Reference(Selection):
     __get__ = Field.__get__
 
     @override
-    def convert_to_column(self, value, record, values=None, validate=True):
+    def convert_to_column(
+        self,
+        value: typing.Any,
+        record: BaseModel,
+        values: dict[str, typing.Any] | None = None,
+        validate: bool = True,
+    ) -> typing.Any:
         return Field.convert_to_column(self, value, record, values, validate)
 
     @override
-    def convert_to_cache(self, value, record, validate=True):
+    def convert_to_cache(
+        self, value: typing.Any, record: BaseModel, validate: bool = True
+    ) -> str | None:
         # cache format: str ("model,id") or None
         if hasattr(value, "_name") and hasattr(value, "_ids"):  # BaseModel instance
             if not validate or (
@@ -54,22 +62,28 @@ class Reference(Selection):
         raise ValueError(f"Wrong value for {self}: {value!r}")
 
     @override
-    def convert_to_record(self, value, record):
+    def convert_to_record(
+        self, value: typing.Any, record: BaseModel
+    ) -> BaseModel | None:
         if value:
             res_model, res_id = value.split(",")
             return record.env[res_model].browse(int(res_id))
         return None
 
     @override
-    def convert_to_read(self, value, record, use_display_name=True):
+    def convert_to_read(
+        self, value: typing.Any, record: BaseModel, use_display_name: bool = True
+    ) -> str | typing.Literal[False]:
         return f"{value._name},{value.id}" if value else False
 
     @override
-    def convert_to_export(self, value, record):
+    def convert_to_export(self, value: typing.Any, record: BaseModel) -> str:
         return value.display_name if value else ""
 
     @override
-    def convert_to_display_name(self, value, record):
+    def convert_to_display_name(
+        self, value: typing.Any, record: BaseModel
+    ) -> str | typing.Literal[False]:
         return value.display_name if value else False
 
 
@@ -95,14 +109,16 @@ class Many2oneReference(Integer):
     _description_model_field = property(attrgetter("model_field"))
 
     @override
-    def convert_to_cache(self, value, record, validate=True):
+    def convert_to_cache(
+        self, value: typing.Any, record: BaseModel, validate: bool = True
+    ) -> typing.Any:
         # cache format: id or None
         if hasattr(value, "_ids"):  # BaseModel instance
             value = value._ids[0] if value._ids else None
         return super().convert_to_cache(value, record, validate)
 
     @override
-    def _update_inverses(self, records: BaseModel, value):
+    def _update_inverses(self, records: BaseModel, value: typing.Any) -> None:
         """Add `records` to the cached values of the inverse fields of `self`."""
         if not value:
             return

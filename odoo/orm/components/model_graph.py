@@ -29,7 +29,10 @@ Usage from Registry::
 """
 
 from collections import defaultdict
-from collections.abc import Callable, Collection, Iterable, Iterator
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Collection, Iterable, Iterator
 
 # ---------------------------------------------------------------------------
 # _Collector — lightweight key→tuple mapping (standalone Collector)
@@ -49,23 +52,23 @@ class _Collector(dict):
 
     __slots__ = ()
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> tuple:
         return self.get(key, ())
 
-    def __setitem__(self, key, val):
+    def __setitem__(self, key: Any, val: Any) -> None:
         val = tuple(val)
         if val:
             super().__setitem__(key, val)
         else:
             super().pop(key, None)
 
-    def add(self, key, val):
+    def add(self, key: Any, val: Any) -> None:
         """Append *val* to the tuple for *key* (no-op if already present)."""
         vals = self[key]
         if val not in vals:
             self[key] = vals + (val,)
 
-    def discard_keys_and_values(self, excludes) -> None:
+    def discard_keys_and_values(self, excludes: Any) -> None:
         """Remove *excludes* from both keys and values."""
         for key in excludes:
             self.pop(key, None)
@@ -107,7 +110,7 @@ class TriggerTree(dict):
     __slots__ = ("root",)
     root: Collection
 
-    def __init__(self, root: Collection = (), *args, **kwargs):
+    def __init__(self, root: Collection = (), *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.root = root
 
@@ -117,7 +120,7 @@ class TriggerTree(dict):
     def __repr__(self) -> str:
         return f"TriggerTree(root={self.root!r}, {super().__repr__()})"
 
-    def increase(self, key) -> TriggerTree:
+    def increase(self, key: Any) -> TriggerTree:
         """Return the subtree for *key*, creating it if absent."""
         try:
             return self[key]
@@ -147,8 +150,8 @@ class TriggerTree(dict):
         if len(trees) == 1:
             return trees[0]._filtered(select)
 
-        root_fields: list = []
-        subtrees_to_merge: dict = defaultdict(list)
+        root_fields: list[Any] = []
+        subtrees_to_merge: dict[Any, list[TriggerTree]] = defaultdict(list)
 
         for tree in trees:
             root_fields.extend(tree.root)
@@ -156,8 +159,8 @@ class TriggerTree(dict):
                 subtrees_to_merge[label].append(subtree)
 
         # deduplicate while preserving order
-        seen: set = set()
-        unique_root: list = []
+        seen: set[Any] = set()
+        unique_root: list[Any] = []
         for field in root_fields:
             if field not in seen:
                 seen.add(field)
@@ -227,7 +230,9 @@ class ModelGraph:
 
     def __init__(self) -> None:
         # Raw trigger data: {dep_field: {path_tuple: set_of_target_fields}}
-        self._triggers: defaultdict = defaultdict(lambda: defaultdict(list))
+        self._triggers: defaultdict[Any, defaultdict[tuple, list]] = defaultdict(
+            lambda: defaultdict(list)
+        )
         # Field inverses: _Collector {field: tuple_of_inverse_fields}
         self._inverses: _Collector = _Collector()
         # Field dependencies: _Collector {field: tuple_of_dependency_fields}
@@ -235,17 +240,17 @@ class ModelGraph:
         # Context dependencies: _Collector {field: tuple_of_context_keys}
         self._depends_context: _Collector = _Collector()
         # Computed groups: {field: [field, co_field1, ...]}
-        self._computed: dict = {}
+        self._computed: dict[Any, list] = {}
         # Lazy caches
-        self._trigger_trees: dict = {}
-        self._modifying_relations: dict = {}
-        self._recompute_order: list | None = None
+        self._trigger_trees: dict[Any, TriggerTree] = {}
+        self._modifying_relations: dict[Any, bool] = {}
+        self._recompute_order: dict[Any, int] | None = None
 
     # ------------------------------------------------------------------
     # Construction API
     # ------------------------------------------------------------------
 
-    def add_trigger(self, dep_field, path: tuple, targets: Iterable) -> None:
+    def add_trigger(self, dep_field: Any, path: tuple, targets: Iterable) -> None:
         """Register that *targets* depend on *dep_field* via *path*.
 
         :param dep_field: the dependency field (hashable key)
@@ -309,11 +314,13 @@ class ModelGraph:
     # Query API — trigger trees
     # ------------------------------------------------------------------
 
-    def has_triggers(self, field) -> bool:
+    def has_triggers(self, field: Any) -> bool:
         """Return whether *field* has any dependents (is in the trigger map)."""
         return field in self._triggers
 
-    def get_trigger_tree(self, fields: list, select: Callable = bool) -> TriggerTree:
+    def get_trigger_tree(
+        self, fields: list[Any], select: Callable = bool
+    ) -> TriggerTree:
         """Return the merged trigger tree for *fields*.
 
         The function *select* is called on every target field; only those
@@ -326,7 +333,7 @@ class ModelGraph:
         ]
         return TriggerTree.merge(trees, select)
 
-    def get_field_trigger_tree(self, field) -> TriggerTree:
+    def get_field_trigger_tree(self, field: Any) -> TriggerTree:
         """Return the trigger tree for a single field.
 
         Computed lazily from the transitive closure of ``_triggers`` and
@@ -341,7 +348,9 @@ class ModelGraph:
         if field not in triggers:
             return TriggerTree()
 
-        def transitive_triggers(field, prefix=(), seen=()):
+        def transitive_triggers(
+            field: Any, prefix: tuple = (), seen: tuple = ()
+        ) -> Iterator[tuple[tuple, list]]:
             if field in seen or field not in triggers:
                 return
             for path, targets in triggers[field].items():
@@ -367,14 +376,14 @@ class ModelGraph:
         self._trigger_trees[field] = tree
         return tree
 
-    def get_dependent_fields(self, field) -> Iterator:
+    def get_dependent_fields(self, field: Any) -> Iterator[Any]:
         """Return an iterable of all fields that depend on *field*."""
         if field not in self._triggers:
             return
         for tree in self.get_field_trigger_tree(field).depth_first():
             yield from tree.root
 
-    def is_modifying_relations(self, field) -> bool:
+    def is_modifying_relations(self, field: Any) -> bool:
         """Return whether modifying *field* might change dependent records.
 
         True if *field* has triggers AND (field is relational, or has
@@ -401,7 +410,7 @@ class ModelGraph:
     # ------------------------------------------------------------------
 
     @property
-    def recompute_order(self) -> dict:
+    def recompute_order(self) -> dict[Any, int]:
         """Return a priority map ``{field: int}`` for recomputation ordering.
 
         Fields with lower priority values should be recomputed first.
@@ -420,7 +429,7 @@ class ModelGraph:
             self._recompute_order = self._compute_recompute_order()
         return self._recompute_order
 
-    def _compute_recompute_order(self) -> dict:
+    def _compute_recompute_order(self) -> dict[Any, int]:
         """Compute topological ordering of stored-computed fields.
 
         Uses Kahn's algorithm: fields with no unsatisfied dependencies
@@ -433,11 +442,11 @@ class ModelGraph:
         """
         # Build adjacency: field → set of fields it triggers (direct dependents)
         # Only from stored-computed trigger targets (root-level in trigger trees)
-        adjacency: dict = {}  # field → set of direct dependents
-        in_degree: dict = {}  # field → number of dependencies
+        adjacency: dict[Any, set] = {}  # field → set of direct dependents
+        in_degree: dict[Any, int] = {}  # field → number of dependencies
 
         # Collect all stored-computed fields that appear as trigger targets
-        all_targets: set = set()
+        all_targets: set[Any] = set()
         for dep_field, paths in self._triggers.items():
             for targets in paths.values():
                 for target in targets:
@@ -469,8 +478,8 @@ class ModelGraph:
                             in_degree[target] = in_degree.get(target, 0) + 1
 
         # Kahn's BFS
-        queue = [f for f in all_targets if in_degree.get(f, 0) == 0]
-        order: dict = {}
+        queue: list[Any] = [f for f in all_targets if in_degree.get(f, 0) == 0]
+        order: dict[Any, int] = {}
         priority = 0
 
         while queue:
@@ -499,22 +508,22 @@ class ModelGraph:
     # ------------------------------------------------------------------
 
     @property
-    def field_inverses(self) -> dict:
+    def field_inverses(self) -> _Collector:
         """Direct access to the inverses mapping."""
         return self._inverses
 
     @property
-    def field_depends(self) -> dict:
+    def field_depends(self) -> _Collector:
         """Direct access to the field dependencies mapping."""
         return self._depends
 
     @property
-    def field_depends_context(self) -> dict:
+    def field_depends_context(self) -> _Collector:
         """Direct access to the context dependencies mapping."""
         return self._depends_context
 
     @property
-    def field_computed(self) -> dict:
+    def field_computed(self) -> dict[Any, list]:
         """Direct access to the computed-groups mapping."""
         return self._computed
 
@@ -544,16 +553,16 @@ def _concat_paths(seq1: tuple, seq2: tuple, inverses: dict) -> tuple:
     return seq1 + seq2
 
 
-def _field_type(field) -> str:
+def _field_type(field: Any) -> str:
     """Get the type of a field, supporting both real Field objects and mock objects."""
     return getattr(field, "type", "")
 
 
-def _field_attr(field, attr: str):
+def _field_attr(field: Any, attr: str) -> Any:
     """Get an attribute from a field, returning None if not present."""
     return getattr(field, attr, None)
 
 
-def _is_relational(field) -> bool:
+def _is_relational(field: Any) -> bool:
     """Check if a field is relational."""
     return getattr(field, "relational", False)
