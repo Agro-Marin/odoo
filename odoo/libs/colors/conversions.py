@@ -1,5 +1,8 @@
-from collections.abc import Sequence
 from hashlib import sha512
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def get_saturation(rgb: Sequence[int]) -> float:
@@ -13,7 +16,7 @@ def get_saturation(rgb: Sequence[int]) -> float:
         >>> get_saturation((255, 0, 0))  # Pure red
         1.0
         >>> get_saturation((128, 128, 128))  # Gray
-        0.0
+        0
     """
     c_max = max(rgb) / 255
     c_min = min(rgb) / 255
@@ -85,7 +88,7 @@ def hsl_from_seed(seed: str) -> str:
     Example::
 
         >>> hsl_from_seed('Alice')  # deterministic
-        'hsl(214, 55%, 45%)'
+        'hsl(58, 57%, 45%)'
     """
     hashed_seed = sha512(seed.encode()).hexdigest()
     # full range of colors, in degree

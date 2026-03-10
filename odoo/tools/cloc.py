@@ -3,9 +3,13 @@ import os
 import re
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import odoo.modules
 from odoo import api
+
+if TYPE_CHECKING:
+    from odoo.api import Environment
 
 VERSION = 1
 DEFAULT_EXCLUDE = [
@@ -24,18 +28,18 @@ VALID_EXTENSION = [".py", ".js", ".xml", ".css", ".scss"]
 
 
 class Cloc:
-    def __init__(self):
-        self.modules = {}
-        self.code = {}
-        self.total = {}
-        self.errors = {}
-        self.excluded = {}
-        self.max_width = 70
+    def __init__(self) -> None:
+        self.modules: dict[str, dict[str, tuple[int, int]]] = {}
+        self.code: dict[str, int] = {}
+        self.total: dict[str, int] = {}
+        self.errors: dict[str, dict[str, Any]] = {}
+        self.excluded: dict[str, dict[str, tuple[int, int]]] = {}
+        self.max_width: int = 70
 
     # ------------------------------------------------------
     # Parse
     # ------------------------------------------------------
-    def parse_xml(self, s):
+    def parse_xml(self, s: str) -> tuple[int, int]:
         s = s.strip() + "\n"
         # Unbalanced xml comments inside a CDATA are not supported, and xml
         # comments inside a CDATA will (wrongly) be considered as comment
@@ -44,7 +48,7 @@ class Cloc:
         s = re.sub(r"\s*\n\s*", r"\n", s).lstrip()
         return s.count("\n"), total
 
-    def parse_py(self, s):
+    def parse_py(self, s: str) -> tuple[int, int] | tuple[int, str]:
         try:
             s = s.strip() + "\n"
             total = s.count("\n")
@@ -57,7 +61,7 @@ class Cloc:
         except Exception:
             return (-1, "Syntax Error")
 
-    def parse_c_like(self, s, regex):
+    def parse_c_like(self, s: str, regex: str) -> tuple[int, int] | tuple[int, str]:
         # Based on https://stackoverflow.com/questions/241327
         s = s.strip() + "\n"
         total = s.count("\n")
@@ -66,7 +70,7 @@ class Cloc:
         if max(len(l) for l in s.split("\n")) > MAX_LINE_SIZE:
             return -1, "Max line size exceeded"
 
-        def replacer(match):
+        def replacer(match: re.Match) -> str:
             s = match.group(0)
             return " " if s.startswith("/") else s
 
@@ -75,20 +79,20 @@ class Cloc:
         s = re.sub(r"\s*\n\s*", r"\n", s).lstrip()
         return s.count("\n"), total
 
-    def parse_js(self, s):
+    def parse_js(self, s: str) -> tuple[int, int] | tuple[int, str]:
         return self.parse_c_like(
             s, r'//.*?$|(?<!\\)/\*.*?\*/|\'(\\.|[^\\\'])*\'|"(\\.|[^\\"])*"'
         )
 
-    def parse_scss(self, s):
+    def parse_scss(self, s: str) -> tuple[int, int] | tuple[int, str]:
         return self.parse_c_like(
             s, r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"'
         )
 
-    def parse_css(self, s):
+    def parse_css(self, s: str) -> tuple[int, int] | tuple[int, str]:
         return self.parse_c_like(s, r'/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"')
 
-    def parse(self, s, ext):
+    def parse(self, s: str, ext: str) -> tuple[int, int] | tuple[int, str] | None:
         if ext == ".py":
             return self.parse_py(s)
         elif ext == ".js":
@@ -104,7 +108,13 @@ class Cloc:
     # ------------------------------------------------------
     # Enumeration
     # ------------------------------------------------------
-    def book(self, module, item="", count=(0, 0), exclude=False):
+    def book(
+        self,
+        module: str,
+        item: str = "",
+        count: tuple[int, int] | tuple[int, str] = (0, 0),
+        exclude: bool = False,
+    ) -> None:
         if count[0] == -1:
             self.errors.setdefault(module, {})
             self.errors[module][item] = count[1]
@@ -119,7 +129,7 @@ class Cloc:
             self.total[module] = self.total.get(module, 0) + count[1]
             self.max_width = max(self.max_width, len(module), len(item) + 4)
 
-    def count_path(self, path, exclude=None):
+    def count_path(self, path: str, exclude: set[str] | None = None) -> None:
         path = path.rstrip("/")
         exclude_list = []
         for i in odoo.modules.module.MANIFEST_NAMES:
@@ -161,7 +171,7 @@ class Cloc:
                     content = f.read().decode("latin1")
                 self.book(module_name, file_path, self.parse(content, ext))
 
-    def count_modules(self, env):
+    def count_modules(self, env: Environment) -> None:
         # Exclude standard addons paths
         exclude_path = {
             m.addons_path
@@ -180,7 +190,7 @@ class Cloc:
             if manifest and manifest.addons_path not in exclude_path:
                 self.count_path(manifest.path)
 
-    def count_customization(self, env):
+    def count_customization(self, env: Environment) -> None:
         imported_module_sa = ""
         if env["ir.module.module"]._fields.get("imported"):
             imported_module_sa = "OR (m.imported = TRUE AND m.state = 'installed')"
@@ -293,11 +303,11 @@ class Cloc:
                 "__cloc_exclude__" in uploaded_file[attach.id][1],
             )
 
-    def count_env(self, env):
+    def count_env(self, env: Environment) -> None:
         self.count_modules(env)
         self.count_customization(env)
 
-    def count_database(self, database):
+    def count_database(self, database: str) -> None:
         registry = odoo.modules.registry.Registry(database)
         with registry.cursor() as cr:
             uid = api.SUPERUSER_ID
@@ -308,7 +318,7 @@ class Cloc:
     # Report
     # ------------------------------------------------------
     # pylint: disable=W0141
-    def report(self, verbose=False, width=None):
+    def report(self, verbose: bool = False, width: int | None = None) -> str:
         # Prepare format
         if not width:
             width = min(self.max_width, shutil.get_terminal_size()[0] - 24)

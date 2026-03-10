@@ -10,30 +10,51 @@ speed (~3ms) instead of integration speed (~30s).
 
 Scalar fields::
 
-    env = InMemoryEnvironment({
-        "sale.order": ModelDef("sale.order", {
-            "name": FieldDef("name", "char"),
-            "amount": FieldDef("amount", "float"),
-            "tax": FieldDef("tax", "float", compute=compute_tax, depends=("amount",)),
-        }),
-    })
+    env = InMemoryEnvironment(
+        {
+            "sale.order": ModelDef(
+                "sale.order",
+                {
+                    "name": FieldDef("name", "char"),
+                    "amount": FieldDef("amount", "float"),
+                    "tax": FieldDef(
+                        "tax", "float", compute=compute_tax, depends=("amount",)
+                    ),
+                },
+            ),
+        }
+    )
     id_ = env.create("sale.order", {"name": "SO001", "amount": 100.0})
     env.flush()
     assert env.read("sale.order", id_, "tax") == 10.0
 
 Relational fields::
 
-    env = InMemoryEnvironment({
-        "res.partner": ModelDef("res.partner", {
-            "name": FieldDef("name", "char"),
-            "order_ids": FieldDef("order_ids", "one2many",
-                                  comodel="sale.order", inverse_field="partner_id"),
-        }),
-        "sale.order": ModelDef("sale.order", {
-            "name": FieldDef("name", "char"),
-            "partner_id": FieldDef("partner_id", "many2one", comodel="res.partner"),
-        }),
-    })
+    env = InMemoryEnvironment(
+        {
+            "res.partner": ModelDef(
+                "res.partner",
+                {
+                    "name": FieldDef("name", "char"),
+                    "order_ids": FieldDef(
+                        "order_ids",
+                        "one2many",
+                        comodel="sale.order",
+                        inverse_field="partner_id",
+                    ),
+                },
+            ),
+            "sale.order": ModelDef(
+                "sale.order",
+                {
+                    "name": FieldDef("name", "char"),
+                    "partner_id": FieldDef(
+                        "partner_id", "many2one", comodel="res.partner"
+                    ),
+                },
+            ),
+        }
+    )
     pid = env.create("res.partner", {"name": "Alice"})
     oid = env.create("sale.order", {"name": "SO001", "partner_id": pid})
     assert env.read("sale.order", oid, "partner_id") == pid
@@ -47,13 +68,24 @@ Pure compute functions (Phase 2)::
     def compute_tax(amount: float) -> float:
         return amount * 0.1
 
-    env = InMemoryEnvironment({
-        "order": ModelDef("order", {
-            "amount": FieldDef("amount", "float"),
-            "tax": FieldDef("tax", "float",
-                            compute=compute_tax, depends=("amount",), pure=True),
-        }),
-    })
+
+    env = InMemoryEnvironment(
+        {
+            "order": ModelDef(
+                "order",
+                {
+                    "amount": FieldDef("amount", "float"),
+                    "tax": FieldDef(
+                        "tax",
+                        "float",
+                        compute=compute_tax,
+                        depends=("amount",),
+                        pure=True,
+                    ),
+                },
+            ),
+        }
+    )
 """
 
 import enum as _enum
@@ -61,6 +93,7 @@ import typing
 from collections import deque
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
+from typing import Any
 
 from .cache import FieldCache
 
@@ -127,21 +160,23 @@ class FieldDef:
 
     @property
     def is_stored_computed(self) -> bool:
+        """Whether the field is stored and has a compute method."""
         return self.store and self.compute is not None
 
     @property
     def is_relational(self) -> bool:
+        """Whether the field is a relational type."""
         return self.type in _RELATIONAL_TYPES
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self._model_name, self.name))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, FieldDef):
             return NotImplemented
         return self._model_name == other._model_name and self.name == other.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"FieldDef({self._model_name}.{self.name})"
 
 
@@ -156,7 +191,7 @@ class ModelDef:
     name: str
     fields: dict[str, FieldDef] = dataclass_field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         for fdef in self.fields.values():
             fdef.model_name = self.name
 
@@ -234,7 +269,10 @@ class InMemoryEnvironment:
                             self._dependents.setdefault(dep_field, set()).add(fdef)
 
     def _get_field(self, model: str, field_name: str) -> FieldDef:
-        """Look up a field definition."""
+        """Look up a field definition.
+
+        Raises ``KeyError`` if the model or field is not registered.
+        """
         model_def = self._models.get(model)
         if model_def is None:
             raise KeyError(f"Unknown model: {model!r}")
@@ -293,7 +331,7 @@ class InMemoryEnvironment:
 
         return record_id
 
-    def read(self, model: str, record_id: int, field_name: str) -> typing.Any:
+    def read(self, model: str, record_id: int, field_name: str) -> Any:
         """Read a field value, triggering compute if needed.
 
         Supports:
@@ -331,7 +369,7 @@ class InMemoryEnvironment:
         self._fetch_from_storage(fdef, record_id)
         return self.cache.get_value(fdef, record_id, default=None)
 
-    def _read_dotted(self, model: str, record_id: int, dotted_name: str) -> typing.Any:
+    def _read_dotted(self, model: str, record_id: int, dotted_name: str) -> Any:
         """Resolve a dot-separated field path like ``"partner_id.name"``.
 
         Traverses Many2one relationships: reads the Many2one to get the
@@ -483,7 +521,7 @@ class InMemoryEnvironment:
         self,
         m2o_field: FieldDef,
         record_id: int,
-        new_value: typing.Any,
+        new_value: Any,
     ) -> None:
         """When a Many2one changes, trigger cross-model dependents.
 
@@ -508,7 +546,7 @@ class InMemoryEnvironment:
     # Compute execution
     # ------------------------------------------------------------------
 
-    def _call_compute(self, fdef: FieldDef, record_id: int) -> typing.Any:
+    def _call_compute(self, fdef: FieldDef, record_id: int) -> Any:
         """Call a compute function, handling both traditional and pure signatures.
 
         Traditional: ``fn(env, model, record_id) -> value``
@@ -520,7 +558,7 @@ class InMemoryEnvironment:
             return fdef.compute(self, fdef.model_name, record_id)
         return None
 
-    def _call_pure_compute(self, fdef: FieldDef, record_id: int) -> typing.Any:
+    def _call_pure_compute(self, fdef: FieldDef, record_id: int) -> Any:
         """Call a pure compute function with dependency values as keyword args.
 
         The function signature determines which values to pass::
@@ -573,14 +611,14 @@ class InMemoryEnvironment:
         then writes dirty values to storage.
         """
 
-        def recompute_fn(field):
+        def recompute_fn(field: FieldDef) -> None:
             self._recompute_field(field)
 
-        def flush_fn(model_names):
+        def flush_fn(model_names: list[str]) -> None:
             for model_name in model_names:
                 model_def = self._models[model_name]
                 # Collect per-record updates: {record_id: {field_name: value}}
-                updates: dict[int, dict[str, typing.Any]] = {}
+                updates: dict[int, dict[str, Any]] = {}
                 for fdef in model_def.fields.values():
                     # Skip One2many (virtual) and non-stored fields
                     if fdef.type == "one2many" or not fdef.store:
@@ -616,7 +654,7 @@ class InMemoryEnvironment:
     # Storage access
     # ------------------------------------------------------------------
 
-    def storage_get(self, model: str, record_id: int, field_name: str) -> typing.Any:
+    def storage_get(self, model: str, record_id: int, field_name: str) -> Any:
         """Read a value directly from storage (post-flush)."""
         row = self.storage.get_row(model, record_id)
         if row is None:

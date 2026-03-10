@@ -20,7 +20,7 @@ from odoo import tools
 # Odoo's ORM, reports, and JS client all assume float.  Switching to
 # Decimal would require changes across the entire stack.
 class _NumericToFloatLoader(Loader):
-    def load(self, data):
+    def load(self, data: bytes) -> float:
         return float(data)
 
 
@@ -89,7 +89,8 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
     if "ODOO_PGAPPNAME" in os.environ:
         warnings.warn(
             "Since 19.0, use PGAPPNAME instead of ODOO_PGAPPNAME",
-            DeprecationWarning, stacklevel=2,
+            DeprecationWarning,
+            stacklevel=2,
         )
         app_name = os.environ["ODOO_PGAPPNAME"]
     # Using manual string interpolation for security reason and trimming at default NAMEDATALEN=63

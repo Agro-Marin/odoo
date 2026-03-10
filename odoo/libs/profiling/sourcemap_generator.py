@@ -1,184 +1,153 @@
+"""Source map v3 generator for asset bundle debugging.
+
+Maps compiled/minified bundle positions back to original source files,
+enabling browser devtools to show the original code.
+
+See https://sourcemaps.info/spec.html for the specification.
+"""
+
 __all__ = ["SourceMapGenerator", "base64vlq_encode"]
 
 import json
 from functools import lru_cache
+from typing import Final, NamedTuple
+
+
+class _Mapping(NamedTuple):
+    """A single source mapping entry (generated_line, original_line, source)."""
+
+    generated_line: int
+    original_line: int
+    source: str | None
 
 
 class SourceMapGenerator:
-    """The SourceMapGenerator creates the sourcemap maps the asset bundle to the js/css files.
+    """Generate source map v3 JSON for asset bundles.
 
-    What is a sourcemap ? (https://developer.mozilla.org/en-US/docs/Tools/Debugger/How_to/Use_a_source_map)
-    In brief: a source map is what makes possible to debug your processed/compiled/minified code as if you were
-    debugging the original, non-altered source code. It is a file that provides a mapping original <=> processed for
-    the browser to read.
-
-    This implementation of the SourceMapGenerator is a translation and adaptation of this implementation
-    in js https://github.com/mozilla/source-map. For performance purposes, we have removed all unnecessary
-    functions/steps for our use case. This simpler version does a line by line mapping, with the ability to
-    add offsets at the start and end of a file. (when we have to add comments on top a transpiled file by example).
+    Performs line-by-line mapping with optional start offsets for headers
+    added during transpilation.  Adapted from the Mozilla source-map
+    library, simplified for Odoo's line-level (no column) use case.
     """
 
-    def __init__(self, source_root=None):
-        self._file = None
-        self._source_root = source_root
-        self._sources = {}
-        self._mappings = []
-        self._sources_contents = {}
-        self._version = 3
-        self._cache = {}
+    def __init__(self, source_root: str | None = None) -> None:
+        self._file: str | None = None
+        self._source_root: str | None = source_root
+        self._sources: dict[str, int] = {}
+        self._mappings: list[_Mapping] = []
+        self._sources_contents: dict[str, str] = {}
+        self._cache: dict[tuple[int, int], str] = {}
 
-    def _serialize_mappings(self):
-        """A source map mapping is encoded with the base 64 VLQ format.
-        This function encodes the readable source to the format.
-
-        :return the encoded content
-        """
+    def _serialize_mappings(self) -> str:
+        """Encode all mappings as a base64-VLQ string per source map v3 spec."""
         previous_generated_line = 1
         previous_original_line = 0
         previous_source = 0
         encoded_column = base64vlq_encode(0)
-        result = ""
-        for mapping in self._mappings:
-            if mapping["generatedLine"] != previous_generated_line:
-                while mapping["generatedLine"] > previous_generated_line:
-                    result += ";"
-                    previous_generated_line += 1
+        parts: list[str] = []
 
-            if mapping["source"] is None:
+        for generated_line, original_line, source in self._mappings:
+            if generated_line != previous_generated_line:
+                parts.append(";" * (generated_line - previous_generated_line))
+                previous_generated_line = generated_line
+
+            if source is None:
                 continue
-            source_idx = self._sources[mapping["source"]]
-            source = source_idx - previous_source
+
+            source_idx = self._sources[source]
+            source_delta = source_idx - previous_source
             previous_source = source_idx
 
-            # lines are stored 0-based in SourceMap spec version 3
-            line = mapping["originalLine"] - 1 - previous_original_line
-            previous_original_line = mapping["originalLine"] - 1
+            # Lines are stored 0-based in source map spec v3
+            line_delta = original_line - 1 - previous_original_line
+            previous_original_line = original_line - 1
 
-            if (source, line) not in self._cache:
-                self._cache[(source, line)] = "".join(
-                    [
-                        encoded_column,
-                        base64vlq_encode(source),
-                        base64vlq_encode(line),
-                        encoded_column,
-                    ]
+            cache_key = (source_delta, line_delta)
+            if cache_key not in self._cache:
+                self._cache[cache_key] = (
+                    encoded_column
+                    + base64vlq_encode(source_delta)
+                    + base64vlq_encode(line_delta)
+                    + encoded_column
                 )
 
-            result += self._cache[source, line]
-        return result
+            parts.append(self._cache[cache_key])
 
-    def to_json(self):
-        """Generates the json sourcemap.
-        It is the main function that assembles all the pieces.
+        return "".join(parts)
 
-        :return {str} valid sourcemap in json format
-        """
-        mapping = {
-            "version": self._version,
-            "sources": list(self._sources.keys()),
+    def to_json(self) -> dict[str, object]:
+        """Assemble the complete source map as a JSON-serializable dict."""
+        result: dict[str, object] = {
+            "version": 3,
+            "sources": list(self._sources),
             "mappings": self._serialize_mappings(),
             "sourcesContent": [
                 self._sources_contents[source] for source in self._sources
             ],
         }
         if self._file:
-            mapping["file"] = self._file
-
+            result["file"] = self._file
         if self._source_root:
-            mapping["sourceRoot"] = self._source_root
+            result["sourceRoot"] = self._source_root
+        return result
 
-        return mapping
+    def get_content(self) -> bytes:
+        """Serialize the source map to bytes with XSSI-prevention prefix."""
+        return b")]}'\n" + json.dumps(self.to_json()).encode("utf-8")
 
-    def get_content(self):
-        """Generates the content of the sourcemap.
+    def add_source(
+        self,
+        source_name: str,
+        source_content: str,
+        last_index: int,
+        start_offset: int = 0,
+    ) -> None:
+        """Add a source file and generate line-by-line mappings.
 
-        :return the content of the sourcemap as a string encoded in UTF-8.
+        Maps each line of *source_content* to the corresponding line in the
+        generated bundle starting at ``last_index + start_offset``.  Lines
+        between ``last_index`` and ``last_index + start_offset`` (e.g. a
+        transpilation header) are all mapped to line 1 of the source.
+
+        :param source_name: identifier for this source (usually a URL path)
+        :param source_content: full text of the source file
+        :param last_index: line in the generated bundle where this source starts
+        :param start_offset: extra lines (header) before content begins
         """
-        # Store with XSSI-prevention prefix
-        return b")]}'\n" + json.dumps(self.to_json()).encode("utf8")
-
-    def add_source(self, source_name, source_content, last_index, start_offset=0):
-        """Adds a new source file in the sourcemap. All the lines of the source file will be mapped line by line
-        to the generated file from the (last_index + start_offset). All lines between
-        last_index and (last_index + start_offset) will
-        be mapped to line 1 of the source file.
-
-        Example:
-            ls 1 = Line 1 from new source file
-            lg 1 = Line 1 from genereted file
-            ls 1 <=> lg 1 Line 1 from new source file is map to  Line 1 from genereted file
-            nb_ls = number of lines in the new source file
-
-            Step 1:
-            ls 1 <=> lg last_index + 1
-
-            Step 2:
-            ls 1 <=> lg last_index + start_offset + 1
-            ls 2 <=> lg last_index + start_offset + 2
-            ...
-            ls nb_ls <=> lg last_index + start_offset + nb_ls
-
-
-        :param source_name: name of the source to add
-        :param source_content: content of the source to add
-        :param last_index: Line where we start to map the new source
-        :param start_offset: Number of lines to pass in the generated file before starting mapping line by line
-
-        """
-        source_line_count = len(source_content.split("\n"))
+        source_line_count = source_content.count("\n") + 1
 
         self._sources.setdefault(source_name, len(self._sources))
-
         self._sources_contents[source_name] = source_content
+
+        append = self._mappings.append
         if start_offset > 0:
-            # adds a mapping between the first line of the source
-            # and the first line of the corresponding code in the generated file.
-            self._mappings.append(
-                {
-                    "generatedLine": last_index + 1,
-                    "originalLine": 1,
-                    "source": source_name,
-                }
-            )
+            # Map the header region to line 1 of the source
+            append(_Mapping(last_index + 1, 1, source_name))
+
         for i in range(1, source_line_count + 1):
-            self._mappings.append(
-                {
-                    "generatedLine": last_index + i + start_offset,
-                    "originalLine": i,
-                    "source": source_name,
-                }
-            )
+            append(_Mapping(last_index + i + start_offset, i, source_name))
 
 
-B64CHARS = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-SHIFTSIZE, FLAG, MASK = 5, 1 << 5, (1 << 5) - 1
+# ---------------------------------------------------------------------------
+# Base64 VLQ encoding (source map wire format)
+# ---------------------------------------------------------------------------
+
+B64CHARS: Final = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+SHIFTSIZE: Final[int] = 5
+FLAG: Final[int] = 1 << SHIFTSIZE
+MASK: Final[int] = FLAG - 1
 
 
 @lru_cache(maxsize=64)
-def base64vlq_encode(*values):
-    """Encode Base64 VLQ encoded sequences
-    https://gist.github.com/mjpieters/86b0d152bb51d5f5979346d11005588b
-    Base64 VLQ is used in source maps.
-    VLQ values consist of 6 bits (matching the 64 characters of the Base64
-    alphabet), with the most significant bit a *continuation* flag. If the
-    flag is set, then the next character in the input is part of the same
-    integer value. Multiple VLQ character sequences so form an unbounded
-    integer value, in little-endian order.
-    The *first* VLQ value consists of a continuation flag, 4 bits for the
-    value, and the last bit the *sign* of the integer:
-    +-----+-----+-----+-----+-----+-----+
-    |  c  |  b3 |  b2 |  b1 |  b0 |  s  |
-    +-----+-----+-----+-----+-----+-----+
-    while subsequent VLQ characters contain 5 bits of value:
-    +-----+-----+-----+-----+-----+-----+
-    |  c  |  b4 |  b3 |  b2 |  b1 |  b0 |
-    +-----+-----+-----+-----+-----+-----+
-    For source maps, Base64 VLQ sequences can contain 1, 4 or 5 elements.
+def base64vlq_encode(*values: int) -> str:
+    """Encode integers as Base64 VLQ sequences.
+
+    Each value is encoded as a variable-length sequence of 6-bit groups.
+    The first group contains a sign bit; subsequent groups contain 5 data
+    bits each plus a continuation flag.
     """
-    results = []
+    results: list[int] = []
     add = results.append
     for v in values:
-        # add sign bit
         v = (abs(v) << 1) | int(v < 0)
         while True:
             toencode, v = v & MASK, v >> SHIFTSIZE

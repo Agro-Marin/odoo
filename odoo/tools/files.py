@@ -8,11 +8,14 @@ import tempfile
 import typing
 from contextlib import contextmanager
 from pathlib import Path
+from typing import IO, Any
 
 import odoo.addons
 from .config import config
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Generator
+
     from odoo.api import Environment
 
 
@@ -27,9 +30,9 @@ def file_path(
 
     Examples::
 
-    >>> file_path('hr')
-    >>> file_path('hr/static/description/icon.png')
-    >>> file_path('hr/static/description/icon.png', filter_ext=('.png', '.jpg'))
+    >>> file_path("hr")
+    >>> file_path("hr/static/description/icon.png")
+    >>> file_path("hr/static/description/icon.png", filter_ext=(".png", ".jpg"))
 
     :param str file_path: absolute file path, or relative path within any `addons_path` directory
     :param list[str] filter_ext: optional list of supported extensions (lowercase, with leading dot)
@@ -83,8 +86,7 @@ def file_path(
         if fpath.resolve().is_relative_to(parent_path.resolve()) and (
             # we check existence when asked or we have multiple paths to check
             # (there is one possibility for absolute paths)
-            (not check_exists and (is_abs or len(addons_paths) == 1))
-            or fpath.exists()
+            (not check_exists and (is_abs or len(addons_paths) == 1)) or fpath.exists()
         ):
             return fpath_str
 
@@ -96,7 +98,7 @@ def file_open(
     mode: str = "r",
     filter_ext: tuple[str, ...] = (),
     env: Environment | None = None,
-):
+) -> IO[Any]:
     """Open a file from within the addons_path directories, as an absolute or relative path.
 
     Examples::
@@ -132,7 +134,7 @@ def file_open(
 
 
 @contextmanager
-def file_open_temporary_directory(env: Environment):
+def file_open_temporary_directory(env: Environment) -> Generator[str]:
     """Create and return a temporary directory added to the directories `file_open` is allowed to read from.
 
     `file_open` will be allowed to open files within the temporary directory

@@ -1,5 +1,4 @@
-"""
-User agent string parser.
+"""User agent string parser.
 
 Originally from werkzeug.useragents (removed in werkzeug 2.1).
 Vendored to preserve browser/platform detection that werkzeug dropped.
@@ -70,9 +69,11 @@ class UserAgentParser:
     )
 
     def __init__(self):
-        self.platforms = tuple((b, re.compile(a, re.I)) for a, b in self.platforms)
+        self.platforms = tuple(
+            (b, re.compile(a, re.IGNORECASE)) for a, b in self.platforms
+        )
         self.browsers = tuple(
-            (b, re.compile(self._browser_version_re % a, re.I))
+            (b, re.compile(self._browser_version_re % a, re.IGNORECASE))
             for a, b in self.browsers
         )
 
@@ -107,6 +108,7 @@ class UserAgent:
         browser: detected browser name (e.g. 'chrome', 'firefox', 'safari')
         version: detected browser version string
         language: detected language code (e.g. 'en-US')
+
     """
 
     _parser = UserAgentParser()

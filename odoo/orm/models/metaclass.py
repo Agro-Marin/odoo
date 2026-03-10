@@ -8,11 +8,11 @@ import re
 import typing
 from collections import defaultdict
 
-from ..fields.base import Field
 from ..fields.misc import Id
 from ..fields.temporal import Datetime
 
 if typing.TYPE_CHECKING:
+    from ..fields.base import Field
     from ..runtime import Registry
     from .table_objects import TableObject
 
@@ -40,7 +40,12 @@ class MetaModel(type):
     _auto: bool
     _inherit: list[str] | None
 
-    def __new__(meta, name, bases, attrs):
+    def __new__(
+        meta: type,
+        name: str,
+        bases: tuple[type, ...],
+        attrs: dict[str, typing.Any],
+    ) -> MetaModel:
         # this prevents assignment of non-fields on recordsets
         attrs.setdefault("__slots__", ())
         # this collects the fields defined on the class (via Field.__set_name__())
@@ -76,7 +81,12 @@ class MetaModel(type):
 
         return super().__new__(meta, name, bases, attrs)
 
-    def __init__(cls, name, bases, attrs):
+    def __init__(
+        cls,
+        name: str,
+        bases: tuple[type, ...],
+        attrs: dict[str, typing.Any],
+    ) -> None:
         super().__init__(name, bases, attrs)
 
         if (
@@ -98,11 +108,11 @@ class MetaModel(type):
 
         if not cls._abstract and cls._name not in cls._inherit:
             # this class defines a model: add magic fields
-            def add(name, field):
+            def add(name: str, field: Field) -> None:
                 setattr(cls, name, field)
                 field.__set_name__(cls, name)
 
-            def add_default(name, field):
+            def add_default(name: str, field: Field) -> None:
                 if name not in attrs:
                     setattr(cls, name, field)
                     field.__set_name__(cls, name)

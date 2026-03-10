@@ -1,9 +1,11 @@
 """orjson serialization utilities — orjson is a required dependency (see requirements.txt)."""
 
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import orjson as _orjson
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "OPT_SORT_KEYS",

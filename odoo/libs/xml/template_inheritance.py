@@ -10,11 +10,15 @@ import functools
 import itertools
 import logging
 import re
+from typing import TYPE_CHECKING, Any
 
 from lxml import etree
 from lxml.builder import E
 
 from odoo.libs.text.html import html_escape
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "PYTHON_ATTRIBUTES",
@@ -31,7 +35,7 @@ RSTRIP_REGEXP = re.compile(r"\n[ \t]*$")
 
 
 @functools.lru_cache(maxsize=1024)
-def _compile_xpath(expr):
+def _compile_xpath(expr: str) -> etree.ETXPath:
     """Compile and cache an ETXPath expression.
 
     Compiled XPath objects are document-independent (same pattern works
@@ -61,7 +65,11 @@ PYTHON_ATTRIBUTES = {
 }
 
 
-def add_stripped_items_before(node, spec, extract):
+def add_stripped_items_before(
+    node: etree._Element,
+    spec: etree._Element,
+    extract: Callable[[etree._Element], etree._Element],
+) -> None:
     text = spec.text or ""
 
     before_text = ""
@@ -100,7 +108,7 @@ def add_stripped_items_before(node, spec, extract):
         node.addprevious(child)
 
 
-def add_text_before(node, text):
+def add_text_before(node: etree._Element, text: str | None) -> None:
     """Add text before ``node`` in its XML tree."""
     if text is None:
         return
@@ -112,14 +120,14 @@ def add_text_before(node, text):
         parent.text = (parent.text or "").rstrip() + text
 
 
-def remove_element(node):
+def remove_element(node: etree._Element) -> None:
     """Remove ``node`` but not its tail, from its XML tree."""
     add_text_before(node, node.tail)
     node.tail = None
     node.getparent().remove(node)
 
 
-def locate_node(arch, spec):
+def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | None:
     """Locate a node in a source (parent) architecture.
 
     Given a complete source (parent) architecture (i.e. the field
@@ -161,8 +169,11 @@ def locate_node(arch, spec):
 
 
 def apply_inheritance_specs(
-    source, specs_tree, inherit_branding=False, pre_locate=None
-):
+    source: etree._Element,
+    specs_tree: etree._Element | list[etree._Element],
+    inherit_branding: bool = False,
+    pre_locate: Callable[[etree._Element], Any] | None = None,
+) -> etree._Element:
     """Apply an inheriting view (a descendant of the base view).
 
     Apply to a source architecture all the spec nodes (i.e. nodes
@@ -184,7 +195,7 @@ def apply_inheritance_specs(
     specs = specs_tree if isinstance(specs_tree, list) else [specs_tree]
     pre_locate = pre_locate or (lambda _: True)
 
-    def extract(spec):
+    def extract(spec: etree._Element) -> etree._Element:
         """Utility function that locates a node given a specification, remove
         it from the source and returns it.
         """

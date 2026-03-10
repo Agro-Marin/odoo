@@ -2425,23 +2425,23 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
 
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 1)
+        self.assertEqual(len(qweb_keys), 2)
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", debug="tests")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 1)
+        self.assertEqual(len(qweb_keys), 2)
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", debug="1")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 1)
+        self.assertEqual(len(qweb_keys), 2)
 
         # in debug=assets, the ormcache is not used for _generate_asset_links_cache
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", debug="assets")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 1)
+        self.assertEqual(len(qweb_keys), 2)
 
     def test_assets_node_orm_cache_usage_file_type(self):
         self.env.registry.clear_cache("assets")
@@ -2453,19 +2453,19 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", js=True, css=False)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 1)
+        self.assertEqual(len(qweb_keys), 2)
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", js=False, css=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 3)  # link(js) + native + link(css)
 
         # NOTE: this result is not really desired but this is the current behaviour. In practice, we usually only generate one of them.
         # This could be enforced or avoided
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", js=True, css=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 3)
+        self.assertEqual(len(qweb_keys), 4)  # + link(js+css)
 
     def test_assets_node_orm_cache_usage_lang(self):
         self.env.registry.clear_cache("assets")
@@ -2482,21 +2482,21 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 1)
+        self.assertEqual(len(qweb_keys), 2)
 
         self.env["ir.qweb"].with_context(lang="en_US")._get_asset_nodes(
             "web.assets_backend"
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 1)
+        self.assertEqual(len(qweb_keys), 2)
 
         self.env["ir.qweb"].with_context(lang="ar_SY")._get_asset_nodes(
             "web.assets_backend"
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 2)  # a second cache entry is created for rtl
+        self.assertEqual(len(qweb_keys), 3)  # a second link cache entry for rtl + one native data entry
 
     def test_assets_node_orm_cache_usage_website(self):
         if self.env["ir.module.module"].search(
@@ -2514,7 +2514,7 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         )
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 1)
+        self.assertEqual(len(qweb_keys), 2)
 
         self.env["ir.qweb"].with_context(website_id=1)._get_asset_nodes(
             "web.assets_backend"
@@ -2523,7 +2523,7 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.assertEqual(
             len(asset_keys), 2
         )  # the content may be different for different websites, even if it is not always the case
-        self.assertEqual(len(qweb_keys), 2)
+        self.assertEqual(len(qweb_keys), 4)  # 2 link + 2 native (different assets_params per website)
 
     def test_assets_node_orm_cache_usage_node_flags(self):
         self.env.registry.clear_cache("assets")
@@ -2535,24 +2535,24 @@ class AssetsNodeOrmCacheUsage(TransactionCase):
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1)
-        self.assertEqual(len(qweb_keys), 1)
+        self.assertEqual(len(qweb_keys), 2)
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", media="print")
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1, "media shouldn't create another entry")
-        self.assertEqual(len(qweb_keys), 1, "media shouldn't create another entry")
+        self.assertEqual(len(qweb_keys), 2, "media shouldn't create another entry")
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", defer_load=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(
             len(asset_keys), 1, "defer_load shouldn't create another entry"
         )
-        self.assertEqual(len(qweb_keys), 1, "defer_load shouldn't create another entry")
+        self.assertEqual(len(qweb_keys), 2, "defer_load shouldn't create another entry")
 
         self.env["ir.qweb"]._get_asset_nodes("web.assets_backend", lazy_load=True)
         asset_keys, qweb_keys = self.cache_keys()
         self.assertEqual(len(asset_keys), 1, "lazy_load shouldn't create another entry")
-        self.assertEqual(len(qweb_keys), 1, "lazy_load shouldn't create another entry")
+        self.assertEqual(len(qweb_keys), 2, "lazy_load shouldn't create another entry")
 
 
 @tagged("-at_install", "post_install")

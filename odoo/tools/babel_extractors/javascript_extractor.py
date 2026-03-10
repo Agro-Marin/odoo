@@ -1,5 +1,4 @@
 import io
-from collections.abc import Collection, Generator, Mapping
 from textwrap import dedent
 from typing import TYPE_CHECKING
 
@@ -12,7 +11,7 @@ from babel.messages.jslexer import Token, line_re, tokenize, unquote_string
 #   -> Indicates the first argument is a context key and the second is the translatable term, like in `pgettext`
 #   e.g. None
 #   -> Indicates there is only one argument translatable, like in `gettext`
-type _SimpleKeyword = (tuple[int | tuple[int, int] | tuple[int, str], ...] | None)
+type _SimpleKeyword = tuple[int | tuple[int, int] | tuple[int, str], ...] | None
 # A `_SimpleKeyword` or a `dict` mapping the expected number of function arguments against the `_SimpleKeyword`
 type _Keyword = dict[int | None, _SimpleKeyword] | _SimpleKeyword
 # The result of extracting terms, a 4-tuple containing:
@@ -24,6 +23,7 @@ type _Keyword = dict[int | None, _SimpleKeyword] | _SimpleKeyword
 type _ExtractionResult = tuple[int, str, str | tuple[str, ...], list[str]]
 
 if TYPE_CHECKING:
+    from collections.abc import Collection, Generator, Mapping
     from typing import Protocol, TypedDict
 
     from _typeshed import SupportsRead, SupportsReadline

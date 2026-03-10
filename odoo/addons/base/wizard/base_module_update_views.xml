@@ -36,12 +36,4 @@
         <field name="target">new</field>
     </record>
 
-    <menuitem
-        id="menu_view_base_module_update"
-        name="Update Apps List"
-        parent="menu_management"
-        action="action_view_base_module_update"
-        sequence="40"
-        groups="base.group_no_one" />
-
 </odoo>

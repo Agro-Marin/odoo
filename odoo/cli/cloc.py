@@ -24,7 +24,7 @@ class Cloc(Command):
         In the latter mode, only the custom code is accounted for.
     """
 
-    def run(self, args):
+    def run(self, args: list[str]) -> None:
         self.parser.add_argument(
             "--database", "-d", dest="database", help="Database name"
         )

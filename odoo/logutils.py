@@ -16,42 +16,33 @@ import logging
 import logging.handlers
 import os
 import platform
-import pprint
 import sys
 import threading
 import traceback
 import warnings
 from pathlib import Path
+from typing import IO, TYPE_CHECKING, Final
 
 import werkzeug.serving
 
 from . import db, release, tools
 from .libs.json import dumps as json_dumps
 
+if TYPE_CHECKING:
+    import types
+
 _logger = logging.getLogger(__name__)
 
 
-def log(logger, level, prefix, msg, depth=None):
-    warnings.warn(
-        "odoo.netsvc.log is deprecated starting Odoo 18, use normal logging APIs",
-        category=DeprecationWarning,
-        stacklevel=2,
-    )
-    indent = ""
-    indent_after = " " * len(prefix)
-    for line in (prefix + pprint.pformat(msg, depth=depth)).split("\n"):
-        logger.log(level, indent + line)
-        indent = indent_after
-
 
 class WatchedFileHandler(logging.handlers.WatchedFileHandler):
-    def __init__(self, filename):
+    def __init__(self, filename: str) -> None:
         self.errors = None  # py38
         super().__init__(filename)
         # Unfix bpo-26789, in case the fix is present
         self._builtin_open = None
 
-    def _open(self):
+    def _open(self) -> IO[str]:
         return Path(self.baseFilename).open(
             self.mode, encoding=self.encoding, errors=self.errors
         )
@@ -62,9 +53,9 @@ class PostgreSQLHandler(logging.Handler):
     the current database, can be set using --log-db=DBNAME
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self._support_metadata = False
+        self._support_metadata: bool = False
         if tools.config["log_db"] != "%d":
             with (
                 contextlib.suppress(Exception),
@@ -75,7 +66,7 @@ class PostgreSQLHandler(logging.Handler):
                     tools.sql.column_exists(cr, "ir_logging", "metadata")
                 )
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         ct = threading.current_thread()
         ct_db = getattr(ct, "dbname", None)
         dbname = (
@@ -144,11 +135,11 @@ class PostgreSQLHandler(logging.Handler):
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, _NOTHING, DEFAULT = range(10)
 # The background is set with 40 plus the number of the color, and the foreground with 30
 # These are the sequences needed to get colored output
-RESET_SEQ = "\033[0m"
-COLOR_SEQ = "\033[1;%dm"
-BOLD_SEQ = "\033[1m"
-COLOR_PATTERN = f"{COLOR_SEQ}{COLOR_SEQ}%s{RESET_SEQ}"
-LEVEL_COLOR_MAPPING = {
+RESET_SEQ: Final[str] = "\033[0m"
+COLOR_SEQ: Final[str] = "\033[1;%dm"
+BOLD_SEQ: Final[str] = "\033[1m"
+COLOR_PATTERN: Final[str] = f"{COLOR_SEQ}{COLOR_SEQ}%s{RESET_SEQ}"
+LEVEL_COLOR_MAPPING: Final[dict[int, tuple[int, int]]] = {
     logging.DEBUG: (BLUE, DEFAULT),
     logging.INFO: (GREEN, DEFAULT),
     logging.WARNING: (YELLOW, DEFAULT),
@@ -158,18 +149,19 @@ LEVEL_COLOR_MAPPING = {
 
 
 class PerfFilter(logging.Filter):
-
-    def format_perf(self, query_count, query_time, remaining_time):
+    def format_perf(
+        self, query_count: int, query_time: float, remaining_time: float
+    ) -> tuple[str, str, str]:
         return (
             f"{query_count:d}",
             f"{query_time:.3f}",
             f"{remaining_time:.3f}",
         )
 
-    def format_cursor_mode(self, cursor_mode):
+    def format_cursor_mode(self, cursor_mode: str | None) -> str:
         return cursor_mode or "-"
 
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         if hasattr(threading.current_thread(), "query_count"):
             query_count = threading.current_thread().query_count
             query_time = threading.current_thread().query_time
@@ -192,7 +184,9 @@ class PerfFilter(logging.Filter):
 
 
 class ColoredPerfFilter(PerfFilter):
-    def format_perf(self, query_count, query_time, remaining_time):
+    def format_perf(
+        self, query_count: int, query_time: float, remaining_time: float
+    ) -> tuple[str, str, str]:
         def colorize_time(time, format, low=1, high=5):
             if time > high:
                 return COLOR_PATTERN % (30 + RED, 40 + DEFAULT, format % time)
@@ -210,7 +204,7 @@ class ColoredPerfFilter(PerfFilter):
             colorize_time(remaining_time, "%.3f", 1, 5),
         )
 
-    def format_cursor_mode(self, cursor_mode):
+    def format_cursor_mode(self, cursor_mode: str | None) -> str:
         cursor_mode = super().format_cursor_mode(cursor_mode)
         cursor_mode_color = (
             RED if cursor_mode == "ro->rw" else YELLOW if cursor_mode == "rw" else GREEN
@@ -223,7 +217,7 @@ class ColoredPerfFilter(PerfFilter):
 
 
 class ColoredFormatter(logging.Formatter):
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         fg_color, bg_color = LEVEL_COLOR_MAPPING.get(record.levelno, (GREEN, DEFAULT))
         record.levelname = COLOR_PATTERN % (
             30 + fg_color,
@@ -236,17 +230,20 @@ class ColoredFormatter(logging.Formatter):
 class LogRecord(logging.LogRecord):
     def __init__(
         self,
-        name,
-        level,
-        pathname,
-        lineno,
-        msg,
-        args,
-        exc_info,
-        func=None,
-        sinfo=None,
-        **kwargs,
-    ):
+        name: str,
+        level: int,
+        pathname: str,
+        lineno: int,
+        msg: object,
+        args: tuple | dict[str, object] | None,
+        exc_info: tuple[type[BaseException], BaseException, types.TracebackType]
+        | tuple[None, None, None]
+        | bool
+        | None,
+        func: str | None = None,
+        sinfo: str | None = None,
+        **kwargs: object,
+    ) -> None:
         super().__init__(
             name,
             level,
@@ -264,10 +261,10 @@ class LogRecord(logging.LogRecord):
         self.dbname = getattr(threading.current_thread(), "dbname", "?")
 
 
-showwarning = None
+showwarning: object = None
 
 
-def init_logger():
+def init_logger() -> None:
     global showwarning  # noqa: PLW0603
     if logging.getLogRecordFactory() is LogRecord:
         return
@@ -435,13 +432,13 @@ def init_logger():
         _logger.debug('logger level set: "%s"', logconfig_item)
 
 
-DEFAULT_LOG_CONFIGURATION = [
+DEFAULT_LOG_CONFIGURATION: Final[list[str]] = [
     "odoo.http.rpc.request:INFO",
     "odoo.http.rpc.response:INFO",
     "fontTools:WARNING",
     ":INFO",
 ]
-PSEUDOCONFIG_MAPPER = {
+PSEUDOCONFIG_MAPPER: Final[dict[str, list[str]]] = {
     "debug_rpc_answer": ["odoo:DEBUG", "odoo.db:INFO", "odoo.http.rpc:DEBUG"],
     "debug_rpc": ["odoo:DEBUG", "odoo.db:INFO", "odoo.http.rpc.request:DEBUG"],
     "debug": ["odoo:DEBUG", "odoo.db:INFO"],
@@ -455,14 +452,21 @@ PSEUDOCONFIG_MAPPER = {
 
 logging.RUNBOT = 25
 logging.addLevelName(logging.RUNBOT, "INFO")  # displayed as info in log
-IGNORE = {
-    "Comparison between bytes and int",  # a.foo != False or some shit, we don't care
-}
+IGNORE: Final[frozenset[str]] = frozenset(
+    {
+        "Comparison between bytes and int",  # a.foo != False or some shit, we don't care
+    }
+)
 
 
 def showwarning_with_traceback(
-    message, category, filename, lineno, file=None, line=None
-):
+    message: Warning,
+    category: type[Warning],
+    filename: str,
+    lineno: int,
+    file: IO[str] | None = None,
+    line: str | None = None,
+) -> None:
     if category is BytesWarning and message.args[0] in IGNORE:
         return None
 
@@ -486,7 +490,7 @@ def showwarning_with_traceback(
     )
 
 
-def runbot(self, message, *args, **kws):
+def runbot(self: logging.Logger, message: str, *args: object, **kws: object) -> None:
     self.log(logging.RUNBOT, message, *args, **kws)
 
 

@@ -1,3 +1,4 @@
+import argparse
 import io
 import sys
 import textwrap
@@ -35,7 +36,7 @@ class Db(Command):
         Commands are all filestore-aware.
     """
 
-    def run(self, cmdargs):
+    def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
         parser.add_argument("-c", "--config")
         parser.add_argument("-D", "--data-dir")
@@ -249,7 +250,7 @@ class Db(Command):
 
         args.func(args)
 
-    def init(self, args):
+    def init(self, args: argparse.Namespace) -> None:
         self._check_target(args.database, delete_if_exists=args.force)
         exp_create_database(
             db_name=args.database,
@@ -261,7 +262,7 @@ class Db(Command):
             phone=None,
         )
 
-    def load(self, args):
+    def load(self, args: argparse.Namespace) -> None:
         db_name = args.database or Path(args.dump_file).stem
         self._check_target(db_name, delete_if_exists=args.force)
 
@@ -291,28 +292,28 @@ class Db(Command):
             neutralize_database=args.neutralize,
         )
 
-    def dump(self, args):
+    def dump(self, args: argparse.Namespace) -> None:
         if args.dump_path == "-":
             dump_db(args.database, sys.stdout.buffer)
         else:
             with Path(args.dump_path).open("wb") as f:
                 dump_db(args.database, f, args.dump_format, args.filestore)
 
-    def duplicate(self, args):
+    def duplicate(self, args: argparse.Namespace) -> None:
         self._check_target(args.target, delete_if_exists=args.force)
         exp_duplicate_database(
             args.source, args.target, neutralize_database=args.neutralize
         )
 
-    def rename(self, args):
+    def rename(self, args: argparse.Namespace) -> None:
         self._check_target(args.target, delete_if_exists=args.force)
         exp_rename(args.source, args.target)
 
-    def drop(self, args):
+    def drop(self, args: argparse.Namespace) -> None:
         if not exp_drop(args.database):
             sys.exit(f"Database {args.database} does not exist.")
 
-    def _check_target(self, target, *, delete_if_exists):
+    def _check_target(self, target: str, *, delete_if_exists: bool) -> None:
         if exp_db_exist(target):
             if delete_if_exists:
                 exp_drop(target)

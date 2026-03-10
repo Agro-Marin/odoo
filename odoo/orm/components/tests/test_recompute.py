@@ -16,25 +16,27 @@ class _MockField:
 
     __slots__ = ("is_stored_computed", "name", "recursive")
 
-    def __init__(self, name, *, stored_computed=False, recursive=False):
+    def __init__(
+        self, name: str, *, stored_computed: bool = False, recursive: bool = False
+    ) -> None:
         self.name = name
         self.is_stored_computed = stored_computed
         self.recursive = recursive
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<MockField {self.name}>"
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.name)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, _MockField) and self.name == other.name
 
 
 class TestProtection(unittest.TestCase):
     """Protection subtraction: protected IDs are excluded from results."""
 
-    def test_all_protected(self):
+    def test_all_protected(self) -> None:
         engine = ComputeEngine()
         engine.push_protection()
         field = _MockField("total", stored_computed=True)
@@ -46,7 +48,7 @@ class TestProtection(unittest.TestCase):
         self.assertEqual(result, frozenset())
         self.assertEqual(dict(scheduler.to_recompute), {})
 
-    def test_partial_protection(self):
+    def test_partial_protection(self) -> None:
         engine = ComputeEngine()
         engine.push_protection()
         field = _MockField("total", stored_computed=True)
@@ -57,7 +59,7 @@ class TestProtection(unittest.TestCase):
 
         self.assertEqual(scheduler.to_recompute[field], {1, 3})
 
-    def test_no_protection(self):
+    def test_no_protection(self) -> None:
         engine = ComputeEngine()
         field = _MockField("total", stored_computed=True)
 
@@ -66,7 +68,7 @@ class TestProtection(unittest.TestCase):
 
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3})
 
-    def test_protection_on_different_field(self):
+    def test_protection_on_different_field(self) -> None:
         engine = ComputeEngine()
         engine.push_protection()
         field_a = _MockField("a", stored_computed=True)
@@ -82,7 +84,7 @@ class TestProtection(unittest.TestCase):
 class TestRouting(unittest.TestCase):
     """Stored-computed → to_recompute, non-stored → to_invalidate."""
 
-    def test_stored_computed_goes_to_recompute(self):
+    def test_stored_computed_goes_to_recompute(self) -> None:
         engine = ComputeEngine()
         field = _MockField("total", stored_computed=True)
 
@@ -93,7 +95,7 @@ class TestRouting(unittest.TestCase):
         self.assertEqual(scheduler.to_recompute[field], {1, 2})
         self.assertEqual(scheduler.to_invalidate, [])
 
-    def test_non_stored_goes_to_invalidate(self):
+    def test_non_stored_goes_to_invalidate(self) -> None:
         engine = ComputeEngine()
         field = _MockField("display_name", stored_computed=False)
 
@@ -105,7 +107,7 @@ class TestRouting(unittest.TestCase):
         self.assertEqual(scheduler.to_invalidate[0][0], field)
         self.assertEqual(scheduler.to_invalidate[0][1], frozenset({1, 2}))
 
-    def test_multiple_entries_accumulate(self):
+    def test_multiple_entries_accumulate(self) -> None:
         engine = ComputeEngine()
         field = _MockField("total", stored_computed=True)
 
@@ -115,7 +117,7 @@ class TestRouting(unittest.TestCase):
 
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3, 4})
 
-    def test_multiple_fields(self):
+    def test_multiple_fields(self) -> None:
         engine = ComputeEngine()
         field_a = _MockField("a", stored_computed=True)
         field_b = _MockField("b", stored_computed=False)
@@ -131,7 +133,7 @@ class TestRouting(unittest.TestCase):
 class TestRecursiveStoredComputed(unittest.TestCase):
     """Recursive stored-computed fields: cycle detection via marked + to_recompute."""
 
-    def test_recursive_returns_ids_for_traversal(self):
+    def test_recursive_returns_ids_for_traversal(self) -> None:
         engine = ComputeEngine()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
 
@@ -141,7 +143,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         self.assertEqual(recursive_ids, frozenset({1, 2, 3}))
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3})
 
-    def test_non_recursive_returns_empty(self):
+    def test_non_recursive_returns_empty(self) -> None:
         engine = ComputeEngine()
         field = _MockField("total", stored_computed=True, recursive=False)
 
@@ -150,7 +152,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
 
         self.assertEqual(recursive_ids, frozenset())
 
-    def test_cycle_detection_via_marked(self):
+    def test_cycle_detection_via_marked(self) -> None:
         """IDs already in `marked` (engine.pending) are skipped."""
         engine = ComputeEngine()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
@@ -164,7 +166,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         self.assertEqual(recursive_ids, frozenset({3}))
         self.assertEqual(scheduler.to_recompute[field], {3})
 
-    def test_cycle_detection_via_accumulation(self):
+    def test_cycle_detection_via_accumulation(self) -> None:
         """IDs accumulated in to_recompute from earlier entries are skipped."""
         engine = ComputeEngine()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
@@ -178,7 +180,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         self.assertEqual(recursive_ids, frozenset({3}))
         self.assertEqual(scheduler.to_recompute[field], {1, 2, 3})
 
-    def test_cycle_detection_marked_plus_accumulated(self):
+    def test_cycle_detection_marked_plus_accumulated(self) -> None:
         """Both marked (external) and accumulated (internal) IDs are excluded."""
         engine = ComputeEngine()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
@@ -191,7 +193,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
         # 1 is in marked, 2 is in to_recompute → only 3
         self.assertEqual(recursive_ids, frozenset({3}))
 
-    def test_all_known_returns_empty(self):
+    def test_all_known_returns_empty(self) -> None:
         engine = ComputeEngine()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
         marked = {field: {1, 2, 3}}
@@ -207,7 +209,7 @@ class TestRecursiveStoredComputed(unittest.TestCase):
 class TestRecursiveNonStored(unittest.TestCase):
     """Recursive non-stored fields: filter to cached IDs only."""
 
-    def test_filter_to_cached_ids(self):
+    def test_filter_to_cached_ids(self) -> None:
         engine = ComputeEngine()
         field = _MockField("display", stored_computed=False, recursive=True)
 
@@ -223,7 +225,7 @@ class TestRecursiveNonStored(unittest.TestCase):
         self.assertEqual(len(scheduler.to_invalidate), 1)
         self.assertEqual(scheduler.to_invalidate[0][1], frozenset({2, 4}))
 
-    def test_no_cached_ids_skips(self):
+    def test_no_cached_ids_skips(self) -> None:
         engine = ComputeEngine()
         field = _MockField("display", stored_computed=False, recursive=True)
 
@@ -237,7 +239,7 @@ class TestRecursiveNonStored(unittest.TestCase):
         self.assertEqual(recursive_ids, frozenset())
         self.assertEqual(scheduler.to_invalidate, [])
 
-    def test_cached_ids_none_means_no_filter(self):
+    def test_cached_ids_none_means_no_filter(self) -> None:
         """When cached_ids is None, all IDs are processed (no filter)."""
         engine = ComputeEngine()
         field = _MockField("display", stored_computed=False, recursive=True)
@@ -251,7 +253,7 @@ class TestRecursiveNonStored(unittest.TestCase):
 
         self.assertEqual(recursive_ids, frozenset({1, 2, 3}))
 
-    def test_cycle_detection_non_stored(self):
+    def test_cycle_detection_non_stored(self) -> None:
         """Non-stored recursive: IDs processed in earlier entries are skipped.
 
         This prevents infinite loops in cyclic hierarchies (e.g. A parent of B,
@@ -274,7 +276,7 @@ class TestRecursiveNonStored(unittest.TestCase):
         r3 = scheduler.process_entry(field, {1, 2, 3}, cached_ids={1, 2, 3})
         self.assertEqual(r3, frozenset())
 
-    def test_cycle_detection_non_stored_interacts_with_cached(self):
+    def test_cycle_detection_non_stored_interacts_with_cached(self) -> None:
         """Cycle detection is applied BEFORE cached_ids filter."""
         engine = ComputeEngine()
         field = _MockField("display", stored_computed=False, recursive=True)
@@ -292,7 +294,7 @@ class TestRecursiveNonStored(unittest.TestCase):
 class TestProtectionWithRecursive(unittest.TestCase):
     """Protection subtraction applies BEFORE cycle detection."""
 
-    def test_protected_subtracted_before_cycle_check(self):
+    def test_protected_subtracted_before_cycle_check(self) -> None:
         engine = ComputeEngine()
         engine.push_protection()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
@@ -305,7 +307,7 @@ class TestProtectionWithRecursive(unittest.TestCase):
         self.assertEqual(recursive_ids, frozenset({1, 3}))
         self.assertEqual(scheduler.to_recompute[field], {1, 3})
 
-    def test_protection_plus_cached_filter(self):
+    def test_protection_plus_cached_filter(self) -> None:
         engine = ComputeEngine()
         engine.push_protection()
         field = _MockField("display", stored_computed=False, recursive=True)
@@ -325,7 +327,7 @@ class TestProtectionWithRecursive(unittest.TestCase):
 class TestClear(unittest.TestCase):
     """Clear resets all accumulated state."""
 
-    def test_clear(self):
+    def test_clear(self) -> None:
         engine = ComputeEngine()
         field = _MockField("total", stored_computed=True)
 
@@ -341,13 +343,13 @@ class TestClear(unittest.TestCase):
 class TestRepr(unittest.TestCase):
     """Repr includes summary counts."""
 
-    def test_repr_empty(self):
+    def test_repr_empty(self) -> None:
         engine = ComputeEngine()
         scheduler = RecomputeScheduler(engine)
         self.assertIn("recompute=0f/0e", repr(scheduler))
         self.assertIn("invalidate=0f/0e", repr(scheduler))
 
-    def test_repr_with_data(self):
+    def test_repr_with_data(self) -> None:
         engine = ComputeEngine()
         field_a = _MockField("a", stored_computed=True)
         field_b = _MockField("b", stored_computed=False)
@@ -364,7 +366,7 @@ class TestRepr(unittest.TestCase):
 class TestEdgeCases(unittest.TestCase):
     """Edge cases and boundary conditions."""
 
-    def test_empty_ids(self):
+    def test_empty_ids(self) -> None:
         engine = ComputeEngine()
         field = _MockField("total", stored_computed=True)
 
@@ -374,7 +376,7 @@ class TestEdgeCases(unittest.TestCase):
         self.assertEqual(recursive_ids, frozenset())
         self.assertNotIn(field, scheduler.to_recompute)
 
-    def test_frozenset_input(self):
+    def test_frozenset_input(self) -> None:
         """Input IDs can be frozenset (immutable)."""
         engine = ComputeEngine()
         field = _MockField("total", stored_computed=True)
@@ -384,7 +386,7 @@ class TestEdgeCases(unittest.TestCase):
 
         self.assertEqual(scheduler.to_recompute[field], {1, 2})
 
-    def test_marked_is_live_reference(self):
+    def test_marked_is_live_reference(self) -> None:
         """Marked dict is a live reference — mutations are visible."""
         engine = ComputeEngine()
         field = _MockField("parent_total", stored_computed=True, recursive=True)
@@ -400,7 +402,7 @@ class TestEdgeCases(unittest.TestCase):
         # 1, 2 in to_recompute, 3 in marked → only 4 is new
         self.assertEqual(recursive_ids, frozenset({4}))
 
-    def test_create_flag_does_not_affect_scheduling(self):
+    def test_create_flag_does_not_affect_scheduling(self) -> None:
         """The create flag is for the caller's traversal, not scheduling."""
         engine = ComputeEngine()
         field = _MockField("total", stored_computed=True)
@@ -412,7 +414,7 @@ class TestEdgeCases(unittest.TestCase):
 
         self.assertEqual(s1.to_recompute[field], s2.to_recompute[field])
 
-    def test_interleaved_stored_and_non_stored(self):
+    def test_interleaved_stored_and_non_stored(self) -> None:
         """Multiple entries with different field types accumulate correctly."""
         engine = ComputeEngine()
         stored = _MockField("total", stored_computed=True)

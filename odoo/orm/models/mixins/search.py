@@ -22,7 +22,6 @@ import contextlib
 import logging
 import time
 import typing
-from collections.abc import Sequence
 from typing import Self
 
 from odoo.exceptions import LockError, UserError
@@ -30,12 +29,14 @@ from odoo.tools import SQL, Query, partition
 from odoo.tools.orm_profiler import _orm_profiling_enabled
 
 from ... import decorators as api
-from ..._typing import DomainType, ValuesType
+from ..._typing import DomainType, ValuesType  # noqa: TC003 — runtime import required (PEP 649)
 from ...domain import Domain
 from ...parsing import parse_field_expr, regex_order
 from ...primitives import COLLECTION_TYPES, NewId
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from ...fields import Field
 
 _logger = logging.getLogger("odoo.models")
@@ -216,7 +217,7 @@ class SearchMixin:
         return result
 
     @api.model
-    def _search_display_name(self, operator, value):
+    def _search_display_name(self, operator: str, value: typing.Any) -> DomainType:
         """
         Returns a domain that matches records whose display name matches the
         given ``name`` pattern when compared with the given ``operator``.
@@ -536,7 +537,14 @@ class SearchMixin:
             )
         return query
 
-    def _search_storage(self, domain, offset, limit, order, storage) -> Query:
+    def _search_storage(
+        self,
+        domain: Domain,
+        offset: int,
+        limit: int | None,
+        order: str | None,
+        storage: typing.Any,
+    ) -> Query:
         """Evaluate domain against DictBackend using Python predicates.
 
         Fetches all record IDs from storage, loads values into cache, then
@@ -677,7 +685,9 @@ class SearchMixin:
     # SQL traversal utilities
     # -------------------------------------------------------------------------
 
-    def _traverse_related_sql(self, alias: str, field: Field, query: Query) -> tuple:
+    def _traverse_related_sql(
+        self, alias: str, field: Field, query: Query
+    ) -> tuple[typing.Any, Field, str]:
         """Traverse the related `field` and add needed join to the `query`.
 
         :returns: tuple ``(model, field, alias)``, where ``field`` is the last

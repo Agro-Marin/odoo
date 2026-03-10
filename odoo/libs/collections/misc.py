@@ -1,6 +1,7 @@
 __all__ = ["Collector", "Reverse", "ReversedIterable", "StackMap"]
 
 from collections.abc import Iterable, Iterator, MutableMapping, Reversible
+from typing import Any
 
 
 class Collector[K, T](dict[K, tuple[T, ...]]):
@@ -15,19 +16,19 @@ class Collector[K, T](dict[K, tuple[T, ...]]):
     def __getitem__(self, key: K) -> tuple[T, ...]:
         return self.get(key, ())
 
-    def __setitem__(self, key: K, val: Iterable[T]):
+    def __setitem__(self, key: K, val: Iterable[T]) -> None:
         val = tuple(val)
         if val:
             super().__setitem__(key, val)
         else:
             super().pop(key, None)
 
-    def add(self, key: K, val: T):
+    def add(self, key: K, val: T) -> None:
         vals = self[key]
         if val not in vals:
             self[key] = vals + (val,)
 
-    def discard_keys_and_values(self, excludes) -> None:
+    def discard_keys_and_values(self, excludes: Iterable[K]) -> None:
         for key in excludes:
             self.pop(key, None)
         for key, vals in list(self.items()):
@@ -44,8 +45,8 @@ class StackMap[K, T](MutableMapping[K, T]):
 
     __slots__ = ["_maps"]
 
-    def __init__(self, m: MutableMapping[K, T] | None = None):
-        self._maps = [] if m is None else [m]
+    def __init__(self, m: MutableMapping[K, T] | None = None) -> None:
+        self._maps: list[MutableMapping[K, T]] = [] if m is None else [m]
 
     def __getitem__(self, key: K) -> T:
         for mapping in reversed(self._maps):
@@ -55,10 +56,10 @@ class StackMap[K, T](MutableMapping[K, T]):
                 pass
         raise KeyError(key)
 
-    def __setitem__(self, key: K, val: T):
+    def __setitem__(self, key: K, val: T) -> None:
         self._maps[-1][key] = val
 
-    def __delitem__(self, key: K):
+    def __delitem__(self, key: K) -> None:
         del self._maps[-1][key]
 
     def __iter__(self) -> Iterator[K]:
@@ -70,7 +71,7 @@ class StackMap[K, T](MutableMapping[K, T]):
     def __str__(self) -> str:
         return f"<StackMap {self._maps}>"
 
-    def pushmap(self, m: MutableMapping[K, T] | None = None):
+    def pushmap(self, m: MutableMapping[K, T] | None = None) -> None:
         self._maps.append({} if m is None else m)
 
     def popmap(self) -> MutableMapping[K, T]:
@@ -82,13 +83,13 @@ class ReversedIterable[T](Reversible[T]):
 
     __slots__ = ["iterable"]
 
-    def __init__(self, iterable: Reversible[T]):
+    def __init__(self, iterable: Reversible[T]) -> None:
         self.iterable = iterable
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[T]:
         return reversed(self.iterable)
 
-    def __reversed__(self):
+    def __reversed__(self) -> Iterator[T]:
         return iter(self.iterable)
 
 
@@ -102,23 +103,23 @@ class Reverse:
 
     __slots__ = ["val"]
 
-    def __init__(self, val):
+    def __init__(self, val: Any) -> None:
         self.val = val
 
-    def __eq__(self, other):
-        return self.val == other.val
+    def __eq__(self, other: object) -> bool:
+        return self.val == other.val  # type: ignore[union-attr]
 
-    def __ne__(self, other):
-        return self.val != other.val
+    def __ne__(self, other: object) -> bool:
+        return self.val != other.val  # type: ignore[union-attr]
 
-    def __ge__(self, other):
+    def __ge__(self, other: Reverse) -> bool:
         return self.val <= other.val
 
-    def __gt__(self, other):
+    def __gt__(self, other: Reverse) -> bool:
         return self.val < other.val
 
-    def __le__(self, other):
+    def __le__(self, other: Reverse) -> bool:
         return self.val >= other.val
 
-    def __lt__(self, other):
+    def __lt__(self, other: Reverse) -> bool:
         return self.val > other.val

@@ -57,7 +57,8 @@ def initialize(cr: Cursor) -> None:
         else:
             state = "uninstallable"
 
-        cr.execute("""
+        cr.execute(
+            """
             INSERT INTO ir_module_module
                 (author, website, name, shortdesc, description,
                  category_id, auto_install, state, web, license, application, icon, sequence, summary)
@@ -95,7 +96,9 @@ def initialize(cr: Cursor) -> None:
             ),
         )
         dependencies = info["depends"]
-        all_dep_rows.extend((module_id, d, d in (info["auto_install"] or ())) for d in dependencies)
+        all_dep_rows.extend(
+            (module_id, d, d in (info["auto_install"] or ())) for d in dependencies
+        )
 
     # Batch insert all ir_model_data and dependency rows via COPY
     if all_data_rows:
@@ -182,17 +185,23 @@ def create_categories(cr: Cursor, categories: list[str]) -> int | None:
 
         row = cr.fetchone()
         if not row:
-            cr.execute("""
+            cr.execute(
+                """
                 INSERT INTO ir_module_category (name, parent_id)
                 VALUES (%s, %s) RETURNING id
-            """, (Json({"en_US": cat_name}), p_id))
+            """,
+                (Json({"en_US": cat_name}), p_id),
+            )
             row = cr.fetchone()
             assert row is not None  # for typing
             p_id = row[0]
-            cr.execute("""
+            cr.execute(
+                """
                 INSERT INTO ir_model_data (module, name, res_id, model, noupdate)
                 VALUES (%s, %s, %s, %s, %s)
-            """, ("base", xml_id, p_id, "ir.module.category", True))
+            """,
+                ("base", xml_id, p_id, "ir.module.category", True),
+            )
         else:
             p_id = row[0]
         assert isinstance(p_id, int)

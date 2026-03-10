@@ -1,4 +1,10 @@
-def upgrade(file_manager):
+import typing
+
+if typing.TYPE_CHECKING:
+    from odoo.cli.upgrade_code import FileManager
+
+
+def upgrade(file_manager: FileManager) -> None:
     files = [
         f
         for f in file_manager

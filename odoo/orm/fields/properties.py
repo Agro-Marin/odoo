@@ -28,7 +28,8 @@ if typing.TYPE_CHECKING:
 NoneType = type(None)
 
 
-def check_property_field_value_name(property_name):
+def check_property_field_value_name(property_name: str) -> None:
+    """Validate that ``property_name`` is alphanumeric and within length limits."""
     if not (0 < len(property_name) <= 512) or not regex_alphanumeric.match(
         property_name
     ):
@@ -109,11 +110,11 @@ class Properties(Field):
     )
 
     @override
-    def _setup_attrs__(self, model_class, name):
+    def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
         super()._setup_attrs__(model_class, name)
         self._setup_definition_attrs(model_class)
 
-    def _setup_definition_attrs(self, model_class):
+    def _setup_definition_attrs(self, model_class: type[BaseModel]) -> None:
         if self.definition:
             # determine definition_record and definition_record_field
             assert self.definition.count(".") == 1
@@ -127,7 +128,7 @@ class Properties(Field):
                 self.compute = self._compute
 
     @override
-    def setup(self, model):
+    def setup(self, model: BaseModel) -> None:
         if (
             not self._setup_done
             and self.definition_record
@@ -140,7 +141,7 @@ class Properties(Field):
         return super().setup(model)
 
     @override
-    def setup_related(self, model):
+    def setup_related(self, model: BaseModel) -> None:
         super().setup_related(model)
         if self.inherited_field and not self.definition:
             self.definition = self.inherited_field.definition
@@ -155,7 +156,13 @@ class Properties(Field):
     #       }
     #
     @override
-    def convert_to_column(self, value, record, values=None, validate=True):
+    def convert_to_column(
+        self,
+        value: typing.Any,
+        record: BaseModel,
+        values: dict[str, typing.Any] | None = None,
+        validate: bool = True,
+    ) -> typing.Any:
         if not value:
             return None
 
@@ -163,7 +170,9 @@ class Properties(Field):
         return PsycopgJson(value)
 
     @override
-    def convert_to_cache(self, value, record, validate=True):
+    def convert_to_cache(
+        self, value: typing.Any, record: BaseModel, validate: bool = True
+    ) -> dict[str, typing.Any] | None:
         # any format -> cache format {name: value} or None
         if not value:
             return None
@@ -209,7 +218,7 @@ class Properties(Field):
     #       }
     #
     @override
-    def convert_to_record(self, value, record):
+    def convert_to_record(self, value: typing.Any, record: BaseModel) -> Property:
         return Property(value or {}, self, record)
 
     # Read format: the value is a list, where each element is a dict containing
@@ -231,10 +240,17 @@ class Properties(Field):
     #       }]
     #
     @override
-    def convert_to_read(self, value, record, use_display_name=True):
+    def convert_to_read(
+        self, value: typing.Any, record: BaseModel, use_display_name: bool = True
+    ) -> typing.Any:
         return self.convert_to_read_multi([value], record, use_display_name)[0]
 
-    def convert_to_read_multi(self, values, records, use_display_name=True):
+    def convert_to_read_multi(
+        self,
+        values: list[typing.Any],
+        records: BaseModel,
+        use_display_name: bool = True,
+    ) -> list[typing.Any]:
         if not records:
             return values
         assert len(values) == len(records)
@@ -265,18 +281,20 @@ class Properties(Field):
         return result
 
     @override
-    def convert_to_write(self, value, record):
+    def convert_to_write(self, value: typing.Any, record: BaseModel) -> typing.Any:
         """If we write a list on the child, update the definition record."""
         return value
 
     @override
-    def convert_to_export(self, value, record):
+    def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
         """Convert value from the record format to the export format."""
         if isinstance(value, Property):
             value = value._values
         return value or ""
 
-    def _get_res_ids_per_model(self, env, values_list):
+    def _get_res_ids_per_model(
+        self, env: typing.Any, values_list: list[typing.Any]
+    ) -> dict[str, set[int]]:
         """Read everything needed in batch for the given records.
 
         To retrieve relational properties names, or to check their existence,
@@ -325,7 +343,7 @@ class Properties(Field):
         return res_ids_per_model
 
     @override
-    def mark_dirty(self, records, value):
+    def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
         """Check if the properties definition has been changed.
 
         To avoid extra SQL queries used to detect definition change, we add a
@@ -382,7 +400,7 @@ class Properties(Field):
 
         return super().mark_dirty(records, value)
 
-    def _compute(self, records):
+    def _compute(self, records: BaseModel) -> None:
         """Add the default properties value when the container is changed."""
         for record in records.sudo():
             record[self.name] = self._add_default_values(
@@ -393,7 +411,9 @@ class Properties(Field):
                 },
             )
 
-    def _add_default_values(self, env, values):
+    def _add_default_values(
+        self, env: typing.Any, values: dict[str, typing.Any]
+    ) -> list[typing.Any] | dict[str, typing.Any]:
         """Read the properties definition to add default values.
 
         Default values are defined on the container in the 'default' key of
@@ -459,7 +479,9 @@ class Properties(Field):
 
         return properties_list_values
 
-    def _get_properties_definition(self, record):
+    def _get_properties_definition(
+        self, record: BaseModel
+    ) -> list[dict[str, typing.Any]] | None:
         """Return the properties definition of the given record."""
         container = record[self.definition_record]
         if container:
@@ -467,7 +489,12 @@ class Properties(Field):
         return None
 
     @classmethod
-    def _add_display_name(cls, values_list, env, value_keys=("value", "default")):
+    def _add_display_name(
+        cls,
+        values_list: list[dict[str, typing.Any]],
+        env: typing.Any,
+        value_keys: tuple[str, ...] = ("value", "default"),
+    ) -> None:
         """Add the "display_name" for each many2one / many2many properties.
 
         Modify in place "values_list".
@@ -521,7 +548,11 @@ class Properties(Field):
                             continue
 
     @classmethod
-    def _remove_display_name(cls, values_list, value_key="value"):
+    def _remove_display_name(
+        cls,
+        values_list: list[dict[str, typing.Any]],
+        value_key: str = "value",
+    ) -> None:
         """Remove the display name received by the web client for the relational properties.
 
         Modify in place "values_list".
@@ -557,7 +588,7 @@ class Properties(Field):
                     ]
 
     @classmethod
-    def _add_missing_names(cls, values_list):
+    def _add_missing_names(cls, values_list: list[dict[str, typing.Any]]) -> None:
         """Generate new properties name if needed.
 
         Modify in place "values_list".
@@ -570,7 +601,12 @@ class Properties(Field):
                 definition["name"] = str(uuid.uuid4()).replace("-", "")[:16]
 
     @classmethod
-    def _parse_json_types(cls, values_list, env, res_ids_per_model):
+    def _parse_json_types(
+        cls,
+        values_list: list[dict[str, typing.Any]],
+        env: typing.Any,
+        res_ids_per_model: dict[str, set[int]],
+    ) -> None:
         """Parse the value stored in the JSON.
 
         Check for records existence, if we removed a selection option, ...
@@ -650,7 +686,9 @@ class Properties(Field):
             property_definition["value"] = property_value
 
     @classmethod
-    def _list_to_dict(cls, values_list):
+    def _list_to_dict(
+        cls, values_list: list[dict[str, typing.Any]]
+    ) -> dict[str, typing.Any]:
         """Convert a list of properties with definition into a dict {name: value}.
 
         To not repeat data in database, we only store the value of each property on
@@ -718,7 +756,11 @@ class Properties(Field):
         return dict_value
 
     @classmethod
-    def _dict_to_list(cls, values_dict, properties_definition):
+    def _dict_to_list(
+        cls,
+        values_dict: dict[str, typing.Any],
+        properties_definition: list[dict[str, typing.Any]],
+    ) -> list[dict[str, typing.Any]]:
         """Convert a dict of {property: value} into a list of property definition with values.
 
         :param values_dict: JSON value coming from the child table
@@ -738,12 +780,12 @@ class Properties(Field):
         return values_list
 
     @override
-    def expression_getter(self, field_expr):
+    def expression_getter(self, field_expr: str) -> typing.Any:
         _fname, property_name = parse_field_expr(field_expr)
         if not property_name:
             raise ValueError(f"Missing property name for {self}")
 
-        def get_property(record):
+        def get_property(record: BaseModel) -> typing.Any:
             property_value = self.__get__(
                 record.with_context(property_selection_get_key=True)
             )
@@ -765,7 +807,9 @@ class Properties(Field):
         return get_property
 
     @override
-    def filter_function(self, records, field_expr, operator, value):
+    def filter_function(
+        self, records: BaseModel, field_expr: str, operator: str, value: typing.Any
+    ) -> typing.Any:
         getter = self.expression_getter(field_expr)
         domain = None
         if operator == "any" or isinstance(value, Domain):
@@ -794,16 +838,14 @@ class Properties(Field):
         # so the same expression in SELECT and GROUP BY would differ
         # (e.g., col -> $1 vs col -> $3).  Property names are validated
         # to [a-z0-9_]+, safe for literal embedding.
-        return SQL(
-            "(%%s -> '%s')" % property_name, field_sql
-        )  # pylint: disable=sql-injection
+        return SQL("(%%s -> '%s')" % property_name, field_sql)  # pylint: disable=sql-injection
 
     @override
     def condition_to_sql(
         self,
         field_expr: str,
         operator: str,
-        value,
+        value: typing.Any,
         model: BaseModel,
         alias: str,
         query: Query,
@@ -929,31 +971,36 @@ class Property(abc.Mapping):
 
         # attributes is a properties field, and 'partner_id' is a many2one property;
         # partner is thus a recordset
-        partner = record.attributes['partner_id']
+        partner = record.attributes["partner_id"]
         partner.name
 
     When the accessed key does not exist, i.e., there is no corresponding property
     definition for that record, the access raises a :class:`KeyError`.
     """
 
-    def __init__(self, values, field, record):
+    def __init__(
+        self,
+        values: dict[str, typing.Any],
+        field: Properties,
+        record: BaseModel,
+    ) -> None:
         self._values = values
         self.record = record
         self.field = field
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[str]:
         for key in self._values:
             with contextlib.suppress(KeyError):
                 self[key]
                 yield key
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._values)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return self._values == (other._values if isinstance(other, Property) else other)
 
-    def __getitem__(self, property_name):
+    def __getitem__(self, property_name: str) -> typing.Any:
         """Will make the verification."""
         if not self.record:
             return False
@@ -995,7 +1042,7 @@ class Property(abc.Mapping):
 
         return prop.get("value") or False
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(frozendict(self._values))
 
 
@@ -1037,7 +1084,13 @@ class PropertiesDefinition(Field):
     }
 
     @override
-    def convert_to_column(self, value, record, values=None, validate=True):
+    def convert_to_column(
+        self,
+        value: typing.Any,
+        record: BaseModel,
+        values: dict[str, typing.Any] | None = None,
+        validate: bool = True,
+    ) -> typing.Any:
         """Convert the value before inserting it in database.
 
         This method accepts a list properties definition.
@@ -1076,7 +1129,9 @@ class PropertiesDefinition(Field):
         return PsycopgJson(record._convert_to_cache_properties_definition(value))
 
     @override
-    def convert_to_cache(self, value, record, validate=True):
+    def convert_to_cache(
+        self, value: typing.Any, record: BaseModel, validate: bool = True
+    ) -> list[dict[str, typing.Any]] | None:
         # any format -> cache format (list of dicts or None)
         if not value:
             return None
@@ -1100,7 +1155,9 @@ class PropertiesDefinition(Field):
         return record._convert_to_column_properties_definition(value)
 
     @override
-    def convert_to_record(self, value, record):
+    def convert_to_record(
+        self, value: typing.Any, record: BaseModel
+    ) -> list[dict[str, typing.Any]]:
         # cache format -> record format (list of dicts)
         if not value:
             return []
@@ -1146,7 +1203,9 @@ class PropertiesDefinition(Field):
         return result
 
     @override
-    def convert_to_read(self, value, record, use_display_name=True):
+    def convert_to_read(
+        self, value: typing.Any, record: BaseModel, use_display_name: bool = True
+    ) -> typing.Any:
         # record format -> read format (list of dicts with display names)
         if not value:
             return value
@@ -1157,10 +1216,12 @@ class PropertiesDefinition(Field):
         return value
 
     @override
-    def convert_to_write(self, value, record):
+    def convert_to_write(self, value: typing.Any, record: BaseModel) -> typing.Any:
         return value
 
-    def _validate_properties_definition(self, properties_definition, env):
+    def _validate_properties_definition(
+        self, properties_definition: list[dict[str, typing.Any]], env: typing.Any
+    ) -> None:
         """Raise an error if the property definition is not valid."""
         allowed_keys = (
             self.ALLOWED_KEYS
@@ -1213,10 +1274,12 @@ class PropertiesDefinition(Field):
             properties_names.add(property_name)
 
             if property_type == "html" and not property_name.endswith("_html"):
-                raise ValueError("HTML property name should end with `_html`.")
+                msg = "HTML property name should end with `_html`."
+                raise ValueError(msg)
 
             if property_type != "html" and property_name.endswith("_html"):
-                raise ValueError("Only HTML properties can have the `_html` suffix.")
+                msg = "Only HTML properties can have the `_html` suffix."
+                raise ValueError(msg)
 
             if property_type and property_type not in Properties.ALLOWED_TYPES:
                 raise ValueError(f"Wrong property type {property_type!r}.")
@@ -1247,7 +1310,7 @@ class PropertiesDefinition(Field):
                         filter(lambda x: all_options.count(x) > 1, all_options)
                     )
                     raise ValueError(
-                        f'Some options are duplicated: {", ".join(duplicated)}.'
+                        f"Some options are duplicated: {', '.join(duplicated)}."
                     )
 
             property_tags = property_definition.get("tags")
@@ -1261,5 +1324,5 @@ class PropertiesDefinition(Field):
                 if len(all_tags) != len(set(all_tags)):
                     duplicated = set(filter(lambda x: all_tags.count(x) > 1, all_tags))
                     raise ValueError(
-                        f'Some tags are duplicated: {", ".join(duplicated)}.'
+                        f"Some tags are duplicated: {', '.join(duplicated)}."
                     )

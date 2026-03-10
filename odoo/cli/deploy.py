@@ -12,11 +12,19 @@ from . import Command
 class Deploy(Command):
     """Deploy a module on an Odoo instance"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.session = requests.session()
 
-    def deploy_module(self, module_path, url, login, password, db="", force=False):
+    def deploy_module(
+        self,
+        module_path: str,
+        url: str,
+        login: str,
+        password: str,
+        db: str = "",
+        force: bool = False,
+    ) -> str:
         url = url.rstrip("/")
         module_file = self.zip_module(module_path)
         try:
@@ -26,7 +34,15 @@ class Deploy(Command):
         finally:
             Path(module_file).unlink()
 
-    def login_upload_module(self, module_file, url, login, password, db, force=False):
+    def login_upload_module(
+        self,
+        module_file: str,
+        url: str,
+        login: str,
+        password: str,
+        db: str,
+        force: bool = False,
+    ) -> str:
         print("Uploading module file...")
         self.session.get(
             f"{url}/web/login?db={db}", allow_redirects=False
@@ -49,7 +65,7 @@ class Deploy(Command):
         res.raise_for_status()
         return res.text
 
-    def zip_module(self, path):
+    def zip_module(self, path: str | Path) -> str:
         """Create a zip archive of the module at ``path``.
 
         Returns the path to the temporary zip file.
@@ -70,7 +86,7 @@ class Deploy(Command):
             Path(temp).unlink()
             raise
 
-    def run(self, cmdargs):
+    def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
         parser.add_argument("path", help="Path of the module to deploy")
         parser.add_argument(

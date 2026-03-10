@@ -9,6 +9,7 @@ import warnings
 from collections import defaultdict
 from collections.abc import Callable, Collection, Iterable, Mapping
 from inspect import Parameter, signature
+from typing import Any
 
 C = typing.TypeVar("C", bound=Callable)
 
@@ -37,7 +38,7 @@ class ormcache_counter:
         "tx_miss",
     ]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.hit: int = 0
         self.miss: int = 0
         self.err: int = 0
@@ -71,7 +72,7 @@ class ormcache:
     The parameters are strings that represent expressions referring to the
     signature of the decorated method, and are used to compute a cache key::
 
-        @ormcache('model_name', 'mode')
+        @ormcache("model_name", "mode")
         def _compute_domain(self, model_name, mode="read"): ...
 
     For the sake of backward compatibility, the decorator supports the named
@@ -92,15 +93,16 @@ class ormcache:
         *args: str,
         cache: str = "default",
         skiparg: int | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         self.args = args
         self.skiparg = skiparg
         self.cache_name = cache
         if skiparg is not None:
             warnings.warn(
                 "Deprecated since 19.0, ormcache(skiparg) will be removed",
-                DeprecationWarning, stacklevel=2,
+                DeprecationWarning,
+                stacklevel=2,
             )
 
     def __call__(self, method: C) -> C:
@@ -162,7 +164,7 @@ class ormcache:
         lookup.__cache__ = self  # type: ignore
         return lookup
 
-    def add_value(self, *args, cache_value=None, **kwargs) -> None:
+    def add_value(self, *args: Any, cache_value: Any = None, **kwargs: Any) -> None:
         model: BaseModel = args[0]
         d: LRU = model.pool._Registry__caches[self.cache_name]  # type: ignore
         key = self.key(*args, **kwargs)
@@ -189,7 +191,7 @@ class ormcache:
         code = f"lambda {args}: ({''.join(a for arg in values for a in (arg, ','))})"
         self.key = unsafe_eval(code, {"method": self.method})
 
-    def lookup(self, *args, **kwargs) -> typing.Any:
+    def lookup(self, *args: Any, **kwargs: Any) -> Any:
         model: BaseModel = args[0]
         d: LRU = model.pool._Registry__caches[self.cache_name]  # type: ignore
         key = self.key(*args, **kwargs)
@@ -235,12 +237,13 @@ class ormcache_context(ormcache):
     """
 
     def __init__(
-        self, *args: str, keys: tuple[str, ...], skiparg: None = None, **kwargs
+        self, *args: str, keys: tuple[str, ...], skiparg: None = None, **kwargs: Any
     ) -> None:
         assert skiparg is None, "ormcache_context() no longer supports skiparg"
         warnings.warn(
             "Since 19.0, use ormcache directly, context values are available as `self.env.context.get`",
-            DeprecationWarning, stacklevel=2,
+            DeprecationWarning,
+            stacklevel=2,
         )
         super().__init__(*args, **kwargs)
 
@@ -257,7 +260,7 @@ class ormcache_context(ormcache):
 
 def log_ormcache_stats(
     sig: int | None = None,
-    frame: typing.Any = None,
+    frame: Any = None,
 ) -> None:
     # collect and log data in a separate thread to avoid blocking the main thread
     # and avoid using logging module directly in the signal handler
@@ -270,21 +273,21 @@ def log_ormcache_stats(
             return
         _logger_state = "run"
 
-    def check_continue_logging():
+    def check_continue_logging() -> bool:
         if _logger_state == "run":
             return True
         _logger.info("Stopping logging ORM cache stats")
         return False
 
     class StatsLine:
-        def __init__(self, method, counter: ormcache_counter):
+        def __init__(self, method: Callable, counter: ormcache_counter) -> None:
             self.sz_entries_sum: int = 0
             self.sz_entries_max: int = 0
             self.nb_entries: int = 0
             self.counter = counter
             self.method = method
 
-    def _log_ormcache_stats():
+    def _log_ormcache_stats() -> None:
         """Log statistics of ormcache usage by database, model, and method."""
         from odoo.modules.registry import Registry
 
@@ -333,11 +336,12 @@ def log_ormcache_stats(
 
             # add counters that have no values in cache
             for (
-                dbname,
-                method,
-            ), counter in (
-                _COUNTERS.copy().items()
-            ):  # copy to avoid concurrent modification
+                (
+                    dbname,
+                    method,
+                ),
+                counter,
+            ) in _COUNTERS.copy().items():  # copy to avoid concurrent modification
                 if not check_continue_logging():
                     return
                 db_cache_stats = cache_stats[dbname]
@@ -371,7 +375,7 @@ def log_ormcache_stats(
             ):
                 if not check_continue_logging():
                     return
-                log_msgs.append(f'Database {dbname or "<no_db>"}:')
+                log_msgs.append(f"Database {dbname or '<no_db>'}:")
                 log_msgs.extend(
                     f" * {cache_name}: {entries}/{count}{' (' if cache_total_size else ''}{cache_total_size}{' bytes)' if cache_total_size else ''}"
                     for cache_name, entries, count, cache_total_size in db_cache_usage
@@ -429,24 +433,13 @@ def log_ormcache_stats(
         ).start()
 
 
-def get_cache_key_counter(
-    bound_method: Callable, *args, **kwargs
-) -> tuple[LRU, tuple, ormcache_counter]:
-    """Return the cache, key and stat counter for the given call."""
-    model: BaseModel = bound_method.__self__  # type: ignore
-    ormcache_instance: ormcache = bound_method.__cache__  # type: ignore
-    cache: LRU = model.pool._Registry__caches[ormcache_instance.cache_name]  # type: ignore
-    key = ormcache_instance.key(model, *args, **kwargs)
-    counter = _COUNTERS[model.pool.db_name, ormcache_instance.method]
-    return cache, key, counter
-
 
 def get_cache_size(
-    obj,
+    obj: Any,
     *,
     cache_info: str = "",
     seen_ids: set[int] | None = None,
-    class_slots: dict[type, Iterable[str]] | None = None,
+    class_slots: dict[int, Iterable[str]] | None = None,
 ) -> int:
     """A non-thread-safe recursive object size estimator"""
     from odoo.api import Environment

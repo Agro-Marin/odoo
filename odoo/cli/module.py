@@ -2,6 +2,7 @@ import argparse
 import logging
 import textwrap
 from pathlib import Path
+from typing import Any
 
 from odoo.cli.command import Command, build_config_args, odoo_env
 from odoo.modules.loading import force_demo
@@ -14,7 +15,7 @@ _logger = logging.getLogger(__name__)
 class Module(Command):
     """Manage modules, install demo data"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         subparsers = self.parser.add_subparsers(
             dest="subcommand", required=True, help="Subcommands help"
@@ -89,20 +90,20 @@ class Module(Command):
             "If 'all' is used as `modules` argument, this applies to all installed modules.",
         )
 
-    def run(self, cmdargs):
+    def run(self, cmdargs: list[str]) -> None:
         parsed_args = self.parser.parse_args(args=cmdargs)
         config_args = build_config_args(parsed_args.config, parsed_args.db_name)
         config.parse_config(config_args, setup_logging=True)
         self.require_single_database(parsed_args)
         parsed_args.func(parsed_args)
 
-    def _get_zip_path(self, path):
+    def _get_zip_path(self, path: str) -> Path | None:
         fullpath = Path(path).resolve()
         if fullpath.is_file() and fullpath.suffix.lower() == ".zip":
             return fullpath
         return None
 
-    def _get_module_names(self, module_names):
+    def _get_module_names(self, module_names: list[str]) -> set[str]:
         """Get valid module names from disk before starting the Db environment"""
         initialize_sys_path()
         return {
@@ -111,18 +112,18 @@ class Module(Command):
             if get_module_path(module) or self._get_zip_path(module)
         }
 
-    def _get_module_model(self, env):
+    def _get_module_model(self, env: Any) -> Any:
         Module = env["ir.module.module"]
         Module.update_list()
         return Module
 
-    def _get_all_installed_modules(self, env):
+    def _get_all_installed_modules(self, env: Any) -> Any:
         return self._get_module_model(env).search([["state", "=", "installed"]])
 
-    def _get_modules(self, env, module_names):
+    def _get_modules(self, env: Any, module_names: set[str]) -> Any:
         return self._get_module_model(env).search([("name", "in", module_names)])
 
-    def _install(self, parsed_args):
+    def _install(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name, new_registry=True) as env:
             valid_module_names = self._get_module_names(parsed_args.modules)
             installable_modules = self._get_modules(env, valid_module_names)
@@ -148,7 +149,7 @@ class Module(Command):
                     for importable_zipfile in importable_zipfiles:
                         env["ir.module.module"]._import_zipfile(importable_zipfile)
 
-    def _upgrade(self, parsed_args):
+    def _upgrade(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name, new_registry=True) as env:
             if "all" in parsed_args.modules:
                 upgradable_modules = self._get_all_installed_modules(env)
@@ -169,11 +170,11 @@ class Module(Command):
             if upgradable_modules:
                 upgradable_modules.button_immediate_upgrade()
 
-    def _uninstall(self, parsed_args):
+    def _uninstall(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name, new_registry=True) as env:
             if modules := self._get_modules(env, parsed_args.modules):
                 modules.button_immediate_uninstall()
 
-    def _force_demo(self, parsed_args):
+    def _force_demo(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name, new_registry=True) as env:
             force_demo(env)

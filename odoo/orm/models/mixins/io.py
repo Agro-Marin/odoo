@@ -33,15 +33,18 @@ from odoo.tools import SQL, groupby, unique
 from odoo.tools.translate import _
 
 from ... import decorators as api
-from ..._typing import ValuesType
 from ...helpers import get_columns_from_sql_diagnostics, itemgetter_tuple
 from ...parsing import fix_import_export_id_paths
 
 _logger = logging.getLogger("odoo.models")
 
 
-from collections.abc import Callable, Generator, Iterator
 from typing import Self
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable, Generator, Iterator
+
+    from ..._typing import ValuesType
 
 
 class IOMixin:
@@ -444,9 +447,9 @@ class IOMixin:
             if not batch:
                 return
 
-            assert not (
-                xml_id and model
-            ), "flush can specify *either* an external id or a model, not both"
+            assert not (xml_id and model), (
+                "flush can specify *either* an external id or a model, not both"
+            )
 
             if xml_id and xml_id not in batch_xml_ids:
                 if xml_id not in self.env:
@@ -485,7 +488,9 @@ class IOMixin:
                     data_list[0]["info"], type="error", message=str(e)
                 )
             except Exception:
-                _logger.debug("Batch load failed, retrying record by record", exc_info=True)
+                _logger.debug(
+                    "Batch load failed, retrying record by record", exc_info=True
+                )
 
             errors = 0
             # try again, this time record by record
@@ -581,7 +586,7 @@ class IOMixin:
             ):
                 if any(
                     record.get(field) is None
-                        for field in self.env.context["import_skip_records"]
+                    for field in self.env.context["import_skip_records"]
                 ):
                     continue
             if xid:
@@ -724,7 +729,8 @@ class IOMixin:
                         (index, fnames[1:] or [None])
                         for index, fnames in enumerate(field_paths)
                         if fnames[0] == relfield
-                    ), strict=False
+                    ),
+                    strict=False,
                 )
 
                 # return all rows which have at least one value for the
@@ -834,9 +840,7 @@ class IOMixin:
 
     def _load_records_write(self, values: ValuesType) -> None:
         self.ensure_one()
-        to_write = (
-            {}
-        )  # Deferred the write to avoid using the old definition if it changed
+        to_write = {}  # Deferred the write to avoid using the old definition if it changed
         for fname in list(values):
             if fname not in self._fields or self._fields[fname].type != "properties":
                 continue

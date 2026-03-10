@@ -3,6 +3,7 @@ import logging
 import sys
 import textwrap
 from pathlib import Path
+from typing import Any
 
 from odoo.cli.command import Command, build_config_args, odoo_env
 from odoo.fields import Domain
@@ -21,14 +22,14 @@ IMPORT_EXTENSIONS = [".po", ".csv"]
 
 
 class SubcommandHelpFormatter(argparse.RawTextHelpFormatter):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs, max_help_position=80)
 
 
 class I18n(Command):
     """Import, export, setup languages and internationalization files"""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         subparsers = self.parser.add_subparsers(
             dest="subcommand", required=True, help="Subcommands help"
@@ -131,7 +132,7 @@ class I18n(Command):
             help="List of language codes to install",
         )
 
-    def run(self, cmdargs):
+    def run(self, cmdargs: list[str]) -> None:
         parsed_args = self.parser.parse_args(args=cmdargs)
         config_args = build_config_args(parsed_args.config, parsed_args.db_name)
         config.parse_config(config_args, setup_logging=True)
@@ -145,7 +146,9 @@ class I18n(Command):
             case "loadlang":
                 self._loadlang(parsed_args)
 
-    def _get_languages(self, env, language_codes, active_test=True):
+    def _get_languages(
+        self, env: Any, language_codes: list[str], active_test: bool = True
+    ) -> Any:
         # We want to log invalid parameters
         Lang = env["res.lang"].with_context(active_test=False)
         languages = Lang.search(
@@ -180,7 +183,7 @@ class I18n(Command):
                 )
         return languages
 
-    def _import(self, parsed_args):
+    def _import(self, parsed_args: argparse.Namespace) -> None:
         paths = OrderedSet(parsed_args.files)
         if invalid_paths := [
             path
@@ -207,7 +210,7 @@ class I18n(Command):
                     )
             translation_importer.save(overwrite=parsed_args.overwrite)
 
-    def _export(self, parsed_args):
+    def _export(self, parsed_args: argparse.Namespace) -> None:
         export_pot = "pot" in parsed_args.languages
 
         if parsed_args.output:
@@ -271,7 +274,13 @@ class I18n(Command):
                         path = i18n_path / f"{language.iso_code}.po"
                         self._export_file(env, [module_name], language.code, path)
 
-    def _export_file(self, env, module_names, lang_code, path):
+    def _export_file(
+        self,
+        env: Any,
+        module_names: list[str],
+        lang_code: str | None,
+        path: Path | str,
+    ) -> None:
         source = module_names[0] if len(module_names) == 1 else "modules"
         destination = "stdout" if path == "-" else path
         _logger.info("Exporting %s (%s) to %s", source, lang_code or "pot", destination)
@@ -289,7 +298,7 @@ class I18n(Command):
             if not trans_export(lang_code, module_names, outfile, export_format, env):
                 _logger.warning("No translatable terms were found in %s.", module_names)
 
-    def _loadlang(self, parsed_args):
+    def _loadlang(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name) as env:
             for language in self._get_languages(
                 env, parsed_args.languages, active_test=False

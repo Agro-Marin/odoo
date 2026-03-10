@@ -16,7 +16,10 @@ Usage from Transaction::
 
 import collections
 from collections import defaultdict
-from collections.abc import Collection, Iterable, Iterator
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Collection, Iterable, Iterator
 
 # Sentinel for missing values — distinct from any real cached value (including None).
 _MISSING = object()
@@ -39,15 +42,17 @@ class FieldCache:
     __slots__ = ("_data", "_dirty", "_patches")
 
     def __init__(self, dirty_factory: type | None = None) -> None:
-        self._data: defaultdict = defaultdict(dict)
-        self._dirty: defaultdict = defaultdict(dirty_factory or set)
-        self._patches: defaultdict = defaultdict(lambda: defaultdict(list))
+        self._data: defaultdict[Any, dict[Any, Any]] = defaultdict(dict)
+        self._dirty: defaultdict[Any, set] = defaultdict(dirty_factory or set)
+        self._patches: defaultdict[Any, defaultdict[Any, list]] = defaultdict(
+            lambda: defaultdict(list)
+        )
 
     # ------------------------------------------------------------------
     # Data access
     # ------------------------------------------------------------------
 
-    def get_field_data(self, field) -> dict:
+    def get_field_data(self, field: Any) -> dict[Any, Any]:
         """Return the cache dict for *field*, creating it if needed.
 
         This is the low-level accessor that Field._get_cache_impl() uses.
@@ -55,15 +60,15 @@ class FieldCache:
         """
         return self._data[field]
 
-    def get_field_data_or_none(self, field) -> dict | None:
+    def get_field_data_or_none(self, field: Any) -> dict[Any, Any] | None:
         """Return the cache dict for *field*, or ``None`` if nothing is cached."""
         return self._data.get(field)
 
-    def set_value(self, field, record_id, value) -> None:
+    def set_value(self, field: Any, record_id: Any, value: Any) -> None:
         """Set a single cached value."""
         self._data[field][record_id] = value
 
-    def get_value(self, field, record_id, default=_MISSING):
+    def get_value(self, field: Any, record_id: Any, default: Any = _MISSING) -> Any:
         """Return the cached value, or *default* if not present.
 
         Raises ``KeyError`` if *default* is not provided and the value is missing.
@@ -75,12 +80,12 @@ class FieldCache:
                 raise
             return default
 
-    def has_value(self, field, record_id) -> bool:
+    def has_value(self, field: Any, record_id: Any) -> bool:
         """Return whether *record_id* has a cached value for *field*."""
         field_cache = self._data.get(field)
         return field_cache is not None and record_id in field_cache
 
-    def insert_if_absent(self, field, ids: Iterable, values: Iterable) -> None:
+    def insert_if_absent(self, field: Any, ids: Iterable, values: Iterable) -> None:
         """Set values only for IDs that are not already cached.
 
         Equivalent to ``dict.setdefault`` in bulk — preserves pending updates
@@ -89,9 +94,11 @@ class FieldCache:
         which is ~15% faster than an explicit Python loop.
         """
         field_cache = self._data[field]
-        collections.deque(map(field_cache.setdefault, ids, values, strict=False), maxlen=0)
+        collections.deque(
+            map(field_cache.setdefault, ids, values, strict=False), maxlen=0
+        )
 
-    def update_batch(self, field, ids: tuple, value) -> None:
+    def update_batch(self, field: Any, ids: tuple, value: Any) -> None:
         """Set the same *value* for all *ids*.
 
         Optimized for the common singleton case (``len(ids) == 1``).
@@ -103,7 +110,7 @@ class FieldCache:
         else:
             field_cache.update(dict.fromkeys(ids, value))
 
-    def pop_value(self, field, record_id, default=_MISSING):
+    def pop_value(self, field: Any, record_id: Any, default: Any = _MISSING) -> Any:
         """Remove and return a cached value."""
         field_cache = self._data.get(field)
         if field_cache is None:
@@ -118,26 +125,26 @@ class FieldCache:
     # Dirty tracking
     # ------------------------------------------------------------------
 
-    def mark_dirty(self, field, ids: Iterable) -> None:
+    def mark_dirty(self, field: Any, ids: Iterable) -> None:
         """Mark *ids* as dirty for *field*."""
         self._dirty[field].update(ids)
 
-    def get_dirty(self, field) -> set | None:
+    def get_dirty(self, field: Any) -> set | None:
         """Return the set of dirty IDs for *field*, or ``None``."""
         return self._dirty.get(field)
 
-    def pop_dirty(self, field) -> set | None:
+    def pop_dirty(self, field: Any) -> set | None:
         """Remove and return the set of dirty IDs for *field*."""
         return self._dirty.pop(field, None)
 
-    def pop_dirty_for_model(self, model_name: str) -> dict:
+    def pop_dirty_for_model(self, model_name: str) -> dict[Any, set]:
         """Pop all dirty fields belonging to *model_name*.
 
         More efficient than iterating all model fields and popping each:
         iterates the (usually small) dirty dict instead.  O(n_dirty_global)
         vs O(n_model_fields).
         """
-        result = {}
+        result: dict[Any, set] = {}
         for field in list(self._dirty):
             if field.model_name == model_name:
                 ids = self._dirty.pop(field)
@@ -149,11 +156,11 @@ class FieldCache:
         """Return whether any field has dirty entries."""
         return bool(self._dirty)
 
-    def has_dirty_field(self, field) -> bool:
+    def has_dirty_field(self, field: Any) -> bool:
         """Return whether *field* has any dirty entries."""
         return bool(self._dirty.get(field))
 
-    def iter_dirty_fields(self) -> Iterator:
+    def iter_dirty_fields(self) -> Iterator[Any]:
         """Iterate over fields that have dirty entries."""
         return iter(self._dirty)
 
@@ -165,11 +172,11 @@ class FieldCache:
     # Patches (deferred x2many additions)
     # ------------------------------------------------------------------
 
-    def add_patch(self, field, record_id, new_id) -> None:
+    def add_patch(self, field: Any, record_id: Any, new_id: Any) -> None:
         """Record a deferred x2many addition."""
         self._patches[field][record_id].append(new_id)
 
-    def get_patches(self, field) -> dict | None:
+    def get_patches(self, field: Any) -> dict[Any, list] | None:
         """Return the patches dict for *field*, or ``None``."""
         return self._patches.get(field)
 
@@ -177,7 +184,7 @@ class FieldCache:
     # Invalidation
     # ------------------------------------------------------------------
 
-    def invalidate_field(self, field, ids: Collection | None = None) -> None:
+    def invalidate_field(self, field: Any, ids: Collection | None = None) -> None:
         """Invalidate cached values for *field*.
 
         If *ids* is ``None``, clear the entire field cache.
@@ -225,15 +232,15 @@ class FieldCache:
     # Iteration & introspection
     # ------------------------------------------------------------------
 
-    def iter_fields(self) -> Iterator:
+    def iter_fields(self) -> Iterator[Any]:
         """Iterate over fields that have cached data."""
         return iter(self._data)
 
-    def iter_field_items(self) -> Iterator:
+    def iter_field_items(self) -> Iterator[tuple[Any, dict[Any, Any]]]:
         """Iterate over (field, field_cache_dict) pairs."""
         return iter(self._data.items())
 
-    def has_field(self, field) -> bool:
+    def has_field(self, field: Any) -> bool:
         """Return whether *field* has any cached data."""
         return field in self._data
 

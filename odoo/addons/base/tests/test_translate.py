@@ -1,5 +1,6 @@
 import io
 import logging
+import re
 import time
 from hashlib import sha256
 from unittest.mock import patch
@@ -13,10 +14,29 @@ from odoo.tools.translate import (
     TranslationImporter,
     TranslationModuleReader,
     html_translate,
-    quote,
-    unquote,
     xml_translate,
 )
+
+re_escaped_char = re.compile(r"(\\.)")
+re_escaped_replacements = {"n": "\n", "t": "\t"}
+
+
+def _sub_replacement(match_obj: re.Match) -> str:
+    return re_escaped_replacements.get(match_obj.group(1)[1], match_obj.group(1)[1])
+
+
+def quote(s: str) -> str:
+    """Return quoted PO term string, with special PO characters escaped."""
+    assert r"\n" not in s, (
+        "Translation terms may not include escaped newlines ('\\n'), "
+        "please use only literal newlines! (in '%s')" % s
+    )
+    return '"%s"' % s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", '\\n"\n"')
+
+
+def unquote(s: str) -> str:
+    """Return unquoted PO term string, with special PO characters unescaped."""
+    return re_escaped_char.sub(_sub_replacement, s[1:-1])
 
 _stats_logger = logging.getLogger("odoo.tests.stats")
 

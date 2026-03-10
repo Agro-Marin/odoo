@@ -1,8 +1,9 @@
 __all__ = ["LastOrderedSet", "OrderedSet"]
 
 import itertools
-from collections.abc import Iterable, MutableSet
+from collections.abc import Iterable, Iterator, MutableSet
 from functools import reduce
+from typing import Self
 
 
 class OrderedSet[T](MutableSet[T]):
@@ -10,40 +11,40 @@ class OrderedSet[T](MutableSet[T]):
 
     __slots__ = ["_map"]
 
-    def __init__(self, elems: Iterable[T] = ()):
+    def __init__(self, elems: Iterable[T] = ()) -> None:
         self._map: dict[T, None] = dict.fromkeys(elems)
 
-    def __contains__(self, elem):
+    def __contains__(self, elem: object) -> bool:
         return elem in self._map
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[T]:
         return iter(self._map)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._map)
 
-    def add(self, elem):
+    def add(self, elem: T) -> None:
         self._map[elem] = None
 
-    def discard(self, elem):
+    def discard(self, elem: T) -> None:
         self._map.pop(elem, None)
 
-    def update(self, elems):
+    def update(self, elems: Iterable[T]) -> None:
         self._map.update(zip(elems, itertools.repeat(None)))
 
-    def difference_update(self, elems):
+    def difference_update(self, elems: Iterable[T]) -> None:
         # inline discard to avoid method dispatch per element
         _pop = self._map.pop
         for elem in elems:
             _pop(elem, None)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{type(self).__name__}({list(self)!r})"
 
-    def intersection(self, *others):
+    def intersection(self, *others: Iterable[T]) -> OrderedSet[T]:
         return reduce(OrderedSet.__and__, others, self)
 
-    def copy(self):
+    def copy(self) -> Self:
         """Return a shallow copy of the set.
 
         Uses ``object.__new__`` + ``dict.copy()`` instead of iterating
@@ -64,6 +65,6 @@ class OrderedSet[T](MutableSet[T]):
 class LastOrderedSet[T](OrderedSet[T]):
     """A set collection that remembers the elements last insertion order."""
 
-    def add(self, elem):
+    def add(self, elem: T) -> None:
         self.discard(elem)
         super().add(elem)

@@ -1,7 +1,11 @@
 import collections.abc
 import functools
+from typing import TYPE_CHECKING, Any
 
 from .constants import GEOIP_EMPTY_CITY, GEOIP_EMPTY_COUNTRY, geoip2, maxminddb
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 class GeoIP(collections.abc.Mapping):
@@ -25,13 +29,13 @@ class GeoIP(collections.abc.Mapping):
 
     .. code-block:
 
-        >>> GeoIP('127.0.0.1').country.iso_code
-        >>> odoo_ip = socket.gethostbyname('odoo.com')
+        >>> GeoIP("127.0.0.1").country.iso_code
+        >>> odoo_ip = socket.gethostbyname("odoo.com")
         >>> GeoIP(odoo_ip).country.iso_code
         'FR'
     """
 
-    def __init__(self, ip):
+    def __init__(self, ip: str) -> None:
         self.ip = ip
 
     @functools.cached_property
@@ -65,14 +69,14 @@ class GeoIP(collections.abc.Mapping):
             return GEOIP_EMPTY_COUNTRY
 
     @property
-    def country_name(self):
+    def country_name(self) -> str | None:
         return self.country.name or self.continent.name
 
     @property
-    def country_code(self):
+    def country_code(self) -> str | None:
         return self.country.iso_code or self.continent.code
 
-    def __getattr__(self, attr):
+    def __getattr__(self, attr: str) -> Any:
         # Be smart and determine whether the attribute exists on the
         # country object or on the city object.
         if hasattr(GEOIP_EMPTY_COUNTRY, attr):
@@ -81,11 +85,11 @@ class GeoIP(collections.abc.Mapping):
             return getattr(self._city_record, attr)
         raise AttributeError(f"{self} has no attribute {attr!r}")
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return self.country_name is not None
 
     # Old dict API, undocumented for now, will be deprecated some day
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> Any:
         match item:
             case "country_name":
                 return self.country_name
@@ -104,8 +108,10 @@ class GeoIP(collections.abc.Mapping):
             case _:
                 raise KeyError(item)
 
-    def __iter__(self):
-        raise NotImplementedError("The dictionary GeoIP API is deprecated.")
+    def __iter__(self) -> Iterator[str]:
+        msg = "The dictionary GeoIP API is deprecated."
+        raise NotImplementedError(msg)
 
-    def __len__(self):
-        raise NotImplementedError("The dictionary GeoIP API is deprecated.")
+    def __len__(self) -> int:
+        msg = "The dictionary GeoIP API is deprecated."
+        raise NotImplementedError(msg)

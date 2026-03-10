@@ -60,6 +60,4 @@
         <field name="search_view_id" ref="ir_default_search_view" />
     </record>
 
-    <menuitem id="ir_default_menu" parent="next_id_6" action="ir_default_menu_action" />
-
 </odoo>

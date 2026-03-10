@@ -20,7 +20,7 @@ class Num2Word_BG:
     Copyright 1997 The PHP Group (PEAR::Numbers_Words, authored by Kouber Saparev)
     """
 
-    _misc_strings = {
+    _misc_strings: dict[str, str] = {
         "deset": "десет",
         "edinadeset": "единадесет",
         "na": "на",
@@ -75,28 +75,32 @@ class Num2Word_BG:
         63: "вигинтилион",
     }
 
-    def __init__(self):
-        self._last_and = False
+    def __init__(self) -> None:
+        self._last_and: bool = False
 
-    def to_cardinal(self, value):
+    def to_cardinal(self, value: int | float | None) -> str:
         return "" if value is None else self._to_words(value).strip()
 
-    def to_ordinal(self, value):
-        raise NotImplementedError("Ordinal not implemented for Bulgarian")
+    def to_ordinal(self, value: int) -> str:
+        msg = "Ordinal not implemented for Bulgarian"
+        raise NotImplementedError(msg)
 
-    def to_ordinal_num(self, value):
-        raise NotImplementedError("Ordinal num not implemented for Bulgarian")
+    def to_ordinal_num(self, value: int) -> str:
+        msg = "Ordinal num not implemented for Bulgarian"
+        raise NotImplementedError(msg)
 
-    def to_year(self, value):
-        raise NotImplementedError("Year not implemented for Bulgarian")
+    def to_year(self, value: int) -> str:
+        msg = "Year not implemented for Bulgarian"
+        raise NotImplementedError(msg)
 
-    def to_currency(self, value, **kwargs):
-        raise NotImplementedError("Currency not implemented for Bulgarian")
+    def to_currency(self, value: int | float, **kwargs: object) -> str:
+        msg = "Currency not implemented for Bulgarian"
+        raise NotImplementedError(msg)
 
-    def _split_number(self, num):
+    def _split_number(self, num: int | str) -> list[str]:
         if isinstance(num, int):
             num = str(num)
-        first = []
+        first: list[str] = []
         if len(num) % 3 != 0:
             if len(num[1:]) % 3 == 0:
                 first = [num[0:1]]
@@ -106,10 +110,12 @@ class Num2Word_BG:
                 num = num[2:]
         return first + [num[i : i + 3] for i in range(0, len(num), 3)]
 
-    def _discard_empties(self, ls):
+    def _discard_empties(self, ls: list[str | None]) -> list[str]:
         return [x for x in ls if x is not None]
 
-    def _show_digits_group(self, num, gender=0, last=False):
+    def _show_digits_group(
+        self, num: int | str, gender: int = 0, last: bool | int = False
+    ) -> str:
         num = int(num)
         e = num % 10  # ones
         d = (num - e) % 100 // 10  # tens
@@ -157,7 +163,7 @@ class Num2Word_BG:
 
         return self._sep.join(self._discard_empties(ret))
 
-    def _to_words(self, num=0):
+    def _to_words(self, num: int | float = 0) -> str:
         self._last_and = False
         num_groups = self._split_number(abs(num) if num < 0 else num)
         sizeof_num_groups = len(num_groups)
@@ -232,7 +238,7 @@ class Num2Word_BG:
         return ret_minus + "".join(ret)
 
 
-def patch_module():
+def patch_module() -> None:
     try:
         import num2words
     except ImportError:

@@ -3,7 +3,7 @@ import warnings
 import bs4
 
 
-def patch_module():
+def patch_module() -> None:
     if hasattr(bs4, "XMLParsedAsHTMLWarning"):
         # ofxparse use an html parser to parse ofx xml files and triggers a
         # warning since bs4 4.11.0 https://github.com/jseutter/ofxparse/issues/170

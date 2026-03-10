@@ -1,7 +1,10 @@
 import itertools
-from collections.abc import Iterable, Iterator
+from typing import TYPE_CHECKING
 
 from .sql import SQL, make_identifier
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
 
 
 def _sql_from_table(alias: str, table: SQL) -> SQL:
@@ -32,7 +35,7 @@ def _generate_table_alias(src_table_alias: str, link: str) -> str:
 
     .. code-block:: pycon
 
-        >>> _generate_table_alias('res_users', link='parent_id')
+        >>> _generate_table_alias("res_users", link="parent_id")
         'res_users__parent_id'
 
     :param str src_table_alias: alias of the source table
@@ -68,7 +71,7 @@ class Query:
         "offset",
     )
 
-    def __init__(self, env, alias: str, table: SQL | None = None):
+    def __init__(self, env: object, alias: str, table: SQL | None = None) -> None:
         # database cursor
         self._env = env
 
@@ -108,15 +111,17 @@ class Query:
         """Return an alias based on ``alias`` and ``link``."""
         return _generate_table_alias(alias, link)
 
-    def add_table(self, alias: str, table: SQL | None = None):
+    def add_table(self, alias: str, table: SQL | None = None) -> None:
         """Add a table with a given alias to the from clause."""
-        assert (
-            alias not in self._tables and alias not in self._joins
-        ), f"Alias {alias!r} already in {self}"
+        assert alias not in self._tables and alias not in self._joins, (
+            f"Alias {alias!r} already in {self}"
+        )
         self._tables[alias] = table if table is not None else SQL.identifier(alias)
         self._ids = self._ids and None
 
-    def add_join(self, kind: str, alias: str, table: str | SQL | None, condition: SQL):
+    def add_join(
+        self, kind: str, alias: str, table: str | SQL | None, condition: SQL
+    ) -> None:
         """Add a join clause with the given alias, table and condition."""
         sql_kind = _SQL_JOINS.get(kind.upper())
         assert sql_kind is not None, f"Invalid JOIN type {kind!r}"
@@ -131,7 +136,7 @@ class Query:
             self._joins[alias] = (sql_kind, table, condition)
             self._ids = self._ids and None
 
-    def add_where(self, where_clause: str | SQL, where_params=()):
+    def add_where(self, where_clause: str | SQL, where_params: tuple = ()) -> None:
         """Add a condition to the where clause."""
         self._where_clauses.append(
             SQL(where_clause, *where_params)  # pylint: disable=sql-injection
@@ -158,11 +163,12 @@ class Query:
         :param str link: used to generate the alias for the joined table, this string should
             represent the relationship (the link) between both tables.
         """
-        assert (
-            lhs_alias in self._tables or lhs_alias in self._joins
-        ), "Alias %r not in %s" % (
-            lhs_alias,
-            str(self),
+        assert lhs_alias in self._tables or lhs_alias in self._joins, (
+            "Alias %r not in %s"
+            % (
+                lhs_alias,
+                str(self),
+            )
         )
         rhs_alias = self.make_alias(lhs_alias, link)
         condition = SQL(
@@ -187,11 +193,12 @@ class Query:
         See the documentation of :meth:`join` for a better overview of the
         arguments and what they do.
         """
-        assert (
-            lhs_alias in self._tables or lhs_alias in self._joins
-        ), "Alias %r not in %s" % (
-            lhs_alias,
-            str(self),
+        assert lhs_alias in self._tables or lhs_alias in self._joins, (
+            "Alias %r not in %s"
+            % (
+                lhs_alias,
+                str(self),
+            )
         )
         rhs_alias = self.make_alias(lhs_alias, link)
         condition = SQL(
@@ -289,7 +296,7 @@ class Query:
         is memoized for future use, which avoids making the same query twice.
         """
         if self._ids is None:
-            self._ids = tuple(id_ for id_, in self._env.execute_query(self.select()))
+            self._ids = tuple(id_ for (id_,) in self._env.execute_query(self.select()))
         return self._ids
 
     def set_result_ids(self, ids: Iterable[int], ordered: bool = True) -> None:
@@ -297,9 +304,9 @@ class Query:
         ``ordered`` tells whether the query must be ordered to match exactly the
         sequence ``ids``.
         """
-        assert not (
-            self._joins or self._where_clauses or self.limit or self.offset
-        ), "Method set_result_ids() can only be called on a virgin Query"
+        assert not (self._joins or self._where_clauses or self.limit or self.offset), (
+            "Method set_result_ids() can only be called on a virgin Query"
+        )
         ids = tuple(ids)
         if not ids:
             self.add_where("FALSE")
@@ -329,7 +336,7 @@ class Query:
         sql = self.select()
         return f"<Query: {sql.code!r} with params: {sql.params!r}>"
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.get_result_ids())
 
     def __len__(self) -> int:

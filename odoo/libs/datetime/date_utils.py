@@ -25,7 +25,6 @@ __all__ = [
 
 import calendar
 import math
-from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, date, datetime, time, timedelta, timezone, tzinfo
 from typing import TYPE_CHECKING, Literal
 
@@ -34,6 +33,8 @@ from dateutil.relativedelta import relativedelta, weekdays
 from odoo.libs.numbers.float_utils import float_round
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Iterator
+
     import babel
 
 # Use stdlib UTC for best compatibility
@@ -107,7 +108,7 @@ def localized(dt: datetime) -> datetime:
     Example::
 
         >>> localized(datetime(2024, 1, 1, 12, 0)).tzinfo
-        <UTC>
+        datetime.timezone.utc
     """
     return dt if dt.tzinfo else dt.replace(tzinfo=utc)
 
@@ -199,7 +200,9 @@ def get_quarter[D: (date, datetime)](date: D) -> tuple[D, D]:
     return date_from, date_to
 
 
-def get_fiscal_year[D: (date, datetime)](date: D, day: int = 31, month: int = 12) -> tuple[D, D]:
+def get_fiscal_year[D: (date, datetime)](
+    date: D, day: int = 31, month: int = 12
+) -> tuple[D, D]:
     """Compute the fiscal year date range from a date.
 
     A fiscal year is the period used by governments for accounting purposes
@@ -219,7 +222,7 @@ def get_fiscal_year[D: (date, datetime)](date: D, day: int = 31, month: int = 12
         (datetime.date(2023, 4, 1), datetime.date(2024, 3, 31))
     """
 
-    def fix_day(year, month, day):
+    def fix_day(year: int, month: int, day: int) -> int:
         max_day = calendar.monthrange(year, month)[1]
         if month == 2 and day in (28, max_day):
             return max_day
@@ -243,7 +246,7 @@ def get_fiscal_year[D: (date, datetime)](date: D, day: int = 31, month: int = 12
 def get_timedelta(
     qty: int,
     granularity: Literal["hour", "day", "week", "month", "year"],
-):
+) -> relativedelta:
     """Get a relativedelta object for the given quantity and interval unit.
 
     :param qty: Number of intervals
@@ -347,7 +350,7 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
     return datetime.combine(result, time.max) if is_datetime else result
 
 
-def add[D: (date, datetime)](value: D, *args, **kwargs) -> D:
+def add[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
     """Return the sum of a date/datetime and a relativedelta.
 
     :param value: Initial date or datetime
@@ -363,7 +366,7 @@ def add[D: (date, datetime)](value: D, *args, **kwargs) -> D:
     return value + relativedelta(*args, **kwargs)
 
 
-def subtract[D: (date, datetime)](value: D, *args, **kwargs) -> D:
+def subtract[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
     """Return the difference between a date/datetime and a relativedelta.
 
     :param value: Initial date or datetime
@@ -410,12 +413,14 @@ def date_range[D: (date, datetime)](
                 end.tzinfo, "zone", None
             )
             if start_key != end_key:
+                msg = "Timezones of start argument and end argument seem inconsistent"
                 raise ValueError(
-                    "Timezones of start argument and end argument seem inconsistent"
+                    msg
                 )
 
         if not are_naive and not are_utc and not are_others:
-            raise ValueError("Timezones of start argument and end argument mismatch")
+            msg = "Timezones of start argument and end argument mismatch"
+            raise ValueError(msg)
 
         if not are_naive:
             tz = start.tzinfo
@@ -425,15 +430,19 @@ def date_range[D: (date, datetime)](
 
     elif isinstance(start, date) and isinstance(end, date):
         if not isinstance(start + step, date):
-            raise ValueError("the step interval must add only entire days")
+            msg = "the step interval must add only entire days"
+            raise ValueError(msg)
     else:
-        raise ValueError("start/end should be both date or both datetime type")
+        msg = "start/end should be both date or both datetime type"
+        raise ValueError(msg)
 
     if start > end:
-        raise ValueError("start > end, start date must be before end")
+        msg = "start > end, start date must be before end"
+        raise ValueError(msg)
 
     if start >= start + step:
-        raise ValueError("Looks like step is null or negative")
+        msg = "Looks like step is null or negative"
+        raise ValueError(msg)
 
     while start <= end:
         yield post_process(start)
@@ -489,7 +498,7 @@ def weeknumber(locale: babel.Locale, date: date) -> tuple[int, int]:
     return date.year, (doy // 7 + 1)
 
 
-def weekstart(locale: babel.Locale, date: date):
+def weekstart(locale: babel.Locale, date: date) -> date:
     """Return the first weekday of the week containing the date.
 
     If the date is already that weekday, it is returned unchanged.
@@ -507,7 +516,7 @@ def weekstart(locale: babel.Locale, date: date):
     return date + relativedelta(weekday=weekdays[locale.first_week_day](-1))
 
 
-def weekend(locale: babel.Locale, date: date):
+def weekend(locale: babel.Locale, date: date) -> date:
     """Return the last weekday of the week containing the date.
 
     If the date is already that weekday, it is returned unchanged.

@@ -1,7 +1,7 @@
 import csv
 
 
-def patch_module():
+def patch_module() -> None:
     """The default limit for CSV fields in the module is 128KiB,
     which is not quite sufficient to import images to store
     in attachment. 500MiB is a bit overkill, but better safe

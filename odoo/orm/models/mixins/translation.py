@@ -12,13 +12,15 @@ Methods:
 """
 
 import typing
-from collections.abc import Callable, Collection
 
 from psycopg.types.json import Jsonb
 
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 from odoo.tools.translate import _
+
+if typing.TYPE_CHECKING:
+    from collections.abc import Callable, Collection
 
 
 class TranslationMixin:

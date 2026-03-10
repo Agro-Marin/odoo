@@ -23,7 +23,10 @@ Usage from Transaction::
 """
 
 from collections import defaultdict
-from collections.abc import Collection, Iterable, Iterator
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Collection, Iterable, Iterator
 
 
 class _StackMap:
@@ -44,9 +47,10 @@ class _StackMap:
     __slots__ = ("_maps",)
 
     def __init__(self) -> None:
-        self._maps: list[dict] = []
+        self._maps: list[dict[Any, Any]] = []
 
-    def get(self, key, default=None):
+    def get(self, key: Any, default: Any = None) -> Any:
+        """Return the value for *key* searching from top to bottom."""
         for mapping in reversed(self._maps):
             try:
                 return mapping[key]
@@ -54,22 +58,24 @@ class _StackMap:
                 pass
         return default
 
-    def __contains__(self, key) -> bool:
+    def __contains__(self, key: Any) -> bool:
         return any(key in m for m in self._maps)
 
-    def __iter__(self) -> Iterator:
+    def __iter__(self) -> Iterator[Any]:
         return iter({key for m in self._maps for key in m})
 
-    def pushmap(self, m: dict | None = None) -> None:
+    def pushmap(self, m: dict[Any, Any] | None = None) -> None:
+        """Push a new mapping onto the stack."""
         self._maps.append(m if m is not None else {})
 
-    def popmap(self) -> dict:
+    def popmap(self) -> dict[Any, Any]:
+        """Pop and return the topmost mapping."""
         return self._maps.pop()
 
-    def __setitem__(self, key, value) -> None:
+    def __setitem__(self, key: Any, value: Any) -> None:
         self._maps[-1][key] = value
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         for mapping in reversed(self._maps):
             try:
                 return mapping[key]
@@ -100,7 +106,7 @@ class ComputeEngine:
     __slots__ = ("_pending", "_protected")
 
     def __init__(self, pending_factory: type | None = None) -> None:
-        self._pending: defaultdict = defaultdict(pending_factory or set)
+        self._pending: defaultdict[Any, set] = defaultdict(pending_factory or set)
         self._protected = _StackMap()
 
     # ------------------------------------------------------------------
@@ -108,7 +114,7 @@ class ComputeEngine:
     # ------------------------------------------------------------------
 
     @property
-    def pending(self) -> defaultdict:
+    def pending(self) -> defaultdict[Any, set]:
         """The raw pending-recomputation dict: ``{field: mutable_set_of_ids}``.
 
         Exposed for callers that need direct dict access — primarily
@@ -123,11 +129,11 @@ class ComputeEngine:
     # Scheduling
     # ------------------------------------------------------------------
 
-    def schedule(self, field, ids: Iterable) -> None:
+    def schedule(self, field: Any, ids: Iterable) -> None:
         """Mark *field* for recomputation on *ids*."""
         self._pending[field].update(ids)
 
-    def mark_done(self, field, ids: Iterable) -> None:
+    def mark_done(self, field: Any, ids: Iterable) -> None:
         """Mark *field* as computed on *ids*.
 
         Removes *ids* from the pending set.  If the set becomes empty,
@@ -140,15 +146,15 @@ class ComputeEngine:
         if not pending:
             del self._pending[field]
 
-    def is_pending(self, field, record_id) -> bool:
+    def is_pending(self, field: Any, record_id: Any) -> bool:
         """Return whether *record_id* needs recomputation for *field*."""
         return record_id in self._pending.get(field, ())
 
-    def pending_ids(self, field):
+    def pending_ids(self, field: Any) -> set | tuple:
         """Return the set of pending record IDs for *field* (may be empty)."""
         return self._pending.get(field, ())
 
-    def pending_fields(self) -> Collection:
+    def pending_fields(self) -> Collection[Any]:
         """Return a view of fields with pending recomputations."""
         return self._pending.keys()
 
@@ -156,7 +162,7 @@ class ComputeEngine:
         """Return whether any field has pending recomputations."""
         return bool(self._pending)
 
-    def has_pending_field(self, field) -> bool:
+    def has_pending_field(self, field: Any) -> bool:
         """Return whether *field* has any pending recomputations.
 
         Equivalent to ``bool(pending_ids(field))`` but avoids creating
@@ -165,7 +171,7 @@ class ComputeEngine:
         """
         return field in self._pending
 
-    def pending_real_fields(self) -> list:
+    def pending_real_fields(self) -> list[Any]:
         """Return fields with at least one real (truthy) pending record ID.
 
         Filters out fields where only NewIds (falsy) are pending, since
@@ -173,7 +179,7 @@ class ComputeEngine:
         """
         return [field for field, ids in self._pending.items() if any(ids)]
 
-    def discard_field(self, field) -> None:
+    def discard_field(self, field: Any) -> None:
         """Remove *field* entirely from pending recomputations.
 
         No-op if the field is not pending.  Used when a field is deleted
@@ -193,11 +199,11 @@ class ComputeEngine:
     # Protection
     # ------------------------------------------------------------------
 
-    def is_protected(self, field, record_id) -> bool:
+    def is_protected(self, field: Any, record_id: Any) -> bool:
         """Return whether *record_id* is protected for *field*."""
         return record_id in (self._protected.get(field) or ())
 
-    def protected_ids(self, field) -> frozenset:
+    def protected_ids(self, field: Any) -> frozenset:
         """Return the set of protected IDs for *field*."""
         return self._protected.get(field) or frozenset()
 
@@ -205,11 +211,11 @@ class ComputeEngine:
         """Push a new protection scope onto the stack."""
         self._protected.pushmap()
 
-    def pop_protection(self) -> dict:
+    def pop_protection(self) -> dict[Any, Any]:
         """Pop the most recent protection scope."""
         return self._protected.popmap()
 
-    def protect(self, field, ids: frozenset) -> None:
+    def protect(self, field: Any, ids: frozenset) -> None:
         """Protect *ids* for *field* in the current scope.
 
         Merges with any existing protection for *field* in the current scope.
@@ -224,11 +230,6 @@ class ComputeEngine:
     def clear(self) -> None:
         """Clear all pending computations (protection is NOT cleared)."""
         self._pending.clear()
-
-    def clear_all(self) -> None:
-        """Clear everything: pending and protection."""
-        self._pending.clear()
-        self._protected._maps.clear()
 
     def __repr__(self) -> str:
         n_fields = len(self._pending)

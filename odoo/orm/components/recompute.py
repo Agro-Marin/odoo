@@ -24,7 +24,9 @@ Usage from CacheMixin::
     scheduler = RecomputeScheduler(compute_engine, marked=engine.pending)
     for field, records, create in trigger_entries:
         cached_ids = field._get_all_cache_ids(env) if ... else None
-        recursive_ids = scheduler.process_entry(field, set(records._ids), create, cached_ids)
+        recursive_ids = scheduler.process_entry(
+            field, set(records._ids), create, cached_ids
+        )
         if recursive_ids:
             # resolve inverse dependencies (DB-coupled)
             todo.append(records.browse(recursive_ids)._modified([field], create))
@@ -37,9 +39,11 @@ Usage from CacheMixin::
 
 import typing
 from collections import defaultdict
-from collections.abc import Mapping
+from typing import Any
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from .compute import ComputeEngine
 
 
@@ -76,14 +80,14 @@ class RecomputeScheduler:
         marked: Mapping | None = None,
     ) -> None:
         self._engine = compute_engine
-        self._marked = marked if marked is not None else {}
-        self._seen_recursive: dict = defaultdict(set)
-        self.to_recompute: dict = defaultdict(set)
-        self.to_invalidate: list[tuple] = []
+        self._marked: Mapping = marked if marked is not None else {}
+        self._seen_recursive: dict[Any, set] = defaultdict(set)
+        self.to_recompute: dict[Any, set] = defaultdict(set)
+        self.to_invalidate: list[tuple[Any, frozenset]] = []
 
     def process_entry(
         self,
-        field,
+        field: Any,
         ids: set | frozenset,
         create: bool = False,
         cached_ids: set | None = None,

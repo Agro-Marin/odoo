@@ -3,10 +3,14 @@
 Pure Python utilities with no Odoo dependencies.
 """
 
-from collections.abc import Mapping
+import re
 from contextlib import ContextDecorator, suppress
 from itertools import starmap
-from types import FrameType
+from typing import TYPE_CHECKING, Any, Self
+
+if TYPE_CHECKING:
+    import types
+    from collections.abc import Mapping
 
 
 def discardattr(obj: object, key: str) -> None:
@@ -28,7 +32,7 @@ def discardattr(obj: object, key: str) -> None:
         delattr(obj, key)
 
 
-def is_list_of(values, type_: type) -> bool:
+def is_list_of(values: object, type_: type) -> bool:
     """Return True if the given values is a list / tuple of the given type.
 
     :param values: The values to check
@@ -48,7 +52,7 @@ def is_list_of(values, type_: type) -> bool:
     )
 
 
-def has_list_types(values, types: tuple[type, ...]) -> bool:
+def has_list_types(values: object, types: tuple[type, ...]) -> bool:
     """Return True if the given values have the same types as the ones given, in the same order.
 
     :param values: The values to check
@@ -70,7 +74,7 @@ def has_list_types(values, types: tuple[type, ...]) -> bool:
     )
 
 
-def format_frame(frame: FrameType) -> str:
+def format_frame(frame: types.FrameType) -> str:
     """Format a stack frame for display.
 
     :param frame: The frame object to format
@@ -86,21 +90,14 @@ def format_frame(frame: FrameType) -> str:
     return f"{code.co_name} {code.co_filename}:{frame.f_lineno}"
 
 
-class _PrintfArgs:
-    """Helper object to turn a named printf-style format string into a positional one."""
+_NAMED_PRINTF_RE = re.compile(r"%\(([^)]+)\)[diouxXeEfFgGcrsab]")
 
-    __slots__ = ("mapping", "values")
-
-    def __init__(self, mapping: Mapping):
-        self.mapping: Mapping = mapping
-        self.values: list = []
-
-    def __getitem__(self, key):
-        self.values.append(self.mapping[key])
-        return "%s"
+_PrintfArgs = tuple[str, tuple[Any, ...]]
 
 
-def named_to_positional_printf(string: str, args: Mapping) -> tuple[str, tuple]:
+def named_to_positional_printf(
+    string: str, args: Mapping[str, Any]
+) -> _PrintfArgs:
     """Convert a named printf-style format string with its arguments to positional format.
 
     :param string: A printf-style format string with named arguments (e.g., "%(name)s")
@@ -112,8 +109,14 @@ def named_to_positional_printf(string: str, args: Mapping) -> tuple[str, tuple]:
         >>> named_to_positional_printf("Hello %(name)s, you are %(age)d", {'name': 'World', 'age': 42})
         ('Hello %s, you are %s', ('World', 42))
     """
-    pargs = _PrintfArgs(args)
-    return string.replace("%%", "%%%%") % pargs, tuple(pargs.values)
+    values: list[Any] = []
+
+    def _replace(match: re.Match[str]) -> str:
+        values.append(args[match.group(1)])
+        return "%s"
+
+    positional = _NAMED_PRINTF_RE.sub(_replace, string)
+    return positional, tuple(values)
 
 
 class replace_exceptions(ContextDecorator):
@@ -129,6 +132,7 @@ class replace_exceptions(ContextDecorator):
                 raise AccessError("Route hidden to non logged-in users")
             ...
 
+
         def some_util():
             ...
             with replace_exceptions(ValueError, by=UserError("Invalid argument")):
@@ -139,9 +143,12 @@ class replace_exceptions(ContextDecorator):
     :param by: the exception to raise instead.
     """
 
-    def __init__(self, *exceptions: type[Exception], by: Exception | type[Exception]):
+    def __init__(
+        self, *exceptions: type[Exception], by: Exception | type[Exception]
+    ) -> None:
         if not exceptions:
-            raise ValueError("Missing exceptions")
+            msg = "Missing exceptions"
+            raise ValueError(msg)
 
         wrong_exc = next(
             (exc for exc in exceptions if not issubclass(exc, Exception)), None
@@ -149,13 +156,18 @@ class replace_exceptions(ContextDecorator):
         if wrong_exc:
             raise TypeError(f"{wrong_exc} is not an exception class.")
 
-        self.exceptions = exceptions
-        self.by = by
+        self.exceptions: tuple[type[Exception], ...] = exceptions
+        self.by: Exception | type[Exception] = by
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: types.TracebackType | None,
+    ) -> None:
         if exc_type is not None and issubclass(exc_type, self.exceptions):
             if isinstance(self.by, type) and exc_value.args:
                 # copy the message

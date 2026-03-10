@@ -78,7 +78,7 @@ except ImportError:
         """Simplified version of the one in command.py, for standalone execution"""
 
         @property
-        def parser(self):
+        def parser(self) -> argparse.ArgumentParser:
             return argparse.ArgumentParser(
                 prog=Path(sys.argv[0]).name,
                 description=__doc__.replace("/odoo/upgrade_code", str(UPGRADE)),
@@ -97,17 +97,17 @@ class FileAccessor:
     def __init__(self, path: Path, addon_path: Path) -> None:
         self.path = path
         self.addon = addon_path / path.relative_to(addon_path).parts[0]
-        self._content = None
-        self.dirty = False
+        self._content: str | None = None
+        self.dirty: bool = False
 
     @property
-    def content(self):
+    def content(self) -> str:
         if self._content is None:
             self._content = self.path.read_text()
         return self._content
 
     @content.setter
-    def content(self, value):
+    def content(self, value: str) -> None:
         if self._content != value:
             self._content = value
             self.dirty = True
@@ -132,10 +132,10 @@ class FileManager:
     def __iter__(self) -> Iterator[FileAccessor]:
         return iter(self._files.values())
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._files)
 
-    def get_file(self, path):
+    def get_file(self, path: str | Path) -> FileAccessor | None:
         return self._files.get(str(path))
 
     if sys.stdout.isatty():
@@ -145,7 +145,7 @@ class FileManager:
             current: int,
             total: int | None = None,
             file_name: str | Path = "",
-        ):
+        ) -> None:
             total = total or len(self) or 1
             print(
                 f"\033[K{current / total:>4.0%} \033[37m{file_name}\033[0m",
@@ -160,7 +160,7 @@ class FileManager:
             current: int,
             total: int | None = None,
             file_name: str | Path = "",
-        ):
+        ) -> None:
             pass
 
 
@@ -183,7 +183,7 @@ def migrate(
     to_version: tuple[int, ...] | None = None,
     script: str | None = None,
     dry_run: bool = False,
-):
+) -> bool:
     if script:
         script_path = next(UPGRADE.glob(f"*{script.removesuffix('.py')}*.py"), None)
         if not script_path:
@@ -215,7 +215,7 @@ class UpgradeCode(Command):
 
     name = "upgrade_code"
 
-    def __init__(self):
+    def __init__(self) -> None:
         group = self.parser.add_mutually_exclusive_group(required=True)
         group.add_argument("--script", metavar="NAME", help="run this single script")
         group.add_argument(
@@ -256,7 +256,7 @@ class UpgradeCode(Command):
             help="specify additional addons paths (separated by commas)",
         )
 
-    def run(self, cmdargs):
+    def run(self, cmdargs: list[str]) -> None:
         options = self.parser.parse_args(cmdargs)
         if initialize_sys_path:
             config["addons_path"] = options.addons_path

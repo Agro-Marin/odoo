@@ -37,6 +37,8 @@ except ImportError:
     _rows_to_dicts = None
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from odoo.orm.runtime import Transaction
 
     from .pool import ConnectionPool
@@ -113,17 +115,22 @@ class Savepoint:
     def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         self.close(rollback=exc_type is not None)
 
-    def close(self, *, rollback: bool = True):
+    def close(self, *, rollback: bool = True) -> None:
         if not self.closed:
             self._close(rollback)
 
-    def rollback(self):
+    def rollback(self) -> None:
         self._cr.execute(f'ROLLBACK TO SAVEPOINT "{self.name}"')
 
-    def _close(self, rollback: bool):
+    def _close(self, rollback: bool) -> None:
         if rollback:
             self.rollback()
         self._cr.execute(f'RELEASE SAVEPOINT "{self.name}"')
@@ -131,16 +138,16 @@ class Savepoint:
 
 
 class _FlushingSavepoint(Savepoint):
-    def __init__(self, cr: BaseCursor):
+    def __init__(self, cr: BaseCursor) -> None:
         cr.flush()
         super().__init__(cr)
 
-    def rollback(self):
+    def rollback(self) -> None:
         assert isinstance(self._cr, BaseCursor)
         self._cr.clear()
         super().rollback()
 
-    def _close(self, rollback: bool):
+    def _close(self, rollback: bool) -> None:
         assert isinstance(self._cr, BaseCursor)
         try:
             if not rollback:
@@ -236,7 +243,12 @@ class BaseCursor(_CursorProtocol):
         """
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: object,
+    ) -> None:
         try:
             if exc_type is None:
                 self.commit()
@@ -391,7 +403,7 @@ class Cursor(BaseCursor):
         """Extract column names from the last query's description as a tuple."""
         return tuple(col.name for col in self._obj.description)
 
-    def dictfetchmany(self, size) -> list[dict[str, Any]]:
+    def dictfetchmany(self, size: int) -> list[dict[str, Any]]:
         rows = self._obj.fetchmany(size)
         if not rows:
             return []
@@ -414,17 +426,17 @@ class Cursor(BaseCursor):
     # Explicit forwarding avoids attribute-lookup overhead on the hot path
     # and makes the public interface discoverable for IDEs/type checkers.
 
-    def fetchone(self):
+    def fetchone(self) -> tuple[Any, ...] | None:
         return self._obj.fetchone()
 
-    def fetchall(self):
+    def fetchall(self) -> list[tuple[Any, ...]]:
         return self._obj.fetchall()
 
-    def fetchmany(self, size=0):
+    def fetchmany(self, size: int = 0) -> list[tuple[Any, ...]]:
         return self._obj.fetchmany(size)
 
     @property
-    def description(self):
+    def description(self) -> list[Any] | None:
         return self._obj.description
 
     @property
@@ -432,17 +444,13 @@ class Cursor(BaseCursor):
         return self._obj.rowcount
 
     @property
-    def statusmessage(self) -> str:
-        return self._obj.statusmessage
-
-    @property
     def connection(self) -> psycopg.Connection:
         return self._cnx
 
-    def copy(self, statement, params=None, *, writer=None):
+    def copy(self, statement: Any, params: Any = None, *, writer: Any = None) -> Any:
         return self._obj.copy(statement, params, writer=writer)
 
-    def __del__(self):
+    def __del__(self) -> None:
         if not self._closed and not self._cnx.closed:
             # Oops. 'self' has not been closed explicitly.
             # The cursor will be deleted by the garbage collector,
@@ -457,7 +465,7 @@ class Cursor(BaseCursor):
             _logger.warning(msg)
             self._close(True)
 
-    def _format(self, query, params=None) -> str:
+    def _format(self, query: Any, params: Any = None) -> str:
         """Format a query for debug logging (approximate, not for execution)."""
         if isinstance(query, SQL):
             query, params = query.code, query.params
@@ -471,7 +479,13 @@ class Cursor(BaseCursor):
             return f"{query} [{params!r}]"
 
     def _record_metrics(
-        self, delay: float, count: int = 1, *, query=None, params=None, start: float = 0.0,
+        self,
+        delay: float,
+        count: int = 1,
+        *,
+        query: Any = None,
+        params: Any = None,
+        start: float = 0.0,
     ) -> None:
         """Update query counters, thread-local metrics, and run query hooks.
 
@@ -575,8 +589,13 @@ class Cursor(BaseCursor):
                 )
 
     def execute_values(
-        self, query, argslist, template=None, page_size=100, fetch=False
-    ):
+        self,
+        query: Any,
+        argslist: list[Any],
+        template: str | None = None,
+        page_size: int = 100,
+        fetch: bool = False,
+    ) -> list[tuple[Any, ...]] | None:
         """Execute a query with multiple parameter sets using VALUES clause.
 
         Builds a single query with multiple VALUES rows per batch, useful for
@@ -616,7 +635,12 @@ class Cursor(BaseCursor):
                     results.extend(self.fetchall())
         return results if fetch else None
 
-    def executemany(self, query, params_seq, returning=False):
+    def executemany(
+        self,
+        query: Any,
+        params_seq: list[Any] | tuple[Any, ...],
+        returning: bool = False,
+    ) -> None:
         """Execute a query with multiple parameter sets using pipeline mode.
 
         psycopg3's executemany automatically batches all statements in a
@@ -654,7 +678,7 @@ class Cursor(BaseCursor):
         self._record_metrics(delay, count, query=query, start=start)
 
     @contextmanager
-    def pipeline(self):
+    def pipeline(self) -> Generator[None]:
         """Enter pipeline mode for batching queries in a single round-trip.
 
         All execute() calls within the context are queued and sent together
@@ -784,7 +808,9 @@ class Cursor(BaseCursor):
         # column indices need float→Decimal conversion (Monetary fields
         # and Float-with-digits both map to "numeric").
         if col_types:
-            _numeric_idxs = frozenset(i for i, t in enumerate(col_types) if t == "numeric")
+            _numeric_idxs = frozenset(
+                i for i, t in enumerate(col_types) if t == "numeric"
+            )
         else:
             _numeric_idxs = None
 
@@ -820,7 +846,9 @@ class Cursor(BaseCursor):
                 )
 
         self._record_metrics(
-            delay, query=copy_stmt.as_string(self._obj), start=start,
+            delay,
+            query=copy_stmt.as_string(self._obj),
+            start=start,
         )
 
         if _logger.isEnabledFor(logging.DEBUG):
@@ -828,87 +856,6 @@ class Cursor(BaseCursor):
             self.sql_into_log[table] = (stat_count + 1, stat_time + delay * 1e6)
 
         return ids
-
-    def merge(
-        self,
-        table: str,
-        columns: list[str],
-        rows: list[tuple],
-        on_columns: list[str],
-        *,
-        returning: str = "NEW.id",
-    ) -> list[tuple]:
-        """Atomic upsert via MERGE (PG15+, RETURNING since PG17).
-
-        Inserts new rows or updates existing rows matching on ``on_columns``.
-        Uses ``MERGE INTO ... USING (VALUES ...) ... RETURNING`` for a single
-        atomic round-trip.
-
-        PG17 adds ``merge_action()`` in RETURNING to distinguish inserted
-        vs. updated rows.  Pass ``returning="merge_action(), NEW.id"`` to
-        get ``('INSERT', id)`` or ``('UPDATE', id)`` tuples.
-
-        :param table: target table name
-        :param columns: list of column names for the data
-        :param rows: list of tuples, each matching ``columns``
-        :param on_columns: columns for the ON match predicate (typically
-            the unique constraint columns)
-        :param returning: RETURNING clause expression (default ``"NEW.id"``).
-            Use ``merge_action()`` (PG17) to get the action type per row.
-        :return: list of result tuples from the RETURNING clause
-        """
-        if not rows:
-            return []
-
-        comma = SQL(", ").join
-        col_ids = [SQL.identifier(c) for c in columns]
-        s_cols = [SQL("s.%s", SQL.identifier(c)) for c in columns]
-        on_pred = SQL(" AND ").join(
-            SQL("t.%s = s.%s", SQL.identifier(c), SQL.identifier(c)) for c in on_columns
-        )
-        update_cols = [c for c in columns if c not in on_columns]
-        assignments = comma(
-            SQL("%s = s.%s", SQL.identifier(c), SQL.identifier(c)) for c in update_cols
-        )
-
-        query = SQL(
-            """
-            MERGE INTO %(table)s t
-            USING (VALUES %(values)s) AS s(%(cols)s)
-            ON %(on_pred)s
-            WHEN MATCHED THEN
-                UPDATE SET %(assignments)s
-            WHEN NOT MATCHED THEN
-                INSERT (%(cols)s) VALUES (%(s_cols)s)
-            RETURNING %(returning)s
-            """,
-            table=SQL.identifier(table),
-            values=comma(rows),
-            cols=comma(col_ids),
-            on_pred=on_pred,
-            assignments=assignments,
-            s_cols=comma(s_cols),
-            returning=SQL(returning),  # pylint: disable=sql-injection
-        )
-
-        start = real_time()
-        try:
-            self.execute(query)
-            result = self.fetchall()
-        except Exception as e:
-            _logger.error("bad MERGE: %s\nERROR: %s", table, e)
-            raise
-        finally:
-            delay = real_time() - start
-            if _logger.isEnabledFor(logging.DEBUG):
-                _logger.debug(
-                    "[%.3f ms] MERGE %s (%d rows)",
-                    1000 * delay,
-                    table,
-                    len(rows),
-                )
-
-        return result
 
     def _get_column_types(self, table: str, columns: list[str]) -> list[str]:
         """Look up PostgreSQL base type names for binary COPY.
@@ -941,7 +888,7 @@ class Cursor(BaseCursor):
         if not _logger.isEnabledFor(logging.DEBUG):
             return
 
-        def process(log_type: str):
+        def process(log_type: str) -> None:
             sqllogs = {"from": self.sql_from_log, "into": self.sql_into_log}
             sqllog = sqllogs[log_type]
             total = 0.0
@@ -966,19 +913,6 @@ class Cursor(BaseCursor):
         process("from")
         process("into")
         self.sql_log_count = 0
-
-    @contextmanager
-    def _enable_logging(self):
-        """Forcefully enables logging for this cursor, restores it afterwards.
-
-        Updates the logger in-place, so not thread-safe.
-        """
-        level = _logger.level
-        _logger.setLevel(logging.DEBUG)
-        try:
-            yield
-        finally:
-            _logger.setLevel(level)
 
     def close(self) -> None:
         if not self.closed:
@@ -1052,9 +986,10 @@ class Cursor(BaseCursor):
         self._now = None
         self.postrollback.run()
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         if self._closed and name == "_obj":
-            raise psycopg.InterfaceError("Cursor already closed")
+            msg = "Cursor already closed"
+            raise psycopg.InterfaceError(msg)
         warnings.warn(
             f"Cursor.{name} is not part of the Odoo cursor API. "
             f"Add explicit forwarding in cursor.py or use cr._obj.{name} directly.",

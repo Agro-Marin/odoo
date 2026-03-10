@@ -66,11 +66,11 @@ def parse_xmlid(xmlid: str, default_module: str) -> tuple[str, str]:
     return split_id[0], split_id[1]
 
 
-def data_file_module_name(f):
+def data_file_module_name(f: FileManager) -> str:
     return f.path.parts[f.path.parts.index("data") - 1]
 
 
-def upgrade(file_manager: FileManager):
+def upgrade(file_manager: FileManager) -> None:
     translation_files = [
         f
         for f in file_manager
@@ -106,9 +106,9 @@ def upgrade(file_manager: FileManager):
                         xmlid = occurence[0].split(":")[2]
                         model, fname = occurence[0].split(":")[1].split(",")
                         if model in MODELS and fname in MODELS[model]:
-                            translations[module_name][model][xmlid][fname][
-                                lang
-                            ] = entry.msgstr
+                            translations[module_name][model][xmlid][fname][lang] = (
+                                entry.msgstr
+                            )
             entry.occurrences = [
                 occurence
                 for occurence in entry.occurrences
@@ -137,7 +137,7 @@ def upgrade(file_manager: FileManager):
         if file.path.suffix == ".xml":
             tree = etree.parse(str(file.path))
             for record_node in tree.xpath(
-                f"""//record[{' or '.join(f"@model='{m}'" for m in MODELS)}]"""
+                f"""//record[{" or ".join(f"@model='{m}'" for m in MODELS)}]"""
             ):
                 model = record_node.attrib["model"]
                 xmlid = ".".join(parse_xmlid(record_node.attrib["id"], module_name))

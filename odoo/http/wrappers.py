@@ -1,8 +1,7 @@
-"""HTTP request and response wrappers."""
-
 import functools
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 
 import werkzeug.datastructures
 import werkzeug.exceptions
@@ -17,18 +16,42 @@ from .constants import DEFAULT_MAX_CONTENT_LENGTH
 _logger = logging.getLogger(__name__)
 
 
-def make_request_wrap_methods(attr):
-    def getter(self):
+def _apply_cookie_defaults(
+    expires: datetime | int | None,
+    max_age: int | None,
+    cookie_type: str,
+) -> tuple[datetime | int | None, int | None]:
+    """Apply shared cookie defaults: expiry fallback and consent filtering.
+
+    Both :class:`_Response` and :class:`FutureResponse` need identical
+    pre-processing of ``set_cookie`` parameters.  Extracted here to
+    avoid duplicating the logic.
+    """
+    if expires == -1:  # not provided → default 1 year
+        expires = datetime.now() + timedelta(days=365)
+
+    from . import request  # lazy import — avoid circular dependency
+
+    if request.db and not request.env["ir.http"]._is_allowed_cookie(cookie_type):
+        max_age = 0
+
+    return expires, max_age
+
+
+def make_request_wrap_methods(attr: str) -> tuple[Any, Any]:
+    """Create getter/setter pair proxying to the wrapped werkzeug Request."""
+
+    def getter(self: HTTPRequest) -> Any:
         return getattr(self._HTTPRequest__wrapped, attr)
 
-    def setter(self, value):
+    def setter(self: HTTPRequest, value: Any) -> None:
         return setattr(self._HTTPRequest__wrapped, attr, value)
 
     return getter, setter
 
 
 class HTTPRequest:
-    def __init__(self, environ):
+    def __init__(self, environ: dict[str, Any]) -> None:
         httprequest = werkzeug.wrappers.Request(environ)
         httprequest.user_agent_class = (
             UserAgent  # vendored: werkzeug removed its built-in parser
@@ -54,7 +77,7 @@ class HTTPRequest:
             )
         }
 
-    def __enter__(self):
+    def __enter__(self) -> HTTPRequest:
         return self
 
 
@@ -141,7 +164,7 @@ class _Response(werkzeug.wrappers.Response):
 
     default_mimetype = "text/html"
 
-    def __init__(self, *args, **kw):
+    def __init__(self, *args: Any, **kw: Any) -> None:
         template = kw.pop("template", None)
         qcontext = kw.pop("qcontext", None)
         uid = kw.pop("uid", None)
@@ -149,7 +172,7 @@ class _Response(werkzeug.wrappers.Response):
         self.set_default(template, qcontext, uid)
 
     @classmethod
-    def load(cls, result, fname="<function>"):
+    def load(cls, result: Any, fname: str = "<function>") -> _Response:
         """
         Convert the return value of an endpoint into a Response.
 
@@ -180,24 +203,29 @@ class _Response(werkzeug.wrappers.Response):
 
         raise TypeError(f"{fname} returns an invalid value: {result}")
 
-    def set_default(self, template=None, qcontext=None, uid=None):
+    def set_default(
+        self,
+        template: str | None = None,
+        qcontext: dict[str, Any] | None = None,
+        uid: int | None = None,
+    ) -> None:
         self.template = template
         self.qcontext = qcontext or {}
         self.qcontext["response_template"] = self.template
         self.uid = uid
 
     @property
-    def is_qweb(self):
+    def is_qweb(self) -> bool:
         return self.template is not None
 
-    def render(self):
+    def render(self) -> bytes:
         """Renders the Response's template, returns the result."""
         from . import request  # lazy import
 
         self.qcontext["request"] = request
         return request.env["ir.ui.view"]._render_template(self.template, self.qcontext)
 
-    def flatten(self):
+    def flatten(self) -> None:
         """
         Forces the rendering of the response's template, sets the result
         as response body and unsets :attr:`.template`
@@ -208,31 +236,25 @@ class _Response(werkzeug.wrappers.Response):
 
     def set_cookie(
         self,
-        key,
-        value="",
-        max_age=None,
-        expires=-1,
-        path="/",
-        domain=None,
-        secure=False,
-        httponly=False,
-        samesite=None,
-        partitioned=False,
-        cookie_type="required",
-    ):
+        key: str,
+        value: str = "",
+        max_age: int | None = None,
+        expires: datetime | int | None = -1,
+        path: str | None = "/",
+        domain: str | None = None,
+        secure: bool = False,
+        httponly: bool = False,
+        samesite: str | None = None,
+        partitioned: bool = False,
+        cookie_type: str = "required",
+    ) -> None:
         """
         The default expires in Werkzeug is None, which means a session cookie.
         We want to continue to support the session cookie, but not by default.
         Now the default is arbitrary 1 year.
         So if you want a cookie of session, you have to explicitly pass expires=None.
         """
-        from . import request  # lazy import
-
-        if expires == -1:  # not provided value -> default value -> 1 year
-            expires = datetime.now() + timedelta(days=365)
-
-        if request.db and not request.env["ir.http"]._is_allowed_cookie(cookie_type):
-            max_age = 0
+        expires, max_age = _apply_cookie_defaults(expires, max_age, cookie_type)
         super().set_cookie(
             key,
             value=value,
@@ -362,7 +384,7 @@ class Response(Proxy):
     render = ProxyFunc()
     flatten = ProxyFunc(None)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         response = None
         if len(args) == 1:
             arg = args[0]
@@ -378,15 +400,16 @@ class Response(Proxy):
             response = _Response(*args, **kwargs)
 
         super().__init__(response)
-        if "set_cookie" in response.__dict__:
-            self.__dict__["set_cookie"] = response.__dict__["set_cookie"]
 
 
 # Monkey-patch HTTPException.get_response to return our Response
 __wz_get_response = HTTPException.get_response
 
 
-def get_response(self, environ=None, scope=None):
+def get_response(
+    self: HTTPException, environ: dict[str, Any] | None = None, scope: Any = None
+) -> Response:
+    """Return an Odoo :class:`Response` wrapping the werkzeug exception response."""
     return Response(__wz_get_response(self, environ, scope))
 
 
@@ -396,7 +419,8 @@ HTTPException.get_response = get_response
 werkzeug_abort = werkzeug.exceptions.abort
 
 
-def abort(status, *args, **kwargs):
+def abort(status: int | Response, *args: Any, **kwargs: Any) -> None:
+    """Abort the current request with an HTTP error, unwrapping Odoo Response if needed."""
     if isinstance(status, Response):
         status = status._wrapped__
     werkzeug_abort(status, *args, **kwargs)
@@ -413,31 +437,25 @@ class FutureResponse:
 
     max_cookie_size = 4093
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.headers = werkzeug.datastructures.Headers()
 
     @functools.wraps(werkzeug.Response.set_cookie)
     def set_cookie(
         self,
-        key,
-        value="",
-        max_age=None,
-        expires=-1,
-        path="/",
-        domain=None,
-        secure=False,
-        httponly=False,
-        samesite=None,
-        partitioned=False,
-        cookie_type="required",
-    ):
-        from . import request  # lazy import
-
-        if expires == -1:  # not forced value -> default value -> 1 year
-            expires = datetime.now() + timedelta(days=365)
-
-        if request.db and not request.env["ir.http"]._is_allowed_cookie(cookie_type):
-            max_age = 0
+        key: str,
+        value: str = "",
+        max_age: int | None = None,
+        expires: datetime | int | None = -1,
+        path: str | None = "/",
+        domain: str | None = None,
+        secure: bool = False,
+        httponly: bool = False,
+        samesite: str | None = None,
+        partitioned: bool = False,
+        cookie_type: str = "required",
+    ) -> None:
+        expires, max_age = _apply_cookie_defaults(expires, max_age, cookie_type)
         werkzeug.Response.set_cookie(
             self,
             key,

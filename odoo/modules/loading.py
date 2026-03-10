@@ -5,7 +5,6 @@ import sys
 import time
 import traceback
 import typing
-from collections.abc import Collection, Iterable
 
 import odoo.db
 import odoo.tools.sql
@@ -23,6 +22,8 @@ from .registry import Registry
 LoadKind = typing.Literal["data", "demo"]
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Collection, Iterable
+
     from odoo.api import Environment
     from odoo.db import BaseCursor
     from odoo.tests.result import OdooTestResult
@@ -354,7 +355,7 @@ def load_module_graph(
             time.time() - module_t0,
             f" (incl. {test_time:.2f}s test)" if test_time else "",
             env.cr.sql_log_count - module_cursor_query_count,
-            f' ({", ".join(extras)})' if extras else "",
+            f" ({', '.join(extras)})" if extras else "",
         )
         if test_results and not test_results.wasSuccessful():
             _logger.error(
@@ -449,8 +450,9 @@ def load_modules(
         graph.extend(["base"])
         if not graph:
             _logger.critical("module base cannot be loaded! (hint: verify addons-path)")
+            msg = "Module `base` cannot be loaded! (hint: verify addons-path)"
             raise ImportError(
-                "Module `base` cannot be loaded! (hint: verify addons-path)"
+                msg
             )
         if update_module and upgrade_modules:
             for pyfile in tools.config["pre_upgrade_scripts"]:
@@ -658,7 +660,6 @@ def load_modules(
 
         # STEP 4: Finish and cleanup installations
         if registry.updated_modules:
-
             cr.execute("SELECT model from ir_model")
             for (model,) in cr.fetchall():
                 if model in registry:
@@ -729,7 +730,7 @@ def load_modules(
                 """SELECT DISTINCT model FROM ir_model_fields WHERE state = 'manual'"""
             )
             models_to_check.update(
-                model_name for model_name, in cr.fetchall() if model_name in registry
+                model_name for (model_name,) in cr.fetchall() if model_name in registry
             )
         if models_to_check:
             # Doesn't check models that didn't exist anymore, it might happen during uninstallation

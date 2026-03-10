@@ -50,13 +50,6 @@
  <field name="search_view_id" ref="action_view_search" />
  </record>
 
- <menuitem id="next_id_6" name="Actions" parent="base.menu_custom" sequence="5" />
-
- <menuitem
- id="menu_ir_sequence_actions"
- parent="next_id_6"
- action="ir_sequence_actions" />
-
  <!-- ir.actions.report -->
  <record id="act_report_xml_view" model="ir.ui.view">
  <field name="name">ir.actions.report</field>
@@ -145,11 +138,6 @@
  <field name="view_id" ref="act_report_xml_view_tree" />
  <field name="search_view_id" ref="act_report_xml_search_view" />
  </record>
-
- <menuitem
- id="menu_ir_action_report"
- parent="base.next_id_6"
- action="ir_action_report" />
 
  <!-- ir.actions.client -->
  <record id="view_client_action_form" model="ir.ui.view">
@@ -293,11 +281,6 @@
  <field name="act_window_id" ref="ir_action_window" />
  </record>
 
- <menuitem
- id="menu_ir_action_window"
- parent="base.next_id_6"
- action="ir_action_window" />
-
  <record id="view_client_action_tree" model="ir.ui.view">
  <field name="name">Client Actions</field>
  <field name="model">ir.actions.client</field>
@@ -314,11 +297,6 @@
  <field name="res_model">ir.actions.client</field>
  <field name="view_id" ref="view_client_action_tree" />
  </record>
-
- <menuitem
- id="menu_ir_client_actions_report"
- parent="base.next_id_6"
- action="ir_client_actions_report" />
 
  <!-- ir.actions.server -->
  <record id="server_action_history_wizard_view" model="ir.ui.view">
@@ -555,11 +533,6 @@ env['res.partner'].create({'name': partner_name})
  }</field>
  </record>
 
- <menuitem
- id="menu_server_action"
- parent="base.next_id_6"
- action="action_server_action" />
-
  <!-- ir.embedded.actions -->
  <record id="embedded_action_form" model="ir.ui.view">
  <field name="name">ir.embedded.actions.form</field>
@@ -607,11 +580,6 @@ env['res.partner'].create({'name': partner_name})
  <field name="res_model">ir.embedded.actions</field>
  <field name="view_id" ref="embedded_action_tree" />
  </record>
-
- <menuitem
- id="menu_ir_embedded_action"
- parent="base.next_id_6"
- action="ir_embedded_action" />
 
  <!-- ir.actions.todo -->
  <record id="ir_actions_todo_tree" model="ir.ui.view">
@@ -667,11 +635,6 @@ env['res.partner'].create({'name': partner_name})
  <field
  name="help">The configuration wizards are used to help you configure a new instance of Odoo. They are launched during the installation of new modules, but you can choose to restart some wizards manually from this menu.</field>
  </record>
-
- <menuitem
- id="menu_ir_actions_todo_form"
- parent="base.next_id_6"
- action="act_ir_actions_todo_form" />
 
  <record id="action_run_ir_action_todo" model="ir.actions.server">
  <field name="name">Config: Run Remaining Action Todo</field>

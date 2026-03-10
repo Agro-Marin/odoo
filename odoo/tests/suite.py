@@ -10,13 +10,14 @@ to minimise the code to maintain:
 
 import logging
 import sys
+from typing import Any
 from unittest import BaseTestSuite, TestCase, util
 
 import odoo
 
 from . import case
 from .common import HttpCase
-from .result import stats_logger
+from .result import OdooTestResult, stats_logger
 
 __unittest = True
 
@@ -30,7 +31,8 @@ class TestSuite(BaseTestSuite):
     subclassing, do not forget to call the base class constructor.
     """
 
-    def run(self, result, debug=False):
+    def run(self, result: OdooTestResult, debug: bool = False) -> OdooTestResult:  # type: ignore[override]
+        """Run all tests in the suite, managing class setup and teardown."""
         for test in self:
             if result.shouldStop:
                 break
@@ -46,7 +48,8 @@ class TestSuite(BaseTestSuite):
         self._tearDownPreviousClass(None, result)
         return result
 
-    def _handleClassSetUp(self, test, result):
+    def _handleClassSetUp(self, test: TestCase, result: OdooTestResult) -> None:
+        """Set up the test class if it differs from the previous test's class."""
         previousClass = result._previousTestClass
         currentClass = test.__class__
         if currentClass == previousClass:
@@ -74,8 +77,14 @@ class TestSuite(BaseTestSuite):
                         )
 
     def _createClassOrModuleLevelException(
-        self, result, exception, method_name, parent, info=None
-    ):
+        self,
+        result: OdooTestResult,
+        exception: BaseException,
+        method_name: str,
+        parent: str,
+        info: Any = None,
+    ) -> None:
+        """Record a class- or module-level setup/teardown exception in the result."""
         errorName = f"{method_name} ({parent})"
         error = _ErrorHolder(errorName)
         if isinstance(exception, case.SkipTest):
@@ -85,7 +94,10 @@ class TestSuite(BaseTestSuite):
         else:
             result.addError(error, info)
 
-    def _tearDownPreviousClass(self, test, result):
+    def _tearDownPreviousClass(
+        self, test: TestCase | None, result: OdooTestResult
+    ) -> None:
+        """Tear down the previous test class if the current test belongs to a different class."""
         previousClass = result._previousTestClass
         currentClass = test.__class__
         if currentClass == previousClass:
@@ -114,10 +126,10 @@ class TestSuite(BaseTestSuite):
 
 
 class _ErrorHolder:
-    """
-    Placeholder for a TestCase inside a result. As far as a TestResult
-    is concerned, this looks exactly like a unit test. Used to insert
-    arbitrary errors into a test suite run.
+    """Placeholder for a TestCase inside a result.
+
+    As far as a TestResult is concerned, this looks exactly like a unit test.
+    Used to insert arbitrary errors into a test suite run.
     """
 
     # Inspired by the ErrorHolder from Twisted:
@@ -126,35 +138,41 @@ class _ErrorHolder:
     # attribute used by TestResult._exc_info_to_string
     failureException = None
 
-    def __init__(self, description):
+    def __init__(self, description: str) -> None:
         self.description = description
 
-    def id(self):
+    def id(self) -> str:
+        """Return the description as the test id."""
         return self.description
 
-    def shortDescription(self):
-        return None
+    def shortDescription(self) -> None:
+        """Return None (no short description available)."""
+        return
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<ErrorHolder description={self.description!r}>"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.id()
 
-    def run(self, result):
+    def run(self, result: OdooTestResult) -> None:
+        """No-op: error holders are not meant to be run directly."""
         # could call result.addError(...) - but this test-like object
         # shouldn't be run anyway
-        pass
 
-    def __call__(self, result):
+    def __call__(self, result: OdooTestResult) -> None:
         return self.run(result)
 
-    def countTestCases(self):
+    def countTestCases(self) -> int:
+        """Return zero — error holders contain no test cases."""
         return 0
 
 
 class OdooSuite(TestSuite):
-    def _handleClassSetUp(self, test, result):
+    """TestSuite subclass that records timing statistics per class setup/teardown."""
+
+    def _handleClassSetUp(self, test: TestCase, result: OdooTestResult) -> None:
+        """Set up the test class, recording stats if the stats logger is enabled."""
         previous_test_class = result._previousTestClass
         if not (
             previous_test_class != type(test)
@@ -169,7 +187,10 @@ class OdooSuite(TestSuite):
         with result.collectStats(test_id):
             super()._handleClassSetUp(test, result)
 
-    def _tearDownPreviousClass(self, test, result):
+    def _tearDownPreviousClass(
+        self, test: TestCase | None, result: OdooTestResult
+    ) -> None:
+        """Tear down the previous class, recording stats if the stats logger is enabled."""
         previous_test_class = result._previousTestClass
         if not (
             previous_test_class
@@ -184,7 +205,8 @@ class OdooSuite(TestSuite):
         with result.collectStats(test_id):
             super()._tearDownPreviousClass(test, result)
 
-    def has_http_case(self):
+    def has_http_case(self) -> bool:
+        """Return True if the suite contains at least one HttpCase test."""
         return self.countTestCases() and any(
             isinstance(test_case, HttpCase) for test_case in self
         )

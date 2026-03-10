@@ -1,8 +1,11 @@
 __all__ = ["Intervals", "intervals_overlap", "invert_intervals"]
 
 import itertools
-from collections.abc import Iterable, Iterator
-from collections.abc import Set as AbstractSet
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
+    from collections.abc import Set as AbstractSet
 
 
 def _boundaries[T](
@@ -61,38 +64,42 @@ class Intervals[T]:
                         append((start, value, items))
                         items = None
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self._items)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._items)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[tuple[T, T, AbstractSet]]:
         return iter(self._items)
 
-    def __reversed__(self):
+    def __reversed__(self) -> Iterator[tuple[T, T, AbstractSet]]:
         return reversed(self._items)
 
-    def __or__(self, other):
+    def __or__(self, other: Intervals[T]) -> Intervals[T]:
         """Return the union of two sets of intervals."""
         return Intervals(
             itertools.chain(self._items, other._items),
             keep_distinct=self._keep_distinct,
         )
 
-    def __and__(self, other):
+    def __and__(
+        self, other: Intervals[T] | Iterable[tuple[T, T, AbstractSet]]
+    ) -> Intervals[T]:
         """Return the intersection of two sets of intervals."""
         return self._merge(other, False)
 
-    def __sub__(self, other):
+    def __sub__(
+        self, other: Intervals[T] | Iterable[tuple[T, T, AbstractSet]]
+    ) -> Intervals[T]:
         """Return the difference of two sets of intervals."""
         return self._merge(other, True)
 
     def _merge(
         self,
-        other: Intervals | Iterable[tuple[T, T, AbstractSet]],
+        other: Intervals[T] | Iterable[tuple[T, T, AbstractSet]],
         difference: bool,
-    ) -> Intervals:
+    ) -> Intervals[T]:
         """Return the difference or intersection of two sets of intervals."""
         result = Intervals(keep_distinct=self._keep_distinct)
         append = result._items.append

@@ -1,5 +1,3 @@
-"""HTTP layer constants."""
-
 import time
 
 # The validity duration of a preflight response, one day.
@@ -15,7 +13,7 @@ CSRF_TOKEN_SALT = 60 * 60 * 24 * 365
 DEFAULT_LANG = "en_US"
 
 
-def get_default_session():
+def get_default_session() -> dict[str, object]:
     """The dictionary to initialise a new session with."""
     return {
         "context": {},  # 'lang': request.default_lang()  # must be set at runtime
@@ -105,20 +103,20 @@ STATIC_CACHE = 60 * 60 * 24 * 7
 STATIC_CACHE_LONG = 60 * 60 * 24 * 365
 
 
-# GeoIP empty objects - only available if geoip2 is installed
+# GeoIP / MaxMind — only available if geoip2 is installed.
+# maxminddb is a dependency of geoip2; import them together so except
+# clauses like ``except OSError, maxminddb.InvalidDatabaseError:`` never
+# crash with an AttributeError when maxminddb is None.
 try:
     import geoip2.database
     import geoip2.errors
     import geoip2.models
+    import maxminddb
 
     GEOIP_EMPTY_COUNTRY = geoip2.models.Country(None)
     GEOIP_EMPTY_CITY = geoip2.models.City(None)
 except ImportError:
     geoip2 = None
+    maxminddb = None
     GEOIP_EMPTY_COUNTRY = None
     GEOIP_EMPTY_CITY = None
-
-try:
-    import maxminddb
-except ImportError:
-    maxminddb = None

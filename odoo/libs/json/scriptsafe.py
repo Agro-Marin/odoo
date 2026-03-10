@@ -13,12 +13,13 @@ __all__ = [
 
 import json as json_
 import re
+from typing import Any
 
 import markupsafe
 
 # Character mappings for script-safe JSON encoding
 # These characters need special handling when JSON is embedded in HTML
-JSON_SCRIPTSAFE_MAPPER = {
+JSON_SCRIPTSAFE_MAPPER: dict[str, str] = {
     "&": r"\u0026",
     "<": r"\u003c",
     ">": r"\u003e",
@@ -34,7 +35,7 @@ class ScriptSafe(str):
     could break out of script contexts or cause XSS vulnerabilities.
     """
 
-    def __html__(self):
+    def __html__(self) -> markupsafe.Markup:
         """Return HTML-safe version of the JSON string.
 
         Replacement can be done straight in the serialized JSON as the
@@ -78,17 +79,17 @@ class ScriptSafeJSON:
 
     Example::
 
-        >>> scriptsafe.dumps({'message': '<script>alert(1)</script>'})
-        '{"message": "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e"}'
+        >>> scriptsafe.dumps({'message': '<script>alert(1)</script>'}).__html__()
+        Markup('{"message": "\\u003cscript\\u003ealert(1)\\u003c/script\\u003e"}')
 
     See: https://code.djangoproject.com/ticket/17419#comment:27
     """
 
-    def loads(self, *args, **kwargs):
+    def loads(self, *args: Any, **kwargs: Any) -> Any:
         """Decode JSON string to Python object."""
         return json_.loads(*args, **kwargs)
 
-    def dumps(self, *args, **kwargs):
+    def dumps(self, *args: Any, **kwargs: Any) -> ScriptSafe:
         """Encode Python object to script-safe JSON string."""
         return ScriptSafe(json_.dumps(*args, **kwargs))
 

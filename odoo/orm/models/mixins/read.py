@@ -16,7 +16,6 @@ import logging
 import time
 import typing
 from collections import defaultdict, deque
-from collections.abc import Collection, Sequence
 from typing import Self
 
 from odoo.exceptions import MissingError
@@ -26,16 +25,20 @@ from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
 
 try:
-    from odoo_rust import batch_cache_fill as _batch_cache_fill_rust  # type: ignore[import-untyped]
+    from odoo_rust import (
+        batch_cache_fill as _batch_cache_fill_rust,  # type: ignore[import-untyped]
+    )
 except ImportError:
     _batch_cache_fill_rust = None
 from odoo.tools.orm_profiler import _orm_profiling_enabled
 
 from ... import decorators as api
-from ..._typing import ValuesType
 from ...primitives import LOG_ACCESS_COLUMNS
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Collection, Sequence
+
+    from ..._typing import ValuesType
     from ...fields.base import Field
     from ...tools import Query
 
@@ -136,7 +139,7 @@ class ReadMixin:
             _t_end = time.perf_counter()
         if _debug:
             _orm_read.debug(
-                "[%.3f ms] read %s: %d records, %d fields" " | fetch=%.1f format=%.1f",
+                "[%.3f ms] read %s: %d records, %d fields | fetch=%.1f format=%.1f",
                 (_t_end - _t0) * 1000,
                 self._name,
                 len(self),
@@ -289,7 +292,9 @@ class ReadMixin:
                 prop_results = field.convert_to_read_multi(
                     values_list, self.browse(records)
                 )
-                for (_, vals), convert_result in zip(valid_data, prop_results, strict=True):
+                for (_, vals), convert_result in zip(
+                    valid_data, prop_results, strict=True
+                ):
                     vals[name] = convert_result
                 continue
 
@@ -422,7 +427,8 @@ class ReadMixin:
         if fetched != self:
             forbidden = (self - fetched).exists()
             if forbidden:
-                raise self.env["ir.rule"]._make_access_error("read", forbidden)
+                msg = "read"
+                raise self.env["ir.rule"]._make_access_error(msg, forbidden)
 
     def _determine_fields_to_fetch(
         self,

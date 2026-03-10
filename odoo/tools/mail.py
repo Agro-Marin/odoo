@@ -89,11 +89,11 @@ __all__ = [
 # ----------------------------------------------------------
 
 
-def generate_tracking_message_id(res_id):
-    """Returns a string that can be used in the Message-ID RFC822 header field
+def generate_tracking_message_id(res_id: int | str) -> str:
+    """Return a string usable as the Message-ID RFC822 header field.
 
-    Used to track the replies related to a given object thanks to the "In-Reply-To"
-    or "References" fields that Mail User Agents will set.
+    Used to track replies related to a given object via the In-Reply-To
+    or References fields set by Mail User Agents.
     """
     try:
         rnd = random.SystemRandom().random()
@@ -109,5 +109,6 @@ def generate_tracking_message_id(res_id):
 
 
 # was mail_thread.decode_header()
-def decode_message_header(message, header, separator=" "):
+def decode_message_header(message: object, header: str, separator: str = " ") -> str:
+    """Decode and join all values for the given message header."""
     return separator.join(h for h in message.get_all(header, []) if h)

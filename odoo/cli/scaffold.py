@@ -1,23 +1,28 @@
 import os
 import re
 import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import jinja2
 
 from . import Command
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
 
 class Scaffold(Command):
     """Generates an Odoo module skeleton."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.epilog = f"Built-in templates available are: {
             ', '.join(d.name for d in _builtins_dir().iterdir() if d.name != 'base')
         }"
 
-    def run(self, cmdargs):
+    def run(self, cmdargs: list[str]) -> None:
         # TODO: bash completion file
         parser = self.parser
         parser.add_argument(
@@ -53,13 +58,13 @@ class Scaffold(Command):
         )
 
 
-def _builtins_dir(*parts):
+def _builtins_dir(*parts: str) -> Path:
     """Return the path to the built-in templates directory."""
     base = Path(__file__).resolve().parent / "templates"
     return base / Path(*parts) if parts else base
 
 
-def snake(s):
+def snake(s: str) -> str:
     """Convert ``s`` to snake_case.
 
     Inserts underscores before uppercase letters preceded by a
@@ -69,12 +74,12 @@ def snake(s):
     return "_".join(s.lower().split())
 
 
-def pascal(s):
+def pascal(s: str) -> str:
     """Convert ``s`` to PascalCase."""
     return "".join(ss.capitalize() for ss in re.sub(r"[_\s]+", " ", s).split())
 
 
-def directory(p, create=False):
+def directory(p: str, create: bool = False) -> Path:
     """Resolve and validate a directory path.
 
     Args:
@@ -97,7 +102,7 @@ _env.filters["pascal"] = pascal
 class Template:
     """A module template that can be rendered into a new Odoo module."""
 
-    def __init__(self, identifier):
+    def __init__(self, identifier: str) -> None:
         # TODO: archives (zipfile, tarfile)
         self.id = identifier
         # is identifier a builtin?
@@ -110,17 +115,19 @@ class Template:
             return
         sys.exit(f"{identifier} is not a valid module template")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.id
 
-    def files(self):
+    def files(self) -> Generator[tuple[Path, bytes]]:
         """List the (local) path and content of all files in the template."""
         for dirpath, _, filenames in self.path.walk():
             for f in filenames:
                 filepath = dirpath / f
                 yield filepath, filepath.read_bytes()
 
-    def render_to(self, modname, directory, params=None):
+    def render_to(
+        self, modname: str, directory: Path, params: dict[str, str] | None = None
+    ) -> None:
         """Render this module template to ``directory`` with the provided
         rendering parameters.
         """

@@ -27,7 +27,7 @@ _logger = logging.getLogger(__name__)
 # ----------------------------------------------------------
 
 
-def find_in_path(name):
+def find_in_path(name: str) -> str | None:
     """Find an executable in the system PATH.
 
     Searches the system PATH environment variable and the configured
@@ -48,7 +48,7 @@ def find_in_path(name):
 # ----------------------------------------------------------
 
 
-def find_pg_tool(name):
+def find_pg_tool(name: str) -> str:
     """Find a PostgreSQL command-line tool.
 
     Searches for PostgreSQL tools (pg_dump, pg_restore, etc.) using
@@ -68,7 +68,7 @@ def find_pg_tool(name):
         raise Exception(f"Command `{name}` not found.")
 
 
-def exec_pg_environ():
+def exec_pg_environ() -> dict[str, str]:
     """Get environment variables for PostgreSQL subprocess execution.
 
     Creates a copy of the current environment with PostgreSQL-specific
@@ -108,7 +108,7 @@ def exec_pg_environ():
 # ----------------------------------------------------------
 
 
-def stripped_sys_argv(*strip_args):
+def stripped_sys_argv(*strip_args: str) -> list[str]:
     """Return sys.argv with specified arguments stripped.
 
     Creates a filtered copy of sys.argv suitable for re-execution
@@ -122,19 +122,17 @@ def stripped_sys_argv(*strip_args):
     strip_args = sorted(
         set(strip_args)
         | {
-                "-s",
-                "--save",
-                "-u",
-                "--update",
-                "-i",
-                "--init",
-                "--i18n-overwrite",
-            }
+            "-s",
+            "--save",
+            "-u",
+            "--update",
+            "-i",
+            "--init",
+            "--i18n-overwrite",
+        }
     )
     assert all(config.parser.has_option(s) for s in strip_args)
-    takes_value = {
-        s: config.parser.get_option(s).takes_value() for s in strip_args
-    }
+    takes_value = {s: config.parser.get_option(s).takes_value() for s in strip_args}
 
     longs, shorts = [
         tuple(y) for _, y in itergroupby(strip_args, lambda x: x.startswith("--"))
@@ -164,7 +162,12 @@ import time
 real_time = time.time.__call__  # type: ignore
 
 
-def dumpstacks(sig=None, frame=None, thread_idents=None, log_level=logging.INFO):
+def dumpstacks(
+    sig: int | None = None,
+    frame: object = None,
+    thread_idents: set[int] | None = None,
+    log_level: int = logging.INFO,
+) -> None:
     """Dump stack traces for running threads and greenlets.
 
     Signal handler that logs stack traces for debugging purposes.
@@ -185,7 +188,6 @@ def dumpstacks(sig=None, frame=None, thread_idents=None, log_level=logging.INFO)
                 yield f"  {line.strip()}"
 
     # code from http://stackoverflow.com/questions/132058/getting-stack-trace-from-a-running-python-application#answer-2569696
-    # modified for python 2.5 compatibility
     threads_info = {
         th.ident: {
             "repr": repr(th),

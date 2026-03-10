@@ -5,8 +5,8 @@ Pure Python text helpers with no Odoo dependencies.
 
 __all__ = ["get_flag", "human_size", "mod10r", "remove_accents", "str2bool"]
 
-import typing
 import unicodedata
+from typing import Literal
 
 
 def remove_accents(input_str: str) -> str:
@@ -25,7 +25,7 @@ def remove_accents(input_str: str) -> str:
     return "".join(c for c in nkfd_form if not unicodedata.combining(c))
 
 
-def human_size(sz: float | str) -> str | typing.Literal[False]:
+def human_size(sz: float | str) -> str | Literal[False]:
     """Return the size in a human readable format.
 
     :param sz: Size in bytes (can be int, float, or string)
@@ -77,7 +77,8 @@ def str2bool(s: str, default: bool | None = None) -> bool:
             stacklevel=2,
         )
         if default is None:
-            raise ValueError("Use 0/1/yes/no/true/false/on/off")
+            msg = "Use 0/1/yes/no/true/false/on/off"
+            raise ValueError(msg)
         return bool(default)
 
     s = s.lower()
@@ -86,7 +87,8 @@ def str2bool(s: str, default: bool | None = None) -> bool:
     if s in ("n", "no", "0", "false", "f", "off"):
         return False
     if default is None:
-        raise ValueError("Use 0/1/yes/no/true/false/on/off")
+        msg = "Use 0/1/yes/no/true/false/on/off"
+        raise ValueError(msg)
     return bool(default)
 
 
@@ -101,7 +103,7 @@ def mod10r(number: str) -> str:
     Example::
 
         >>> mod10r('123456')
-        '1234566'
+        '1234565'
     """
     codec = [0, 9, 4, 6, 8, 2, 7, 1, 3, 5]
     report = 0
@@ -128,4 +130,4 @@ def get_flag(country_code: str) -> str:
         >>> get_flag('MX')
         '🇲🇽'
     """
-    return "".join(chr(int(f"1f1{ord(c)+165:02x}", base=16)) for c in country_code)
+    return "".join(chr(int(f"1f1{ord(c) + 165:02x}", base=16)) for c in country_code)

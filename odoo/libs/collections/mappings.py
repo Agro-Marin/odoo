@@ -1,6 +1,6 @@
 __all__ = ["ConstantMapping", "DotDict", "ReadonlyDict", "submap"]
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
 
@@ -20,16 +20,16 @@ class ConstantMapping[T](Mapping[Any, T]):
 
     __slots__ = ["_value"]
 
-    def __init__(self, val: T):
+    def __init__(self, val: T) -> None:
         self._value = val
 
-    def __len__(self):
+    def __len__(self) -> int:
         return 0
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         return iter(())
 
-    def __getitem__(self, item) -> T:
+    def __getitem__(self, item: Any) -> T:
         return self._value
 
 
@@ -51,26 +51,29 @@ class ReadonlyDict[K, T](Mapping[K, T]):
     Example::
 
         >>> data = ReadonlyDict({'foo': 'bar'})
-        >>> data['baz'] = 'xyz'  # raises TypeError
-        >>> data.update({'baz': 'xyz'})  # raises AttributeError
-        >>> dict.update(data, {'baz': 'xyz'})  # raises TypeError
+        >>> data['foo']
+        'bar'
+        >>> data['baz'] = 'xyz'
+        Traceback (most recent call last):
+        ...
+        TypeError: 'ReadonlyDict' object does not support item assignment
     """
 
     __slots__ = ("_data__",)
 
-    def __init__(self, data):
+    def __init__(self, data: Mapping[K, T]) -> None:
         self._data__ = dict(data)
 
-    def __contains__(self, key: K):
+    def __contains__(self, key: object) -> bool:
         return key in self._data__
 
     def __getitem__(self, key: K) -> T:
         return self._data__[key]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._data__)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[K]:
         return iter(self._data__)
 
 
@@ -104,6 +107,6 @@ class DotDict(dict):
         42
     """
 
-    def __getattr__(self, attrib):
+    def __getattr__(self, attrib: str) -> Any:
         val = self.get(attrib)
         return DotDict(val) if isinstance(val, dict) else val

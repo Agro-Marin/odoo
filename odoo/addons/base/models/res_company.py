@@ -7,9 +7,9 @@ from odoo import api, fields, models, modules, tools
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.orm._typing import ValuesType
 from odoo.tools import file_open, html2plaintext, ormcache
 from odoo.tools.image import image_process
-from odoo.orm._typing import ValuesType
 
 _logger = logging.getLogger(__name__)
 
@@ -53,56 +53,47 @@ class ResCompany(models.Model):
     )
     active = fields.Boolean(default=True)
     sequence = fields.Integer(
-        help="Used to order Companies in the company switcher", default=10
+        help="Used to order Companies in the company switcher",
+        default=10,
     )
     parent_id = fields.Many2one(
-        "res.company", string="Parent Company", index=True, ondelete="restrict"
+        "res.company",
+        string="Parent Company",
+        index=True,
+        ondelete="restrict",
     )
-    child_ids = fields.One2many("res.company", "parent_id", string="Branches")
+    child_ids = fields.One2many(
+        "res.company",
+        "parent_id",
+        string="Branches",
+    )
     all_child_ids = fields.One2many(
-        "res.company", "parent_id", context={"active_test": False}
+        "res.company",
+        "parent_id",
+        context={"active_test": False},
     )
     parent_path = fields.Char(index=True)
     parent_ids = fields.Many2many(
-        "res.company", compute="_compute_parent_ids", compute_sudo=True
+        "res.company",
+        compute="_compute_parent_ids",
+        compute_sudo=True,
     )
     root_id = fields.Many2one(
-        "res.company", compute="_compute_parent_ids", compute_sudo=True
+        "res.company",
+        compute="_compute_parent_ids",
+        compute_sudo=True,
     )
-    partner_id = fields.Many2one(
-        "res.partner", string="Partner", required=True, index=True
-    )
-    report_header = fields.Html(
-        string="Company Tagline",
-        translate=True,
-        help="Company tagline, which is included in a printed document's header or footer (depending on the selected layout).",
-    )
-    report_footer = fields.Html(
-        string="Report Footer",
-        translate=True,
-        help="Footer text displayed at the bottom of all reports.",
-    )
-    company_details = fields.Html(
-        string="Company Details",
-        translate=True,
-        help="Header text displayed at the top of all reports.",
-    )
-    is_company_details_empty = fields.Boolean(compute="_compute_empty_company_details")
-    logo = fields.Binary(
-        related="partner_id.image_1920",
-        default=_get_logo,
-        string="Company Logo",
-        readonly=False,
-    )
-    # logo_web: do not store in attachments, since the image is retrieved in SQL for
-    # performance reasons (see addons/web/controllers/main.py, Binary.company_logo)
-    logo_web = fields.Binary(compute="_compute_logo_web", store=True, attachment=False)
-    uses_default_logo = fields.Boolean(compute="_compute_uses_default_logo", store=True)
     currency_id = fields.Many2one(
         "res.currency",
         string="Currency",
         required=True,
         default=lambda self: self._default_currency_id(),
+    )
+    partner_id = fields.Many2one(
+        "res.partner",
+        string="Partner",
+        required=True,
+        index=True,
     )
     user_ids = fields.Many2many(
         "res.users",
@@ -122,7 +113,6 @@ class ResCompany(models.Model):
         string="Fed. State",
         domain="[('country_id', '=?', country_id)]",
     )
-    bank_ids = fields.One2many(related="partner_id.bank_ids", readonly=False)
     country_id = fields.Many2one(
         "res.country",
         compute="_compute_address",
@@ -143,11 +133,47 @@ class ResCompany(models.Model):
     company_registry_placeholder = fields.Char(
         related="partner_id.company_registry_placeholder"
     )
+    logo = fields.Binary(
+        related="partner_id.image_1920",
+        default=_get_logo,
+        string="Company Logo",
+        readonly=False,
+    )
+    # logo_web: do not store in attachments, since the image is retrieved in SQL for
+    # performance reasons (see addons/web/controllers/main.py, Binary.company_logo)
+    logo_web = fields.Binary(
+        compute="_compute_logo_web",
+        store=True,
+        attachment=False,
+    )
+    uses_default_logo = fields.Boolean(
+        compute="_compute_uses_default_logo",
+        store=True,
+    )
+    report_header = fields.Html(
+        string="Company Tagline",
+        translate=True,
+        help="Company tagline, which is included in a printed document's header or footer (depending on the selected layout).",
+    )
+    report_footer = fields.Html(
+        string="Report Footer",
+        translate=True,
+        help="Footer text displayed at the bottom of all reports.",
+    )
+    company_details = fields.Html(
+        string="Company Details",
+        translate=True,
+        help="Header text displayed at the top of all reports.",
+    )
+    is_company_details_empty = fields.Boolean(
+        compute="_compute_empty_company_details",
+    )
     paperformat_id = fields.Many2one(
         "report.paperformat",
         "Paper format",
         default=lambda self: self.env.ref(
-            "base.paperformat_euro", raise_if_not_found=False
+            "base.paperformat_euro",
+            raise_if_not_found=False,
         ),
     )
     external_report_layout_id = fields.Many2one("ir.ui.view", "Document Template")
@@ -166,20 +192,27 @@ class ResCompany(models.Model):
     )
     primary_color = fields.Char()
     secondary_color = fields.Char()
-    color = fields.Integer(compute="_compute_color", inverse="_inverse_color")
+    color = fields.Integer(
+        compute="_compute_color",
+        inverse="_inverse_color",
+    )
     layout_background = fields.Selection(
-        [("Blank", "Blank"), ("Demo logo", "Demo logo"), ("Custom", "Custom")],
+        [
+            ("Blank", "Blank"),
+            ("Demo logo", "Demo logo"),
+            ("Custom", "Custom"),
+        ],
         default="Blank",
         required=True,
     )
     layout_background_image = fields.Binary("Background Image")
     uninstalled_l10n_module_ids = fields.Many2many(
-        "ir.module.module", compute="_compute_uninstalled_l10n_module_ids"
+        "ir.module.module",
+        compute="_compute_uninstalled_l10n_module_ids",
     )
-
-    _name_uniq = models.Constraint(
-        "unique (name)",
-        "The company name must be unique!",
+    bank_ids = fields.One2many(
+        related="partner_id.bank_ids",
+        readonly=False,
     )
 
     def init(self) -> None:
@@ -192,6 +225,11 @@ class ResCompany(models.Model):
         sup = super()
         if hasattr(sup, "init"):
             sup.init()
+
+    _name_uniq = models.Constraint(
+        "unique (name)",
+        "The company name must be unique!",
+    )
 
     def _get_company_root_delegated_field_names(self) -> list[str]:
         """Get the set of fields delegated to the root company.
@@ -399,8 +437,8 @@ class ResCompany(models.Model):
 
     @api.depends("company_details")
     def _compute_empty_company_details(self) -> None:
-        # In recent change when an html field is empty a <p> balise remains with a <br> in it,
-        # but when company details is empty we want to put the info of the company
+        # When an html field is empty a <p> tag remains with a <br> in it,
+        # but when company details is empty we want to show the company info instead
         for record in self:
             record.is_company_details_empty = not html2plaintext(
                 record.company_details or ""

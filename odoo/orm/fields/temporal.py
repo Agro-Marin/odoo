@@ -1,6 +1,5 @@
 import functools
 import typing
-from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timezone
 from typing import override
 
@@ -21,12 +20,13 @@ def _get_all_timezones_set() -> frozenset[str]:
     """Cached set of all available timezones for fast lookup."""
     return frozenset(all_timezones())
 
+
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
     from odoo.tools import Query
 
     from ..models import BaseModel
-
-T = typing.TypeVar("T")
 
 DATE_LENGTH = len(date.today().strftime(DATE_FORMAT))
 DATETIME_LENGTH = len(datetime.now().strftime(DATETIME_FORMAT))
@@ -81,9 +81,9 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
             case "hour_number" | "minute_number" | "second_number":
                 # for dates, it is always 0
                 return lambda value: 0
-        assert (
-            property_name not in READ_GROUP_NUMBER_GRANULARITY
-        ), f"Property not implemented {property_name}"
+        assert property_name not in READ_GROUP_NUMBER_GRANULARITY, (
+            f"Property not implemented {property_name}"
+        )
         raise ValueError(
             f"Error when processing the granularity {property_name} is not supported. "
             f"Only {', '.join(READ_GROUP_NUMBER_GRANULARITY.keys())} are supported"
@@ -115,7 +115,7 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
             return sql_expr
         if property_name not in READ_GROUP_NUMBER_GRANULARITY:
             raise ValueError(
-                f'Error when processing the granularity {property_name} is not supported. Only {", ".join(READ_GROUP_NUMBER_GRANULARITY.keys())} are supported'
+                f"Error when processing the granularity {property_name} is not supported. Only {', '.join(READ_GROUP_NUMBER_GRANULARITY.keys())} are supported"
             )
         granularity = READ_GROUP_NUMBER_GRANULARITY[property_name]
         # Embed granularity as SQL literal for GROUP BY consistency (see above).
@@ -224,12 +224,12 @@ class Date(BaseDate[date]):
         return self.to_date(value)
 
     @override
-    def convert_to_export(self, value, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
         return self.to_date(value) or ""
 
     @override
     def convert_to_display_name(
-        self, value, record: BaseModel
+        self, value: typing.Any, record: BaseModel
     ) -> str | typing.Literal[False]:
         return Date.to_string(value)
 
@@ -348,13 +348,13 @@ class Datetime(BaseDate[datetime]):
         return self.to_datetime(value)
 
     @override
-    def convert_to_export(self, value, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
         value = self.convert_to_display_name(value, record)
         return self.to_datetime(value) or ""
 
     @override
     def convert_to_display_name(
-        self, value, record: BaseModel
+        self, value: typing.Any, record: BaseModel
     ) -> str | typing.Literal[False]:
         if not value:
             return False

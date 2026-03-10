@@ -1,7 +1,11 @@
 import csv
 import logging
+import typing
 from collections import defaultdict
 from io import StringIO
+
+if typing.TYPE_CHECKING:
+    from odoo.cli.upgrade_code import FileManager
 
 FP_LOOKUP = {
     (
@@ -2192,7 +2196,7 @@ FP_LOOKUP = {
 }
 
 
-def upgrade(file_manager):
+def upgrade(file_manager: FileManager) -> None:
     log = logging.getLogger(__name__)
 
     MODS_WITH_DYNAMIC_DOMESTIC_FP = {"l10n_in"}

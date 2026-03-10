@@ -24,11 +24,11 @@
 # <letter> should be in final form. If no replacement is specified for a form,
 # then no that means the letter doesn't support this form.
 
-UNSHAPED = 255
-ISOLATED = 0
-INITIAL = 1
-MEDIAL = 2
-FINAL = 3
+UNSHAPED: int = 255
+ISOLATED: int = 0
+INITIAL: int = 1
+MEDIAL: int = 2
+FINAL: int = 3
 
 TATWEEL = "\u0640"
 ZWJ = "\u200d"
@@ -517,22 +517,31 @@ LETTERS_KURDISH = {
 }
 
 
-def connects_with_letter_before(letter, LETTERS):
+def connects_with_letter_before(
+    letter: str, LETTERS: dict[str, tuple[str, str, str, str]]
+) -> str:
+    """Return the final or medial form if the letter connects with a preceding letter."""
     if letter not in LETTERS:
-        return False
+        return ""
     forms = LETTERS[letter]
     return forms[FINAL] or forms[MEDIAL]
 
 
-def connects_with_letter_after(letter, LETTERS):
+def connects_with_letter_after(
+    letter: str, LETTERS: dict[str, tuple[str, str, str, str]]
+) -> str:
+    """Return the initial or medial form if the letter connects with a following letter."""
     if letter not in LETTERS:
-        return False
+        return ""
     forms = LETTERS[letter]
     return forms[INITIAL] or forms[MEDIAL]
 
 
-def connects_with_letters_before_and_after(letter, LETTERS):
+def connects_with_letters_before_and_after(
+    letter: str, LETTERS: dict[str, tuple[str, str, str, str]]
+) -> str:
+    """Return the medial form if the letter connects with letters on both sides."""
     if letter not in LETTERS:
-        return False
+        return ""
     forms = LETTERS[letter]
     return forms[MEDIAL]

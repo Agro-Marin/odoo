@@ -3,7 +3,6 @@
 import functools
 import logging
 import typing
-from collections.abc import Collection, Iterable, Iterator, Mapping
 from typing import Literal
 
 from odoo.tools import OrderedSet, reset_cached_properties
@@ -12,6 +11,8 @@ from odoo.tools.sql import column_exists
 from .module import Manifest
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Collection, Iterable, Iterator, Mapping
+
     from odoo.db import BaseCursor
 
     STATES = Literal[

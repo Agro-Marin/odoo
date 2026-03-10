@@ -1,11 +1,12 @@
 import logging
 import typing
-from collections.abc import Iterable, Iterator
 from contextlib import suppress
 
 from odoo.tools.misc import file_open
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
+
     from odoo.db import Cursor
 
 _logger = logging.getLogger(__name__)

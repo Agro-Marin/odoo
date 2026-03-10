@@ -15,7 +15,7 @@ class UserError(Exception):
 
     http_status = 422  # Unprocessable Entity
 
-    def __init__(self, message):
+    def __init__(self, message: str) -> None:
         """
         :param message: exception message and frontend modal content
         """
@@ -34,7 +34,13 @@ class RedirectWarning(Exception):
            Can be used to limit a view to active_ids for example.
     """
 
-    def __init__(self, message, action, button_text, additional_context=None):
+    def __init__(
+        self,
+        message: str,
+        action: int | str,
+        button_text: str,
+        additional_context: dict | None = None,
+    ) -> None:
         super().__init__(message, action, button_text, additional_context)
 
 
@@ -52,11 +58,11 @@ class AccessDenied(UserError):
 
     http_status = 403  # Forbidden
 
-    def __init__(self, message="Access Denied"):
+    def __init__(self, message: str = "Access Denied") -> None:
         super().__init__(message)
         self.suppress_traceback()  # must be called in `except`s too
 
-    def suppress_traceback(self):
+    def suppress_traceback(self) -> None:
         """
         Remove the traceback, cause and context of the exception, hiding
         where the exception occured but keeping the exception message.
@@ -97,7 +103,7 @@ class CacheMiss(KeyError):
         When you try to read a value in a flushed cache.
     """
 
-    def __init__(self, record, field):
+    def __init__(self, record: object, field: object) -> None:
         super().__init__("%r.%s" % (record, field.name))
 
 

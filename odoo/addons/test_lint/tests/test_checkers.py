@@ -1,7 +1,7 @@
 """Unit tests for the custom AST-based lint checkers.
 
-Tests SQL injection detection, gettext usage, and unlink override checking
-using stdlib ``ast`` (no pylint/astroid dependency).
+Tests SQL injection detection, gettext usage, unlink override checking,
+and N+1 query detection using stdlib ``ast`` (no pylint/astroid dependency).
 """
 
 import ast
@@ -9,7 +9,7 @@ from textwrap import dedent
 
 from odoo.tests import BaseCase
 
-from . import _checker_gettext, _checker_sql, _checker_unlink
+from . import _checker_batch, _checker_gettext, _checker_sql, _checker_unlink
 
 
 class TestSqlLint(BaseCase):
@@ -526,3 +526,201 @@ class TestUnlinkLint(BaseCase):
                         return super().unlink()
                 """)
                 self.assertTrue(violations, f"{base} should be detected as model class")
+
+
+class TestBatchLint(BaseCase):
+    """Test the N+1 query pattern checker."""
+
+    def _check(self, snippet, filepath="not_test.py"):
+        """Parse snippet and return violations."""
+        source = dedent(snippet).strip()
+        tree = ast.parse(source)
+        return list(_checker_batch.check(tree, filepath))
+
+    def test_search_in_for_loop(self):
+        """search() inside a for loop is an N+1 pattern."""
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                partners = self.env['res.partner'].search([('id', '=', record.id)])
+        """)
+        self.assertTrue(violations, "search inside for loop should be flagged")
+        self.assertIn("search()", violations[0].message)
+
+    def test_search_count_in_for_loop(self):
+        """search_count() inside a for loop is an N+1 pattern."""
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                count = self.env['res.partner'].search_count([('id', '=', record.id)])
+        """)
+        self.assertTrue(violations, "search_count inside for loop should be flagged")
+        self.assertIn("search_count()", violations[0].message)
+
+    def test_search_fetch_in_for_loop(self):
+        """search_fetch() inside a for loop is an N+1 pattern."""
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                data = self.env['res.partner'].search_fetch([('id', '=', record.id)], ['name'])
+        """)
+        self.assertTrue(violations, "search_fetch inside for loop should be flagged")
+
+    def test_read_group_in_for_loop(self):
+        """_read_group() inside a for loop is an N+1 pattern."""
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                groups = self.env['sale.order']._read_group(
+                    [('partner_id', '=', record.id)],
+                    groupby=['state'],
+                    aggregates=['amount_total:sum'],
+                )
+        """)
+        self.assertTrue(violations, "_read_group inside for loop should be flagged")
+
+    def test_search_outside_loop_ok(self):
+        """search() outside a for loop is fine."""
+        violations = self._check("""
+        def process(self, records):
+            partners = self.env['res.partner'].search([('active', '=', True)])
+            for record in records:
+                partner = partners.filtered(lambda p: p.id == record.id)
+        """)
+        self.assertFalse(violations, "search outside loop should not be flagged")
+
+    def test_nested_for_loop(self):
+        """search() in a nested for loop should be flagged."""
+        violations = self._check("""
+        def process(self, orders):
+            for order in orders:
+                for line in order.order_line:
+                    products = self.env['product.product'].search([('id', '=', line.product_id.id)])
+        """)
+        self.assertTrue(violations, "search in nested loop should be flagged")
+
+    def test_nested_function_def_skipped(self):
+        """search() inside a function defined within a loop is not flagged.
+
+        The inner function creates a new scope — the query executes when
+        called, not per-iteration of the outer loop.
+        """
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                def helper():
+                    return self.env['res.partner'].search([('active', '=', True)])
+        """)
+        self.assertFalse(
+            violations, "search inside nested function should not be flagged"
+        )
+
+    def test_lambda_in_loop_flagged(self):
+        """Lambda with search inside loop is flagged (ast.Call is walked)."""
+        violations = self._check("""
+        def process(self, records):
+            callbacks = []
+            for record in records:
+                callbacks.append(lambda: self.env['res.partner'].search([]))
+        """)
+        # Lambdas don't define a new ast.FunctionDef — the Call node is
+        # inside the loop body AST.  Flagging is acceptable since lambdas
+        # with search inside loops are suspicious anyway.
+        self.assertTrue(violations, "search inside lambda in loop should be flagged")
+
+    def test_skips_test_files(self):
+        """Checker should skip test files."""
+        violations = self._check(
+            """
+        def process(self, records):
+            for record in records:
+                self.env['res.partner'].search([('id', '=', record.id)])
+        """,
+            filepath="test_something.py",
+        )
+        self.assertFalse(violations, "test files should be skipped")
+
+    def test_while_loop_not_flagged(self):
+        """Only 'for' loops are checked, not 'while' loops.
+
+        While loops are typically iteration-until-done patterns, not
+        record-by-record processing.
+        """
+        violations = self._check("""
+        def process(self):
+            while True:
+                results = self.env['res.partner'].search([], limit=100)
+                if not results:
+                    break
+        """)
+        self.assertFalse(violations, "while loops should not be flagged")
+
+    def test_for_else_clause(self):
+        """search() in the else clause of a for loop is flagged."""
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                pass
+            else:
+                self.env['res.partner'].search([])
+        """)
+        self.assertTrue(violations, "search in for/else should be flagged")
+
+    def test_if_inside_loop(self):
+        """search() inside an if inside a loop is still flagged."""
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                if record.active:
+                    partners = self.env['res.partner'].search([('id', '=', record.id)])
+        """)
+        self.assertTrue(violations, "search inside if inside loop should be flagged")
+
+    def test_non_query_method_ok(self):
+        """Non-query methods inside loops are fine."""
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                record.write({'active': True})
+                record.unlink()
+                name = record.name_get()
+        """)
+        self.assertFalse(violations, "non-query methods should not be flagged")
+
+    def test_regex_search_not_flagged(self):
+        """re.search() and compiled regex .search() are not ORM queries."""
+        violations = self._check("""
+        import re
+        PATTERN = re.compile(r'\\w+')
+        def process(self, nodes):
+            for node in nodes:
+                if re.search(r'pattern', node.text):
+                    pass
+                if PATTERN.search(node.text):
+                    pass
+                if some_regex.search(node.text):
+                    pass
+        """)
+        self.assertFalse(violations, "regex search should not be flagged")
+
+    def test_orm_search_on_self_flagged(self):
+        """self.search() and self.env[...].search() ARE ORM queries."""
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                self.search([('id', '=', record.id)])
+                self.env['res.partner'].search([('id', '=', record.id)])
+                self.sudo().search([('id', '=', record.id)])
+        """)
+        self.assertEqual(
+            len(violations), 3, "all three ORM search calls should be flagged"
+        )
+
+    def test_model_class_search_flagged(self):
+        """CamelCase names like Partner.search() are ORM queries."""
+        violations = self._check("""
+        def process(self, records):
+            for record in records:
+                Partner.search([('id', '=', record.id)])
+        """)
+        self.assertTrue(violations, "CamelCase model search should be flagged")

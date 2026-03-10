@@ -33,7 +33,14 @@ class MockField:
         "type",
     )
 
-    def __init__(self, name, model_name="m", type_="char", relational=False, **kw):
+    def __init__(
+        self,
+        name: str,
+        model_name: str = "m",
+        type_: str = "char",
+        relational: bool = False,
+        **kw,
+    ) -> None:
         self.name = name
         self.model_name = model_name
         self.type = type_
@@ -44,13 +51,13 @@ class MockField:
         self.compute = kw.get("compute")
         self.store = kw.get("store", False)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"MockField({self.name!r})"
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return id(self)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return self is other
 
 
@@ -67,32 +74,32 @@ def _field(name, model="m", type_="char", relational=False, **kw):
 class TestTriggerTree(unittest.TestCase):
     """Test TriggerTree data structure operations."""
 
-    def test_empty_tree_is_falsy(self):
+    def test_empty_tree_is_falsy(self) -> None:
         tree = TriggerTree()
         self.assertFalse(tree)
 
-    def test_tree_with_root_is_truthy(self):
+    def test_tree_with_root_is_truthy(self) -> None:
         tree = TriggerTree(["field_a"])
         self.assertTrue(tree)
 
-    def test_tree_with_children_is_truthy(self):
+    def test_tree_with_children_is_truthy(self) -> None:
         tree = TriggerTree()
         tree["edge"] = TriggerTree(["field_b"])
         self.assertTrue(tree)
 
-    def test_increase_creates_subtree(self):
+    def test_increase_creates_subtree(self) -> None:
         tree = TriggerTree()
         sub = tree.increase("edge_x")
         self.assertIsInstance(sub, TriggerTree)
         self.assertIs(tree["edge_x"], sub)
 
-    def test_increase_returns_existing(self):
+    def test_increase_returns_existing(self) -> None:
         tree = TriggerTree()
         sub1 = tree.increase("edge_x")
         sub2 = tree.increase("edge_x")
         self.assertIs(sub1, sub2)
 
-    def test_depth_first(self):
+    def test_depth_first(self) -> None:
         root = TriggerTree(["A"])
         child = TriggerTree(["B"])
         grandchild = TriggerTree(["C"])
@@ -105,7 +112,7 @@ class TestTriggerTree(unittest.TestCase):
         self.assertIs(nodes[1], child)
         self.assertIs(nodes[2], grandchild)
 
-    def test_repr(self):
+    def test_repr(self) -> None:
         tree = TriggerTree(["f1"])
         r = repr(tree)
         self.assertIn("TriggerTree", r)
@@ -113,23 +120,23 @@ class TestTriggerTree(unittest.TestCase):
 
     # -- merge --
 
-    def test_merge_empty(self):
+    def test_merge_empty(self) -> None:
         result = TriggerTree.merge([])
         self.assertFalse(result)
 
-    def test_merge_single(self):
+    def test_merge_single(self) -> None:
         tree = TriggerTree(["A", "B"])
         result = TriggerTree.merge([tree])
         self.assertEqual(list(result.root), ["A", "B"])
 
-    def test_merge_roots(self):
+    def test_merge_roots(self) -> None:
         t1 = TriggerTree(["A", "B"])
         t2 = TriggerTree(["B", "C"])
         result = TriggerTree.merge([t1, t2])
         # A, B, C — B deduplicated
         self.assertEqual(list(result.root), ["A", "B", "C"])
 
-    def test_merge_subtrees(self):
+    def test_merge_subtrees(self) -> None:
         edge = "edge_x"
         t1 = TriggerTree()
         t1[edge] = TriggerTree(["H1"])
@@ -140,13 +147,13 @@ class TestTriggerTree(unittest.TestCase):
         self.assertIn(edge, result)
         self.assertEqual(list(result[edge].root), ["H1", "H2"])
 
-    def test_merge_select_filter(self):
+    def test_merge_select_filter(self) -> None:
         """The select function filters root fields."""
         t1 = TriggerTree(["keep", "drop"])
         result = TriggerTree.merge([t1], select=lambda f: f == "keep")
         self.assertEqual(list(result.root), ["keep"])
 
-    def test_merge_discards_empty_subtrees(self):
+    def test_merge_discards_empty_subtrees(self) -> None:
         """Subtrees that become empty after filtering are excluded."""
         edge = "edge_x"
         t1 = TriggerTree()
@@ -165,14 +172,14 @@ class TestTriggerTree(unittest.TestCase):
 class TestModelGraphConstruction(unittest.TestCase):
     """Test building a ModelGraph from scratch."""
 
-    def test_add_trigger(self):
+    def test_add_trigger(self) -> None:
         g = ModelGraph()
         f = _field("price")
         t = _field("total", is_stored_computed=True)
         g.add_trigger(f, (), [t])
         self.assertTrue(g.has_triggers(f))
 
-    def test_add_trigger_deduplicates(self):
+    def test_add_trigger_deduplicates(self) -> None:
         g = ModelGraph()
         f = _field("price")
         t = _field("total")
@@ -180,27 +187,27 @@ class TestModelGraphConstruction(unittest.TestCase):
         g.add_trigger(f, (), [t])
         self.assertEqual(len(g._triggers[f][()]), 1)
 
-    def test_inverses_via_collector(self):
+    def test_inverses_via_collector(self) -> None:
         g = ModelGraph()
         f = _field("partner_id")
         inv = _field("order_ids")
         g._inverses[f] = (inv,)
         self.assertEqual(g.field_inverses[f], (inv,))
 
-    def test_depends_via_collector(self):
+    def test_depends_via_collector(self) -> None:
         g = ModelGraph()
         f = _field("total")
         dep = _field("price")
         g._depends[f] = (dep,)
         self.assertEqual(g.field_depends[f], (dep,))
 
-    def test_depends_context_via_collector(self):
+    def test_depends_context_via_collector(self) -> None:
         g = ModelGraph()
         f = _field("name")
         g._depends_context[f] = ("lang",)
         self.assertEqual(g.field_depends_context[f], ("lang",))
 
-    def test_computed_direct_assignment(self):
+    def test_computed_direct_assignment(self) -> None:
         g = ModelGraph()
         f1 = _field("total")
         f2 = _field("tax")
@@ -208,7 +215,7 @@ class TestModelGraphConstruction(unittest.TestCase):
         g._computed[f2] = [f1, f2]
         self.assertEqual(g.field_computed[f1], [f1, f2])
 
-    def test_reset_field_metadata(self):
+    def test_reset_field_metadata(self) -> None:
         g = ModelGraph()
         f = _field("price")
         g._depends[f] = ("dep",)
@@ -224,11 +231,11 @@ class TestModelGraphConstruction(unittest.TestCase):
         self.assertIsInstance(g._depends, _Collector)
         self.assertIsInstance(g._inverses, _Collector)
 
-    def test_no_triggers_is_falsy(self):
+    def test_no_triggers_is_falsy(self) -> None:
         g = ModelGraph()
         self.assertFalse(g.has_triggers(_field("whatever")))
 
-    def test_reset_triggers(self):
+    def test_reset_triggers(self) -> None:
         """reset_triggers() clears all trigger data and caches."""
         g = ModelGraph()
         f = _field("price")
@@ -243,7 +250,7 @@ class TestModelGraphConstruction(unittest.TestCase):
         self.assertFalse(g._trigger_trees)
         self.assertFalse(g._modifying_relations)
 
-    def test_reset_triggers_allows_rebuild(self):
+    def test_reset_triggers_allows_rebuild(self) -> None:
         """After reset_triggers(), new triggers can be added incrementally."""
         g = ModelGraph()
         f1 = _field("price")
@@ -262,7 +269,7 @@ class TestModelGraphConstruction(unittest.TestCase):
         deps = list(g.get_dependent_fields(f2))
         self.assertIn(t2, deps)
 
-    def test_incremental_build_workflow(self):
+    def test_incremental_build_workflow(self) -> None:
         """Simulate the Registry pattern: reset → add_trigger × N → query."""
         g = ModelGraph()
         g.reset_triggers()
@@ -297,7 +304,7 @@ class TestModelGraphConstruction(unittest.TestCase):
         tree2 = g.get_trigger_tree([qty])
         self.assertIn(total, tree2.root)
 
-    def test_reset_triggers_preserves_field_metadata(self):
+    def test_reset_triggers_preserves_field_metadata(self) -> None:
         """reset_triggers() only clears triggers, not depends/inverses/computed."""
         g = ModelGraph()
         f = _field("price")
@@ -321,7 +328,7 @@ class TestModelGraphConstruction(unittest.TestCase):
 class TestModelGraphQueries(unittest.TestCase):
     """Test querying the dependency graph."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Build a graph: price → total (direct), partner_id.price → partner_total (via path)."""
         self.g = ModelGraph()
 
@@ -345,26 +352,26 @@ class TestModelGraphQueries(unittest.TestCase):
         # price also triggers partner_total (via partner_id path)
         self.g.add_trigger(self.price, (self.partner_id,), [self.partner_total])
 
-    def test_get_trigger_tree_direct(self):
+    def test_get_trigger_tree_direct(self) -> None:
         tree = self.g.get_trigger_tree([self.price])
         self.assertIn(self.total, tree.root)
 
-    def test_get_trigger_tree_with_path(self):
+    def test_get_trigger_tree_with_path(self) -> None:
         tree = self.g.get_trigger_tree([self.price])
         self.assertIn(self.partner_id, tree)
         subtree = tree[self.partner_id]
         self.assertIn(self.partner_total, subtree.root)
 
-    def test_get_trigger_tree_caches(self):
+    def test_get_trigger_tree_caches(self) -> None:
         tree1 = self.g.get_field_trigger_tree(self.price)
         tree2 = self.g.get_field_trigger_tree(self.price)
         self.assertIs(tree1, tree2)
 
-    def test_get_trigger_tree_no_triggers(self):
+    def test_get_trigger_tree_no_triggers(self) -> None:
         tree = self.g.get_trigger_tree([_field("unknown")])
         self.assertFalse(tree)
 
-    def test_get_trigger_tree_select_filter(self):
+    def test_get_trigger_tree_select_filter(self) -> None:
         tree = self.g.get_trigger_tree(
             [self.price],
             select=lambda f: f is self.total,
@@ -375,16 +382,16 @@ class TestModelGraphQueries(unittest.TestCase):
             subtree = tree[self.partner_id]
             self.assertNotIn(self.partner_total, subtree.root)
 
-    def test_get_dependent_fields(self):
+    def test_get_dependent_fields(self) -> None:
         deps = list(self.g.get_dependent_fields(self.price))
         self.assertIn(self.total, deps)
         self.assertIn(self.partner_total, deps)
 
-    def test_get_dependent_fields_no_triggers(self):
+    def test_get_dependent_fields_no_triggers(self) -> None:
         deps = list(self.g.get_dependent_fields(_field("unknown")))
         self.assertEqual(deps, [])
 
-    def test_clear_caches(self):
+    def test_clear_caches(self) -> None:
         # Populate the cache
         self.g.get_field_trigger_tree(self.price)
         self.assertTrue(self.g._trigger_trees)
@@ -392,7 +399,7 @@ class TestModelGraphQueries(unittest.TestCase):
         self.g.clear_caches()
         self.assertFalse(self.g._trigger_trees)
 
-    def test_has_triggers(self):
+    def test_has_triggers(self) -> None:
         self.assertTrue(self.g.has_triggers(self.price))
         self.assertFalse(self.g.has_triggers(self.total))
 
@@ -400,14 +407,14 @@ class TestModelGraphQueries(unittest.TestCase):
 class TestIsModifyingRelations(unittest.TestCase):
     """Test is_modifying_relations() logic."""
 
-    def test_relational_field_with_triggers(self):
+    def test_relational_field_with_triggers(self) -> None:
         g = ModelGraph()
         m2o = _field("partner_id", type_="many2one", relational=True)
         dep = _field("partner_name", is_stored_computed=True)
         g.add_trigger(m2o, (), [dep])
         self.assertTrue(g.is_modifying_relations(m2o))
 
-    def test_scalar_field_no_relational_deps(self):
+    def test_scalar_field_no_relational_deps(self) -> None:
         g = ModelGraph()
         scalar = _field("name")
         dep = _field("display_name", is_stored_computed=True)
@@ -415,7 +422,7 @@ class TestIsModifyingRelations(unittest.TestCase):
         # scalar with no relational deps → False
         self.assertFalse(g.is_modifying_relations(scalar))
 
-    def test_scalar_with_relational_dependent(self):
+    def test_scalar_with_relational_dependent(self) -> None:
         g = ModelGraph()
         scalar = _field("code")
         dep = _field("ref_id", relational=True)
@@ -423,7 +430,7 @@ class TestIsModifyingRelations(unittest.TestCase):
         # dep is relational → True
         self.assertTrue(g.is_modifying_relations(scalar))
 
-    def test_field_with_inverses(self):
+    def test_field_with_inverses(self) -> None:
         g = ModelGraph()
         m2o = _field("partner_id", type_="many2one", relational=True)
         o2m = _field("order_ids", type_="one2many", relational=True)
@@ -432,11 +439,11 @@ class TestIsModifyingRelations(unittest.TestCase):
         g._inverses[m2o] = (o2m,)
         self.assertTrue(g.is_modifying_relations(m2o))
 
-    def test_no_triggers_is_false(self):
+    def test_no_triggers_is_false(self) -> None:
         g = ModelGraph()
         self.assertFalse(g.is_modifying_relations(_field("x")))
 
-    def test_caches_result(self):
+    def test_caches_result(self) -> None:
         g = ModelGraph()
         m2o = _field("partner_id", type_="many2one", relational=True)
         dep = _field("total")
@@ -456,7 +463,7 @@ class TestIsModifyingRelations(unittest.TestCase):
 class TestTransitiveTriggers(unittest.TestCase):
     """Test that trigger trees compute the transitive closure correctly."""
 
-    def test_chain_a_to_b_to_c(self):
+    def test_chain_a_to_b_to_c(self) -> None:
         """A → B → C should produce a tree where A triggers both B and C."""
         g = ModelGraph()
         a = _field("a")
@@ -470,7 +477,7 @@ class TestTransitiveTriggers(unittest.TestCase):
         self.assertIn(b, all_deps)
         self.assertIn(c, all_deps)
 
-    def test_cycle_detection(self):
+    def test_cycle_detection(self) -> None:
         """Cycles in triggers should not cause infinite loops."""
         g = ModelGraph()
         a = _field("a")
@@ -482,7 +489,7 @@ class TestTransitiveTriggers(unittest.TestCase):
         tree = g.get_field_trigger_tree(a)
         self.assertTrue(tree)
 
-    def test_diamond_dependency(self):
+    def test_diamond_dependency(self) -> None:
         """A → B, A → C, B → D, C → D should yield D once."""
         g = ModelGraph()
         a = _field("a")
@@ -507,19 +514,19 @@ class TestTransitiveTriggers(unittest.TestCase):
 class TestConcatPaths(unittest.TestCase):
     """Test _concat_paths m2o→o2m cancellation."""
 
-    def test_simple_concat(self):
+    def test_simple_concat(self) -> None:
         a = _field("a")
         b = _field("b")
         result = _concat_paths((a,), (b,), {})
         self.assertEqual(result, (a, b))
 
-    def test_empty_concat(self):
+    def test_empty_concat(self) -> None:
         self.assertEqual(_concat_paths((), (), {}), ())
         a = _field("a")
         self.assertEqual(_concat_paths((a,), (), {}), (a,))
         self.assertEqual(_concat_paths((), (a,), {}), (a,))
 
-    def test_m2o_o2m_cancellation(self):
+    def test_m2o_o2m_cancellation(self) -> None:
         """A many2one followed by its inverse one2many should cancel."""
         m2o = _field(
             "partner_id",
@@ -539,7 +546,7 @@ class TestConcatPaths(unittest.TestCase):
         result = _concat_paths((m2o,), (o2m,), {})
         self.assertEqual(result, ())
 
-    def test_m2o_o2m_no_cancel_if_different_inverse(self):
+    def test_m2o_o2m_no_cancel_if_different_inverse(self) -> None:
         """Don't cancel if the o2m's inverse_name doesn't match the m2o's name."""
         m2o = _field(
             "partner_id",
@@ -559,7 +566,7 @@ class TestConcatPaths(unittest.TestCase):
         result = _concat_paths((m2o,), (o2m,), {})
         self.assertEqual(result, (m2o, o2m))
 
-    def test_m2o_o2m_no_cancel_if_different_models(self):
+    def test_m2o_o2m_no_cancel_if_different_models(self) -> None:
         """Don't cancel if the models don't match."""
         m2o = _field(
             "partner_id",
@@ -588,7 +595,7 @@ class TestConcatPaths(unittest.TestCase):
 class TestDiscardFields(unittest.TestCase):
     """Test removing fields from the graph."""
 
-    def test_discard_from_triggers(self):
+    def test_discard_from_triggers(self) -> None:
         g = ModelGraph()
         f = _field("price")
         t = _field("total")
@@ -596,14 +603,14 @@ class TestDiscardFields(unittest.TestCase):
         g.discard_fields([f])
         self.assertFalse(g.has_triggers(f))
 
-    def test_discard_from_depends(self):
+    def test_discard_from_depends(self) -> None:
         g = ModelGraph()
         f = _field("total")
         g._depends[f] = ("price",)
         g.discard_fields([f])
         self.assertNotIn(f, g.field_depends)
 
-    def test_discard_from_inverses_key(self):
+    def test_discard_from_inverses_key(self) -> None:
         g = ModelGraph()
         f = _field("partner_id")
         inv = _field("order_ids")
@@ -611,7 +618,7 @@ class TestDiscardFields(unittest.TestCase):
         g.discard_fields([f])
         self.assertNotIn(f, g.field_inverses)
 
-    def test_discard_from_inverses_value(self):
+    def test_discard_from_inverses_value(self) -> None:
         g = ModelGraph()
         f = _field("partner_id")
         inv = _field("order_ids")
@@ -620,7 +627,7 @@ class TestDiscardFields(unittest.TestCase):
         # f still exists but inv is filtered out of its tuple
         self.assertNotIn(f, g.field_inverses)  # empty tuple → removed
 
-    def test_discard_clears_caches(self):
+    def test_discard_clears_caches(self) -> None:
         g = ModelGraph()
         f = _field("price")
         t = _field("total")
@@ -638,34 +645,34 @@ class TestDiscardFields(unittest.TestCase):
 class TestCollector(unittest.TestCase):
     """Test the lightweight _Collector dict subclass."""
 
-    def test_missing_key_returns_empty_tuple(self):
+    def test_missing_key_returns_empty_tuple(self) -> None:
         c = _Collector()
         self.assertEqual(c["nonexistent"], ())
 
-    def test_setitem_stores_tuple(self):
+    def test_setitem_stores_tuple(self) -> None:
         c = _Collector()
         c["key"] = [1, 2, 3]
         self.assertEqual(c["key"], (1, 2, 3))
 
-    def test_setitem_removes_on_empty(self):
+    def test_setitem_removes_on_empty(self) -> None:
         c = _Collector()
         c["key"] = [1, 2]
         c["key"] = []
         self.assertNotIn("key", c)
 
-    def test_add_appends(self):
+    def test_add_appends(self) -> None:
         c = _Collector()
         c.add("key", "a")
         c.add("key", "b")
         self.assertEqual(c["key"], ("a", "b"))
 
-    def test_add_deduplicates(self):
+    def test_add_deduplicates(self) -> None:
         c = _Collector()
         c.add("key", "a")
         c.add("key", "a")
         self.assertEqual(c["key"], ("a",))
 
-    def test_discard_keys_and_values(self):
+    def test_discard_keys_and_values(self) -> None:
         c = _Collector()
         c["a"] = ("x", "y")
         c["b"] = ("x", "z")
@@ -675,32 +682,32 @@ class TestCollector(unittest.TestCase):
         self.assertEqual(c["a"], ("y",))  # value filtered
         self.assertEqual(c["b"], ("z",))
 
-    def test_discard_removes_empty_after_filter(self):
+    def test_discard_removes_empty_after_filter(self) -> None:
         c = _Collector()
         c["a"] = ("x",)
         c.discard_keys_and_values({"x"})
         self.assertNotIn("a", c)  # became empty → removed
 
-    def test_pop_works(self):
+    def test_pop_works(self) -> None:
         c = _Collector()
         c["key"] = ("val",)
         result = c.pop("key", None)
         self.assertEqual(result, ("val",))
         self.assertNotIn("key", c)
 
-    def test_clear_empties(self):
+    def test_clear_empties(self) -> None:
         c = _Collector()
         c["a"] = ("x",)
         c["b"] = ("y",)
         c.clear()
         self.assertEqual(len(c), 0)
 
-    def test_get_returns_default(self):
+    def test_get_returns_default(self) -> None:
         c = _Collector()
         self.assertEqual(c.get("missing"), None)
         self.assertEqual(c.get("missing", "default"), "default")
 
-    def test_iteration(self):
+    def test_iteration(self) -> None:
         c = _Collector()
         c["a"] = ("x",)
         c["b"] = ("y",)
@@ -715,26 +722,26 @@ class TestCollector(unittest.TestCase):
 class TestDataOwnership(unittest.TestCase):
     """Test that ModelGraph owns all field metadata collections."""
 
-    def test_inverses_are_collector(self):
+    def test_inverses_are_collector(self) -> None:
         g = ModelGraph()
         self.assertIsInstance(g._inverses, _Collector)
 
-    def test_depends_are_collector(self):
+    def test_depends_are_collector(self) -> None:
         g = ModelGraph()
         self.assertIsInstance(g._depends, _Collector)
 
-    def test_depends_context_are_collector(self):
+    def test_depends_context_are_collector(self) -> None:
         g = ModelGraph()
         self.assertIsInstance(g._depends_context, _Collector)
 
-    def test_properties_delegate_to_internals(self):
+    def test_properties_delegate_to_internals(self) -> None:
         g = ModelGraph()
         self.assertIs(g.field_inverses, g._inverses)
         self.assertIs(g.field_depends, g._depends)
         self.assertIs(g.field_depends_context, g._depends_context)
         self.assertIs(g.field_computed, g._computed)
 
-    def test_external_assignment_updates_property(self):
+    def test_external_assignment_updates_property(self) -> None:
         """Simulates what Registry.field_inverses cached_property does:
         build a new Collector and assign it to model_graph._inverses.
         """
@@ -747,7 +754,7 @@ class TestDataOwnership(unittest.TestCase):
         self.assertIs(g.field_inverses, new_inverses)
         self.assertEqual(g.field_inverses[f], (inv,))
 
-    def test_missing_key_returns_empty_tuple_via_property(self):
+    def test_missing_key_returns_empty_tuple_via_property(self) -> None:
         """Ensure property delegation preserves _Collector's __getitem__ behavior."""
         g = ModelGraph()
         f = _field("nonexistent")
@@ -764,11 +771,11 @@ class TestDataOwnership(unittest.TestCase):
 class TestRecomputeOrder(unittest.TestCase):
     """Test _compute_recompute_order() topological sorting via Kahn's algorithm."""
 
-    def _stored_computed(self, name, model="m"):
+    def _stored_computed(self, name: str, model: str = "m") -> MockField:
         """Create a mock field that looks like a stored computed field."""
         return _field(name, model=model, store=True, compute="_compute_" + name)
 
-    def test_linear_chain_ordering(self):
+    def test_linear_chain_ordering(self) -> None:
         """A → B → C: priority(A) < priority(B) < priority(C)."""
         g = ModelGraph()
         a = self._stored_computed("a")
@@ -781,7 +788,7 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertLess(order[a], order[b])
         self.assertLess(order[b], order[c])
 
-    def test_diamond_dependencies(self):
+    def test_diamond_dependencies(self) -> None:
         """A → B, A → C, B → D, C → D: A first, D last, B/C same level."""
         g = ModelGraph()
         a = self._stored_computed("a")
@@ -800,7 +807,7 @@ class TestRecomputeOrder(unittest.TestCase):
         # B and C should be at the same priority level
         self.assertEqual(order[b], order[c])
 
-    def test_cycle_gets_max_priority(self):
+    def test_cycle_gets_max_priority(self) -> None:
         """A → B → A (cycle): both get the highest priority."""
         g = ModelGraph()
         a = self._stored_computed("a")
@@ -814,13 +821,13 @@ class TestRecomputeOrder(unittest.TestCase):
         self.assertIn(b, order)
         self.assertEqual(order[a], order[b])
 
-    def test_empty_graph(self):
+    def test_empty_graph(self) -> None:
         """No triggers → empty order dict."""
         g = ModelGraph()
         order = g.recompute_order
         self.assertEqual(order, {})
 
-    def test_non_stored_fields_excluded(self):
+    def test_non_stored_fields_excluded(self) -> None:
         """Non-stored computed fields are not in the recompute order."""
         g = ModelGraph()
         source = self._stored_computed("source")
@@ -830,7 +837,7 @@ class TestRecomputeOrder(unittest.TestCase):
         order = g.recompute_order
         self.assertNotIn(non_stored, order)
 
-    def test_non_computed_fields_excluded(self):
+    def test_non_computed_fields_excluded(self) -> None:
         """Fields without compute are not in the recompute order."""
         g = ModelGraph()
         regular = _field("regular", store=True)  # no compute
@@ -843,7 +850,7 @@ class TestRecomputeOrder(unittest.TestCase):
         # target IS stored-computed, should be present
         self.assertIn(target, order)
 
-    def test_caching(self):
+    def test_caching(self) -> None:
         """recompute_order is computed once and cached."""
         g = ModelGraph()
         a = self._stored_computed("a")
@@ -854,7 +861,7 @@ class TestRecomputeOrder(unittest.TestCase):
         order2 = g.recompute_order
         self.assertIs(order1, order2)
 
-    def test_cache_cleared_on_clear_caches(self):
+    def test_cache_cleared_on_clear_caches(self) -> None:
         """clear_caches() invalidates the recompute order cache."""
         g = ModelGraph()
         a = self._stored_computed("a")
@@ -868,7 +875,7 @@ class TestRecomputeOrder(unittest.TestCase):
         # But values should be equal
         self.assertEqual(order1, order2)
 
-    def test_mixed_cycle_and_chain(self):
+    def test_mixed_cycle_and_chain(self) -> None:
         """A → B → C → B (cycle in B,C), A should be before B and C."""
         g = ModelGraph()
         a = self._stored_computed("a")

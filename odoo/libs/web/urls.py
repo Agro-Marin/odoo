@@ -47,9 +47,11 @@ def urljoin(base: str, extra: str) -> str:
         'https://api.example.com/data/?lang=fr'
     """
     if not isinstance(base, str):
-        raise TypeError("Base URL must be a string")
+        msg = "Base URL must be a string"
+        raise TypeError(msg)
     if not isinstance(extra, str):
-        raise TypeError("Extra URL must be a string")
+        msg = "Extra URL must be a string"
+        raise TypeError(msg)
 
     b_scheme, b_netloc, path, _, _ = urllib.parse.urlsplit(base)
     e_scheme, e_netloc, e_path, e_query, e_fragment = urllib.parse.urlsplit(extra)
@@ -61,8 +63,9 @@ def urljoin(base: str, extra: str) -> str:
             or (e_netloc != b_netloc)
             or not e_path.startswith(path)
         ):
+            msg = "Extra URL must use same scheme and host as base, and begin with base path"
             raise ValueError(
-                "Extra URL must use same scheme and host as base, and begin with base path"
+                msg
             )
 
         e_path = e_path.removeprefix(path)
@@ -79,6 +82,7 @@ def urljoin(base: str, extra: str) -> str:
     path = re.sub(r"/+", "/", path)
 
     if _contains_dot_segments(path):
-        raise ValueError("Dot segments are not allowed")
+        msg = "Dot segments are not allowed"
+        raise ValueError(msg)
 
     return urllib.parse.urlunsplit((b_scheme, b_netloc, path, e_query, e_fragment))

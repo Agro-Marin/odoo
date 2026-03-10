@@ -153,12 +153,19 @@ class ResPartner(models.Model):
                 values["type"] = None
         return values
 
+    company_id = fields.Many2one(
+        "res.company",
+        "Company",
+        index=True,
+    )
     name = fields.Char(index=True, default_export_compatible=True)
     complete_name = fields.Char(
         compute="_compute_complete_name",
         store=True,
         index=True,
     )
+    active = fields.Boolean(default=True)
+    color = fields.Integer(string="Color Index", default=0)
     parent_id = fields.Many2one(
         "res.partner",
         string="Related Company",
@@ -175,6 +182,29 @@ class ResPartner(models.Model):
         string="Contact",
         domain=[("active", "=", True)],
         context={"active_test": False},
+    )
+    # Warning: user_id is a Salesperson, not the inverse of partner_id in res.users.
+    # For the latter, see user_ids and main_user_id.
+    user_id: ResUsers = fields.Many2one(
+        "res.users",
+        string="Salesperson",
+        compute="_compute_user_id",
+        precompute=True,  # avoid queries post-create
+        readonly=False,
+        store=True,
+        help="The internal user in charge of this contact.",
+    )
+    category_id = fields.Many2many(
+        "res.partner.category",
+        column1="partner_id",
+        column2="category_id",
+        string="Tags",
+        default=_default_category,
+    )
+    barcode = fields.Char(
+        copy=False,
+        company_dependent=True,
+        help="Use a barcode to identify this contact.",
     )
     ref = fields.Char(string="Reference", index=True)
     lang = fields.Selection(
@@ -194,18 +224,9 @@ class ResPartner(models.Model):
         "If the timezone is not set, UTC (Coordinated Universal Time) is used.\n"
         "Anywhere else, time values are computed according to the time offset of your web client.",
     )
-
-    tz_offset = fields.Char(compute="_compute_tz_offset", string="Timezone offset")
-    # Warning: user_id is a Salesperson, not the inverse of partner_id in res.users.
-    # For the latter, see user_ids and main_user_id.
-    user_id: ResUsers = fields.Many2one(
-        "res.users",
-        string="Salesperson",
-        compute="_compute_user_id",
-        precompute=True,  # avoid queries post-create
-        readonly=False,
-        store=True,
-        help="The internal user in charge of this contact.",
+    tz_offset = fields.Char(
+        compute="_compute_tz_offset",
+        string="Timezone offset",
     )
     vat = fields.Char(
         string="Tax ID",
@@ -219,12 +240,6 @@ class ResPartner(models.Model):
     same_vat_partner_id = fields.Many2one(
         "res.partner",
         string="Partner with same Tax ID",
-        compute="_compute_same_vat_partner_id",
-        store=False,
-    )
-    same_company_registry_partner_id = fields.Many2one(
-        "res.partner",
-        string="Partner with same Company Registry",
         compute="_compute_same_vat_partner_id",
         store=False,
     )
@@ -243,26 +258,12 @@ class ResPartner(models.Model):
     company_registry_placeholder = fields.Char(
         compute="_compute_company_registry_placeholder",
     )
-    bank_ids = fields.One2many(
-        "res.partner.bank",
-        "partner_id",
-        string="Banks",
+    same_company_registry_partner_id = fields.Many2one(
+        "res.partner",
+        string="Partner with same Company Registry",
+        compute="_compute_same_vat_partner_id",
+        store=False,
     )
-    website = fields.Char("Website Link")
-    comment = fields.Html(string="Notes")
-
-    category_id = fields.Many2many(
-        "res.partner.category",
-        column1="partner_id",
-        column2="category_id",
-        string="Tags",
-        default=_default_category,
-    )
-    active = fields.Boolean(default=True)
-    employee = fields.Boolean(
-        help="Check this box if this contact is an Employee.",
-    )
-    function = fields.Char(string="Job Position")
     type = fields.Selection(
         [
             ("contact", "Contact"),
@@ -272,6 +273,13 @@ class ResPartner(models.Model):
         ],
         string="Address Type",
         default="contact",
+    )
+    # company_type is only an interface field, do not use it in business logic
+    company_type = fields.Selection(
+        string="Company Type",
+        selection=[("person", "Person"), ("company", "Company")],
+        compute="_compute_company_type",
+        inverse="_write_company_type",
     )
     type_address_label = fields.Char(
         "Address Type Description",
@@ -293,9 +301,19 @@ class ResPartner(models.Model):
         string="Country",
         ondelete="restrict",
     )
-    country_code = fields.Char(related="country_id.code", string="Country Code")
+    country_code = fields.Char(
+        related="country_id.code",
+        string="Country Code",
+    )
+    contact_address = fields.Char(
+        compute="_compute_contact_address",
+        string="Complete Address",
+    )
     partner_latitude = fields.Float(string="Geo Latitude", digits=(10, 7))
     partner_longitude = fields.Float(string="Geo Longitude", digits=(10, 7))
+    function = fields.Char(string="Job Position")
+    website = fields.Char("Website Link")
+    comment = fields.Html(string="Notes")
     email = fields.Char()
     email_formatted = fields.Char(
         "Formatted Email",
@@ -303,32 +321,10 @@ class ResPartner(models.Model):
         help='Format email address "Name <email@domain>"',
     )
     phone = fields.Char()
-    is_company = fields.Boolean(
-        string="Is a Company",
-        default=False,
-        help="Check if the contact is a company, otherwise it is a person",
-    )
-    is_public = fields.Boolean(
-        compute="_compute_is_public",
-        compute_sudo=True,
-    )
     industry_id = fields.Many2one(
         "res.partner.industry",
         "Industry",
     )
-    # company_type is only an interface field, do not use it in business logic
-    company_type = fields.Selection(
-        string="Company Type",
-        selection=[("person", "Person"), ("company", "Company")],
-        compute="_compute_company_type",
-        inverse="_write_company_type",
-    )
-    company_id = fields.Many2one(
-        "res.company",
-        "Company",
-        index=True,
-    )
-    color = fields.Integer(string="Color Index", default=0)
     user_ids: ResUsers = fields.One2many(
         "res.users",
         "partner_id",
@@ -342,16 +338,29 @@ class ResPartner(models.Model):
         help="There can be several users related to the same partner. "
         "When a single user is needed, this field attempts to find the most appropriate one.",
     )
+    bank_ids = fields.One2many(
+        "res.partner.bank",
+        "partner_id",
+        string="Banks",
+    )
+    is_company = fields.Boolean(
+        string="Is a Company",
+        default=False,
+        help="Check if the contact is a company, otherwise it is a person",
+    )
+    is_public = fields.Boolean(
+        compute="_compute_is_public",
+        compute_sudo=True,
+    )
+    employee = fields.Boolean(
+        help="Check this box if this contact is an Employee.",
+    )
     partner_share = fields.Boolean(
         "Share Partner",
         compute="_compute_partner_share",
         store=True,
         help="Either customer (not a user), either shared user. Indicated the current partner is a customer without "
         "access or with a limited access created for sharing data.",
-    )
-    contact_address = fields.Char(
-        compute="_compute_contact_address",
-        string="Complete Address",
     )
 
     # technical field used for managing commercial fields
@@ -369,11 +378,6 @@ class ResPartner(models.Model):
         store=True,
     )
     company_name = fields.Char("Company Name")
-    barcode = fields.Char(
-        help="Use a barcode to identify this contact.",
-        copy=False,
-        company_dependent=True,
-    )
 
     # hack to allow using plain browse record in qweb views, and used in ir.qweb.field.contact
     self = fields.Many2one(
@@ -383,6 +387,11 @@ class ResPartner(models.Model):
     application_statistics = fields.Json(
         string="Stats",
         compute="_compute_application_statistics",
+    )
+
+    _check_name = models.Constraint(
+        "CHECK( (type='contact' AND name IS NOT NULL) or (type!='contact') )",
+        "Contacts require a name",
     )
 
     def _compute_application_statistics(self) -> None:
@@ -395,11 +404,6 @@ class ResPartner(models.Model):
         cache accordingly. All overrides receive False instead of previously
         assigned value."""
         return defaultdict(list)
-
-    _check_name = models.Constraint(
-        "CHECK( (type='contact' AND name IS NOT NULL) or (type!='contact') )",
-        "Contacts require a name",
-    )
 
     def _get_street_split(self) -> dict[str, str]:
         self.ensure_one()
@@ -427,8 +431,10 @@ class ResPartner(models.Model):
 
     def _compute_avatar(self, avatar_field: str, image_field: str) -> None:
         partners_with_internal_user = self.filtered(
-            lambda partner: partner.user_ids - partner.user_ids.filtered("share")
-            or partner.type == "contact"
+            lambda partner: (
+                partner.user_ids - partner.user_ids.filtered("share")
+                or partner.type == "contact"
+            )
         )
         super(ResPartner, partners_with_internal_user)._compute_avatar(
             avatar_field, image_field
@@ -531,9 +537,11 @@ class ResPartner(models.Model):
     def _compute_user_id(self) -> None:
         """Synchronize sales rep with parent if partner is a person"""
         for partner in self.filtered(
-            lambda partner: not partner.user_id
-            and partner.company_type == "person"
-            and partner.parent_id.user_id
+            lambda partner: (
+                not partner.user_id
+                and partner.company_type == "person"
+                and partner.parent_id.user_id
+            )
         ):
             partner.user_id = partner.parent_id.user_id
 
@@ -604,9 +612,9 @@ class ResPartner(models.Model):
             )
         }
         if internal_partner_ids:
-            partners.filtered(lambda p: p.id in internal_partner_ids).partner_share = (
-                False
-            )
+            partners.filtered(
+                lambda p: p.id in internal_partner_ids
+            ).partner_share = False
 
     @api.depends(
         "vat",
@@ -907,11 +915,8 @@ class ResPartner(models.Model):
     def _convert_fields_to_values(self, field_names: list[str]) -> dict[str, Any]:
         """Returns dict of write() values for synchronizing ``field_names``"""
         if any(self._fields[fname].type == "one2many" for fname in field_names):
-            raise AssertionError(
-                _(
-                    "One2Many fields cannot be synchronized as part of `commercial_fields` or `address fields`"
-                )
-            )
+            msg = "One2Many fields cannot be synchronized as part of `commercial_fields` or `address fields`"
+            raise ValueError(msg)
         return self._convert_to_write({fname: self[fname] for fname in field_names})
 
     @api.model
@@ -933,7 +938,7 @@ class ResPartner(models.Model):
         return {}
 
     def _update_address(self, vals: dict[str, Any]) -> None:
-        """Filter values from vals that are liked to address definition, and
+        """Filter values from vals that are linked to address definition, and
         update recordset using super().write to avoid loops and side effects
         due to synchronization of address fields through partner hierarchy."""
         addr_vals = {key: vals[key] for key in self._address_fields() if key in vals}
@@ -972,7 +977,7 @@ class ResPartner(models.Model):
         return {}
 
     def _get_synced_commercial_values(self) -> dict[str, Any]:
-        """Get synchronized commercial values from ercord. Return only set values
+        """Get synchronized commercial values from record. Return only set values
         as for other commercial values."""
         set_synced_fields = [
             fname for fname in self._synced_commercial_fields() if self[fname]

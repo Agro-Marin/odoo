@@ -30,22 +30,22 @@ from odoo.tools.translate import (
     get_translation,
 )
 
-from ..components.core import OrmCore
-
 # Rust-accelerated rows→dicts conversion (see cursor.py for details).
 try:
     from odoo_rust import rows_to_dicts as _rows_to_dicts
 except ImportError:
     _rows_to_dicts = None
 from collections.abc import Collection, Iterator, MutableMapping
-from datetime import tzinfo
 
 from ..primitives import SUPERUSER_ID
 from .registry import Registry
 from .transaction import MAX_FIXPOINT_ITERATIONS, Transaction
 
 if typing.TYPE_CHECKING:
+    from datetime import tzinfo
+
     from .._typing import BaseModel, Field
+    from ..components.core import OrmCore
     from ..primitives import IdType, NewId
 
     M = typing.TypeVar("M", bound=BaseModel)
@@ -76,7 +76,9 @@ class Environment(Mapping[str, "BaseModel"]):
     def reset(self) -> None:
         """Reset the transaction, see :meth:`Transaction.reset`."""
         warnings.warn(
-            "Since 19.0, use directly `transaction.reset()`", DeprecationWarning, stacklevel=2
+            "Since 19.0, use directly `transaction.reset()`",
+            DeprecationWarning,
+            stacklevel=2,
         )
         self.transaction.reset()
 
@@ -583,9 +585,9 @@ class Environment(Mapping[str, "BaseModel"]):
         """Mark ``field`` to be computed on ``records``."""
         if not records:
             return
-        assert (
-            field.store and field.compute
-        ), "Cannot add to recompute no-store or no-computed field"
+        assert field.store and field.compute, (
+            "Cannot add to recompute no-store or no-computed field"
+        )
         self._core.schedule(field, records._ids)
 
     def remove_to_compute(self, field: Field, records: BaseModel) -> None:
@@ -686,9 +688,9 @@ class Environment(Mapping[str, "BaseModel"]):
         if not rows:
             return []
         description = self.cr.description
-        assert (
-            description is not None
-        ), "No cr.description, the executed query does not return a table."
+        assert description is not None, (
+            "No cr.description, the executed query does not return a table."
+        )
         cols = tuple(col.name for col in description)
         if _rows_to_dicts is not None:
             return _rows_to_dicts(cols, rows)

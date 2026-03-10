@@ -15,14 +15,14 @@ from odoo.orm.components.storage import DictBackend
 class TestCacheComputeLifecycle(unittest.TestCase):
     """Simulate a create → compute → flush lifecycle."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
         # Use strings as mock field keys
         self.name_field = "name"
         self.total_field = "total"  # stored computed
 
-    def test_create_triggers_compute(self):
+    def test_create_triggers_compute(self) -> None:
         """After creating a record, mark stored-computed fields for recomputation."""
         # Simulate _create: insert cache values
         self.cache.set_value(self.name_field, 1, "Alice")
@@ -35,7 +35,7 @@ class TestCacheComputeLifecycle(unittest.TestCase):
         self.assertTrue(self.engine.has_pending_field(self.total_field))
         self.assertEqual(self.cache.get_value(self.name_field, 1), "Alice")
 
-    def test_recompute_clears_pending(self):
+    def test_recompute_clears_pending(self) -> None:
         """After computing a field, mark it as done."""
         self.cache.set_value(self.total_field, 1, None)
         self.engine.schedule(self.total_field, [1])
@@ -48,7 +48,7 @@ class TestCacheComputeLifecycle(unittest.TestCase):
         self.assertFalse(self.engine.has_pending_field(self.total_field))
         self.assertEqual(self.cache.get_value(self.total_field, 1), 42.0)
 
-    def test_dirty_tracking_through_flush(self):
+    def test_dirty_tracking_through_flush(self) -> None:
         """Dirty fields are collected during flush and cleared after."""
         self.cache.set_value(self.name_field, 1, "Alice")
         self.cache.mark_dirty(self.name_field, [1])
@@ -60,7 +60,7 @@ class TestCacheComputeLifecycle(unittest.TestCase):
         # After pop, field is no longer dirty
         self.assertFalse(self.cache.has_dirty_field(self.name_field))
 
-    def test_protection_prevents_recompute(self):
+    def test_protection_prevents_recompute(self) -> None:
         """Protected fields are skipped during recomputation."""
         self.engine.schedule(self.total_field, [1, 2, 3])
 
@@ -81,7 +81,7 @@ class TestCacheComputeLifecycle(unittest.TestCase):
         # After popping, record 2 is no longer protected
         self.assertFalse(self.engine.is_protected(self.total_field, 2))
 
-    def test_invalidation_preserves_dirty(self):
+    def test_invalidation_preserves_dirty(self) -> None:
         """invalidate_all() clears non-dirty data but keeps dirty entries intact."""
         self.cache.set_value(self.name_field, 1, "Alice")
         self.cache.set_value(self.total_field, 1, 42.0)  # non-dirty
@@ -100,11 +100,11 @@ class TestCacheComputeLifecycle(unittest.TestCase):
 class TestCacheStorageRoundTrip(unittest.TestCase):
     """Test FieldCache + DictBackend for a full create-read-update-delete cycle."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.cache = FieldCache()
         self.storage = DictBackend()
 
-    def test_create_flush_read(self):
+    def test_create_flush_read(self) -> None:
         """Simulate: create in cache → flush to storage → read back."""
         # Create in cache
         self.cache.set_value("name", 1, "Alice")
@@ -129,7 +129,7 @@ class TestCacheStorageRoundTrip(unittest.TestCase):
         rows = self.storage.fetch_rows("partner", [1], ["name", "email"])
         self.assertEqual(rows, [("Alice", "alice@example.com")])
 
-    def test_update_flush(self):
+    def test_update_flush(self) -> None:
         """Simulate: update in cache → flush dirty to storage."""
         # Initial state in storage
         self.storage.insert_rows("partner", ["name"], [("Alice",)])
@@ -149,7 +149,7 @@ class TestCacheStorageRoundTrip(unittest.TestCase):
         self.assertEqual(rows, [("Alicia",)])
         self.assertFalse(self.cache.has_dirty_field("name"))
 
-    def test_x2many_patches(self):
+    def test_x2many_patches(self) -> None:
         """Test deferred x2many additions via cache patches."""
         # Parent record has cached child IDs
         self.cache.set_value("line_ids", 1, (10, 11))
@@ -166,11 +166,11 @@ class TestCacheStorageRoundTrip(unittest.TestCase):
 class TestMultiRecordCompute(unittest.TestCase):
     """Test multi-record scheduling and batch operations."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
 
-    def test_batch_schedule_and_compute(self):
+    def test_batch_schedule_and_compute(self) -> None:
         """Schedule multiple records, compute them in batch."""
         # Create 5 records with pending total computation
         for i in range(1, 6):
@@ -191,7 +191,7 @@ class TestMultiRecordCompute(unittest.TestCase):
         self.assertFalse(self.engine.has_pending())
         self.assertAlmostEqual(self.cache.get_value("total", 3), 34.8)
 
-    def test_nested_protection_scopes(self):
+    def test_nested_protection_scopes(self) -> None:
         """Nested protection scopes merge correctly and pop cleanly."""
         self.engine.push_protection()
         self.engine.protect("total", frozenset([1, 2]))
@@ -219,7 +219,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
     directly manipulate the component data structures.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         from collections import namedtuple
 
         from odoo.orm.components.unit_of_work import UnitOfWork
@@ -230,10 +230,10 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
         self.MockField = namedtuple("MockField", ["model_name", "name"])
         self.storage = DictBackend()
 
-    def _field(self, model, name):
+    def _field(self, model: str, name: str) -> object:
         return self.MockField(model, name)
 
-    def test_recompute_then_flush_lifecycle(self):
+    def test_recompute_then_flush_lifecycle(self) -> None:
         """Full lifecycle: schedule → recompute → dirty → flush → storage."""
         f_val = self._field("m", "val")
         f_double = self._field("m", "double")
@@ -273,7 +273,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
         self.assertEqual(row["val"], 5)
         self.assertEqual(row["double"], 10)
 
-    def test_cascading_recompute_converges(self):
+    def test_cascading_recompute_converges(self) -> None:
         """A→B→C compute chain converges within the loop."""
         f_a = self._field("m", "a")
         f_b = self._field("m", "b")
@@ -311,7 +311,7 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
 class TestRecomputeSchedulerIntegration(unittest.TestCase):
     """Test RecomputeScheduler with ComputeEngine for protection and cycle detection."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         from collections import namedtuple
 
         from odoo.orm.components.recompute import RecomputeScheduler
@@ -323,10 +323,16 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         )
         self.RecomputeScheduler = RecomputeScheduler
 
-    def _field(self, model, name, recursive=False, stored_computed=True):
+    def _field(
+        self,
+        model: str,
+        name: str,
+        recursive: bool = False,
+        stored_computed: bool = True,
+    ) -> object:
         return self.MockField(model, name, recursive, stored_computed)
 
-    def test_protection_subtracted_from_schedule(self):
+    def test_protection_subtracted_from_schedule(self) -> None:
         """Protected IDs are excluded from the recompute schedule."""
         f = self._field("m", "total")
         self.engine.push_protection()
@@ -339,7 +345,7 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         self.assertEqual(scheduler.to_recompute[f], {1, 4})
         self.engine.pop_protection()
 
-    def test_non_stored_routed_to_invalidate(self):
+    def test_non_stored_routed_to_invalidate(self) -> None:
         """Non-stored computed fields go to to_invalidate, not to_recompute."""
         f = self._field("m", "display_name", stored_computed=False)
 
@@ -350,7 +356,7 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
         self.assertEqual(len(scheduler.to_invalidate), 1)
         self.assertEqual(scheduler.to_invalidate[0], (f, frozenset({1, 2, 3})))
 
-    def test_recursive_cycle_detection(self):
+    def test_recursive_cycle_detection(self) -> None:
         """Recursive stored-computed field prevents re-scheduling already-marked IDs."""
         f = self._field("m", "parent_path", recursive=True, stored_computed=True)
 

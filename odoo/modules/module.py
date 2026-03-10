@@ -2,6 +2,7 @@ import ast
 import copy
 import functools
 import importlib
+import importlib.machinery
 import importlib.metadata
 import logging
 import os
@@ -16,6 +17,9 @@ import odoo.upgrade
 from odoo import release, tools
 
 import odoo.addons
+
+if typing.TYPE_CHECKING:
+    import types
 
 try:
     from packaging.requirements import InvalidRequirement, Requirement
@@ -42,7 +46,6 @@ __all__ = [
     "get_manifest",
     "get_module_path",
     "get_modules",
-    "get_modules_with_version",
     "get_resource_from_path",
     "initialize_sys_path",
     "load_odoo_module",
@@ -128,7 +131,12 @@ class UpgradeHook:
     multi-version upgrade scripts importing from the legacy name.
     """
 
-    def find_spec(self, fullname, path=None, target=None):
+    def find_spec(
+        self,
+        fullname: str,
+        path: typing.Any = None,
+        target: types.ModuleType | None = None,
+    ) -> importlib.machinery.ModuleSpec | None:
         if re.match(r"^odoo\.addons\.base\.maintenance\.migrations\b", fullname):
             # We can't trigger a DeprecationWarning in this case.
             # In order to be cross-versions, the multi-versions upgrade scripts (0.0.0 scripts),
@@ -137,11 +145,11 @@ class UpgradeHook:
             return importlib.util.spec_from_loader(fullname, self)
         return None
 
-    def create_module(self, spec):
+    def create_module(self, spec: importlib.machinery.ModuleSpec) -> None:
         """Use default module creation semantics."""
-        return None
+        return
 
-    def exec_module(self, module):
+    def exec_module(self, module: types.ModuleType) -> None:
         """Redirect import to the canonical odoo.upgrade module."""
         canonical_name = module.__name__.replace(
             "odoo.addons.base.maintenance.migrations", "odoo.upgrade"
@@ -191,8 +199,8 @@ def initialize_sys_path() -> None:
     # compact, scoped to the function, and called once during single-threaded startup.
     if not getattr(initialize_sys_path, "called", False):  # only initialize once
         odoo.addons.__path__._path_finder = lambda *a: None  # prevent path invalidation
-        odoo.upgrade.__path__._path_finder = (
-            lambda *a: None
+        odoo.upgrade.__path__._path_finder = lambda *a: (
+            None
         )  # prevent path invalidation
         sys.meta_path.insert(0, UpgradeHook())
         initialize_sys_path.called = True  # type: ignore
@@ -217,12 +225,12 @@ class Manifest(Mapping[str, typing.Any]):
         return str(p.parent)
 
     @functools.cached_property
-    def __manifest_cached(self) -> dict:
+    def __manifest_cached(self) -> dict[str, typing.Any]:
         """Parsed and validated manifest data from the file."""
         return _load_manifest(self.name, self.__manifest_content)
 
     @functools.cached_property
-    def description(self):
+    def description(self) -> str:
         """The description of the module defaulting to the README file."""
         if desc := self.__manifest_cached.get("description"):
             return desc
@@ -235,7 +243,7 @@ class Manifest(Mapping[str, typing.Any]):
         return ""
 
     @functools.cached_property
-    def version(self):
+    def version(self) -> str:
         try:
             return self.__manifest_cached["version"]
         except Exception:
@@ -253,7 +261,7 @@ class Manifest(Mapping[str, typing.Any]):
             return str(static)
         return None
 
-    def __getitem__(self, key: str):
+    def __getitem__(self, key: str) -> typing.Any:
         if key in (
             "description",
             "icon",
@@ -272,10 +280,10 @@ class Manifest(Mapping[str, typing.Any]):
         # structures, called once per module during startup).
         return copy.deepcopy(val)
 
-    def raw_value(self, key):
+    def raw_value(self, key: str) -> typing.Any:
         return copy.deepcopy(self.__manifest_cached.get(key))
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[str]:
         manifest = self.__manifest_cached
         yield from manifest
         for key in (
@@ -309,14 +317,14 @@ class Manifest(Mapping[str, typing.Any]):
                 msg = "Unable to find {dependency!r} in path"
                 raise MissingDependency(msg, binary)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return True
 
-    def __len__(self):
+    def __len__(self) -> int:
         # Reviewed 2026-03: O(n) with n≈30 keys — microseconds, rarely called.
         return sum(1 for _ in self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Manifest({self.name})"
 
     # limit cache size because this may get called from any module with any input
@@ -346,7 +354,7 @@ class Manifest(Mapping[str, typing.Any]):
         return None
 
     @staticmethod
-    def _from_path(path: str, env=None) -> Manifest | None:
+    def _from_path(path: str, env: typing.Any = None) -> Manifest | None:
         """Given a path, read the manifest file."""
         for manifest_name in MANIFEST_NAMES:
             try:
@@ -633,7 +641,7 @@ def check_version(version: str, should_raise: bool = True) -> bool:
 
 
 class MissingDependency(Exception):
-    def __init__(self, msg_template: str, dependency: str):
+    def __init__(self, msg_template: str, dependency: str) -> None:
         self.dependency = dependency
         super().__init__(msg_template.format(dependency=dependency))
 
@@ -670,7 +678,7 @@ def check_python_external_dependency(pydep: str) -> None:
         raise MissingDependency(msg, pydep)
 
 
-def load_script(path: str, module_name: str):
+def load_script(path: str, module_name: str) -> types.ModuleType:
     full_path = tools.file_path(path) if not Path(path).is_absolute() else path
     spec = importlib.util.spec_from_file_location(module_name, full_path)
     assert spec and spec.loader, f"spec not found for {module_name}"

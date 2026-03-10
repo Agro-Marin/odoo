@@ -12,7 +12,10 @@ from operator import itemgetter
 from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator, Reversible
+
     from .models.base import BaseModel
+    from .primitives import IdType
 
 
 # =============================================================================
@@ -20,7 +23,7 @@ if typing.TYPE_CHECKING:
 # =============================================================================
 
 
-def _origin_ids_python(ids):
+def _origin_ids_python(ids: Iterable) -> list[int]:
     """Extract origin IDs from any iterable of record IDs (pure Python)."""
     return [oid for id_ in ids if (oid := id_ or getattr(id_, "origin", None))]
 
@@ -28,7 +31,7 @@ def _origin_ids_python(ids):
 try:
     from odoo_rust import origin_ids as _origin_ids_rust  # type: ignore[import-untyped]
 
-    def _origin_ids(ids):
+    def _origin_ids(ids: Iterable) -> list[int]:
         """Extract origin IDs — Rust fast path for tuples, Python fallback."""
         if isinstance(ids, tuple):
             return _origin_ids_rust(ids)
@@ -50,13 +53,13 @@ class OriginIds:
 
     __slots__ = ["ids"]
 
-    def __init__(self, ids):
+    def __init__(self, ids: Reversible) -> None:
         self.ids = ids
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[int]:
         return iter(_origin_ids(self.ids))
 
-    def __reversed__(self):
+    def __reversed__(self) -> Iterator[int]:
         for id_ in reversed(self.ids):
             if id_ := id_ or getattr(id_, "origin", None):
                 yield id_
@@ -67,7 +70,7 @@ class OriginIds:
 # =============================================================================
 
 
-def itemgetter_tuple(items):
+def itemgetter_tuple(items: list | tuple) -> typing.Callable[[typing.Any], tuple]:
     """Create an itemgetter that always returns a tuple.
 
     Fixes itemgetter inconsistency of not returning a tuple if len(items) == 1:
@@ -80,11 +83,11 @@ def itemgetter_tuple(items):
         A callable that returns a tuple of values.
 
     Examples:
-        >>> getter = itemgetter_tuple(['a'])
-        >>> getter({'a': 1, 'b': 2})
+        >>> getter = itemgetter_tuple(["a"])
+        >>> getter({"a": 1, "b": 2})
         (1,)
-        >>> getter = itemgetter_tuple(['a', 'b'])
-        >>> getter({'a': 1, 'b': 2})
+        >>> getter = itemgetter_tuple(["a", "b"])
+        >>> getter({"a": 1, "b": 2})
         (1, 2)
     """
     if len(items) == 0:
@@ -121,7 +124,7 @@ def to_record_ids(arg) -> list[int]:
 
 
 def get_columns_from_sql_diagnostics(
-    cr, diagnostics, *, check_registry=False
+    cr: typing.Any, diagnostics: typing.Any, *, check_registry: bool = False
 ) -> list[str]:
     """Given the diagnostics of an error, return the affected column names by the constraint.
 
@@ -170,7 +173,10 @@ def get_columns_from_sql_diagnostics(
 # =============================================================================
 
 
-def check_company_domain_parent_of(self: BaseModel, companies):
+def check_company_domain_parent_of(
+    self: BaseModel,
+    companies: BaseModel | list[int] | int | str,
+) -> list:
     """A ``_check_company_domain`` function for single company_id fields.
 
     Lets a record be used if either:
@@ -209,7 +215,10 @@ def check_company_domain_parent_of(self: BaseModel, companies):
     ]
 
 
-def check_companies_domain_parent_of(self: BaseModel, companies):
+def check_companies_domain_parent_of(
+    self: BaseModel,
+    companies: BaseModel | list[int] | int | str,
+) -> list:
     """A ``_check_company_domain`` function for multi-company company_ids fields.
 
     Lets a record be used if any company in record.company_ids is a parent

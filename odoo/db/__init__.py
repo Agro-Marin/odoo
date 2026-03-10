@@ -94,7 +94,8 @@ def db_connect(to: str, allow_uri: bool = False, readonly: bool = False) -> Conn
 
     db, info = connection_info_for(to, readonly)
     if not allow_uri and db != to:
-        raise ValueError("URI connections not allowed")
+        msg = "URI connections not allowed"
+        raise ValueError(msg)
     return Connection(pool, db, info)
 
 
@@ -143,7 +144,7 @@ def drain_all() -> None:
 # from the cursor module, not a stale copy from import time.
 # Cost: ~100ns per access (string compare + cached module lookup).
 # Called ~1/request for metrics — negligible vs query time.
-def __getattr__(name):
+def __getattr__(name: str) -> int:
     if name == "sql_counter":
         from . import cursor
 

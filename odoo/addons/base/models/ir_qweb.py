@@ -3298,6 +3298,8 @@ class IrQweb(models.AbstractModel):
                 yield '<'
                 yield tagName
 
+                # Extract inline text content (used by import maps, bridge scripts)
+                text_content = asset_attrs.pop("text", None) if asset_attrs else None
                 attrs = self._post_processing_att(tagName, asset_attrs)
                 for name, value in attrs.items():
                     if value or isinstance(value, str):
@@ -3307,6 +3309,8 @@ class IrQweb(models.AbstractModel):
                     yield '/>'
                 else:
                     yield '>'
+                    if text_content:
+                        yield str(text_content)
                     yield '</'
                     yield tagName
                     yield '>'
@@ -3446,14 +3450,41 @@ class IrQweb(models.AbstractModel):
         """Generates asset nodes.
         If debug=assets, the assets will be regenerated when a file which composes them has been modified.
         Else, the assets will be generated only once and then stored in cache.
+
+        When native ESM modules are present (``@odoo-module native``), the output
+        includes an import map and a bridge ``<script type="module">`` that
+        pre-registers them before the legacy bundle executes.  The legacy bundle
+        gets ``defer`` to guarantee correct execution order.
         """
         media = (css and media) or None
         links = self._get_asset_links(
             bundle, css=css, js=js, debug=debug, autoprefix=autoprefix
         )
-        return self._links_to_nodes(
-            links, defer_load=defer_load, lazy_load=lazy_load, media=media
+
+        # Check for native ESM modules in this bundle
+        pre_nodes = []
+        post_nodes = []
+        has_native = False
+        if js:
+            pre_nodes, post_nodes = self._get_native_module_nodes(
+                bundle, debug=debug,
+            )
+            has_native = bool(pre_nodes)
+
+        # When native modules are present, the legacy bundle must be deferred
+        # so that all deferred/module scripts execute in document order:
+        # pre-nodes (OWL, import map, preloads) → bundle (defer) → bridge (module)
+        nodes = self._links_to_nodes(
+            links,
+            defer_load=defer_load or has_native,
+            lazy_load=lazy_load,
+            media=media,
         )
+
+        if has_native:
+            return pre_nodes + nodes + post_nodes
+
+        return nodes
 
     def _get_asset_links(
         self,
@@ -3663,6 +3694,155 @@ class IrQweb(models.AbstractModel):
             autoprefix=autoprefix,
         )
         return asset_bundle.get_links()
+
+    # URL of the OWL library for pre-loading before native ESM modules
+    _OWL_LIB_URL = "/web/static/lib/owl/owl.js"
+    _OWL_ESM_URL = "/web/static/lib/owl/owl_esm.js"
+
+    @tools.conditional(
+        "xml" not in tools.config["dev_mode"],
+        tools.ormcache(
+            "bundle",
+            "tuple(sorted(assets_params.items()))",
+            cache="assets",
+        ),
+    )
+    def _get_native_module_data_cached(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None = None,
+    ) -> dict:
+        """Fetch native module data for a bundle (cached in non-dev mode).
+
+        Returns the dict from ``AssetsBundle.get_native_module_data()``,
+        with sets converted to sorted tuples for cache serialization.
+        """
+        asset_bundle = self._get_asset_bundle(
+            bundle, js=True, css=False, debug_assets=False,
+            assets_params=assets_params,
+        )
+        data = asset_bundle.get_native_module_data()
+        # Convert sets to sorted tuples for ormcache compatibility
+        data["legacy_native_deps"] = tuple(sorted(data.get("legacy_native_deps", ())))
+        return data
+
+    def _get_native_module_nodes(
+        self,
+        bundle: str,
+        debug: str | bool = False,
+        assets_params: dict[str, Any] | None = None,
+    ) -> tuple[
+        list[tuple[str, dict[str, Any]]],
+        list[tuple[str, dict[str, Any]]],
+    ]:
+        """Generate import map, OWL pre-load, and bridge nodes for native ESM.
+
+        Returns a 2-tuple ``(pre_nodes, post_nodes)`` where:
+
+        * **pre_nodes** go BEFORE the legacy bundle:
+          1. ``<script src="owl.js">`` — non-deferred, sets ``window.owl``
+          2. ``<script type="importmap">`` with all specifier → URL mappings
+          3. ``<link rel="modulepreload">`` hints (production only)
+
+        * **post_nodes** go AFTER the legacy bundle:
+          4. ``<script type="module">`` bridge — imports native modules and
+             registers them in ``odoo.loader.modules`` via
+             ``registerNativeModules()``.  Runs after the bundle because
+             both ``defer`` and ``type="module"`` share the same deferred
+             execution queue in document order.
+        """
+        import json as json_mod
+
+        debug_assets = debug and "assets" in debug
+        if assets_params is None:
+            assets_params = self.env["ir.asset"]._get_asset_params()
+
+        if debug_assets:
+            # In debug mode, rebuild from scratch (no cache)
+            asset_bundle = self._get_asset_bundle(
+                bundle, js=True, css=False, debug_assets=True,
+                assets_params=assets_params,
+            )
+            native_data = asset_bundle.get_native_module_data()
+        else:
+            native_data = self._get_native_module_data_cached(
+                bundle, assets_params=assets_params,
+            )
+
+        if not native_data["import_map"]:
+            return [], []
+
+        pre_nodes = []
+        post_nodes = []
+        import_map = dict(native_data["import_map"])
+
+        # Add @odoo/owl ESM shim to the import map so native modules can
+        # `import { Component } from "@odoo/owl"`.  The shim reads from
+        # globalThis.owl which is set by the OWL UMD pre-load below.
+        import_map["@odoo/owl"] = self._OWL_ESM_URL
+
+        # 1. OWL pre-load: non-deferred script that runs immediately and
+        #    sets globalThis.owl BEFORE any module scripts are fetched.
+        #    The UMD is idempotent, so it's harmless that the legacy bundle
+        #    also contains owl.js (it just re-assigns the same properties).
+        pre_nodes.append(("script", {
+            "src": self._OWL_LIB_URL,
+        }))
+
+        # 2. Import map — MUST come before any <script type="module">
+        pre_nodes.append(("script", {
+            "type": "importmap",
+            "data-bundle": bundle,
+            "text": json_mod.dumps({"imports": import_map}, indent=2),
+        }))
+
+        # 3. Modulepreload hints for faster loading (skip in debug mode
+        #    to reduce noise and allow individual file debugging)
+        if not debug_assets:
+            for url in native_data["preload_urls"]:
+                pre_nodes.append(("link", {
+                    "rel": "modulepreload",
+                    "href": url,
+                }))
+
+        # Bridge — only needed when legacy modules depend on native
+        # modules (so require() can return their exports).
+        #
+        # Slim bridge: only import/register native modules that legacy
+        # modules actually depend on — all other native-to-native
+        # imports are resolved directly by the browser.
+        legacy_deps = native_data.get("legacy_native_deps", ())
+        bridge_specifiers = sorted(legacy_deps) if legacy_deps else []
+
+        # Names declaration — only declare specifiers that the bridge
+        # will register.  The loader uses these to suppress "missing
+        # dep" errors while waiting for the bridge.  Non-bridged native
+        # modules are invisible to the loader (browser handles them).
+        if bridge_specifiers:
+            names_js = (
+                "((globalThis.odoo ??= {}).__native_module_names__ ??= [])"
+                ".push(" + ",".join(json_mod.dumps(s) for s in bridge_specifiers) + ");"
+            )
+            pre_nodes.append(("script", {"text": names_js}))
+
+            # Slim bridge script
+            import_lines = []
+            register_entries = []
+            for i, specifier in enumerate(bridge_specifiers):
+                var = f"__m{i}"
+                import_lines.append(f'import * as {var} from "{specifier}";')
+                register_entries.append(f'  {json_mod.dumps(specifier)}: {var}')
+            bridge_code = "\n".join(import_lines) + "\n"
+            bridge_code += "odoo.loader.registerNativeModules({\n"
+            bridge_code += ",\n".join(register_entries)
+            bridge_code += "\n});"
+            post_nodes.append(("script", {
+                "type": "module",
+                "data-bridge": bundle,
+                "text": bridge_code,
+            }))
+
+        return pre_nodes, post_nodes
 
     def _get_asset_link_urls(self, bundle: str, debug: str | bool = False) -> list[str]:
         asset_nodes = self._get_asset_nodes(bundle, js=False, debug=debug)

@@ -220,8 +220,8 @@ def main(argv: list[str] | None = None) -> None:
         "--exclude",
         metavar="DIR",
         action="append",
-        default=["_vendor", "enterprise"],
-        help="Directory names to skip (default: _vendor, enterprise); repeatable",
+        default=["_vendor"],
+        help="Directory names to skip (default: _vendor); repeatable",
     )
     args = parser.parse_args(argv)
 

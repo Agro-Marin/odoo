@@ -14,7 +14,7 @@ from odoo.orm.components.unit_of_work import LoopResult, UnitOfWork
 _MockField = namedtuple("_MockField", ["model_name", "name"])
 
 
-def _field(model_name, name):
+def _field(model_name: str, name: str) -> _MockField:
     """Create a mock field key with model_name and name attributes."""
     return _MockField(model_name, name)
 
@@ -22,21 +22,21 @@ def _field(model_name, name):
 class TestDirtyModels(unittest.TestCase):
     """Test dirty model inspection."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
         self.uow = UnitOfWork(self.cache, self.engine)
 
-    def test_no_dirty(self):
+    def test_no_dirty(self) -> None:
         self.assertEqual(self.uow.dirty_models(), [])
 
-    def test_single_dirty_field(self):
+    def test_single_dirty_field(self) -> None:
         f = _field("sale.order", "amount_total")
         self.cache.set_value(f, 1, 100)
         self.cache.mark_dirty(f, [1])
         self.assertEqual(self.uow.dirty_models(), ["sale.order"])
 
-    def test_multiple_dirty_models(self):
+    def test_multiple_dirty_models(self) -> None:
         f1 = _field("sale.order", "amount")
         f2 = _field("account.move", "total")
         self.cache.set_value(f1, 1, 100)
@@ -48,7 +48,7 @@ class TestDirtyModels(unittest.TestCase):
         self.assertIn("sale.order", models)
         self.assertIn("account.move", models)
 
-    def test_unique_models(self):
+    def test_unique_models(self) -> None:
         f1 = _field("sale.order", "amount")
         f2 = _field("sale.order", "state")
         self.cache.set_value(f1, 1, 100)
@@ -57,7 +57,7 @@ class TestDirtyModels(unittest.TestCase):
         self.cache.mark_dirty(f2, [1])
         self.assertEqual(self.uow.dirty_models(), ["sale.order"])
 
-    def test_dirty_fields_list(self):
+    def test_dirty_fields_list(self) -> None:
         f = _field("sale.order", "amount")
         self.cache.set_value(f, 1, 100)
         self.cache.mark_dirty(f, [1])
@@ -67,20 +67,19 @@ class TestDirtyModels(unittest.TestCase):
 
 
 class TestHasPendingWork(unittest.TestCase):
-
-    def setUp(self):
+    def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
         self.uow = UnitOfWork(self.cache, self.engine)
 
-    def test_no_work(self):
+    def test_no_work(self) -> None:
         self.assertFalse(self.uow.has_pending_work())
 
-    def test_pending_compute(self):
+    def test_pending_compute(self) -> None:
         self.engine.schedule("total", [1])
         self.assertTrue(self.uow.has_pending_work())
 
-    def test_dirty_field(self):
+    def test_dirty_field(self) -> None:
         f = _field("m", "x")
         self.cache.set_value(f, 1, 1)
         self.cache.mark_dirty(f, [1])
@@ -90,36 +89,36 @@ class TestHasPendingWork(unittest.TestCase):
 class TestConvergenceDetection(unittest.TestCase):
     """Test convergence / stall detection methods."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
         self.uow = UnitOfWork(self.cache, self.engine)
 
-    def test_empty_snapshot(self):
+    def test_empty_snapshot(self) -> None:
         snap = self.uow.recompute_snapshot()
         self.assertEqual(snap, frozenset())
 
-    def test_snapshot_with_pending(self):
+    def test_snapshot_with_pending(self) -> None:
         f = _field("m", "total")
         self.engine.schedule(f, [1, 2, 3])
         snap = self.uow.recompute_snapshot()
         self.assertEqual(snap, frozenset({(f, 3)}))
 
-    def test_convergence_first_iteration(self):
+    def test_convergence_first_iteration(self) -> None:
         """First iteration (prev=None) always progresses."""
         snap = frozenset({("f", 3)})
         progressing, stalled = self.uow.check_convergence(None, snap)
         self.assertTrue(progressing)
         self.assertEqual(stalled, [])
 
-    def test_convergence_changed(self):
+    def test_convergence_changed(self) -> None:
         """Changed snapshot means progress."""
         prev = frozenset({("f", 3)})
         curr = frozenset({("f", 1)})
         progressing, _stalled = self.uow.check_convergence(prev, curr)
         self.assertTrue(progressing)
 
-    def test_convergence_stalled(self):
+    def test_convergence_stalled(self) -> None:
         """Same snapshot means stalled."""
         f = _field("m", "total")
         snap = frozenset({(f, 3)})
@@ -132,17 +131,17 @@ class TestConvergenceDetection(unittest.TestCase):
 class TestRunRecomputeLoop(unittest.TestCase):
     """Test the fixpoint recompute loop."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
         self.uow = UnitOfWork(self.cache, self.engine, max_iterations=10)
 
-    def test_no_pending(self):
+    def test_no_pending(self) -> None:
         result = self.uow.run_recompute_loop(lambda f: None)
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 0)
 
-    def test_single_field_converges(self):
+    def test_single_field_converges(self) -> None:
         f = _field("m", "total")
         self.engine.schedule(f, [1, 2])
 
@@ -155,7 +154,7 @@ class TestRunRecomputeLoop(unittest.TestCase):
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 1)
 
-    def test_cascading_compute(self):
+    def test_cascading_compute(self) -> None:
         """Field B depends on A — computing A schedules B."""
         f_a = _field("m", "subtotal")
         f_b = _field("m", "total")
@@ -175,7 +174,7 @@ class TestRunRecomputeLoop(unittest.TestCase):
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 2)
 
-    def test_max_iterations_non_convergent(self):
+    def test_max_iterations_non_convergent(self) -> None:
         """Non-convergent compute triggers max iterations."""
         f = _field("m", "cycle")
         self.engine.schedule(f, [1])
@@ -190,7 +189,7 @@ class TestRunRecomputeLoop(unittest.TestCase):
         self.assertFalse(result.converged)
         self.assertEqual(result.iterations, 3)
 
-    def test_only_real_ids_count(self):
+    def test_only_real_ids_count(self) -> None:
         """Fields with only falsy (new record) IDs don't count as pending."""
         f = _field("m", "total")
         self.engine.schedule(f, [0])  # falsy ID = new record
@@ -202,12 +201,12 @@ class TestRunRecomputeLoop(unittest.TestCase):
 class TestRunFlushLoop(unittest.TestCase):
     """Test the outer flush loop (recompute → flush → repeat)."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.cache = FieldCache()
         self.engine = ComputeEngine()
         self.uow = UnitOfWork(self.cache, self.engine, max_iterations=10)
 
-    def test_no_dirty(self):
+    def test_no_dirty(self) -> None:
         result = self.uow.run_flush_loop(
             recompute_fn=lambda f: None,
             flush_fn=lambda models: None,
@@ -215,7 +214,7 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 0)
 
-    def test_single_flush(self):
+    def test_single_flush(self) -> None:
         f = _field("sale.order", "amount")
         self.cache.set_value(f, 1, 100)
         self.cache.mark_dirty(f, [1])
@@ -233,7 +232,7 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertTrue(result.converged)
         self.assertEqual(flushed_models, ["sale.order"])
 
-    def test_flush_triggers_recompute(self):
+    def test_flush_triggers_recompute(self) -> None:
         """Flush can trigger new computations (via modified())."""
         f_amount = _field("sale.order", "amount")
         f_tax = _field("sale.order", "tax")
@@ -264,7 +263,7 @@ class TestRunFlushLoop(unittest.TestCase):
         self.assertTrue(result.converged)
         self.assertEqual(flush_count[0], 2)
 
-    def test_recompute_non_convergence_propagates(self):
+    def test_recompute_non_convergence_propagates(self) -> None:
         """If recompute loop doesn't converge, flush loop breaks early."""
         f = _field("m", "cycle")
         self.engine.schedule(f, [1])
@@ -293,7 +292,7 @@ class TestRunFlushLoop(unittest.TestCase):
 class TestLoopResult(unittest.TestCase):
     """Test LoopResult dataclass."""
 
-    def test_defaults(self):
+    def test_defaults(self) -> None:
         r = LoopResult()
         self.assertEqual(r.iterations, 0)
         self.assertTrue(r.converged)

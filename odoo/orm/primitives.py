@@ -30,15 +30,15 @@ class NewId:
 
     __slots__ = ("origin", "ref", "__hash")  # noqa: RUF023
 
-    def __init__(self, origin=None, ref=None):
+    def __init__(self, origin: int | None = None, ref: typing.Any = None) -> None:
         self.origin = origin
         self.ref = ref
         self.__hash = hash(origin or ref or id(self))
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return False
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if self is other:
             return True
         return isinstance(other, NewId) and (
@@ -46,10 +46,10 @@ class NewId:
             or (self.ref and other.ref and self.ref == other.ref)
         )
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self.__hash
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if isinstance(other, NewId):
             other = other.origin
             if other is None:
@@ -58,14 +58,14 @@ class NewId:
             return self.origin is not None and self.origin < other
         return NotImplemented
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.origin:
             return f"<NewId origin={self.origin!r}>"
         if self.ref:
             return f"<NewId ref={self.ref!r}>"
         return f"<NewId 0x{id(self):x}>"
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.origin or self.ref:
             id_part = repr(self.origin or self.ref)
         else:
@@ -257,9 +257,6 @@ NO_ACCESS = "."
 # Batch Size Constants
 # =============================================================================
 
-# Batch size for recalculating stored fields during auto_init
-AUTOINIT_RECALCULATE_STORED_FIELDS = 1000
-
 # Batch size for INSERT operations
 INSERT_BATCH_SIZE = 100
 
@@ -273,7 +270,6 @@ UPDATE_BATCH_SIZE = 100
 
 __all__ = [
     # Batch Constants
-    "AUTOINIT_RECALCULATE_STORED_FIELDS",
     "COLLECTION_TYPES",
     "INSERT_BATCH_SIZE",
     # Column Constants

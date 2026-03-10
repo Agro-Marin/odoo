@@ -23,7 +23,7 @@ READONLY = re.compile(r"\breadonly\b")
 IGNORED_IN_EXPRESSION = {
     "True",
     "False",
-    "None",  # those are identifiers in Python 2.7
+    "None",  # included for completeness alongside True and False
     "self",
     "uid",
     "context",
@@ -51,7 +51,7 @@ DOMAIN_OPERATORS = {
 }
 
 
-def get_domain_value_names(domain):
+def get_domain_value_names(domain: list | str) -> tuple[set[str], set[str]]:
     """Return all field name used by this domain
     eg: [
             ('id', 'in', [1, 2, 3]),
@@ -167,7 +167,8 @@ def get_domain_value_names(domain):
                 extract_from_domain(item_ast)
 
     except ValueError:
-        raise ValueError("Wrong domain formatting.") from None
+        msg = "Wrong domain formatting."
+        raise ValueError(msg) from None
 
     value_names = set()
     for name in contextual_values:
@@ -179,7 +180,7 @@ def get_domain_value_names(domain):
     return field_names, value_names
 
 
-def _get_expression_contextual_values(item_ast):
+def _get_expression_contextual_values(item_ast: ast.AST) -> set[str]:
     """Return all contextual value this ast
 
     eg: ast from '''(
@@ -255,7 +256,7 @@ def _get_expression_contextual_values(item_ast):
     raise ValueError(f"Undefined item {item_ast!r}.")
 
 
-def get_expression_field_names(expression):
+def get_expression_field_names(expression: str) -> set[str]:
     """Return all field name used by this expression
 
     eg: expression = '''(
@@ -288,7 +289,7 @@ def get_expression_field_names(expression):
     return value_names
 
 
-def get_dict_asts(expr):
+def get_dict_asts(expr: str | ast.AST) -> dict[str, ast.AST]:
     """Check that the given string or AST node represents a dict expression
     where all keys are string literals, and return it as a dict mapping string
     keys to the AST of values.
@@ -297,21 +298,23 @@ def get_dict_asts(expr):
         expr = ast.parse(expr.strip(), mode="eval").body
 
     if not isinstance(expr, ast.Dict):
-        raise ValueError("Non-dict expression")
+        msg = "Non-dict expression"
+        raise ValueError(msg)
     if not all(
         (isinstance(key, ast.Constant) and isinstance(key.value, str))
         for key in expr.keys
     ):
-        raise ValueError("Non-string literal dict key")
+        msg = "Non-string literal dict key"
+        raise ValueError(msg)
     return {key.value: val for key, val in zip(expr.keys, expr.values, strict=False)}
 
 
-def _check(condition, explanation):
+def _check(condition: object, explanation: str) -> None:
     if not condition:
         raise ValueError("Expression is not a valid domain: %s" % explanation)
 
 
-def valid_view(arch, **kwargs):
+def valid_view(arch: etree._Element, **kwargs: object) -> bool:
     for pred in _validators[arch.tag]:
         check = pred(arch, **kwargs)
         if not check:
@@ -320,7 +323,7 @@ def valid_view(arch, **kwargs):
     return True
 
 
-def validate(*view_types):
+def validate(*view_types: str) -> object:
     """Registers a view-validation function for the specific view types"""
 
     def decorator(fn):
@@ -331,7 +334,7 @@ def validate(*view_types):
     return decorator
 
 
-def relaxng(view_type):
+def relaxng(view_type: str) -> etree.RelaxNG | None:
     """Return a validator for the given view type, or None."""
     if view_type not in _relaxng_cache:
         with tools.file_open(str(Path("base", "rng", f"{view_type}_view.rng"))) as frng:

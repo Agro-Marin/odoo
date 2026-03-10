@@ -11,16 +11,27 @@ The following code adds a bunch of dummy elements for the missing roles
 and directives, so docutils is able to parse them with no warning.
 """
 
+from typing import Any
+
 import docutils.nodes
 import docutils.parsers.rst.directives.admonitions
+import docutils.parsers.rst.states
 
 
-def _role_literal(name, rawtext, text, lineno, inliner, options=None, content=None):
+def _role_literal(
+    name: str,
+    rawtext: str,
+    text: str,
+    lineno: int,
+    inliner: docutils.parsers.rst.states.Inliner,
+    options: dict[str, Any] | None = None,
+    content: list[str] | None = None,
+) -> tuple[list[docutils.nodes.Node], list[docutils.nodes.system_message]]:
     literal = docutils.nodes.literal(rawtext, text)
     return [literal], []
 
 
-def patch_module():
+def patch_module() -> None:
     for role in (
         "attr",
         "class",

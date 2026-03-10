@@ -1,18 +1,14 @@
 import re
-from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from lxml import etree
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
 # Pre-compiled regex for XML-invalid control character removal
 _CONTROL_CHAR_RE = re.compile(
-    "[^"
-    "\u0009"
-    "\u000a"
-    "\u000d"
-    "\u0020-\ud7ff"
-    "\ue000-\ufffd"
-    "\U00010000-\U0010ffff"
-    "]".encode()
+    "[^\u0009\u000a\u000d\u0020-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]".encode()
 )
 
 

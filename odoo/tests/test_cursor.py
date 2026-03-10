@@ -1,9 +1,12 @@
-import threading
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 import odoo
 from odoo.db import BaseCursor, Cursor, Savepoint
 from odoo.db.cursor import _logger
+
+if TYPE_CHECKING:
+    import threading
 
 
 class TestCursor(BaseCursor):
@@ -30,7 +33,7 @@ class TestCursor(BaseCursor):
 
     _cursors_stack: list[TestCursor] = []
 
-    def __init__(self, cursor: Cursor, lock: threading.RLock, readonly: bool):
+    def __init__(self, cursor: Cursor, lock: threading.RLock, readonly: bool) -> None:
         assert isinstance(cursor, BaseCursor)
         super().__init__()
         self._now: datetime | None = None
@@ -60,7 +63,8 @@ class TestCursor(BaseCursor):
         # savepoint at its last commit, the savepoint is created lazily
         self._savepoint: Savepoint | None = None
 
-    def _check_cursor_readonly(self):
+    def _check_cursor_readonly(self) -> None:
+        """Raise if opening a read/write cursor from within a readonly one."""
         last_cursor = self._cursors_stack and self._cursors_stack[-1]
         if (
             last_cursor
@@ -71,6 +75,7 @@ class TestCursor(BaseCursor):
             raise Exception("Opening a read/write test cursor from a readonly one")
 
     def _check_savepoint(self) -> None:
+        """Create the internal savepoint lazily on first use."""
         if not self._savepoint:
             # we use self._cursor._obj for the savepoint to avoid having the
             # savepoint queries in the query counts, profiler, ...
@@ -82,12 +87,14 @@ class TestCursor(BaseCursor):
                     "SET TRANSACTION READ ONLY"
                 )  # use _obj to avoid impacting query count and profiler.
 
-    def execute(self, *args, **kwargs) -> None:
+    def execute(self, *args: Any, **kwargs: Any) -> None:
+        """Execute a query, creating the savepoint if needed."""
         assert not self._closed, "Cannot use a closed cursor"
         self._check_savepoint()
         return self._cursor.execute(*args, **kwargs)
 
     def close(self) -> None:
+        """Roll back to the savepoint and release the lock."""
         if not self._closed:
             try:
                 self.rollback()
@@ -106,7 +113,7 @@ class TestCursor(BaseCursor):
                 self._lock.release()
 
     def commit(self) -> None:
-        """Perform an SQL `COMMIT`"""
+        """Perform an SQL ``COMMIT``."""
         self.flush()
         if self._savepoint:
             self._savepoint.close(rollback=self.readonly)
@@ -117,7 +124,7 @@ class TestCursor(BaseCursor):
         self.postcommit.clear()  # TestCursor ignores post-commit hooks by default
 
     def rollback(self) -> None:
-        """Perform an SQL `ROLLBACK`"""
+        """Perform an SQL ``ROLLBACK``."""
         self.clear()
         self.postcommit.clear()
         self.prerollback.run()
@@ -126,17 +133,19 @@ class TestCursor(BaseCursor):
             self._savepoint = None
         self.postrollback.run()
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._cursor, name)
 
-    def dictfetchone(self):
+    def dictfetchone(self) -> dict | None:
         """Return the first row as a dict (column_name -> value) or None if no rows are available."""
         return self._cursor.dictfetchone()
 
-    def dictfetchmany(self, size):
+    def dictfetchmany(self, size: int) -> list[dict]:
+        """Return the next ``size`` rows as a list of dicts."""
         return self._cursor.dictfetchmany(size)
 
-    def dictfetchall(self):
+    def dictfetchall(self) -> list[dict]:
+        """Return all remaining rows as a list of dicts."""
         return self._cursor.dictfetchall()
 
     def now(self) -> datetime:

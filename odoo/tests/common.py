@@ -30,7 +30,6 @@ import traceback
 import unittest
 import warnings
 from collections import defaultdict, deque
-from collections.abc import Iterable
 from concurrent.futures import CancelledError, Future, InvalidStateError, wait
 from contextlib import ExitStack, contextmanager
 from copy import deepcopy
@@ -38,7 +37,7 @@ from datetime import datetime
 from functools import lru_cache, partial, wraps
 from itertools import islice, zip_longest
 from textwrap import shorten
-from typing import cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest import TestResult
 from unittest.mock import Mock, _patch, patch
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
@@ -70,6 +69,7 @@ from odoo.tools import (
     mute_logger,
     profiler,
 )
+from odoo.tools.cache import _COUNTERS, ormcache_counter
 from odoo.tools.mail import single_email_re
 from odoo.tools.misc import find_in_path, lower_logging
 from odoo.tools.password import CryptContext
@@ -77,7 +77,11 @@ from odoo.tools.xml_utils import _validate_xml
 
 import odoo.addons.base
 from . import case, test_cursor
-from .result import OdooTestResult
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator, Iterable
+
+    from .result import OdooTestResult
 
 try:
     import websocket
@@ -96,6 +100,19 @@ else:
         "Importing test framework",
         stack_info=_logger.isEnabledFor(logging.DEBUG),
     )
+
+
+def get_cache_key_counter(bound_method, *args, **kwargs):
+    """Return the cache, key and stat counter for the given call.
+
+    Test utility for inspecting ORM cache internals (hit/miss counters).
+    """
+    model = bound_method.__self__
+    ormcache_instance = bound_method.__cache__
+    cache = model.pool._Registry__caches[ormcache_instance.cache_name]
+    key = ormcache_instance.key(model, *args, **kwargs)
+    counter = _COUNTERS[model.pool.db_name, ormcache_instance.method]
+    return cache, key, counter
 
 
 # The odoo library is supposed already configured.
@@ -119,7 +136,8 @@ IGNORED_MSGS = re.compile(
 ).search
 
 
-def get_db_name():
+def get_db_name() -> str:
+    """Return the configured test database name."""
     dbnames = odoo.tools.config["db_name"]
     # If the database name is not provided on the command-line,
     # use the one on the thread (which means if it is provided on
@@ -139,7 +157,8 @@ standalone_tests = defaultdict(list)
 
 class RegistryRLock(threading._RLock):
     @property
-    def count(self):
+    def count(self) -> int:
+        """Expose the private reentrant lock acquisition count."""
         return self._count  # Expose private attribute
 
 
@@ -150,8 +169,8 @@ _registry_test_lock.acquire()
 
 
 @contextmanager
-def release_test_lock():
-    """Releases the test lock in a context manager, the lock is acquired once the context is over."""
+def release_test_lock() -> Generator[None]:
+    """Release the test lock in a context manager; reacquire when done."""
     try:
         _registry_test_lock.release()
         yield
@@ -161,14 +180,14 @@ def release_test_lock():
             exit(f"Could not re-acquire the registry lock during {tag}, exiting...")
 
 
-def standalone(*tags):
+def standalone(*tags: str) -> Callable[[Callable], Callable]:
     """Decorator for standalone test functions.  This is somewhat dedicated to
     tests that install, upgrade or uninstall some modules, which is currently
     forbidden in regular test cases.  The function is registered under the given
     ``tags`` and the corresponding Odoo module name.
     """
 
-    def register(func):
+    def register(func: Callable) -> Callable:
         # register func by odoo module name
         if func.__module__.startswith("odoo.addons."):
             module = func.__module__.split(".")[2]
@@ -246,32 +265,39 @@ def new_test_user(env, login="", groups="base.group_user", context=None, **kwarg
     return env["res.users"].with_context(**context).create(create_values)
 
 
-def loaded_demo_data(env):
+def loaded_demo_data(env: api.Environment) -> bool:
+    """Return whether demo data is loaded in the given environment."""
     return bool(env.ref("base.user_demo", raise_if_not_found=False))
 
 
 class RecordCapturer:
-    def __init__(self, model, domain=None):
+    """Context manager that captures records created within its scope."""
+
+    def __init__(self, model: Any, domain: list | None = None) -> None:
         self._model = model
         self._domain = domain or []
 
-    def __enter__(self):
+    def __enter__(self) -> RecordCapturer:
         self._before = self._model.search(self._domain, order="id")
         self._after = None
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(
+        self, exc_type: type | None, exc_value: BaseException | None, exc_traceback: Any
+    ) -> None:
         if exc_type is None:
             self._after = self._model.search(self._domain, order="id") - self._before
 
     @property
-    def records(self):
+    def records(self) -> Any:
+        """Return the records created within this context."""
         if self._after is None:
             return self._model.search(self._domain, order="id") - self._before
         return self._after
 
 
-def _enter_context(cm, addcleanup):
+def _enter_context(cm: Any, addcleanup: Callable) -> Any:
+    """Enter a context manager and register its __exit__ as a cleanup function."""
     # We look up the special methods on the type to match the with
     # statement.
     cls = type(cm)
@@ -287,15 +313,14 @@ def _enter_context(cm, addcleanup):
     return result
 
 
-def _normalize_arch_for_assert(arch_string, parser_method="xml"):
-    """Takes some xml and normalize it to make it comparable to other xml
-    in particular, blank text is removed, and the output is pretty-printed
+def _normalize_arch_for_assert(arch_string: str, parser_method: str = "xml") -> str:
+    """Normalize XML arch for assertion comparison.
 
-    :param str arch_string: the string representing an XML arch
-    :param str parser_method: an string representing which lxml.Parser class to use
-        when normalizing both archs. Takes either "xml" or "html"
+    Removes blank text and pretty-prints the output.
+
+    :param arch_string: the string representing an XML arch
+    :param parser_method: which lxml.Parser class to use — ``"xml"`` or ``"html"``
     :return: the normalized arch
-    :rtype str:
     """
     Parser = None
     if parser_method == "xml":
@@ -323,8 +348,8 @@ class BaseCase(case.TestCase):
     env: api.Environment = None
     cr: Cursor = None
 
-    def __init_subclass__(cls):
-        """Assigns default test tags ``standard`` and ``at_install`` to test
+    def __init_subclass__(cls) -> None:
+        """Assign default test tags ``standard`` and ``at_install`` to test
         cases not having them. Also sets a completely unnecessary
         ``test_module`` attribute.
         """
@@ -339,14 +364,13 @@ class BaseCase(case.TestCase):
     )
     warm = True  # False during warm-up phase (see :func:`warmup`)
 
-
     _tests_run_count = int(os.environ.get("ODOO_TEST_FAILURE_RETRIES", 0)) + 1
 
     _registry_patched = False
     _registry_readonly_enabled = True
     test_cursor_lock_timeout: int = 20
 
-    def __init__(self, methodName="runTest"):
+    def __init__(self, methodName: str = "runTest") -> None:
         super().__init__(methodName)
         self.addTypeEqualityFunc(etree._Element, self.assertTreesEqual)
         self.addTypeEqualityFunc(html.HtmlElement, self.assertTreesEqual)
@@ -378,7 +402,7 @@ class BaseCase(case.TestCase):
         )
         raise BlockedRequest(f"External requests verboten (was {r.method} {r.url})")
 
-    def run(self, result: OdooTestResult) -> None:
+    def run(self, result: OdooTestResult) -> None:  # type: ignore[override]
         testMethod = getattr(self, self._testMethodName)
 
         if getattr(testMethod, "_retry", True) and getattr(self, "_retry", True):
@@ -407,8 +431,8 @@ class BaseCase(case.TestCase):
                     BaseCase._tests_run_count = 1
 
     @classmethod
-    def setUpClass(cls):
-        def check_remaining_processes():
+    def setUpClass(cls) -> None:
+        def check_remaining_processes() -> None:
             current_process = psutil.Process()
             children = current_process.children(recursive=False)
             for child in children:
@@ -436,6 +460,7 @@ class BaseCase(case.TestCase):
             """Shut down the dart:sass subprocess before child-process check."""
             try:
                 from odoo.tools.sass_embedded import close_sass_compiler
+
                 close_sass_compiler()
             except ImportError:
                 pass
@@ -457,12 +482,13 @@ class BaseCase(case.TestCase):
             patcher.start()
             cls.addClassCleanup(patcher.stop)
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.http_request_key: str = ""
         self.http_request_allow_all: bool = False
 
-    def cursor(self):
+    def cursor(self) -> Cursor:
+        """Return a new cursor from the test registry."""
         return self.registry.cursor()
 
     @property
@@ -477,9 +503,10 @@ class BaseCase(case.TestCase):
         # set the updated environment as the default one
         self.env.transaction.default_env = self.env
 
-    def ref(self, xid):
-        """Returns database ID for the provided :term:`external identifier`,
-        shortcut for ``_xmlid_lookup``
+    def ref(self, xid: str) -> int:
+        """Return database ID for the provided :term:`external identifier`.
+
+        Shortcut for ``_xmlid_lookup``.
 
         :param xid: fully-qualified :term:`external identifier`, in the form
                     :samp:`{module}.{identifier}`
@@ -488,46 +515,47 @@ class BaseCase(case.TestCase):
         """
         return self.browse_ref(xid).id
 
-    def browse_ref(self, xid):
-        """Returns a record object for the provided
-        :term:`external identifier`
+    def browse_ref(self, xid: str) -> Any:
+        """Return a record object for the provided :term:`external identifier`.
 
         :param xid: fully-qualified :term:`external identifier`, in the form
                     :samp:`{module}.{identifier}`
         :raise: ValueError if not found
         :returns: :class:`~odoo.models.BaseModel`
         """
-        assert (
-            "." in xid
-        ), "this method requires a fully qualified parameter, in the following form: 'module.identifier'"
+        assert "." in xid, (
+            "this method requires a fully qualified parameter, in the following form: 'module.identifier'"
+        )
         return self.env.ref(xid)
 
-    def patch(self, obj, key, val):
+    def patch(self, obj: Any, key: str, val: Any) -> None:
         """Do the patch ``setattr(obj, key, val)``, and prepare cleanup."""
         patcher = patch.object(obj, key, val)  # this is unittest.mock.patch
         patcher.start()
         self.addCleanup(patcher.stop)
 
     @classmethod
-    def classPatch(cls, obj, key, val):
+    def classPatch(cls, obj: Any, key: str, val: Any) -> None:
         """Do the patch ``setattr(obj, key, val)``, and prepare cleanup."""
         patcher = patch.object(obj, key, val)  # this is unittest.mock.patch
         patcher.start()
         cls.addClassCleanup(patcher.stop)
 
-    def startPatcher(self, patcher):
+    def startPatcher(self, patcher: Any) -> Any:
+        """Start a patcher and register its stop as a cleanup."""
         mock = patcher.start()
         self.addCleanup(patcher.stop)
         return mock
 
     @classmethod
-    def startClassPatcher(cls, patcher):
+    def startClassPatcher(cls, patcher: Any) -> Any:
+        """Start a class-level patcher and register its stop as a class cleanup."""
         mock = patcher.start()
         cls.addClassCleanup(patcher.stop)
         return mock
 
-    def enterContext(self, cm):
-        """Enters the supplied context manager.
+    def enterContext(self, cm: Any) -> Any:
+        """Enter the supplied context manager.
 
         If successful, also adds its __exit__ method as a cleanup
         function and returns the result of the __enter__ method.
@@ -535,12 +563,12 @@ class BaseCase(case.TestCase):
         return _enter_context(cm, self.addCleanup)
 
     @classmethod
-    def enterClassContext(cls, cm):
+    def enterClassContext(cls, cm: Any) -> Any:
         """Same as enterContext, but class-wide."""
         return _enter_context(cm, cls.addClassCleanup)
 
     @contextmanager
-    def with_user(self, login):
+    def with_user(self, login: str) -> Generator[None]:
         """Change user for a given test, like with self.with_user() ..."""
         old_uid = self.uid
         old_env = self.env
@@ -557,7 +585,7 @@ class BaseCase(case.TestCase):
             self.env = old_env
 
     @contextmanager
-    def debug_mode(self):
+    def debug_mode(self) -> Generator[None]:
         """Enable the effects of debug mode (in particular for group ``base.group_no_one``)."""
         request = Mock(
             httprequest=Mock(host="localhost"),
@@ -578,7 +606,9 @@ class BaseCase(case.TestCase):
                 raise Exception("Wrong request stack cleanup.")
 
     @contextmanager
-    def _assertRaises(self, exception, *, msg=None):
+    def _assertRaises(
+        self, exception: type[BaseException], *, msg: str | None = None
+    ) -> Generator[Any]:
         """Context manager that clears the environment upon failure."""
         with ExitStack() as init:
             if self.env:
@@ -600,7 +630,14 @@ class BaseCase(case.TestCase):
 
                 yield cm
 
-    def assertRaises(self, exception, func=None, *args, **kwargs):
+    def assertRaises(
+        self,
+        exception: type[BaseException],
+        func: Callable | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Assert that an exception is raised, clearing the env on failure."""
         if func:
             with self._assertRaises(exception):
                 func(*args, **kwargs)
@@ -629,7 +666,7 @@ class BaseCase(case.TestCase):
                 self.env.cr.flush()
 
     @staticmethod
-    def _normalize_query(query):
+    def _normalize_query(query: str) -> str:
         """Normalize a query for comparison: lowercase, strip whitespace,
         and collapse value tuples ``(%s,%s,...,%s)`` (possibly containing
         ``DEFAULT``) to ``(%s)`` so that assertions are independent of the
@@ -638,7 +675,9 @@ class BaseCase(case.TestCase):
         return re.sub(r"\((?:%s|default)(?:,(?:%s|default))*\)", "(%s)", normalized)
 
     @contextmanager
-    def assertQueries(self, expected, flush=True):
+    def assertQueries(
+        self, expected: list[str], flush: bool = True
+    ) -> Generator[list[str]]:
         """Check the queries made by the current cursor. ``expected`` is a list
         of strings representing the expected queries being made. Query strings
         are matched against each other, ignoring case and whitespaces.
@@ -668,7 +707,9 @@ class BaseCase(case.TestCase):
             )
 
     @contextmanager
-    def assertQueriesContain(self, expected, flush=True):
+    def assertQueriesContain(
+        self, expected: list[str], flush: bool = True
+    ) -> Generator[list[str]]:
         """Check the queries made by the current cursor. ``expected`` is a list
         of strings representing the expected queries being made. Query strings
         are matched against each other, ignoring case and whitespaces.
@@ -698,7 +739,9 @@ class BaseCase(case.TestCase):
             )
 
     @contextmanager
-    def assertQueryCount(self, default=0, flush=True, **counters):
+    def assertQueryCount(
+        self, default: int = 0, flush: bool = True, **counters: int
+    ) -> Generator[None]:
         """Context manager that counts queries. It may be invoked either with
         one value, or with a set of named arguments like ``login=value``::
 
@@ -834,9 +877,9 @@ class BaseCase(case.TestCase):
                         record.env
                     ):
                         record_value = Approx(record_value, digits[1], decorate=False)
-                    case (
-                        odoo.fields.Monetary() as field
-                    ) if currency_field_name := field.get_currency_field(record):
+                    case odoo.fields.Monetary() as field if (
+                        currency_field_name := field.get_currency_field(record)
+                    ):
                         # don't round if there's no currency set
                         if c := record[currency_field_name]:
                             record_value = Approx(record_value, c, decorate=False)
@@ -866,10 +909,12 @@ class BaseCase(case.TestCase):
         self.fail(self._formatMessage(None, standardMsg + "\n" + diffMsg))
 
     # turns out this thing may not be quite as useful as we thought...
-    def assertItemsEqual(self, a, b, msg=None):
+    def assertItemsEqual(self, a: Any, b: Any, msg: str | None = None) -> None:
+        """Assert that two sequences contain the same elements."""
         self.assertCountEqual(a, b, msg=msg)
 
-    def assertTreesEqual(self, n1, n2, msg=None):
+    def assertTreesEqual(self, n1: Any, n2: Any, msg: str | None = None) -> None:
+        """Assert two lxml element trees are structurally equal."""
         self.assertIsNotNone(n1, msg)
         self.assertIsNotNone(n2, msg)
         self.assertEqual(n1.tag, n2.tag, msg)
@@ -882,16 +927,14 @@ class BaseCase(case.TestCase):
         for c1, c2 in zip_longest(n1, n2):
             self.assertTreesEqual(c1, c2, msg)
 
-    def _assertXMLEqual(self, original, expected, parser="xml"):
-        """Asserts that two xmls archs are equal
+    def _assertXMLEqual(
+        self, original: str, expected: str, parser: str = "xml"
+    ) -> None:
+        """Assert that two XML arch strings are equal after normalization.
 
         :param original: the xml arch to test
-        :type original: str
         :param expected: the xml arch of reference
-        :type expected: str
-        :param parser: an string representing which lxml.Parser class to use
-            when normalizing both archs. Takes either "xml" or "html"
-        :type parser: str
+        :param parser: which lxml.Parser class to use — ``"xml"`` or ``"html"``
         """
         self.maxDiff = 10000
         if original:
@@ -900,13 +943,16 @@ class BaseCase(case.TestCase):
             expected = _normalize_arch_for_assert(expected, parser)
         self.assertEqual(original, expected)
 
-    def assertXMLEqual(self, original, expected):
+    def assertXMLEqual(self, original: str, expected: str) -> None:
+        """Assert two XML arch strings are semantically equal."""
         return self._assertXMLEqual(original, expected)
 
-    def assertHTMLEqual(self, original, expected):
+    def assertHTMLEqual(self, original: str, expected: str) -> None:
+        """Assert two HTML arch strings are semantically equal."""
         return self._assertXMLEqual(original, expected, "html")
 
-    def profile(self, description="", **kwargs):
+    def profile(self, description: str = "", **kwargs: Any) -> Any:
+        """Return a Profiler for the current test method."""
         test_method = getattr(self, "_testMethodName", "Unknown test method")
         if not hasattr(self, "profile_session"):
             self.profile_session = profiler.make_session(test_method)
@@ -948,9 +994,8 @@ class BaseCase(case.TestCase):
         ]
 
     @classmethod
-    def registry_enter_test_mode_cls(cls):
-        """
-        Puts the registry in test mode.
+    def registry_enter_test_mode_cls(cls) -> None:
+        """Put the registry in test mode.
 
         New cursors returned by the registry will be instances of `TestCursor`
         which will wrap the current cursor.
@@ -995,7 +1040,8 @@ class BaseCase(case.TestCase):
             self.addCleanup(self.registry_leave_test_mode)
 
     @classmethod
-    def registry_leave_test_mode(cls):
+    def registry_leave_test_mode(cls) -> None:
+        """Restore the registry to its normal (non-test) mode."""
         assert cls._registry_patched, "Registry is not patched"
 
         for p in cls.registry_patches:
@@ -1004,13 +1050,14 @@ class BaseCase(case.TestCase):
         cls._registry_patched = False
 
     @classmethod
-    def set_registry_readonly_mode(cls, enabled: bool):
+    def set_registry_readonly_mode(cls, enabled: bool) -> None:
+        """Enable or disable readonly mode for test cursors."""
         assert cls._registry_patched, "Registry is not patched"
 
         cls._registry_readonly_enabled = enabled
 
-    def assertCanOpenTestCursor(self):
-        """Asserts that we can currently open a test cursor."""
+    def assertCanOpenTestCursor(self) -> None:
+        """Assert that we can currently open a test cursor."""
         if odoo.modules.module.current_test != self:
             message = f"Trying to open a test cursor for {self.canonical_tag} while already in a test {odoo.modules.module.current_test.canonical_tag}"
             _logger.runbot(message)
@@ -1036,8 +1083,8 @@ class BaseCase(case.TestCase):
                 "Request ignored during test as it does not contain the required cookie."
             )
 
-    def get_method_additional_tags(self, test_method):
-        """Guess if the test_methods is a query_count and adds an `is_query_count` tag on the test"""
+    def get_method_additional_tags(self, test_method: Callable | None) -> list[str]:
+        """Guess if the test_methods is a query_count and adds an `is_query_count` tag on the test."""
         additional_tags = []
         if (
             odoo.tools.config["test_tags"]
@@ -1082,26 +1129,30 @@ class Like:
 
     """
 
-    def __init__(self, pattern):
+    def __init__(self, pattern: str) -> None:
         self.pattern = pattern
         self.regex = ".*".join(
             [re.escape(part.strip()) for part in self.pattern.split("...")]
         )
 
-    def __eq__(self, other):
-        return re.fullmatch(self.regex, other.strip(), re.DOTALL)
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, str):
+            return NotImplemented
+        return bool(re.fullmatch(self.regex, other.strip(), re.DOTALL))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.pattern)
 
 
 class WhitespaceInsensitive(str):
+    """A str subclass that compares equal to other strings with equivalent whitespace."""
+
     __slots__ = ()
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(re.sub(r"\s+", " ", self))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, str):
             return NotImplemented
         return re.sub(r"\s+", " ", self) == re.sub(r"\s+", " ", other)
@@ -1162,7 +1213,8 @@ class TransactionCase(BaseCase):
     freeze_time = None
 
     @classmethod
-    def _gc_filestore(cls):
+    def _gc_filestore(cls) -> None:
+        """Garbage-collect the filestore outside of the test cursor."""
         # attachment can be created or unlink during the tests.
         # they can addup during test and take some disc space.
         # since cron are not running during tests, we need to gc manually
@@ -1172,7 +1224,7 @@ class TransactionCase(BaseCase):
             gc_env["ir.attachment"]._gc_file_store_unsafe()
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.addClassCleanup(cls._gc_filestore)
         cls.registry = Registry(get_db_name())
@@ -1257,10 +1309,10 @@ class TransactionCase(BaseCase):
         )
         cls.startClassPatcher(cls._crypt_context_patcher)
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
-        def _check_registry_lock():
+        def _check_registry_lock() -> None:
             if _registry_test_lock.count == 0:
                 _logger.warning(
                     "The registry test lock is still released at the end of %s",
@@ -1314,10 +1366,9 @@ class TransactionCase(BaseCase):
         self.addCleanup(savepoint.close)
 
     @contextmanager
-    def enter_registry_test_mode(self):
-        """
-        Make so that all new cursors opened on this database registry reuse the
-        one currenly used by the tests. See ``registry_enter_test_mode``.
+    def enter_registry_test_mode(self) -> Generator[None]:
+        """Make all new cursors opened on this database registry reuse the
+        one currently used by the tests. See ``registry_enter_test_mode``.
         """
         # entering the test mode should flush/invalidate all changes in the
         # current environment because changes happen inside other cursors
@@ -1331,7 +1382,7 @@ class TransactionCase(BaseCase):
             env.invalidate_all()
 
     @contextmanager
-    def allow_pdf_render(self):
+    def allow_pdf_render(self) -> Generator[None]:
         """Enter registry test mode for PDF rendering if necessary.
 
         WeasyPrint runs in-process (no subprocess), so no cookie/lock
@@ -1350,7 +1401,7 @@ class SingleTransactionCase(BaseCase):
     """
 
     @classmethod
-    def __init_subclass__(cls):
+    def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         if issubclass(cls, TransactionCase):
             _logger.warning(
@@ -1358,7 +1409,7 @@ class SingleTransactionCase(BaseCase):
             )
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.registry = Registry(get_db_name())
         cls.addClassCleanup(cls.registry.reset_changes)
@@ -1369,7 +1420,7 @@ class SingleTransactionCase(BaseCase):
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.env.flush_all()
 
@@ -1401,14 +1452,15 @@ def run(gen_func):
 
 
 def save_test_file(
-    test_name,
-    content,
-    prefix,
-    extension="png",
-    logger=_logger,
-    document_type="Screenshot",
-    date_format="%Y%m%d_%H%M%S_%f",
-):
+    test_name: str,
+    content: bytes,
+    prefix: str,
+    extension: str = "png",
+    logger: logging.Logger = _logger,
+    document_type: str = "Screenshot",
+    date_format: str = "%Y%m%d_%H%M%S_%f",
+) -> None:
+    """Save a test artifact (screenshot, screencast frame, etc.) to disk."""
     assert re.fullmatch(r"\w*_", prefix)
     assert re.fullmatch(r"[a-z]+", extension)
     assert re.fullmatch(r"\w+", test_name)
@@ -1527,7 +1579,8 @@ class ChromeBrowser:
             "Emulation.setDeviceMetricsOverride", params=emulated_device
         )
 
-    def signal_handler(self, sig, frame):
+    def signal_handler(self, sig: int, frame: Any) -> None:
+        """Handle SIGXCPU by stopping Chrome and exiting."""
         if sig == signal.SIGXCPU:
             _logger.info("CPU time limit reached, stopping Chrome and shutting down")
             self.stop()
@@ -1543,7 +1596,8 @@ class ChromeBrowser:
             "Emulation.setCPUThrottlingRate", params={"rate": factor}
         )
 
-    def stop(self):
+    def stop(self) -> None:
+        """Stop the Chrome browser process and clean up resources."""
         # method may be called during `_open_websocket`
         if hasattr(self, "ws"):
             try:
@@ -1603,7 +1657,8 @@ class ChromeBrowser:
             self._logger.warning("Chrome executable not found")
             raise
 
-    def _spawn_chrome(self, cmd):
+    def _spawn_chrome(self, cmd: list[str]) -> tuple[subprocess.Popen, int]:
+        """Spawn a Chrome subprocess and wait for it to expose the DevTools port."""
         log_path = pathlib.Path(self.user_data_dir, "err.log")
         with log_path.open("wb") as log_file:
             # pylint: disable=subprocess-popen-preexec-fn
@@ -1639,9 +1694,9 @@ class ChromeBrowser:
         self,
         user_data_dir: str,
         touch_enabled: bool,
-        headless=True,
-        debug=False,
-    ):
+        headless: bool = True,
+        debug: bool | str = False,
+    ) -> tuple[subprocess.Popen, int]:
         headless_switches = {
             "--headless": "",
             "--disable-extensions": "",
@@ -1704,7 +1759,7 @@ class ChromeBrowser:
 
         return proc, devtools_port
 
-    def _json_command(self, command, timeout=3):
+    def _json_command(self, command: str, timeout: int = 3) -> Any:
         """Queries browser state using JSON
 
         Available commands:
@@ -1752,13 +1807,14 @@ class ChromeBrowser:
             timeout -= delay
             delay = delay * 1.5
             tries += 1
-        self._logger.error("%s after %s tries" % (message, tries))
+        self._logger.error("%s after %s tries", message, tries)
         if failure_info:
             self._logger.info(failure_info)
         self.stop()
         raise unittest.SkipTest("Error during Chrome headless connection")
 
-    def _open_websocket(self):
+    def _open_websocket(self) -> Any:
+        """Connect to Chrome's DevTools WebSocket endpoint."""
         version = self._json_command("version")
         self._logger.info("Browser version: %s", version["Browser"])
 
@@ -1792,7 +1848,8 @@ class ChromeBrowser:
         ws.settimeout(0.01)
         return ws
 
-    def _receive(self, dbname):
+    def _receive(self, dbname: str) -> None:
+        """Receive and dispatch WebSocket messages from Chrome DevTools."""
         threading.current_thread().dbname = dbname
         # So CDT uses a streamed JSON-RPC structure, meaning a request is
         # {id, method, params} and eventually a {id, result | error} should
@@ -1841,10 +1898,12 @@ class ChromeBrowser:
                     shorten(str(msg), 500, placeholder="..."),
                 )
 
-    def _websocket_request(self, method, *, params=None, timeout=10.0):
-        assert (
-            threading.get_ident() != self._receiver.ident
-        ), "_websocket_request must not be called from the consumer thread"
+    def _websocket_request(
+        self, method: str, *, params: dict | None = None, timeout: float = 10.0
+    ) -> Any:
+        assert threading.get_ident() != self._receiver.ident, (
+            "_websocket_request must not be called from the consumer thread"
+        )
         if not hasattr(self, "ws"):
             return None
 
@@ -1852,10 +1911,12 @@ class ChromeBrowser:
         try:
             return f.result(timeout=timeout * self.throttling_factor)
         except concurrent.futures.TimeoutError:
-            raise TimeoutError(f'{method}({params or ""})')
+            raise TimeoutError(f"{method}({params or ''})")
 
-    def _websocket_send(self, method, *, params=None, with_future=False):
-        """send chrome devtools protocol commands through websocket
+    def _websocket_send(
+        self, method: str, *, params: dict | None = None, with_future: bool = False
+    ) -> Future | None:
+        """Send Chrome DevTools Protocol commands through the WebSocket.
 
         If ``with_future`` is set, returns a ``Future`` for the operation.
         """
@@ -1873,7 +1934,8 @@ class ChromeBrowser:
         self.ws.send(json.dumps(payload))
         return result
 
-    def _handle_request_paused(self, **params):
+    def _handle_request_paused(self, **params: Any) -> None:
+        """Handle a Fetch.requestPaused event by continuing or blocking the request."""
         url = params["request"]["url"]
         if url.startswith(f"http://{HOST}"):
             cmd = "Fetch.continueRequest"
@@ -1895,8 +1957,12 @@ class ChromeBrowser:
             )
 
     def _handle_console(
-        self, type, args=None, stackTrace=None, **kw
-    ):  # pylint: disable=redefined-builtin
+        self,
+        type: str,
+        args: list | None = None,
+        stackTrace: dict | None = None,
+        **kw: Any,
+    ) -> None:  # pylint: disable=redefined-builtin
         # console formatting differs somewhat from Python's, if args[0] has
         # format modifiers that many of args[1:] get formatted in, missing
         # args are replaced by empty strings and extra args are concatenated
@@ -1989,7 +2055,8 @@ which leads to stray network requests and inconsistencies."""
                 elif self._result.exception() is None:
                     _logger.error("Tried to make the tour successful twice.")
 
-    def _handle_exception(self, exceptionDetails, timestamp):
+    def _handle_exception(self, exceptionDetails: dict, timestamp: float) -> None:
+        """Handle a Runtime.exceptionThrown event."""
         message = exceptionDetails["text"]
         exception = exceptionDetails.get("exception")
         if exception:
@@ -2018,7 +2085,8 @@ which leads to stray network requests and inconsistencies."""
                 self._result,
             )
 
-    def _handle_frame_stopped_loading(self, frameId):
+    def _handle_frame_stopped_loading(self, frameId: str) -> None:
+        """Handle a Page.frameStoppedLoading event."""
         wait = self._frames.pop(frameId, None)
         if wait:
             wait()
@@ -2062,16 +2130,18 @@ which leads to stray network requests and inconsistencies."""
             f.add_done_callback(handler)
         return f
 
-    def set_cookie(self, name, value, path, domain):
+    def set_cookie(self, name: str, value: str, path: str, domain: str) -> None:
+        """Set a cookie in the Chrome browser via DevTools."""
         params = {"name": name, "value": value, "path": path, "domain": domain}
         self._websocket_request("Network.setCookie", params=params)
 
-    def delete_cookie(self, name, **kwargs):
+    def delete_cookie(self, name: str, **kwargs: str) -> None:
+        """Delete a cookie in the Chrome browser via DevTools."""
         params = {k: v for k, v in kwargs.items() if k in ["url", "domain", "path"]}
         params["name"] = name
         self._websocket_request("Network.deleteCookies", params=params)
 
-    def _wait_ready(self, ready_code=None, timeout=60):
+    def _wait_ready(self, ready_code: str | None = None, timeout: int = 60) -> bool:
         timeout *= self.throttling_factor
         ready_code = ready_code or "document.readyState === 'complete'"
         self._logger.info('Evaluate ready code "%s"', ready_code)
@@ -2103,7 +2173,9 @@ which leads to stray network requests and inconsistencies."""
         self._logger.info("Ready code last try result: %s", result)
         return False
 
-    def _wait_code_ok(self, code, timeout, error_checker=None):
+    def _wait_code_ok(
+        self, code: str, timeout: float, error_checker: Callable | None = None
+    ) -> None:
         timeout *= self.throttling_factor
         self.error_checker = error_checker
         self._logger.info('Evaluate test code "%s"', code)
@@ -2144,7 +2216,8 @@ which leads to stray network requests and inconsistencies."""
             raise ChromeBrowserException("Script timeout exceeded") from err
         raise ChromeBrowserException("Unknown error") from err
 
-    def navigate_to(self, url, wait_stop=False):
+    def navigate_to(self, url: str, wait_stop: bool = False) -> None:
+        """Navigate the browser to the given URL."""
         self._logger.info('Navigating to: "%s"', url)
         nav_result = self._websocket_request(
             "Page.navigate", params={"url": url}, timeout=20.0
@@ -2157,8 +2230,8 @@ which leads to stray network requests and inconsistencies."""
             self._logger.info("Waiting for frame %r to stop loading", frame_id)
             e.wait(10)
 
-    def _from_remoteobject(self, arg):
-        """attempts to make a CDT RemoteObject comprehensible"""
+    def _from_remoteobject(self, arg: dict) -> Any:
+        """Attempt to make a CDT RemoteObject comprehensible."""
         objtype = arg["type"]
         subtype = arg.get("subtype")
         if objtype == "undefined":
@@ -2199,7 +2272,8 @@ which leads to stray network requests and inconsistencies."""
 
     LINE_PATTERN = "\tat %(functionName)s (%(url)s:%(lineNumber)d:%(columnNumber)d)\n"
 
-    def _format_stack(self, logrecord):
+    def _format_stack(self, logrecord: dict) -> Generator[str]:
+        """Yield formatted stack frame lines from a CDT log record."""
         if logrecord["type"] != "trace":
             return
 
@@ -2209,7 +2283,7 @@ which leads to stray network requests and inconsistencies."""
                 yield self.LINE_PATTERN % f
             trace = trace.get("parent")
 
-    def console_formatter(self, args):
+    def console_formatter(self, args: list) -> Callable:
         """Formats similarly to the console API:
 
         * if there are no args, don't format (return string as-is)
@@ -2239,17 +2313,19 @@ which leads to stray network requests and inconsistencies."""
 
 
 class NoScreencast:
-    def start(self):
-        pass
+    """No-op screencast implementation used when screencasting is disabled."""
 
-    def stop(self):
-        pass
+    def start(self) -> None:
+        """Start screencast (no-op)."""
 
-    def save(self):
-        pass
+    def stop(self) -> None:
+        """Stop screencast (no-op)."""
 
-    def __call__(self, sessionId, data, metadata):
-        pass
+    def save(self) -> None:
+        """Save screencast (no-op)."""
+
+    def __call__(self, sessionId: str, data: str, metadata: dict) -> None:
+        """Handle a screencast frame (no-op)."""
 
 
 class Screencaster:
@@ -2263,11 +2339,13 @@ class Screencaster:
         self.frames_dir.mkdir(parents=True, exist_ok=True)
         self.frames = []
 
-    def start(self):
+    def start(self) -> None:
+        """Start the Chrome screencast."""
         self._logger.info("Starting screencast")
         self.browser._websocket_send("Page.startScreencast")
 
-    def __call__(self, sessionId, data, metadata):
+    def __call__(self, sessionId: str, data: str, metadata: dict) -> None:
+        """Handle a Page.screencastFrame event by saving the frame."""
         self.browser._websocket_send(
             "Page.screencastFrameAck", params={"sessionId": sessionId}
         )
@@ -2283,13 +2361,15 @@ class Screencaster:
             {"file_path": outfile, "timestamp": metadata.get("timestamp")}
         )
 
-    def stop(self):
+    def stop(self) -> None:
+        """Stop the Chrome screencast and discard captured frames."""
         self.browser._websocket_send("Page.stopScreencast")
         self.stopped = True
         if self.frames_dir.is_dir():
             shutil.rmtree(self.frames_dir, ignore_errors=True)
 
-    def save(self):
+    def save(self) -> None:
+        """Stop the screencast and encode captured frames to an MP4."""
         if self.stopped:
             return
         self.browser._websocket_send("Page.stopScreencast")
@@ -2398,20 +2478,20 @@ def _find_executable():
 
 
 class Opener(requests.Session):
-    """
-    Flushes and clears the current transaction when starting a request.
+    """Flush and clear the current transaction before each HTTP request.
 
-    This is likely necessary when we make a request to the server, as the
-    request is made with a test cursor, which uses a different cache than this
+    This is necessary when we make requests to the server, as the
+    request is made with a test cursor which uses a different cache than this
     transaction.
     """
 
-    def __init__(self, http_case: HttpCase):
+    def __init__(self, http_case: HttpCase) -> None:
         super().__init__()
         self.test_case = http_case
         self.cr = http_case.cr
 
-    def request(self, *args, **kwargs):
+    def request(self, *args: Any, **kwargs: Any) -> Any:
+        """Flush and clear the cursor before forwarding the request."""
         assert self.test_case.opener == self
         self.cr.flush()
         self.cr.clear()
@@ -2420,14 +2500,15 @@ class Opener(requests.Session):
 
 
 class Transport(xmlrpclib.Transport):
-    """see :class:`Opener`"""
+    """XML-RPC transport that flushes the test cursor before each request. See :class:`Opener`."""
 
-    def __init__(self, http_case: HttpCase):
+    def __init__(self, http_case: HttpCase) -> None:
         self.test_case = http_case
         self.cr = http_case.cr
         super().__init__()
 
-    def request(self, *args, **kwargs):
+    def request(self, *args: Any, **kwargs: Any) -> Any:
+        """Flush and clear the cursor before forwarding the XML-RPC request."""
         self.cr.flush()
         self.cr.clear()
         with self.test_case.allow_requests(all_requests=True):
@@ -2435,7 +2516,9 @@ class Transport(xmlrpclib.Transport):
 
 
 class JsonRpcException(Exception):
-    def __init__(self, code, message):
+    """Exception raised when a JSON-RPC response contains an error."""
+
+    def __init__(self, code: int, message: str) -> None:
         super().__init__(message)
         self.code = code
 
@@ -2452,7 +2535,7 @@ class HttpCase(TransactionCase):
     _logger: logging.Logger = None
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         if cls.registry_test_mode:
             cls.registry_enter_test_mode_cls()
@@ -2465,16 +2548,18 @@ class HttpCase(TransactionCase):
         cls._logger = logging.getLogger("%s.%s" % (cls.__module__, cls.__name__))
 
     @classmethod
-    def base_url(cls):
+    def base_url(cls) -> str:
+        """Return the base URL for the test HTTP server."""
         return f"http://{HOST}:{cls.http_port():d}"
 
     @classmethod
-    def http_port(cls):
+    def http_port(cls) -> int | None:
+        """Return the HTTP server port, or None if the server is not running."""
         if odoo.service.server.server is None:
             return None
         return odoo.service.server.server.httpd.server_port
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         self._logger = self._logger.getChild(self._testMethodName)
@@ -2495,12 +2580,14 @@ class HttpCase(TransactionCase):
         self.http_key_sequence = itertools.count()
 
     @contextmanager
-    def enter_registry_test_mode(self):
+    def enter_registry_test_mode(self) -> Generator[None]:
+        """No-op: HTTPCase is already in test mode."""
         _logger.warning("HTTPCase is already in test mode")
         yield
 
     @contextmanager
-    def allow_pdf_render(self):
+    def allow_pdf_render(self) -> Generator[None]:
+        """No-op: HTTPCase does not require calling allow_pdf_render."""
         _logger.warning("HTTPCase does not require calling allow_pdf_render")
         yield
 
@@ -2536,11 +2623,11 @@ class HttpCase(TransactionCase):
                 )
             yield
 
-    def parse_http_location(self, location):
-        """Parse a Location http header typically found in 201/3xx
-        responses, return the corresponding parsed url object. The scheme/host
-        are taken from ``base_url()`` in case they are missing from the
-        header.
+    def parse_http_location(self, location: str | None) -> Any:
+        """Parse a Location HTTP header found in 201/3xx responses.
+
+        Return the corresponding parsed URL object. The scheme/host
+        are taken from ``base_url()`` in case they are missing from the header.
         """
         if not location:
             return urlsplit("")
@@ -2548,9 +2635,12 @@ class HttpCase(TransactionCase):
         # normalise query parameters
         return s._replace(query=urlencode(parse_qsl(s.query)))
 
-    def assertURLEqual(self, test_url, truth_url, message=None):
-        """Assert that two URLs are equivalent. If any URL is missing
-        a scheme and/or host, assume the same scheme/host as base_url()
+    def assertURLEqual(
+        self, test_url: str, truth_url: str, message: str | None = None
+    ) -> None:
+        """Assert that two URLs are equivalent.
+
+        If any URL is missing a scheme and/or host, assume the same scheme/host as ``base_url()``.
         """
         self.assertEqual(
             self.parse_http_location(test_url),
@@ -2558,10 +2648,8 @@ class HttpCase(TransactionCase):
             message,
         )
 
-    def build_rpc_payload(self, params=None):
-        """
-        Helper to properly build jsonrpc payload
-        """
+    def build_rpc_payload(self, params: dict | None = None) -> dict:
+        """Build a properly structured JSON-RPC 2.0 payload."""
         return {
             "jsonrpc": "2.0",
             "method": "call",
@@ -2571,17 +2659,17 @@ class HttpCase(TransactionCase):
 
     def url_open(
         self,
-        url,
-        data=None,
-        files=None,
-        timeout=12,
-        headers=None,
-        json=None,
-        params=None,
-        allow_redirects=True,
-        cookies=None,
+        url: str,
+        data: Any = None,
+        files: Any = None,
+        timeout: int = 12,
+        headers: dict | None = None,
+        json: Any = None,
+        params: dict | None = None,
+        allow_redirects: bool = True,
+        cookies: dict | None = None,
         method: str | None = None,
-    ):
+    ) -> Any:
         if not method and (data or files or json):
             method = "POST"
         method = method or "GET"
@@ -2600,8 +2688,10 @@ class HttpCase(TransactionCase):
             allow_redirects=allow_redirects,
         )
 
-    def _wait_remaining_requests(self, timeout=10):
-        def get_http_request_threads():
+    def _wait_remaining_requests(self, timeout: int = 10) -> None:
+        """Wait for all in-flight HTTP request threads to finish."""
+
+        def get_http_request_threads() -> list[threading.Thread]:
             return [
                 t
                 for t in threading.enumerate()
@@ -2627,18 +2717,19 @@ class HttpCase(TransactionCase):
             self._logger.info("remaining requests")
             odoo.tools.misc.dumpstacks()
 
-    def logout(self, keep_db=True):
+    def logout(self, keep_db: bool = True) -> None:
+        """Log out the current session."""
         self.session.logout(keep_db=keep_db)
         odoo.http.root.session_store.save(self.session)
 
     def authenticate(
         self,
-        user,
-        password,
+        user: str | None,
+        password: str | None,
         *,
-        browser: ChromeBrowser = None,
+        browser: ChromeBrowser | None = None,
         session_extra: dict | None = None,
-    ):
+    ) -> Any:
         if getattr(self, "session", None):
             odoo.http.root.session_store.delete(self.session)
 
@@ -2713,10 +2804,10 @@ class HttpCase(TransactionCase):
 
         return session
 
-    def fetch_proxy(self, url):
-        """
-        This method is called every time a request is made from the chrome browser outside the local network
-        Returns a response that will be sent to the browser to simulate the external request.
+    def fetch_proxy(self, url: str) -> dict:
+        """Return a synthetic response for external Chrome requests.
+
+        Called every time Chrome makes a request outside the local network.
         """
 
         if "https://fonts.googleapis.com/css" in url:
@@ -2735,7 +2826,8 @@ class HttpCase(TransactionCase):
             "responseHeaders": [],
         }
 
-    def make_fetch_proxy_response(self, content, code=200):
+    def make_fetch_proxy_response(self, content: str | bytes, code: int = 200) -> dict:
+        """Build a Fetch proxy response dict for Chrome DevTools."""
         if isinstance(content, str):
             content = content.encode()
         return {
@@ -2893,7 +2985,13 @@ class HttpCase(TransactionCase):
                     message = "Some js test failed"
                 self.fail("%s\n\n%s" % (message, error))
 
-    def start_tour(self, url_path, tour_name, step_delay=None, **kwargs):
+    def start_tour(
+        self,
+        url_path: str,
+        tour_name: str,
+        step_delay: int | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Wrapper for `browser_js` to start the given `tour_name` with the
         optional delay between steps `step_delay`. Other arguments from
         `browser_js` can be passed as keyword arguments."""
@@ -2940,10 +3038,8 @@ class HttpCase(TransactionCase):
                 **kwargs,
             )
 
-    def profile(self, **kwargs):
-        """
-        for http_case, also patch _get_profiler_context_manager in order to profile all requests
-        """
+    def profile(self, **kwargs: Any) -> Any:
+        """Return a nested profiler that profiles both the test and all HTTP requests."""
         sup = super()
         _profiler = sup.profile(**kwargs)
 
@@ -2962,10 +3058,8 @@ class HttpCase(TransactionCase):
             ),
         )
 
-    def get_method_additional_tags(self, test_method):
-        """
-        guess if the test_methods is a tour and adds an `is_tour` tag on the test
-        """
+    def get_method_additional_tags(self, test_method: Callable | None) -> list[str]:
+        """Guess if the test_method is a tour and add an ``is_tour`` tag."""
         additional_tags = super().get_method_additional_tags(test_method)
         if (
             odoo.tools.config["test_tags"]
@@ -2977,8 +3071,13 @@ class HttpCase(TransactionCase):
         return additional_tags
 
     def make_jsonrpc_request(
-        self, route, params=None, headers=None, cookies=None, timeout=12
-    ):
+        self,
+        route: str,
+        params: dict | None = None,
+        headers: dict | None = None,
+        cookies: dict | None = None,
+        timeout: int = 12,
+    ) -> Any:
         """Make a JSON-RPC request to the server.
 
         :raises requests.HTTPError: if one occurred
@@ -3007,19 +3106,19 @@ class HttpCase(TransactionCase):
         return decoded_response.get("result")
 
 
-def no_retry(arg):
-    """Disable auto retry on decorated test method or test class"""
+def no_retry(arg: Any) -> Any:
+    """Disable auto retry on decorated test method or test class."""
     arg._retry = False
     return arg
 
 
-def users(*logins):
+def users(*logins: str) -> Callable:
     """Decorate a method to execute it once for each given user."""
     assert logins, "Expecting at least one login to execute"
 
-    def users_decorator(func, /):
+    def users_decorator(func: Callable, /) -> Callable:
         @wraps(func)
-        def with_users(self, *args, **kwargs):
+        def with_users(self: Any, *args: Any, **kwargs: Any) -> None:
             old_uid = self.uid
             try:
                 # retrieve users
@@ -3045,21 +3144,20 @@ def users(*logins):
     return users_decorator
 
 
-def warmup(func, /):
-    """
-    Stabilize assertQueries and assertQueryCount assertions.
+def warmup(func: Callable, /) -> Callable:
+    """Stabilize assertQueries and assertQueryCount assertions.
 
     Reset the cache to a stable state by flushing pending changes and
     invalidating the cache.
 
-    Warmup the ormcaches by running the decorated function an extra time
+    Warm up the ORM caches by running the decorated function an extra time
     before the actual test runs. The extra execution ignores
-    assertQueries and assertQueryCount assertions, it also discardes all
-    changes but the ormcaches ones.
+    assertQueries and assertQueryCount assertions, and also discards all
+    changes except ORM cache ones.
     """
 
     @wraps(func)
-    def warmup(self, *args, **kwargs):
+    def warmup(self: Any, *args: Any, **kwargs: Any) -> None:
         self.env.flush_all()
         self.env.invalidate_all()
         # run once to warm up the caches
@@ -3075,13 +3173,11 @@ def warmup(func, /):
     return warmup
 
 
-def can_import(module):
-    """Checks if <module> can be imported, returns ``True`` if it can be,
-    ``False`` otherwise.
+def can_import(module: str) -> bool:
+    """Check if ``module`` can be imported.
 
-    To use with ``unittest.skipUnless`` for tests conditional on *optional*
-    dependencies, which may or may be present but must still be tested if
-    possible.
+    Returns ``True`` if it can be, ``False`` otherwise.  Use with
+    ``unittest.skipUnless`` for tests conditional on optional dependencies.
     """
     try:
         importlib.import_module(module)
@@ -3091,22 +3187,20 @@ def can_import(module):
         return True
 
 
-def tagged(*tags):
-    """A decorator to tag BaseCase objects.
+def tagged(*tags: str) -> Callable:
+    """Decorate a BaseCase class to add or remove test tags.
 
-    Tags are stored in a set that can be accessed from a 'test_tags' attribute.
+    Tags are stored in a set accessible via the ``test_tags`` attribute.
+    A tag prefixed by ``'-'`` removes that tag (e.g. ``'-standard'``).
 
-    A tag prefixed by '-' will remove the tag e.g. to remove the 'standard' tag.
-
-    By default, all Test classes from odoo.tests.common have a test_tags
-    attribute that defaults to 'standard' and 'at_install'.
-
-    When using class inheritance, the tags ARE inherited.
+    By default, all test classes from ``odoo.tests.common`` have
+    ``test_tags`` defaulting to ``{'standard', 'at_install'}``.
+    Tags are inherited through class inheritance.
     """
     include = {t for t in tags if not t.startswith("-")}
     exclude = {t[1:] for t in tags if t.startswith("-")}
 
-    def tags_decorator(obj):
+    def tags_decorator(obj: Any) -> Any:
         obj.test_tags = (getattr(obj, "test_tags", set()) | include) - exclude
         at_install = "at_install" in obj.test_tags
         post_install = "post_install" in obj.test_tags
@@ -3121,21 +3215,22 @@ def tagged(*tags):
 
 
 class freeze_time:
-    """Object to replace the freezegun in Odoo test suites
-    It properly handles the test classes decoration
-    Also, it can be used like the usual method decorator or context manager
+    """Odoo-aware replacement for freezegun in test suites.
+
+    Properly handles test class decoration and can also be used as a
+    method decorator or context manager.
     """
 
     _freeze_time = staticmethod(freezegun.freeze_time)
 
     def __init__(
         self,
-        time_to_freeze=None,
-        tz_offset=0,
-        tick=False,
-        as_kwarg="",
-        auto_tick_seconds=0,
-    ):
+        time_to_freeze: Any = None,
+        tz_offset: int = 0,
+        tick: bool = False,
+        as_kwarg: str = "",
+        auto_tick_seconds: int = 0,
+    ) -> None:
         self.freezer = self._freeze_time(
             time_to_freeze=time_to_freeze,
             tz_offset=tz_offset,
@@ -3144,17 +3239,18 @@ class freeze_time:
             auto_tick_seconds=auto_tick_seconds,
         )
 
-    def __call__(self, arg):
+    def __call__(self, arg: Any) -> Any:
+        """Apply freeze_time as a class or method decorator."""
         if isinstance(arg, type) and issubclass(arg, case.TestCase):
             arg.freeze_time = self
             return arg
 
         return self.freezer(arg)
 
-    def __enter__(self):
+    def __enter__(self) -> Any:
         return self.freezer.start()
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.freezer.stop()
 
     start = __enter__

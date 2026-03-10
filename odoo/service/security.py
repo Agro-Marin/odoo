@@ -1,14 +1,23 @@
 import time
+from typing import TYPE_CHECKING
 
 from odoo.tools.misc import consteq
 
+if TYPE_CHECKING:
+    from odoo.api import Environment
 
-def compute_session_token(session, env):
+
+def compute_session_token(session: object, env: Environment) -> str:
+    """Compute the HMAC session token for the given session."""
     self = env["res.users"].browse(session.uid)
     return self._compute_session_token(session.sid)
 
 
-def check_session(session, env, request=None):
+def check_session(
+    session: object,
+    env: Environment,
+    request: object | None = None,
+) -> bool:
     """Validate that the session token matches the expected value.
 
     Expires deleted sessions, verifies the HMAC-based session token

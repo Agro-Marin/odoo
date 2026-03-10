@@ -43,7 +43,7 @@ def _format_hash(rounds: int, salt: bytes, checksum: bytes) -> str:
     return f"$pbkdf2-sha512${rounds}${_ab64_encode(salt)}${_ab64_encode(checksum)}"
 
 
-def _parse_hash(hash_str: str):
+def _parse_hash(hash_str: str) -> tuple[int, bytes, bytes] | None:
     """Parse MCF hash string, returns (rounds, salt_bytes, checksum_bytes) or None."""
     m = _MCF_RE.match(hash_str)
     if not m:
@@ -64,7 +64,14 @@ class CryptContext:
     API-compatible with the subset of passlib.context.CryptContext used by Odoo.
     """
 
-    def __init__(self, schemes=None, *, deprecated=None, _autoload=True, **kwargs):
+    def __init__(
+        self,
+        schemes: list[str] | None = None,
+        *,
+        deprecated: list[str] | None = None,
+        _autoload: bool = True,
+        **kwargs: object,
+    ) -> None:
         self._schemes = list(schemes) if schemes else ["pbkdf2_sha512"]
         self._deprecated = set(deprecated) if deprecated else set()
         self._rounds = kwargs.get("pbkdf2_sha512__rounds", _DEFAULT_ROUNDS)
@@ -87,7 +94,9 @@ class CryptContext:
             )
         return False
 
-    def verify_and_update(self, password: str, hash_str: str) -> tuple:
+    def verify_and_update(
+        self, password: str, hash_str: str
+    ) -> tuple[bool, str | None]:
         """Verify password and return (valid, replacement_hash_or_None).
 
         Returns a new hash if the current hash uses deprecated settings
@@ -123,11 +132,11 @@ class CryptContext:
             return "pbkdf2_sha512"
         return "plaintext"
 
-    def schemes(self) -> list:
+    def schemes(self) -> list[str]:
         """Return list of configured schemes."""
         return list(self._schemes)
 
-    def update(self, **kwargs):
+    def update(self, **kwargs: object) -> None:
         """Update context configuration."""
         if "schemes" in kwargs:
             schemes = kwargs["schemes"]
@@ -141,7 +150,7 @@ class CryptContext:
         if "pbkdf2_sha512__rounds" in kwargs:
             self._rounds = kwargs["pbkdf2_sha512__rounds"]
 
-    def copy(self):
+    def copy(self) -> CryptContext:
         """Create a copy of this context with the same configuration."""
         ctx = CryptContext.__new__(CryptContext)
         ctx._schemes = list(self._schemes)

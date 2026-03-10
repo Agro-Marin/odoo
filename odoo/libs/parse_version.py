@@ -5,9 +5,13 @@ http://peak.telecommunity.com/DevCenter/PkgResources#parsing-utilities
 
 __all__ = ["parse_version"]
 
+import itertools
 import logging
 import re
-import itertools
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
 
 _logger = logging.getLogger(__name__)
 
@@ -24,7 +28,7 @@ replace = {
 }.get
 
 
-def _parse_version_parts(s):
+def _parse_version_parts(s: str) -> Iterator[str]:
     for part in component_re.split(s):
         part = replace(part, part)
         if not part or part == ".":
@@ -82,8 +86,8 @@ def parse_version(s: str) -> tuple[str, ...]:
 
 if __name__ == "__main__":
 
-    def chk(lst, verbose=False):
-        pvs = []
+    def chk(lst: Iterable[str], verbose: bool = False) -> None:
+        pvs: list[tuple[str, ...]] = []
         for v in lst:
             pv = parse_version(v)
             pvs.append(pv)

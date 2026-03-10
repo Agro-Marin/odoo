@@ -10,7 +10,7 @@ import babel.core
 import odoo
 
 
-def patch_module():
+def patch_module() -> None:
     patch_evented()
     patch_codecs()
 
@@ -18,7 +18,7 @@ def patch_module():
 odoo.evented = False
 
 
-def patch_evented():
+def patch_evented() -> None:
     """Running mode flags (evented, prefork)
 
     This should be executed early. It will initialize the `odoo.evented` variable.
@@ -29,7 +29,7 @@ def patch_evented():
     odoo.evented = True
 
 
-def patch_codecs():
+def patch_codecs() -> None:
     # ---------------------------------------------------------
     # some charset are known by Python under a different name
     # ---------------------------------------------------------

@@ -147,7 +147,8 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
         return parse_iso_date(value)
     terms = value.split()
     if not terms:
-        raise ValueError("Empty date value")
+        msg = "Empty date value"
+        raise ValueError(msg)
 
     # Find the starting point
     from odoo.orm.fields import Date, Datetime

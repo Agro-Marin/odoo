@@ -239,8 +239,11 @@ class BaseString(Field[str | typing.Literal[False]]):
                     # term number mismatch, ignore all translations
                     value = base_value
                     translated_terms = base_terms
-                get_base = dict(zip(translated_terms, base_terms, strict=False)).__getitem__
+                get_base = dict(
+                    zip(translated_terms, base_terms, strict=False)
+                ).__getitem__
             else:
+
                 def get_base(term):
                     return term
 
@@ -256,7 +259,7 @@ class BaseString(Field[str | typing.Literal[False]]):
                 translation_source_sha = sha256(source_term.encode()).hexdigest()
                 return (
                     "<span "
-                    f"""{'class="o_delay_translation" ' if delay_translation else ''}"""
+                    f"""{'class="o_delay_translation" ' if delay_translation else ""}"""
                     f'data-oe-model="{markup_escape(record._name)}" '
                     f'data-oe-id="{markup_escape(record.id)}" '
                     f'data-oe-field="{markup_escape(self.name)}" '
@@ -303,7 +306,9 @@ class BaseString(Field[str | typing.Literal[False]]):
                 for from_lang_term in from_lang_terms:
                     dictionary[from_lang_term][lang] = from_lang_term
             else:
-                for from_lang_term, to_lang_term in zip(from_lang_terms, to_lang_terms, strict=False):
+                for from_lang_term, to_lang_term in zip(
+                    from_lang_terms, to_lang_terms, strict=False
+                ):
                     dictionary[from_lang_term][lang] = to_lang_term
         return dictionary
 
@@ -694,7 +699,7 @@ class BaseString(Field[str | typing.Literal[False]]):
         self,
         field_expr: str,
         operator: str,
-        value,
+        value: typing.Any,
         model: BaseModel,
         alias: str,
         query: Query,
@@ -775,9 +780,9 @@ class Char(BaseString):
 
     def _setup_attrs__(self, model_class: type[BaseModel], name: str) -> None:
         super()._setup_attrs__(model_class, name)
-        assert self.size is None or isinstance(
-            self.size, int
-        ), f"Char field {self} with non-integer size {self.size!r}"
+        assert self.size is None or isinstance(self.size, int), (
+            f"Char field {self} with non-integer size {self.size!r}"
+        )
 
     @property
     def _column_type(self) -> tuple[str, str]:
@@ -862,20 +867,14 @@ class Html(BaseString):
     __get__ = Field.__get__
 
     sanitize: bool = True  # whether value must be sanitized
-    sanitize_overridable: bool = (
-        False  # whether the sanitation can be bypassed by the users part of the `base.group_sanitize_override` group
-    )
+    sanitize_overridable: bool = False  # whether the sanitation can be bypassed by the users part of the `base.group_sanitize_override` group
     sanitize_tags: bool = (
         True  # whether to sanitize tags (only a white list of attributes is accepted)
     )
-    sanitize_attributes: bool = (
-        True  # whether to sanitize attributes (only a white list of attributes is accepted)
-    )
+    sanitize_attributes: bool = True  # whether to sanitize attributes (only a white list of attributes is accepted)
     sanitize_style: bool = False  # whether to sanitize style attributes
     sanitize_form: bool = True  # whether to sanitize forms
-    sanitize_conditional_comments: bool = (
-        True  # whether to kill conditional comments. Otherwise keep them but with their content sanitized.
-    )
+    sanitize_conditional_comments: bool = True  # whether to kill conditional comments. Otherwise keep them but with their content sanitized.
     sanitize_output_method: str = "html"  # whether to sanitize using html or xhtml
     strip_style: bool = (
         False  # whether to strip style attributes (removed and therefore not sanitized)
@@ -1059,11 +1058,6 @@ class Html(BaseString):
     def get_trans_terms(self, value: str | None) -> list[str]:
         # ensure the translation terms are stringified, otherwise we can break the PO file
         return list(map(str, super().get_trans_terms(value)))
-
-    escape = staticmethod(markup_escape)
-    is_empty = staticmethod(is_html_empty)
-    to_plaintext = staticmethod(html2plaintext)
-    from_plaintext = staticmethod(plaintext2html)
 
 
 class LangProxyDict(collections.abc.MutableMapping):

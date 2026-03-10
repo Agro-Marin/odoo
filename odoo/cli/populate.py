@@ -20,7 +20,7 @@ _logger = logging.getLogger(__name__)
 class Populate(Command):
     """Populate database via duplication of existing data for testing/demo purposes"""
 
-    def run(self, cmdargs):
+    def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
         self.add_config_arguments(parser)
         parser.add_argument(
@@ -77,7 +77,7 @@ class Populate(Command):
         env: api.Environment,
         modelname_factors: dict[str, int],
         separator_code: int,
-    ):
+    ) -> None:
         """Populate models with synthetic data."""
         model_factors = {
             model: factor

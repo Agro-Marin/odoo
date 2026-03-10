@@ -8,6 +8,7 @@ import base64
 import binascii
 import io
 from random import randrange
+from typing import Self
 
 # We can preload Ico too because it is considered safe
 from PIL import (
@@ -106,7 +107,9 @@ class ImageProcess:
     For Odoo-specific usage with UserError, use odoo.tools.image.ImageProcess.
     """
 
-    def __init__(self, source, verify_resolution=True):
+    def __init__(
+        self, source: bytes | bool | None, verify_resolution: bool = True
+    ) -> None:
         """Initialize the ``source`` image for processing.
 
         :param bytes source: the original image binary
@@ -136,7 +139,8 @@ class ImageProcess:
             try:
                 self.image = Image.open(io.BytesIO(source))
             except OSError, binascii.Error:
-                raise ValueError("This file could not be decoded as an image file.")
+                msg = "This file could not be decoded as an image file."
+                raise ValueError(msg)
 
             # Original format has to be saved before fixing the orientation or
             # doing any other operations because the information will be lost on
@@ -151,7 +155,7 @@ class ImageProcess:
                     f"Too large image (above {IMAGE_MAX_RESOLUTION / 1e6}Mpx), reduce the image size."
                 )
 
-    def image_quality(self, quality=0, output_format=""):
+    def image_quality(self, quality: int = 0, output_format: str = "") -> bytes | bool:
         """Return the image resulting of all the image processing
         operations that have been applied previously.
 
@@ -224,7 +228,9 @@ class ImageProcess:
             return self.source
         return output_bytes
 
-    def resize(self, max_width=0, max_height=0, expand=False):
+    def resize(
+        self, max_width: int = 0, max_height: int = 0, expand: bool = False
+    ) -> Self:
         """Resize the image.
 
         The image is not resized above the current image size, unless the expand
@@ -259,7 +265,13 @@ class ImageProcess:
                     self.operationsCount += 1
         return self
 
-    def crop_resize(self, max_width, max_height, center_x=0.5, center_y=0.5):
+    def crop_resize(
+        self,
+        max_width: int,
+        max_height: int,
+        center_x: float = 0.5,
+        center_y: float = 0.5,
+    ) -> Self:
         """Crop and resize the image.
 
         The image is never resized above the current image size. This method is
@@ -320,7 +332,7 @@ class ImageProcess:
 
         return self.resize(max_width, max_height)
 
-    def colorize(self, color=None):
+    def colorize(self, color: tuple[int, int, int] | None = None) -> Self:
         """Replace the transparent background by a given color, or by a random one.
 
         :param tuple color: RGB values for the color to use
@@ -341,7 +353,7 @@ class ImageProcess:
             self.operationsCount += 1
         return self
 
-    def add_padding(self, padding):
+    def add_padding(self, padding: int) -> Self:
         """Expand the image size by adding padding around the image.
 
         :param int padding: thickness of the padding
@@ -359,16 +371,16 @@ class ImageProcess:
 
 
 def image_process(
-    source,
-    size=(0, 0),
-    verify_resolution=False,
-    quality=0,
-    expand=False,
-    crop=None,
-    colorize=False,
-    output_format="",
-    padding=False,
-):
+    source: bytes | bool | None,
+    size: tuple[int, int] = (0, 0),
+    verify_resolution: bool = False,
+    quality: int = 0,
+    expand: bool = False,
+    crop: str | None = None,
+    colorize: bool | tuple[int, int, int] = False,
+    output_format: str = "",
+    padding: int | bool = False,
+) -> bytes | bool | None:
     """Process the `source` image by executing the given operations and
     return the result image.
     """
@@ -414,7 +426,11 @@ def image_process(
 # ---------------------------------------
 
 
-def average_dominant_color(colors, mitigate=175, max_margin=140):
+def average_dominant_color(
+    colors: list[tuple[int, tuple[int, int, int, int]]],
+    mitigate: int = 175,
+    max_margin: int = 140,
+) -> tuple[tuple[int, int, int], list[tuple[int, tuple[int, int, int, int]]]]:
     """This function is used to calculate the dominant colors when given a list of colors.
 
     There are 5 steps:
@@ -447,9 +463,7 @@ def average_dominant_color(colors, mitigate=175, max_margin=140):
     dominant_set = [dominant_color]
     remaining = []
 
-    margins = [
-        max_margin * (1 - dominant_color[0] / sum(col[0] for col in colors))
-    ] * 3
+    margins = [max_margin * (1 - dominant_color[0] / sum(col[0] for col in colors))] * 3
 
     colors = [c for c in colors if c is not dominant_color]
 
@@ -488,7 +502,7 @@ def average_dominant_color(colors, mitigate=175, max_margin=140):
     return tuple(final_dominant), remaining
 
 
-def binary_to_image(source):
+def binary_to_image(source: bytes) -> PILImage:
     """Convert binary data to a PIL Image.
 
     :param source: binary image data
@@ -498,7 +512,8 @@ def binary_to_image(source):
     try:
         return Image.open(io.BytesIO(source))
     except OSError, binascii.Error:
-        raise ValueError("This file could not be decoded as an image file.")
+        msg = "This file could not be decoded as an image file."
+        raise ValueError(msg)
 
 
 def base64_to_image(base64_source: str | bytes) -> Image:
@@ -511,10 +526,11 @@ def base64_to_image(base64_source: str | bytes) -> Image:
     try:
         return Image.open(io.BytesIO(base64.b64decode(base64_source)))
     except OSError, binascii.Error:
-        raise ValueError("This file could not be decoded as an image file.")
+        msg = "This file could not be decoded as an image file."
+        raise ValueError(msg)
 
 
-def get_webp_size(source):
+def get_webp_size(source: bytes) -> tuple[int, int] | None:
     """Returns the size of the provided webp binary source for VP8, VP8X and
     VP8L, otherwise returns None.
     See https://developers.google.com/speed/webp/docs/riff_container.
@@ -524,7 +540,8 @@ def get_webp_size(source):
     :raise: ValueError if source is not a webp file
     """
     if not (source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8"):
-        raise ValueError("This file is not a webp file.")
+        msg = "This file is not a webp file."
+        raise ValueError(msg)
 
     vp8_type = source[15]
     if vp8_type == 0x20:  # 0x20 = ' '
@@ -558,7 +575,9 @@ def get_webp_size(source):
     return None
 
 
-def is_image_size_above(base64_source_1, base64_source_2):
+def is_image_size_above(
+    base64_source_1: bytes | str | None, base64_source_2: bytes | str | None
+) -> bool:
     """Return whether or not the size of the given image `base64_source_1` is
     above the size of the given image `base64_source_2`.
     """
@@ -571,11 +590,11 @@ def is_image_size_above(base64_source_1, base64_source_2):
     class _SimpleSize:
         """Simple object with width/height attributes."""
 
-        def __init__(self, width, height):
-            self.width = width
-            self.height = height
+        def __init__(self, width: int, height: int) -> None:
+            self.width: int = width
+            self.height: int = height
 
-    def get_image_size(base64_source):
+    def get_image_size(base64_source: bytes | str) -> _SimpleSize | PILImage | bool:
         source = base64.b64decode(base64_source)
         if source[0:4] == b"RIFF" and source[8:15] == b"WEBPVP8":
             size = get_webp_size(source)

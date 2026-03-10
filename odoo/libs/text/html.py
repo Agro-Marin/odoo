@@ -2,7 +2,7 @@ import html as htmllib
 import itertools
 import logging
 import re
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlparse
 
 import markupsafe
@@ -18,6 +18,9 @@ from lxml.html import (
     html_parser,
 )
 from markupsafe import Markup, escape_silent
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "HTML_NEWLINES_REGEX",
@@ -193,7 +196,6 @@ SANITIZE_TAGS = {
 
 
 class _Cleaner(clean.Cleaner):
-
     _style_re = re.compile(r"""([\w-]+)\s*:\s*((?:[^;"']|"[^";]*"|'[^';]*')+)""")
 
     _style_whitelist = [
@@ -270,7 +272,7 @@ class _Cleaner(clean.Cleaner):
     sanitize_style = False
     conditional_comments = True
 
-    def __call__(self, doc):
+    def __call__(self, doc: etree._Element) -> None:
         super().__call__(doc)
 
         # if we keep attributes but still remove classes
@@ -283,11 +285,11 @@ class _Cleaner(clean.Cleaner):
             for el in doc.iter(tag=etree.Element):
                 self.parse_style(el)
 
-    def strip_class(self, el):
+    def strip_class(self, el: etree._Element) -> None:
         if el.attrib.get("class"):
             del el.attrib["class"]
 
-    def parse_style(self, el):
+    def parse_style(self, el: etree._Element) -> None:
         attributes = el.attrib
         styling = attributes.get("style")
         if styling:
@@ -303,7 +305,7 @@ class _Cleaner(clean.Cleaner):
             else:
                 del el.attrib["style"]
 
-    def kill_conditional_comments(self, doc):
+    def kill_conditional_comments(self, doc: etree._Element) -> None:
         """Override the default behavior of lxml.
 
         https://github.com/lxml/lxml/blob/e82c9153c4a7d505480b94c60b9a84d79d948efb/src/lxml/html/clean.py#L501-L510
@@ -322,8 +324,13 @@ class _Cleaner(clean.Cleaner):
             super().kill_conditional_comments(doc)
 
 
-def tag_quote(el):
-    def _create_new_node(tag, text, tail=None, attrs=None):
+def tag_quote(el: etree._Element) -> None:
+    def _create_new_node(
+        tag: str,
+        text: str | None,
+        tail: str | None = None,
+        attrs: dict[str, str] | None = None,
+    ) -> etree._Element:
         new_node = etree.Element(tag)
         new_node.text = text
         new_node.tail = tail
@@ -332,7 +339,12 @@ def tag_quote(el):
                 new_node.set(key, val)
         return new_node
 
-    def _tag_matching_regex_in_text(regex, node, tag="span", attrs=None):
+    def _tag_matching_regex_in_text(
+        regex: str | re.Pattern[str],
+        node: etree._Element,
+        tag: str = "span",
+        attrs: dict[str, str] | None = None,
+    ) -> None:
         text = node.text or ""
         if not re.search(regex, text):
             return
@@ -440,7 +452,12 @@ def tag_quote(el):
         el.set("data-o-mail-quote", "1")
 
 
-def fromstring(html_, base_url=None, parser=None, **kw):
+def fromstring(
+    html_: str | bytes,
+    base_url: str | None = None,
+    parser: Any = None,
+    **kw: Any,
+) -> tuple[etree._Element, bool]:
     """This function mimics lxml.html.fromstring. It not only returns the parsed
     element/document but also a flag indicating whether the input is for a
     a single body element or not.
@@ -535,7 +552,11 @@ def fromstring(html_, base_url=None, parser=None, **kw):
     return body, False
 
 
-def html_normalize(src, filter_callback=None, output_method="html"):
+def html_normalize(
+    src: str,
+    filter_callback: Callable[[etree._Element], etree._Element] | None = None,
+    output_method: str = "html",
+) -> str:
     """Normalize `src` for storage as an html field value.
 
     The string is parsed as an html tag soup, made valid, then decorated for
@@ -601,25 +622,24 @@ def html_normalize(src, filter_callback=None, output_method="html"):
     return src.replace("\xa0", "&nbsp;")
 
 
-
 def html_sanitize(
-    src,
-    silent=True,
-    sanitize_tags=True,
-    sanitize_attributes=False,
-    sanitize_style=False,
-    sanitize_form=True,
-    sanitize_conditional_comments=True,
-    strip_style=False,
-    strip_classes=False,
-    output_method="html",
-):
+    src: str | markupsafe.Markup | None,
+    silent: bool = True,
+    sanitize_tags: bool = True,
+    sanitize_attributes: bool = False,
+    sanitize_style: bool = False,
+    sanitize_form: bool = True,
+    sanitize_conditional_comments: bool = True,
+    strip_style: bool = False,
+    strip_classes: bool = False,
+    output_method: str = "html",
+) -> markupsafe.Markup | None:
     if not src:
         return src
 
     logger = logging.getLogger(__name__ + ".html_sanitize")
 
-    def sanitize_handler(doc):
+    def sanitize_handler(doc: etree._Element) -> etree._Element:
         kwargs = {
             "page_structure": True,
             "style": strip_style,  # True = remove style tags/attrs
@@ -706,7 +726,7 @@ _LINK_TAGS_RE = re.compile(
 )
 
 
-def validate_url(url):
+def validate_url(url: str) -> str:
     """Validate and normalize URL, adding http:// if no valid scheme present."""
     if urlparse(url).scheme not in ("http", "https", "ftp", "ftps"):
         return "http://" + url
@@ -729,7 +749,7 @@ def is_html_empty(
     return not bool(text_content.strip()) and not _ICON_RE.search(html_content)
 
 
-def html_keep_url(text):
+def html_keep_url(text: str) -> str:
     """Transform the url into clickable link with <a/> tag."""
     idx = 0
     final = ""
@@ -741,7 +761,7 @@ def html_keep_url(text):
     return final
 
 
-def html_to_inner_content(html):
+def html_to_inner_content(html: str | markupsafe.Markup | None) -> str:
     """Returns unformatted text after removing html tags and excessive whitespace from a
     string/Markup. Passed strings will first be sanitized.
     """
@@ -757,7 +777,7 @@ def html_to_inner_content(html):
     return processed.strip()
 
 
-def create_link(url, label):
+def create_link(url: str, label: str) -> str:
     return f'<a href="{url}" target="_blank" rel="noreferrer noopener">{label}</a>'
 
 
@@ -782,9 +802,9 @@ def html2plaintext(
     if isinstance(html_content, bytes):
         html_content = html_content.decode(encoding)
     else:
-        assert isinstance(
-            html_content, str
-        ), f"expected str got {html_content.__class__.__name__}"
+        assert isinstance(html_content, str), (
+            f"expected str got {html_content.__class__.__name__}"
+        )
 
     tree = etree.fromstring(html_content, parser=etree.HTMLParser())
 
@@ -888,8 +908,12 @@ def plaintext2html(
 
 
 def append_content_to_html(
-    html_body, content, plaintext=True, preserve=False, container_tag=None
-):
+    html_body: str,
+    content: str,
+    plaintext: bool = True,
+    preserve: bool = False,
+    container_tag: str | None = None,
+) -> markupsafe.Markup:
     """Append extra content at the end of an HTML snippet, trying
     to locate the end of the HTML document (</body>, </html>, or
     EOF), and converting the provided content in html unless ``plaintext``
@@ -935,7 +959,7 @@ def append_content_to_html(
     )
 
 
-def prepend_html_content(html_body, html_content):
+def prepend_html_content(html_body: str, html_content: str | markupsafe.Markup) -> str:
     """Prepend some HTML content at the beginning of an other HTML content."""
     replacement = re.sub(
         r"(?i)(</?(?:html|body|head|!\s*DOCTYPE)[^>]*>)", "", html_content

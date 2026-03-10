@@ -1,9 +1,12 @@
 __all__ = ["merge_sequences", "topological_sort"]
 
 from collections import defaultdict
-from collections.abc import Collection, Iterable, Mapping
+from typing import TYPE_CHECKING
 
 from .sentinel import SENTINEL, Sentinel
+
+if TYPE_CHECKING:
+    from collections.abc import Collection, Iterable, Mapping
 
 
 def topological_sort[T](elems: Mapping[T, Collection[T]]) -> list[T]:
@@ -46,16 +49,16 @@ def merge_sequences[T](*iterables: Iterable[T]) -> list[T]:
     order given by the iterables, with a bias towards the end for the last
     iterable::
 
-        seq = merge_sequences(['A', 'B', 'C'])
-        assert seq == ['A', 'B', 'C']
+        seq = merge_sequences(["A", "B", "C"])
+        assert seq == ["A", "B", "C"]
 
         seq = merge_sequences(
-            ['A', 'B', 'C'],
-            ['Z'],                  # 'Z' can be anywhere
-            ['Y', 'C'],             # 'Y' must precede 'C';
-            ['A', 'X', 'Y'],        # 'X' must follow 'A' and precede 'Y'
+            ["A", "B", "C"],
+            ["Z"],  # 'Z' can be anywhere
+            ["Y", "C"],  # 'Y' must precede 'C';
+            ["A", "X", "Y"],  # 'X' must follow 'A' and precede 'Y'
         )
-        assert seq == ['A', 'B', 'X', 'Y', 'C', 'Z']
+        assert seq == ["A", "B", "X", "Y", "C", "Z"]
     """
     # dict is ordered
     deps: defaultdict[T, list[T]] = defaultdict(list)  # {item: elems_before_item}

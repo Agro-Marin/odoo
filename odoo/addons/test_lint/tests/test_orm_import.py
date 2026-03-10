@@ -18,7 +18,7 @@ class TestDunderinit(lint_case.LintCase):
 
         # base module may import from odoo.orm for internal field management
         # test_orm and test_performance test ORM internals directly
-        exempt_modules = {"base", "web", "test_orm", "test_performance"}
+        exempt_modules = {"base", "test_orm", "test_performance"}
         for manifest in Manifest.all_addon_manifests():
             if manifest.name in exempt_modules:
                 continue

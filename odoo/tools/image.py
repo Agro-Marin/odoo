@@ -65,7 +65,7 @@ class ImageProcess(_ImageProcessBase):
     error messages to users.
     """
 
-    def __init__(self, source, verify_resolution=True):
+    def __init__(self, source: bytes | None, verify_resolution: bool = True) -> None:
         """Initialize the ``source`` image for processing.
 
         :param bytes source: the original image binary
@@ -90,16 +90,16 @@ class ImageProcess(_ImageProcessBase):
 
 
 def image_process(
-    source,
-    size=(0, 0),
-    verify_resolution=False,
-    quality=0,
-    expand=False,
-    crop=None,
-    colorize=False,
-    output_format="",
-    padding=False,
-):
+    source: bytes | None,
+    size: tuple[int, int] = (0, 0),
+    verify_resolution: bool = False,
+    quality: int = 0,
+    expand: bool = False,
+    crop: str | None = None,
+    colorize: bool | tuple[int, int, int] = False,
+    output_format: str = "",
+    padding: bool | tuple[int, int, int, int] = False,
+) -> bytes | None:
     """Process the `source` image by executing the given operations.
 
     Wrapper around libs.image.image_process that uses UserError.
@@ -139,7 +139,7 @@ def image_process(
     return image.image_quality(quality=quality, output_format=output_format)
 
 
-def binary_to_image(source):
+def binary_to_image(source: bytes) -> Image.Image:
     """Convert binary data to a PIL Image.
 
     :param source: binary image data
@@ -152,7 +152,7 @@ def binary_to_image(source):
         raise UserError(_lt("This file could not be decoded as an image file."))
 
 
-def base64_to_image(base64_source: str | bytes) -> Image:
+def base64_to_image(base64_source: str | bytes) -> Image.Image:
     """Return a PIL image from the given `base64_source`.
 
     :param base64_source: the image base64 encoded
@@ -165,7 +165,7 @@ def base64_to_image(base64_source: str | bytes) -> Image:
         raise UserError(_lt("This file could not be decoded as an image file."))
 
 
-def get_webp_size(source):
+def get_webp_size(source: bytes) -> tuple[int, int] | None:
     """
     Returns the size of the provided webp binary source.
 
@@ -179,7 +179,9 @@ def get_webp_size(source):
         raise UserError(_lt("This file is not a webp file."))
 
 
-def is_image_size_above(base64_source_1, base64_source_2):
+def is_image_size_above(
+    base64_source_1: str | bytes, base64_source_2: str | bytes
+) -> bool:
     """Return whether or not the size of the given image `base64_source_1` is
     above the size of the given image `base64_source_2`.
 

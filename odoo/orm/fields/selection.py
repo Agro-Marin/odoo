@@ -149,12 +149,12 @@ class Selection(Field[str | typing.Literal[False]]):
                         self,
                     )
                 selection_add = field._args__["selection_add"]
-                assert isinstance(
-                    selection_add, list
-                ), f"{self}: selection_add={selection_add!r} must be a list"
-                assert (
-                    values is not None
-                ), f"{self}: selection_add={selection_add!r} on non-list selection {self.selection!r}"
+                assert isinstance(selection_add, list), (
+                    f"{self}: selection_add={selection_add!r} must be a list"
+                )
+                assert values is not None, (
+                    f"{self}: selection_add={selection_add!r} on non-list selection {self.selection!r}"
+                )
 
                 values_add = {
                     kv[0]: (kv[1] if len(kv) > 1 else None) for kv in selection_add

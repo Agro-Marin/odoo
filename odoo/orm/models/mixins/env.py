@@ -7,15 +7,16 @@ with_env, sudo, with_user, with_company, with_context, with_prefetch.
 
 import typing
 import warnings
-from collections.abc import Reversible
 from typing import Self
 
 from ... import decorators as api
-from ..._typing import IdType, ValuesType
 from ...helpers import OriginIds, _origin_ids
 from ...primitives import NewId
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Reversible
+
+    from ..._typing import IdType, ValuesType
     from ...runtime import Environment
 
 
@@ -99,7 +100,7 @@ class EnvironmentMixin:
         return self.with_env(self.env(user=user, su=False))
 
     @api.private
-    def with_company(self, company) -> Self:
+    def with_company(self, company: Self | int | None) -> Self:
         """Return a new version of this recordset with a modified context, such that::
 
             result.env.company = company
@@ -154,12 +155,14 @@ class EnvironmentMixin:
             warnings.warn(
                 "Since 19.0, context key 'force_company' is no longer supported. "
                 "Use with_company(company) instead.",
-                DeprecationWarning, stacklevel=2,
+                DeprecationWarning,
+                stacklevel=2,
             )
         if "company" in context:
             warnings.warn(
                 "Context key 'company' is not recommended, because "
-                "of its special meaning in @depends_context.", stacklevel=2,
+                "of its special meaning in @depends_context.",
+                stacklevel=2,
             )
         if (
             "allowed_company_ids" not in context
@@ -215,7 +218,7 @@ class EnvironmentMixin:
                 for invf in self.pool.field_inverses[field]:
                     invf._update_inverse(inv_recs, self)
 
-    def _convert_to_record(self, values):
+    def _convert_to_record(self, values: dict) -> dict:
         """Convert the ``values`` dictionary from the cache format to the
         record format.
         """
@@ -224,7 +227,7 @@ class EnvironmentMixin:
             for name, value in values.items()
         }
 
-    def _convert_to_write(self, values):
+    def _convert_to_write(self, values: dict) -> ValuesType:
         """Convert the ``values`` dictionary into the format of :meth:`write`."""
         fields = self._fields
         result = {}

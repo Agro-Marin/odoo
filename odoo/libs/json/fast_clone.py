@@ -16,7 +16,7 @@ try:
 except ImportError:
     ACCEL_AVAILABLE = False
 
-    def fast_clone(obj):  # type: ignore[misc]
+    def fast_clone(obj: object) -> object:  # type: ignore[misc]
         """Deep-clone a JSON-like Python object.
 
         Specialized replacement for ``copy.deepcopy()`` — typically 3x faster

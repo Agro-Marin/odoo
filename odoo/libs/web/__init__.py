@@ -8,6 +8,7 @@ from .js_transpiler import (
     transpile_javascript,
     url_to_module_path,
     is_odoo_module,
+    is_native_module,
     get_aliased_odoo_define_content,
     relative_path_to_module_path,
     # Import/export conversion functions
@@ -64,6 +65,7 @@ __all__ = [
     "convert_variable_export",
     "convert_variable_export_default",
     "get_aliased_odoo_define_content",
+    "is_native_module",
     "is_odoo_module",
     "relative_path_to_module_path",
     "remove_as",

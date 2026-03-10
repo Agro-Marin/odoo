@@ -1,7 +1,9 @@
 import ast
 from abc import ABC, abstractmethod
-from collections.abc import Collection, Iterable
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from collections.abc import Collection, Iterable
 
 
 class SetDefinitions:
@@ -13,7 +15,7 @@ class SetDefinitions:
 
     __slots__ = ("__leaves",)
 
-    def __init__(self, definitions: dict[int, dict]):
+    def __init__(self, definitions: dict[int, dict[str, object]]) -> None:
         r"""Initialize the object with ``definitions``, a dict which maps each
         set id to a dict with optional keys ``"ref"`` (value is the set's name),
         ``"supersets"`` (value is a collection of set ids), and ``"disjoints"``
@@ -53,7 +55,10 @@ class SetDefinitions:
         for leaf_id, info in definitions.items():
             ref = info["ref"]
             if ref == "*":
-                raise ValueError("The set reference '*' is reserved for the universal set.")
+                msg = "The set reference '*' is reserved for the universal set."
+                raise ValueError(
+                    msg
+                )
             leaf = Leaf(leaf_id, ref)
             self.__leaves[leaf_id] = leaf
             self.__leaves[ref] = leaf
@@ -257,7 +262,7 @@ class SetExpression(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         raise NotImplementedError
 
     @abstractmethod
@@ -269,7 +274,7 @@ class SetExpression(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __hash__(self):
+    def __hash__(self) -> int:
         raise NotImplementedError
 
 
@@ -278,7 +283,7 @@ class Union(SetExpression):
     intersections of named sets or their complement.
     """
 
-    def __init__(self, inters: Iterable[Inter] = (), optimal=False):
+    def __init__(self, inters: Iterable[Inter] = (), optimal: bool = False) -> None:
         if inters and not optimal:
             inters = self.__combine((), inters)
         self.__inters = sorted(inters, key=lambda inter: inter.key)
@@ -395,7 +400,7 @@ class Union(SetExpression):
 
         return result
 
-    def matches(self, user_group_ids) -> bool:
+    def matches(self, user_group_ids: Iterable[int]) -> bool:
         if self.is_empty() or not user_group_ids:
             return False
         if self.is_universal():
@@ -403,10 +408,10 @@ class Union(SetExpression):
         user_group_ids = set(user_group_ids)
         return any(inter.matches(user_group_ids) for inter in self.__inters)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         raise NotImplementedError
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, Union) and self.__key == other.__key
 
     def __le__(self, other: SetExpression) -> bool:
@@ -426,7 +431,7 @@ class Union(SetExpression):
     def __lt__(self, other: SetExpression) -> bool:
         return self != other and self.__le__(other)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Returns an intersection union representation of groups using user-readable references.
 
         e.g. ('base.group_user' & 'base.group_multi_company') | ('base.group_portal' & ~'base.group_multi_company') | 'base.group_public'
@@ -434,20 +439,20 @@ class Union(SetExpression):
         if self.is_empty():
             return "~*"
 
-        def leaf_to_str(leaf):
+        def leaf_to_str(leaf: Leaf) -> str:
             return f"{'~' if leaf.negative else ''}{leaf.ref!r}"
 
-        def inter_to_str(inter, wrapped=False):
+        def inter_to_str(inter: Inter, wrapped: bool = False) -> str:
             result = " & ".join(leaf_to_str(leaf) for leaf in inter.leaves) or "*"
             return f"({result})" if wrapped and len(inter.leaves) > 1 else result
 
         wrapped = len(self.__inters) > 1
         return " | ".join(inter_to_str(inter, wrapped) for inter in self.__inters)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.__str__())
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self.__hash
 
 
@@ -458,7 +463,7 @@ class Inter:
 
     __slots__ = ("key", "leaves")
 
-    def __init__(self, leaves: Iterable[Leaf] = (), optimal=False):
+    def __init__(self, leaves: Iterable[Leaf] = (), optimal: bool = False) -> None:
         if leaves and not optimal:
             leaves = self.__combine((), leaves)
         self.leaves: list[Leaf] = sorted(leaves, key=lambda leaf: leaf.key)
@@ -491,7 +496,7 @@ class Inter:
         """Returns whether ``self`` is the universal set, that contains all possible elements."""
         return not self.leaves
 
-    def matches(self, user_group_ids) -> bool:
+    def matches(self, user_group_ids: Collection[int]) -> bool:
         return all(leaf.matches(user_group_ids) for leaf in self.leaves)
 
     def _union_merge(self, other: Inter) -> Inter | None:
@@ -533,7 +538,7 @@ class Inter:
         leaves = self.__combine(self.leaves, other.leaves)
         return Inter(leaves, optimal=True)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, Inter) and self.key == other.key
 
     def __le__(self, other: Inter) -> bool:
@@ -545,7 +550,7 @@ class Inter:
     def __lt__(self, other: Inter) -> bool:
         return self != other and self <= other
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.key)
 
 
@@ -570,7 +575,7 @@ class Leaf:
         leaf_id: LeafIdType,
         ref: str | int | None = None,
         negative: bool = False,
-    ):
+    ) -> None:
         self.id = leaf_id
         self.ref = ref or str(leaf_id)
         self.negative = bool(negative)
@@ -611,7 +616,7 @@ class Leaf:
             else (self.id in user_group_ids)
         )
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, Leaf) and self.key == other.key
 
     def __le__(self, other: Leaf) -> bool:
@@ -629,7 +634,7 @@ class Leaf:
     def __lt__(self, other: Leaf) -> bool:
         return self != other and self <= other
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.key)
 
 
@@ -640,12 +645,12 @@ class UnknownId(str):
 
     __slots__ = ()
 
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: object) -> bool:
         if isinstance(other, UnknownId):
             return super().__lt__(other)
         return False
 
-    def __gt__(self, other) -> bool:
+    def __gt__(self, other: object) -> bool:
         if isinstance(other, UnknownId):
             return super().__gt__(other)
         return True

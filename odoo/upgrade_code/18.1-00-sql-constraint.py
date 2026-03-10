@@ -8,12 +8,12 @@ if typing.TYPE_CHECKING:
     from odoo.cli.upgrade_code import FileManager
 
 
-def upgrade(file_manager: FileManager):
+def upgrade(file_manager: FileManager) -> None:
     log = logging.getLogger(__name__)
     sql_expression_re = re.compile(r"\b_sql_constraints\s*=\s*\[([^\]]+)]")
     ind = " " * 4
 
-    def build_sql_object(match):
+    def build_sql_object(match: re.Match[str]) -> str:
         # get the tuple of expressions
         try:
             constraints = ast.literal_eval("[" + match.group(1) + "]")

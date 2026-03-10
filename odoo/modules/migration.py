@@ -4,7 +4,6 @@ import logging
 import re
 import typing
 from collections import defaultdict
-from collections.abc import Iterator
 from pathlib import Path
 
 import odoo.upgrade
@@ -15,6 +14,8 @@ from odoo.orm.runtime import Registry
 from odoo.tools.misc import file_path
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from odoo.db import Cursor
 
     from . import module_graph
@@ -86,7 +87,7 @@ class MigrationManager:
 
     migrations: defaultdict[str, dict]
 
-    def __init__(self, cr: Cursor, graph: module_graph.ModuleGraph):
+    def __init__(self, cr: Cursor, graph: module_graph.ModuleGraph) -> None:
         self.cr = cr
         self.graph = graph
         self.migrations = defaultdict(dict)
@@ -94,7 +95,7 @@ class MigrationManager:
 
     def _get_files(self) -> None:
         def _get_upgrade_path(pkg: str) -> Iterator[str]:
-            for path in odoo.upgrade.__path__:
+            for path in odoo.upgrade.__path__:  # type: ignore[attr-defined]
                 upgrade_path = Path(path, pkg)
                 if upgrade_path.exists():
                     yield str(upgrade_path)
@@ -171,7 +172,9 @@ class MigrationManager:
                 return version  # the version number already contains the server version, see VERSION_RE for details
             return f"{release.major_version}.{version}"
 
-        def _get_migration_versions(pkg, stage: str) -> list[str]:
+        def _get_migration_versions(
+            pkg: module_graph.ModuleNode, stage: str
+        ) -> list[str]:
             versions = sorted(
                 {
                     ver: None
@@ -190,7 +193,9 @@ class MigrationManager:
                     versions.append("0.0.0")
             return versions
 
-        def _get_migration_files(pkg, version, stage):
+        def _get_migration_files(
+            pkg: module_graph.ModuleNode, version: str, stage: str
+        ) -> list[str]:
             """return a list of migration script files"""
             m = self.migrations[pkg.name]
 
@@ -277,7 +282,7 @@ def exec_script(
 
     if not hasattr(mod, "migrate"):
         raise AttributeError(
-            f'module {addon}: Each {stage}-migration file must have a'
+            f"module {addon}: Each {stage}-migration file must have a"
             f' "migrate(cr, installed_version)" function, not found in {pyfile}'
         )
 

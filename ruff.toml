@@ -11,7 +11,9 @@ exclude = [
     "node_modules",
     "__pycache__",
     "*.egg-info",
-    "**/_vendor/**",  # Vendored third-party code — do not lint
+    "**/_vendor/**",        # Vendored third-party code — do not lint
+    "**/_vendor/*",         # Also exclude files directly inside _vendor/ (globset trailing-** quirk)
+    "odoo/libs/_vendor",    # Explicit fallback for globset limitation
 ]
 
 [lint]
@@ -53,7 +55,12 @@ select = [
     "I",          # isort
     "TID",        # flake8-tidy-imports
     "ICN",        # flake8-import-conventions
-    "TC",         # flake8-type-checking
+    # "TC",       # flake8-type-checking — DISABLED: PEP 649 (Python 3.14) makes annotations
+    #             # lazily evaluated at runtime; TC rules aggressively move imports behind
+    #             # TYPE_CHECKING which breaks inspect.signature(), mock.autospec, ORM metaclass
+    #             # introspection, and @route handler signature checks. The runtime-evaluated-*
+    #             # settings cannot cover all cases (cross-file limitation, function decorators).
+    #             # See: https://github.com/astral-sh/ruff/issues/15100
 
     # String & logging
     "G",          # flake8-logging-format
@@ -234,6 +241,10 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
+# _vendor/: Vendored third-party code — suppress all rules (exclude glob has limitations)
+"odoo/libs/_vendor/**" = ["ALL"]
+"odoo/libs/_vendor/*" = ["ALL"]
+
 # __init__.py: Re-exports are the whole point; import ORDER is model load order in Odoo
 "**/__init__.py" = ["F401", "F403", "I001"]
 
@@ -270,6 +281,8 @@ ignore = [
 "**/odoo-bin" = ["E402", "T201"]
 "setup.py" = ["E402", "D", "ANN"]
 "setup/**" = ["D", "ANN"]
+"tools/**" = ["T201", "D", "ANN"]  # FA4 migration scripts: print() is user-facing output
+"doc/**/*.py" = ["T201"]           # CLA stats script: print() is user-facing output
 
 # Security-critical path validation — os.path is intentional
 "**/tools/files.py" = ["PTH"]

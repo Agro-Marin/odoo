@@ -37,14 +37,19 @@ import logging
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 from dateutil.relativedelta import relativedelta
 from psycopg.errors import InsufficientPrivilege
 
-from odoo.api import Environment
 from odoo.fields import Field, Many2one
-from odoo.models import Model
 from odoo.tools.sql import SQL
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from odoo.api import Environment
+    from odoo.models import Model
 
 _logger = logging.getLogger(__name__)
 
@@ -120,11 +125,13 @@ def get_field_variation_char(field: Field, postfix: str | SQL | None = None) -> 
 
 
 class PopulateContext:
-    def __init__(self):
-        self.has_session_replication_role = True
+    """Context manager container for duplicate-population helpers."""
+
+    def __init__(self) -> None:
+        self.has_session_replication_role: bool = True
 
     @contextmanager
-    def ignore_indexes(self, model: Model):
+    def ignore_indexes(self, model: Model) -> Generator[None]:
         """
         Temporarily drop indexes on table to speed up insertion.
         PKey and Unique indexes are kept for constraints
@@ -158,10 +165,8 @@ class PopulateContext:
             yield
 
     @contextmanager
-    def ignore_fkey_constraints(self, model: Model):
-        """
-        Disable Fkey constraints checks by setting the session to replica.
-        """
+    def ignore_fkey_constraints(self, model: Model) -> Generator[None]:
+        """Disable FK constraint checks by setting the session to replica."""
         if self.has_session_replication_role:
             try:
                 model.env.cr.execute("SET session_replication_role TO replica")
@@ -338,8 +343,8 @@ def populate_field(
 
 def populate_model(
     model: Model,
-    populated: dict[Model, int],
-    factors: dict[Model, int],
+    populated: dict[Any, int],
+    factors: dict[Any, int],
     separator_code: str,
 ) -> None:
     def update_sequence(model_):
@@ -354,9 +359,9 @@ def populate_model(
     def has_column(field_):
         return field_.is_column
 
-    assert (
-        model not in populated
-    ), f"We do not populate a model ({model}) that has already been populated."
+    assert model not in populated, (
+        f"We do not populate a model ({model}) that has already been populated."
+    )
     _logger.info("Populating model %s %s times...", model._name, factors[model])
     dest_fields = []
     src_fields = []
@@ -413,13 +418,17 @@ def populate_model(
 
 
 class Many2oneFieldWrapper(Many2one):
-    def __init__(self, model, field_name, comodel_name):
+    """Thin wrapper around Many2one for population algorithm duck-typing."""
+
+    def __init__(self, model: Any, field_name: str, comodel_name: str) -> None:
         super().__init__(comodel_name)
         self._setup_attrs__(model, field_name)  # setup most of the default attrs
 
 
 class Many2manyModelWrapper:
-    def __init__(self, env, field):
+    """Fake model wrapper for implicit M2M relation tables."""
+
+    def __init__(self, env: Environment, field: Field) -> None:
         self._name = (
             field.relation
         )  # a m2m doesn't have a _name, so we use the tablename
@@ -437,13 +446,13 @@ class Many2manyModelWrapper:
             field.column2: Many2oneFieldWrapper(self, column2, field.comodel_name),
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Many2manyModelWrapper({self._name!r})>"
 
-    def __eq__(self, other):
-        return self._name == other._name
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Many2manyModelWrapper) and self._name == other._name
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self._name)
 
 
@@ -464,7 +473,7 @@ def infer_many2many_model(
     return Many2manyModelWrapper(env, field)
 
 
-def populate_models(model_factors: dict[Model, int], separator_code: int) -> None:
+def populate_models(model_factors: dict[Any, int], separator_code: int) -> None:
     """
     Create factors new records using existing records as templates.
 

@@ -67,7 +67,7 @@ def expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
             seen.add(id_)
 
 
-IR_MODELS = (
+IR_MODELS: tuple[str, ...] = (
     "ir.model",
     "ir.model.data",
     "ir.model.fields",
@@ -77,7 +77,7 @@ IR_MODELS = (
     "ir.module.module",
 )
 
-COMPANY_DEPENDENT_FIELDS = (
+COMPANY_DEPENDENT_FIELDS: tuple[str, ...] = (
     "char",
     "float",
     "boolean",
@@ -89,7 +89,7 @@ COMPANY_DEPENDENT_FIELDS = (
     "selection",
     "html",
 )
-PYTHON_INEQUALITY_OPERATOR = {
+PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[object, object], bool]] = {
     "<": pyoperator.lt,
     ">": pyoperator.gt,
     "<=": pyoperator.le,
@@ -100,7 +100,9 @@ _logger = logging.getLogger("odoo.fields")
 _orm_compute = logging.getLogger("odoo.orm.compute")
 
 
-def resolve_mro(model: BaseModel, name: str, predicate) -> list[typing.Any]:
+def resolve_mro(
+    model: BaseModel, name: str, predicate: Callable[[typing.Any], bool]
+) -> list[typing.Any]:
     """Return the list of successively overridden values of attribute ``name``
     in mro order on ``model`` that satisfy ``predicate``.  Model registry
     classes are ignored.
@@ -116,7 +118,9 @@ def resolve_mro(model: BaseModel, name: str, predicate) -> list[typing.Any]:
     return result
 
 
-def determine(needle: str | Callable, records: BaseModel, *args) -> typing.Any:
+def determine(
+    needle: str | Callable[..., typing.Any], records: BaseModel, *args: object
+) -> typing.Any:
     """Simple helper for calling a method given as a string or a function.
 
     :param needle: callable or name of method to call on ``records``
@@ -127,7 +131,8 @@ def determine(needle: str | Callable, records: BaseModel, *args) -> typing.Any:
                       a callable or valid method name
     """
     if not isinstance(records, _models.BaseModel):
-        raise TypeError("Determination requires a subject recordset")
+        msg = "Determination requires a subject recordset"
+        raise TypeError(msg)
     if isinstance(needle, str):
         needle = getattr(records, needle)
         if not needle.__name__.startswith("__"):
@@ -136,7 +141,8 @@ def determine(needle: str | Callable, records: BaseModel, *args) -> typing.Any:
         if not needle.__name__.startswith("__"):
             return needle(records, *args)
 
-    raise TypeError("Determination requires a callable or method name")
+    msg = "Determination requires a callable or method name"
+    raise TypeError(msg)
 
 
 _global_seq = itertools.count()
@@ -217,10 +223,10 @@ class Field[T]:
         .. code-block:: python
 
             def _search_partner_ref(self, operator, value):
-                if operator not in ('in', 'like'):
+                if operator not in ("in", "like"):
                     return NotImplemented
                 ...  # add your logic here, example
-                return Domain('partner_id.ref', operator, value)
+                return Domain("partner_id.ref", operator, value)
 
     .. rubric:: Aggregation
 
@@ -246,7 +252,7 @@ class Field[T]:
 
             @api.model
             def _read_group_selection_field(self, values, domain):
-                return ['choice1', 'choice2', ...]  # available selection choices.
+                return ["choice1", "choice2", ...]  # available selection choices.
 
 
             @api.model
@@ -393,9 +399,7 @@ class Field[T]:
     )
     prefetch: bool | str = True  # the prefetch group (False means no group)
 
-    default_export_compatible: bool = (
-        False  # whether the field must be exported by default in an import-compatible export
-    )
+    default_export_compatible: bool = False  # whether the field must be exported by default in an import-compatible export
     exportable: bool = True
 
     # mapping from type name to field type
@@ -418,7 +422,7 @@ class Field[T]:
             return repr(f"<{__name__}.{type(self).__name__}>")
         return repr(f"{self.model_name}.{self.name}")
 
-    def __init_subclass__(cls):
+    def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         if not hasattr(cls, "type"):
             return
@@ -646,6 +650,7 @@ class Field[T]:
     #
 
     def prepare_setup(self) -> None:
+        """Reset the setup done flag so the field will be set up again."""
         self._setup_done = False
 
     def setup(self, model: BaseModel) -> None:
@@ -939,46 +944,6 @@ class Field[T]:
         """Return whether this field is computed and stored in the database."""
         return bool(self.compute and self.store)
 
-    @functools.cached_property
-    def spec(self):
-        """Return an immutable :class:`FieldSpec` snapshot of this field's metadata.
-
-        The spec captures the field's *definition* (type, constraints,
-        dependencies) without any runtime behavior.  Useful for static
-        analysis, validation, and testing.
-        """
-        from ..components.field_spec import FieldSpec
-
-        return FieldSpec(
-            name=self.name,
-            type=self.type,
-            model_name=self.model_name,
-            store=self.store,
-            column_type=self.column_type,
-            index=self.index,
-            company_dependent=self.company_dependent,
-            translate=self.translate,
-            compute=self.compute,
-            depends=tuple(self._depends or ()),
-            depends_context=tuple(getattr(self, "_depends_context", ())),
-            inverse=self.inverse,
-            precompute=self.precompute,
-            compute_sudo=self.compute_sudo if self.compute else None,
-            recursive=self.recursive,
-            related=self.related,
-            required=self.required,
-            readonly=self.readonly,
-            copy=self.copy,
-            groups=self.groups,
-            string=self.string or "",
-            help=self.help or "",
-            aggregator=self.aggregator,
-            comodel_name=getattr(self, "comodel_name", None),
-            relation=getattr(self, "relation", None),
-            ondelete=getattr(self, "ondelete", None),
-            has_default=self.default is not None,
-        )
-
     @property
     def base_field(self) -> Self:
         """Return the base field of an inherited field, or ``self``."""
@@ -1114,14 +1079,14 @@ class Field[T]:
     )
     _description_exportable = property(attrgetter("exportable"))
 
-    def _description_depends(self, env: Environment):
+    def _description_depends(self, env: Environment) -> Collection[str]:
         return env.registry.field_depends[self]
 
     @property
     def _description_searchable(self) -> bool:
         return bool(self.store or self.search)
 
-    def _description_sortable(self, env: Environment):
+    def _description_sortable(self, env: Environment) -> bool:
         if self.is_column:  # shortcut
             return True
         if self.inherited_field and self.inherited_field._description_sortable(env):
@@ -1138,7 +1103,7 @@ class Field[T]:
         except ValueError, AccessError:
             return False
 
-    def _description_groupable(self, env: Environment):
+    def _description_groupable(self, env: Environment) -> bool:
         if self.is_column:  # shortcut
             return True
         if self.inherited_field and self.inherited_field._description_groupable(env):
@@ -1156,7 +1121,7 @@ class Field[T]:
         except ValueError, AccessError:
             return False
 
-    def _description_aggregator(self, env: Environment):
+    def _description_aggregator(self, env: Environment) -> str | None:
         if not self.aggregator or self.is_column:  # shortcut
             return self.aggregator
         if self.inherited_field and self.inherited_field._description_aggregator(env):
@@ -1178,7 +1143,7 @@ class Field[T]:
             return field_string.get(self.name) or self.string
         return self.string
 
-    def _description_help(self, env: Environment):
+    def _description_help(self, env: Environment) -> str | None:
         if self.help and env.lang:
             model_name = self.base_field.model_name
             field_help = env["ir.model.fields"].get_field_help(model_name)
@@ -1187,9 +1152,7 @@ class Field[T]:
 
     def _description_falsy_value_label(self, env) -> str | None:
         return (
-            env._(self.falsy_value_label)
-            if self.falsy_value_label
-            else None  # pylint: disable=gettext-variable,E8502
+            env._(self.falsy_value_label) if self.falsy_value_label else None  # pylint: disable=gettext-variable,E8502
         )
 
     def is_editable(self) -> bool:
@@ -1229,9 +1192,9 @@ class Field[T]:
 
     def convert_to_column(
         self,
-        value,
+        value: typing.Any,
         record: BaseModel,
-        values: dict | None = None,
+        values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
         """Convert ``value`` from the write format to a SQL parameter for
@@ -1252,7 +1215,7 @@ class Field[T]:
             return str(value)
 
     @staticmethod
-    def _to_json_value(value):
+    def _to_json_value(value: typing.Any) -> typing.Any:
         """Convert a column value to a JSON-safe type for JSONB storage."""
         if isinstance(value, datetime):
             return value.strftime(DEFAULT_SERVER_DATETIME_FORMAT)
@@ -1262,9 +1225,9 @@ class Field[T]:
 
     def convert_to_column_insert(
         self,
-        value,
+        value: typing.Any,
         record: BaseModel,
-        values: dict | None = None,
+        values: dict[str, typing.Any] | None = None,
         validate: bool = True,
     ) -> typing.Any:
         """Convert ``value`` from the write format to a SQL parameter for
@@ -1288,7 +1251,7 @@ class Field[T]:
             return None
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
 
-    def get_column_update(self, record: BaseModel):
+    def get_column_update(self, record: BaseModel) -> typing.Any:
         """Read the dirty value of ``record`` from cache and return it as a
         SQL parameter for UPDATE queries.  This is the cache → SQL path used
         by :meth:`~odoo.orm.models.mixins.cache.CacheMixin._flush`.
@@ -1343,7 +1306,7 @@ class Field[T]:
         return PsycopgJson(values) if values else None
 
     def convert_to_cache(
-        self, value, record: BaseModel, validate: bool = True
+        self, value: typing.Any, record: BaseModel, validate: bool = True
     ) -> typing.Any:
         """Convert ``value`` to the cache format.  This is the entry point of
         the WRITE path: values from :meth:`BaseModel.write`,
@@ -1360,7 +1323,7 @@ class Field[T]:
         """
         return value
 
-    def convert_to_record(self, value, record: BaseModel) -> T:
+    def convert_to_record(self, value: typing.Any, record: BaseModel) -> T:
         """Convert ``value`` from the cache format to the record format — the
         Python value returned by ``record.field``.  This is the READ path
         exit point, called by :meth:`__get__`.
@@ -1371,7 +1334,7 @@ class Field[T]:
         return False if value is None else value
 
     def convert_to_read(
-        self, value, record: BaseModel, use_display_name: bool = True
+        self, value: typing.Any, record: BaseModel, use_display_name: bool = True
     ) -> typing.Any:
         """Convert ``value`` from the record format to the EXPORT format
         returned by :meth:`BaseModel.read` and consumed by the web client.
@@ -1385,7 +1348,7 @@ class Field[T]:
         """
         return False if value is None else value
 
-    def convert_to_write(self, value, record: BaseModel) -> typing.Any:
+    def convert_to_write(self, value: typing.Any, record: BaseModel) -> typing.Any:
         """Convert ``value`` from any format to the write format accepted by
         :meth:`BaseModel.write`.  Used by :meth:`__set__` on real records to
         roundtrip a value through the conversion pipeline before delegating
@@ -1397,14 +1360,14 @@ class Field[T]:
         record_value = self.convert_to_record(cache_value, record)
         return self.convert_to_read(record_value, record)
 
-    def convert_to_export(self, value, record: BaseModel) -> typing.Any:
+    def convert_to_export(self, value: typing.Any, record: BaseModel) -> typing.Any:
         """Convert ``value`` from the record format to the export format."""
         if not value:
             return ""
         return value
 
     def convert_to_display_name(
-        self, value, record: BaseModel
+        self, value: typing.Any, record: BaseModel
     ) -> str | typing.Literal[False]:
         """Convert ``value`` from the record format to a suitable display name."""
         return str(value) if value else False
@@ -1662,7 +1625,7 @@ class Field[T]:
         self,
         field_expr: str,
         operator: str,
-        value,
+        value: typing.Any,
         model: BaseModel,
         alias: str,
         query: Query,
@@ -1671,19 +1634,20 @@ class Field[T]:
 
         if field_expr == self.name:
 
-            def _value_to_column(v):
+            def _value_to_column(v: typing.Any) -> typing.Any:
                 return self.convert_to_column(v, model, validate=False)
 
         else:
             # reading a property, keep value as-is
-            def _value_to_column(v):
+            def _value_to_column(v: typing.Any) -> typing.Any:
                 return v
 
         # support for SQL value
         if operator in SQL_OPERATORS and isinstance(value, SQL):
             warnings.warn(
                 "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
-                DeprecationWarning, stacklevel=2,
+                DeprecationWarning,
+                stacklevel=2,
             )
             return SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], value)
 
@@ -1692,9 +1656,9 @@ class Field[T]:
 
         # operator: in (equality)
         if operator in ("in", "not in"):
-            assert isinstance(
-                value, COLLECTION_TYPES
-            ), f"condition_to_sql() 'in' operator expects a collection, not a {value!r}"
+            assert isinstance(value, COLLECTION_TYPES), (
+                f"condition_to_sql() 'in' operator expects a collection, not a {value!r}"
+            )
             params = tuple(
                 _value_to_column(v) for v in value if v is not False and v is not None
             )
@@ -1796,7 +1760,7 @@ class Field[T]:
         sql_expr: SQL,
         field_expr: str,
         operator: str,
-        value,
+        value: typing.Any,
         model: BaseModel,
         alias: str,
         query: Query,
@@ -1829,8 +1793,8 @@ class Field[T]:
         """Given some field expression (what you find in domain conditions),
         return a function that returns the corresponding expression for a record::
 
-            field = record._fields['create_date']
-            get_value = field.expression_getter('create_date.month_number')
+            field = record._fields["create_date"]
+            get_value = field.expression_getter("create_date.month_number")
             month_number = get_value(record)
         """
         if field_expr == self.name:
@@ -1838,20 +1802,20 @@ class Field[T]:
         raise ValueError(f"Expression not supported on {self}: {field_expr!r}")
 
     def filter_function(
-        self, records: M, field_expr: str, operator: str, value
-    ) -> Callable[[M], M]:
-        assert (
-            operator not in Domain.NEGATIVE_OPERATORS
-        ), "only positive operators are implemented"
+        self, records: M, field_expr: str, operator: str, value: typing.Any
+    ) -> Callable[[M], bool]:
+        assert operator not in Domain.NEGATIVE_OPERATORS, (
+            "only positive operators are implemented"
+        )
         getter = self.expression_getter(field_expr)
         # assert not isinstance(value, (SQL, Query))
 
         # -------------------------------------------------
         # operator: in (equality)
         if operator == "in":
-            assert (
-                isinstance(value, COLLECTION_TYPES) and value
-            ), f"filter_function() 'in' operator expects a collection, not a {type(value)}"
+            assert isinstance(value, COLLECTION_TYPES) and value, (
+                f"filter_function() 'in' operator expects a collection, not a {type(value)}"
+            )
             if not isinstance(value, AbstractSet):
                 value = set(value)
             if False in value or self.falsy_value in value:
@@ -2123,7 +2087,9 @@ class Field[T]:
         # for record, value in zip(records._ids, values):
         #   field_cache.setdefault(record, value)
         # ```
-        collections.deque(map(field_cache.setdefault, records._ids, values, strict=False), maxlen=0)
+        collections.deque(
+            map(field_cache.setdefault, records._ids, values, strict=False), maxlen=0
+        )
 
     def _update_cache(
         self, records: BaseModel, cache_value: typing.Any, dirty: bool = False
@@ -2168,7 +2134,7 @@ class Field[T]:
     # Descriptor methods
     #
 
-    def __get__(self, record: BaseModel, owner=None) -> T:
+    def __get__(self, record: BaseModel | None, owner: type | None = None) -> T:
         """return the value of field ``self`` on ``record``"""
         if record is None:
             return self  # the field is accessed through the owner class
@@ -2185,7 +2151,8 @@ class Field[T]:
             if record_ids:
                 # let ensure_one() raise the proper exception
                 record.ensure_one()
-                raise AssertionError("ensure_one() did not raise for multi-record")
+                msg = "ensure_one() did not raise for multi-record"
+                raise AssertionError(msg)
             # null record -> return the null value for this field
             value = self.convert_to_cache(False, record, validate=False)
             return self.convert_to_record(value, record)
@@ -2374,7 +2341,7 @@ class Field[T]:
 
         return self.convert_to_record(value, record)
 
-    def __set__(self, records: BaseModel, value) -> None:
+    def __set__(self, records: BaseModel, value: typing.Any) -> None:
         """Set the value of field ``self`` on ``records``.
 
         Records are partitioned into three buckets, each with different
@@ -2423,7 +2390,9 @@ class Field[T]:
         if other_ids:
             self._assign_real(records, other_ids, value)
 
-    def _assign_protected(self, records: BaseModel, ids: list, value) -> None:
+    def _assign_protected(
+        self, records: BaseModel, ids: list[typing.Any], value: typing.Any
+    ) -> None:
         """Assign ``value`` to protected records (currently being computed).
 
         Minimal path: directly updates the cache via :meth:`mark_dirty`.
@@ -2436,7 +2405,9 @@ class Field[T]:
         )
         self.mark_dirty(protected_records, value)
 
-    def _assign_new(self, records: BaseModel, ids: list, value) -> None:
+    def _assign_new(
+        self, records: BaseModel, ids: list[typing.Any], value: typing.Any
+    ) -> None:
         """Assign ``value`` to new (unsaved) records.
 
         Updates the cache and triggers ``modified()`` for dependency tracking,
@@ -2462,7 +2433,9 @@ class Field[T]:
             parents = new_records[self.related.split(".")[0]]
             parents.filtered(lambda r: not r.id)[self.name] = value
 
-    def _assign_real(self, records: BaseModel, ids: list, value) -> None:
+    def _assign_real(
+        self, records: BaseModel, ids: list[typing.Any], value: typing.Any
+    ) -> None:
         """Assign ``value`` to real (saved) records.
 
         Full ``write()`` path: the value is round-tripped through
@@ -2495,7 +2468,7 @@ class Field[T]:
         if not (not self.groups or env.su or record._has_field_access(self, "read")):
             record._check_field_access(self, "read")
 
-    def read_cache(self, record_id: int, env) -> tuple[bool, typing.Any]:
+    def read_cache(self, record_id: int, env: Environment) -> tuple[bool, typing.Any]:
         """Read a single value from this field's cache.
 
         Returns ``(True, value)`` on cache hit, ``(False, SENTINEL)`` on miss.
@@ -2654,7 +2627,9 @@ class Field[T]:
                 len(records),
             )
 
-    def determine_domain(self, records: BaseModel, operator: str, value) -> typing.Any:
+    def determine_domain(
+        self, records: BaseModel, operator: str, value: typing.Any
+    ) -> typing.Any:
         """Return a domain representing a condition on ``self``."""
         return determine(self.search, records, operator, value)
 
@@ -2671,7 +2646,9 @@ class Field[T]:
 #
 
 
-def _make_scalar_get(cache_to_record: Callable) -> Callable:
+def _make_scalar_get(
+    cache_to_record: Callable[[typing.Any], typing.Any],
+) -> Callable[..., typing.Any]:
     """Generate a ``__get__`` override for scalar field types.
 
     The generated closure inlines all optimizations from :meth:`Field.__get__`:
@@ -2694,7 +2671,9 @@ def _make_scalar_get(cache_to_record: Callable) -> Callable:
     _base_get = Field.__get__
     _cache_get = _scalar_cache_get
 
-    def __get__(self, record, owner=None):
+    def __get__(
+        self, record: BaseModel | None, owner: type | None = None
+    ) -> typing.Any:
         if record is None:
             return self
         env = record.env

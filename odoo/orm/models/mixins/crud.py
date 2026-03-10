@@ -71,7 +71,6 @@ _CREATE_BAD_NAMES = frozenset({"id", "parent_path"})
 from typing import Self
 
 from ... import decorators as api
-from ..._typing import ValuesType
 from ...primitives import (
     INSERT_BATCH_SIZE,
     LOG_ACCESS_COLUMNS,
@@ -82,6 +81,7 @@ from ...primitives import (
 )
 
 if typing.TYPE_CHECKING:
+    from ..._typing import ValuesType
     from ...fields.base import Field
 
 
@@ -821,7 +821,9 @@ class CrudMixin:
             )
         return records
 
-    def _populate_create_cache(self, ids, data_list):
+    def _populate_create_cache(
+        self, ids: list[int], data_list: list[dict]
+    ) -> tuple[Self, dict]:
         """Populate the ORM cache for newly created records.
 
         Fills cache slots for all stored fields, converts values to cache
@@ -842,9 +844,7 @@ class CrudMixin:
         # Also pre-get field caches to avoid repeated _get_cache() calls.
         env = self.env
         _stored_x2m_caches = []  # [(field, cache)] for x2many stored fields
-        _stored_scalar_caches = (
-            []
-        )  # [(field, field_name, cache, default)] for scalar stored fields
+        _stored_scalar_caches = []  # [(field, field_name, cache, default)] for scalar stored fields
         for field in self._fields.values():
             if not field.store:
                 continue
@@ -862,7 +862,9 @@ class CrudMixin:
         _field_inverses = self.pool.field_inverses
         _x2m_html_types = frozenset(("one2many", "many2many", "html"))
         _m2o_types = frozenset(("many2one", "many2one_reference"))
-        for data, record in zip(data_list, records.with_context(bin_size=False), strict=False):
+        for data, record in zip(
+            data_list, records.with_context(bin_size=False), strict=False
+        ):
             data["record"] = record
             # DLE P104: test_inherit.py, test_50_search_one2many
             vals = dict(
@@ -892,7 +894,7 @@ class CrudMixin:
         return records, inverses_update
 
     @api.model
-    def _create_update_xmlids(self, records, vals_list):
+    def _create_update_xmlids(self, records: Self, vals_list: list[ValuesType]) -> None:
         """Update ir.model.data xmlids when creating records during import.
 
         Called at the end of create() to support setting xids directly by
@@ -1266,7 +1268,7 @@ class CrudMixin:
                 (len(self) + UPDATE_BATCH_SIZE - 1) // UPDATE_BATCH_SIZE,
             )
 
-    def _execute_update(self, fnames, rows):
+    def _execute_update(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:
         """Execute UPDATE FROM VALUES for a group of records sharing the same fields.
 
         :param fnames: Tuple of field names being updated (sorted).
@@ -1461,7 +1463,13 @@ class CrudMixin:
 
         return True
 
-    def _unlink_process_batch(self, sub_ids, Data, Defaults, Attachment):
+    def _unlink_process_batch(
+        self,
+        sub_ids: tuple[int, ...],
+        Data: typing.Any,
+        Defaults: typing.Any,
+        Attachment: typing.Any,
+    ) -> tuple[Self, Self]:
         """Process one batch of record deletions during unlink().
 
         Executes DELETE SQL, collects ir.model.data and ir.attachment records
@@ -1619,7 +1627,9 @@ class CrudMixin:
 
         return data, attachments
 
-    def _invalidate_unlink_caches(self, fk_refs, cd_m2o_fields):
+    def _invalidate_unlink_caches(
+        self, fk_refs: typing.Any, cd_m2o_fields: typing.Any
+    ) -> None:
         """Invalidate caches after deleting records.
 
         Performs targeted cache invalidation instead of invalidate_all():

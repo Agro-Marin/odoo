@@ -7,11 +7,11 @@ import re
 import shutil
 import subprocess
 import tempfile
-import typing
 import zipfile
 from contextlib import closing, suppress
 from datetime import datetime
 from pathlib import Path
+from typing import IO, TYPE_CHECKING, Any, Literal
 from xml.etree import ElementTree as ET
 
 import psycopg
@@ -28,6 +28,9 @@ from odoo.libs.filesystem import osutil
 from odoo.release import version_info
 from odoo.tools import SQL
 from odoo.tools.misc import exec_pg_environ, find_pg_tool
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _logger = logging.getLogger(__name__)
 
@@ -49,9 +52,11 @@ def database_identifier(cr, name: str) -> SQL:
     return SQL(name)
 
 
-def check_db_management_enabled(func, /):
+def check_db_management_enabled(func: Callable, /) -> Callable:
+    """Decorator: raise AccessDenied if database management is disabled."""
+
     @functools.wraps(func)
-    def if_db_mgt_enabled(*args, **kwargs):
+    def if_db_mgt_enabled(*args: Any, **kwargs: Any) -> Any:
         if not odoo.tools.config["list_db"]:
             _logger.error(
                 "Database management functions blocked, admin disabled database listing"
@@ -67,7 +72,7 @@ def check_db_management_enabled(func, /):
 # ----------------------------------------------------------
 
 
-def check_super(passwd: str) -> typing.Literal[True]:
+def check_super(passwd: str) -> Literal[True]:
     if passwd and odoo.tools.config.verify_admin_password(passwd):
         return True
     raise odoo.exceptions.AccessDenied
@@ -173,7 +178,7 @@ def exp_create_database(
     login: str = "admin",
     country_code: str | None = None,
     phone: str | None = None,
-) -> typing.Literal[True]:
+) -> Literal[True]:
     """Similar to exp_create but blocking."""
     if not re.match(DBNAME_PATTERN, db_name):
         raise ValueError(
@@ -193,7 +198,7 @@ def exp_duplicate_database(
     db_original_name: str,
     db_name: str,
     neutralize_database: bool = False,
-) -> typing.Literal[True]:
+) -> Literal[True]:
     if not re.match(DBNAME_PATTERN, db_name):
         raise ValueError(
             f"Invalid database name {db_name!r}: only alphanumeric characters, "
@@ -229,7 +234,7 @@ def exp_duplicate_database(
     return True
 
 
-def _drop_conn(cr, db_name: str) -> None:
+def _drop_conn(cr: Any, db_name: str) -> None:
     # Try to terminate all other connections that might prevent
     # dropping the database
     with suppress(Exception):
@@ -284,7 +289,7 @@ def exp_dump(db_name: str, format: str) -> str:
 
 
 @check_db_management_enabled
-def dump_db_manifest(cr) -> dict:
+def dump_db_manifest(cr: Any) -> dict[str, Any]:
     v = cr._cnx.info.server_version
     pg_version = f"{v // 10000}.{v // 100 % 100}"
     cr.execute(
@@ -305,10 +310,10 @@ def dump_db_manifest(cr) -> dict:
 @check_db_management_enabled
 def dump_db(
     db_name: str,
-    stream,
+    stream: IO[bytes] | None,
     backup_format: str = "zip",
     with_filestore: bool = True,
-) -> typing.Any:
+) -> IO[bytes] | None:
     """Dump database `db` into file-like object `stream` if stream is None
     return a file object with the dump"""
 
@@ -408,7 +413,7 @@ def dump_db(
 
 
 @check_db_management_enabled
-def exp_restore(db_name: str, data: str, copy: bool = False) -> typing.Literal[True]:
+def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
     def chunks(d, n=8192):
         for i in range(0, len(d), n):
             yield d[i : i + n]
@@ -475,18 +480,18 @@ def restore_db(
                     f"Couldn't restore database {db!r}:\n{r.stderr.strip()}"
                 )
 
-        registry = odoo.modules.registry.Registry.new(db)
-        with registry.cursor() as cr:
-            env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
-            if copy:
-                # if it's a copy of a database, force generation of a new dbuuid
-                env["ir.config_parameter"].init(force=True)
-            if neutralize_database:
-                odoo.modules.neutralize.neutralize_database(cr)
+            registry = odoo.modules.registry.Registry.new(db)
+            with registry.cursor() as cr:
+                env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
+                if copy:
+                    # if it's a copy of a database, force generation of a new dbuuid
+                    env["ir.config_parameter"].init(force=True)
+                if neutralize_database:
+                    odoo.modules.neutralize.neutralize_database(cr)
 
-            if filestore_path:
-                filestore_dest = env["ir.attachment"]._filestore()
-                shutil.move(filestore_path, filestore_dest)
+                if filestore_path:
+                    filestore_dest = env["ir.attachment"]._filestore()
+                    shutil.move(filestore_path, filestore_dest)
 
         _logger.info("RESTORE DB: %s", db)
     except Exception:
@@ -498,7 +503,7 @@ def restore_db(
 
 
 @check_db_management_enabled
-def exp_rename(old_name: str, new_name: str) -> typing.Literal[True]:
+def exp_rename(old_name: str, new_name: str) -> Literal[True]:
     odoo.modules.registry.Registry.delete(old_name)
     odoo.db.close_db(old_name)
 
@@ -530,14 +535,14 @@ def exp_rename(old_name: str, new_name: str) -> typing.Literal[True]:
 
 
 @check_db_management_enabled
-def exp_change_admin_password(new_password: str) -> typing.Literal[True]:
+def exp_change_admin_password(new_password: str) -> Literal[True]:
     odoo.tools.config.set_admin_password(new_password)
     odoo.tools.config.save(["admin_passwd"])
     return True
 
 
 @check_db_management_enabled
-def exp_migrate_databases(databases: list[str]) -> typing.Literal[True]:
+def exp_migrate_databases(databases: list[str]) -> Literal[True]:
     for db in databases:
         _logger.info("migrate database %s", db)
         odoo.modules.registry.Registry.new(
@@ -661,7 +666,8 @@ def exp_server_version() -> str:
 # ----------------------------------------------------------
 
 
-def dispatch(method: str, params: list) -> typing.Any:
+def dispatch(method: str, params: list[Any]) -> Any:
+    """Dispatch a db-service RPC call, enforcing master password for admin ops."""
     handler = _DISPATCH_PUBLIC.get(method) or _DISPATCH_ADMIN.get(method)
     if not handler:
         raise KeyError(f"Method not found: {method}")
@@ -673,7 +679,7 @@ def dispatch(method: str, params: list) -> typing.Any:
 
 
 # Public methods: no master password required.
-_DISPATCH_PUBLIC: dict[str, typing.Callable] = {
+_DISPATCH_PUBLIC: dict[str, Callable] = {
     "db_exist": exp_db_exist,
     "list": exp_list,
     "list_lang": exp_list_lang,
@@ -681,7 +687,7 @@ _DISPATCH_PUBLIC: dict[str, typing.Callable] = {
 }
 
 # Admin methods: first param is master password.
-_DISPATCH_ADMIN: dict[str, typing.Callable] = {
+_DISPATCH_ADMIN: dict[str, Callable] = {
     "create_database": exp_create_database,
     "duplicate_database": exp_duplicate_database,
     "drop": exp_drop,

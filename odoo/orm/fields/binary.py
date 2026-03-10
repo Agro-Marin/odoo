@@ -50,13 +50,18 @@ class Binary(Field):
     _description_attachment = property(attrgetter("attachment"))
 
     @override
-    def convert_to_column(self, value, record, values=None, validate=True):
-        # Binary values may be byte strings (python 2.6 byte array), but
-        # the legacy convention is to transfer and store binaries
-        # as base64-encoded strings. The base64 string may be provided as a
-        # unicode in some circumstances, hence the str() cast here.
+    def convert_to_column(
+        self,
+        value: typing.Any,
+        record: BaseModel,
+        values: dict[str, typing.Any] | None = None,
+        validate: bool = True,
+    ) -> bytes | None:
+        # Binary values are byte strings. The legacy convention is to transfer
+        # and store binaries as base64-encoded strings. The base64 string may
+        # be provided as a unicode in some circumstances, hence the str() cast here.
         # This str() coercion will only work for pure ASCII unicode strings,
-        # on purpose - non base64 data must be passed as a 8bit byte strings.
+        # on purpose - non base64 data must be passed as 8-bit byte strings.
         if not value:
             return None
         # Detect if the binary content is an SVG for restricting its upload
@@ -93,7 +98,8 @@ class Binary(Field):
                 )
             )
 
-    def get_column_update(self, record: BaseModel):
+    def get_column_update(self, record: BaseModel) -> bytes | None:
+        """Return the raw binary bytes for ``record``, bypassing bin_size context."""
         # Binary depends on context (bin_size); force bin_size=False to get actual data.
         bin_size_name = "bin_size_" + self.name
         record = record.with_context(**{"bin_size": False, bin_size_name: False})
@@ -101,7 +107,9 @@ class Binary(Field):
         return self.convert_to_column(value, record, validate=False)
 
     @override
-    def convert_to_cache(self, value, record, validate=True):
+    def convert_to_cache(
+        self, value: typing.Any, record: BaseModel, validate: bool = True
+    ) -> bytes | None:
         if isinstance(value, _BINARY):
             return bytes(value)
         if isinstance(value, str):
@@ -121,13 +129,15 @@ class Binary(Field):
         return None if value is False else value
 
     @override
-    def convert_to_record(self, value, record):
+    def convert_to_record(
+        self, value: typing.Any, record: BaseModel
+    ) -> bytes | typing.Literal[False]:
         if isinstance(value, _BINARY):
             return bytes(value)
         return False if value is None else value
 
     @override
-    def compute_value(self, records):
+    def compute_value(self, records: BaseModel) -> None:
         bin_size_name = "bin_size_" + self.name
         if records.env.context.get("bin_size") or records.env.context.get(
             bin_size_name
@@ -161,7 +171,7 @@ class Binary(Field):
             super().compute_value(records)
 
     @override
-    def read(self, records):
+    def read(self, records: BaseModel) -> None:
         def _encode(s: str | bool) -> bytes | bool:
             if isinstance(s, str):
                 return s.encode("utf-8")
@@ -182,7 +192,7 @@ class Binary(Field):
         self._insert_cache(records, map(data.get, records._ids))
 
     @override
-    def create(self, record_values):
+    def create(self, record_values: list[tuple[BaseModel, typing.Any]]) -> None:
         assert self.attachment
         if not record_values:
             return
@@ -204,7 +214,7 @@ class Binary(Field):
         )
 
     @override
-    def mark_dirty(self, records, value):
+    def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
         records = records.with_context(bin_size=False)
         if not self.attachment:
             super().mark_dirty(records, value)
@@ -264,7 +274,7 @@ class Binary(Field):
         self,
         field_expr: str,
         operator: str,
-        value,
+        value: typing.Any,
         model: BaseModel,
         alias: str,
         query: Query,
@@ -273,9 +283,9 @@ class Binary(Field):
             return super().condition_to_sql(
                 field_expr, operator, value, model, alias, query
             )
-        assert operator in ("in", "not in") and set(value) == {
-            False
-        }, "Should have been done in Domain optimization"
+        assert operator in ("in", "not in") and set(value) == {False}, (
+            "Should have been done in Domain optimization"
+        )
         return SQL(
             "%s%s(SELECT res_id FROM ir_attachment WHERE res_model = %s AND res_field = %s)",
             model._field_to_sql(alias, "id", query),
@@ -308,7 +318,7 @@ class Image(Binary):
     verify_resolution = True
 
     @override
-    def setup(self, model):
+    def setup(self, model: BaseModel) -> None:
         super().setup(model)
         if not model._abstract and not model._log_access:
             warnings.warn(
@@ -317,8 +327,8 @@ class Image(Binary):
             )
 
     @override
-    def create(self, record_values):
-        new_record_values = []
+    def create(self, record_values: list[tuple[BaseModel, typing.Any]]) -> None:
+        new_record_values: list[tuple[BaseModel, typing.Any]] = []
         for record, value in record_values:
             new_value = self._image_process(value, record.env)
             new_record_values.append((record, new_value))
@@ -332,7 +342,7 @@ class Image(Binary):
         super().create(new_record_values)
 
     @override
-    def mark_dirty(self, records, value):
+    def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
         try:
             new_value = self._image_process(value, records.env)
         except UserError:
@@ -352,7 +362,7 @@ class Image(Binary):
         self._update_cache(records, cache_value, dirty=True)
 
     @override
-    def _inverse_related(self, records):
+    def _inverse_related(self, records: BaseModel) -> None:
         super()._inverse_related(records)
         if not (self.max_width and self.max_height):
             return
@@ -362,7 +372,9 @@ class Image(Binary):
             value = self._process_related(record[self.name], record.env)
             self._update_cache(record, value, dirty=True)
 
-    def _image_process(self, value, env):
+    def _image_process(
+        self, value: typing.Any, env: typing.Any
+    ) -> bytes | typing.Literal[False]:
         if self.readonly and not self.max_width and not self.max_height:
             # no need to process images for computed fields, or related fields
             return value
@@ -414,7 +426,9 @@ class Image(Binary):
         )
 
     @override
-    def _process_related(self, value, env):
+    def _process_related(
+        self, value: typing.Any, env: typing.Any
+    ) -> bytes | typing.Literal[False]:
         """Override to resize the related value before saving it on self."""
         try:
             return self._image_process(super()._process_related(value, env), env)

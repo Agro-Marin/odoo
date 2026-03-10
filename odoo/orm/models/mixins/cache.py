@@ -28,9 +28,8 @@ _orm_compute = logging.getLogger("odoo.orm.compute")
 from collections.abc import Collection, Iterable, Sequence
 from typing import Self
 
-from ..._typing import IdType
-
 if typing.TYPE_CHECKING:
+    from ..._typing import IdType
     from ...fields.base import Field
     from ...runtime import TriggerTree
 
@@ -258,7 +257,7 @@ class CacheMixin:
         create: bool,
         scheduler: RecomputeScheduler,
         *,
-        engine=None,
+        engine: typing.Any = None,
     ) -> None:
         """Shared trigger-tree traversal for :meth:`modified` and :meth:`_modified_before`.
 

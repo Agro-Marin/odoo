@@ -3,7 +3,7 @@ import locale
 import time
 
 
-def patch_module():
+def patch_module() -> None:
     if not hasattr(locale, "D_FMT"):
         locale.D_FMT = 1
 
@@ -12,7 +12,7 @@ def patch_module():
 
     if not hasattr(locale, "nl_langinfo"):
 
-        def nl_langinfo(param):
+        def nl_langinfo(param: int) -> str | None:
             if param == locale.D_FMT:
                 val = time.strptime("30/12/2004", "%d/%m/%Y")
                 dt = datetime.datetime(*val[:-2])

@@ -27,7 +27,7 @@ def escape_psql(to_escape: str) -> str:
     Example::
 
         >>> escape_psql('10%_off')
-        '10\\\\%\\\\_off'
+        '10\\%\\_off'
     """
     return to_escape.replace("\\", r"\\").replace("%", r"\%").replace("_", r"\_")
 
