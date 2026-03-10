@@ -1,12 +1,16 @@
+"""Wizard to archive or delete workflow steps from a project."""
+
 from ast import literal_eval
 from typing import Any
 
 from odoo import _, api, fields, models
 
 
-class ProjectTaskTypeDeleteWizard(models.TransientModel):
-    _name = "project.task.type.delete.wizard"
-    _description = "Project Task Stage Delete Wizard"
+class ProjectWorkflowStepDeleteWizard(models.TransientModel):
+    """Confirmation wizard for archiving/deleting workflow steps."""
+
+    _name = "project.workflow.step.delete.wizard"
+    _description = "Workflow Step Delete Wizard"
 
     project_ids = fields.Many2many(
         "project.project",
@@ -15,9 +19,9 @@ class ProjectTaskTypeDeleteWizard(models.TransientModel):
         ondelete="cascade",
         export_string_translation=False,
     )
-    stage_ids = fields.Many2many(
-        "project.task.type",
-        string="Stages To Delete",
+    step_ids = fields.Many2many(
+        "project.workflow.step",
+        string="Steps To Delete",
         ondelete="cascade",
         export_string_translation=False,
     )
@@ -26,8 +30,8 @@ class ProjectTaskTypeDeleteWizard(models.TransientModel):
         compute="_compute_tasks_count",
         export_string_translation=False,
     )
-    stages_active = fields.Boolean(
-        compute="_compute_stages_active", export_string_translation=False
+    steps_active = fields.Boolean(
+        compute="_compute_steps_active", export_string_translation=False
     )
 
     @api.depends("project_ids")
@@ -36,13 +40,13 @@ class ProjectTaskTypeDeleteWizard(models.TransientModel):
             wizard.tasks_count = (
                 self.with_context(active_test=False)
                 .env["project.task"]
-                .search_count([("stage_id", "in", wizard.stage_ids.ids)])
+                .search_count([("step_id", "in", wizard.step_ids.ids)])
             )
 
-    @api.depends("stage_ids")
-    def _compute_stages_active(self) -> None:
+    @api.depends("step_ids")
+    def _compute_steps_active(self) -> None:
         for wizard in self:
-            wizard.stages_active = all(wizard.stage_ids.mapped("active"))
+            wizard.steps_active = all(wizard.step_ids.mapped("active"))
 
     def action_archive(self) -> dict[str, Any]:
         if len(self.project_ids) <= 1:
@@ -51,11 +55,11 @@ class ProjectTaskTypeDeleteWizard(models.TransientModel):
         return {
             "name": _("Confirmation"),
             "view_mode": "form",
-            "res_model": "project.task.type.delete.wizard",
+            "res_model": "project.workflow.step.delete.wizard",
             "views": [
                 (
                     self.env.ref(
-                        "project.view_project_task_type_delete_confirmation_wizard"
+                        "project.view_project_workflow_step_delete_confirmation_wizard"
                     ).id,
                     "form",
                 )
@@ -70,7 +74,7 @@ class ProjectTaskTypeDeleteWizard(models.TransientModel):
         inactive_tasks = (
             self.env["project.task"]
             .with_context(active_test=False)
-            .search([("active", "=", False), ("stage_id", "in", self.stage_ids.ids)])
+            .search([("active", "=", False), ("step_id", "in", self.step_ids.ids)])
         )
         inactive_tasks.action_unarchive()
 
@@ -78,14 +82,14 @@ class ProjectTaskTypeDeleteWizard(models.TransientModel):
         tasks = (
             self.with_context(active_test=False)
             .env["project.task"]
-            .search([("stage_id", "in", self.stage_ids.ids)])
+            .search([("step_id", "in", self.step_ids.ids)])
         )
         tasks.write({"active": False})
-        self.stage_ids.write({"active": False})
+        self.step_ids.write({"active": False})
         return self._get_action()
 
     def action_unlink(self) -> dict[str, Any]:
-        self.stage_ids.unlink()
+        self.step_ids.unlink()
         return self._get_action()
 
     def _get_action(self) -> dict[str, Any]:
@@ -104,7 +108,7 @@ class ProjectTaskTypeDeleteWizard(models.TransientModel):
             )
         elif self.env.context.get("stage_view"):
             action = self.env["ir.actions.actions"]._for_xml_id(
-                "project.open_task_type_form"
+                "project.open_workflow_step_form"
             )
         else:
             action = self.env["ir.actions.actions"]._for_xml_id(

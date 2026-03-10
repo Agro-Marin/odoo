@@ -21,35 +21,35 @@ class TestBurndownChartCommon(TestProjectCommon):
         super().setUpClass()
         cls.current_year = datetime.now().year
         create_date = datetime(cls.current_year - 1, 1, 1)
-        Stage = cls.env["project.task.type"]
+        Stage = cls.env["project.workflow.step"]
         cls.todo_stage = Stage.create(
             {
                 "sequence": 1,
                 "name": "TODO",
             }
         )
-        cls.set_create_date("project_task_type", cls.todo_stage.id, create_date)
+        cls.set_create_date("project_workflow_step", cls.todo_stage.id, create_date)
         cls.in_progress_stage = Stage.create(
             {
                 "sequence": 10,
                 "name": "In Progress",
             }
         )
-        cls.set_create_date("project_task_type", cls.in_progress_stage.id, create_date)
+        cls.set_create_date("project_workflow_step", cls.in_progress_stage.id, create_date)
         cls.testing_stage = Stage.create(
             {
                 "sequence": 20,
                 "name": "Testing",
             }
         )
-        cls.set_create_date("project_task_type", cls.testing_stage.id, create_date)
+        cls.set_create_date("project_workflow_step", cls.testing_stage.id, create_date)
         cls.done_stage = Stage.create(
             {
                 "sequence": 30,
                 "name": "Done",
             }
         )
-        cls.set_create_date("project_task_type", cls.done_stage.id, create_date)
+        cls.set_create_date("project_workflow_step", cls.done_stage.id, create_date)
         cls.stages = (
             cls.todo_stage + cls.in_progress_stage + cls.testing_stage + cls.done_stage
         )
@@ -58,7 +58,7 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "name": "Burndown Chart Test",
                 "privacy_visibility": "employees",
                 "alias_name": "project_burndown_chart",
-                "type_ids": [Command.link(stage_id) for stage_id in cls.stages.ids],
+                "workflow_step_ids": [Command.link(stage_id) for stage_id in cls.stages.ids],
             }
         )
         cls.set_create_date("project_project", cls.project.id, create_date)
@@ -78,7 +78,7 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "name": "Task A",
                 "priority": 0,
                 "project_id": cls.project.id,
-                "stage_id": cls.todo_stage.id,
+                "step_id": cls.todo_stage.id,
             }
         )
         cls.set_create_date("project_task", cls.task_a.id, create_date)
@@ -122,7 +122,7 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "priority": 0,
                 "project_id": cls.project.id,
                 "milestone_id": cls.milestone.id,
-                "stage_id": cls.todo_stage.id,
+                "step_id": cls.todo_stage.id,
             }
         )
         cls.set_create_date(
@@ -136,7 +136,7 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "name": "Burndown Chart Test 2 mySearchTag",
                 "privacy_visibility": "employees",
                 "alias_name": "project_burndown_chart_2",
-                "type_ids": [Command.link(stage_id) for stage_id in cls.stages.ids],
+                "workflow_step_ids": [Command.link(stage_id) for stage_id in cls.stages.ids],
             }
         )
         cls.set_create_date("project_project", cls.project_2.id, create_date)
@@ -146,7 +146,7 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "name": "Task G",
                 "priority": 0,
                 "project_id": cls.project_2.id,
-                "stage_id": cls.todo_stage.id,
+                "step_id": cls.todo_stage.id,
                 "user_ids": [Command.link(cls.user_projectuser.id)],
             }
         )
@@ -180,16 +180,16 @@ class TestBurndownChartCommon(TestProjectCommon):
             ]
         )
         cls.stages_bis = cls.stage_1 | cls.stage_2 | cls.stage_3 | cls.stage_4
-        cls.set_create_date("project_task_type", cls.stage_1.id, create_date)
-        cls.set_create_date("project_task_type", cls.stage_2.id, create_date)
-        cls.set_create_date("project_task_type", cls.stage_3.id, create_date)
-        cls.set_create_date("project_task_type", cls.stage_4.id, create_date)
+        cls.set_create_date("project_workflow_step", cls.stage_1.id, create_date)
+        cls.set_create_date("project_workflow_step", cls.stage_2.id, create_date)
+        cls.set_create_date("project_workflow_step", cls.stage_3.id, create_date)
+        cls.set_create_date("project_workflow_step", cls.stage_4.id, create_date)
         cls.project_1 = cls.env["project.project"].create(
             {
                 "name": "Burndown Chart Test",
                 "privacy_visibility": "employees",
                 "alias_name": "project_burndown_chart_bis",
-                "type_ids": [Command.link(stage_id) for stage_id in cls.stages_bis.ids],
+                "workflow_step_ids": [Command.link(stage_id) for stage_id in cls.stages_bis.ids],
             }
         )
         cls.set_create_date("project_project", cls.project_1.id, create_date)
@@ -198,7 +198,7 @@ class TestBurndownChartCommon(TestProjectCommon):
                 "name": "Task",
                 "priority": 0,
                 "project_id": cls.project_1.id,
-                "stage_id": cls.stage_1.id,
+                "step_id": cls.stage_1.id,
             }
         )
         cls.set_create_date("project_task", cls.task_bis.id, create_date)
@@ -211,78 +211,78 @@ class TestBurndownChartCommon(TestProjectCommon):
         cls.env.cr.flush()
 
         with freeze_time("%s-02-10" % (cls.current_year - 1)):
-            (cls.task_a + cls.task_b).write({"stage_id": cls.in_progress_stage.id})
+            (cls.task_a + cls.task_b).write({"step_id": cls.in_progress_stage.id})
             cls.env.cr.flush()
 
         with freeze_time("%s-02-20" % (cls.current_year - 1)):
-            cls.task_c.write({"stage_id": cls.in_progress_stage.id})
+            cls.task_c.write({"step_id": cls.in_progress_stage.id})
             cls.env.cr.flush()
 
         with freeze_time("%s-03-15" % (cls.current_year - 1)):
-            (cls.task_d + cls.task_e).write({"stage_id": cls.in_progress_stage.id})
+            (cls.task_d + cls.task_e).write({"step_id": cls.in_progress_stage.id})
             cls.env.cr.flush()
 
         with freeze_time("%s-04-10" % (cls.current_year - 1)):
-            (cls.task_a + cls.task_b).write({"stage_id": cls.testing_stage.id})
+            (cls.task_a + cls.task_b).write({"step_id": cls.testing_stage.id})
             cls.env.cr.flush()
 
         with freeze_time("%s-05-12" % (cls.current_year - 1)):
-            cls.task_c.write({"stage_id": cls.testing_stage.id})
+            cls.task_c.write({"step_id": cls.testing_stage.id})
             cls.env.cr.flush()
 
         with freeze_time("%s-06-25" % (cls.current_year - 1)):
-            cls.task_d.write({"stage_id": cls.testing_stage.id})
+            cls.task_d.write({"step_id": cls.testing_stage.id})
             cls.env.cr.flush()
 
         with freeze_time("%s-07-25" % (cls.current_year - 1)):
-            cls.task_e.write({"stage_id": cls.testing_stage.id})
+            cls.task_e.write({"step_id": cls.testing_stage.id})
             cls.env.cr.flush()
 
         with freeze_time("%s-08-01" % (cls.current_year - 1)):
-            cls.task_a.write({"stage_id": cls.done_stage.id, "state": "1_done"})
+            cls.task_a.write({"step_id": cls.done_stage.id, "state": "done"})
             cls.env.cr.flush()
 
         with freeze_time("%s-09-10" % (cls.current_year - 1)):
-            cls.task_b.write({"stage_id": cls.done_stage.id, "state": "1_done"})
+            cls.task_b.write({"step_id": cls.done_stage.id, "state": "done"})
             cls.env.cr.flush()
 
         with freeze_time("%s-10-05" % (cls.current_year - 1)):
-            cls.task_c.write({"stage_id": cls.done_stage.id, "state": "1_done"})
-            cls.task_a.write({"state": "1_canceled"})
+            cls.task_c.write({"step_id": cls.done_stage.id, "state": "done"})
+            cls.task_a.write({"state": "canceled"})
             cls.env.cr.flush()
 
         with freeze_time("%s-11-25" % (cls.current_year - 1)):
-            cls.task_d.write({"stage_id": cls.done_stage.id, "state": "1_done"})
-            cls.task_b.write({"state": "1_canceled"})
+            cls.task_d.write({"step_id": cls.done_stage.id, "state": "done"})
+            cls.task_b.write({"state": "canceled"})
             cls.env.cr.flush()
 
         with freeze_time("%s-12-12" % (cls.current_year - 1)):
-            cls.task_e.write({"stage_id": cls.done_stage.id, "state": "1_done"})
+            cls.task_e.write({"step_id": cls.done_stage.id, "state": "done"})
             cls.env.cr.flush()
 
         with freeze_time("%s-12-24" % (cls.current_year - 1)):
-            cls.task_f.write({"state": "1_canceled"})
+            cls.task_f.write({"state": "canceled"})
             cls.env.cr.flush()
 
         with freeze_time("%s-02-10" % (cls.current_year - 1)):
-            cls.task_bis.write({"stage_id": cls.stage_2.id})
+            cls.task_bis.write({"step_id": cls.stage_2.id})
             cls.env.cr.flush()
 
         with freeze_time("%s-03-10" % (cls.current_year - 1)):
-            (cls.task_bis).write({"stage_id": cls.stage_3.id})
+            (cls.task_bis).write({"step_id": cls.stage_3.id})
             cls.env.cr.flush()
 
         with freeze_time("%s-04-10" % (cls.current_year - 1)):
-            (cls.task_bis).write({"stage_id": cls.stage_4.id})
+            (cls.task_bis).write({"step_id": cls.stage_4.id})
             cls.env.cr.flush()
 
 
 class TestBurndownChart(TestBurndownChartCommon):
     def map_read_group_result(self, read_group_result) -> None:
         return {
-            (res["date:month"][1], res["stage_id"][0]): int(res["__count"])
+            (res["date:month"][1], res["step_id"][0]): int(res["__count"])
             for res in read_group_result
-            if res["stage_id"][1]
+            if res["step_id"][1]
         }
 
     def map_read_group_is_closed_result(self, read_group_result) -> None:
@@ -294,7 +294,7 @@ class TestBurndownChart(TestBurndownChartCommon):
     def check_read_group_results(self, domain, expected_results_dict) -> None:
         read_group_result = self.env[
             "project.task.burndown.chart.report"
-        ].formatted_read_group(domain, ["date:month", "stage_id"], ["__count"])
+        ].formatted_read_group(domain, ["date:month", "step_id"], ["__count"])
         read_group_result_dict = self.map_read_group_result(read_group_result)
         self.assertDictEqual(read_group_result_dict, expected_results_dict)
 

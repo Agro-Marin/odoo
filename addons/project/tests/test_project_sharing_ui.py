@@ -51,7 +51,7 @@ class TestProjectSharingUi(HttpCase):
                     "privacy_visibility": "portal",
                     "alias_name": "project+sharing",
                     "partner_id": cls.partner_portal.id,
-                    "type_ids": [
+                    "workflow_step_ids": [
                         Command.create({"name": "To Do", "sequence": 1}),
                         Command.create({"name": "Done", "sequence": 10}),
                     ],
@@ -73,7 +73,7 @@ class TestProjectSharingUi(HttpCase):
         """
         self.project_portal.write(
             {
-                "allow_task_dependencies": True,
+                "allow_dependencies": True,
                 "collaborator_ids": [
                     Command.create({"partner_id": self.partner_portal.id}),
                 ],
@@ -120,8 +120,8 @@ class TestProjectSharingUi(HttpCase):
             {
                 "name": "Portal Task",
                 "project_id": self.project_portal.id,
-                "depend_on_ids": task.ids,
-                "stage_id": self.project_portal.type_ids[0].id,
+                "predecessor_ids": task.ids,
+                "step_id": self.project_portal.workflow_step_ids[0].id,
             }
         )
 
@@ -167,7 +167,7 @@ class TestProjectSharingUi(HttpCase):
                     Command.create(
                         {
                             "name": "Test Project Sharing",
-                            "stage_id": self.project_portal.type_ids.filtered(
+                            "step_id": self.project_portal.workflow_step_ids.filtered(
                                 lambda stage: stage.sequence == 10
                             )[:1].id,
                         }
@@ -199,7 +199,7 @@ class TestProjectSharingUi(HttpCase):
                     Command.create(
                         {
                             "name": "Test Project Sharing",
-                            "stage_id": self.project_portal.type_ids.filtered(
+                            "step_id": self.project_portal.workflow_step_ids.filtered(
                                 lambda stage: stage.sequence == 10
                             )[:1].id,
                         }

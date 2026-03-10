@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
 
@@ -8,7 +9,7 @@ export class ProjectProjectGroupConfigMenu extends GroupConfigMenu {
     }
 
     async deleteGroup() {
-        if (this.group.groupByField.name === "stage_id") {
+        if (this.group.groupByField.name === "phase_id") {
             const action = await this.group.model.orm.call(
                 this.group.groupByField.relation,
                 "unlink_wizard",

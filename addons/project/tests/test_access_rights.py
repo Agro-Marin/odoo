@@ -596,7 +596,7 @@ class TestAccessRightsPrivateTask(TestAccessRights):
         self.assertEqual(
             task.user_ids,
             self.env.user,
-            "When creating a task that has a project without assignees, the task will be assigned to the current user if no default_project_id is provided in the context (which is handled in _default_personal_stage_type_id).",
+            "When creating a task that has a project without assignees, the task will be assigned to the current user if no default_project_id is provided in the context (which is handled in _default_triage_id).",
         )
 
     @users("Project user")

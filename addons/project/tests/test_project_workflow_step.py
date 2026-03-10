@@ -8,7 +8,7 @@ class TestProjectTaskType(TestProjectCommon):
     def setUpClass(cls) -> None:
         super().setUpClass()
 
-        cls.stage_created = cls.env["project.task.type"].create(
+        cls.stage_created = cls.env["project.workflow.step"].create(
             {
                 "name": "Stage Already Created",
                 "project_ids": cls.project_goats.ids,
@@ -18,7 +18,7 @@ class TestProjectTaskType(TestProjectCommon):
     def test_create_stage(self) -> None:
         """Verify that 'user_id' is removed when a stage is created with `project_ids` set or set by default to the curent user if not"""
         self.assertFalse(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .create(
                 {
                     "name": "New Stage",
@@ -30,7 +30,7 @@ class TestProjectTaskType(TestProjectCommon):
             "user_id should be reset if a project is set on the current stage",
         )
         self.assertEqual(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .create(
                 {
                     "name": "Other new Stage",

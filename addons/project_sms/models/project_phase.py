@@ -4,8 +4,8 @@
 from odoo import fields, models
 
 
-class ProjectProjectStage(models.Model):
-    _inherit = 'project.project.stage'
+class ProjectPhase(models.Model):
+    _inherit = 'project.phase'
 
     sms_template_id = fields.Many2one('sms.template', string="SMS Template",
         domain=[('model', '=', 'project.project')],

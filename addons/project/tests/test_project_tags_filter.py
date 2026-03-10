@@ -31,7 +31,7 @@ class TestProjectTags(HttpCase, TestProjectCommon):
 
         cls.project_pigs.write(
             {
-                "stage_id": cls.env["project.project.stage"]
+                "phase_id": cls.env["project.phase"]
                 .create(
                     {
                         "name": "pig stage",
@@ -42,7 +42,7 @@ class TestProjectTags(HttpCase, TestProjectCommon):
         )
         cls.project_goats.write(
             {
-                "stage_id": cls.env["project.project.stage"]
+                "phase_id": cls.env["project.phase"]
                 .create(
                     {
                         "name": "goat stage",

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 
 import { _t } from "@web/core/l10n/translation";
@@ -6,7 +7,7 @@ import { omit } from "@web/core/utils/collections/objects";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-import { ProjectTaskStateSelection } from "../project_task_state_selection";
+import { ProjectTaskStateSelection } from "../project_task_state_selection.js";
 
 export class TaskStageWithStateSelection extends Component {
     static template = "project.TaskStageWithStateSelection";
@@ -57,4 +58,4 @@ export const taskStageWithStateSelection = {
     },
 };
 
-registry.category("fields").add("task_stage_with_state_selection", taskStageWithStateSelection);
+registry.category("fields").add("task_step_with_state_selection", taskStageWithStateSelection);

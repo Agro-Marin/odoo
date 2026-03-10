@@ -185,7 +185,7 @@ class TestProjectTaskQuickCreate(TestProjectCommon):
             self.assertEqual(results, (expression, 0, 0, "0", 0))
 
     def test_set_stage_on_project_from_task(self) -> None:
-        new_stage = self.env["project.task.type"].create(
+        new_stage = self.env["project.workflow.step"].create(
             {
                 "name": "New Stage",
             }
@@ -193,12 +193,12 @@ class TestProjectTaskQuickCreate(TestProjectCommon):
         self.env["project.task"].create(
             {
                 "name": "Test Task",
-                "stage_id": new_stage.id,
+                "step_id": new_stage.id,
                 "project_id": self.project_pigs.id,
             }
         )
         self.assertEqual(
-            self.project_pigs.type_ids,
+            self.project_pigs.workflow_step_ids,
             new_stage,
             "Task stage is not set in project",
         )

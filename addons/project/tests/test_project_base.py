@@ -134,7 +134,7 @@ class TestProjectCommon(TransactionCase):
                     "privacy_visibility": "followers",
                     "alias_name": "project+goats",
                     "partner_id": cls.partner_1.id,
-                    "type_ids": [
+                    "workflow_step_ids": [
                         (
                             0,
                             0,
@@ -160,7 +160,7 @@ class TestProjectCommon(TransactionCase):
 class TestProjectBase(TestProjectCommon):
     def test_delete_project_with_tasks(self) -> None:
         """Test all tasks linked to a project are removed when the user removes this project."""
-        task_type = self.env["project.task.type"].create(
+        task_type = self.env["project.workflow.step"].create(
             {"name": "Won", "sequence": 1, "fold": True}
         )
         project_unlink = (
@@ -172,7 +172,7 @@ class TestProjectBase(TestProjectCommon):
                     "privacy_visibility": "employees",
                     "alias_name": "rev",
                     "partner_id": self.partner_1.id,
-                    "type_ids": task_type,
+                    "workflow_step_ids": task_type,
                 }
             )
         )
@@ -182,7 +182,7 @@ class TestProjectBase(TestProjectCommon):
                 "name": "Pigs UserTask",
                 "user_ids": self.user_projectuser,
                 "project_id": project_unlink.id,
-                "stage_id": task_type.id,
+                "step_id": task_type.id,
             }
         )
 
@@ -197,30 +197,30 @@ class TestProjectBase(TestProjectCommon):
         )
 
     def test_auto_assign_stages_when_importing_tasks(self) -> None:
-        self.assertFalse(self.project_pigs.type_ids)
-        self.assertEqual(len(self.project_goats.type_ids), 2)
-        first_stage = self.project_goats.type_ids[0]
+        self.assertFalse(self.project_pigs.workflow_step_ids)
+        self.assertEqual(len(self.project_goats.workflow_step_ids), 2)
+        first_stage = self.project_goats.workflow_step_ids[0]
         self.env["project.task"]._load_records_create(
             [
                 {
                     "name": "First Task",
                     "project_id": self.project_pigs.id,
-                    "stage_id": first_stage.id,
+                    "step_id": first_stage.id,
                 }
             ]
         )
-        self.assertEqual(self.project_pigs.type_ids, first_stage)
+        self.assertEqual(self.project_pigs.workflow_step_ids, first_stage)
         self.env["project.task"]._load_records_create(
             [
                 {
                     "name": "task",
                     "project_id": self.project_pigs.id,
-                    "stage_id": stage.id,
+                    "step_id": stage.id,
                 }
-                for stage in self.project_goats.type_ids
+                for stage in self.project_goats.workflow_step_ids
             ]
         )
-        self.assertEqual(self.project_pigs.type_ids, self.project_goats.type_ids)
+        self.assertEqual(self.project_pigs.workflow_step_ids, self.project_goats.workflow_step_ids)
 
     def test_filter_visibility_unread_messages(self) -> None:
         """Tests the visibility of the "Unread messages" filter in the project task search view
@@ -809,7 +809,7 @@ class TestProjectBase(TestProjectCommon):
         self.env["project.task"].with_context(default_project_id=project1.id).create(
             [
                 {"name": "task1"},
-                {"name": "task2", "state": "1_done"},
+                {"name": "task2", "state": "done"},
                 {
                     "name": "task3",
                     "child_ids": [
@@ -818,7 +818,7 @@ class TestProjectBase(TestProjectCommon):
                             {
                                 "name": "subtask2",
                                 "project_id": project1.id,
-                                "state": "1_canceled",
+                                "state": "canceled",
                             }
                         ),
                         Command.create({"name": "subtask3", "project_id": project2.id}),
@@ -845,14 +845,14 @@ class TestProjectBase(TestProjectCommon):
                         Command.create(
                             {
                                 "name": "subtask5",
-                                "state": "1_done",
+                                "state": "done",
                                 "project_id": project1.id,
                                 "child_ids": [
                                     Command.create(
                                         {
                                             "name": "subsubtask51",
                                             "project_id": project1.id,
-                                            "state": "1_done",
+                                            "state": "done",
                                         }
                                     ),
                                 ],

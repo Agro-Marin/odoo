@@ -23,11 +23,11 @@ beforeEach(() => {
             name: "task one",
             project_id: 5,
             closed_subtask_count: 1,
-            closed_depend_on_count: 1,
+            closed_predecessor_count: 1,
             subtask_count: 4,
             child_ids: [2, 3, 4, 7],
-            depend_on_ids: [5, 6],
-            state: "04_waiting_normal",
+            predecessor_ids: [5, 6],
+            state: "blocked",
         },
         {
             id: 2,
@@ -37,8 +37,8 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 0,
             child_ids: [],
-            depend_on_ids: [],
-            state: "03_approved",
+            predecessor_ids: [],
+            state: "approved",
         },
         {
             id: 3,
@@ -48,8 +48,8 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 0,
             child_ids: [],
-            depend_on_ids: [],
-            state: "02_changes_requested",
+            predecessor_ids: [],
+            state: "changes_requested",
         },
         {
             id: 4,
@@ -59,8 +59,8 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 0,
             child_ids: [],
-            depend_on_ids: [],
-            state: "1_done",
+            predecessor_ids: [],
+            state: "done",
         },
         {
             id: 5,
@@ -69,8 +69,8 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 1,
             child_ids: [6],
-            depend_on_ids: [],
-            state: "03_approved",
+            predecessor_ids: [],
+            state: "approved",
         },
         {
             id: 6,
@@ -80,8 +80,8 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 0,
             child_ids: [],
-            depend_on_ids: [],
-            state: "1_canceled",
+            predecessor_ids: [],
+            state: "canceled",
         },
         {
             id: 7,
@@ -91,8 +91,8 @@ beforeEach(() => {
             closed_subtask_count: 0,
             subtask_count: 0,
             child_ids: [],
-            depend_on_ids: [],
-            state: "01_in_progress",
+            predecessor_ids: [],
+            state: "in_progress",
         },
     ];
 
@@ -113,7 +113,7 @@ beforeEach(() => {
                         </templates>
                     </kanban>
                 </field>
-                <field name="depend_on_ids" widget="notebook_task_one2many">
+                <field name="predecessor_ids" widget="notebook_task_one2many">
                     <kanban>
                         <templates>
                             <t t-name="card">
@@ -167,11 +167,11 @@ test("test open task dependencies in form view instead of form view dialog", asy
     });
 
     expect("div[name='name'] input").toHaveValue("task one");
-    expect("div[name='depend_on_ids'] .o_kanban_record:not(.o_kanban_ghost,.o-kanban-button-new)").toHaveCount(2, {
+    expect("div[name='predecessor_ids'] .o_kanban_record:not(.o_kanban_ghost,.o-kanban-button-new)").toHaveCount(2, {
         message:
             "The depend on tasks list should display all blocking tasks by default, thus we are looking for 2 in total",
     });
-    await click("div[name='depend_on_ids'] .o_kanban_record:first-child");
+    await click("div[name='predecessor_ids'] .o_kanban_record:first-child");
     await animationFrame();
     expect(document.body).not.toHaveClass("modal-open");
     expect("div[name='name'] input").toHaveValue("task five");

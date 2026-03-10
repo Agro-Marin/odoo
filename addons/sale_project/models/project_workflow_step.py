@@ -1,8 +1,8 @@
 from odoo import api, fields, models
 
 
-class ProjectTaskType(models.Model):
-    _inherit = 'project.task.type'
+class ProjectWorkflowStep(models.Model):
+    _inherit = 'project.workflow.step'
 
     show_rating_active = fields.Boolean(compute='_compute_show_rating_active', export_string_translation=False)
 

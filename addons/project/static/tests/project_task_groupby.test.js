@@ -8,7 +8,7 @@ defineProjectModels();
 const kanbanViewParams = {
     resModel: "project.task",
     type: "kanban",
-    arch: `<kanban default_group_by="stage_id" js_class="project_task_kanban">
+    arch: `<kanban default_group_by="step_id" js_class="project_task_kanban">
                 <templates>
                     <t t-name="card"/>
                 </templates>

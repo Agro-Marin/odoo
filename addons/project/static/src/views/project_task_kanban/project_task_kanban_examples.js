@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { renderToMarkup } from '@web/core/utils/render';
@@ -10,7 +11,7 @@ const clock = markup`<a class="fa-regular fa-clock"></a>`;
 
 const exampleData = {
     applyExamplesText: _t("Use This For My Project"),
-    allowedGroupBys: ['stage_id'],
+    allowedGroupBys: ['step_id'],
     foldField: "fold",
     examples:[{
         name: _t('Software Development'),

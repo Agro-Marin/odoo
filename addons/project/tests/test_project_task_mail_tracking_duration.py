@@ -21,10 +21,10 @@ class TestProjectTaskMailTrackingDuration(MailTrackingDurationMixinCase):
     def test_task_mail_tracking_duration_during_onchange_stage(self) -> None:
         """Checks that the status bar duration is correctly set during an onchange of its stage_id."""
         task = self.rec_1
-        task.stage_id = self.stage_1
+        task.step_id = self.stage_1
         initial_tracking = task.duration_tracking
         with Form(task) as task_form:
-            task_form.stage_id = self.stage_2
+            task_form.step_id = self.stage_2
         final_tracking = task.duration_tracking
         self.assertEqual(
             initial_tracking[str(self.stage_1.id)],

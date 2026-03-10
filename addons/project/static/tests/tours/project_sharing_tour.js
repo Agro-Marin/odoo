@@ -2,7 +2,7 @@ import { delay } from "@web/core/utils/concurrency";
 import { registry } from "@web/core/registry";
 import { stepUtils } from "@web_tour/tour_utils";
 
-const projectSharingSteps = [...stepUtils.goToAppSteps("project.menu_main_pm", 'Go to the Project App.'), {
+const projectSharingSteps = [...stepUtils.goToAppSteps("project.menu_project_root", 'Go to the Project App.'), {
     trigger: ".o_kanban_record:contains(Project Sharing)",
     content: 'Open the project dropdown.',
     run: "hover && click .o_kanban_record:contains(Project Sharing) .o_dropdown_kanban .dropdown-toggle",
@@ -68,7 +68,7 @@ const projectSharingSteps = [...stepUtils.goToAppSteps("project.menu_main_pm", '
     content: 'Go to the form view of this new task',
     run: "click",
 }, {
-    trigger: 'div[name="stage_id"] div.o_statusbar_status button[aria-checked="false"]:contains(Done)',
+    trigger: 'div[name="step_id"] div.o_statusbar_status button[aria-checked="false"]:contains(Done)',
     content: 'Change the stage of the task.',
     run: "click",
 }, {

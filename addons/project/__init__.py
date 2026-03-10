@@ -21,17 +21,17 @@ def _project_post_init(env) -> None:
     _check_exists_collaborators_for_project_sharing(env)
 
     # Index to improve the performance of burndown chart.
-    project_task_stage_field_id = (
-        env["ir.model.fields"]._get_ids("project.task").get("stage_id")
+    project_task_step_field_id = (
+        env["ir.model.fields"]._get_ids("project.task").get("step_id")
     )
     create_index(
         env.cr,
         make_identifier(
-            "mail_tracking_value_mail_message_id_old_value_integer_task_stage"
+            "mail_tracking_value_mail_message_id_old_value_integer_task_step"
         ),
         env["mail.tracking.value"]._table,
         ["mail_message_id", "old_value_integer"],
-        where=f"field_id={project_task_stage_field_id}",
+        where=f"field_id={project_task_step_field_id}",
     )
 
     # Create analytic plan fields on project model for existing plans

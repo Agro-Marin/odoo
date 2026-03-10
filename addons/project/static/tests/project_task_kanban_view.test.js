@@ -12,7 +12,7 @@ const viewParams = {
     resModel: "project.task",
     type: "kanban",
     arch: `
-        <kanban default_group_by="stage_id" js_class="project_task_kanban">
+        <kanban default_group_by="step_id" js_class="project_task_kanban">
             <templates>
                 <t t-name="card">
                     <field name="name"/>
@@ -32,7 +32,7 @@ test("stages nocontent helper should be displayed in the project Kanban", async 
         resModel: "project.task",
         type: "kanban",
         arch: `
-            <kanban default_group_by="stage_id" js_class="project_task_kanban">
+            <kanban default_group_by="step_id" js_class="project_task_kanban">
                 <templates>
                     <t t-name="card">
                         <field name="name"/>
@@ -41,7 +41,7 @@ test("stages nocontent helper should be displayed in the project Kanban", async 
             </kanban>
         `,
         context: {
-            active_model: "project.task.type.delete.wizard",
+            active_model: "project.workflow.step.delete.wizard",
             default_project_id: 1,
         },
     });
@@ -70,14 +70,14 @@ test("project.task (kanban): toggle sub-tasks", async () => {
             id: 1,
             project_id: 1,
             name: "Task 1",
-            stage_id:  1,
+            step_id:  1,
             display_in_project: true,
         },
         {
             id: 2,
             project_id: 1,
             name: "Task 2",
-            stage_id:  1,
+            step_id:  1,
             display_in_project: false,
         }
     ];

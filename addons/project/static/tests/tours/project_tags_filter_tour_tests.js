@@ -25,7 +25,7 @@ registry.category("web_tour.tours").add("project_tags_filter_tour", {
     steps: () => [
         stepUtils.showAppsMenuItem(),
         {
-            trigger: '.o_app[data-menu-xmlid="project.menu_main_pm"]',
+            trigger: '.o_app[data-menu-xmlid="project.menu_project_root"]',
             run: "click",
         },
         ...changeFilter("Corkscrew tail tag filter"),

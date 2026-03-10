@@ -20,14 +20,14 @@ beforeEach(() => {
             id: 1,
             name: "Project 1",
             allow_milestones: false,
-            allow_task_dependencies: false,
+            allow_dependencies: false,
             allow_recurring_tasks: false,
         },
         {
             id: 2,
             name: "Project 2",
             allow_milestones: false,
-            allow_task_dependencies: false,
+            allow_dependencies: false,
             allow_recurring_tasks: false,
         },
     ];
@@ -66,7 +66,7 @@ const formViewParams = {
         <form js_class="project_project_form">
             <field name="active"/>
             <field name="name"/>
-            <field name="allow_task_dependencies"/>
+            <field name="allow_dependencies"/>
             <field name="allow_milestones"/>
             <field name="allow_recurring_tasks"/>
         </form>
@@ -141,11 +141,11 @@ test("reload the page when allow_milestones is disabled on all projects", async 
     ]);
 });
 
-test("reload the page when allow_task_dependencies is enabled on at least one project", async () => {
-    // No project has allow_task_dependencies enabled
+test("reload the page when allow_dependencies is enabled on at least one project", async () => {
+    // No project has allow_dependencies enabled
     await mountView(formViewParams);
 
-    await click("div[name='allow_task_dependencies'] input");
+    await click("div[name='allow_dependencies'] input");
     await clickSave();
 
     expect.verifySteps([
@@ -156,24 +156,24 @@ test("reload the page when allow_task_dependencies is enabled on at least one pr
     ]);
 });
 
-test("do not reload the page when allow_task_dependencies is enabled and there already exists one project with the feature enabled", async () => {
-    // Set a project with allow_task_dependencies enabled
-    ProjectProject._records[1].allow_task_dependencies = true;
+test("do not reload the page when allow_dependencies is enabled and there already exists one project with the feature enabled", async () => {
+    // Set a project with allow_dependencies enabled
+    ProjectProject._records[1].allow_dependencies = true;
     await mountView(formViewParams);
 
-    await click("div[name='allow_task_dependencies'] input");
+    await click("div[name='allow_dependencies'] input");
     await clickSave();
 
     // No reload should be triggered
     expect.verifySteps(["check_features_enabled", "web_save", "check_features_enabled"]);
 });
 
-test("reload the page when allow_task_dependencies is disabled on all projects", async () => {
-    // Set a project with allow_task_dependencies enabled
-    ProjectProject._records[0].allow_task_dependencies = true;
+test("reload the page when allow_dependencies is disabled on all projects", async () => {
+    // Set a project with allow_dependencies enabled
+    ProjectProject._records[0].allow_dependencies = true;
     await mountView(formViewParams);
 
-    await click("div[name='allow_task_dependencies'] input");
+    await click("div[name='allow_dependencies'] input");
     await clickSave();
 
     expect.verifySteps([

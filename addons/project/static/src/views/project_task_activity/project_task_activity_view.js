@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { activityView } from "@mail/views/web/activity/activity_view";
 
-import { ProjectTaskControlPanel } from "../project_task_control_panel/project_task_control_panel";
-import { ProjectTaskActivityModel } from "./project_task_activity_model";
+import { ProjectTaskControlPanel } from "../project_task_control_panel/project_task_control_panel.js";
+import { ProjectTaskActivityModel } from "./project_task_activity_model.js";
 import { registry } from "@web/core/registry";
 
 export const projectTaskActivityView = {

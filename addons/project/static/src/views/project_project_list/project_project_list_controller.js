@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { ListController } from "@web/views/list/list_controller";
 import { onWillStart } from "@odoo/owl";
 import { user } from "@web/services/user";
 
-import { ProjectTemplateDropdown } from "../components/project_template_dropdown";
+import { ProjectTemplateDropdown } from "../components/project_template_dropdown.js";
 
 export class ProjectListController extends ListController {
     static template = "project.ProjectListView";

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { X2ManyField, x2ManyField } from '@web/fields/relational/x2many/x2many_field';
 
-import { NotebookTaskListRenderer } from './notebook_task_list_renderer';
+import { NotebookTaskListRenderer } from './notebook_task_list_renderer.js';
 
 export class NotebookTaskOne2ManyField extends X2ManyField {
     static components = {

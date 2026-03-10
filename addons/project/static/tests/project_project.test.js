@@ -49,7 +49,7 @@ test("project.project (kanban) hide archive/unarchive action for project user", 
         actionMenus: {},
         arch: `
             <kanban js_class="project_project_kanban">
-                <field name="stage_id"/>
+                <field name="phase_id"/>
                 <templates>
                     <t t-name="card">
                         <div>
@@ -59,7 +59,7 @@ test("project.project (kanban) hide archive/unarchive action for project user", 
                 </templates>
             </kanban>
         `,
-        groupBy: ['stage_id']
+        groupBy: ['phase_id']
     });
     toggleKanbanColumnActions();
     await animationFrame();

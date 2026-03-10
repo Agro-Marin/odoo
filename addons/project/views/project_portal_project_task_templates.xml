@@ -10,12 +10,12 @@
     <template id="portal_my_tasks_state_widget_template" name="Status Widget Template">
         <span
             t-att-title="dict(task.fields_get(allfields=['state'])['state']['selection'])[task.state]"
-            t-attf-class="#{'fa' if task.state in ['1_done','1_canceled','04_waiting_normal'] else 'o_status rounded-circle' } #{'fa-check-circle text-success' if task.state == '1_done' else 'fa-times-circle text-danger' if task.state == '1_canceled' else 'bg-warning' if task.state == '02_changes_requested' else 'bg-success' if task.state == '03_approved' else 'fa-hourglass-o' if task.state == '04_waiting_normal' else ''}"
+            t-attf-class="#{'fa' if task.state in ['done','canceled','waiting'] else 'o_status rounded-circle' } #{'fa-check-circle text-success' if task.state == 'done' else 'fa-times-circle text-danger' if task.state == 'canceled' else 'bg-warning' if task.state == 'changes_requested' else 'bg-success' if task.state == 'approved' else 'fa-hourglass-o' if task.state == 'waiting' else ''}"
         />
     </template>
     <template id="portal_my_tasks_badge_widget_template" name="badge Widget Template">
-        <span t-attf-class="badge rounded-pill o_tag o_badge_color_#{task.stage_id_color}"
-            t-attf-title="#{task.stage_id.name}" t-out="task.stage_id.name"
+        <span t-attf-class="badge rounded-pill o_tag o_badge_color_#{task.step_color}"
+            t-attf-title="#{task.step_id.name}" t-out="task.step_id.name"
         />
     </template>
 
@@ -37,7 +37,7 @@
                         <th t-if="groupby != 'project_id' and multiple_projects">Project</th>
                         <th t-if="groupby != 'milestone_id' and allow_milestone" name="project_portal_milestones">Milestone</th>
                         <th t-if="groupby != 'state'"/>
-                        <th t-if="groupby != 'stage_id'" class="text-end">Stage</th>
+                        <th t-if="groupby != 'step_id'" class="text-end">Stage</th>
                     </tr>
                 </thead>
                 <t t-foreach="grouped_tasks" t-as="tasks">
@@ -57,10 +57,10 @@
                                         t-field="tasks[0].sudo().milestone_id.name"/>
                                     <span t-else="">No Milestone</span>
                                 </t>
-                                <t t-if="groupby == 'stage_id'">
+                                <t t-if="groupby == 'step_id'">
                                     <!-- This div is necessary for documents_project_sale -->
                                     <div name="stage_name" class="d-flex w-100 align-items-center">
-                                        <span class="text-truncate" t-field="tasks[0].sudo().stage_id.name"/>
+                                        <span class="text-truncate" t-field="tasks[0].sudo().step_id.name"/>
                                     </div>
                                 </t>
                                 <t t-if="groupby == 'priority'">
@@ -77,7 +77,7 @@
                                 </t>
                             </th>
                             <th name="state_col" t-if="groupby != 'state'"/>
-                            <th name="stage_id_col" t-if="groupby != 'stage_id'"/>
+                            <th name="step_id_col" t-if="groupby != 'step_id'"/>
                         </tr>
                     </tbody>
                     <tbody t-if="tasks">
@@ -114,7 +114,7 @@
                                         <t t-set="path" t-value="'tasks'"/>
                                     </t>
                                 </td>
-                                <td t-if="groupby != 'stage_id'" class="text-end lh-1">
+                                <td t-if="groupby != 'step_id'" class="text-end lh-1">
                                     <t t-call="project.portal_my_tasks_badge_widget_template"/>
                                 </td>
                             </tr>

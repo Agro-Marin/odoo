@@ -10,64 +10,64 @@ class TestPersonalStages(TestProjectCommon):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        cls.user_stages = cls.env["project.task.type"].search(
+        cls.user_stages = cls.env["project.workflow.step"].search(
             [("user_id", "=", cls.user_projectuser.id)]
         )
-        cls.manager_stages = cls.env["project.task.type"].search(
+        cls.manager_stages = cls.env["project.workflow.step"].search(
             [("user_id", "=", cls.user_projectmanager.id)]
         )
 
     def test_personal_stage_base(self) -> None:
         # Project User is assigned to task_1 he should be able to see a personal stage
-        self.task_1.with_user(self.user_projectuser)._compute_personal_stage_id()
+        self.task_1.with_user(self.user_projectuser)._compute_personal_triage_id()
         self.assertTrue(
-            self.task_1.with_user(self.user_projectuser).personal_stage_type_id,
+            self.task_1.with_user(self.user_projectuser).triage_id,
             "Project User is assigned to task 1, he should have a personal stage assigned.",
         )
 
-        self.task_1.with_user(self.user_projectmanager)._compute_personal_stage_id()
+        self.task_1.with_user(self.user_projectmanager)._compute_personal_triage_id()
         self.assertFalse(
             self.env["project.task"]
             .browse(self.task_1.id)
             .with_user(self.user_projectmanager)
-            .personal_stage_type_id,
+            .triage_id,
             "Project Manager is not assigned to task 1, he should not have a personal stage assigned.",
         )
 
         # Now assign a second user to our task_1
         self.task_1.user_ids += self.user_projectmanager
         self.assertTrue(
-            self.task_1.with_user(self.user_projectmanager).personal_stage_type_id,
+            self.task_1.with_user(self.user_projectmanager).triage_id,
             "Project Manager has now been assigned to task 1 and should have a personal stage assigned.",
         )
 
-        self.task_1.with_user(self.user_projectmanager)._compute_personal_stage_id()
+        self.task_1.with_user(self.user_projectmanager)._compute_personal_triage_id()
         task_1_manager_stage = self.task_1.with_user(
             self.user_projectmanager
-        ).personal_stage_type_id
+        ).triage_id
 
-        self.task_1.with_user(self.user_projectuser)._compute_personal_stage_id()
-        self.task_1.with_user(self.user_projectuser).personal_stage_type_id = (
+        self.task_1.with_user(self.user_projectuser)._compute_personal_triage_id()
+        self.task_1.with_user(self.user_projectuser).triage_id = (
             self.user_stages[1]
         )
         self.assertEqual(
-            self.task_1.with_user(self.user_projectuser).personal_stage_type_id,
+            self.task_1.with_user(self.user_projectuser).triage_id,
             self.user_stages[1],
             "Assigning another personal stage to the task should have changed it for user 1.",
         )
 
-        self.task_1.with_user(self.user_projectmanager)._compute_personal_stage_id()
+        self.task_1.with_user(self.user_projectmanager)._compute_personal_triage_id()
         self.assertEqual(
-            self.task_1.with_user(self.user_projectmanager).personal_stage_type_id,
+            self.task_1.with_user(self.user_projectmanager).triage_id,
             task_1_manager_stage,
             "Modifying the personal stage of Project User should not have affected the personal stage of Project Manager.",
         )
 
-        self.task_2.with_user(self.user_projectmanager).personal_stage_type_id = (
+        self.task_2.with_user(self.user_projectmanager).triage_id = (
             self.manager_stages[1]
         )
         self.assertEqual(
-            self.task_1.with_user(self.user_projectmanager).personal_stage_type_id,
+            self.task_1.with_user(self.user_projectmanager).triage_id,
             task_1_manager_stage,
             "Modifying the personal stage on task 2 for Project Manager should not have affected the stage on task 1.",
         )
@@ -75,21 +75,21 @@ class TestPersonalStages(TestProjectCommon):
     def test_personal_stage_search(self) -> None:
         self.task_2.user_ids += self.user_projectuser
         # Make sure both personal stages are different
-        self.task_1.with_user(self.user_projectuser).personal_stage_type_id = (
+        self.task_1.with_user(self.user_projectuser).triage_id = (
             self.user_stages[0]
         )
-        self.task_2.with_user(self.user_projectuser).personal_stage_type_id = (
+        self.task_2.with_user(self.user_projectuser).triage_id = (
             self.user_stages[1]
         )
         tasks = (
             self.env["project.task"]
             .with_user(self.user_projectuser)
-            .search([("personal_stage_type_id", "=", self.user_stages[0].id)])
+            .search([("triage_id", "=", self.user_stages[0].id)])
         )
         self.assertTrue(tasks, "The search result should not be empty.")
         for task in tasks:
             self.assertEqual(
-                task.personal_stage_type_id,
+                task.triage_id,
                 self.user_stages[0],
                 "The search should only have returned task that are in the inbox personal stage.",
             )
@@ -112,7 +112,7 @@ class TestPersonalStages(TestProjectCommon):
         ).unlink()
 
         self.task_1.user_ids += self.user_projectmanager
-        self.task_1.with_user(self.user_projectmanager).personal_stage_type_id = (
+        self.task_1.with_user(self.user_projectmanager).triage_id = (
             self.manager_stages[1]
         )
         # Makes sure the personal stage for project manager is saved in the database
@@ -124,7 +124,7 @@ class TestPersonalStages(TestProjectCommon):
             .formatted_read_group(
                 [("user_ids", "=", self.user_projectuser.id)],
                 aggregates=["sequence:avg", "__count"],
-                groupby=["personal_stage_type_ids"],
+                groupby=["triage_ids"],
             )
         )
         # Check that the result is at least a bit coherent
@@ -149,7 +149,7 @@ class TestPersonalStages(TestProjectCommon):
             .formatted_read_group(
                 [("user_ids", "=", self.user_projectmanager.id)],
                 aggregates=["sequence:avg", "__count"],
-                groupby=["personal_stage_type_ids"],
+                groupby=["triage_ids"],
             )
         )
         self.assertEqual(
@@ -163,9 +163,9 @@ class TestPersonalStages(TestProjectCommon):
         for group in read_group_manager:
             total += group["__count"]
             # Check that we have a task in both stages
-            if group["personal_stage_type_ids"][0] == self.manager_stages[0].id:
+            if group["triage_ids"][0] == self.manager_stages[0].id:
                 total_stage_0 += 1
-            elif group["personal_stage_type_ids"][0] == self.manager_stages[1].id:
+            elif group["triage_ids"][0] == self.manager_stages[1].id:
                 total_stage_1 += 1
         self.assertEqual(
             1,
@@ -197,7 +197,7 @@ class TestPersonalStages(TestProjectCommon):
         )
 
         # Ensure user doesnt have any personal stages before hand and no onboarding tasks
-        self.env["project.task.type"].sudo().search(
+        self.env["project.workflow.step"].sudo().search(
             [("user_id", "in", (user_1 + user_2 + user_3).ids)]
         ).user_id = False
         self.env["project.task"].sudo().search(
@@ -205,11 +205,11 @@ class TestPersonalStages(TestProjectCommon):
         ).unlink()
 
         self.assertEqual(
-            self.env["project.task.type"].search_count([("user_id", "=", user_1.id)]),
+            self.env["project.workflow.step"].search_count([("user_id", "=", user_1.id)]),
             0,
         )
         self.assertEqual(
-            self.env["project.task.type"].search_count([("user_id", "=", user_2.id)]),
+            self.env["project.workflow.step"].search_count([("user_id", "=", user_2.id)]),
             0,
         )
         self.assertEqual(
@@ -222,7 +222,7 @@ class TestPersonalStages(TestProjectCommon):
         )
 
         # Create 5 personal stages for user 1
-        user_1_stages = self.env["project.task.type"].create(
+        user_1_stages = self.env["project.workflow.step"].create(
             [
                 {
                     "user_id": user_1.id,
@@ -233,7 +233,7 @@ class TestPersonalStages(TestProjectCommon):
             ]
         )
         # Create 3 personal stages for user 2
-        user_2_stages = self.env["project.task.type"].create(
+        user_2_stages = self.env["project.workflow.step"].create(
             [
                 {
                     "user_id": user_2.id,
@@ -277,24 +277,24 @@ class TestPersonalStages(TestProjectCommon):
         )
 
         # Put private tasks in personal stages for user 1
-        private_tasks[0].with_user(user_1.id).personal_stage_type_id = user_1_stages[
+        private_tasks[0].with_user(user_1.id).triage_id = user_1_stages[
             2
         ].id
-        private_tasks[1].with_user(user_1.id).personal_stage_type_id = user_1_stages[
+        private_tasks[1].with_user(user_1.id).triage_id = user_1_stages[
             3
         ].id
-        private_tasks[2].with_user(user_1.id).personal_stage_type_id = user_1_stages[
+        private_tasks[2].with_user(user_1.id).triage_id = user_1_stages[
             4
         ].id
-        private_tasks[3].with_user(user_1.id).personal_stage_type_id = user_1_stages[
+        private_tasks[3].with_user(user_1.id).triage_id = user_1_stages[
             4
         ].id
 
         # Put private tasks in personal stages for user 2
-        private_tasks[0].with_user(user_2.id).personal_stage_type_id = user_2_stages[
+        private_tasks[0].with_user(user_2.id).triage_id = user_2_stages[
             0
         ].id
-        private_tasks[1].with_user(user_2.id).personal_stage_type_id = user_2_stages[
+        private_tasks[1].with_user(user_2.id).triage_id = user_2_stages[
             1
         ].id
 
@@ -320,7 +320,7 @@ class TestPersonalStages(TestProjectCommon):
         #  +---------+---------+---------+
 
         self.assertEqual(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .with_user(user_1.id)
             .search_count([("project_ids", "=", False), ("user_id", "=", user_1.id)]),
             5,
@@ -331,25 +331,25 @@ class TestPersonalStages(TestProjectCommon):
             .search_count([("user_ids", "in", user_1.ids)]),
             4,
         )
-        private_tasks.invalidate_recordset(["personal_stage_type_id"])
+        private_tasks.invalidate_recordset(["triage_id"])
         self.assertEqual(
-            private_tasks[0].with_user(user_1.id).personal_stage_type_id.id,
+            private_tasks[0].with_user(user_1.id).triage_id.id,
             user_1_stages[2].id,
         )
         self.assertEqual(
-            private_tasks[1].with_user(user_1.id).personal_stage_type_id.id,
+            private_tasks[1].with_user(user_1.id).triage_id.id,
             user_1_stages[3].id,
         )
         self.assertEqual(
-            private_tasks[2].with_user(user_1.id).personal_stage_type_id.id,
+            private_tasks[2].with_user(user_1.id).triage_id.id,
             user_1_stages[4].id,
         )
         self.assertEqual(
-            private_tasks[3].with_user(user_1.id).personal_stage_type_id.id,
+            private_tasks[3].with_user(user_1.id).triage_id.id,
             user_1_stages[4].id,
         )
         self.assertEqual(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .with_user(user_2.id)
             .search_count([("project_ids", "=", False), ("user_id", "=", user_2.id)]),
             3,
@@ -360,13 +360,13 @@ class TestPersonalStages(TestProjectCommon):
             .search_count([("user_ids", "in", user_2.ids)]),
             2,
         )
-        private_tasks.invalidate_recordset(["personal_stage_type_id"])
+        private_tasks.invalidate_recordset(["triage_id"])
         self.assertEqual(
-            private_tasks[0].with_user(user_2.id).personal_stage_type_id.id,
+            private_tasks[0].with_user(user_2.id).triage_id.id,
             user_2_stages[0].id,
         )
         self.assertEqual(
-            private_tasks[1].with_user(user_2.id).personal_stage_type_id.id,
+            private_tasks[1].with_user(user_2.id).triage_id.id,
             user_2_stages[1].id,
         )
 
@@ -385,7 +385,7 @@ class TestPersonalStages(TestProjectCommon):
 
         user_2_stages[2].with_user(user_2.id).unlink()
         self.assertEqual(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .with_user(user_2.id)
             .search_count([("project_ids", "=", False), ("user_id", "=", user_2.id)]),
             2,
@@ -406,10 +406,10 @@ class TestPersonalStages(TestProjectCommon):
         #  |         |         |         | Task 4  |
         #  +---------+---------+---------+---------+
 
-        private_tasks.invalidate_recordset(["personal_stage_type_id"])
+        private_tasks.invalidate_recordset(["triage_id"])
         user_1_stages[2].with_user(user_1.id).unlink()
         self.assertEqual(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .with_user(user_1.id)
             .search_count([("project_ids", "=", False), ("user_id", "=", user_1.id)]),
             4,
@@ -423,7 +423,7 @@ class TestPersonalStages(TestProjectCommon):
             "Tasks in a removed personal stage should not be unlinked.",
         )
         self.assertEqual(
-            private_tasks[0].with_user(user_1.id).personal_stage_type_id.id,
+            private_tasks[0].with_user(user_1.id).triage_id.id,
             user_1_stages[1].id,
             "Tasks in a removed personal stage should be moved to the stage following it sequence-wise",
         )
@@ -446,7 +446,7 @@ class TestPersonalStages(TestProjectCommon):
             lambda s: s.id in [user_1_stages[1].id, user_1_stages[3].id]
         ).with_user(user_1.id).unlink()
         self.assertEqual(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .with_user(user_1.id)
             .search_count([("project_ids", "=", False), ("user_id", "=", user_1.id)]),
             2,
@@ -461,7 +461,7 @@ class TestPersonalStages(TestProjectCommon):
         )
         for i in range(2):
             self.assertEqual(
-                private_tasks[i].with_user(user_1.id).personal_stage_type_id.id,
+                private_tasks[i].with_user(user_1.id).triage_id.id,
                 user_1_stages[0].id,
                 "Tasks in a personal stage removed in batch should be moved to the stage following it sequence-wise",
             )
@@ -494,14 +494,14 @@ class TestPersonalStages(TestProjectCommon):
 
         (user_1_stages[0] | user_2_stages[1]).sudo().unlink()
         self.assertEqual(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .with_user(user_1.id)
             .search_count([("project_ids", "=", False), ("user_id", "=", user_1.id)]),
             1,
             "Superuser should be able to delete personal stages in batch.",
         )
         self.assertEqual(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .with_user(user_2.id)
             .search_count([("project_ids", "=", False), ("user_id", "=", user_2.id)]),
             1,
@@ -516,18 +516,18 @@ class TestPersonalStages(TestProjectCommon):
         )
         for private_task in private_tasks:
             self.assertEqual(
-                private_task.with_user(user_1.id).personal_stage_type_id.id,
+                private_task.with_user(user_1.id).triage_id.id,
                 user_1_stages[4].id,
                 "Tasks in a personal stage removed in batch should be moved to a stage with a higher sequence if no stage with lower sequence have been found",
             )
-        private_tasks.invalidate_recordset(["personal_stage_type_id"])
+        private_tasks.invalidate_recordset(["triage_id"])
         self.assertEqual(
-            private_tasks[0].with_user(user_2.id).personal_stage_type_id.id,
+            private_tasks[0].with_user(user_2.id).triage_id.id,
             user_2_stages[0].id,
             "Tasks in a personal stage removed in batch by superuser should be moved to the stage following it sequence-wise",
         )
         self.assertEqual(
-            private_tasks[1].with_user(user_2.id).personal_stage_type_id.id,
+            private_tasks[1].with_user(user_2.id).triage_id.id,
             user_2_stages[0].id,
             "Tasks in a personal stage removed in batch by superuser should be moved to the stage following it sequence-wise",
         )
@@ -553,20 +553,20 @@ class TestPersonalStages(TestProjectCommon):
         ):
             user_2_stages[0].with_user(user_2.id).unlink()
         self.assertEqual(
-            self.env["project.task.type"]
+            self.env["project.workflow.step"]
             .with_user(user_2.id)
             .search_count([("project_ids", "=", False), ("user_id", "=", user_2.id)]),
             1,
             "Last personal stage of a user should not be deleted by unlink method",
         )
-        private_tasks.invalidate_recordset(["personal_stage_type_id"])
+        private_tasks.invalidate_recordset(["triage_id"])
         self.assertEqual(
-            private_tasks[0].with_user(user_2.id).personal_stage_type_id.id,
+            private_tasks[0].with_user(user_2.id).triage_id.id,
             user_2_stages[0].id,
             "Last personal stage of a user should not be deleted by unlink method",
         )
         self.assertEqual(
-            private_tasks[1].with_user(user_2.id).personal_stage_type_id.id,
+            private_tasks[1].with_user(user_2.id).triage_id.id,
             user_2_stages[0].id,
             "Last personal stage of a user should not be deleted by unlink method",
         )
@@ -575,7 +575,7 @@ class TestPersonalStages(TestProjectCommon):
         # - G. Deleting the last personal stage not allowed (even if empty) -
         # -------------------------------------------------------------------
 
-        empty_stage_user_3 = self.env["project.task.type"].create(
+        empty_stage_user_3 = self.env["project.workflow.step"].create(
             {
                 "user_id": user_3.id,
                 "name": "User 3 - Empty stage",
@@ -594,7 +594,7 @@ class TestPersonalStages(TestProjectCommon):
         # ---------------------------------------------------------
 
         # Create one normal project stage with no task in it two other personal stages for both users that could be deleted
-        empty_stages = self.env["project.task.type"].create(
+        empty_stages = self.env["project.workflow.step"].create(
             [
                 {
                     "user_id": user_1.id,
@@ -615,14 +615,14 @@ class TestPersonalStages(TestProjectCommon):
         )
         empty_stages.sudo().unlink()
         self.assertFalse(
-            self.env["project.task.type"].search_count(
+            self.env["project.workflow.step"].search_count(
                 [("id", "in", empty_stages.ids)]
             ),
             "All stages, wether they are personal or not, should be able to be deleted in batch",
         )
 
     def test_new_personal_stages_created_for_new_users(self) -> None:
-        ProjectTaskType = self.env["project.task.type"]
+        ProjectTaskType = self.env["project.workflow.step"]
 
         internal_user = new_test_user(
             self.env,

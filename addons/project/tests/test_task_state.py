@@ -12,7 +12,7 @@ class TestTaskState(TestProjectCommon):
 
         cls.project_goats.write(
             {
-                "allow_task_dependencies": True,
+                "allow_dependencies": True,
             }
         )
         (cls.task_1 + cls.task_2).write(
@@ -35,36 +35,36 @@ class TestTaskState(TestProjectCommon):
         # 1) check that task_1 and task2 are in_progress by default
         self.assertEqual(
             self.task_1.state,
-            "01_in_progress",
+            "in_progress",
             "The task_1 should be in progress by default",
         )
         self.assertEqual(
             self.task_2.state,
-            "01_in_progress",
+            "in_progress",
             "The task_2 should be in progress by default",
         )
 
         # 2) add task2 as a dependency for task 1, check that task_1 state has gone to waiting_normal.
         self.task_1.write(
             {
-                "depend_on_ids": [Command.link(self.task_2.id)],
+                "predecessor_ids": [Command.link(self.task_2.id)],
             }
         )
         self.assertEqual(
             self.task_1.state,
-            "04_waiting_normal",
+            "waiting",
             "The task_1 should be in waiting_normal after depending on another open task",
         )
 
         # 3) force task_1 state to done, the state of task_1 should become done
         self.task_1.write(
             {
-                "state": "1_done",
+                "state": "done",
             }
         )
         self.assertEqual(
             self.task_1.state,
-            "1_done",
+            "done",
             "The task_1 should be in done even if it has a depending task not closed",
         )
 
@@ -72,12 +72,12 @@ class TestTaskState(TestProjectCommon):
 
         self.task_1.write(
             {
-                "state": "01_in_progress",
+                "state": "in_progress",
             }
         )
         self.assertEqual(
             self.task_1.state,
-            "04_waiting_normal",
+            "waiting",
             "task_1 state should automatically switch back to waiting_normal because of the task2 dependency",
         )
 
@@ -85,12 +85,12 @@ class TestTaskState(TestProjectCommon):
 
         self.task_2.write(
             {
-                "state": "1_canceled",
+                "state": "canceled",
             }
         )
         self.assertEqual(
             self.task_1.state,
-            "01_in_progress",
+            "in_progress",
             "task_1 state should automatically switch back to in_progress when its dependency closes",
         )
 
@@ -105,33 +105,33 @@ class TestTaskState(TestProjectCommon):
         """
         # 1) change task_1 to an open state and task_2 to a closed state
 
-        stage_won = self.env["project.task.type"].search([("name", "=", "Won")])
+        stage_won = self.env["project.workflow.step"].search([("name", "=", "Won")])
         project_pigs = self.env["project.project"].search([("name", "=", "Pigs")])
 
         self.task_1.write(
             {
-                "state": "02_changes_requested",
+                "state": "changes_requested",
             }
         )
         self.task_2.write(
             {
-                "state": "1_canceled",
+                "state": "canceled",
             }
         )
         # 2) change task_1 and task_2 from stage, task_1 should go back to in_progress, task_2 should stay in its closing state
         (self.task_1 + self.task_2).write(
             {
-                "stage_id": stage_won.id,
+                "step_id": stage_won.id,
             }
         )
         self.assertEqual(
             self.task_1.state,
-            "01_in_progress",
+            "in_progress",
             "task_1 state should automatically switch back to in_progress when its stage changes",
         )
         self.assertEqual(
             self.task_2.state,
-            "1_canceled",
+            "canceled",
             "task_2 state should stay in its closed state",
         )
 
@@ -140,7 +140,7 @@ class TestTaskState(TestProjectCommon):
         # we make change the task_1 state back to an open state
         self.task_1.write(
             {
-                "state": "02_changes_requested",
+                "state": "changes_requested",
             }
         )
 
@@ -148,111 +148,111 @@ class TestTaskState(TestProjectCommon):
         self.task_1._onchange_project_id()
         self.assertEqual(
             self.task_1.state,
-            "01_in_progress",
+            "in_progress",
             "task_1 state should automatically switch back to in_progress when its project changes",
         )
         self.assertEqual(
             self.task_2.state,
-            "01_in_progress",
+            "in_progress",
             "task_2 state should automatically switch back to in_progress when its project changes",
         )
 
     def test_duplicate_dependent_task(self) -> None:
         self.task_1.write(
             {
-                "depend_on_ids": [Command.link(self.task_2.id)],
+                "predecessor_ids": [Command.link(self.task_2.id)],
             }
         )
         self.assertEqual(
             self.task_1.state,
-            "04_waiting_normal",
+            "waiting",
             "The task_1 should be in waiting_normal after depending on another open task",
         )
 
         self.task_1_copy = self.task_1.copy()
         self.assertEqual(
             self.task_1.state,
-            "04_waiting_normal",
+            "waiting",
             "The task_1_copy should keep his dependence and stay in waiting_normal",
         )
 
         self.task_2.write(
             {
-                "state": "03_approved",
+                "state": "approved",
             }
         )
         self.task_2_copy = self.task_2.copy()
         self.assertEqual(
             self.task_2_copy.state,
-            "01_in_progress",
+            "in_progress",
             "The task_2_copy should go back to in_progress",
         )
 
         self.task_2.write(
             {
-                "state": "1_done",
+                "state": "done",
             }
         )
         self.assertEqual(
             self.task_1.state,
-            "04_waiting_normal",
+            "waiting",
             "The task_1 should have both tasks as dependencies and so should stay in waiting when one of the two is completed",
         )
         self.assertEqual(
             self.task_1_copy.state,
-            "04_waiting_normal",
+            "waiting",
             "The task_1_copy should have both tasks as dependencies and so should stay in waiting when one of the two is completed",
         )
 
         self.task_2_copy.write(
             {
-                "state": "1_done",
+                "state": "done",
             }
         )
 
         self.assertEqual(
             self.task_1.state,
-            "01_in_progress",
+            "in_progress",
             "The task_1 should have both tasks as dependencies and so should stay go to 'done' when both dependencies are completed",
         )
         self.assertEqual(
             self.task_1_copy.state,
-            "01_in_progress",
+            "in_progress",
             "The task_1_copy should have both tasks as dependencies and so should stay go to 'done' when both dependencies are completed",
         )
 
     def test_duplicate_task_state_retention_with_closed_dependencies(
         self,
     ) -> None:
-        self.project_pigs.allow_task_dependencies = True
-        self.task_1.depend_on_ids = self.task_2
-        self.task_2.write({"state": "1_done"})
-        self.task_1.write({"state": "03_approved"})
+        self.project_pigs.allow_dependencies = True
+        self.task_1.predecessor_ids = self.task_2
+        self.task_2.write({"state": "done"})
+        self.task_1.write({"state": "approved"})
 
         task_1_copy = self.task_1.copy()
 
         self.assertEqual(
             self.task_1.state,
-            "03_approved",
+            "approved",
             "The task_1 should retain its state after being copied.",
         )
         self.assertEqual(
             task_1_copy.state,
-            "01_in_progress",
+            "in_progress",
             "The task_1_copy should have a state of 'in progress'.",
         )
 
     def test_duplicate_task_state_retention_with_open_dependencies(
         self,
     ) -> None:
-        self.project_pigs.allow_task_dependencies = True
-        self.task_1.depend_on_ids = self.task_2
-        self.task_2.write({"state": "01_in_progress"})
+        self.project_pigs.allow_dependencies = True
+        self.task_1.predecessor_ids = self.task_2
+        self.task_2.write({"state": "in_progress"})
 
         task_1_copy = self.task_1.copy()
 
-        self.assertEqual(self.task_1.state, "04_waiting_normal")
-        self.assertEqual(task_1_copy.state, "04_waiting_normal")
+        self.assertEqual(self.task_1.state, "waiting")
+        self.assertEqual(task_1_copy.state, "waiting")
 
     def test_task_created_in_waiting_stage_gets_in_progress_state(self) -> None:
         """Test that when a new task is created in the "Waiting" state (by grouping by state in Kanban view), it gets the state "In Progress" by default."""
@@ -261,7 +261,7 @@ class TestTaskState(TestProjectCommon):
             self.env["project.task"]
             .with_context(
                 {
-                    "default_state": "04_waiting_normal",
+                    "default_state": "waiting",
                 }
             )
             .create(
@@ -272,30 +272,30 @@ class TestTaskState(TestProjectCommon):
             )
         )
 
-        self.assertEqual(task.state, "01_in_progress", "The task should be in progress")
+        self.assertEqual(task.state, "in_progress", "The task should be in progress")
 
     def test_changing_parent_do_not_reset_task_state(self) -> None:
-        self.task_2.state = "04_waiting_normal"
+        self.task_2.state = "waiting"
         self.task_2.parent_id = self.task_1
         self.assertEqual(
             self.task_2.state,
-            "04_waiting_normal",
+            "waiting",
             "Changing the task's parent should not reset the task's state.",
         )
 
     def test_state_dont_reset_when_enabling_task_dependencies(self) -> None:
-        self.project_goats.allow_task_dependencies = False
+        self.project_goats.allow_dependencies = False
         self.env.user.group_ids -= self.env.ref(
             "project.group_project_task_dependencies"
         )
-        self.task_1.state = "03_approved"
-        self.task_2.state = "02_changes_requested"
-        self.project_goats.allow_task_dependencies = True
+        self.task_1.state = "approved"
+        self.task_2.state = "changes_requested"
+        self.project_goats.allow_dependencies = True
         self.env.user.group_ids += self.env.ref(
             "project.group_project_task_dependencies"
         )
-        self.assertEqual(self.task_1.state, "03_approved")
-        self.assertEqual(self.task_2.state, "02_changes_requested")
+        self.assertEqual(self.task_1.state, "approved")
+        self.assertEqual(self.task_2.state, "changes_requested")
 
     def test_recompute_state_when_task_dependencies_feature_changes(
         self,
@@ -320,20 +320,20 @@ class TestTaskState(TestProjectCommon):
         13. Enable again the task dependencies on the project.
         14. Check the state of task 1 did not change.
         """
-        self.assertTrue(self.project_goats.allow_task_dependencies)
+        self.assertTrue(self.project_goats.allow_dependencies)
         self.assertTrue(
             self.env.user.has_group("project.group_project_task_dependencies")
         )
-        self.task_1.depend_on_ids = self.task_2
-        self.assertEqual(self.task_1.state, "04_waiting_normal")
-        self.project_goats.allow_task_dependencies = False
-        self.assertEqual(self.task_1.state, "01_in_progress")
-        self.project_goats.allow_task_dependencies = True
-        self.assertEqual(self.task_1.state, "04_waiting_normal")
-        self.task_2.state = "1_done"
-        self.assertEqual(self.task_1.state, "01_in_progress")
-        self.task_1.state = "03_approved"
-        self.project_goats.allow_task_dependencies = False
-        self.assertEqual(self.task_1.state, "03_approved")
-        self.project_goats.allow_task_dependencies = True
-        self.assertEqual(self.task_1.state, "03_approved")
+        self.task_1.predecessor_ids = self.task_2
+        self.assertEqual(self.task_1.state, "waiting")
+        self.project_goats.allow_dependencies = False
+        self.assertEqual(self.task_1.state, "in_progress")
+        self.project_goats.allow_dependencies = True
+        self.assertEqual(self.task_1.state, "waiting")
+        self.task_2.state = "done"
+        self.assertEqual(self.task_1.state, "in_progress")
+        self.task_1.state = "approved"
+        self.project_goats.allow_dependencies = False
+        self.assertEqual(self.task_1.state, "approved")
+        self.project_goats.allow_dependencies = True
+        self.assertEqual(self.task_1.state, "approved")

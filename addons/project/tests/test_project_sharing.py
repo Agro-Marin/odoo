@@ -44,7 +44,7 @@ class TestProjectSharingCommon(TestProjectCommon):
                     "name": "Cows",
                     "privacy_visibility": "portal",
                     "alias_name": "project+cows",
-                    "type_ids": project_sharing_stages_vals_list,
+                    "workflow_step_ids": project_sharing_stages_vals_list,
                 }
             )
         )
@@ -57,7 +57,7 @@ class TestProjectSharingCommon(TestProjectCommon):
                     "privacy_visibility": "portal",
                     "alias_name": "project+portal",
                     "partner_id": cls.user_portal.partner_id.id,
-                    "type_ids": project_sharing_stages_vals_list,
+                    "workflow_step_ids": project_sharing_stages_vals_list,
                 }
             )
         )
@@ -519,7 +519,7 @@ class TestProjectSharing(TestProjectSharingCommon):
             self.assertEqual(task.name, "Test")
             self.assertEqual(task.project_id, self.project_portal)
             self.assertFalse(task.portal_user_names)
-            self.assertTrue(task.stage_id)
+            self.assertTrue(task.step_id)
 
             # Check creating a sub-task while creating the parent task works as expected.
             self.assertEqual(task.child_ids.name, "Test Subtask")
@@ -1006,14 +1006,14 @@ class TestProjectSharing(TestProjectSharingCommon):
                 ],
             }
         )
-        stage = self.project_portal.type_ids[-1]
+        stage = self.project_portal.workflow_step_ids[-1]
         stage.write(
             {
                 "rating_active": True,
                 "rating_status": "stage",
             }
         )
-        self.task_portal.with_user(self.user_portal).write({"stage_id": stage.id})
+        self.task_portal.with_user(self.user_portal).write({"step_id": stage.id})
 
     def test_orm_method_with_true_false_domain(self) -> None:
         """Test orm method overriden in project for project sharing works
@@ -1281,10 +1281,10 @@ class TestProjectSharing(TestProjectSharingCommon):
         )
         task = project.task_ids[0]
         self.env.invalidate_all()
-        task.with_user(portal_user).write({"state": "1_done"})
+        task.with_user(portal_user).write({"state": "done"})
         self.assertEqual(
             task.state,
-            "1_done",
+            "done",
             "The portal user with edit rights should be able to mark the task as done.",
         )
         next_task = task.recurrence_id.task_ids.filtered(lambda t: t != task)

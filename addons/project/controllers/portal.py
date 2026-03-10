@@ -209,7 +209,7 @@ class ProjectCustomerPortal(CustomerPortal):
             project_sudo if access_token else project_sudo.with_user(request.env.user)
         )
         if not groupby:
-            groupby = "stage_id"
+            groupby = "step_id"
         values = self._project_get_page_view_values(
             project_sudo,
             access_token,
@@ -258,7 +258,7 @@ class ProjectCustomerPortal(CustomerPortal):
         session_info["user_context"].update(
             {
                 "allow_milestones": project.allow_milestones,
-                "allow_task_dependencies": project.allow_task_dependencies,
+                "allow_dependencies": project.allow_dependencies,
             }
         )
         return session_info
@@ -531,9 +531,9 @@ class ProjectCustomerPortal(CustomerPortal):
                 "sequence": 10,
             },
             "name": {"label": _("Title"), "order": "name", "sequence": 20},
-            "stage_id, project_id": {
-                "label": _("Stage"),
-                "order": "stage_id, project_id",
+            "step_id, project_id": {
+                "label": _("Workflow Step"),
+                "order": "step_id, project_id",
                 "sequence": 50,
             },
             "state": {"label": _("Status"), "order": "state", "sequence": 60},
@@ -547,16 +547,16 @@ class ProjectCustomerPortal(CustomerPortal):
                 "order": "date_deadline asc",
                 "sequence": 90,
             },
-            "date_last_stage_update desc": {
-                "label": _("Last Stage Update"),
-                "order": "date_last_stage_update desc",
+            "date_last_status_change desc": {
+                "label": _("Last Status Change"),
+                "order": "date_last_status_change desc",
                 "sequence": 110,
             },
         }
         if not project:
-            values["project_id, stage_id"] = {
+            values["project_id, step_id"] = {
                 "label": _("Project"),
-                "order": "project_id, stage_id",
+                "order": "project_id, step_id",
                 "sequence": 30,
             }
         if milestones_allowed:
@@ -572,7 +572,7 @@ class ProjectCustomerPortal(CustomerPortal):
     ) -> dict[str, dict[str, Any]]:
         values = {
             "none": {"label": _("None"), "sequence": 10},
-            "stage_id": {"label": _("Stage"), "sequence": 20},
+            "step_id": {"label": _("Workflow Step"), "sequence": 20},
             "state": {"label": _("Status"), "sequence": 40},
             "priority": {"label": _("Priority"), "sequence": 60},
             "partner_id": {"label": _("Customer"), "sequence": 70},
@@ -601,9 +601,9 @@ class ProjectCustomerPortal(CustomerPortal):
                 "label": _("Search in Assignees"),
                 "sequence": 20,
             },
-            "stage_id": {
-                "input": "stage_id",
-                "label": _("Search in Stages"),
+            "step_id": {
+                "input": "step_id",
+                "label": _("Search in Workflow Steps"),
                 "sequence": 30,
             },
             "status": {

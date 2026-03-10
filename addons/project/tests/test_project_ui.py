@@ -15,16 +15,16 @@ class TestUi(odoo.tests.HttpCase):
 
     def test_project_task_history(self) -> None:
         """This tour will check that the history works properly."""
-        stage = self.env["project.task.type"].create({"name": "To Do"})
+        stage = self.env["project.workflow.step"].create({"name": "To Do"})
         _dummy, project2 = self.env["project.project"].create(
             [
                 {
                     "name": "Without tasks project",
-                    "type_ids": stage.ids,
+                    "workflow_step_ids": stage.ids,
                 },
                 {
                     "name": "Test History Project",
-                    "type_ids": stage.ids,
+                    "workflow_step_ids": stage.ids,
                 },
             ]
         )
@@ -32,7 +32,7 @@ class TestUi(odoo.tests.HttpCase):
         self.env["project.task"].create(
             {
                 "name": "Test History Task",
-                "stage_id": stage.id,
+                "step_id": stage.id,
                 "project_id": project2.id,
             }
         )
@@ -41,12 +41,12 @@ class TestUi(odoo.tests.HttpCase):
 
     def test_project_task_last_history_steps(self) -> None:
         """This tour will check that the history works properly."""
-        stage = self.env["project.task.type"].create({"name": "To Do"})
+        stage = self.env["project.workflow.step"].create({"name": "To Do"})
         project = self.env["project.project"].create(
             [
                 {
                     "name": "Test History Project",
-                    "type_ids": stage.ids,
+                    "workflow_step_ids": stage.ids,
                 }
             ]
         )
@@ -54,7 +54,7 @@ class TestUi(odoo.tests.HttpCase):
         self.env["project.task"].create(
             {
                 "name": "Test History Task",
-                "stage_id": stage.id,
+                "step_id": stage.id,
                 "project_id": project.id,
             }
         )

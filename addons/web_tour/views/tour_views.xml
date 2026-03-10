@@ -72,7 +72,7 @@
         <field name="view_id" ref="tour_list"/>
         <field name="search_view_id" ref="tour_search"/>
     </record>
-    <menuitem action="tour_action" id="menu_tour_action" parent="base.next_id_2" sequence="5"/>
+    <menuitem action="tour_action" id="menu_tour_action" parent="base.menu_user_interface" sequence="5"/>
 
 
     <record id="tour_export_js_action" model="ir.actions.server">

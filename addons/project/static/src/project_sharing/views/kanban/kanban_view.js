@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { ProjectTaskRelationalModel } from "@project/views/project_task_relational_model";
 import { ProjectTaskControlPanel } from "@project/views/project_task_control_panel/project_task_control_panel";

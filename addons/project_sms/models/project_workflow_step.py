@@ -4,8 +4,8 @@
 from odoo import fields, models
 
 
-class ProjectTaskType(models.Model):
-    _inherit = "project.task.type"
+class ProjectWorkflowStep(models.Model):
+    _inherit = "project.workflow.step"
 
     sms_template_id = fields.Many2one('sms.template', string="SMS Template",
         domain=[('model', '=', 'project.task')],

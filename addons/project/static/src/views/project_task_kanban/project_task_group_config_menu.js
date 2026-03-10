@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
 import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";
@@ -17,7 +18,7 @@ export class ProjectTaskGroupConfigMenu extends GroupConfigMenu {
     }
 
     async deleteGroup() {
-        if (this.group.groupByField.name === "stage_id") {
+        if (this.group.groupByField.name === "step_id") {
             const action = await this.group.model.orm.call(
                 this.group.groupByField.relation,
                 "unlink_wizard",

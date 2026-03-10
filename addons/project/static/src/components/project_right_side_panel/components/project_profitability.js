@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 
 export class ProjectProfitability extends Component {

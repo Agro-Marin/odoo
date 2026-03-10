@@ -146,7 +146,7 @@
         <field name="inherit_id" ref="project.quick_create_task_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='project_id']" position="attributes">
-                <attribute name="context">{'default_allow_billable': True, 'default_type_ids': [(4, context.get('default_stage_id', False))]}
+                <attribute name="context">{'default_allow_billable': True, 'default_workflow_step_ids': [(4, context.get('default_step_id', False))]}
                 </attribute>
             </xpath>
         </field>
@@ -228,12 +228,12 @@
                 <attribute name="column_invisible">not parent.allow_billable</attribute>
                 <attribute name="invisible">not allow_billable</attribute>
             </xpath>
-            <xpath expr="//field[@name='depend_on_ids']/list/field[@name='partner_id']" position="after">
+            <xpath expr="//field[@name='predecessor_ids']/list/field[@name='partner_id']" position="after">
                 <field name="sale_line_id" optional="hide" readonly="1" groups="sales_team.group_sale_salesman" column_invisible="parent.has_template_ancestor or parent.has_project_template"/>
                 <field name="sale_line_id" optional="hide" options="{'no_open': True}" readonly="1" groups="!sales_team.group_sale_salesman" column_invisible="parent.has_template_ancestor or parent.has_project_template"/>
                 <field name="allow_billable" column_invisible="True"/>
             </xpath>
-            <xpath expr="//field[@name='depend_on_ids']/list/field[@name='partner_id']" position="attributes">
+            <xpath expr="//field[@name='predecessor_ids']/list/field[@name='partner_id']" position="attributes">
                 <attribute name="column_invisible">not parent.allow_billable</attribute>
                 <attribute name="invisible">not allow_billable</attribute>
             </xpath>
@@ -364,7 +364,7 @@
         <field name="inherit_id" ref="project.quick_create_task_form_res_partner"/>
         <field name="arch" type="xml">
             <xpath expr="//group//field[@name='project_id']" position="attributes">
-                <attribute name="domain">[('allow_billable', '=', True), ('type_ids', 'in', context['default_stage_id'])] if context.get('default_stage_id') else []</attribute>
+                <attribute name="domain">[('allow_billable', '=', True), ('workflow_step_ids', 'in', context['default_step_id'])] if context.get('default_step_id') else []</attribute>
             </xpath>
         </field>
     </record>

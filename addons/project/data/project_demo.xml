@@ -100,26 +100,26 @@
         </record>
 
         <!-- Stage templates -->
-        <record id="project.project_project_stage_2" model="project.project.stage">
+        <record id="project.project_phase_2" model="project.phase">
             <field name="mail_template_id" ref="project.project_done_email_template"/>
         </record>
 
         <!-- Task Stages -->
-        <record id="project_stage_0" model="project.task.type">
+        <record id="project_stage_0" model="project.workflow.step">
             <field name="sequence">1</field>
             <field name="name">New</field>
             <field name="mail_template_id" ref="project.mail_template_data_project_task"/>
         </record>
-        <record id="project_stage_1" model="project.task.type">
+        <record id="project_stage_1" model="project.workflow.step">
             <field name="sequence">10</field>
             <field name="name">In Progress</field>
         </record>
-        <record id="project_stage_2" model="project.task.type">
+        <record id="project_stage_2" model="project.workflow.step">
             <field name="sequence">20</field>
             <field name="name">Done</field>
             <field name="fold" eval="False"/>
         </record>
-        <record id="project_stage_3" model="project.task.type">
+        <record id="project_stage_3" model="project.workflow.step">
             <field name="sequence">30</field>
             <field name="name">Cancelled</field>
             <field name="fold" eval="True"/>
@@ -131,16 +131,16 @@
             <field name="name">Office Design</field>
             <field name="color">3</field>
             <field name="user_id" ref="base.user_demo"/>
-            <field name="type_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
+            <field name="workflow_step_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
             <field name="partner_id" ref="base.partner_demo_portal"/>
             <field name="privacy_visibility">portal</field>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project.project_tags_05'))]"/>
-            <field name="stage_id" ref="project.project_project_stage_1"/>
+            <field name="step_id" ref="project.project_phase_1"/>
             <field name="account_id" ref="project.analytic_office_design"/>
             <field name="allow_milestones" eval="True"/>
             <field name="allow_recurring_tasks" eval="True"/>
-            <field name="allow_task_dependencies" eval="True"/>
+            <field name="allow_dependencies" eval="True"/>
         </record>
         <record id="project_1_follower_admin" model="mail.followers">
             <field name="res_model">project.project</field>
@@ -152,13 +152,13 @@
             <field name="name">Research &amp; Development</field>
             <field name="privacy_visibility">followers</field>
             <field name="user_id" ref="base.user_admin"/>
-            <field name="type_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
+            <field name="workflow_step_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project.project_tags_04'))]"/>
-            <field name="stage_id" ref="project.project_project_stage_1"/>
+            <field name="step_id" ref="project.project_phase_1"/>
             <field name="account_id" ref="project.analytic_research_development"/>
             <field name="allow_milestones" eval="True"/>
-            <field name="allow_task_dependencies" eval="True"/>
+            <field name="allow_dependencies" eval="True"/>
         </record>
         <record id="project_2_activity_1" model="mail.activity">
             <field name="res_id" ref="project_project_2"/>
@@ -177,10 +177,10 @@
             <field name="description">Renovation work at the YourCompany headquarters.</field>
             <field name="color">4</field>
             <field name="user_id" ref="base.user_admin"/>
-            <field name="type_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
+            <field name="workflow_step_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project_tags_04')), Command.link(ref('project_tags_02'))]"/>
-            <field name="stage_id" ref="project.project_project_stage_2"/>
+            <field name="step_id" ref="project.project_phase_2"/>
             <field name="account_id" ref="project.analytic_renovations"/>
             <field name="privacy_visibility">employees</field>
             <field name="allow_milestones" eval="True"/>
@@ -194,7 +194,7 @@
             <field name="active">False</field>
             <field name="description">Interior designing and refurnishing.</field>
             <field name="user_id" ref="base.user_admin"/>
-            <field name="type_ids" eval="[
+            <field name="workflow_step_ids" eval="[
                 Command.link(ref('project_stage_0')),
                 Command.link(ref('project_stage_1')),
                 Command.link(ref('project_stage_2')),
@@ -202,7 +202,7 @@
             ]"/>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project_tags_04')), Command.link(ref('project_tags_02'))]"/>
-            <field name="stage_id" ref="project.project_project_stage_2"/>
+            <field name="step_id" ref="project.project_phase_2"/>
         </record>
 
         <record id="project_home_construction" model="project.project">
@@ -213,10 +213,10 @@
             <field name="description">Designing and construction of an appealing, comfortable, safe and well-built home that fits the needs and wants of you and your family.</field>
             <field name="color">5</field>
             <field name="user_id" ref="base.user_demo"/>
-            <field name="type_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
+            <field name="workflow_step_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project_tags_06')), Command.link(ref('project_tags_07')), Command.link(ref('project_tags_08')), Command.link(ref('project_tags_09'))]"/>
-            <field name="stage_id" ref="project.project_project_stage_2"/>
+            <field name="step_id" ref="project.project_phase_2"/>
             <field name="account_id" ref="project.analytic_construction"/>
             <field name="privacy_visibility">portal</field>
             <field name="allow_milestones" eval="True"/>
@@ -229,7 +229,7 @@
             <field name="date_start">2025-06-01 09:00:00</field>
             <field name="date">2025-06-30 18:00:00</field>
             <field name="user_id" ref="base.user_admin"/>
-            <field name="type_ids" eval="[
+            <field name="workflow_step_ids" eval="[
                 Command.link(ref('project_stage_0')),
                 Command.link(ref('project_stage_1')),
                 Command.link(ref('project_stage_2')),
@@ -245,87 +245,87 @@
         <record id="project_template_1_task_2" model="project.task">
             <field name="name">Define Target Audience</field>
             <field name="project_id" ref="project_template_1"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project_template_1_task_1'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project_template_1_task_1'))]"/>
         </record>
 
         <record id="project_template_1_task_3" model="project.task">
             <field name="name">Write Press Release</field>
             <field name="project_id" ref="project_template_1"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project_template_1_task_2'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project_template_1_task_2'))]"/>
         </record>
 
         <record id="project_template_1_task_4" model="project.task">
             <field name="name">Design Visual Assets</field>
             <field name="project_id" ref="project_template_1"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project_template_1_task_2'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project_template_1_task_2'))]"/>
         </record>
 
         <record id="project_template_1_task_5" model="project.task">
             <field name="name">Publish Landing Page</field>
             <field name="project_id" ref="project_template_1"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project_template_1_task_4'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project_template_1_task_4'))]"/>
         </record>
 
         <record id="project_template_1_task_6" model="project.task">
             <field name="name">Send Press Kit</field>
             <field name="project_id" ref="project_template_1"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project_template_1_task_3'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project_template_1_task_3'))]"/>
         </record>
 
         <record id="project_template_1_task_7" model="project.task">
             <field name="name">Social Media Follow-up</field>
             <field name="project_id" ref="project_template_1"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project_template_1_task_6'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project_template_1_task_6'))]"/>
         </record>
 
         <record id="project_template_1_task_8" model="project.task">
             <field name="name">Collect Customer Feedback</field>
             <field name="project_id" ref="project_template_1"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project_template_1_task_5'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project_template_1_task_5'))]"/>
         </record>
 
         <record id="project_template_1_task_9" model="project.task">
             <field name="name">Campaign Performance Review</field>
             <field name="project_id" ref="project_template_1"/>
-            <field name="depend_on_ids" eval="[
+            <field name="predecessor_ids" eval="[
                 Command.link(ref('project_template_1_task_7')),
                 Command.link(ref('project_template_1_task_8'))
             ]"/>
         </record>
 
         <!-- Personal Stages: Mitchell Admin-->
-        <record id="project_personal_stage_admin_0" model="project.task.type">
+        <record id="project_personal_stage_admin_0" model="project.triage">
             <field name="sequence">1</field>
             <field name="name">Inbox</field>
             <field name="user_id" ref="base.user_admin"/>
         </record>
-        <record id="project_personal_stage_admin_1" model="project.task.type">
+        <record id="project_personal_stage_admin_1" model="project.triage">
             <field name="sequence">2</field>
             <field name="name">Today</field>
             <field name="user_id" ref="base.user_admin"/>
         </record>
-        <record id="project_personal_stage_admin_2" model="project.task.type">
+        <record id="project_personal_stage_admin_2" model="project.triage">
             <field name="sequence">3</field>
             <field name="name">This Week</field>
             <field name="user_id" ref="base.user_admin"/>
         </record>
-        <record id="project_personal_stage_admin_3" model="project.task.type">
+        <record id="project_personal_stage_admin_3" model="project.triage">
             <field name="sequence">4</field>
             <field name="name">This Month</field>
             <field name="user_id" ref="base.user_admin"/>
         </record>
-        <record id="project_personal_stage_admin_4" model="project.task.type">
+        <record id="project_personal_stage_admin_4" model="project.triage">
             <field name="sequence">5</field>
             <field name="name">Later</field>
             <field name="user_id" ref="base.user_admin"/>
         </record>
-        <record id="project_personal_stage_admin_5" model="project.task.type">
+        <record id="project_personal_stage_admin_5" model="project.triage">
             <field name="sequence">6</field>
             <field name="name">Done</field>
             <field name="fold" eval="True"/>
             <field name="user_id" ref="base.user_admin"/>
         </record>
-        <record id="project_personal_stage_admin_6" model="project.task.type">
+        <record id="project_personal_stage_admin_6" model="project.triage">
             <field name="sequence">7</field>
             <field name="name">Cancelled</field>
             <field name="fold" eval="True"/>
@@ -333,38 +333,38 @@
         </record>
 
         <!-- Personal Stages: Marc Demo -->
-        <record id="project_personal_stage_demo_0" model="project.task.type">
+        <record id="project_personal_stage_demo_0" model="project.triage">
             <field name="sequence">1</field>
             <field name="name">Inbox</field>
             <field name="user_id" ref="base.user_demo"/>
         </record>
-        <record id="project_personal_stage_demo_1" model="project.task.type">
+        <record id="project_personal_stage_demo_1" model="project.triage">
             <field name="sequence">2</field>
             <field name="name">Today</field>
             <field name="user_id" ref="base.user_demo"/>
         </record>
-        <record id="project_personal_stage_demo_2" model="project.task.type">
+        <record id="project_personal_stage_demo_2" model="project.triage">
             <field name="sequence">3</field>
             <field name="name">This Week</field>
             <field name="user_id" ref="base.user_demo"/>
         </record>
-        <record id="project_personal_stage_demo_3" model="project.task.type">
+        <record id="project_personal_stage_demo_3" model="project.triage">
             <field name="sequence">4</field>
             <field name="name">This Month</field>
             <field name="user_id" ref="base.user_demo"/>
         </record>
-        <record id="project_personal_stage_demo_4" model="project.task.type">
+        <record id="project_personal_stage_demo_4" model="project.triage">
             <field name="sequence">5</field>
             <field name="name">Later</field>
             <field name="user_id" ref="base.user_demo"/>
         </record>
-        <record id="project_personal_stage_demo_5" model="project.task.type">
+        <record id="project_personal_stage_demo_5" model="project.triage">
             <field name="sequence">6</field>
             <field name="name">Done</field>
             <field name="fold" eval="True"/>
             <field name="user_id" ref="base.user_demo"/>
         </record>
-        <record id="project_personal_stage_demo_6" model="project.task.type">
+        <record id="project_personal_stage_demo_6" model="project.triage">
             <field name="sequence">7</field>
             <field name="name">Cancelled</field>
             <field name="fold" eval="True"/>
@@ -420,7 +420,7 @@
             <field name="user_ids" eval="False"/>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="name">Office planning</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="color">7</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="milestone_id" ref="project.project_1_milestone_1" />
@@ -432,7 +432,7 @@
             <field name="priority">0</field>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="name">Lunch Room: kitchen</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="milestone_id" ref="project.project_1_milestone_1" />
         </record>
@@ -453,7 +453,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_1_task_2_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -461,7 +461,7 @@
             <field name="mail_message_id" ref="project_1_task_2_mail_message_1"/>
         </record>
         <record id="project_1_task_2_mail_message_2_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">In Progress</field>
             <field name="new_value_char">Done</field>
             <field name="old_value_integer">2</field>
@@ -477,7 +477,7 @@
             <field name="name">Noise Reduction</field>
             <field name="description">Installation of acoustic ceiling clouds and wall panels.</field>
             <field name="date_deadline" eval="time.strftime('%Y-%m-24')"/>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="color">4</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="milestone_id" ref="project.project_1_milestone_2" />
@@ -499,7 +499,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_1_task_3_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -507,7 +507,7 @@
             <field name="mail_message_id" ref="project_1_task_3_mail_message_1"/>
         </record>
         <record id="project_1_task_3_mail_message_2_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">In Progress</field>
             <field name="new_value_char">Done</field>
             <field name="old_value_integer">2</field>
@@ -518,7 +518,7 @@
         <record id="project_1_task_4" model="project.task">
             <field name="sequence">17</field>
             <field name="allocated_hours">8.0</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="user_ids" eval="False"/>
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_1"/>
@@ -545,7 +545,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_1_task_4_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -553,7 +553,7 @@
             <field name="mail_message_id" ref="project_1_task_4_mail_message_1"/>
         </record>
         <record id="project_1_task_4_mail_message_2_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">In Progress</field>
             <field name="new_value_char">Done</field>
             <field name="old_value_integer">2</field>
@@ -567,8 +567,8 @@
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="name">Energy Certificate</field>
-            <field name="stage_id" ref="project_stage_1"/>
-            <field name="state">01_in_progress</field>
+            <field name="step_id" ref="project_stage_1"/>
+            <field name="state">in_progress</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="date_deadline" eval="DateTime.now() + relativedelta(days=2)"/>
             <field name="color">1</field>
@@ -583,7 +583,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_1_task_5_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -606,10 +606,10 @@
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="name">Room 1: Decoration</field>
-            <field name="state">03_approved</field>
+            <field name="state">approved</field>
             <field name="priority">0</field>
             <field name="date_deadline" eval="time.strftime('%Y-%m-%d')"/>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
             <field name="tag_ids" eval="[Command.set([ref('project_tags_01')])]"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="color">11</field>
@@ -624,7 +624,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_1_task_6_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -647,7 +647,7 @@
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="name">Room 2: Decoration</field>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="date_deadline" eval="DateTime.now() + relativedelta(days=6)"/>
             <field name="color">9</field>
@@ -662,7 +662,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_1_task_7_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -679,8 +679,8 @@
             <field name="description">Use the account_budget module</field>
             <field name="date_deadline" eval="time.strftime('%Y-%m-19')"/>
             <field name="color">5</field>
-            <field name="stage_id" ref="project_stage_1"/>
-            <field name="state">02_changes_requested</field>
+            <field name="step_id" ref="project_stage_1"/>
+            <field name="state">changes_requested</field>
             <field name="tag_ids" eval="[Command.set([ref('project_tags_01')])]"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="milestone_id" ref="project.project_1_milestone_3" />
@@ -694,7 +694,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_1_task_8_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -727,7 +727,7 @@
             <field name="priority">0</field>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="name">Meeting Room Furnitures</field>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
             <field name="color">3</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="milestone_id" ref="project.project_1_milestone_3" />
@@ -782,7 +782,7 @@
             <field name="user_ids" eval="False"/>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="name">Customer review</field>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
             <field name="recurring_task" eval="True"/>
             <field name="recurrence_id" ref="project_task_recurrence_1"/>
             <field name="create_date" eval="DateTime.now() + relativedelta(weeks=-2)"/>
@@ -794,7 +794,7 @@
             <field name="user_ids" eval="False"/>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="name">Daily stand-up meeting - Send minutes</field>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
             <field name="recurring_task" eval="True"/>
             <field name="recurrence_id" ref="project_task_recurrence_2"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(weeks=-1)"/>
@@ -806,7 +806,7 @@
             <field name="project_id" ref="project.project_project_1"/>
             <field name="parent_id" ref="project.project_1_task_10"/>
             <field name="name">Customer Meeting</field>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
         </record>
         <record id="project_1_task_13" model="project.task">
             <field name="sequence">10</field>
@@ -815,7 +815,7 @@
             <field name="project_id" ref="project.project_project_1"/>
             <field name="parent_id" ref="project.project_1_task_12"/>
             <field name="name">Daily Meetings summary</field>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
         </record>
         <record id="project_1_task_14" model="project.task">
             <field name="sequence">20</field>
@@ -824,7 +824,7 @@
             <field name="project_id" ref="project.project_project_1"/>
             <field name="parent_id" ref="project.project_1_task_12"/>
             <field name="name">Preparation</field>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
         </record>
         <record id="project_1_task_15" model="project.task">
             <field name="sequence">30</field>
@@ -833,16 +833,16 @@
             <field name="project_id" ref="project.project_project_1"/>
             <field name="parent_id" ref="project.project_1_task_12"/>
             <field name="name">Minutes</field>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
         </record>
         <record id="project_1_task_16" model="project.task">
             <field name="allocated_hours" eval="24.0"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="name">Chair Cabinet</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project.project_1_task_2'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project.project_1_task_2'))]"/>
             <field name="date_deadline" eval="DateTime.now() + relativedelta(days=6)"/>
             <field name="color">9</field>
         </record>
@@ -852,7 +852,7 @@
             <field name="allocated_hours">2.0</field>
             <field name="project_id" ref="project.project_project_1"/>
             <field name="parent_id" ref="project.project_1_task_16"/>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
         </record>
         <record id="project_1_task_18" model="project.task">
             <field name="name">[Room Name] Layout Planning</field>
@@ -910,12 +910,12 @@
         <!-- Project 2 Tasks-->
         <record id="project_2_task_1" model="project.task">
             <field name="allocated_hours">12.0</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin')), Command.link(ref('base.user_demo'))]"/>
             <field name="priority">0</field>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">Customer analysis + Architecture</field>
-            <field name="state">1_done</field>
+            <field name="state">done</field>
             <field name="color">7</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
         </record>
@@ -928,7 +928,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_1_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -944,7 +944,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_1_mail_message_2_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">In Progress</field>
             <field name="new_value_char">Done</field>
             <field name="old_value_integer">2</field>
@@ -954,12 +954,12 @@
 
         <record id="project_2_task_2" model="project.task">
             <field name="allocated_hours">24.0</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">Basic outline</field>
-            <field name="state">1_done</field>
-            <field name="depend_on_ids" eval="[Command.link(ref('project.project_2_task_1'))]"/>
+            <field name="state">done</field>
+            <field name="predecessor_ids" eval="[Command.link(ref('project.project_2_task_1'))]"/>
             <field name="tag_ids" eval="[Command.set([ref('project_tags_02')])]"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
         </record>
@@ -972,7 +972,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_2_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -988,7 +988,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_2_mail_message_2_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">In Progress</field>
             <field name="new_value_char">Done</field>
             <field name="old_value_integer">2</field>
@@ -1002,8 +1002,8 @@
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">Planning and budget</field>
-            <field name="state">1_done</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="state">done</field>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="color">6</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="date_deadline" eval="DateTime.now() - relativedelta(days=4)"/>
@@ -1017,7 +1017,7 @@
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_3_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -1065,10 +1065,10 @@ Send it ASAP, its urgent.</field>
             <field name="tag_ids" eval="[Command.set([
                     ref('project.project_tags_01'),
                     ref('project.project_tags_03')])]"/>
-            <field name="stage_id" ref="project_stage_1"/>
-            <field name="state">03_approved</field>
+            <field name="step_id" ref="project_stage_1"/>
+            <field name="state">approved</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project.project_2_task_3'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project.project_2_task_3'))]"/>
             <field name="date_deadline" eval="DateTime.now() + relativedelta(days=1)"/>
             <field name="color">2</field>
         </record>
@@ -1081,7 +1081,7 @@ Send it ASAP, its urgent.</field>
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_4_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -1096,9 +1096,9 @@ Send it ASAP, its urgent.</field>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">Social network integration</field>
             <field name="description">Facebook and X integration</field>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project.project_2_task_3'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project.project_2_task_3'))]"/>
             <field name="date_deadline" eval="DateTime.now() + relativedelta(days=5)"/>
             <field name="color">2</field>
         </record>
@@ -1111,7 +1111,7 @@ Send it ASAP, its urgent.</field>
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_5_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -1122,11 +1122,11 @@ Send it ASAP, its urgent.</field>
         <record id="project_2_task_6" model="project.task">
             <field name="allocated_hours">42.0</field>
             <field name="user_ids" eval="False"/>
-            <field name="stage_id" ref="project_stage_1"/>
+            <field name="step_id" ref="project_stage_1"/>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">Create new components</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project.project_2_task_3'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project.project_2_task_3'))]"/>
             <field name="date_deadline" eval="DateTime.now() + relativedelta(days=4)"/>
             <field name="color">11</field>
         </record>
@@ -1139,7 +1139,7 @@ Send it ASAP, its urgent.</field>
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_6_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -1154,11 +1154,11 @@ Send it ASAP, its urgent.</field>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">New portal system</field>
             <field name="priority">0</field>
-            <field name="state">1_done</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="state">done</field>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="tag_ids" eval="[Command.set([ref('project.project_tags_02')])]"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project.project_2_task_3')), Command.link(ref('project_2_task_2'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project.project_2_task_3')), Command.link(ref('project_2_task_2'))]"/>
         </record>
         <record id="project_2_task_7_mail_message_1" model="mail.message">
             <field name="model">project.task</field>
@@ -1169,7 +1169,7 @@ Send it ASAP, its urgent.</field>
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_7_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -1185,7 +1185,7 @@ Send it ASAP, its urgent.</field>
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_7_mail_message_2_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">In Progress</field>
             <field name="new_value_char">Done</field>
             <field name="old_value_integer">2</field>
@@ -1196,12 +1196,12 @@ Send it ASAP, its urgent.</field>
         <record id="project_2_task_8" model="project.task">
             <field name="allocated_hours">14.0</field>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin')), Command.link(ref('base.user_demo'))]"/>
-            <field name="stage_id" ref="project_stage_0"/>
+            <field name="step_id" ref="project_stage_0"/>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">Usability review</field>
             <field name="tag_ids" eval="[Command.set([ref('project_tags_03')])]"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
-            <field name="depend_on_ids"
+            <field name="predecessor_ids"
                    eval="[Command.link(ref('project.project_2_task_7')), Command.link(ref('project.project_2_task_5')), Command.link(ref('project.project_2_task_4')), Command.link(ref('project.project_2_task_6'))]"/>
             <field name="date_deadline" eval="DateTime.now() + relativedelta(days=9)"/>
             <field name="color">7</field>
@@ -1215,7 +1215,7 @@ Send it ASAP, its urgent.</field>
             <field name="author_id" ref="base.partner_admin"/>
         </record>
         <record id="project_2_task_8_mail_message_1_track_1" model="mail.tracking.value">
-            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'stage_id')])"/>
+            <field name="field_id" model="ir.model.fields" eval="obj().search([('model', '=', 'project.task'), ('name', '=', 'step_id')])"/>
             <field name="old_value_char">New</field>
             <field name="new_value_char">In Progress</field>
             <field name="old_value_integer">1</field>
@@ -1229,10 +1229,10 @@ Send it ASAP, its urgent.</field>
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">Document management</field>
-            <field name="stage_id" ref="project_stage_0"/>
-            <field name="state">1_canceled</field>
+            <field name="step_id" ref="project_stage_0"/>
+            <field name="state">canceled</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project.project_2_task_8'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project.project_2_task_8'))]"/>
             <field name="date_deadline" eval="DateTime.now() + relativedelta(days=15)"/>
             <field name="color">4</field>
         </record>
@@ -1244,9 +1244,9 @@ Send it ASAP, its urgent.</field>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">Unit Testing</field>
             <field name="description">The most important part!</field>
-            <field name="stage_id" ref="project_stage_0"/>
+            <field name="step_id" ref="project_stage_0"/>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
-            <field name="depend_on_ids" eval="[Command.link(ref('project.project_2_task_8'))]"/>
+            <field name="predecessor_ids" eval="[Command.link(ref('project.project_2_task_8'))]"/>
             <field name="date_deadline" eval="DateTime.now() + relativedelta(days=15)"/>
             <field name="color">5</field>
         </record>
@@ -1254,7 +1254,7 @@ Send it ASAP, its urgent.</field>
         <record id="project_2_task_11" model="project.task">
             <field name="allocated_hours" eval="20.0"/>
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
-            <field name="stage_id" ref="project_stage_3"/>
+            <field name="step_id" ref="project_stage_3"/>
             <field name="priority">0</field>
             <field name="project_id" ref="project.project_project_2"/>
             <field name="name">Code Documentation</field>
@@ -1269,7 +1269,7 @@ Send it ASAP, its urgent.</field>
             <field name="priority">0</field>
             <field name="project_id" ref="project.project_project_3"/>
             <field name="name">Entry Hall</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="color">3</field>
         </record>
 
@@ -1281,7 +1281,7 @@ Send it ASAP, its urgent.</field>
             <field name="name">Check Lift</field>
             <field name="create_date" eval="DateTime.now() - relativedelta(months=5)"/>
             <field name="date_deadline" eval="DateTime.today() + relativedelta(days=-10)"/>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="color">4</field>
         </record>
         <record id="project_3_task_2_message_1" model="mail.message">
@@ -1318,10 +1318,10 @@ Send it ASAP, its urgent.</field>
             <field name="project_id" ref="project.project_project_3"/>
             <field name="name">Room 1: Paint</field>
             <field name="description">Repaint the walls with the hex color #0FF1CE</field>
-            <field name="state">1_done</field>
+            <field name="state">done</field>
             <field name="priority">0</field>
             <field name="date_deadline" eval="DateTime.today() - relativedelta(days=5)"/>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
             <field name="tag_ids" eval="[Command.set([ref('project_tags_01')])]"/>
             <field name="color">9</field>
         </record>
@@ -1332,7 +1332,7 @@ Send it ASAP, its urgent.</field>
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_3"/>
             <field name="name">Bathroom</field>
-            <field name="stage_id" ref="project_stage_2"/>
+            <field name="step_id" ref="project_stage_2"/>
         </record>
 
         <record id="project_3_task_5" model="project.task">
@@ -1341,7 +1341,7 @@ Send it ASAP, its urgent.</field>
             <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_3"/>
             <field name="name">Room 2: Paint</field>
-            <field name="stage_id" ref="project_stage_3"/>
+            <field name="step_id" ref="project_stage_3"/>
             <field name="active">False</field>
         </record>
 
@@ -1484,7 +1484,7 @@ Send it ASAP, its urgent.</field>
             <field name="name">Participate in a Design Review</field>
             <field name="description">Join a meeting where the team reviews and discusses the design or user experience aspects of a project.</field>
             <field name="tag_ids" eval="[Command.set([ref('project_tags_15')])]"/>
-            <field name="state">1_done</field>
+            <field name="state">done</field>
         </record>
         <record id="project_private_task_18" model="project.task">
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
@@ -1492,212 +1492,212 @@ Send it ASAP, its urgent.</field>
             <field name="name">Share Research Findings</field>
             <field name="description">Present findings from research you conducted to inform a project or decision.</field>
             <field name="tag_ids" eval="[Command.set([ref('project_tags_14')])]"/>
-            <field name="state">1_done</field>
+            <field name="state">done</field>
         </record>
 
         <!-- Tasks personal stages -->
         <!-- Admin -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_9')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_0')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_9')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_0')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_1_task_6')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_1')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_1_task_6')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_1')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_3')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_2')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_3')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_2')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_2')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_2')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_2')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_2')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_1')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_3')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_1')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_3')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_1_task_5')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_4')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_1_task_5')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_4')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_1_task_7')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_4')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_1_task_7')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_4')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_4')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_4')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_4')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_4')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_8')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_4')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_8')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_4')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_1_task_3')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_1_task_3')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_1')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_1')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_2')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_2')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_7')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_7')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_3_task_2')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_3_task_2')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_3_task_3')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_3_task_3')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_3_task_4')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_3_task_4')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_5')}"/>
         </function>
 
         <!-- Demo -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_1_task_9')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_1')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_1_task_9')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_1')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_4')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_1')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_4')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_1')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_3')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_2')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_3')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_2')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_3')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_2')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_3')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_2')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_1_task_8')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_3')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_1_task_8')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_3')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_8')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_3')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_8')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_3')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_5')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_4')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_5')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_4')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_1_task_2')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_1_task_2')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_1')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_1')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_2_task_7')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_2_task_7')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_3_task_1')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_3_task_1')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_3_task_5')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_6')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_3_task_5')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_6')}"/>
         </function>
 
         <!-- demo data functions for Demo  -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_5')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_1')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_5')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_1')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_7')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_2')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_7')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_2')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_8')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_3')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_8')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_3')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_11')), ('user_id', '=', ref('base.user_demo'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_demo_4')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_11')), ('user_id', '=', ref('base.user_demo'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_demo_4')}"/>
         </function>
 
         <!-- demo data fuctions for today -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_5')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_1')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_5')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_1')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_6')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_1')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_6')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_1')}"/>
         </function>
 
         <!-- demo data functions for this week -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_7')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_2')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_7')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_2')}"/>
         </function>
 
         <!-- demo data functions for this month -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_8')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_3')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_8')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_3')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_9')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_3')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_9')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_3')}"/>
         </function>
 
         <!-- demo data functions for Later -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_10')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_4')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_10')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_4')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_11')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_4')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_11')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_4')}"/>
         </function>
 
         <!-- demo data functions for Cancel -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_12')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_6')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_12')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_6')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_13')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_6')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_13')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_6')}"/>
         </function>
 
         <!-- demo data function for Archived tasks  -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_14')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_1')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_14')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_1')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_15')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_2')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_15')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_2')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_16')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_3')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_16')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_3')}"/>
         </function>
 
         <!-- Demo data function for Done which are Closed/Mark as Done tasks -->
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_17')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_17')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_5')}"/>
         </function>
-        <function model="project.task.stage.personal" name="write">
-            <value model="project.task.stage.personal" search="[('task_id', '=', ref('project_private_task_18')), ('user_id', '=', ref('base.user_admin'))]"/>
-            <value eval="{'stage_id': ref('project_personal_stage_admin_5')}"/>
+        <function model="project.task.triage" name="write">
+            <value model="project.task.triage" search="[('task_id', '=', ref('project_private_task_18')), ('user_id', '=', ref('base.user_admin'))]"/>
+            <value eval="{'triage_id': ref('project_personal_stage_admin_5')}"/>
         </function>
 
         <!-- Change task creation notifications date -->
@@ -1773,7 +1773,7 @@ Send it ASAP, its urgent.</field>
 
 
         <!-- add the email template as value for the project stage 2 -->
-        <record id="project.project_stage_2" model="project.task.type">
+        <record id="project.project_stage_2" model="project.workflow.step">
             <field name="rating_template_id" ref="rating_project_request_email_template"/>
         </record>
 

@@ -5,7 +5,7 @@
         <record id="so_template_project" model="project.project">
             <field name="name">Sales Order</field>
             <field name="active">False</field>
-            <field name="type_ids" eval="[Command.link(ref('project.project_stage_0')), Command.link(ref('project.project_stage_1')), Command.link(ref('project.project_stage_2'))]"/>
+            <field name="workflow_step_ids" eval="[Command.link(ref('project.project_stage_0')), Command.link(ref('project.project_stage_1')), Command.link(ref('project.project_stage_2'))]"/>
             <field name="description">This project is used as a template for projects created from sales orders.</field>
         </record>
 
@@ -194,9 +194,9 @@
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_project.sale_line_construction_3'))]"/>
             <value eval="{
                 'milestone_id': ref('project.project_home_construction_milestone_1'),
-                'stage_id': ref('project.project_stage_2'),
+                'step_id': ref('project.project_stage_2'),
                 'user_ids':[Command.link(ref('base.user_admin'))],
-                'state': '1_done',
+                'state': 'done',
             }"/>
         </function>
         <function model="project.task" name="write">

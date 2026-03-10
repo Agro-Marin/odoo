@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { HistoryDialog } from "@html_editor/components/history_dialog/history_dialog";
@@ -6,7 +7,7 @@ import { markup, useEffect } from "@odoo/owl";
 import { FormControllerWithHTMLExpander } from '@resource/views/form_with_html_expander/form_controller_with_html_expander';
 import { getHtmlFieldMetadata, setHtmlFieldMetadata } from "@html_editor/fields/html_field";
 
-import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown";
+import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
 
 export const subTaskDeleteConfirmationMessage = _t(
     `Deleting a task will also delete its associated sub-tasks. \
