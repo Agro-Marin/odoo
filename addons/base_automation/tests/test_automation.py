@@ -416,7 +416,7 @@ class TestAutomation(TransactionCaseWithUserDemo):
                 "name": "Set Comment",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': 'Was archived'})",
+                "code": "record.write({'street': 'Was archived'})",
                 "model_id": model.id,
             }
         )
@@ -427,12 +427,12 @@ class TestAutomation(TransactionCaseWithUserDemo):
 
         # Archive it - should trigger (pre: active, post: inactive)
         partner.write({"active": False})
-        self.assertEqual(partner.comment, "Was archived")
+        self.assertEqual(partner.street, "Was archived")
 
         # Reactivate - should NOT trigger (pre: inactive, not matching)
-        partner.comment = False
+        partner.street = False
         partner.write({"active": True})
-        self.assertFalse(partner.comment)
+        self.assertFalse(partner.street)
 
     def test_complex_domain_with_multiple_conditions(self):
         """Test complex domain with AND/OR conditions."""
@@ -495,7 +495,7 @@ class TestAutomation(TransactionCaseWithUserDemo):
 # Complex Python code
 partner_name = record.name.upper()
 record.write({
-    'comment': f'Created: {partner_name}',
+    'street': f'Created: {partner_name}',
     'phone': '123-456-7890',
 })
 """,
@@ -505,7 +505,7 @@ record.write({
         automation.write({"action_server_ids": [Command.link(action.id)]})
 
         partner = self.env["res.partner"].create({"name": "Test Partner"})
-        self.assertEqual(partner.comment, "Created: TEST PARTNER")
+        self.assertEqual(partner.street, "Created: TEST PARTNER")
         self.assertEqual(partner.phone, "123-456-7890")
 
     def test_object_write_action(self):
@@ -550,7 +550,7 @@ record.write({
                 "name": "Action 1",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': (record.comment or '') + 'A'})",
+                "code": "record.write({'street': (record.street or '') + 'A'})",
                 "model_id": model.id,
                 "sequence": 30,
             }
@@ -560,7 +560,7 @@ record.write({
                 "name": "Action 2",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': (record.comment or '') + 'B'})",
+                "code": "record.write({'street': (record.street or '') + 'B'})",
                 "model_id": model.id,
                 "sequence": 10,
             }
@@ -570,7 +570,7 @@ record.write({
                 "name": "Action 3",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': (record.comment or '') + 'C'})",
+                "code": "record.write({'street': (record.street or '') + 'C'})",
                 "model_id": model.id,
                 "sequence": 20,
             }
@@ -587,7 +587,7 @@ record.write({
 
         partner = self.env["res.partner"].create({"name": "Test"})
         # Should execute in sequence order: 10, 20, 30 = B, C, A
-        self.assertEqual(partner.comment, "BCA")
+        self.assertEqual(partner.street, "BCA")
 
     # =========================================================================
     # Automation Lifecycle Tests
@@ -609,7 +609,7 @@ record.write({
                 "name": "Set Comment",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': 'Triggered'})",
+                "code": "record.write({'street': 'Triggered'})",
                 "model_id": model.id,
             }
         )
@@ -617,14 +617,14 @@ record.write({
 
         # Create partner - should NOT trigger (automation inactive)
         p1 = self.env["res.partner"].create({"name": "Test 1"})
-        self.assertFalse(p1.comment)
+        self.assertFalse(p1.street)
 
         # Activate automation
         automation.write({"active": True})
 
         # Create partner - SHOULD trigger
         p2 = self.env["res.partner"].create({"name": "Test 2"})
-        self.assertEqual(p2.comment, "Triggered")
+        self.assertEqual(p2.street, "Triggered")
 
     def test_automation_update_trigger_type(self):
         """Test automation trigger type can be changed."""
@@ -641,7 +641,7 @@ record.write({
                 "name": "Set Comment",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': 'Triggered'})",
+                "code": "record.write({'street': 'Triggered'})",
                 "model_id": model.id,
             }
         )
@@ -649,18 +649,18 @@ record.write({
 
         # Test with on_create trigger
         p1 = self.env["res.partner"].create({"name": "Test 1"})
-        self.assertEqual(p1.comment, "Triggered")
+        self.assertEqual(p1.street, "Triggered")
 
         # Change to on_write trigger
         automation.write({"trigger": "on_write"})
 
         # Create should NOT trigger anymore
         p2 = self.env["res.partner"].create({"name": "Test 2"})
-        self.assertFalse(p2.comment)
+        self.assertFalse(p2.street)
 
         # Write SHOULD trigger
         p2.write({"name": "Test 2 Updated"})
-        self.assertEqual(p2.comment, "Triggered")
+        self.assertEqual(p2.street, "Triggered")
 
     def test_automation_deletion(self):
         """Test automation can be deleted and stops triggering."""
@@ -677,7 +677,7 @@ record.write({
                 "name": "Set Comment",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': 'Triggered'})",
+                "code": "record.write({'street': 'Triggered'})",
                 "model_id": model.id,
             }
         )
@@ -685,14 +685,14 @@ record.write({
 
         # Verify automation works
         p1 = self.env["res.partner"].create({"name": "Test 1"})
-        self.assertEqual(p1.comment, "Triggered")
+        self.assertEqual(p1.street, "Triggered")
 
         # Delete automation
         automation.unlink()
 
         # Should not trigger anymore
         p2 = self.env["res.partner"].create({"name": "Test 2"})
-        self.assertFalse(p2.comment)
+        self.assertFalse(p2.street)
 
     # =========================================================================
     # Trigger Field Filtering Tests
@@ -716,7 +716,7 @@ record.write({
                 "name": "Set Comment",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': 'Email changed'})",
+                "code": "record.write({'street': 'Email changed'})",
                 "model_id": model.id,
             }
         )
@@ -726,11 +726,11 @@ record.write({
 
         # Change name - should NOT trigger
         partner.write({"name": "New Name"})
-        self.assertFalse(partner.comment)
+        self.assertFalse(partner.street)
 
         # Change email - SHOULD trigger
         partner.write({"email": "test@example.com"})
-        self.assertEqual(partner.comment, "Email changed")
+        self.assertEqual(partner.street, "Email changed")
 
     def test_trigger_multiple_fields(self):
         """Test trigger_field_ids with multiple fields."""
@@ -751,7 +751,7 @@ record.write({
                 "name": "Set Comment",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': 'Triggered'})",
+                "code": "record.write({'street': 'Triggered'})",
                 "model_id": model.id,
             }
         )
@@ -761,17 +761,17 @@ record.write({
 
         # Change phone - should NOT trigger
         partner.write({"phone": "123-456"})
-        self.assertFalse(partner.comment)
+        self.assertFalse(partner.street)
 
         # Change name - SHOULD trigger
         partner.write({"name": "New Name"})
-        self.assertEqual(partner.comment, "Triggered")
+        self.assertEqual(partner.street, "Triggered")
 
-        partner.comment = False
+        partner.street = False
 
         # Change email - SHOULD trigger
         partner.write({"email": "test@example.com"})
-        self.assertEqual(partner.comment, "Triggered")
+        self.assertEqual(partner.street, "Triggered")
 
     # =========================================================================
     # Error Handling Tests
@@ -803,7 +803,9 @@ record.write({
             self.env["res.partner"].create({"name": "Test"})
 
     def test_invalid_code_in_action(self):
-        """Test invalid Python code in action."""
+        """Test invalid Python code is rejected at action creation time."""
+        from odoo.exceptions import ValidationError
+
         model = self.env.ref("base.model_res_partner")
         automation = self.env["base.automation"].create(
             {
@@ -812,20 +814,17 @@ record.write({
                 "model_id": model.id,
             }
         )
-        action = self.env["ir.actions.server"].create(
-            {
-                "name": "Bad Code",
-                "base_automation_id": automation.id,
-                "state": "code",
-                "code": "invalid python syntax !!!",
-                "model_id": model.id,
-            }
-        )
-        automation.write({"action_server_ids": [Command.link(action.id)]})
-
-        # Should raise syntax error
-        with self.assertRaises(SyntaxError):
-            self.env["res.partner"].create({"name": "Test"})
+        # Odoo validates Python code at create time — invalid syntax raises ValidationError
+        with self.assertRaises(ValidationError):
+            self.env["ir.actions.server"].create(
+                {
+                    "name": "Bad Code",
+                    "base_automation_id": automation.id,
+                    "state": "code",
+                    "code": "invalid python syntax !!!",
+                    "model_id": model.id,
+                }
+            )
 
     # =========================================================================
     # Model Validation Tests
@@ -923,7 +922,7 @@ record.write({
                 "name": "Set Comment",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': 'Email updated'})",
+                "code": "record.write({'street': 'Email updated'})",
                 "model_id": model.id,
             }
         )
@@ -938,7 +937,7 @@ record.write({
         partners.write({"email": "bulk@example.com"})
 
         # All should have comment set
-        self.assertTrue(all(p.comment == "Email updated" for p in partners))
+        self.assertTrue(all(p.street == "Email updated" for p in partners))
 
     # =========================================================================
     # Context and Environment Tests
@@ -959,7 +958,7 @@ record.write({
                 "name": "Store Company",
                 "base_automation_id": automation.id,
                 "state": "code",
-                "code": "record.write({'comment': env.company.name})",
+                "code": "record.write({'street': env.company.name})",
                 "model_id": model.id,
             }
         )
@@ -967,7 +966,7 @@ record.write({
 
         partner = self.env["res.partner"].create({"name": "Test"})
         # Should have company name from environment
-        self.assertTrue(partner.comment)
+        self.assertTrue(partner.street)
 
     def test_automation_access_to_env_variables(self):
         """Test action code has access to environment variables."""
@@ -988,7 +987,7 @@ record.write({
 # Test access to environment
 user = env.user
 partner_count = env['res.partner'].search_count([])
-record.write({'comment': f'User: {user.name}, Count: {partner_count}'})
+record.write({'street': f'User: {user.name}, Count: {partner_count}'})
 """,
                 "model_id": model.id,
             }
@@ -997,8 +996,8 @@ record.write({'comment': f'User: {user.name}, Count: {partner_count}'})
 
         partner = self.env["res.partner"].create({"name": "Test"})
         # Should have environment info
-        self.assertIn("User:", partner.comment)
-        self.assertIn("Count:", partner.comment)
+        self.assertIn("User:", partner.street)
+        self.assertIn("Count:", partner.street)
 
     # =========================================================================
     # Sequence and Ordering Tests
@@ -1022,7 +1021,7 @@ record.write({'comment': f'User: {user.name}, Count: {partner_count}'})
                 "name": "Action 1",
                 "base_automation_id": auto1.id,
                 "state": "code",
-                "code": "record.write({'comment': (record.comment or '') + 'A'})",
+                "code": "record.write({'street': (record.street or '') + 'A'})",
                 "model_id": model.id,
             }
         )
@@ -1041,7 +1040,7 @@ record.write({'comment': f'User: {user.name}, Count: {partner_count}'})
                 "name": "Action 2",
                 "base_automation_id": auto2.id,
                 "state": "code",
-                "code": "record.write({'comment': (record.comment or '') + 'B'})",
+                "code": "record.write({'street': (record.street or '') + 'B'})",
                 "model_id": model.id,
             }
         )
@@ -1060,7 +1059,7 @@ record.write({'comment': f'User: {user.name}, Count: {partner_count}'})
                 "name": "Action 3",
                 "base_automation_id": auto3.id,
                 "state": "code",
-                "code": "record.write({'comment': (record.comment or '') + 'C'})",
+                "code": "record.write({'street': (record.street or '') + 'C'})",
                 "model_id": model.id,
             }
         )
@@ -1068,4 +1067,4 @@ record.write({'comment': f'User: {user.name}, Count: {partner_count}'})
 
         partner = self.env["res.partner"].create({"name": "Test"})
         # Should execute in sequence order: 10, 20, 30 = B, C, A
-        self.assertEqual(partner.comment, "BCA")
+        self.assertEqual(partner.street, "BCA")

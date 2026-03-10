@@ -206,25 +206,39 @@ class AutomationRuntimeLine(models.Model):
     def action_execute(self):
         """Execute the server action for this line.
 
+        Transitions the line from 'ready' (or 'in_progress') to 'done' on
+        success, or to 'error' on failure. Callers should not manually set
+        state to 'in_progress' before calling this method.
+
         Returns:
             Action dict or True
         """
         self.ensure_one()
 
-        if self.state != "in_progress":
-            raise UserError(_("Action is not in progress"))
+        if self.state not in ("ready", "in_progress"):
+            raise UserError(_("Action is not ready to execute"))
+
+        self.write({"state": "in_progress"})
 
         try:
-            # Build execution context
+            # Build execution context: use the automation's target record if set,
+            # otherwise fall back to the runtime record itself (meta-workflow mode).
             ctx = dict(self.env.context)
-            ctx.update(
-                {
-                    "active_model": "automation.runtime",
-                    "active_id": self.runtime_id.id,
-                    "active_ids": [self.runtime_id.id],
+            runtime = self.runtime_id
+            if runtime.res_model and runtime.res_id:
+                ctx.update({
+                    "active_model": runtime.res_model,
+                    "active_id": runtime.res_id,
+                    "active_ids": [runtime.res_id],
                     "runtime_line_id": self.id,
-                },
-            )
+                })
+            else:
+                ctx.update({
+                    "active_model": "automation.runtime",
+                    "active_id": runtime.id,
+                    "active_ids": [runtime.id],
+                    "runtime_line_id": self.id,
+                })
 
             # Execute the server action
             _logger.info(
