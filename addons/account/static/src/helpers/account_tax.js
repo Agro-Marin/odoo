@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { floatIsZero, roundPrecision } from "@web/core/utils/format/numbers";
 import { _t } from "@web/core/l10n/translation";
 

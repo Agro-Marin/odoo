@@ -253,6 +253,44 @@ class OrderInvoiceMixin(models.AbstractModel):
             ),
         }
 
+    # ─── Invoice Grouping & Preparation ─────────────────────────────
+
+    def _get_invoice_grouping_keys(self):
+        """Return field names used to group orders into a single invoice.
+
+        Base: ``company_id``, ``partner_id``, ``currency_id``, ``fiscal_position_id``.
+        Sale overrides to add ``partner_shipping_id``.
+        """
+        return ["company_id", "partner_id", "currency_id", "fiscal_position_id"]
+
+    def _prepare_invoice_vals(self):
+        """Prepare the base dict for creating an invoice from this order.
+
+        Provides the shared core keys.  Child models call ``super()``
+        and extend with model-specific values (UTM fields, partner_bank,
+        transaction_ids, etc.).
+        """
+        self.ensure_one()
+        direction = "out" if self._get_order_type() == "sale" else "in"
+        move_type = self.env.context.get("default_move_type", f"{direction}_invoice")
+        values = {
+            "company_id": self.company_id.id,
+            "currency_id": self.currency_id.id,
+            "invoice_payment_term_id": self.payment_term_id.id,
+            "fiscal_position_id": (
+                self.fiscal_position_id
+                or self.fiscal_position_id._get_fiscal_position(self.partner_id)
+            ).id,
+            "invoice_user_id": self.user_id.id,
+            "move_type": move_type,
+            "narration": self.notes,
+            "invoice_origin": self.name,
+            "invoice_line_ids": [],
+        }
+        if self.journal_id:
+            values["journal_id"] = self.journal_id.id
+        return values
+
 
 # ════════════════════════════════════════════════════════════════════
 # LINE-LEVEL INVOICE MIXIN
@@ -414,3 +452,16 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         raise NotImplementedError(
             f"{self._name} must implement _compute_invoice_state()"
         )
+
+    # ─── Invoice Line Preparation ──────────────────────────────────
+
+    def _prepare_aml_vals_list(self, **optional_values):
+        """Prepare the list of values to create invoice lines.
+
+        Delegates to ``_prepare_aml_vals()``, which is model-specific.
+        Override to return multiple dicts (e.g. for combo product expansion).
+
+        :param optional_values: parameters added to the returned invoice lines
+        :rtype: list[dict]
+        """
+        return [self._prepare_aml_vals(**optional_values)]

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export function showProductColumn() {
     // Show product column if Sale is not installed.
     return [

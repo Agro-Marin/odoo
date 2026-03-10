@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { _t } from '@web/core/l10n/translation';
 import { ListRenderer } from "@web/views/list/list_renderer";
 import { UploadDropZone } from "@account/components/upload_drop_zone/upload_drop_zone";
 import { useState } from "@odoo/owl";
-import { uploadFileFromData } from "../upload_file_from_data_hook";
+import { uploadFileFromData } from "../upload_file_from_data_hook.js";
 
 export class FileUploadListRenderer extends ListRenderer {
     static template = "account.FileUploadListRenderer";

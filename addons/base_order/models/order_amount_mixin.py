@@ -14,6 +14,11 @@ from collections import defaultdict
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import float_compare
+
+# Maximum number of products listed individually in chatter messages
+# before switching to a count-only summary.
+CHATTER_PRODUCT_LIST_THRESHOLD = 50
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -339,6 +344,154 @@ class OrderLineAmountMixin(models.AbstractModel):
             **base_values,
         )
 
+    # ─── Discounted Price Fields ────────────────────────────────────
+
+    price_unit_discounted_taxexc = fields.Float(
+        string="Unit Price Discounted Tax Excluded",
+        min_display_digits="Product Price",
+        compute="_compute_price_unit_discounted_taxexc",
+    )
+    price_unit_discounted_taxinc = fields.Float(
+        string="Unit Price Discounted Tax Included",
+        min_display_digits="Product Price",
+        compute="_compute_price_unit_discounted_taxinc",
+    )
+
+    @api.depends("price_unit", "discount")
+    def _compute_price_unit_discounted_taxexc(self):
+        for line in self:
+            if line.display_type:
+                line.price_unit_discounted_taxexc = False
+                continue
+            line.price_unit_discounted_taxexc = line.price_unit * (
+                1 - (line.discount or 0.0) / 100.0
+            )
+
+    @api.depends("product_qty", "price_total")
+    def _compute_price_unit_discounted_taxinc(self):
+        for line in self:
+            line.price_unit_discounted_taxinc = (
+                line.price_total / line.product_qty if line.product_qty else 0.0
+            )
+
+    # ─── Tax Computation ────────────────────────────────────────────
+
+    def _get_product_tax_field(self):
+        """Return the product field name holding taxes for this order type.
+
+        Sale: ``'taxes_id'`` (customer taxes).
+        Purchase: ``'supplier_taxes_id'`` (vendor taxes).
+        """
+        if self.order_id._get_order_type() == "sale":
+            return "taxes_id"
+        return "supplier_taxes_id"
+
+    def _get_custom_compute_tax_cache_key(self):
+        """Hook to extend the tax cache key with model-specific values."""
+        return tuple()
+
+    @api.depends("company_id", "product_id")
+    def _compute_tax_ids(self):
+        """Compute taxes from product, filtered by company and fiscal position.
+
+        Groups lines by company for batch ``with_company`` scoping.
+        Uses a cache keyed on ``(fiscal_position, company, tax_ids)``
+        to avoid redundant ``map_tax`` calls.
+        """
+        lines_by_company = defaultdict(lambda: self.browse())
+        cached_taxes = {}
+        for line in self.filtered(lambda l: not l.display_type):
+            if not line.product_id or not line._tax_ids_include_product(line):
+                line.tax_ids = False
+                continue
+            lines_by_company[line.company_id] += line
+
+        tax_field = self._get_product_tax_field() if self else "taxes_id"
+
+        for company, lines in lines_by_company.items():
+            for line in lines.with_company(company):
+                taxes = line.product_id[tax_field]._filter_taxes_by_company(
+                    company,
+                )
+                if not taxes:
+                    line.tax_ids = False
+                    continue
+                fiscal_position = line.order_id.fiscal_position_id
+                cache_key = (fiscal_position.id, company.id, tuple(taxes.ids))
+                cache_key += line._get_custom_compute_tax_cache_key()
+                if cache_key in cached_taxes:
+                    result = cached_taxes[cache_key]
+                else:
+                    result = fiscal_position.map_tax(taxes)
+                    cached_taxes[cache_key] = result
+                line.tax_ids = result
+
+    def _tax_ids_include_product(self, line):
+        """Whether this product should have taxes computed.
+
+        Override to exclude specific product types (e.g. combo products in sale).
+        """
+        return True
+
+    # ─── Analytic Distribution ──────────────────────────────────────
+
+    @api.depends("partner_id", "product_id")
+    def _compute_analytic_distribution(self):
+        """Compute analytic distribution with cross-record caching."""
+        cache = {}
+        AnalyticModel = self.env["account.analytic.distribution.model"]
+
+        for line in self.filtered(lambda x: not x.display_type):
+            partner = line.order_id.partner_id
+            partner_category_ids = tuple(partner.category_id.ids)
+            cache_key = (
+                line.product_id.id,
+                line.product_categ_id.id,
+                partner.id,
+                partner_category_ids,
+                line.company_id.id,
+            )
+            if cache_key not in cache:
+                cache[cache_key] = AnalyticModel._get_distribution(
+                    {
+                        "product_id": line.product_id.id,
+                        "product_categ_id": line.product_categ_id.id,
+                        "partner_id": partner.id,
+                        "partner_category_id": list(partner_category_ids),
+                        "company_id": line.company_id.id,
+                    }
+                )
+            distribution = cache[cache_key]
+            line.analytic_distribution = distribution or line.analytic_distribution
+
+    # ─── Manual Price Detection ─────────────────────────────────────
+
+    def _get_price_precision(self):
+        """Return decimal precision for price comparisons.
+
+        Override in purchase to include currency decimal places.
+        """
+        return self.env["decimal.precision"].precision_get("Product Price")
+
+    def is_manual_price(self):
+        """Check if current price is a manual override (not from auto-pricing).
+
+        :return: True if price_unit differs from price_unit_auto
+        :rtype: bool
+        """
+        self.ensure_one()
+        if not self.price_unit_auto:
+            return False
+        precision = self._get_price_precision()
+        return (
+            float_compare(
+                self.price_unit,
+                self.price_unit_auto,
+                precision_digits=precision,
+            )
+            != 0
+        )
+
 
 # ════════════════════════════════════════════════════════════════════
 # LINE-LEVEL STRUCTURAL FIELDS MIXIN
@@ -590,6 +743,93 @@ class OrderLineFieldsMixin(models.AbstractModel):
         return self.filtered(
             lambda line: line.state == "done" and not line.display_type,
         )
+
+    # ─── Transfer Tracking ─────────────────────────────────────────
+
+    qty_transferred_method = fields.Selection(
+        selection=[
+            ("manual", "Manual"),
+            ("analytic", "Analytic From Expenses"),
+            ("stock_move", "Stock Moves"),
+        ],
+        string="Transferred Qty Method",
+        compute="_compute_qty_transferred_method",
+        store=True,
+        precompute=True,
+        help="Method used to compute transferred quantity:\n"
+        "  - Manual: set manually on the line\n"
+        "  - Analytic: sum of analytic line unit amounts\n"
+        "  - Stock Moves: from confirmed pickings\n",
+    )
+
+    @api.depends("is_expense", "product_id")
+    def _compute_qty_transferred_method(self):
+        """Determine the transfer computation method based on product type.
+
+        Expense lines always use analytic.  Services default to manual.
+        Consumables default to stock_move (overridden by stock modules).
+        """
+        for line in self:
+            if line.is_expense:
+                line.qty_transferred_method = "analytic"
+            elif line.product_id and line.product_type == "service":
+                line.qty_transferred_method = "manual"
+            elif line.product_id and line.product_type == "consu":
+                line.qty_transferred_method = "stock_move"
+            else:
+                line.qty_transferred_method = False
+
+    # ─── Lifecycle Hooks ────────────────────────────────────────────
+
+    def _hook_on_created_confirmed_lines(self):
+        """Post chatter messages when lines are added to confirmed orders.
+
+        Groups lines by order and posts a single message per order.
+        Uses ``CHATTER_PRODUCT_LIST_THRESHOLD`` to decide between
+        an itemized list or a count-only summary.
+        """
+        if self.env.context.get("no_log_for_new_lines"):
+            return
+
+        lines_by_order = defaultdict(lambda: self.browse())
+        for line in self:
+            if line.product_id:
+                lines_by_order[line.order_id] += line
+
+        for order, order_lines in lines_by_order.items():
+            count = len(order_lines)
+            if count == 1:
+                msg = _("Extra line with %s", order_lines.product_id.display_name)
+            elif count <= CHATTER_PRODUCT_LIST_THRESHOLD:
+                product_list = (
+                    "<ul>"
+                    + "".join(
+                        f"<li>{p}</li>"
+                        for p in order_lines.mapped("product_id.display_name")
+                    )
+                    + "</ul>"
+                )
+                msg = _(
+                    "Added %(count)s extra lines: %(products)s",
+                    count=count,
+                    products=product_list,
+                )
+            else:
+                msg = _(
+                    "Added %(count)s extra lines to this %(order_type)s",
+                    count=count,
+                    order_type=order._description.lower(),
+                )
+            order.message_post(body=msg)
+
+    # ─── Catalog Integration ────────────────────────────────────────
+
+    @api.readonly
+    def action_add_from_catalog(self):
+        """Redirect catalog action from line to parent order."""
+        order_model = self._fields["order_id"].comodel_name
+        order = self.env[order_model].browse(self.env.context.get("order_id"))
+        return order.with_context(child_field="line_ids").action_add_from_catalog()
 
     # ─── Merge Support ─────────────────────────────────────────────
 

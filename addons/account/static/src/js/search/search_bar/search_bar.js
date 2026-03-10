@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
 import { SearchBar } from "@web/search/search_bar/search_bar";

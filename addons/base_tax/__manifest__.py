@@ -7,9 +7,13 @@
 Tax Computation Engine
 =======================
 
-Standalone copy of the Odoo tax computation engine, extracted from the
-``account`` module for use by ``base_order`` and other modules that need
-tax computation without the full accounting stack.
+Canonical tax computation engine defining ``account.tax``, ``account.tax.group``,
+and ``account.tax.repartition.line``.  The ``account`` module inherits from these
+models (via ``_inherit``) to add accounting-specific fields and methods such as
+journal accounts, tax tags, exigibility, and CABA handling.
+
+Modules that need tax computation without the full accounting stack (e.g.
+``base_order``, ``sale``, ``purchase``) can depend on ``base_tax`` directly.
 
 Models:
 -------
@@ -21,16 +25,17 @@ Key API:
 --------
 * ``_prepare_base_line_for_taxes_computation()`` — convert record → base_line dict
 * ``_add_tax_details_in_base_lines()`` — compute tax amounts
+* ``_round_base_lines_tax_details()`` — rounding pipeline
 * ``_get_tax_totals_summary()`` — aggregate into display dict
 * ``compute_all()`` — public tax computation API
-
-Phase 1 of tax engine extraction.  Phase 2 will make ``account`` depend
-on this module and remove the duplication.
     """,
     "author": "Odoo Community",
     "website": "https://www.odoo.com",
     "license": "LGPL-3",
     "depends": [
         "product",
+    ],
+    "data": [
+        "security/ir.model.access.csv",
     ],
 }

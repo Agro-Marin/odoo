@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ListController } from "@web/views/list/list_controller";
 import { DocumentFileUploader } from "@account/components/document_file_uploader/document_file_uploader";
 

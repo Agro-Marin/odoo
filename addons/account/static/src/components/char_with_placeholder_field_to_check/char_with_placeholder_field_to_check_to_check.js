@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import {
     charWithPlaceholderField,
     CharWithPlaceholderField
-} from "../char_with_placeholder_field/char_with_placeholder_field";
+} from "../char_with_placeholder_field/char_with_placeholder_field.js";
 
 export class CharWithPlaceholderFieldToCheck extends CharWithPlaceholderField {
     static template = "account.CharWithPlaceholderField";

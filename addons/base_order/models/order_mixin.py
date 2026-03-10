@@ -14,7 +14,7 @@ Method and field names match the actual conventions in sale/purchase.
 """
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tools import format_list
 
 
@@ -618,6 +618,59 @@ class OrderMixin(models.AbstractModel):
                     seq_code, sequence_date=seq_date
                 )
         return super().create(vals_list)
+
+    # ------------------------------------------------------------------
+    # CONSTRAINTS
+    # ------------------------------------------------------------------
+
+    @api.constrains("company_id", "line_ids")
+    def _check_line_ids_company_id(self):
+        """Ensure all product lines belong to the same company as the order."""
+        for order in self:
+            invalid_companies = order.line_ids.product_id.company_id.filtered(
+                lambda c: order.company_id not in c._accessible_branches(),
+            )
+            if invalid_companies:
+                bad_products = order.line_ids.product_id.filtered(
+                    lambda p: p.company_id and p.company_id in invalid_companies,
+                )
+                raise ValidationError(
+                    _(
+                        "Your %(desc)s contains products from company %(product_company)s "
+                        "whereas your %(desc)s belongs to company %(quote_company)s.\n\n"
+                        "Please change the company of your %(desc)s or remove the products "
+                        "from other companies (%(bad_products)s).",
+                        desc=self._description.lower(),
+                        product_company=", ".join(
+                            invalid_companies.sudo().mapped("display_name"),
+                        ),
+                        quote_company=order.company_id.display_name,
+                        bad_products=", ".join(bad_products.mapped("display_name")),
+                    ),
+                )
+
+    # ------------------------------------------------------------------
+    # MAIL INTEGRATION
+    # ------------------------------------------------------------------
+
+    def _get_mark_sent_context_key(self):
+        """Return the context key used to mark orders as sent during message_post.
+
+        Sale: ``'mark_so_as_sent'``, Purchase: ``'mark_rfq_as_sent'``.
+        """
+        order_type = self._get_order_type()
+        prefix = "so" if order_type == "sale" else "rfq"
+        return f"mark_{prefix}_as_sent"
+
+    def message_post(self, **kwargs):
+        """Mark draft orders as sent when the relevant context key is set."""
+        mark_key = self._get_mark_sent_context_key()
+        if self.env.context.get(mark_key):
+            self.filtered(lambda o: o.state == "draft").with_context(
+                tracking_disable=True,
+            ).write({"sent": True})
+            kwargs["notify_author_mention"] = kwargs.get("notify_author_mention", True)
+        return super().message_post(**kwargs)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_draft_or_cancel(self):
