@@ -304,14 +304,14 @@
         z-index: 0;
         margin-inline: calc(-1 * var(--formView-sheetBg-padding-x)) calc(-1 * var(--formView-sheetBg-padding-right, var(--formView-sheetBg-padding-x)));
         padding-inline: var(--formView-sheetBg-padding-x) var(--formView-sheetBg-padding-right, var(--formView-sheetBg-padding-x));
-        border-radius: $o-border-radius-xl $o-border-radius-xl 0 0;
-        background-color: rgba($o-brand-primary, 0.02);
+        border-radius: 0;
+        background-color: rgba(#1C2639, 0.8);
+        backdrop-filter: blur(10px);
 
         @include media-breakpoint-up(md) {
             position: sticky;
             top: 0;
             z-index: $zindex-sticky;
-            background-color: rgba($o-brand-primary, 0.02);
 
             .modal & {
                 background-color: $o-view-background-color;
