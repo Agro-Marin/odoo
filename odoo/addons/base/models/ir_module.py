@@ -265,7 +265,7 @@ class IrModuleModule(models.Model):
                 ("module", "=", module.name),
                 ("model", "in", tuple(dmodels)),
             ]
-            for data in IrModelData.sudo().search(imd_domain):
+            for data in IrModelData.sudo().search(imd_domain):  # noqa: E8507 — bounded: one per installed module
                 imd_models[data.model].append(data.res_id)
 
             def browse(model, _imd_models=imd_models):
@@ -1250,7 +1250,7 @@ class IrModuleModule(models.Model):
                             ],
                         ]
                     )
-                    record["__count"] = self.env["ir.module.module"].search_count(
+                    record["__count"] = self.env["ir.module.module"].search_count(  # noqa: E8507 — inherent: child_of per category requires tree traversal
                         model_domain
                     )
                 values_range[record_id] = record

@@ -481,7 +481,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 # sum the values of partners for each company; use sudo() to
                 # compute the sum on all companies, including forbidden ones
                 partners = (src_partners + dst_partner).sudo()
-                for company in self.env["res.company"].sudo().search([]):
+                for company in self.env["res.company"].sudo().search([]):  # noqa: E8507 — bounded: company count is small and fixed
                     values_by_company[company][column] = sum(
                         partners.with_company(company).mapped(column)
                     )

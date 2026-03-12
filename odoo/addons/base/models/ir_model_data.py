@@ -552,7 +552,7 @@ class IrModelData(models.Model):
                     continue
 
                 parent_field = inheriting._inherits[model]
-                children = inheriting.with_context(active_test=False).search(
+                children = inheriting.with_context(active_test=False).search(  # noqa: E8507 — inherent: each row targets a different model/res_id
                     [(parent_field, "=", res_id)]
                 )
                 children_xids = {
@@ -568,7 +568,7 @@ class IrModelData(models.Model):
                 continue
 
             # if the record has other associated xids, only remove the xid
-            if self.search_count(
+            if self.search_count(  # noqa: E8507 — inherent: per-xmlid check during module cleanup
                 [
                     ("model", "=", model),
                     ("res_id", "=", res_id),

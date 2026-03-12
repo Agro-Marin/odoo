@@ -118,7 +118,7 @@ class IrEmbeddedActions(models.Model):
             if parent_res_model not in self.env:
                 records.is_visible = False
                 continue
-            active_model_record = self.env[parent_res_model].search(
+            active_model_record = self.env[parent_res_model].search(  # noqa: E8507 — bounded: one per distinct parent_res_model
                 domain_id, order="id"
             )
             for record in records:

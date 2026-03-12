@@ -804,7 +804,7 @@ class IrActionsServer(models.Model):
             }
             if action.model_id:
                 sample_record = (
-                    self.env[action.model_id.model]
+                    self.env[action.model_id.model]  # noqa: E8507 — inherent: each action targets a different model
                     .with_context(active_test=False)
                     .search([], limit=1)
                 )

@@ -477,7 +477,7 @@ class ResLang(models.Model):
             # if possible
             for long_lang in self.filtered(lambda lang: "_" in lang.url_code):
                 short_code = long_lang.code.split("_")[0]
-                short_lang = self.with_context(active_test=False).search(
+                short_lang = self.with_context(active_test=False).search(  # noqa: E8507 — bounded: installed language count is tiny
                     [
                         ("url_code", "=", short_code),
                     ],
