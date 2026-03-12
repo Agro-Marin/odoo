@@ -10,10 +10,10 @@ import psycopg
 
 from odoo import api, fields, models, tools
 from odoo.exceptions import AccessError, MissingError
+from odoo.orm._typing import ValuesType
 from odoo.orm.registration import add_field
 from odoo.tools import OrderedSet, groupby, reset_cached_properties, unique
 from odoo.tools.translate import _
-from odoo.orm._typing import ValuesType
 
 from .ir_model import MODULE_UNINSTALL_FLAG
 

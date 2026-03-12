@@ -38,8 +38,8 @@ from odoo.tools import (
     image,
     str2bool,
 )
-from odoo.tools.misc import limited_field_access_token
 from odoo.orm._typing import ValuesType
+from odoo.tools.misc import limited_field_access_token
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Generator
