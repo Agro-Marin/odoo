@@ -117,5 +117,12 @@
                     groups="group_hr_user"
                     active="0"/>
 
+            <menuitem id="hr_menu_configuration"
+                name="Settings"
+                parent="menu_human_resources_configuration"
+                sequence="0"
+                action="hr_config_settings_action"
+                groups="base.group_system"/>
+
     </data>
 </odoo>
