@@ -14,10 +14,10 @@ from odoo.http import request
 from odoo.libs.datetime import utc
 from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps as json_dumps
+from odoo.orm._typing import ValuesType
 from odoo.tools import _, get_lang
 from odoo.tools.misc import get_diff, unquote
 from odoo.tools.safe_eval import safe_eval, test_python_expr
-from odoo.orm._typing import ValuesType
 
 _logger = logging.getLogger(__name__)
 # Use original module path to preserve logger name for tests/monitoring

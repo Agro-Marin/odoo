@@ -515,8 +515,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         for src_account in all_src_accounts:
             duplicate_account = dst_partner.bank_ids.filtered(
-                lambda a, src_account=src_account: a.sanitized_acc_number
-                == src_account.sanitized_acc_number
+                lambda a, src_account=src_account: (
+                    a.sanitized_acc_number == src_account.sanitized_acc_number
+                )
             )
             if duplicate_account:
                 self._update_foreign_keys_generic(

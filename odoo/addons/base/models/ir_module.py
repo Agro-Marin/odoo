@@ -22,6 +22,7 @@ from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.parse_version import parse_version
 from odoo.modules.module import Manifest, MissingDependency
+from odoo.orm._typing import ValuesType
 from odoo.tools import config
 from odoo.tools.misc import get_flag, topological_sort
 from odoo.tools.translate import (
@@ -31,7 +32,6 @@ from odoo.tools.translate import (
 )
 
 from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
-from odoo.orm._typing import ValuesType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
