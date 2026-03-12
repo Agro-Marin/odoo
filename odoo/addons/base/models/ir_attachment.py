@@ -30,6 +30,7 @@ from odoo.libs.filesystem.mimetypes import (
     fix_filename_extension,
     guess_mimetype,
 )
+from odoo.orm._typing import ValuesType
 from odoo.tools import (
     OrderedSet,
     config,
@@ -38,7 +39,6 @@ from odoo.tools import (
     image,
     str2bool,
 )
-from odoo.orm._typing import ValuesType
 from odoo.tools.misc import limited_field_access_token
 
 if TYPE_CHECKING:
@@ -950,25 +950,44 @@ class IrAttachment(models.Model):
 
     @api.model
     def create_unique(self, values_list: list[dict[str, Any]]) -> list[int]:
-        ids = []
+        """Create attachments, deduplicating by checksum/size/mimetype.
+
+        Performs a single batch search for all existing checksums instead of
+        one query per attachment.
+        """
+        # Phase 1: decode and compute checksums for all values
+        entries: list[tuple[dict, str, int, str]] = []
         for values in values_list:
-            # Create only if record does not already exist for checksum and size.
             try:
                 bin_data = base64.b64decode(values.get("datas", ""))
             except binascii.Error:
                 raise UserError(_("Attachment is not encoded in base64."))
             checksum = self._compute_checksum(bin_data)
-            existing_domain = [
-                ["id", "!=", False],  # No implicit condition on res_field.
-                ["checksum", "=", checksum],
-                ["file_size", "=", len(bin_data)],
-                ["mimetype", "=", values["mimetype"]],
-            ]
-            if existing := self.sudo().search(existing_domain, limit=1):
+            entries.append((values, checksum, len(bin_data), values["mimetype"]))
+
+        # Phase 2: batch search for existing attachments by checksum
+        all_checksums = list({cs for _, cs, _, _ in entries})
+        existing_by_key: dict[tuple, Any] = {}
+        if all_checksums:
+            for att in self.sudo().search(
+                [
+                    ["id", "!=", False],  # No implicit condition on res_field.
+                    ["checksum", "in", all_checksums],
+                ]
+            ):
+                key = (att.checksum, att.file_size, att.mimetype)
+                existing_by_key.setdefault(key, att)
+
+        # Phase 3: match existing or create new
+        ids = []
+        for values, checksum, file_size, mimetype in entries:
+            key = (checksum, file_size, mimetype)
+            if existing := existing_by_key.get(key):
                 ids.append(existing.id)
             else:
                 attachment = self.create(values)
                 ids.append(attachment.id)
+                existing_by_key[key] = attachment  # dedup within batch
         return ids
 
     def _generate_access_token(self) -> str:

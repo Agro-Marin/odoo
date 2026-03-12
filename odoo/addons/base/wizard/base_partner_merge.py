@@ -320,14 +320,14 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             if Model._abstract or field.compute is not None:
                 continue
 
-            for src_record in src_records:
-                records_ref = Model.sudo().search(
-                    [(record.name, "=", f"{referenced_model},{src_record.id}")]
-                )
-                values = {
-                    record.name: f"{referenced_model},{dst_record.id}",
-                }
-                records_ref.sudo().write(values)
+            # Batch: search all src references at once instead of per-partner
+            src_values = [f"{referenced_model},{src.id}" for src in src_records]
+            records_ref = Model.sudo().search(  # noqa: E8507 — inherent: each reference field targets a different model
+                [(record.name, "in", src_values)]
+            )
+            records_ref.sudo().write(
+                {record.name: f"{referenced_model},{dst_record.id}"}
+            )
         # company_dependent fields referring the merged records
         for field in self.env.registry.many2one_company_dependents[dst_record._name]:
             self.env.cr.execute(
@@ -558,11 +558,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             )
 
         # check if the list of partners to merge contains child/parent relation
-        child_ids = self.env["res.partner"]
-        for partner_id in partner_ids:
-            child_ids |= (
-                Partner.search([("id", "child_of", [partner_id.id])]) - partner_id
-            )
+        all_descendants = Partner.search([("id", "child_of", partner_ids.ids)])
+        child_ids = all_descendants - partner_ids
         if partner_ids & child_ids:
             raise UserError(
                 self.env._("You cannot merge a contact with one of his parent.")
@@ -799,22 +796,28 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         # group partner query
         self.env.cr.execute(query if isinstance(query, SQL) else SQL(query))
 
+        # Batch ACL check: one search for all candidate IDs instead of per-group
+        groups = self.env.cr.fetchall()
+        all_ids = [pid for _, aggr_ids in groups for pid in aggr_ids]
+        accessible = self.env["res.partner"].search([("id", "in", all_ids)])
+        accessible_set = set(accessible.ids)
+
         counter = 0
-        for min_id, aggr_ids in self.env.cr.fetchall():
-            # To ensure that the used partners are accessible by the user
-            partners = self.env["res.partner"].search([("id", "in", aggr_ids)])
-            if len(partners) < 2:
+        for min_id, aggr_ids in groups:
+            # Filter to only ACL-accessible partners
+            partner_ids = [pid for pid in aggr_ids if pid in accessible_set]
+            if len(partner_ids) < 2:
                 continue
 
             # exclude partner according to options
-            if model_mapping and self._partner_use_in(partners.ids, model_mapping):
+            if model_mapping and self._partner_use_in(partner_ids, model_mapping):
                 continue
 
             self.env["base.partner.merge.line"].create(
                 {
                     "wizard_id": self.id,
                     "min_id": min_id,
-                    "aggr_ids": partners.ids,
+                    "aggr_ids": partner_ids,
                 }
             )
             counter += 1

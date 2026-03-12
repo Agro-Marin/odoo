@@ -1651,23 +1651,43 @@ class ResPartner(models.Model):
                 [("id", "in", list(states_ids))], ["country_id", "code"]
             )
         }
+        # Collect all mismatched (code, country_id) pairs for batch lookup
+        mismatch_keys: set[tuple[str, int]] = set()
         for vals in vals_list:
             if not vals.get("state_id") or not vals.get("country_id"):
                 continue
             state_info = state_info_by_id.get(vals["state_id"])
             if state_info is None:
-                # State was deleted or inaccessible between prefetch and lookup; skip.
                 continue
-            state_country_id = state_info["country_id"][0]
-            if state_country_id != vals["country_id"]:
-                # State belongs to a different country than the one given — try to
-                # find a state with the same code in the correct country.
-                state_domain = [
-                    ("code", "=", state_info["code"]),
-                    ("country_id", "=", vals["country_id"]),
+            if state_info["country_id"][0] != vals["country_id"]:
+                mismatch_keys.add((state_info["code"], vals["country_id"]))
+
+        # Batch search: one query for all mismatched states
+        state_by_key: dict[tuple[str, int], Any] = {}
+        if mismatch_keys:
+            all_codes = list({code for code, _ in mismatch_keys})
+            all_country_ids = list({cid for _, cid in mismatch_keys})
+            for state in States.search(
+                [
+                    ("code", "in", all_codes),
+                    ("country_id", "in", all_country_ids),
                 ]
-                matching_state = States.search(state_domain, limit=1)
-                vals["state_id"] = matching_state.id  # 0/False if not found
+            ):
+                key = (state.code, state.country_id.id)
+                if key in mismatch_keys:
+                    state_by_key.setdefault(key, state)
+
+        # Apply corrections
+        for vals in vals_list:
+            if not vals.get("state_id") or not vals.get("country_id"):
+                continue
+            state_info = state_info_by_id.get(vals["state_id"])
+            if state_info is None:
+                continue
+            if state_info["country_id"][0] != vals["country_id"]:
+                key = (state_info["code"], vals["country_id"])
+                matching = state_by_key.get(key)
+                vals["state_id"] = matching.id if matching else False
 
     def _get_country_name(self) -> str:
         return self.country_id.name or ""
