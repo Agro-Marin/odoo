@@ -21,8 +21,9 @@ exclude = [
 preview = true
 explicit-preview-rules = true
 
-# External linter codes (flake8 plugins) — suppresses RUF102 for their noqa comments
-external = ["RST"]
+# External linter codes — suppresses RUF102 for their noqa comments.
+# RST: docutils RST checks.  E85xx: custom AST checkers in test_lint.
+external = ["RST", "E8501", "E8502", "E8503", "E8504", "E8505", "E8506", "E8507"]
 
 select = [
     # Core Python quality

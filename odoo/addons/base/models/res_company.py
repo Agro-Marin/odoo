@@ -578,7 +578,7 @@ class ResCompany(models.Model):
             if delegated_changed and not company.parent_id:
                 # Sudo: branches may include companies outside the user's scope.
                 # Delegated field sync must reach ALL branches of the root company.
-                branches = self.sudo().search(
+                branches = self.sudo().search(  # noqa: E8507 — bounded: only root companies (typically 1)
                     [
                         ("id", "child_of", company.id),
                         ("id", "!=", company.id),

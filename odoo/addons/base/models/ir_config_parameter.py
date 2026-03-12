@@ -54,7 +54,7 @@ class IrConfig_Parameter(models.Model):
         self = self.with_context(prefetch_fields=False)
         for key, func in _default_parameters.items():
             # force=True skips search and always performs the 'if' body (because ids=False)
-            params = self.sudo().search([("key", "=", key)])
+            params = self.sudo().search([("key", "=", key)])  # noqa: E8507 — bounded: _default_parameters is a small fixed dict
             if force or not params:
                 params.set_param(key, func())
 

@@ -748,7 +748,7 @@ class IrModelFields(models.Model):
                     and vals.get("store", True)
                     and not vals.get("related")
                     and vals.get("relation_field")
-                    and not self.search_count(
+                    and not self.search_count(  # noqa: E8507 — bounded: field creation during module install
                         [
                             ("ttype", "=", "many2one"),
                             ("model", "=", vals["relation"]),
