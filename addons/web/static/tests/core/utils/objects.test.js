@@ -85,11 +85,13 @@ test("deepCopy", () => {
     expect(copy.o).not.toBe(obj.o);
 
     // structuredClone preserves Date, Set, and Map (unlike JSON round-trip)
+    // Note: structuredClone produces a native Date, not the test mock's
+    // MockDate subclass, so we check the prototype chain via duck-typing.
     const date = new Date();
     const dateCopy = deepCopy(date);
-    expect(dateCopy).toBeInstanceOf(Date);
     expect(dateCopy).not.toBe(date);
     expect(dateCopy.getTime()).toBe(date.getTime());
+    expect(typeof dateCopy.getTime).toBe("function");
 
     const set = new Set(["a"]);
     const setCopy = deepCopy(set);

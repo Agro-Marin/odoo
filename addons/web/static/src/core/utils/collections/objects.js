@@ -34,15 +34,24 @@ export function shallowEqual(obj1, obj2, comparisonFn = (a, b) => a === b) {
 export const deepEqual = (obj1, obj2) => shallowEqual(obj1, obj2, deepEqual);
 
 /**
- * Deep copies an object. As it relies on JSON this function has some limitations:
- * - no support for circular objects
- * - no support for specific classes, that will at best be lost and at worst crash (Map, Set etc.)
+ * Deep copies an object using structuredClone, which preserves
+ * Date, Set, Map, ArrayBuffer, RegExp, and other structured types.
+ * Does not support functions or DOM nodes.
  * @template T
- * @param {T} object An object that is fully JSON stringifiable
+ * @param {T} object
  * @return {T}
  */
 export function deepCopy(object) {
-    return object && JSON.parse(JSON.stringify(object));
+    if (!object) {
+        return object;
+    }
+    try {
+        return structuredClone(object);
+    } catch {
+        // structuredClone can't handle functions, DOM nodes, proxies, etc.
+        // Fall back to JSON round-trip which silently drops non-serializable values.
+        return JSON.parse(JSON.stringify(object));
+    }
 }
 
 /**
