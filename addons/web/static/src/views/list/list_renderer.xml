@@ -370,8 +370,10 @@
  <button class="d-print-none"
  t-if="hasDeleteButton"
  t-att-class="{
- 'fa-solid fa-trash-can': !useUnlink and activeActions.delete,
- 'fa-solid fa-xmark': useUnlink and activeActions.unlink,
+ 'fa-regular': !useUnlink and activeActions.delete,
+ 'fa-trash-can': !useUnlink and activeActions.delete,
+ 'fa-solid': useUnlink and activeActions.unlink,
+ 'fa-xmark': useUnlink and activeActions.unlink,
  }"
  name="delete"
  aria-label="Delete row"
