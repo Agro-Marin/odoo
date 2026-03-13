@@ -102,8 +102,8 @@ class ProjectTask(models.Model):
         result = super().write(vals)
 
         if "employee_ids" in vals:
-            # Create missing personal stages (Inbox, Today, etc.) for new assignees.
-            self._populate_missing_personal_stages()
+            # Create missing triage buckets (Inbox, Today, etc.) for new assignees.
+            self._populate_missing_triages()
             # Update date_assign: clear when unassigned, set when first assigned.
             for task in self.sudo():
                 if not task.employee_ids and task.date_assign:
