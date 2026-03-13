@@ -110,23 +110,27 @@ export function fuzzyTest(pattern, string) {
  * @returns {string[]} The list of the words that matches within a defined number of errors.
  */
 export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
-    // We limit the maximum number of errors depending on the word length
-    // to not have "overcorrections" into words that doesn't have anything
-    // in common with what the user typed
-    const maxNbrCorrection = Math.round(pattern.length / errorRatio);
+    // Limit the maximum number of errors depending on the pattern length
+    // to avoid "overcorrections" into unrelated words. Always allow at
+    // least 1 correction so that a short fuzzy query still finds near-matches.
+    const maxNbrCorrection = Math.max(1, Math.round(pattern.length / errorRatio));
     const results = [];
-    list.forEach((candidate) => {
+    for (const candidate of list) {
         if (candidate.includes(pattern)) {
-            results.push({ score: 0, elem: candidate });
-        } else {
+            // Exact substring — always a match.
+            results.push(candidate);
+        } else if (candidate.length > pattern.length) {
+            // Only attempt Levenshtein on longer candidates: a candidate
+            // shorter or equal in length cannot meaningfully contain the
+            // pattern as a fuzzy substring, so it would produce false
+            // positives (e.g. "ape" for pattern "app").
             const score = getLevenshteinScore(pattern, candidate);
             if (score >= 0 && score <= maxNbrCorrection) {
-                results.push({ score, elem: candidate });
+                results.push(candidate);
             }
         }
-    });
-    results.sort((a, b) => a.score - b.score);
-    return results.map((r) => r.elem);
+    }
+    return results;
 }
 
 /**
