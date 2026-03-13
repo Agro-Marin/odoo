@@ -18,7 +18,6 @@ Depends:
 # support for multilingual fonts
  fonts-dejavu-core | fonts-freefont-ttf | fonts-freefont-otf | fonts-noto-core,
  fonts-inconsolata,
- fonts-font-awesome,
  fonts-roboto-unhinted,
  gsfonts,
  libjs-underscore,

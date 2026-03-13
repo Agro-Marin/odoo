@@ -743,7 +743,7 @@ test("many2many list (editable): edition", async () => {
         message: "name of first subrecord should be the one in DB",
     });
     expect(".o_list_record_remove").toHaveCount(2);
-    expect("td.o_list_record_remove button").toHaveClass("fa-solid fa-times");
+    expect("td.o_list_record_remove button").toHaveClass("fa-solid fa-xmark");
     expect(".o_field_x2many_list_row_add").toHaveCount(1);
 
     // edit existing subrecord

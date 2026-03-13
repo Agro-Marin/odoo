@@ -129,20 +129,20 @@ test("Can resize an icon", async () => {
         `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
-    expect("span.fa-glass").toHaveCount(1);
+    expect("span.fa-martini-glass-empty").toHaveCount(1);
     await click("button[name='icon_size_2']");
-    expect("span.fa-glass.fa-2x").toHaveCount(1);
+    expect("span.fa-martini-glass-empty.fa-2x").toHaveCount(1);
     await click("button[name='icon_size_3']");
-    expect("span.fa-glass.fa-2x").toHaveCount(0);
-    expect("span.fa-glass.fa-3x").toHaveCount(1);
+    expect("span.fa-martini-glass-empty.fa-2x").toHaveCount(0);
+    expect("span.fa-martini-glass-empty.fa-3x").toHaveCount(1);
     await click("button[name='icon_size_4']");
-    expect("span.fa-glass.fa-3x").toHaveCount(0);
-    expect("span.fa-glass.fa-4x").toHaveCount(1);
+    expect("span.fa-martini-glass-empty.fa-3x").toHaveCount(0);
+    expect("span.fa-martini-glass-empty.fa-4x").toHaveCount(1);
     await click("button[name='icon_size_5']");
-    expect("span.fa-glass.fa-4x").toHaveCount(0);
-    expect("span.fa-glass.fa-5x").toHaveCount(1);
+    expect("span.fa-martini-glass-empty.fa-4x").toHaveCount(0);
+    expect("span.fa-martini-glass-empty.fa-5x").toHaveCount(1);
     await click("button[name='icon_size_1']");
-    expect("span.fa-glass.fa-5x").toHaveCount(0);
+    expect("span.fa-martini-glass-empty.fa-5x").toHaveCount(0);
 });
 
 test("Can spin an icon", async () => {
@@ -163,9 +163,9 @@ test("Can spin an icon", async () => {
         `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
-    expect("span.fa-glass").toHaveCount(1);
+    expect("span.fa-martini-glass-empty").toHaveCount(1);
     await click("button[name='icon_spin']");
-    expect("span.fa-glass").toHaveClass("fa-spin");
+    expect("span.fa-martini-glass-empty").toHaveClass("fa-spin");
 });
 
 test("Can set icon color", async () => {
@@ -202,12 +202,12 @@ test("Can undo to 1x size after applying 2x size", async () => {
         `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" contenteditable="false">\u200b</span>]\ufeff</p>`
     );
     await waitFor(".o-we-toolbar");
-    expect("span.fa-glass").toHaveCount(1);
+    expect("span.fa-martini-glass-empty").toHaveCount(1);
     await click("button[name='icon_size_2']");
-    expect("span.fa-glass.fa-2x").toHaveCount(1);
+    expect("span.fa-martini-glass-empty.fa-2x").toHaveCount(1);
     undo(editor);
-    expect("span.fa-glass").toHaveCount(1);
-    expect("span.fa-glass.fa-2x").toHaveCount(0);
+    expect("span.fa-martini-glass-empty").toHaveCount(1);
+    expect("span.fa-martini-glass-empty.fa-2x").toHaveCount(0);
 });
 
 test("Can replace icon using toolbar", async () => {
@@ -292,7 +292,7 @@ test("Can replace a odoo icon", async () => {
     await animationFrame();
     await contains("main.modal-body span.fa-search").click();
     await animationFrame();
-    expect("span.fa.fa-search").toHaveCount(1);
+    expect("span.fa-solid.fa-search").toHaveCount(1);
     expect("span.oi.oi-plus").toHaveCount(0);
 });
 
@@ -317,7 +317,7 @@ test("Can replace a font awesome brand icon", async () => {
     await animationFrame();
     await contains("main.modal-body span.fa-search").click();
     await animationFrame();
-    expect("span.fa.fa-search").toHaveCount(1);
+    expect("span.fa-solid.fa-search").toHaveCount(1);
     expect("span.fab.fa-opera").toHaveCount(0);
 });
 
@@ -342,7 +342,7 @@ test("Can replace a font awesome duotone icon", async () => {
     await animationFrame();
     await contains("main.modal-body span.fa-search").click();
     await animationFrame();
-    expect("span.fa.fa-search").toHaveCount(1);
+    expect("span.fa-solid.fa-search").toHaveCount(1);
     expect("span.fad.fa-bus-alt").toHaveCount(0);
 });
 
@@ -367,7 +367,7 @@ test("Can replace a font awesome regular icon", async () => {
     await animationFrame();
     await contains("main.modal-body span.fa-search").click();
     await animationFrame();
-    expect("span.fa.fa-search").toHaveCount(1);
+    expect("span.fa-solid.fa-search").toHaveCount(1);
     expect("span.far.fa-money-bill-alt").toHaveCount(0);
 });
 
@@ -394,20 +394,20 @@ test("Should be able to undo after adding spin effect to an icon", async () => {
     expect(".btn-group[name='icon_spin']").not.toHaveClass("active");
     await click("button[name='icon_spin']");
     await animationFrame();
-    expect("span.fa-glass.fa-spin").toHaveCount(1);
+    expect("span.fa-martini-glass-empty.fa-spin").toHaveCount(1);
     await expectElementCount(".btn-group[name='icon_spin'] button.active", 1);
     undo(editor);
     await animationFrame();
-    expect("span.fa-glass.fa-spin").toHaveCount(0);
+    expect("span.fa-martini-glass-empty.fa-spin").toHaveCount(0);
     await expectElementCount(".btn-group[name='icon_spin'].active", 0);
-    expect("span.fa-glass").toHaveCount(1);
-    expect("span.fa-glass.fa-spin").toHaveCount(0);
+    expect("span.fa-martini-glass-empty").toHaveCount(1);
+    expect("span.fa-martini-glass-empty.fa-spin").toHaveCount(0);
 });
 
 describe("selection", () => {
     test("selection inside icon gets expanded to its outer boundaries", async () => {
         const { el } = await setupEditor(`<p>abc<span class="fa-solid fa-martini-glass-empty"></span>def</p>`);
-        const icon = el.querySelector("span.fa-glass");
+        const icon = el.querySelector("span.fa-martini-glass-empty");
         setSelection({ anchorNode: icon, anchorOffset: 0 });
         await tick();
         expect(getContent(el)).toBe(
@@ -419,7 +419,7 @@ describe("selection", () => {
         const { el } = await setupEditor(
             `<p contenteditable="false">abc<span class="fa-solid fa-martini-glass-empty"></span>def</p>`
         );
-        const icon = el.querySelector("span.fa-glass");
+        const icon = el.querySelector("span.fa-martini-glass-empty");
         setSelection({ anchorNode: icon, anchorOffset: 0 });
         await tick();
         expect(getContent(el)).toBe(

@@ -4487,7 +4487,7 @@ test("priority field should not be editable when missing access rights", async (
     });
     // Try to fill one star in the priority field of the first record
     await contains(".o_kanban_record:first-child .o_priority_star:first-child").click();
-    expect(".o_kanban_record:first-child .o_priority .fa-star-o").toHaveCount(2, {
+    expect(".o_kanban_record:first-child .o_priority .fa-regular.fa-star").toHaveCount(2, {
         message: "first record should still contain 2 empty stars",
     });
 });
@@ -14288,7 +14288,7 @@ test("groups will be scrolled to on unfold if outside of viewport", async () => 
     await contains(".o_column_folded:eq(0)").click();
     // Group is followed by a folded group which is outside the viewport
     // after unfold, scroll to that group
-    expect(".o_content").toHaveProperty("scrollLeft", 1844);
+    expect(".o_content").toHaveProperty("scrollLeft", 1869);
     let { x, width } = queryRect(".o_column_folded:eq(0)");
     // TODO JUM: change digits option
     expect(x + width).toBeCloseTo(window.innerWidth - 1, {
@@ -14308,7 +14308,7 @@ test("groups will be scrolled to on unfold if outside of viewport", async () => 
     });
     // scroll to the end
     await contains(".o_content").scroll({ left: 5000 });
-    expect(".o_content").toHaveProperty("scrollLeft", 3302);
+    expect(".o_content").toHaveProperty("scrollLeft", 3336);
     await contains(".o_kanban_group:last").click();
     expect(".o_content").toHaveProperty("scrollLeft", 3562);
     ({ x, width } = queryRect('.o_kanban_group:contains("column 11 (1)")'));

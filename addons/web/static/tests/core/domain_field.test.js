@@ -610,13 +610,13 @@ test("domain field: does not wait for the count to render", async function () {
             </form>`,
     });
 
-    expect(".o_field_domain_panel .fa-circle-o-notch.fa-spin").toHaveCount(1);
+    expect(".o_field_domain_panel .fa-circle-notch.fa-spin").toHaveCount(1);
     expect(".o_field_domain_panel .o_domain_show_selection_button").toHaveCount(0);
 
     def.resolve();
     await animationFrame();
 
-    expect(".o_field_domain_panel .fa-circle-o-notch .fa-spin").toHaveCount(0);
+    expect(".o_field_domain_panel .fa-circle-notch .fa-spin").toHaveCount(0);
     expect(".o_field_domain_panel .o_domain_show_selection_button").toHaveCount(1);
     expect(".o_domain_show_selection_button").toHaveText("2 record(s)");
 });

@@ -196,7 +196,7 @@
                     <button class="o_toggle_fold btn p-0 px-1 flex-shrink-0 text-center">
                         <i
                             t-if="value.childrenIds.length"
-                            class="fa"
+                            class="fa-solid"
                             t-att-class="{
                                 'fa-caret-down' : state.expanded[section.id][valueId],
                                 'fa-caret-right':  !state.expanded[section.id][valueId]

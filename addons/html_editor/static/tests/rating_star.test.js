@@ -45,19 +45,19 @@ test("select star rating", async () => {
         `<p><span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>[]</p>`
     );
 
-    await click("i.fa-star-o:first");
+    await click("i.fa-regular.fa-star:first");
     await animationFrame();
     expect(getContent(el)).toBe(
         `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-solid fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`
     );
 
-    await click("i.fa-star-o:last");
+    await click("i.fa-regular.fa-star:last");
     await animationFrame();
     expect(getContent(el)).toBe(
         `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-solid fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-solid fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-solid fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`
     );
 
-    await click("i.fa-star:last");
+    await click("i.fa-solid.fa-star:last");
     await animationFrame();
     expect(getContent(el)).toBe(
         `<p>\uFEFF<span contenteditable="false" class="o_stars"><i class="fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i><i class="o_stars fa-regular fa-star" contenteditable="false">\u200B</i></span>\uFEFF[]</p>`

@@ -973,9 +973,9 @@ test(`list view with adjacent buttons with invisible modifier`, async () => {
         "blip",
         "",
     ]);
-    expect(`td button i.fa-star`).toHaveCount(2);
-    expect(`td button i.fa-refresh`).toHaveCount(3);
-    expect(`td button i.fa-exclamation`).toHaveCount(3);
+    expect(`td button i.fa-solid.fa-star`).toHaveCount(2);
+    expect(`td button i.fa-solid.fa-refresh`).toHaveCount(3);
+    expect(`td button i.fa-solid.fa-exclamation`).toHaveCount(3);
 });
 
 test(`list view with adjacent buttons with width attribute`, async () => {
@@ -1019,13 +1019,13 @@ test(`list view with icon buttons`, async () => {
             </list>
         `,
     });
-    expect(`button.btn.btn-link i.fa.fa-asterisk`).toHaveCount(1);
-    expect(`button.btn.btn-link.o_yeah i.fa.fa-star`).toHaveCount(1);
-    expect(`button.btn.btn-link.o_yeah:contains(Refresh) i.fa.fa-refresh`).toHaveCount(
+    expect(`button.btn.btn-link i.fa-solid.fa-asterisk`).toHaveCount(1);
+    expect(`button.btn.btn-link.o_yeah i.fa-solid.fa-star`).toHaveCount(1);
+    expect(`button.btn.btn-link.o_yeah:contains(Refresh) i.fa-solid.fa-refresh`).toHaveCount(
         1,
     );
     expect(
-        `button.btn.btn-danger.o_yeah:contains(Danger) i.fa.fa-exclamation`,
+        `button.btn.btn-danger.o_yeah:contains(Danger) i.fa-solid.fa-exclamation`,
     ).toHaveCount(1);
     expect(`button.btn.btn-link.btn-danger`).toHaveCount(0);
 });
@@ -3180,12 +3180,12 @@ test(`change a record field in readonly should change same record in other group
     await contains(`.o_group_header`).click(); // open Value 1 group
     await contains(`.o_group_header:eq(1)`).click(); // open Value 2 group
     expect(queryAllTexts(`.o_list_char`)).toEqual(["yop", "blip", "yop"]);
-    expect(`.o_priority_star.fa-star`).toHaveCount(0, {
+    expect(`.o_priority_star.fa-solid.fa-star`).toHaveCount(0, {
         message: "should not have any starred records",
     });
 
     await contains(`.o_priority_star`).click();
-    expect(`.o_priority_star.fa-star`).toHaveCount(2, {
+    expect(`.o_priority_star.fa-solid.fa-star`).toHaveCount(2, {
         message: "both 'yop' records should have been starred",
     });
     expect.verifySteps(["web_save"]);
@@ -8668,7 +8668,7 @@ test(`click on a button in a list view`, async () => {
     expect(`tbody .o_list_button`).toHaveCount(4, {
         message: "there should be one button per row",
     });
-    expect(`.o_data_row .o_list_button .o_button_icon.fa.fa-car`).toHaveCount(4);
+    expect(`.o_data_row .o_list_button .o_button_icon.fa-solid.fa-car`).toHaveCount(4);
 
     await contains(`.o_data_row .o_list_button button`).click();
     // should have reloaded the view (after the action is complete)
@@ -13106,13 +13106,13 @@ test(`grouped list edition with boolean_favorite widget`, async () => {
     });
 
     await contains(`.o_group_header`).click();
-    expect(`.o_data_row:eq(0) .fa-star`).toHaveCount(1, {
+    expect(`.o_data_row:eq(0) .fa-solid.fa-star`).toHaveCount(1, {
         message: "boolean value of the first record should be true",
     });
 
-    await contains(".o_data_row:eq(0) .fa-star", { visible: false }).click();
+    await contains(".o_data_row:eq(0) .fa-solid.fa-star", { visible: false }).click();
     expect.verifySteps(["web_save"]);
-    expect(`.o_data_row:eq(0) .fa-star-o`).toHaveCount(1, {
+    expect(`.o_data_row:eq(0) .fa-regular.fa-star`).toHaveCount(1, {
         message: "boolean value of the first record should have been updated",
     });
 });

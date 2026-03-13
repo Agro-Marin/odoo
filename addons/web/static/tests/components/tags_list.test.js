@@ -83,12 +83,12 @@ test("Tags can be displayed with an icon", async () => {
         setup() {
             this.tags = [
                 {
-                    icon: "fa-trash",
+                    icon: "fa-solid fa-trash-can",
                     id: "tag1",
                     text: "Bad",
                 },
                 {
-                    icon: "fa-check",
+                    icon: "fa-solid fa-check",
                     id: "tag2",
                     text: "Good",
                 },

@@ -32,7 +32,7 @@ test("Ignore empty hrefs", async () => {
     await click(".inactive_link");
     await animationFrame();
 
-    await click(".fa.fa-trash");
+    await click(".fa-solid.fa-trash-can");
     await animationFrame();
 
     expect(browser.location.hash).toBe("#testscroller");

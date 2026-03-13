@@ -57,15 +57,19 @@ export class StarPlugin extends Plugin {
             const nextStars = allStars.slice(currentStarIndex + 1);
             if (nextStars.length || previousStars.length) {
                 const shouldToggleOff =
-                    node.classList.contains("fa-star") &&
-                    (!nextStars[0] || !nextStars[0].classList.contains("fa-star"));
+                    node.classList.contains("fa-solid") &&
+                    (!nextStars[0] || !nextStars[0].classList.contains("fa-solid"));
                 for (const star of [...previousStars, node]) {
-                    star.classList.toggle("fa-regular", shouldToggleOff);
-                    star.classList.toggle("fa-solid", !shouldToggleOff);
+                    if (shouldToggleOff) {
+                        star.classList.replace("fa-solid", "fa-regular");
+                    } else {
+                        star.classList.replace("fa-regular", "fa-solid");
+                    }
                 }
                 for (const star of nextStars) {
-                    star.classList.toggle("fa-regular", true);
-                    star.classList.toggle("fa-solid", false);
+                    if (star.classList.contains("fa-solid")) {
+                        star.classList.replace("fa-solid", "fa-regular");
+                    }
                 }
                 this.dependencies.history.addStep();
             }

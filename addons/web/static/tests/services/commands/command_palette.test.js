@@ -1618,14 +1618,14 @@ test("display spinner while loading results from providers", async () => {
 
     await animationFrame();
     expect(".o_command_palette_search i.oi.oi-search").toHaveCount(1);
-    expect(".o_command_palette_search i.fa.fa-circle-o-notch").toHaveCount(0);
+    expect(".o_command_palette_search i.fa-solid.fa-circle-notch").toHaveCount(0);
     await click(".o_command_palette_search input");
     await edit("? blabla");
     await runAllTimers();
     expect(".o_command_palette_search i.oi.oi-search").toHaveCount(0);
-    expect(".o_command_palette_search i.fa.fa-circle-o-notch").toHaveCount(1);
+    expect(".o_command_palette_search i.fa-solid.fa-circle-notch").toHaveCount(1);
     provideDef.resolve();
     await animationFrame();
     expect(".o_command_palette_search i.oi.oi-search").toHaveCount(1);
-    expect(".o_command_palette_search i.fa.fa-circle-o-notch").toHaveCount(0);
+    expect(".o_command_palette_search i.fa-solid.fa-circle-notch").toHaveCount(0);
 });

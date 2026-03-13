@@ -29,7 +29,7 @@ test("documentation_link: default label and icon", async () => {
     });
     expect(".o_doc_link").toHaveText("View Documentation");
     expect("a.alert-link").toHaveCount(0);
-    expect(".o_doc_link .fa-external-link").toHaveCount(1);
+    expect(".o_doc_link .fa-up-right-from-square").toHaveCount(1);
 });
 
 test("documentationLink: alert-link", async () => {

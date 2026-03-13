@@ -525,13 +525,13 @@ test("properties: selection", async () => {
 
     // Check the default option, must be the third one"
     expect(
-        ".o_property_field_popover .o_field_property_selection_option:nth-child(1) .fa-star",
+        ".o_property_field_popover .o_field_property_selection_option:nth-child(1) .fa-solid.fa-star",
     ).toHaveCount(0);
     expect(
-        ".o_property_field_popover .o_field_property_selection_option:nth-child(2) .fa-star",
+        ".o_property_field_popover .o_field_property_selection_option:nth-child(2) .fa-solid.fa-star",
     ).toHaveCount(0);
     expect(
-        ".o_property_field_popover .o_field_property_selection_option:nth-child(3) .fa-star",
+        ".o_property_field_popover .o_field_property_selection_option:nth-child(3) .fa-solid.fa-star",
     ).toHaveCount(1);
     expect(
         ".o_property_field_popover .o_field_property_definition_type input",
@@ -585,7 +585,7 @@ test("properties: selection", async () => {
     expect(queryFirst("input", { root: getOptions()[2] })).toBeFocused();
 
     // Remove the second option
-    await click(".o_field_property_selection_option:nth-child(2) .fa-trash-o");
+    await click(".o_field_property_selection_option:nth-child(2) .fa-trash-can");
     await animationFrame();
     expect(getOptionsValues()).toEqual(["A", "C", "New option"], {
         message: "Should have removed the second option",

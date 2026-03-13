@@ -1904,38 +1904,38 @@ test("order by count resets when there is no group left", async () => {
     await toggleMenuItem("Foo");
     expect(".fa-sort").toHaveCount(1);
     await contains(".fa-sort", { visible: false }).click();
-    expect(".fa-sort-numeric-desc").toHaveCount(1);
-    await contains(".fa-sort-numeric-desc").click();
-    expect(".fa-sort-numeric-asc").toHaveCount(1);
+    expect(".fa-arrow-down-9-1").toHaveCount(1);
+    await contains(".fa-arrow-down-9-1").click();
+    expect(".fa-arrow-down-1-9").toHaveCount(1);
 
     await toggleSearchBarMenu();
     await toggleMenuItem("Foo");
-    expect(".fa-sort-numeric-asc").toHaveCount(1);
+    expect(".fa-arrow-down-1-9").toHaveCount(1);
 
     await toggleMenuItem("Foo");
     await toggleMenuItem("Bool");
-    expect(".fa-sort-numeric-asc").toHaveCount(1);
+    expect(".fa-arrow-down-1-9").toHaveCount(1);
     await toggleMenuItem("Bar");
-    expect(".fa-sort-numeric-asc").toHaveCount(0);
+    expect(".fa-arrow-down-1-9").toHaveCount(0);
 
     await toggleMenuItem("Bar");
-    expect(".fa-sort-numeric-asc").toHaveCount(0);
+    expect(".fa-arrow-down-1-9").toHaveCount(0);
     expect(".fa-sort").toHaveCount(1);
     await contains(".fa-sort", { visible: false }).click();
-    await contains(".fa-sort-numeric-desc").click();
-    expect(".fa-sort-numeric-asc").toHaveCount(1);
+    await contains(".fa-arrow-down-9-1").click();
+    expect(".fa-arrow-down-1-9").toHaveCount(1);
     await toggleSearchBarMenu();
     await toggleMenuItem("Bool");
-    expect(".fa-sort-numeric-asc").toHaveCount(1);
+    expect(".fa-arrow-down-1-9").toHaveCount(1);
 
     await contains(".o_facet_remove").click();
-    expect(".fa-sort-numeric-asc").toHaveCount(1);
+    expect(".fa-arrow-down-1-9").toHaveCount(1);
     await contains(".o_facet_remove").click();
     expect(".o_searchview_facet").toHaveCount(0);
 
     await toggleSearchBarMenu();
     await toggleMenuItem("Bar");
-    expect(".fa-sort-numeric-asc").toHaveCount(0);
+    expect(".fa-arrow-down-1-9").toHaveCount(0);
     expect(".fa-sort").toHaveCount(1);
 });
 

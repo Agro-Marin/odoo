@@ -91,8 +91,13 @@ export class PowerButtonsPlugin extends Plugin {
             const btn = this.document.createElement("button");
             let className = "power_button btn px-2 py-1 cursor-pointer";
             if (icon) {
-                const iconLibrary = icon.includes("fa-") ? "fa" : "oi";
-                className += ` ${iconLibrary} ${icon}`;
+                if (icon.startsWith("fa-solid") || icon.startsWith("fa-regular") || icon.startsWith("fa-brands")) {
+                    className += ` ${icon}`;
+                } else if (icon.includes("fa-")) {
+                    className += ` fa-solid ${icon}`;
+                } else {
+                    className += ` oi ${icon}`;
+                }
             } else {
                 const span = this.document.createElement("span");
                 span.textContent = text;

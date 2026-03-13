@@ -13451,7 +13451,7 @@ test("modifiers based on x2many", async () => {
     expect("[name='name'].o_readonly_modifier").toHaveCount(1);
     expect("[name='int_field'].o_required_modifier").toHaveCount(1);
 
-    await contains("button.fa-trash-o").click();
+    await contains("button.fa-trash-can").click();
     expect("button.my_button").toHaveCount(0);
     expect("[name='name'].o_readonly_modifier").toHaveCount(0);
     expect("[name='int_field'].o_required_modifier").toHaveCount(0);

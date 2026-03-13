@@ -45,7 +45,7 @@ test("simple rendering with no favorite (without ability to save)", async () => 
     );
 
     await toggleSearchBarMenu();
-    expect(`.o_favorite_menu .fa.fa-star`).toHaveCount(1);
+    expect(`.o_favorite_menu .fa-solid.fa-star`).toHaveCount(1);
     expect(`.o_favorite_menu .o_dropdown_title`).toHaveText(/^favorites$/i);
     expect(`.o_favorite_menu`).toHaveCount(1);
     expect(`.o_favorite_menu .o_menu_item`).toHaveCount(0);
@@ -65,7 +65,7 @@ test("simple rendering with no favorite", async () => {
     );
 
     await toggleSearchBarMenu();
-    expect(`.o_favorite_menu .fa.fa-star`).toHaveCount(1);
+    expect(`.o_favorite_menu .fa-solid.fa-star`).toHaveCount(1);
     expect(`.o_favorite_menu .o_dropdown_title`).toHaveText(/^favorites$/i);
     expect(`.o_favorite_menu`).toHaveCount(1);
     expect(`.o_favorite_menu .dropdown-divider`).toHaveCount(0);

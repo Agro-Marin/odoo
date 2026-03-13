@@ -102,7 +102,7 @@ const TOOLBAR = (language) =>
                 <i class="fa-solid fa-caret-down"></i>
             </button>
             <button type="button" class="text-nowrap btn o_clipboard_button">
-                <span class="mx-1 fa-solid fa-paste"></span>
+                <span class="mx-1 fa-solid fa-clipboard"></span>
                 <span>Copy</span>
             </button>
             <button class="text-nowrap btn"><span class="mx-1 fa-solid fa-paragraph" title="Convert to paragraph"></span></button>

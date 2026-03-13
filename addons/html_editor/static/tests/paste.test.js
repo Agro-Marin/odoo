@@ -4794,7 +4794,7 @@ describe("onDrop", () => {
         const { el } = await setupEditor(
             `<p>[a</p><p><span class="fa-solid fa-heart"></span>b]</p><p>c</p>`
         );
-        const iconElement = el.querySelector(".fa");
+        const iconElement = el.querySelector(".fa-solid");
         const targetNodeForDrop = el.lastChild;
 
         patchWithCleanup(document, {
@@ -4812,8 +4812,8 @@ describe("onDrop", () => {
         const textHtml = dragdata.getData("text/html");
         const dropData = new DataTransfer();
         dropData.setData("text/html", textHtml);
-        // Simulate the application/vnd.odoo.odoo-editor-node data that the browser would do.
-        dropData.setData("application/vnd.odoo.odoo-editor-node", odooEditorData);
+        // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
+        dropData.setData("application/vnd.odoo.odoo-editor", odooEditorData);
         await dispatch(targetNodeForDrop, "drop", { dataTransfer: dropData });
         await animationFrame();
 

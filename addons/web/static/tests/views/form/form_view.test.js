@@ -3193,7 +3193,7 @@ test(`buttons in form view`, async () => {
         `,
         resId: 2,
     });
-    expect(`button.btn i.fa.fa-check`).toHaveCount(1);
+    expect(`button.btn i.fa-solid.fa-check`).toHaveCount(1);
     expect(`.o_form_statusbar button`).toHaveCount(2);
     expect(`button.child_ids[name="post"]:contains(Confirm)`).toHaveCount(1);
 
@@ -5678,10 +5678,10 @@ test(`handling dirty state: switching to another record`, async () => {
     await contains(`.o_form_button_save`).click();
     await contains(`.o_pager_next`).click();
     expect(`.o_breadcrumb`).toHaveText("second record");
-    expect(`.o_priority .fa-star-o`).toHaveCount(2);
+    expect(`.o_priority .fa-regular.fa-star`).toHaveCount(2);
 
-    await contains(`.o_priority .fa-star-o`).click();
-    expect(`.o_priority .fa-star`).toHaveCount(1);
+    await contains(`.o_priority .fa-regular.fa-star`).click();
+    expect(`.o_priority .fa-solid.fa-star`).toHaveCount(1);
 
     await contains(`.o_pager_next`).click();
     expect(`.o_breadcrumb`).toHaveText("first record");
@@ -5724,7 +5724,7 @@ test(`handling dirty state: switching to another record on desktop`, async () =>
     await contains(`.o_pager_next`).click();
     expect(`.o_pager_counter`).toHaveText("2 / 2");
 
-    await contains(`.o_priority .fa-star-o`).click();
+    await contains(`.o_priority .fa-regular.fa-star`).click();
 
     await contains(`.o_pager_next`).click();
     expect(`.o_pager_counter`).toHaveText("1 / 2");
@@ -6535,7 +6535,7 @@ test(`delete a line in a one2many while editing another line`, async () => {
     });
     await contains(`.o_data_cell:eq(0)`).click();
     await contains(`.o_field_widget[name=name] input`).clear();
-    await contains(`.fa-trash-o:eq(1)`).click();
+    await contains(`.fa-regular.fa-trash-can:eq(1)`).click();
     expect(`.o_data_row`).toHaveCount(2);
     expect(`.o_data_cell:eq(0)`).toHaveClass(["o_invalid_cell"]);
 });
@@ -11662,7 +11662,7 @@ test(`setting : char field`, async () => {
     expect(`.o_setting_left_pane > *`).toHaveCount(0);
     expect(`.o_form_label`).toHaveText("Foo");
     expect(`.text-muted`).toHaveText("this is foo");
-    expect(`.fa-building-o`).toHaveCount(1);
+    expect(`.fa-regular.fa-building`).toHaveCount(1);
     expect(`.o_field_char input`).toHaveCount(1);
 });
 

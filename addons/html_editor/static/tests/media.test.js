@@ -84,12 +84,12 @@ test("Replace an image by icon should remove invalid classes", async () => {
     await animationFrame();
     await click(".nav-link:contains('Icons')");
     await animationFrame();
-    await click("span.fa-envelope-o");
+    await click("span.fa-envelope");
     await animationFrame();
     expect("img[src='/web/static/img/logo.png']").toHaveCount(0);
-    expect("p > span.fa-envelope-o").toHaveCount(1);
-    expect("p > span.fa-envelope-o").not.toHaveClass("img-fluid");
-    expect("p > span.fa-envelope-o").not.toHaveClass("w-100");
+    expect("p > span.fa-envelope").toHaveCount(1);
+    expect("p > span.fa-envelope").not.toHaveClass("img-fluid");
+    expect("p > span.fa-envelope").not.toHaveClass("w-100");
 });
 
 test.tags("focus required");
@@ -133,7 +133,7 @@ test("should not preserve image styles when replacing an image with an icon", as
     await animationFrame();
     await click(".nav-link:contains('Icons')");
     await animationFrame();
-    await click(".fa-glass");
+    await click(".fa-martini-glass-empty");
     await animationFrame();
     expect(getContent(el).replace(/<img.*?>/, "<img>")).toBe(
         `<p>\ufeff[<span class="fa-solid fa-martini-glass-empty" style="" contenteditable="false">\u200b</span>]\ufeff</p>`

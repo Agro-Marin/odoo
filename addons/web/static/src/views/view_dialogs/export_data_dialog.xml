@@ -93,7 +93,7 @@
                                     <i class="fa-regular fa-floppy-disk" />
                                 </button>
                                 <button type="button" class="btn btn-secondary ms-1 o_cancel_list_btn" t-on-click.stop="onCancelExportTemplate">
-                                    <i t-attf-class="fa-solid {{ state.templateId === 'new_template' ? 'fa-xmark' : 'fa-rotate-left' }}" />
+                                    <i t-attf-class="fa-solid {{ state.templateId === 'new_template' ? 'fa-xmark' : 'fa-arrow-rotate-left' }}" />
                                 </button>
                             </t>
                             <t t-else="">

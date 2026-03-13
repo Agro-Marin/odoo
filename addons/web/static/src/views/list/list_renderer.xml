@@ -236,7 +236,8 @@
  <t t-if="!evalInvisible(button.invisible, group.record)">
  <t t-if="button.clickParams.type === 'edit'">
  <button t-att-title="button.title" class="btn" t-on-click.stop="() => this.editGroupRecord(group)" tabindex="-1">
- <i t-att-class="'o_button_icon ' + (button.icon.startsWith('fa-solid') || button.icon.startsWith('fa-regular') || button.icon.startsWith('fa-brands') ? button.icon : 'fa-solid ' + button.icon)"/>
+ <i t-if="button.icon" t-att-class="'o_button_icon ' + (button.icon.startsWith('fa-solid') || button.icon.startsWith('fa-regular') || button.icon.startsWith('fa-brands') ? button.icon : 'fa-solid ' + button.icon)"/>
+ <t t-else="" t-esc="button.string"/>
  </button>
  </t>
  <t t-else="">

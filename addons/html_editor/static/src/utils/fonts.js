@@ -19,11 +19,12 @@ export const fonts = {
      *              }
      */
     cacheCssSelectors: {},
-    getCssSelectors: function (filter) {
-        if (this.cacheCssSelectors[filter]) {
-            return this.cacheCssSelectors[filter];
+    getCssSelectors: function (filter, cssFilter) {
+        const cacheKey = `${filter}${cssFilter || ""}`;
+        if (this.cacheCssSelectors[cacheKey]) {
+            return this.cacheCssSelectors[cacheKey];
         }
-        this.cacheCssSelectors[filter] = [];
+        this.cacheCssSelectors[cacheKey] = [];
         var sheets = document.styleSheets;
         for (var i = 0; i < sheets.length; i++) {
             var rules;
@@ -42,6 +43,9 @@ export const fonts = {
             for (var r = 0; r < rules.length; r++) {
                 var selectorText = rules[r].selectorText;
                 if (!selectorText) {
+                    continue;
+                }
+                if (cssFilter && !cssFilter.test(rules[r].cssText)) {
                     continue;
                 }
                 var selectors = selectorText.split(/\s*,\s*/);
@@ -63,11 +67,11 @@ export const fonts = {
                     }
                 }
                 if (data) {
-                    this.cacheCssSelectors[filter].push(data);
+                    this.cacheCssSelectors[cacheKey].push(data);
                 }
             }
         }
-        return this.cacheCssSelectors[filter];
+        return this.cacheCssSelectors[cacheKey];
     },
     /**
      * List of font icons to load by editor. The icons are displayed in the media
@@ -80,7 +84,7 @@ export const fonts = {
      *
      * @type Array
      */
-    fontIcons: [{ base: "fa-solid", parser: /\.(fa-(?:\w|-)+)::?before/i }],
+    fontIcons: [{ base: "fa-solid", parser: /\.(fa-(?:\w|-)+)$/i, cssFilter: /--fa\s*:/ }],
     computedFonts: false,
     /**
      * Searches the fonts described by the @see fontIcons variable.
@@ -89,7 +93,7 @@ export const fonts = {
         if (!this.computedFonts) {
             var self = this;
             this.fontIcons.forEach((data) => {
-                data.cssData = self.getCssSelectors(data.parser);
+                data.cssData = self.getCssSelectors(data.parser, data.cssFilter);
                 data.alias = data.cssData.map((x) => x.names).flat();
             });
             this.computedFonts = true;

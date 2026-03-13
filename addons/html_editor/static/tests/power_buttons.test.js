@@ -148,7 +148,7 @@ describe("buttons", () => {
 
     test("should create a check list using power buttons", async () => {
         const { el } = await setupEditor("<p>[]<br></p>");
-        await click(".o_we_power_buttons .power_button.fa-check-square-o");
+        await click(".o_we_power_buttons .power_button.fa-square-check");
         expect(getContent(el)).toBe(
             `<ul class="o_checklist"><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`
         );
@@ -166,7 +166,7 @@ describe("buttons", () => {
             },
         ]);
         await setupEditor("<p>[]<br></p>");
-        click(".o_we_power_buttons .power_button.fa-file-image-o");
+        click(".o_we_power_buttons .power_button.fa-file-image");
         await animationFrame();
         expect(".o_select_media_dialog").toBeVisible();
     });
