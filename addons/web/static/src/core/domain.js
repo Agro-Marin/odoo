@@ -24,6 +24,25 @@ import { toPyValue } from "./py_js/py_utils";
 export class InvalidDomainError extends Error {}
 
 /**
+ * Recursively serialize non-primitive values in a domain list (e.g. PyDate,
+ * PyDateTime) to their JSON representation. The Python expression evaluator
+ * returns rich objects for dates; domains sent to the server must contain
+ * plain strings.
+ *
+ * @param {any} value
+ * @returns {any}
+ */
+function normalizeDomainValues(value) {
+    if (Array.isArray(value)) {
+        return value.map(normalizeDomainValues);
+    }
+    if (value !== null && typeof value === "object" && typeof value.toJSON === "function") {
+        return value.toJSON();
+    }
+    return value;
+}
+
+/**
  * Javascript representation of an Odoo domain
  */
 export class Domain {
@@ -34,22 +53,32 @@ export class Domain {
      * @returns {Domain}
      */
     static combine(domains, operator) {
-        if (domains.length === 0) {
+        // Normalize all inputs to Domain instances and filter out empty ones
+        const nonEmpty = domains
+            .map((d) => (d instanceof Domain ? d : new Domain(d)))
+            .filter((d) => d.ast.value.length > 0);
+        if (nonEmpty.length === 0) {
             return new Domain([]);
         }
-        if (domains.length === 1) {
-            return domains[0] instanceof Domain ? domains[0] : new Domain(domains[0]);
+        if (nonEmpty.length === 1) {
+            return nonEmpty[0];
         }
-        // Iterative: collect all AST values in one pass instead of
-        // recursively slicing (which created N-1 intermediate Domain objects).
+        // Recursively combine: pair the first domain with the combination
+        // of the rest. This produces the correct prefix notation where each
+        // operator sits before its two operands (e.g. OR(d1, d2, d3) yields
+        // ["|", d1..., "|", d2..., d3...]).
         const op = operator === "AND" ? "&" : "|";
-        const allValues = [];
-        for (const d of domains) {
-            const dom = d instanceof Domain ? d : new Domain(d);
-            allValues.push(...dom.ast.value);
-        }
+        const first = nonEmpty[0];
+        const rest = Domain.combine(nonEmpty.slice(1), operator);
         const result = new Domain([]);
-        result.ast = normalizeDomainAST({ type: 4 /* List */, value: allValues }, op);
+        result.ast = {
+            type: 4 /* List */,
+            value: [
+                { type: 1 /* String */, value: op },
+                ...first.ast.value,
+                ...rest.ast.value,
+            ],
+        };
         return result;
     }
 
@@ -192,7 +221,8 @@ export class Domain {
      */
     toList(context) {
         try {
-            return evaluate(this.ast, context);
+            const result = evaluate(this.ast, context);
+            return normalizeDomainValues(result);
         } catch (error) {
             if (error instanceof EvaluationError) {
                 throw new InvalidDomainError(error.message, { cause: error });
