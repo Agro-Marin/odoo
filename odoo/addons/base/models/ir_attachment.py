@@ -551,7 +551,8 @@ class IrAttachment(models.Model):
     mimetype = fields.Char("Mime Type", readonly=True)
     index_content = fields.Text("Indexed Content", readonly=True, prefetch=False)
 
-    _res_idx = models.Index("(res_model, res_id)")
+    _res_field_idx = models.Index("(res_model, res_field, res_id)")
+    _checksum_idx = models.Index("(checksum) WHERE checksum IS NOT NULL")
 
     def _check_serving_attachments(self) -> None:
         if self.env.is_admin():
