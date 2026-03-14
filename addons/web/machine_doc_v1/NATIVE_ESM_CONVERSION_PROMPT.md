@@ -10,7 +10,7 @@ Convert all JavaScript files in `core/addons/web/static/src/` from legacy transp
 
 ## Background
 
-The Odoo JS module system currently uses a Python regex transpiler that transforms ES6 `import`/`export` into `odoo.define()` wrapper calls. We're migrating to browser-native ESM with import maps. The full infrastructure is already committed and working with 18 pilot modules.
+The Odoo JS module system currently uses a Python regex transpiler that transforms ES6 `import`/`export` into `odoo.define()` wrapper calls. We're migrating to browser-native ESM with import maps. The full infrastructure is already committed and working with 16 pilot modules. See `NATIVE_ESM_REFERENCE.md` for implementation details.
 
 **How it works:**
 - Files with `@odoo-module native` skip Python transpilation entirely
@@ -62,7 +62,7 @@ import { Component } from "@odoo/owl";
 
 - `module_loader.js` — has `@odoo-module ignore`, bootstraps the module system itself
 - `service_worker.js` — has `@odoo-module ignore`, runs in service worker context
-- Any file already marked `@odoo-module native` (18 files in `core/utils/`)
+- Any file already marked `@odoo-module native` (16 files in `core/utils/`)
 - `legacy/js/public/public_root.js` — has `@odoo-module alias=root.widget`
 
 ## Conversion statistics
@@ -70,8 +70,8 @@ import { Component } from "@odoo/owl";
 | Item | Count |
 |------|-------|
 | Total JS files in `web/static/src/` | 608 |
-| Already native | 18 |
-| To skip (ignore/alias) | 3 |
+| Already native | 16 |
+| To skip (ignore/alias/blocked) | 5 |
 | Files to convert | ~587 |
 | Files with relative imports needing `.js` | ~154 |
 | Total relative import occurrences | ~230 |
@@ -126,7 +126,7 @@ After running the script:
        --test-tags '/test_assetsbundle' -u test_assetsbundle --stop-after-init --workers=0
    grep "tests when loading" ./odoo.log
    ```
-   Expected: 100/102 pass (2 pre-existing browser tour failures: DuplicatedKeyError html_field, ErrorHandler not Component)
+   Expected: 102/102 pass
 
 4. **Webclient smoke test**:
    ```bash
@@ -144,6 +144,8 @@ After running the script:
 - **Do NOT change any logic** — this is purely a mechanical annotation + extension change
 - **Do NOT convert files in `static/tests/`** — only `static/src/`
 - **Preserve `// @ts-check`** lines — many files have this before `@odoo-module`, keep it
+- **Do NOT convert `components.js`** — uses `extends Component`, blocked by OWL dual-execution (see NATIVE_ESM_REFERENCE.md)
+- **Do NOT convert `dom/ui.js`** — in `web.assets_frontend_minimal`, blocked by multi-bundle import map (see NATIVE_ESM_REFERENCE.md)
 
 ## After web/ is done
 
