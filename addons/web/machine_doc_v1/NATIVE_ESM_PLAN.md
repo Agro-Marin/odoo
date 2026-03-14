@@ -262,48 +262,96 @@ Once a module graph starts loading, the import map is frozen. All mappings must 
 - [x] Batch-convert 3 second-wave modules (arrays, strings, xml) with inter-native imports
 - [x] Relative import fix: `./objects` → `./objects.js` for native ESM browser resolution
 - [x] 16 native modules verified in webclient import map, bridge, and modulepreload
-- [x] 102/102 `test_assetsbundle` tests pass (1 pre-existing CSS tour flake)
+- [x] Convert `reactive.js` (OWL function-only dep — no class identity issues)
+- [x] Fix bridge: register ALL native modules, not just intra-bundle legacy deps
+- [x] 102/102 `test_assetsbundle` tests pass with 16 native modules
 
 ### Converted modules (16 total)
 
-**Wave 1 — Zero dependencies:**
+**Wave 1 — Zero dependencies (12):**
 1. `concurrency.js` — Mutex, KeepLast, Race, Deferred, delay
 2. `collections/objects.js` — deepEqual, deepCopy, pick, omit
 3. `collections/cache.js` — generic key-path cache
 4. `dom/events.js` — isEventHandled, markEventHandled
-5. `dom/ui.js` — isVisible, isFocusable, getTabableElements
-6. `dom/classname.js` — mergeClasses, addClassesToElement
-7. `dom/scrolling.js` — closestScrollableX/Y, isScrollableY
-8. `order_by.js` — orderByToString, stringToOrderBy
-9. `format/colors.js` — RGB↔HSL↔hex color conversions
-10. `patch.js` — reversible monkey-patching
-11. `functions.js` — memoize, uniqueId
-12. `dependency_graph.js` — iterative DFS cycle detection
-13. `decorations.js` — decoration-* → Bootstrap CSS mapping
+5. `dom/classname.js` — mergeClasses, addClassesToElement
+6. `dom/scrolling.js` — closestScrollableX/Y, isScrollableY
+7. `order_by.js` — orderByToString, stringToOrderBy
+8. `format/colors.js` — RGB↔HSL↔hex color conversions
+9. `patch.js` — reversible monkey-patching
+10. `functions.js` — memoize, uniqueId
+11. `dependency_graph.js` — iterative DFS cycle detection
+12. `decorations.js` — decoration-* → Bootstrap CSS mapping
 
-**Wave 2 — Only import from other native modules:**
-14. `collections/arrays.js` — imports `./objects.js` (relative)
-15. `format/strings.js` — imports `@web/core/utils/collections/objects` (bare specifier)
-16. `dom/xml.js` — imports `@web/core/utils/collections/arrays` (bare specifier)
+**Wave 2 — Only import from other native modules (3):**
+13. `collections/arrays.js` — imports `./objects.js` (relative)
+14. `format/strings.js` — imports `@web/core/utils/collections/objects` (bare specifier)
+15. `dom/xml.js` — imports `@web/core/utils/collections/arrays` (bare specifier)
 
-**Wave 3 — Import from `@odoo/owl` (OWL bridge):**
-17. `reactive.js` — imports `{ reactive }` from `@odoo/owl`
-18. `components.js` — imports `{ Component, onError, xml }` from `@odoo/owl`
+**Wave 3 — Import from `@odoo/owl` (1):**
+16. `reactive.js` — imports `{ reactive }` from `@odoo/owl` (function-only, no class)
+
+**Blocked:**
+- `dom/ui.js` — in `web.assets_frontend_minimal` (multi-bundle import map conflict)
+- `components.js` — `extends Component` (OWL dual-execution identity mismatch)
 
 - [x] OWL ESM shim (`owl_esm.js`) re-exports `globalThis.owl` as named ES exports
 - [x] OWL pre-load: separate non-deferred `<script src="owl.js">` before import map
 - [x] Post-bundle bridge: `<script type="module">` placed AFTER `<script defer>` bundle
 - [x] `module_loader.js` `registerNativeModules()` with dependency propagation
 - [x] `__native_module_names__` declaration suppresses "missing dep" errors
-- [x] 19-entry import map (18 native + @odoo/owl) verified in webclient
-- [x] 102/102 tests pass (2 pre-existing CSS tour flakes)
+- [x] Full bridge: registers ALL native modules (not just intra-bundle deps)
+- [x] 17-entry import map (16 native + @odoo/owl) verified in webclient
+- [x] 102/102 `test_assetsbundle` tests pass
 
 ### Not yet done
 
 - [ ] Browser smoke test (open webclient, verify no JS console errors)
+- [ ] Fix OWL dual-execution issue (see Known Constraints below)
 - [ ] Convert more OWL-dependent modules (`timing.js`, `indexed_db.js`, etc.)
 - [ ] Generic Native → Legacy bridge for non-OWL legacy modules
 - [ ] Convert modules that import from `@web/core/browser/browser`, `@web/core/l10n/*`
+- [ ] Fix multi-bundle import map (ui.js blocked — see Known Constraints)
+
+---
+
+## Known Constraints
+
+### 1. OWL dual-execution: no `extends Component` in native modules
+
+OWL is loaded twice — first by the pre-load `<script src="owl.js">` (needed so
+`owl_esm.js` can re-export), then again inside the concatenated bundle. The second
+execution creates **new class constructors**. Native modules that `extends Component`
+inherit from the first execution's prototype, but OWL's `instanceof` check in the
+app uses the second execution's `Component` → fails.
+
+**Affected**: `components.js` (`extends Component`) — reverted to legacy.
+**Not affected**: `reactive.js` — only calls `reactive()` as a function; identity
+doesn't matter for function calls.
+
+**Fix options**:
+- Make OWL UMD truly idempotent (skip re-initialization if `globalThis.owl` exists)
+- Make the bridge lazy (run after the concatenated bundle, not before)
+- Only pre-load OWL for lazy-loaded bundles (the frontend lazy bundle timing issue)
+
+### 2. Multi-bundle import maps: one per page
+
+HTML spec allows only ONE `<script type="importmap">` per page (Chrome 133+ relaxes
+this). When a module is native in a bundle that's on the SAME page as another bundle
+with native modules, only the first import map is honored.
+
+**Affected**: `ui.js` — it's in both `web.assets_frontend_minimal` and
+`web.assets_frontend_lazy`. Making it native in one generates an import map for that
+bundle, conflicting with the other bundle's import map.
+
+**Fix**: Consolidate all import maps at the page level (in `_get_asset_nodes` or the
+template), not per-bundle.
+
+### 3. Cross-bundle dependencies require full bridge
+
+The "slim bridge" optimization (only bridging intra-bundle legacy deps) was broken:
+the module loader is global, and dynamically-loaded bundles (e.g. `web_tour.automatic`
+via `loadBundle()`) can depend on native modules from any bundle. Fixed by bridging
+ALL native modules.
 
 ---
 
@@ -320,3 +368,6 @@ Once a module graph starts loading, the import map is frozen. All mappings must 
 | 2026-03-09 | Convert bottom-up (leaves → dependents) | Avoids needing Native→Legacy bridge until higher-level modules are converted |
 | 2026-03-09 | OWL pre-load as separate `<script>` | UMD is idempotent; extra HTTP request is cheap; unlocks all OWL-dependent modules |
 | 2026-03-09 | Post-bundle bridge with `registerNativeModules()` | Bridge runs after bundle; legacy modules with native deps wait via dependency graph |
+| 2026-03-14 | Full bridge (all native modules, not slim) | Slim bridge broke cross-bundle deps; `web_tour.automatic` couldn't find `xml.js` |
+| 2026-03-14 | No `extends Component` in native modules | OWL dual-execution creates identity mismatch; `instanceof` fails across executions |
+| 2026-03-14 | Keep `ui.js` non-native | Multi-bundle import map conflict; needs page-level consolidation first |
