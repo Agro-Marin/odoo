@@ -5,6 +5,7 @@ import {
     SectionAndNoteListRenderer,
 } from "@account/components/section_and_note_fields_backend/section_and_note_fields_backend";
 import { ProductNameAndDescriptionListRendererMixin } from "@product/product_name_and_description/product_name_and_description";
+import { processAllColumns } from "@web/views/list/list_column_utils";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 
@@ -39,7 +40,7 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
             }
             return column;
         });
-        return super.processAllColumn(allColumns, list);
+        return processAllColumns(allColumns, list);
     }
 
     isCellReadonly(column, record) {
