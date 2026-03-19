@@ -6,12 +6,14 @@ webclient's relational model layer.
 """
 
 from collections import defaultdict
+from datetime import UTC
 from typing import Any
 
 from odoo import api, models
-from odoo.api import NewId
-from odoo.exceptions import AccessError
-from odoo.api import DomainType
+from odoo.api import DomainType, NewId
+from odoo.exceptions import AccessError, ConcurrencyError
+from odoo.fields import Datetime as FieldsDatetime
+from odoo.libs.datetime.tz import timezone as odoo_tz
 from odoo.tools import OrderedSet
 
 
@@ -148,10 +150,28 @@ class Base(models.AbstractModel):
                 )
                 row = self.env.cr.fetchone()
                 server_write_date = row[0] if row else None
-                from odoo.fields import Datetime as FieldsDatetime
                 client_dt = FieldsDatetime.to_datetime(last_write_date)
+                # The client may send write_date in the user's local
+                # timezone instead of UTC.  Convert it to UTC so the
+                # comparison with the server value (always UTC) is correct.
+                user_tz = odoo_tz(self.env.user.tz or 'UTC')
+                if client_dt:
+                    if not client_dt.tzinfo:
+                        client_dt = client_dt.replace(tzinfo=user_tz)
+                    client_dt = client_dt.astimezone(UTC).replace(tzinfo=None)
+                if server_write_date:
+                    if server_write_date.tzinfo:
+                        server_write_date = server_write_date.astimezone(UTC).replace(tzinfo=None)
+                # Truncate to seconds — the JS client sends write_date
+                # with .000 milliseconds, losing the microsecond precision
+                # that PostgreSQL stores.  Without this, the server value
+                # is always ~0-1s "newer" and every save triggers a false
+                # ConcurrencyError.
+                if server_write_date:
+                    server_write_date = server_write_date.replace(microsecond=0)
+                if client_dt:
+                    client_dt = client_dt.replace(microsecond=0)
                 if server_write_date and client_dt and server_write_date > client_dt:
-                    from odoo.exceptions import ConcurrencyError
                     raise ConcurrencyError(
                         "This record was modified by another user.\n"
                         "Please reload and re-apply your changes."
