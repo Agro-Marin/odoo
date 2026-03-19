@@ -247,7 +247,7 @@
                 <separator/>
                 <filter name="open_tasks" string="Open" domain="[('is_closed', '=', False)]"/>
                 <filter name="closed_tasks" string="Closed" domain="[('is_closed', '=', True)]"/>
-                <filter string="Closed On" name="closed_on" domain="[('is_closed', '=', True)]" date="date_last_stage_update"/>
+                <filter string="Closed On" name="closed_on" domain="[('is_closed', '=', True)]" date="date_last_status_change"/>
                 <separator/>
                 <filter name="date_deadline" string="Deadline" domain="[('date_deadline', '!=', False)]" date="date_deadline"/>
                 <separator/>
