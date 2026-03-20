@@ -33,7 +33,7 @@ class ResUsers(models.Model):
                 vals = (
                     self.env["project.task"]
                     .with_context(lang=user.lang)
-                    ._get_default_triage_create_vals(user.id)
+                    ._get_default_triage_vals(user.id)
                 )
                 create_vals.extend(vals)
 
