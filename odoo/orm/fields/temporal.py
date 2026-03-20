@@ -302,7 +302,14 @@ class Datetime(BaseDate[datetime]):
             return datetime.combine(value, time.min)
 
         # fromisoformat (C-level) is ~61x faster than strptime for ISO datetimes
-        return datetime.fromisoformat(value)
+        value = datetime.fromisoformat(value)
+        # Handle timezone-aware results from ISO strings with offsets
+        # (e.g., "2026-03-19T16:09:18.000-06:00" sent by the JS client
+        # via Luxon's toISO()). Convert to naive UTC for consistency
+        # with the datetime input path (lines 295-300 above).
+        if value.tzinfo:
+            return value.astimezone(UTC).replace(tzinfo=None)
+        return value
 
     # kept for backwards compatibility, but consider `from_string` as deprecated, will probably
     # be removed after V12

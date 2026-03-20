@@ -6,14 +6,12 @@ webclient's relational model layer.
 """
 
 from collections import defaultdict
-from datetime import UTC
 from typing import Any
 
 from odoo import api, models
 from odoo.api import DomainType, NewId
 from odoo.exceptions import AccessError, ConcurrencyError
 from odoo.fields import Datetime as FieldsDatetime
-from odoo.libs.datetime.tz import timezone as odoo_tz
 from odoo.tools import OrderedSet
 
 
@@ -150,18 +148,13 @@ class Base(models.AbstractModel):
                 )
                 row = self.env.cr.fetchone()
                 server_write_date = row[0] if row else None
+                # to_datetime handles ISO strings with timezone offsets
+                # (e.g., "2026-03-19T16:09:18.000-06:00" from the JS
+                # client), converting to naive UTC automatically.
                 client_dt = FieldsDatetime.to_datetime(last_write_date)
-                # The client may send write_date in the user's local
-                # timezone instead of UTC.  Convert it to UTC so the
-                # comparison with the server value (always UTC) is correct.
-                user_tz = odoo_tz(self.env.user.tz or 'UTC')
-                if client_dt:
-                    if not client_dt.tzinfo:
-                        client_dt = client_dt.replace(tzinfo=user_tz)
-                    client_dt = client_dt.astimezone(UTC).replace(tzinfo=None)
-                if server_write_date:
-                    if server_write_date.tzinfo:
-                        server_write_date = server_write_date.astimezone(UTC).replace(tzinfo=None)
+                # Normalize server side to naive UTC as well.
+                if server_write_date and getattr(server_write_date, 'tzinfo', None):
+                    server_write_date = server_write_date.replace(tzinfo=None)
                 # Truncate to seconds — the JS client sends write_date
                 # with .000 milliseconds, losing the microsecond precision
                 # that PostgreSQL stores.  Without this, the server value
