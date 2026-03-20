@@ -284,7 +284,7 @@ class TestProjectFlow(TestProjectCommon, MailCase):
                 "user_ids": [Command.link(self.env.user.id)],
             }
         )
-        stages = task._get_default_personal_stage_create_vals(self.env.user.id)
+        stages = task._get_default_triage_vals(self.env.user.id)
         self.assertEqual(
             task.personal_triage_id.step_id.name,
             stages[0].get("name"),
