@@ -12,6 +12,7 @@ import { registry } from "./registry.js";
  * @typedef {{
  *  cssLibs: string[];
  *  jsLibs: string[];
+ *  esmSpecifiers: string[] | null;
  * }} BundleFileNames
  */
 
@@ -172,17 +173,30 @@ export const assets = {
             .then(async (response) => {
                 const cssLibs = [];
                 const jsLibs = [];
+                let esmSpecifiers = null;
                 if (!response.bodyUsed) {
                     const result = await response.json();
-                    for (const { src, type } of Object.values(result)) {
-                        if (type === "link" && src) {
-                            cssLibs.push(src);
-                        } else if (type === "script" && src) {
-                            jsLibs.push(src);
+                    if (result.is_esm) {
+                        // ESM bundle: specifiers resolved via import map
+                        esmSpecifiers = result.specifiers || [];
+                        for (const { src, type } of Object.values(result.files || {})) {
+                            if (type === "link" && src) {
+                                cssLibs.push(src);
+                            } else if (type === "script" && src) {
+                                jsLibs.push(src);
+                            }
+                        }
+                    } else {
+                        for (const { src, type } of Object.values(result)) {
+                            if (type === "link" && src) {
+                                cssLibs.push(src);
+                            } else if (type === "script" && src) {
+                                jsLibs.push(src);
+                            }
                         }
                     }
                 }
-                return { cssLibs, jsLibs };
+                return { cssLibs, jsLibs, esmSpecifiers };
             })
             .catch((reason) => {
                 cacheMap.delete(bundleName);
@@ -213,20 +227,49 @@ export const assets = {
                 )} as ${typeof bundleName}`,
             );
         }
-        return getBundle(bundleName).then(({ cssLibs, jsLibs }) => {
+        return getBundle(bundleName).then(({ cssLibs, jsLibs, esmSpecifiers }) => {
             const promises = [];
             if (css && cssLibs) {
                 promises.push(
                     ...cssLibs.map((url) => assets.loadCSS(url, { targetDoc })),
                 );
             }
-            if (js && jsLibs) {
+            if (js && esmSpecifiers) {
+                // ESM bundle: use dynamic import() which respects the
+                // page's import map for specifier resolution.
+                promises.push(assets.loadESMBundle(esmSpecifiers));
+            }
+            // Also load non-ESM files (XML template bundles, legacy JS)
+            // via the classic path — these are still needed alongside ESM.
+            if (js && jsLibs && jsLibs.length) {
                 promises.push(
                     ...jsLibs.map((url) => assets.loadJS(url, { targetDoc })),
                 );
             }
             return Promise.all(promises);
         });
+    },
+
+    /**
+     * Loads native ESM modules via dynamic import() and registers them
+     * in the legacy loader for require() compatibility.
+     *
+     * @param {string[]} specifiers module specifiers to import
+     * @returns {Promise<void>}
+     */
+    async loadESMBundle(specifiers) {
+        const results = await Promise.all(
+            specifiers.map(async (specifier) => {
+                const mod = await import(specifier);
+                return [specifier, mod];
+            }),
+        );
+        const modules = Object.fromEntries(results);
+        // Register in legacy loader so require() and odoo.define()
+        // dependencies can access these lazy-loaded modules.
+        if (globalThis.odoo?.loader?.registerNativeModules) {
+            odoo.loader.registerNativeModules(modules);
+        }
     },
 
     /**

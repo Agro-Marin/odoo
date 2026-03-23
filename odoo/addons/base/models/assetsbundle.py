@@ -149,12 +149,22 @@ class AssetsBundle:
         "web.assets_web_dark",
         "web.assets_backend_lazy_dark",
         "html_editor.assets_prism_dark",
+        "web.assets_backend_lazy",
         "web.assets_frontend_lazy",
         "web.assets_frontend_minimal",
         "web.assets_inside_builder_iframe",
         "web.tests_assets",
     })
 
+    # Maps parent bundles to lazy ESM bundles whose specifiers must be
+    # pre-registered in the parent's import map so that dynamic import()
+    # can resolve them at runtime (lazy loading).
+    ESM_LAZY_BUNDLES = {
+        "web.assets_web": [
+            "web.assets_backend_lazy",
+            "web.assets_backend_lazy_dark",
+        ],
+    }
 
     def __init__(
         self,
@@ -179,7 +189,17 @@ class AssetsBundle:
         self.env = request.env if env is None else env
         self.javascripts = []
         self.native_modules = []
-        self._is_esm_bundle = name in self.ESM_BUNDLES
+        # Lazy ESM bundles are only treated as ESM in debug=assets mode.
+        # In production (debug=0), they use transpiled odoo.define() to
+        # avoid singleton duplication from esbuild inline bundling.
+        is_lazy_esm = any(
+            name in lazies
+            for lazies in self.ESM_LAZY_BUNDLES.values()
+        )
+        if is_lazy_esm and not debug_assets:
+            self._is_esm_bundle = False
+        else:
+            self._is_esm_bundle = name in self.ESM_BUNDLES
         self.templates = []
         self.stylesheets = []
         self.css_errors = []
@@ -250,7 +270,7 @@ class AssetsBundle:
         if self.has_css and self.stylesheets:
             response.append(self.get_link("css"))
 
-        if self.has_js and self.javascripts:
+        if self.has_js and (self.javascripts or self.templates):
             response.append(self.get_link("js"))
 
         return self.external_assets + response
