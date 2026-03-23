@@ -1,6 +1,6 @@
 """Database-free tests for ``ir.mail_server`` pure functions.
 
-Covers ``is_ascii()``, ``_parse_from_filter()``, and
+Covers ``str.isascii()``, ``_parse_from_filter()``, and
 ``_match_from_filter()`` — all pure string/email matching logic.
 
 Run with::
@@ -8,33 +8,34 @@ Run with::
     python -m pytest core/tests/models/test_ir_mail_server.py -v
 """
 
-from odoo.addons.base.models.ir_mail_server import is_ascii
 
-# ── is_ascii() ────────────────────────────────────────────────
+# ── str.isascii() ─────────────────────────────────────────────
+# Python 3.7+ provides str.isascii() natively; these tests document
+# the expected behaviour for the patterns used in ir_mail_server.
 
 
 class TestIsAscii:
-    """``is_ascii()``: check if all characters are below codepoint 128."""
+    """``str.isascii()``: check if all characters are below codepoint 128."""
 
     def test_plain_ascii(self):
-        assert is_ascii("hello world") is True
+        assert "hello world".isascii() is True
 
     def test_empty_string(self):
-        assert is_ascii("") is True
+        assert "".isascii() is True
 
     def test_ascii_with_digits(self):
-        assert is_ascii("test123!@#") is True
+        assert "test123!@#".isascii() is True
 
     def test_non_ascii_accent(self):
-        assert is_ascii("café") is False
+        assert "café".isascii() is False
 
     def test_non_ascii_emoji(self):
-        assert is_ascii("hello 😊") is False
+        assert "hello 😊".isascii() is False
 
     def test_boundary_character(self):
         """DEL (127) is the highest ASCII character."""
-        assert is_ascii("\x7f") is True
-        assert is_ascii("\x80") is False
+        assert "\x7f".isascii() is True
+        assert "\x80".isascii() is False
 
 
 # ── _parse_from_filter() ─────────────────────────────────────
