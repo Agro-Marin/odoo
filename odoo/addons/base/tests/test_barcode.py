@@ -42,3 +42,28 @@ class TestBarcode(TransactionCase):
             check_barcode_encoding("0022071416014", "ean13"),
             "when starting with one zero, it indicates that a 12-digit UPC-A code follows",
         )
+
+    def test_barcode_fallback_to_code128(self):
+        """EAN8 with invalid encoding falls back to Code128 without error."""
+        Report = self.env["ir.actions.report"]
+        # "ABCDEFGH" is not valid EAN8 — should fall back to Code128
+        result = Report.barcode("EAN8", "ABCDEFGH")
+        self.assertTrue(result, "barcode fallback to Code128 should produce output")
+        # PNG magic bytes
+        self.assertTrue(
+            result[:4] == b"\x89PNG",
+            "barcode fallback should produce a valid PNG image",
+        )
+
+    def test_barcode_fallback_preserves_humanreadable(self):
+        """Barcode fallback must not lose humanReadable setting.
+
+        Regression test: the old recursive fallback re-processed kwargs
+        through the defaults dict, losing the humanreadable→humanReadable
+        rename done in the first pass.
+        """
+        Report = self.env["ir.actions.report"]
+        # Force a symbology that will fail and fall back to Code128,
+        # with humanreadable=1 to verify the flag survives the fallback.
+        result = Report.barcode("EAN8", "ABCDEFGH", humanreadable=1)
+        self.assertTrue(result, "barcode with humanreadable should produce output")

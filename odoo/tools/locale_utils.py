@@ -3,6 +3,7 @@ Language and locale utilities for Odoo.
 """
 
 import csv
+import functools
 import logging
 import typing
 from operator import itemgetter
@@ -71,6 +72,7 @@ def get_lang(env: Environment, lang_code: str | None = None) -> LangData:
     return env["res.lang"]._get_data(code=lang)
 
 
+@functools.cache
 def babel_locale_parse(lang_code: str | None) -> babel.Locale:
     if lang_code:
         try:

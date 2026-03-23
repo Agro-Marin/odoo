@@ -409,6 +409,7 @@ class CrudMixin:
             data = {}
             data["stored"] = stored = {}
             data["inversed"] = inversed = {}
+            data["cached_only"] = cached_only = {}
             data["inherited"] = inherited = defaultdict(dict)
             data["protected"] = protected = set()
             for key, val in vals.items():
@@ -422,9 +423,12 @@ class CrudMixin:
                 elif field.inverse and field not in precomputed:
                     inversed[key] = val
                     determine_inverses[field.inverse].add(field)
+                elif not field.store and not field.compute:
+                    # cache-only fields with field.inverse are handled by inversed
+                    cached_only[key] = val
                 # protect editable computed fields and precomputed fields
                 # against (re)computation
-                if field.compute and (not field.readonly or field.precompute):
+                if (field.compute and (not field.readonly or field.precompute)) or key in cached_only:
                     protected.update(self.pool.field_computed.get(field, [field]))
 
             data_list.append(data)
@@ -470,6 +474,10 @@ class CrudMixin:
         # protect fields being written against recomputation
         protected_fields = [(data["protected"], data["record"]) for data in data_list]
         with self.env.protecting(protected_fields):
+            # fill cache-only fields (non-stored, non-computed)
+            for data in data_list:
+                if vals := data["cached_only"]:
+                    data["record"]._update_cache(vals)
             # call inverse method for each group of fields
             for fields in determine_inverses.values():
                 # determine which records to inverse for those fields

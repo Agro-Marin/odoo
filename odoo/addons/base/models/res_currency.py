@@ -10,8 +10,8 @@ if TYPE_CHECKING:
 
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools import SQL, ormcache, parse_date
 from odoo.orm._typing import ValuesType
+from odoo.tools import SQL, ormcache, parse_date
 
 _logger = logging.getLogger(__name__)
 
@@ -397,7 +397,8 @@ class ResCurrency(models.Model):
         :rtype: float
         """
         if from_amount is None:
-            raise ValueError("_convert() requires a numeric amount, got None")
+            msg = "_convert() requires a numeric amount, got None"
+            raise ValueError(msg)
         self, to_currency = self or to_currency, to_currency or self
         if not self:
             raise UserError(

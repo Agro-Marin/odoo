@@ -8,9 +8,9 @@ from typing import Any, Self
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
+from odoo.orm._typing import ValuesType
 from odoo.tools import SQL
 from odoo.tools.password import CryptContext
-from odoo.orm._typing import ValuesType
 
 from .res_users import check_identity
 
@@ -112,7 +112,8 @@ class ResUsersApikeys(models.Model):
 
     def _check_credentials(self, *, scope: str, key: str) -> int | None:
         if not scope or not key:
-            raise ValueError("scope and key required")
+            msg = "scope and key required"
+            raise ValueError(msg)
         index = key[:INDEX_SIZE]
         self.env.cr.execute(
             SQL(

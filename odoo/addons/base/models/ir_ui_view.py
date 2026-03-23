@@ -5,15 +5,15 @@ import inspect
 import logging
 import pprint
 import re
-import uuid
-from contextlib import suppress
 import typing
+import uuid
 from collections.abc import Callable
+from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Self
 
 from lxml import etree
 from lxml.builder import E
-from lxml.etree import _Element  # noqa: TC003 — runtime import required (PEP 649)
+from lxml.etree import _Element
 from markupsafe import Markup
 
 from odoo import api, fields, models, tools
@@ -25,12 +25,12 @@ from odoo.exceptions import (
 )
 from odoo.fields import Domain
 from odoo.modules.module import get_resource_from_path
+from odoo.orm._typing import ValuesType
 from odoo.tools import SQL, _, config, partition, unique
 from odoo.tools.convert import _fix_multiple_roots
 from odoo.tools.misc import ConstantMapping, file_path
 from odoo.tools.template_inheritance import apply_inheritance_specs, locate_node
 from odoo.tools.translate import TRANSLATED_ATTRS, xml_translate
-from odoo.orm._typing import ValuesType
 from odoo.tools.view_validation import (
     get_dict_asts,
     get_domain_value_names,
@@ -524,10 +524,7 @@ class IrUiView(models.Model):
             if node.tag == "xpath":
                 match = TRANSLATED_ATTRS_RE.search(node.get("expr", ""))
                 if match:
-                    message = (
-                        "View inheritance may not use attribute %r as a selector."
-                        % match.group(1)
-                    )
+                    message = f"View inheritance may not use attribute {match.group(1)!r} as a selector."
                     self._raise_view_error(message, node)
                 if WRONGCLASS.search(node.get("expr", "")):
                     _logger.warning(
@@ -540,10 +537,7 @@ class IrUiView(models.Model):
             else:
                 for attr in TRANSLATED_ATTRS:
                     if node.get(attr):
-                        message = (
-                            "View inheritance may not use attribute %r as a selector."
-                            % attr
-                        )
+                        message = f"View inheritance may not use attribute {attr!r} as a selector."
                         self._raise_view_error(message, node)
         return True
 
@@ -3350,9 +3344,8 @@ class IrUiView(models.Model):
         are impacted by view updates, but have not been checked yet.
         """
         if not self.pool._init:
-            raise RuntimeError(
-                "_validate_module_views() must only be called during module initialization"
-            )
+            msg = "_validate_module_views() must only be called during module initialization"
+            raise RuntimeError(msg)
 
         # only validate the views that still exist...
         prefix = module + "."
@@ -3412,10 +3405,11 @@ class IrUiView(models.Model):
         """
         if self.type == "qweb":
             for cow_view in self._get_specific_views():
-                authorized_vals = {}
-                for key in values:
-                    if key != "inherit_id" and cow_view[key] == self[key]:
-                        authorized_vals[key] = values[key]
+                authorized_vals = {
+                    key: value
+                    for key, value in values.items()
+                    if key != "inherit_id" and cow_view[key] == self[key]
+                }
                 # if inherit_id update, replicate change on cow view but
                 # only if that cow view inherit_id wasn't manually changed
                 inherit_id = values.get("inherit_id")

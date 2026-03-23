@@ -8,8 +8,8 @@ from typing import Any, Self
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools import config, mute_logger, ormcache
 from odoo.orm._typing import ValuesType
+from odoo.tools import config, mute_logger, ormcache
 
 _logger = logging.getLogger(__name__)
 

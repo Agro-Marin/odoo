@@ -4,8 +4,8 @@ from typing import Any, Self
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import SQL
 from odoo.orm._typing import ValuesType
+from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
 
