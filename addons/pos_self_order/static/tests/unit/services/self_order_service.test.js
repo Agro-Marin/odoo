@@ -1,7 +1,7 @@
 import { test, describe, expect } from "@odoo/hoot";
-import { setupSelfPosEnv, getFilledSelfOrder, addComboProduct } from "../utils";
+import { setupSelfPosEnv, getFilledSelfOrder, addComboProduct } from "../utils.js";
 import { mockDate } from "@odoo/hoot-mock";
-import { definePosSelfModels } from "../data/generate_model_definitions";
+import { definePosSelfModels } from "../data/generate_model_definitions.js";
 
 definePosSelfModels();
 

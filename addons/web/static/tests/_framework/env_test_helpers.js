@@ -13,7 +13,7 @@ import { patch } from "@web/core/utils/patch";
 import { makeEnv, startServices } from "@web/env";
 import { createDebugContext } from "@web/services/debug/debug_context";
 
-import { makeMockServer, MockServer } from "./mock_server/mock_server";
+import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
 
 /**
  * @typedef {Record<keyof Services, any>} Dependencies

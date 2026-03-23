@@ -1,12 +1,12 @@
 import { parseHTML } from "@html_editor/utils/html";
 import { describe, expect, test } from "@odoo/hoot";
 import { tick } from "@odoo/hoot-mock";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { getContent } from "../_helpers/selection";
-import { cleanHints } from "../_helpers/dispatch";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent } from "../_helpers/selection.js";
+import { cleanHints } from "../_helpers/dispatch.js";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { addStep } from "../_helpers/user_actions";
+import { addStep } from "../_helpers/user_actions.js";
 import { Plugin } from "@html_editor/plugin";
 
 function span(text) {

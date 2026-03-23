@@ -1,8 +1,8 @@
 import { test, expect, animationFrame } from "@odoo/hoot";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { OrderSummary } from "@point_of_sale/app/screens/product_screen/order_summary/order_summary";
-import { setupPosEnv, getFilledOrder } from "../utils";
-import { definePosModels } from "../data/generate_model_definitions";
+import { setupPosEnv, getFilledOrder } from "../utils.js";
+import { definePosModels } from "../data/generate_model_definitions.js";
 import { queryAll, queryOne } from "@odoo/hoot-dom";
 
 definePosModels();

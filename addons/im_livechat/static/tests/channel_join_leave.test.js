@@ -13,7 +13,7 @@ import { describe, test } from "@odoo/hoot";
 import { withGuest } from "@mail/../tests/mock_server/mail_mock_server";
 import { rpc } from "@web/core/network/rpc";
 import { serializeDate, today } from "@web/core/l10n/dates";
-import { livechatLastAgentLeaveFromChatWindow } from "./im_livechat_shared_tests";
+import { livechatLastAgentLeaveFromChatWindow } from "./im_livechat_shared_tests.js";
 
 describe.current.tags("desktop");
 defineLivechatModels();

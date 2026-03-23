@@ -17,24 +17,24 @@ import { ensureArray, isIterable } from "@web/core/utils/collections/arrays";
 import { isObject } from "@web/core/utils/collections/objects";
 import { hashCode } from "@web/core/utils/format/strings";
 
-import { serverState } from "../mock_server_state.hoot";
+import { serverState } from "../mock_server_state.hoot.js";
 import {
     fetchModelDefinitions,
     globalCachedFetch,
     registerModelToFetch,
-} from "../module_set.hoot";
+} from "../module_set.hoot.js";
 import {
     DEFAULT_FIELD_PROPERTIES,
     getFieldDisplayName,
     S_SERVER_FIELD,
-} from "./mock_fields";
+} from "./mock_fields.js";
 import {
     getRecordQualifier,
     makeKwArgs,
     makeServerError,
     MockServerError,
     safeSplit,
-} from "./mock_server_utils";
+} from "./mock_server_utils.js";
 
 const { DateTime } = luxon;
 

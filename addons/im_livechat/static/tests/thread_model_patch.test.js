@@ -9,7 +9,7 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
 import { Command, serverState, withUser } from "@web/../tests/web_test_helpers";
-import { defineLivechatModels } from "./livechat_test_helpers";
+import { defineLivechatModels } from "./livechat_test_helpers.js";
 
 import { rpc } from "@web/core/network/rpc";
 import { press } from "@odoo/hoot-dom";

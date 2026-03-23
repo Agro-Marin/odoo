@@ -11,7 +11,7 @@ import {
     models,
     mountView,
     onRpc,
-} from "../../web_test_helpers";
+} from "../../web_test_helpers.js";
 
 class Contact extends models.Model {
     email = fields.Char();

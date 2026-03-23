@@ -1,7 +1,7 @@
 import { test, describe, beforeEach, expect } from "@odoo/hoot";
-import { setupEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { getContent, setContent } from "../_helpers/selection";
+import { setupEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent, setContent } from "../_helpers/selection.js";
 import {
     addStep,
     deleteBackward,
@@ -10,7 +10,7 @@ import {
     keydownTab,
     splitBlock,
     switchDirection,
-} from "../_helpers/user_actions";
+} from "../_helpers/user_actions.js";
 import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
     EmbeddedToggleBlockComponent,

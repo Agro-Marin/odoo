@@ -17,7 +17,7 @@ import {
     assertDateTimePicker,
     editTime,
     getPickerCell,
-} from "../../datetime/datetime_test_helpers";
+} from "../../datetime/datetime_test_helpers.js";
 
 const { DateTime } = luxon;
 

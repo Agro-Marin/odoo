@@ -1,7 +1,7 @@
 import { click, contains, openDiscuss, start, startServer } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { defineLivechatModels } from "./livechat_test_helpers";
+import { defineLivechatModels } from "./livechat_test_helpers.js";
 import { mockDate } from "@odoo/hoot-mock";
 
 describe.current.tags("desktop");

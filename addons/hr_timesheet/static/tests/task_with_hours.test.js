@@ -3,7 +3,7 @@ import { click, edit } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { mountView } from "@web/../tests/web_test_helpers";
 
-import { HRTimesheet, defineTimesheetModels } from "./hr_timesheet_models";
+import { HRTimesheet, defineTimesheetModels } from "./hr_timesheet_models.js";
 
 HRTimesheet._views.list = `
     <list editable="bottom">

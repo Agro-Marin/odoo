@@ -1,16 +1,16 @@
 import { expect, test } from "@odoo/hoot";
 import { click, press } from "@odoo/hoot-dom";
-import { setupEditor, testEditor } from "./_helpers/editor";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
 import {
     deleteBackward,
     deleteForward,
     insertText,
     simulateArrowKeyPress,
     splitBlock,
-} from "./_helpers/user_actions";
-import { getContent } from "./_helpers/selection";
+} from "./_helpers/user_actions.js";
+import { getContent } from "./_helpers/selection.js";
 import { animationFrame } from "@odoo/hoot-mock";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 
 /**
  * Rating Star Element Tests

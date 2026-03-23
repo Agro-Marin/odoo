@@ -1,8 +1,8 @@
 import { test, expect } from "@odoo/hoot";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { PresetInfoPopup } from "@pos_self_order/app/components/preset_info_popup/preset_info_popup";
-import { setupSelfPosEnv, getFilledSelfOrder } from "../utils";
-import { definePosSelfModels } from "../data/generate_model_definitions";
+import { setupSelfPosEnv, getFilledSelfOrder } from "../utils.js";
+import { definePosSelfModels } from "../data/generate_model_definitions.js";
 
 definePosSelfModels();
 

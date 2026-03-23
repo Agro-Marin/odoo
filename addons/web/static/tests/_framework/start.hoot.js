@@ -4,7 +4,7 @@
 
 import { definePreset, defineTags, isHootReady } from "@odoo/hoot";
 
-import { runTests } from "./module_set.hoot";
+import { runTests } from "./module_set.hoot.js";
 
 function beforeFocusRequired(test) {
     if (!document.hasFocus()) {

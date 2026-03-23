@@ -1,6 +1,6 @@
 import { describe, test } from "@odoo/hoot";
-import { testEditor } from "./_helpers/editor";
-import { unformat } from "./_helpers/format";
+import { testEditor } from "./_helpers/editor.js";
+import { unformat } from "./_helpers/format.js";
 import { FORMATTABLE_TAGS } from "@html_editor/utils/formatting";
 
 /**

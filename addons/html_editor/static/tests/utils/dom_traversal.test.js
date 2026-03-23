@@ -11,8 +11,8 @@ import {
     getCommonAncestor,
 } from "@html_editor/utils/dom_traversal";
 import { describe, expect, getFixture, test } from "@odoo/hoot";
-import { insertTestHtml } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
+import { insertTestHtml } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
 
 describe("closestElement", () => {
     test("should find the closest element to a text node", () => {

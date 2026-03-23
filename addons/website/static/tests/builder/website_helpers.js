@@ -32,12 +32,12 @@ import { EditInteractionPlugin } from "@website/builder/plugins/edit_interaction
 import { WebsiteSessionPlugin } from "@website/builder/plugins/website_session_plugin";
 import { WebsiteBuilderClientAction } from "@website/client_actions/website_preview/website_builder_action";
 import { WebsiteSystrayItem } from "@website/client_actions/website_preview/website_systray_item";
-import { mockImageRequests } from "./image_test_helpers";
-import { getWebsiteSnippets } from "./snippets_getter.hoot";
+import { mockImageRequests } from "./image_test_helpers.js";
+import { getWebsiteSnippets } from "./snippets_getter.hoot.js";
 import { BaseOptionComponent, revertPreview } from "@html_builder/core/utils";
 import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
 import { WebsiteBuilder } from "@website/builder/website_builder";
-import { getTranslatedElements } from "./translated_elements_getter.hoot";
+import { getTranslatedElements } from "./translated_elements_getter.hoot.js";
 
 class Website extends models.Model {
     _name = "website";

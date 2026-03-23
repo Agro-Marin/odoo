@@ -1,11 +1,11 @@
 import { test, expect } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { click, queryOne, waitFor } from "@odoo/hoot-dom";
-import { getContent } from "../_helpers/selection";
-import { setFontFamily, undo, redo } from "../_helpers/user_actions";
-import { execCommand } from "../_helpers/userCommands";
+import { getContent } from "../_helpers/selection.js";
+import { setFontFamily, undo, redo } from "../_helpers/user_actions.js";
+import { execCommand } from "../_helpers/userCommands.js";
 import { animationFrame } from "@odoo/hoot-mock";
-import { expandToolbar } from "../_helpers/toolbar";
+import { expandToolbar } from "../_helpers/toolbar.js";
 
 test("should give a few characters a fontFamily", async () => {
     await testEditor({

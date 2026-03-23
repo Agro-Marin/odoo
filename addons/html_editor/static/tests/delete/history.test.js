@@ -1,8 +1,8 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor } from "../_helpers/editor";
+import { setupEditor } from "../_helpers/editor.js";
 import { press } from "@odoo/hoot-dom";
-import { getContent } from "../_helpers/selection";
-import { execCommand } from "../_helpers/userCommands";
+import { getContent } from "../_helpers/selection.js";
+import { execCommand } from "../_helpers/userCommands.js";
 
 describe("delete backward", () => {
     test("should register a history step (collapsed selection)", async () => {

@@ -17,16 +17,16 @@ import {
     renderTextualSelection,
     setupMultiEditor,
     validateContent,
-} from "./_helpers/collaboration";
-import { setupEditor } from "./_helpers/editor";
-import { getContent } from "./_helpers/selection";
-import { insertText, redo, undo } from "./_helpers/user_actions";
+} from "./_helpers/collaboration.js";
+import { setupEditor } from "./_helpers/editor.js";
+import { getContent } from "./_helpers/selection.js";
+import { insertText, redo, undo } from "./_helpers/user_actions.js";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { PowerboxPlugin } from "@html_editor/main/powerbox/powerbox_plugin";
 import { SearchPowerboxPlugin } from "@html_editor/main/powerbox/search_powerbox_plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { execCommand } from "./_helpers/userCommands";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { execCommand } from "./_helpers/userCommands.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import { VideoPlugin } from "@html_editor/main/media/video_plugin";
 
 function commandNames() {

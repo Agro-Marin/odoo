@@ -3,16 +3,16 @@ import { manuallyDispatchProgrammaticEvent, microTick, press } from "@odoo/hoot-
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { getContent, setSelection } from "../_helpers/selection";
-import { deleteBackward, insertText, tripleClick, undo } from "../_helpers/user_actions";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
+import { deleteBackward, insertText, tripleClick, undo } from "../_helpers/user_actions.js";
 import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import {
     compareHighlightedContent,
     highlightedPre,
     patchPrism,
-} from "../_helpers/syntax_highlighting";
+} from "../_helpers/syntax_highlighting.js";
 import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
 
 /**

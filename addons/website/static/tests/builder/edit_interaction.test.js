@@ -7,7 +7,7 @@ import {
     defineWebsiteModels,
     setupWebsiteBuilder,
     setupWebsiteBuilderWithSnippet,
-} from "./website_helpers";
+} from "./website_helpers.js";
 import { waitFor } from "@odoo/hoot-dom";
 import { xml } from "@odoo/owl";
 import { BuilderAction } from "@html_builder/core/builder_action";

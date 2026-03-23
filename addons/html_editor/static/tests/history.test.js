@@ -4,11 +4,11 @@ import { parseHTML } from "@html_editor/utils/html";
 import { describe, expect, test } from "@odoo/hoot";
 import { click, pointerDown, pointerUp, press, queryOne, microTick } from "@odoo/hoot-dom";
 import { animationFrame, mockUserAgent, tick } from "@odoo/hoot-mock";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { getContent, setSelection } from "./_helpers/selection";
-import { expectElementCount } from "./_helpers/ui_expectations";
-import { addStep, deleteBackward, insertText, redo, undo } from "./_helpers/user_actions";
-import { execCommand } from "./_helpers/userCommands";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
+import { addStep, deleteBackward, insertText, redo, undo } from "./_helpers/user_actions.js";
+import { execCommand } from "./_helpers/userCommands.js";
 
 describe("reset", () => {
     test("should not add mutations in the current step from the normalization when calling reset", async () => {

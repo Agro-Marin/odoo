@@ -8,11 +8,11 @@ import { isZwnbsp } from "@html_editor/utils/dom_info";
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, press, queryOne, waitFor } from "@odoo/hoot-dom";
 import { onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupEditor } from "./_helpers/editor";
-import { getContent } from "./_helpers/selection";
-import { insertText } from "./_helpers/user_actions";
-import { execCommand } from "./_helpers/userCommands";
-import { expandToolbar } from "./_helpers/toolbar";
+import { setupEditor } from "./_helpers/editor.js";
+import { getContent } from "./_helpers/selection.js";
+import { insertText } from "./_helpers/user_actions.js";
+import { execCommand } from "./_helpers/userCommands.js";
+import { expandToolbar } from "./_helpers/toolbar.js";
 
 const configWithEmbeddedFile = {
     Plugins: [...MAIN_PLUGINS, ...EMBEDDED_COMPONENT_PLUGINS],

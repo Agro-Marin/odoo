@@ -2,7 +2,7 @@
 
 // ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
 
-import { onServerStateChange, serverState } from "./mock_server_state.hoot";
+import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
 
 //-----------------------------------------------------------------------------
 // Internal

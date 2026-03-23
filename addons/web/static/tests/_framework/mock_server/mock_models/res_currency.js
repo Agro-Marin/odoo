@@ -1,7 +1,7 @@
 // @ts-check
 
-import { serverState } from "../../mock_server_state.hoot";
-import { ServerModel } from "../mock_model";
+import { serverState } from "../../mock_server_state.hoot.js";
+import { ServerModel } from "../mock_model.js";
 
 export class ResCurrency extends ServerModel {
     _name = "res.currency";

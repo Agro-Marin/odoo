@@ -4,7 +4,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 
 import { focus, mailModels } from "@mail/../tests/mail_test_helpers";
 import { contains, mountView, onRpc } from "@web/../tests/web_test_helpers";
-import { defineSaleTimesheetModels, saleTimesheetModels } from "./sale_timesheet_test_helpers";
+import { defineSaleTimesheetModels, saleTimesheetModels } from "./sale_timesheet_test_helpers.js";
 
 describe.current.tags("desktop");
 

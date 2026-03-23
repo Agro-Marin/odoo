@@ -1,6 +1,6 @@
 import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { switchToEditMode } from "../../helpers";
+import { switchToEditMode } from "../../helpers.js";
 import { queryAll } from "@odoo/hoot-dom";
 
 setupInteractionWhiteList("website.carousel_edit");

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { bold, resetSize, setColor, insertText } from "../_helpers/user_actions";
-import { getContent, setSelection } from "../_helpers/selection";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { bold, resetSize, setColor, insertText } from "../_helpers/user_actions.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
 import { press, queryAll, manuallyDispatchProgrammaticEvent, click } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { nodeSize } from "@html_editor/utils/position";

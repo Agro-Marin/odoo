@@ -18,9 +18,9 @@ import {
     defineWebsiteModels,
     setupWebsiteBuilder,
     setupWebsiteBuilderOeId,
-} from "./website_helpers";
+} from "./website_helpers.js";
 import { dummyBase64Img } from "@html_builder/../tests/helpers";
-import { testImg } from "./image_test_helpers";
+import { testImg } from "./image_test_helpers.js";
 import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectations";
 
 defineWebsiteModels();

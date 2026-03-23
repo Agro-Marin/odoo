@@ -1,6 +1,6 @@
 import { test, expect } from "@odoo/hoot";
-import { setupPosEnv } from "../utils";
-import { definePosModels } from "../data/generate_model_definitions";
+import { setupPosEnv } from "../utils.js";
+import { definePosModels } from "../data/generate_model_definitions.js";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { ProductProduct } from "@point_of_sale/app/models/product_product";
 import { ProductTemplate } from "@point_of_sale/app/models/product_template";

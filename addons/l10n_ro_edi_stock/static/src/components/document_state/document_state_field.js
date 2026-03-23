@@ -1,4 +1,4 @@
-/** @odoo-module native **/
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { selectionField } from "@web/fields/selection/selection/selection_field";
 import { DocumentState } from "@account/components/document_state/document_state_field";

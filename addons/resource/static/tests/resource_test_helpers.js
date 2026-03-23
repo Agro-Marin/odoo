@@ -1,5 +1,5 @@
-import { ResourceTask } from "./mock_server/mock_models/resource_task";
-import { ResourceResource } from "./mock_server/mock_models/resource_resource";
+import { ResourceTask } from "./mock_server/mock_models/resource_task.js";
+import { ResourceResource } from "./mock_server/mock_models/resource_resource.js";
 import { defineModels } from "@web/../tests/web_test_helpers";
 
 export const resourceModels = {

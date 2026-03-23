@@ -1,8 +1,8 @@
 import { describe, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { toggleUnorderedList } from "../_helpers/user_actions";
+import { testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { toggleUnorderedList } from "../_helpers/user_actions.js";
 
 describe("Range collapsed", () => {
     describe("Insert", () => {

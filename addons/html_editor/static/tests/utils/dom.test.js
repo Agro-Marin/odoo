@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
 import {
     cleanTextNode,
     fillEmpty,
@@ -8,9 +8,9 @@ import {
     splitTextNode,
     wrapInlinesInBlocks,
 } from "@html_editor/utils/dom";
-import { getContent } from "../_helpers/selection";
+import { getContent } from "../_helpers/selection.js";
 import { parseHTML } from "@html_editor/utils/html";
-import { unformat } from "../_helpers/format";
+import { unformat } from "../_helpers/format.js";
 import { queryOne } from "@odoo/hoot-dom";
 
 describe("splitAroundUntil", () => {

@@ -1,11 +1,11 @@
 import { expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { setupEditor } from "../_helpers/editor";
-import { insertText } from "../_helpers/user_actions";
-import { getContent } from "../_helpers/selection";
-import { unformat } from "../_helpers/format";
+import { setupEditor } from "../_helpers/editor.js";
+import { insertText } from "../_helpers/user_actions.js";
+import { getContent } from "../_helpers/selection.js";
+import { unformat } from "../_helpers/format.js";
 import { animationFrame } from "@odoo/hoot-mock";
-import { execCommand } from "../_helpers/userCommands";
+import { execCommand } from "../_helpers/userCommands.js";
 
 test("typing '1. ' should create number list", async () => {
     const { el, editor } = await setupEditor("<p>[]</p>");

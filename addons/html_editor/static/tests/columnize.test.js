@@ -1,12 +1,12 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press, queryAllTexts, tick } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { getContent, setSelection } from "./_helpers/selection";
-import { insertText, redo, undo } from "./_helpers/user_actions";
-import { execCommand } from "./_helpers/userCommands";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { insertText, redo, undo } from "./_helpers/user_actions.js";
+import { execCommand } from "./_helpers/userCommands.js";
 import { nodeSize } from "@html_editor/utils/position";
-import { unformat } from "./_helpers/format";
+import { unformat } from "./_helpers/format.js";
 
 function columnsContainer(contents) {
     return `<div class="container o_text_columns o-contenteditable-false"><div class="row">${contents}</div></div>`;

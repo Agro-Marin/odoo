@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { unformat } from "../_helpers/format";
-import { base64Img } from "../_helpers/editor";
+import { unformat } from "../_helpers/format.js";
+import { base64Img } from "../_helpers/editor.js";
 
 describe("unformat", () => {
     test("should trim space between a tag name and an attribute", () => {

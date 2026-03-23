@@ -1,7 +1,7 @@
 import { test, expect } from "@odoo/hoot";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupPosEnv, getFilledOrder } from "../utils";
-import { definePosModels } from "../data/generate_model_definitions";
+import { setupPosEnv, getFilledOrder } from "../utils.js";
+import { definePosModels } from "../data/generate_model_definitions.js";
 import { queryOne } from "@odoo/hoot-dom";
 import { ReceiptScreen } from "@point_of_sale/app/screens/receipt_screen/receipt_screen";
 

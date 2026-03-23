@@ -10,11 +10,11 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { useAutofocus } from "@web/core/utils/hooks";
-import { Plugin } from "../src/plugin";
-import { MAIN_PLUGINS } from "../src/plugin_sets";
-import { setupEditor } from "./_helpers/editor";
-import { getContent, setSelection } from "./_helpers/selection";
-import { insertText, tripleClick } from "./_helpers/user_actions";
+import { Plugin } from "../src/plugin.js";
+import { MAIN_PLUGINS } from "../src/plugin_sets.js";
+import { setupEditor } from "./_helpers/editor.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { insertText, tripleClick } from "./_helpers/user_actions.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { SelectionPlugin } from "@html_editor/core/selection_plugin";

@@ -4,7 +4,7 @@ import { click, queryAllTexts } from "@odoo/hoot-dom";
 
 import { mountView, onRpc } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels } from "./project_models";
+import { defineProjectModels } from "./project_models.js";
 
 describe.current.tags("desktop");
 defineProjectModels();

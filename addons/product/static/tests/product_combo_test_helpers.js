@@ -3,7 +3,7 @@ import {
     ProductCombo,
     ProductComboItem,
     ProductProduct,
-} from './mock_server/mock_models/product_combo';
+} from './mock_server/mock_models/product_combo.js';
 
 export const comboModels = {
     ProductCombo,

@@ -8,8 +8,8 @@ import {
     translationLoaded,
 } from "@web/core/l10n/translation";
 
-import { serverState } from "./mock_server_state.hoot";
-import { patchWithCleanup } from "./patch_test_helpers";
+import { serverState } from "./mock_server_state.hoot.js";
+import { patchWithCleanup } from "./patch_test_helpers.js";
 
 /**
  * @param {Record<string, string>} languages

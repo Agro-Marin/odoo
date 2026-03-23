@@ -1,11 +1,11 @@
 import { expect, test } from "@odoo/hoot";
 import { click, hover, queryAllAttributes, queryOne, waitFor, waitForNone } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { setupEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { getContent } from "../_helpers/selection";
-import { undo } from "../_helpers/user_actions";
-import { expectElementCount } from "../_helpers/ui_expectations";
+import { setupEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent } from "../_helpers/selection.js";
+import { undo } from "../_helpers/user_actions.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
 
 function availableCommands(menu) {
     return queryAllAttributes("span div.user-select-none", "name", { root: menu });

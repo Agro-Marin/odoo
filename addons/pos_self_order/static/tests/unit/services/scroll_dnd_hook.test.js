@@ -2,8 +2,8 @@ import { test, describe, expect } from "@odoo/hoot";
 import { useDraggableScroll } from "@pos_self_order/app/utils/scroll_dnd_hook";
 import { Component, useRef, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupSelfPosEnv } from "../utils";
-import { definePosSelfModels } from "../data/generate_model_definitions";
+import { setupSelfPosEnv } from "../utils.js";
+import { definePosSelfModels } from "../data/generate_model_definitions.js";
 
 definePosSelfModels();
 

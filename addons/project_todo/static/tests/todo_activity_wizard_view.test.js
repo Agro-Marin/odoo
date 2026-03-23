@@ -7,8 +7,8 @@ import { contains, mountWithCleanup, onRpc } from "@web/../tests/web_test_helper
 import { ActivityMenu } from "@mail/core/web/activity_menu";
 import { triggerHotkey } from "@mail/../tests/mail_test_helpers";
 
-import { defineTodoModels } from "./todo_test_helpers";
-import { MailActivityTodoCreate } from "./mock_server/mock_models/mail_activity_todo_create";
+import { defineTodoModels } from "./todo_test_helpers.js";
+import { MailActivityTodoCreate } from "./mock_server/mock_models/mail_activity_todo_create.js";
 
 describe.current.tags("desktop");
 defineTodoModels();

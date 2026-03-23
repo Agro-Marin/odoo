@@ -4,7 +4,7 @@ import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { FloorScreen } from "@pos_restaurant/app/screens/floor_screen/floor_screen";
 import { definePosModels } from "@point_of_sale/../tests/unit/data/generate_model_definitions";
 import { waitFor, waitForNone } from "@odoo/hoot-dom";
-import { setupPoSEnvForSelfOrder } from "../../utils";
+import { setupPoSEnvForSelfOrder } from "../../utils.js";
 
 definePosModels();
 

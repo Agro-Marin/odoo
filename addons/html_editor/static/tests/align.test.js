@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "./_helpers/editor";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
 import {
     alignCenter,
     justify,
@@ -8,8 +8,8 @@ import {
     alignTop,
     alignMiddle,
     alignBottom,
-} from "./_helpers/user_actions";
-import { expandToolbar } from "./_helpers/toolbar";
+} from "./_helpers/user_actions.js";
+import { expandToolbar } from "./_helpers/toolbar.js";
 
 test("should have align tool only if the block is content editable", async () => {
     for (const [contenteditable, count] of [

@@ -17,7 +17,7 @@ import {
 import { makeMockEnv, allowTranslations } from "@web/../tests/web_test_helpers";
 import { getOperatorLabel } from "@web/core/tree/operator_labels";
 
-import { defineSpreadsheetModels } from "../helpers/data";
+import { defineSpreadsheetModels } from "../helpers/data.js";
 
 describe.current.tags("headless");
 

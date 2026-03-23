@@ -6,7 +6,7 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
-import { defineSnailmailModels } from "../snailmail_test_helpers";
+import { defineSnailmailModels } from "../snailmail_test_helpers.js";
 
 describe.current.tags("desktop");
 defineSnailmailModels();

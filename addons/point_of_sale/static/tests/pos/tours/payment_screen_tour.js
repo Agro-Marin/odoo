@@ -7,7 +7,7 @@ import * as OfflineUtil from "@point_of_sale/../tests/generic_helpers/offline_ut
 import * as TicketScreen from "@point_of_sale/../tests/pos/tours/utils/ticket_screen_util";
 import * as Order from "@point_of_sale/../tests/generic_helpers/order_widget_util";
 import * as Numpad from "@point_of_sale/../tests/generic_helpers/numpad_util";
-import { inLeftSide } from "./utils/common";
+import { inLeftSide } from "./utils/common.js";
 
 registry.category("web_tour.tours").add("PaymentScreenTour", {
     steps: () =>

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { click, dblclick, queryAll, queryAllTexts, queryOne, select } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
-import { setupEditor } from "./_helpers/editor";
-import { getContent, setSelection } from "./_helpers/selection";
+import { setupEditor } from "./_helpers/editor.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
 import { QWebPlugin } from "@html_editor/others/qweb_plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { dispatchCleanForSave } from "./_helpers/dispatch";
+import { dispatchCleanForSave } from "./_helpers/dispatch.js";
 
 const config = { Plugins: [...MAIN_PLUGINS, QWebPlugin] };
 describe("qweb picker", () => {

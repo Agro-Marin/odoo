@@ -9,7 +9,7 @@ import {
     emailTranscript,
     close,
     confirmnClose,
-} from "./website_livechat_common";
+} from "./website_livechat_common.js";
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("website_livechat_complete_flow_tour", {

@@ -7,7 +7,7 @@ import { Component, xml } from "@odoo/owl";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { Interaction } from "@web/public/interaction";
 
-import { startInteraction } from "./helpers";
+import { startInteraction } from "./helpers.js";
 
 describe.current.tags("interaction_dev");
 

@@ -1,13 +1,13 @@
 import { test, expect } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { setFontSize, setFontSizeClassName, tripleClick } from "../_helpers/user_actions";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { setFontSize, setFontSizeClassName, tripleClick } from "../_helpers/user_actions.js";
 import { Plugin } from "@html_editor/plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { animationFrame } from "@odoo/hoot-mock";
-import { execCommand } from "../_helpers/userCommands";
+import { execCommand } from "../_helpers/userCommands.js";
 import { press } from "@odoo/hoot-dom";
-import { getContent } from "../_helpers/selection";
+import { getContent } from "../_helpers/selection.js";
 
 test("should change the font size of a few characters", async () => {
     await testEditor({

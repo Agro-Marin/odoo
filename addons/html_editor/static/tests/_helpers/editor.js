@@ -3,9 +3,9 @@ import { destroy, expect, getFixture } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { Component, markup, onWillDestroy, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { getContent, getSelection, setContent } from "./selection";
+import { getContent, getSelection, setContent } from "./selection.js";
 import { Deferred, animationFrame, tick } from "@odoo/hoot-mock";
-import { dispatchCleanForSave } from "./dispatch";
+import { dispatchCleanForSave } from "./dispatch.js";
 import { fixInvalidHTML } from "@html_editor/utils/sanitize";
 import { toExplicitString } from "@web/../lib/hoot/hoot_utils";
 

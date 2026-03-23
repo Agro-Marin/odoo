@@ -1,4 +1,4 @@
-/** @odoo-module native **/
+/** @odoo-module native */
 import { patch } from '@web/core/utils/patch';
 import { patchDynamicContent } from '@web/public/utils';
 import { CustomerAddress } from '@portal/interactions/address';

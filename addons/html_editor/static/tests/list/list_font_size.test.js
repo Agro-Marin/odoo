@@ -1,13 +1,13 @@
-import { testEditor } from "../_helpers/editor";
+import { testEditor } from "../_helpers/editor.js";
 import { test, before } from "@odoo/hoot";
 import {
     setFontSize,
     splitBlock,
     toggleOrderedList,
     toggleUnorderedList,
-} from "../_helpers/user_actions";
-import { execCommand } from "../_helpers/userCommands";
-import { unformat } from "../_helpers/format";
+} from "../_helpers/user_actions.js";
+import { execCommand } from "../_helpers/userCommands.js";
+import { unformat } from "../_helpers/format.js";
 
 before(
     () =>

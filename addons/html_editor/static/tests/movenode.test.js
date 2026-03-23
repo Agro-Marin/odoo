@@ -2,10 +2,10 @@ import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { hover, click } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { contains } from "@web/../tests/web_test_helpers";
-import { base64Img, setupEditor } from "./_helpers/editor";
-import { getContent } from "./_helpers/selection";
-import { unformat } from "./_helpers/format";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { base64Img, setupEditor } from "./_helpers/editor.js";
+import { getContent } from "./_helpers/selection.js";
+import { unformat } from "./_helpers/format.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { captionEmbedding } from "@html_editor/others/embedded_components/backend/caption/caption";
 

@@ -1,7 +1,7 @@
 import { test } from "@odoo/hoot";
-import { testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { clickCheckbox, pasteHtml } from "../_helpers/user_actions";
+import { testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { clickCheckbox, pasteHtml } from "../_helpers/user_actions.js";
 import { click, manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
 
 test("should do nothing if do not click on the checkbox", async () => {

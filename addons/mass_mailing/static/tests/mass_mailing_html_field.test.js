@@ -15,8 +15,8 @@ import { click, queryAny, queryOne, waitFor } from "@odoo/hoot-dom";
 import { runAllTimers } from "@odoo/hoot-mock";
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { unmockedOrm } from "@web/../tests/_framework/module_set.hoot";
-import { MassMailingIframe } from "../src/iframe/mass_mailing_iframe";
-import { MassMailingHtmlField } from "../src/fields/html_field/mass_mailing_html_field";
+import { MassMailingIframe } from "../src/iframe/mass_mailing_iframe.js";
+import { MassMailingHtmlField } from "../src/fields/html_field/mass_mailing_html_field.js";
 
 class Mailing extends models.Model {
     _name = "mailing.mailing";

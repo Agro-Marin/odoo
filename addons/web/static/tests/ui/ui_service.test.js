@@ -8,7 +8,7 @@ import { MainComponentsContainer } from "@web/components/main_components_contain
 import { useAutofocus } from "@web/core/utils/hooks";
 import { useActiveElement } from "@web/ui/block/ui_service";
 
-import { getService, mountWithCleanup } from "../web_test_helpers";
+import { getService, mountWithCleanup } from "../web_test_helpers.js";
 
 describe.current.tags("desktop");
 

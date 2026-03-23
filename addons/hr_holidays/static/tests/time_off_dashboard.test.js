@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
 import { defineModels, fields, getService, models, mountWebClient, onRpc } from "@web/../tests/web_test_helpers";
-import { defineHrHolidaysModels } from "./hr_holidays_test_helpers";
+import { defineHrHolidaysModels } from "./hr_holidays_test_helpers.js";
 
 describe.current.tags("desktop");
 

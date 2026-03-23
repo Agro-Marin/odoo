@@ -3,7 +3,7 @@ import { animationFrame, click } from "@odoo/hoot-dom";
 import { getService, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { WebClient } from "@web/webclient/webclient";
 
-import { defineProjectModels, ProjectProject, ProjectTask } from "./project_models";
+import { defineProjectModels, ProjectProject, ProjectTask } from "./project_models.js";
 
 defineProjectModels();
 

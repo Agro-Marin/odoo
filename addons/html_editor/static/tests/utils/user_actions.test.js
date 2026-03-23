@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor } from "../_helpers/editor";
-import { getContent } from "../_helpers/selection";
-import { simulateArrowKeyPress } from "../_helpers/user_actions";
+import { setupEditor } from "../_helpers/editor.js";
+import { getContent } from "../_helpers/selection.js";
+import { simulateArrowKeyPress } from "../_helpers/user_actions.js";
 
 describe("simulateArrowKeyPress method", () => {
     describe("move", () => {

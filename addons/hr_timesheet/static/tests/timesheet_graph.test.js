@@ -1,7 +1,7 @@
 import { test } from "@odoo/hoot";
 import { mountView, serverState } from "@web/../tests/web_test_helpers";
 
-import { defineTimesheetModels } from "./hr_timesheet_models";
+import { defineTimesheetModels } from "./hr_timesheet_models.js";
 import { checkDatasets } from "@web/../tests/views/graph/graph_test_helpers";
 
 defineTimesheetModels();

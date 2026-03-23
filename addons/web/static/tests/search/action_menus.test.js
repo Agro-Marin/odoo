@@ -12,7 +12,7 @@ import {
     mountView,
     onRpc,
     stepAllNetworkCalls,
-} from "../web_test_helpers";
+} from "../web_test_helpers.js";
 
 /** Foo is dummy model to test `action.report` with domain of its field `value`. **/
 class Foo extends models.Model {

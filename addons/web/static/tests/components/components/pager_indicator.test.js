@@ -6,7 +6,7 @@ import { PAGER_UPDATED_EVENT, pagerBus } from "@web/components/pager/pager";
 import { PagerIndicator } from "@web/components/pager/pager_indicator";
 import { config as transitionConfig } from "@web/components/transition";
 
-import { mountWithCleanup, patchWithCleanup } from "../../web_test_helpers";
+import { mountWithCleanup, patchWithCleanup } from "../../web_test_helpers.js";
 
 test("displays the pager indicator", async () => {
     patchWithCleanup(transitionConfig, { disabled: true });

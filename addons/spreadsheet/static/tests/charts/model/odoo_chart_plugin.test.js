@@ -31,7 +31,7 @@ import {
     Partner,
 } from "@spreadsheet/../tests/helpers/data";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
-import { setGlobalFilterValue } from "../../helpers/commands";
+import { setGlobalFilterValue } from "../../helpers/commands.js";
 
 const { toZone } = spreadsheet.helpers;
 

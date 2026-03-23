@@ -1,6 +1,6 @@
 import { test } from "@odoo/hoot";
-import { testEditor } from "../_helpers/editor";
-import { deleteBackward, deleteForward } from "../_helpers/user_actions";
+import { testEditor } from "../_helpers/editor.js";
+import { deleteBackward, deleteForward } from "../_helpers/user_actions.js";
 
 test("should merge successive inline code", async () => {
     await testEditor({

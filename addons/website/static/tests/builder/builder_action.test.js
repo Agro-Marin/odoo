@@ -27,7 +27,7 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { addPlugin, defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers";
+import { addPlugin, defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 import { WebsiteBuilderClientAction } from "@website/client_actions/website_preview/website_builder_action";
 
 beforeEach(defineWebsiteModels);

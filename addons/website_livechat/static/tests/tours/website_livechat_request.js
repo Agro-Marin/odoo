@@ -4,7 +4,7 @@ import {
     feedback,
     downloadTranscript,
     confirmnClose,
-} from "./website_livechat_common";
+} from "./website_livechat_common.js";
 import { registry } from "@web/core/registry";
 
 const chatRequest = [

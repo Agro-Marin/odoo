@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { manuallyDispatchProgrammaticEvent as dispatch, press, waitFor } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { dataURItoBlob, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { cleanLinkArtifacts, unformat } from "./_helpers/format";
-import { getContent, setSelection } from "./_helpers/selection";
-import { pasteHtml, pasteOdooEditorHtml, pasteText, undo } from "./_helpers/user_actions";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { cleanLinkArtifacts, unformat } from "./_helpers/format.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { pasteHtml, pasteOdooEditorHtml, pasteText, undo } from "./_helpers/user_actions.js";
 import { createBaseContainer } from "@html_editor/utils/base_container";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import {
     EMBEDDED_COMPONENT_PLUGINS,
     MAIN_PLUGINS,

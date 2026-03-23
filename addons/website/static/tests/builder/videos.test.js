@@ -1,6 +1,6 @@
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, dblclick } from "@odoo/hoot-dom";
-import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers";
+import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 
 defineWebsiteModels();
 

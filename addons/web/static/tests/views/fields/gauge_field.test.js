@@ -12,7 +12,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { GaugeField } from "@web/fields/display/gauge/gauge_field";
 
-import { setupChartJsForTests } from "../graph/graph_test_helpers";
+import { setupChartJsForTests } from "../graph/graph_test_helpers.js";
 
 class Partner extends models.Model {
     int_field = fields.Integer({ string: "int_field" });

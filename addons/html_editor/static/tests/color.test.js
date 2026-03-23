@@ -1,8 +1,8 @@
 import { after, before, describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { unformat } from "./_helpers/format";
-import { setColor } from "./_helpers/user_actions";
-import { getContent } from "./_helpers/selection";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { unformat } from "./_helpers/format.js";
+import { setColor } from "./_helpers/user_actions.js";
+import { getContent } from "./_helpers/selection.js";
 
 const redToBlueGradient = "linear-gradient(rgb(255, 0, 0), rgb(0, 0, 255))";
 const greenToBlueGradient = "linear-gradient(rgb(0, 255, 0), rgb(0, 0, 255))";

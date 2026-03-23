@@ -23,7 +23,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 
 import { CHAT_HUB_KEY } from "@mail/core/common/chat_hub_model";
-import { click, contains } from "./mail_test_helpers_contains";
+import { click, contains } from "./mail_test_helpers_contains.js";
 
 import { closeStream, mailGlobal } from "@mail/utils/common/misc";
 import { Component, onMounted, onPatched, onWillDestroy, status } from "@odoo/owl";
@@ -39,48 +39,48 @@ import {
     DISCUSS_ACTION_ID,
     authenticateGuest,
     mailDataHelpers,
-} from "./mock_server/mail_mock_server";
-import { Base } from "./mock_server/mock_models/base";
-import { DiscussChannel } from "./mock_server/mock_models/discuss_channel";
-import { DiscussChannelMember } from "./mock_server/mock_models/discuss_channel_member";
-import { DiscussChannelRtcSession } from "./mock_server/mock_models/discuss_channel_rtc_session";
-import { DiscussGifFavorite } from "./mock_server/mock_models/discuss_gif_favorite";
-import { DiscussVoiceMetadata } from "./mock_server/mock_models/discuss_voice_metadata";
-import { IrAttachment } from "./mock_server/mock_models/ir_attachment";
-import { IrWebSocket } from "./mock_server/mock_models/ir_websocket";
-import { M2xAvatarUser } from "./mock_server/mock_models/m2x_avatar_user";
-import { MailActivity } from "./mock_server/mock_models/mail_activity";
-import { MailActivitySchedule } from "./mock_server/mock_models/mail_activity_schedule";
-import { MailActivityType } from "./mock_server/mock_models/mail_activity_type";
-import { MailCannedResponse } from "./mock_server/mock_models/mail_canned_response";
-import { MailComposeMessage } from "./mock_server/mock_models/mail_composer_message";
-import { MailFollowers } from "./mock_server/mock_models/mail_followers";
-import { MailGuest } from "./mock_server/mock_models/mail_guest";
-import { MailLinkPreview } from "./mock_server/mock_models/mail_link_preview";
-import { MailMessage } from "./mock_server/mock_models/mail_message";
-import { MailMessageLinkPreview } from "./mock_server/mock_models/mail_message_link_preview";
-import { MailMessageReaction } from "./mock_server/mock_models/mail_message_reaction";
-import { MailMessageSubtype } from "./mock_server/mock_models/mail_message_subtype";
-import { MailNotification } from "./mock_server/mock_models/mail_notification";
-import { MailPushDevice } from "./mock_server/mock_models/mail_push_device";
-import { MailScheduledMessage } from "./mock_server/mock_models/mail_scheduled_message";
-import { MailTemplate } from "./mock_server/mock_models/mail_template";
-import { MailThread } from "./mock_server/mock_models/mail_thread";
-import { MailTrackingValue } from "./mock_server/mock_models/mail_tracking_value";
-import { ResCountry } from "./mock_server/mock_models/res_country";
-import { ResFake } from "./mock_server/mock_models/res_fake";
-import { ResLang } from "./mock_server/mock_models/res_lang";
-import { ResPartner } from "./mock_server/mock_models/res_partner";
-import { ResRole } from "./mock_server/mock_models/res_role";
-import { ResUsers } from "./mock_server/mock_models/res_users";
-import { ResUsersSettings } from "./mock_server/mock_models/res_users_settings";
-import { ResUsersSettingsVolumes } from "./mock_server/mock_models/res_users_settings_volumes";
+} from "./mock_server/mail_mock_server.js";
+import { Base } from "./mock_server/mock_models/base.js";
+import { DiscussChannel } from "./mock_server/mock_models/discuss_channel.js";
+import { DiscussChannelMember } from "./mock_server/mock_models/discuss_channel_member.js";
+import { DiscussChannelRtcSession } from "./mock_server/mock_models/discuss_channel_rtc_session.js";
+import { DiscussGifFavorite } from "./mock_server/mock_models/discuss_gif_favorite.js";
+import { DiscussVoiceMetadata } from "./mock_server/mock_models/discuss_voice_metadata.js";
+import { IrAttachment } from "./mock_server/mock_models/ir_attachment.js";
+import { IrWebSocket } from "./mock_server/mock_models/ir_websocket.js";
+import { M2xAvatarUser } from "./mock_server/mock_models/m2x_avatar_user.js";
+import { MailActivity } from "./mock_server/mock_models/mail_activity.js";
+import { MailActivitySchedule } from "./mock_server/mock_models/mail_activity_schedule.js";
+import { MailActivityType } from "./mock_server/mock_models/mail_activity_type.js";
+import { MailCannedResponse } from "./mock_server/mock_models/mail_canned_response.js";
+import { MailComposeMessage } from "./mock_server/mock_models/mail_composer_message.js";
+import { MailFollowers } from "./mock_server/mock_models/mail_followers.js";
+import { MailGuest } from "./mock_server/mock_models/mail_guest.js";
+import { MailLinkPreview } from "./mock_server/mock_models/mail_link_preview.js";
+import { MailMessage } from "./mock_server/mock_models/mail_message.js";
+import { MailMessageLinkPreview } from "./mock_server/mock_models/mail_message_link_preview.js";
+import { MailMessageReaction } from "./mock_server/mock_models/mail_message_reaction.js";
+import { MailMessageSubtype } from "./mock_server/mock_models/mail_message_subtype.js";
+import { MailNotification } from "./mock_server/mock_models/mail_notification.js";
+import { MailPushDevice } from "./mock_server/mock_models/mail_push_device.js";
+import { MailScheduledMessage } from "./mock_server/mock_models/mail_scheduled_message.js";
+import { MailTemplate } from "./mock_server/mock_models/mail_template.js";
+import { MailThread } from "./mock_server/mock_models/mail_thread.js";
+import { MailTrackingValue } from "./mock_server/mock_models/mail_tracking_value.js";
+import { ResCountry } from "./mock_server/mock_models/res_country.js";
+import { ResFake } from "./mock_server/mock_models/res_fake.js";
+import { ResLang } from "./mock_server/mock_models/res_lang.js";
+import { ResPartner } from "./mock_server/mock_models/res_partner.js";
+import { ResRole } from "./mock_server/mock_models/res_role.js";
+import { ResUsers } from "./mock_server/mock_models/res_users.js";
+import { ResUsersSettings } from "./mock_server/mock_models/res_users_settings.js";
+import { ResUsersSettingsVolumes } from "./mock_server/mock_models/res_users_settings_volumes.js";
 import { Network, Rtc } from "@mail/discuss/call/common/rtc_service";
 import { UPDATE_EVENT } from "@mail/discuss/call/common/peer_to_peer";
 
 export { SIZES } from "@web/ui/block/ui_service";
 
-export * from "./mail_test_helpers_contains";
+export * from "./mail_test_helpers_contains.js";
 
 before(prepareRegistriesWithCleanup);
 export const registryNamesToCloneWithCleanup = [];

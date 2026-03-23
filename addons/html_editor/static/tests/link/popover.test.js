@@ -13,12 +13,12 @@ import {
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { markup } from "@odoo/owl";
 import { contains, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupEditor } from "../_helpers/editor";
-import { cleanLinkArtifacts } from "../_helpers/format";
-import { getContent, setContent, setSelection } from "../_helpers/selection";
-import { expectElementCount } from "../_helpers/ui_expectations";
-import { insertLineBreak, insertText, splitBlock, undo } from "../_helpers/user_actions";
-import { execCommand } from "../_helpers/userCommands";
+import { setupEditor } from "../_helpers/editor.js";
+import { cleanLinkArtifacts } from "../_helpers/format.js";
+import { getContent, setContent, setSelection } from "../_helpers/selection.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
+import { insertLineBreak, insertText, splitBlock, undo } from "../_helpers/user_actions.js";
+import { execCommand } from "../_helpers/userCommands.js";
 import { MAIN_PLUGINS, NO_EMBEDDED_COMPONENTS_FALLBACK_PLUGINS } from "@html_editor/plugin_sets";
 
 const base64Img =

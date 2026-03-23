@@ -29,7 +29,7 @@ import {
     onRpc,
     pagerNext,
     patchWithCleanup,
-} from "../../web_test_helpers";
+} from "../../web_test_helpers.js";
 
 function getPickerCell(expr) {
     return queryAll(`.o_datetime_picker .o_date_item_cell:text(${expr})`);

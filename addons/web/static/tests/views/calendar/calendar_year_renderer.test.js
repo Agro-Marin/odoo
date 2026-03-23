@@ -11,7 +11,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";
 
-import { clickDate, FAKE_MODEL, selectDateRange } from "./calendar_test_helpers";
+import { clickDate, FAKE_MODEL, selectDateRange } from "./calendar_test_helpers.js";
 
 const FAKE_PROPS = {
     model: FAKE_MODEL,

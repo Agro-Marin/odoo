@@ -1,6 +1,6 @@
 import { expect, test } from "@odoo/hoot";
 import { markup } from "@odoo/owl";
-import { setupEditor, testEditor } from "./_helpers/editor";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { fixInvalidHTML } from "@html_editor/utils/sanitize";
 
 const Markup = markup().constructor;

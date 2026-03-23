@@ -1,4 +1,4 @@
-/** @odoo-module **/
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("mrp_bom_report_tour", {

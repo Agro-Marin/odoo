@@ -1,7 +1,7 @@
 import { test, describe } from "@odoo/hoot";
-import { testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { deleteBackward } from "../_helpers/user_actions";
+import { testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { deleteBackward } from "../_helpers/user_actions.js";
 
 describe("Selection collapsed", () => {
     // Note: All tests on ordered lists should be duplicated

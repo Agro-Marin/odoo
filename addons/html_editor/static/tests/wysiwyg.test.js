@@ -1,9 +1,9 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { setupWysiwyg } from "./_helpers/editor";
-import { getContent, setContent, setSelection } from "./_helpers/selection";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { setupWysiwyg } from "./_helpers/editor.js";
+import { getContent, setContent, setSelection } from "./_helpers/selection.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import { range } from "@web/core/utils/format/numbers";
 import { htmlJoin } from "@web/core/utils/dom/html";
 import { markup } from "@odoo/owl";

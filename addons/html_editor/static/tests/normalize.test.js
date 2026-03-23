@@ -1,6 +1,6 @@
 import { test } from "@odoo/hoot";
-import { testEditor } from "./_helpers/editor";
-import { unformat } from "./_helpers/format";
+import { testEditor } from "./_helpers/editor.js";
+import { unformat } from "./_helpers/format.js";
 
 test("should remove empty class attribute", async () => {
     // content after is compared after cleaning up DOM

@@ -1,6 +1,6 @@
 import { expect, test } from "@odoo/hoot";
-import { setupPosEnv, dialogActions } from "../utils";
-import { definePosModels } from "../data/generate_model_definitions";
+import { setupPosEnv, dialogActions } from "../utils.js";
+import { definePosModels } from "../data/generate_model_definitions.js";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { click } from "@odoo/hoot-dom";
 import { InternalNoteButton } from "@point_of_sale/app/screens/product_screen/control_buttons/orderline_note_button/orderline_note_button";

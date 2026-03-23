@@ -4,7 +4,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 
 import { mountView, contains } from "@web/../tests/web_test_helpers";
 
-import { defineTodoModels } from "./todo_test_helpers";
+import { defineTodoModels } from "./todo_test_helpers.js";
 
 describe.current.tags("desktop");
 defineTodoModels();

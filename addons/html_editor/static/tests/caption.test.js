@@ -13,12 +13,12 @@ import { CaptionPlugin } from "@html_editor/others/embedded_components/plugins/c
 import { MAIN_PLUGINS, EMBEDDED_COMPONENT_PLUGINS } from "@html_editor/plugin_sets";
 import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { unformat } from "./_helpers/format";
-import { deleteBackward, deleteForward, insertText } from "./_helpers/user_actions";
-import { cleanHints } from "./_helpers/dispatch";
-import { getContent, setSelection } from "./_helpers/selection";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { unformat } from "./_helpers/format.js";
+import { deleteBackward, deleteForward, insertText } from "./_helpers/user_actions.js";
+import { cleanHints } from "./_helpers/dispatch.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import { childNodeIndex, nodeSize } from "@html_editor/utils/position";
 import { parseHTML } from "@html_editor/utils/html";
 

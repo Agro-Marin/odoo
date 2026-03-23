@@ -40,7 +40,7 @@ import { Model } from "@odoo/o-spreadsheet";
 
 import * as spreadsheet from "@odoo/o-spreadsheet";
 import { waitForDataLoaded } from "@spreadsheet/helpers/model";
-import { Partner, Product } from "../../helpers/data";
+import { Partner, Product } from "../../helpers/data.js";
 const { toZone } = spreadsheet.helpers;
 
 describe.current.tags("headless");

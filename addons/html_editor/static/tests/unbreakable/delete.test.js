@@ -1,7 +1,7 @@
 import { describe, test } from "@odoo/hoot";
-import { testEditor } from "../_helpers/editor";
-import { deleteBackward, deleteForward } from "../_helpers/user_actions";
-import { unformat } from "../_helpers/format";
+import { testEditor } from "../_helpers/editor.js";
+import { deleteBackward, deleteForward } from "../_helpers/user_actions.js";
+import { unformat } from "../_helpers/format.js";
 
 describe("backward", () => {
     describe("selection collapsed", () => {

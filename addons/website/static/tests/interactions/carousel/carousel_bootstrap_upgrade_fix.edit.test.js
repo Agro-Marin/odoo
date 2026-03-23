@@ -2,7 +2,7 @@ import { startInteractions, setupInteractionWhiteList } from "@web/../tests/publ
 import { describe, expect, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
-import { switchToEditMode } from "../../helpers";
+import { switchToEditMode } from "../../helpers.js";
 
 setupInteractionWhiteList("website.carousel_bootstrap_upgrade_fix");
 

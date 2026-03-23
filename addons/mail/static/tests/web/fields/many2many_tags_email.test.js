@@ -16,7 +16,7 @@ import {
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
 import { queryAll } from "@odoo/hoot-dom";
-import { ResPartner } from "../../mock_server/mock_models/res_partner";
+import { ResPartner } from "../../mock_server/mock_models/res_partner.js";
 
 defineMailModels();
 describe.current.tags("desktop");

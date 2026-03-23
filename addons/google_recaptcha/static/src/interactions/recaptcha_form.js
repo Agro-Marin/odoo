@@ -1,4 +1,4 @@
-/** @odoo-module native **/
+/** @odoo-module native */
 
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";

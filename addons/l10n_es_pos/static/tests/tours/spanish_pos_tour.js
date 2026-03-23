@@ -5,7 +5,7 @@ import * as PaymentScreen from "@point_of_sale/../tests/pos/tours/utils/payment_
 import * as Chrome from "@point_of_sale/../tests/pos/tours/utils/chrome_util";
 import * as PartnerList from "@point_of_sale/../tests/pos/tours/utils/partner_list_util";
 import { registry } from "@web/core/registry";
-import { checkSimplifiedInvoiceNumber, checkCompanyState, pay } from "./utils/receipt_util";
+import { checkSimplifiedInvoiceNumber, checkCompanyState, pay } from "./utils/receipt_util.js";
 
 const SIMPLIFIED_INVOICE_LIMIT = 1000;
 

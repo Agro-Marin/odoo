@@ -1,4 +1,4 @@
-/** @odoo-module **/
+/** @odoo-module native */
 
 import { Macro } from "@web/core/utils/macro";
 import { beforeEach, expect, test } from "@odoo/hoot";

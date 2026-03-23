@@ -3,7 +3,7 @@ import { LoadingDataError } from "@spreadsheet/o_spreadsheet/errors";
 import { BatchEndpoint, Request, ServerData } from "@spreadsheet/data_sources/server_data";
 import { Deferred } from "@web/core/utils/concurrency";
 import { describe, expect, test } from "@odoo/hoot";
-import { defineSpreadsheetActions, defineSpreadsheetModels } from "../helpers/data";
+import { defineSpreadsheetActions, defineSpreadsheetModels } from "../helpers/data.js";
 
 describe.current.tags("headless");
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { undo } from "./_helpers/user_actions";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { undo } from "./_helpers/user_actions.js";
 
 function cut(editor) {
     const clipboardData = new DataTransfer();

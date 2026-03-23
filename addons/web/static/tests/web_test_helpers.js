@@ -3,26 +3,26 @@
 import { before, withFetch } from "@odoo/hoot";
 import { loadBundle } from "@web/core/assets";
 
-import * as _fields from "./_framework/mock_server/mock_fields";
-import * as _models from "./_framework/mock_server/mock_model";
-import { IrAttachment } from "./_framework/mock_server/mock_models/ir_attachment";
-import { IrHttp } from "./_framework/mock_server/mock_models/ir_http";
-import { IrModel } from "./_framework/mock_server/mock_models/ir_model";
-import { IrModelAccess } from "./_framework/mock_server/mock_models/ir_model_access";
-import { IrModelFields } from "./_framework/mock_server/mock_models/ir_model_fields";
-import { IrModuleCategory } from "./_framework/mock_server/mock_models/ir_module_category";
-import { IrRule } from "./_framework/mock_server/mock_models/ir_rule";
-import { IrUiView } from "./_framework/mock_server/mock_models/ir_ui_view";
-import { ResCompany } from "./_framework/mock_server/mock_models/res_company";
-import { ResCountry } from "./_framework/mock_server/mock_models/res_country";
-import { ResCurrency } from "./_framework/mock_server/mock_models/res_currency";
-import { ResGroups } from "./_framework/mock_server/mock_models/res_groups";
-import { ResGroupsPrivilege } from "./_framework/mock_server/mock_models/res_groups_privilege";
-import { ResPartner } from "./_framework/mock_server/mock_models/res_partner";
-import { ResUsers } from "./_framework/mock_server/mock_models/res_users";
-import { ResUsersSettings } from "./_framework/mock_server/mock_models/res_users_settings";
-import { defineModels } from "./_framework/mock_server/mock_server";
-import { globalCachedFetch } from "./_framework/module_set.hoot";
+import * as _fields from "./_framework/mock_server/mock_fields.js";
+import * as _models from "./_framework/mock_server/mock_model.js";
+import { IrAttachment } from "./_framework/mock_server/mock_models/ir_attachment.js";
+import { IrHttp } from "./_framework/mock_server/mock_models/ir_http.js";
+import { IrModel } from "./_framework/mock_server/mock_models/ir_model.js";
+import { IrModelAccess } from "./_framework/mock_server/mock_models/ir_model_access.js";
+import { IrModelFields } from "./_framework/mock_server/mock_models/ir_model_fields.js";
+import { IrModuleCategory } from "./_framework/mock_server/mock_models/ir_module_category.js";
+import { IrRule } from "./_framework/mock_server/mock_models/ir_rule.js";
+import { IrUiView } from "./_framework/mock_server/mock_models/ir_ui_view.js";
+import { ResCompany } from "./_framework/mock_server/mock_models/res_company.js";
+import { ResCountry } from "./_framework/mock_server/mock_models/res_country.js";
+import { ResCurrency } from "./_framework/mock_server/mock_models/res_currency.js";
+import { ResGroups } from "./_framework/mock_server/mock_models/res_groups.js";
+import { ResGroupsPrivilege } from "./_framework/mock_server/mock_models/res_groups_privilege.js";
+import { ResPartner } from "./_framework/mock_server/mock_models/res_partner.js";
+import { ResUsers } from "./_framework/mock_server/mock_models/res_users.js";
+import { ResUsersSettings } from "./_framework/mock_server/mock_models/res_users_settings.js";
+import { defineModels } from "./_framework/mock_server/mock_server.js";
+import { globalCachedFetch } from "./_framework/module_set.hoot.js";
 
 /**
  * @typedef {import("./_framework/dom_test_helpers").DragAndDropOptions} DragAndDropOptions
@@ -41,19 +41,19 @@ import { globalCachedFetch } from "./_framework/module_set.hoot";
  * @typedef {import("./_framework/mock_server/mock_server").RouteCallback<T>} RouteCallback
  */
 
-export { asyncStep, waitForSteps } from "./_framework/async_step";
+export { asyncStep, waitForSteps } from "./_framework/async_step.js";
 export {
     findComponent,
     getDropdownMenu,
     mountWithCleanup,
     waitUntilIdle,
-} from "./_framework/component_test_helpers";
+} from "./_framework/component_test_helpers.js";
 export {
     contains,
     defineStyle,
     editAce,
     sortableDrag,
-} from "./_framework/dom_test_helpers";
+} from "./_framework/dom_test_helpers.js";
 export {
     clearRegistry,
     getMockEnv,
@@ -62,7 +62,7 @@ export {
     makeMockEnv,
     mockService,
     restoreRegistry,
-} from "./_framework/env_test_helpers";
+} from "./_framework/env_test_helpers.js";
 export {
     clickKanbanLoadMore,
     clickKanbanRecord,
@@ -84,8 +84,8 @@ export {
     toggleKanbanRecordDropdown,
     validateKanbanColumn,
     validateKanbanRecord,
-} from "./_framework/kanban_test_helpers";
-export { Command, registerInlineViewArchs } from "./_framework/mock_server/mock_model";
+} from "./_framework/kanban_test_helpers.js";
+export { Command, registerInlineViewArchs } from "./_framework/mock_server/mock_model.js";
 export {
     authenticate,
     defineActions,
@@ -98,17 +98,17 @@ export {
     onRpc,
     stepAllNetworkCalls,
     withUser,
-} from "./_framework/mock_server/mock_server";
+} from "./_framework/mock_server/mock_server.js";
 export {
     getKwArgs,
     makeKwArgs,
     makeServerError,
     MockServerError,
     unmakeKwArgs,
-} from "./_framework/mock_server/mock_server_utils";
-export { serverState } from "./_framework/mock_server_state.hoot";
-export { patchWithCleanup } from "./_framework/patch_test_helpers";
-export { preventResizeObserverError } from "./_framework/resize_observer_error_catcher";
+} from "./_framework/mock_server/mock_server_utils.js";
+export { serverState } from "./_framework/mock_server_state.hoot.js";
+export { patchWithCleanup } from "./_framework/patch_test_helpers.js";
+export { preventResizeObserverError } from "./_framework/resize_observer_error_catcher.js";
 export {
     editFavorite,
     editFavoriteName,
@@ -141,13 +141,13 @@ export {
     toggleSaveFavorite,
     toggleSearchBarMenu,
     validateSearch,
-} from "./_framework/search_test_helpers";
-export { swipeLeft, swipeRight } from "./_framework/touch_helpers";
+} from "./_framework/search_test_helpers.js";
+export { swipeLeft, swipeRight } from "./_framework/touch_helpers.js";
 export {
     allowTranslations,
     installLanguages,
     patchTranslations,
-} from "./_framework/translation_test_helpers";
+} from "./_framework/translation_test_helpers.js";
 export {
     clickButton,
     clickCancel,
@@ -164,11 +164,11 @@ export {
     mountViewInDialog,
     parseViewProps,
     selectFieldDropdownItem,
-} from "./_framework/view_test_helpers";
+} from "./_framework/view_test_helpers.js";
 export {
     mountWebClient,
     useTestClientAction,
-} from "./_framework/webclient_test_helpers";
+} from "./_framework/webclient_test_helpers.js";
 
 export function defineWebModels() {
     return defineModels(webModels);

@@ -9,7 +9,7 @@ import {
     startPos,
 } from "@html_editor/utils/position";
 import { describe, expect, test } from "@odoo/hoot";
-import { insertTestHtml } from "../_helpers/editor";
+import { insertTestHtml } from "../_helpers/editor.js";
 
 describe("leftPos", () => {
     test("should return the left position of a lonely text node", () => {

@@ -2,7 +2,7 @@ import { startInteractions, setupInteractionWhiteList } from "@web/../tests/publ
 
 import { describe, expect, test } from "@odoo/hoot";
 
-import { getTemplateWithoutHideOnScroll } from "./helpers";
+import { getTemplateWithoutHideOnScroll } from "./helpers.js";
 
 setupInteractionWhiteList("website.header_standard");
 

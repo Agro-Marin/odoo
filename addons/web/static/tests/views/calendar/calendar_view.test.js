@@ -71,7 +71,7 @@ import {
     selectTimeRange,
     toggleFilter,
     toggleSectionFilter,
-} from "./calendar_test_helpers";
+} from "./calendar_test_helpers.js";
 
 class Event extends models.Model {
     name = fields.Char();

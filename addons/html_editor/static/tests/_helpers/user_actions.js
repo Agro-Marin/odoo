@@ -8,8 +8,8 @@ import {
     tick,
     waitFor,
 } from "@odoo/hoot-dom";
-import { setSelection } from "./selection";
-import { execCommand } from "./userCommands";
+import { setSelection } from "./selection.js";
+import { execCommand } from "./userCommands.js";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { isTextNode } from "@html_editor/utils/dom_info";
 import { closestElement } from "@html_editor/utils/dom_traversal";

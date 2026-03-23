@@ -12,7 +12,7 @@ import {
     onRpc,
     serverState,
 } from "@web/../tests/web_test_helpers";
-import { saleModels } from "./sale_test_helpers";
+import { saleModels } from "./sale_test_helpers.js";
 
 class SaleOrderLine extends saleModels.SaleOrderLine {
     product_template_attribute_value_ids = fields.Many2many({

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { toggleOrderedList, toggleUnorderedList, toggleCheckList } from "../_helpers/user_actions";
-import { expandToolbar } from "../_helpers/toolbar";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { toggleOrderedList, toggleUnorderedList, toggleCheckList } from "../_helpers/user_actions.js";
+import { expandToolbar } from "../_helpers/toolbar.js";
 
 describe("Mixed", () => {
     test("should turn an ordered list into an unordered list (1)", async () => {

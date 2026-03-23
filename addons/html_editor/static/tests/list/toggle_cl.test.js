@@ -1,10 +1,10 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { getContent } from "../_helpers/selection";
-import { insertText, toggleCheckList } from "../_helpers/user_actions";
-import { dispatchNormalize } from "../_helpers/dispatch";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent } from "../_helpers/selection.js";
+import { insertText, toggleCheckList } from "../_helpers/user_actions.js";
+import { dispatchNormalize } from "../_helpers/dispatch.js";
 
 describe("Range collapsed", () => {
     describe("Insert", () => {

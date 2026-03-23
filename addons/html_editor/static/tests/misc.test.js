@@ -2,10 +2,10 @@ import { Plugin } from "@html_editor/plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { expect, test } from "@odoo/hoot";
 import { click, tick, waitFor } from "@odoo/hoot-dom";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { getContent, setContent } from "./_helpers/selection";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { getContent, setContent } from "./_helpers/selection.js";
 import { withSequence } from "@html_editor/utils/resource";
-import { execCommand } from "./_helpers/userCommands";
+import { execCommand } from "./_helpers/userCommands.js";
 
 test("can instantiate a Editor", async () => {
     const { el, editor } = await setupEditor("<p>hel[lo] world</p>", {});

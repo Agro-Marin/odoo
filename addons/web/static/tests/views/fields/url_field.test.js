@@ -18,7 +18,7 @@ import {
     models,
     mountView,
     onRpc,
-} from "../../web_test_helpers";
+} from "../../web_test_helpers.js";
 
 class Product extends models.Model {
     url = fields.Char();

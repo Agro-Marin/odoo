@@ -3,7 +3,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { click, edit, queryOne } from "@odoo/hoot-dom";
 import { Command, mountView, MockServer, mockService, onRpc } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels, ProjectTask } from "./project_models";
+import { defineProjectModels, ProjectTask } from "./project_models.js";
 
 defineProjectModels();
 

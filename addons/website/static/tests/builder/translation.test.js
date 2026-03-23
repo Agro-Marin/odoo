@@ -15,12 +15,12 @@ import {
     getStructureSnippet,
     invisibleEl,
     setupWebsiteBuilder,
-} from "./website_helpers";
+} from "./website_helpers.js";
 import { expectElementCount } from "@html_editor/../tests/_helpers/ui_expectations";
 import { uniqueId } from "@web/core/utils/functions";
 import { TranslationPlugin } from "@website/builder/plugins/translation_plugin";
 import { dummyBase64Img } from "@html_builder/../tests/helpers";
-import { getTranslatedElements } from "./translated_elements_getter.hoot";
+import { getTranslatedElements } from "./translated_elements_getter.hoot.js";
 
 defineWebsiteModels();
 

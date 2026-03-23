@@ -2,8 +2,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { tick } from "@odoo/hoot-mock";
 import { press } from "@odoo/hoot-dom";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { getContent } from "../_helpers/selection";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { getContent } from "../_helpers/selection.js";
 import {
     insertText,
     italic,
@@ -11,8 +11,8 @@ import {
     tripleClick,
     underline,
     undo,
-} from "../_helpers/user_actions";
-import { unformat } from "../_helpers/format";
+} from "../_helpers/user_actions.js";
+import { unformat } from "../_helpers/format.js";
 
 test("should make a few characters underline", async () => {
     await testEditor({

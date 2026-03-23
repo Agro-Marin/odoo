@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { getContent } from "../_helpers/selection";
-import { deleteForward, insertText, tripleClick } from "../_helpers/user_actions";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent } from "../_helpers/selection.js";
+import { deleteForward, insertText, tripleClick } from "../_helpers/user_actions.js";
 import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { animationFrame } from "@odoo/hoot-dom";
 import {
     compareHighlightedContent,
     highlightedPre,
     patchPrism,
-} from "../_helpers/syntax_highlighting";
+} from "../_helpers/syntax_highlighting.js";
 import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
 
 /**

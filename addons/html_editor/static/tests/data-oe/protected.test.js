@@ -1,13 +1,13 @@
 import { expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { setSelection, setContent, getContent } from "../_helpers/selection";
-import { deleteBackward, insertText, undo } from "../_helpers/user_actions";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { setSelection, setContent, getContent } from "../_helpers/selection.js";
+import { deleteBackward, insertText, undo } from "../_helpers/user_actions.js";
 import { parseHTML } from "@html_editor/utils/html";
 import { Plugin } from "@html_editor/plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { execCommand } from "../_helpers/userCommands";
-import { expectElementCount } from "../_helpers/ui_expectations";
+import { execCommand } from "../_helpers/userCommands.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
 
 test("should ignore protected elements children mutations (true)", async () => {
     await testEditor({

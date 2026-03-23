@@ -1,7 +1,7 @@
 import { test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
+import { testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
 import { mockUserAgent } from "@odoo/hoot-mock";
 
 const ctrlShiftBackspace = () => press(["Ctrl", "Shift", "Backspace"]);

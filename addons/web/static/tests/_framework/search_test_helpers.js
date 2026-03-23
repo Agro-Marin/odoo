@@ -5,9 +5,9 @@ import { Component, xml } from "@odoo/owl";
 import { WithSearch } from "@web/search/with_search/with_search";
 import { getDefaultConfig } from "@web/views/view";
 
-import { findComponent, mountWithCleanup } from "./component_test_helpers";
-import { contains } from "./dom_test_helpers";
-import { getMockEnv, makeMockEnv } from "./env_test_helpers";
+import { findComponent, mountWithCleanup } from "./component_test_helpers.js";
+import { contains } from "./dom_test_helpers.js";
+import { getMockEnv, makeMockEnv } from "./env_test_helpers.js";
 
 const ensureSearchView = async () => {
     if (

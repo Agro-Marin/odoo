@@ -1,6 +1,6 @@
 import { test, expect } from "@odoo/hoot";
-import { setupSelfPosEnv } from "../utils";
-import { definePosSelfModels } from "../data/generate_model_definitions";
+import { setupSelfPosEnv } from "../utils.js";
+import { definePosSelfModels } from "../data/generate_model_definitions.js";
 
 definePosSelfModels();
 

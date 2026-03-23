@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { contains, makeMockServer, mountView, onRpc } from "@web/../tests/web_test_helpers";
-import { defineAnalyticModels } from "./analytic_test_helpers";
+import { defineAnalyticModels } from "./analytic_test_helpers.js";
 
 defineAnalyticModels()
 beforeEach(async () => {

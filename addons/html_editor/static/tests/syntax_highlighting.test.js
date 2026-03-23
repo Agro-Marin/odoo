@@ -1,19 +1,19 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { getContent, setSelection } from "./_helpers/selection";
+import { getContent, setSelection } from "./_helpers/selection.js";
 import { animationFrame, click, press, queryOne, waitFor } from "@odoo/hoot-dom";
-import { insertText, splitBlock } from "./_helpers/user_actions";
+import { insertText, splitBlock } from "./_helpers/user_actions.js";
 import {
     compareHighlightedContent,
     highlightedPre,
     patchPrism,
     testTextareaRange,
-} from "./_helpers/syntax_highlighting";
+} from "./_helpers/syntax_highlighting.js";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { setupEditor, testEditor } from "./_helpers/editor";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
-import { unformat } from "./_helpers/format";
+import { unformat } from "./_helpers/format.js";
 import { parseHTML } from "@html_editor/utils/html";
 
 // Press a key combination, then wait for useEffect to kick in.

@@ -19,7 +19,7 @@ import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
 import { patchDynamicContent } from "@web/public/utils";
 
-import { startInteraction, startInteractions } from "./helpers";
+import { startInteraction, startInteractions } from "./helpers.js";
 
 describe.current.tags("interaction_dev");
 

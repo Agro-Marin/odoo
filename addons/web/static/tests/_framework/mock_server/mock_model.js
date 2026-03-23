@@ -17,8 +17,8 @@ import {
 } from "@web/core/utils/collections/arrays";
 import { deepCopy, isObject, pick } from "@web/core/utils/collections/objects";
 
-import * as fields from "./mock_fields";
-import { MockServer } from "./mock_server";
+import * as fields from "./mock_fields.js";
+import { MockServer } from "./mock_server.js";
 import {
     getKwArgs,
     getRecordQualifier,
@@ -26,7 +26,7 @@ import {
     makeServerError,
     MockServerError,
     safeSplit,
-} from "./mock_server_utils";
+} from "./mock_server_utils.js";
 
 const {
     DEFAULT_FIELD_VALUES,
