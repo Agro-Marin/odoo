@@ -1,18 +1,20 @@
 import base64
 import binascii
 import contextlib
-import hashlib
+import io
 import logging
 import mimetypes
+import os
 import re
+import shutil
+import tempfile
 import uuid
 from collections import defaultdict
 from itertools import batched
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
 
-import psycopg.errors
-import werkzeug
+import blake3 as _blake3
 
 from odoo import _, api, fields, models
 from odoo.exceptions import (
@@ -22,7 +24,7 @@ from odoo.exceptions import (
     ValidationError,
 )
 from odoo.fields import Domain
-from odoo.http import Stream, request, root
+from odoo.http import Stream
 from odoo.libs.constants import PREFETCH_MAX
 from odoo.libs.filesystem.mimetypes import (
     MIMETYPE_HEAD_SIZE,
@@ -48,6 +50,10 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 SECURITY_FIELDS = ("res_model", "res_id", "create_uid", "public", "res_field")
+
+# Sentinel that cannot be given over RPC — used by _upload_file() to bypass
+# field stripping in create() when checksum/file_size/store_fname are pre-computed.
+CREATE_FROM_STREAM_FLAG = object()
 
 
 def condition_values(model: Any, field_name: str, domain: Domain) -> list[Any] | None:
@@ -84,7 +90,8 @@ class IrAttachment(models.Model):
     uri (example: hdfs://hadoopserver).
 
     The default implementation is the file:dirname location that stores files
-    on the local filesystem using name based on their sha1 hash
+    on the local filesystem using content-addressed names based on their
+    BLAKE3 hash (3-level directory layout: ``ab/cd/abcdef...``).
     """
 
     _name = "ir.attachment"
@@ -131,9 +138,15 @@ class IrAttachment(models.Model):
     db_datas = fields.Binary("Database Data", attachment=False)
     store_fname = fields.Char("Stored Filename", index=True)
     file_size = fields.Integer("File Size", readonly=True)
-    checksum = fields.Char("Checksum/SHA1", size=40, readonly=True)
+    checksum = fields.Char("Checksum/BLAKE3", size=64, readonly=True)
     mimetype = fields.Char("Mime Type", readonly=True)
     index_content = fields.Text("Indexed Content", readonly=True, prefetch=False)
+    index_pending = fields.Boolean(
+        "Indexation Pending",
+        default=False,
+        index=True,
+        help="Set when content indexation is deferred to a background cron.",
+    )
 
     _res_field_idx = models.Index("(res_model, res_field, res_id)")
     _checksum_idx = models.Index("(checksum) WHERE checksum IS NOT NULL")
@@ -142,15 +155,17 @@ class IrAttachment(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         record_tuple_set = set()
 
-        # remove computed field depending of datas
-        vals_list = [
-            {
-                key: value
-                for key, value in vals.items()
-                if key not in ("file_size", "checksum", "store_fname")
-            }
-            for vals in vals_list
-        ]
+        # remove computed field depending of datas — unless _upload_file
+        # pre-computed them (signalled by CREATE_FROM_STREAM_FLAG sentinel)
+        if self.env.context.get("ir_attachment_from_stream") is not CREATE_FROM_STREAM_FLAG:
+            vals_list = [
+                {
+                    key: value
+                    for key, value in vals.items()
+                    if key not in ("file_size", "checksum", "store_fname")
+                }
+                for vals in vals_list
+            ]
         checksum_raw_map = {}
 
         for values in vals_list:
@@ -278,11 +293,12 @@ class IrAttachment(models.Model):
                 attach.raw = attach.db_datas
 
     def _compute_checksum(self, bin_data: bytes) -> str:
-        """compute the checksum for the given datas
-        :param bin_data : datas in its binary form
+        """Compute the BLAKE3 checksum for the given binary data.
+
+        Returns a 64-character hex digest.
         """
         # an empty file has a checksum too (for caching)
-        return hashlib.sha1(bin_data or b"").hexdigest()
+        return _blake3.blake3(bin_data or b"").hexdigest()
 
     def _compute_mimetype(self, values: dict[str, Any]) -> str:
         """compute the mimetype of the given values
@@ -372,18 +388,33 @@ class IrAttachment(models.Model):
         return str(full)
 
     @api.model
-    def _get_path(self, bin_data: bytes, sha: str) -> tuple[str, str]:
-        # scatter files across 256 dirs
+    def _get_path(self, file: io.IOBase, checksum: str) -> tuple[str, str]:
+        """Get the content-addressed filestore path for the given checksum.
+
+        ``file`` is a seekable file object used for collision detection.
+
+        Uses a 3-level layout for BLAKE3 (64-char): ``ab/cd/abcdef...``
+        Falls back to 2-level for legacy SHA-1 (40-char): ``ab/abcdef...``
+        """
         # we use '/' in the db (even on windows)
-        fname = sha[:2] + "/" + sha
+        if len(checksum) > 40:
+            # BLAKE3: 3-level layout (65,536 buckets)
+            fname = checksum[:2] + "/" + checksum[2:4] + "/" + checksum
+        else:
+            # Legacy SHA-1: 2-level layout (256 buckets)
+            fname = checksum[:2] + "/" + checksum
         full_path = self._full_path(fname)
         dirname = str(Path(full_path).parent)
         if not Path(dirname).is_dir():
             Path(dirname).mkdir(exist_ok=True, parents=True)
 
-        # prevent sha-1 collision
-        if Path(full_path).is_file() and not self._same_content(bin_data, full_path):
-            raise UserError(_("The attachment collides with an existing file."))
+        # prevent hash collision
+        try:
+            with Path(full_path).open("rb") as existing_file:
+                if not self._same_content(file, existing_file):
+                    raise UserError(_("The attachment collides with an existing file."))
+        except FileNotFoundError:
+            pass
         return fname, full_path
 
     @api.model
@@ -399,18 +430,43 @@ class IrAttachment(models.Model):
 
     @api.model
     def _file_write(self, bin_value: bytes, checksum: str) -> str:
+        """Write binary data to the filestore with optional fsync for durability.
+
+        When ``ir_attachment.fsync`` config parameter is True (the default),
+        both the file data and the parent directory entry are fsynced to
+        guarantee the write survives a power loss.
+        """
         assert isinstance(self, IrAttachment)
-        fname, full_path = self._get_path(bin_value, checksum)
+        fname, full_path = self._get_path(io.BytesIO(bin_value), checksum)
         if not Path(full_path).exists():
             try:
                 with Path(full_path).open("wb") as fp:
                     fp.write(bin_value)
+                    if self._fsync_enabled():
+                        fp.flush()
+                        os.fsync(fp.fileno())
+                if self._fsync_enabled():
+                    self._fsync_directory(str(Path(full_path).parent))
                 # add fname to checklist, in case the transaction aborts
                 self._mark_for_gc(fname)
             except OSError:
                 _logger.info("_file_write writing %s", full_path)
                 raise
         return fname
+
+    @api.model
+    def _fsync_enabled(self) -> bool:
+        """Check if fsync is enabled (default True, disable for tests/dev)."""
+        return str2bool(config.get("ir_attachment_fsync", "True"))
+
+    @staticmethod
+    def _fsync_directory(dirpath: str) -> None:
+        """Fsync a directory to ensure its entries are durable on disk."""
+        fd = os.open(dirpath, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
     @api.model
     def _file_delete(self, fname: str) -> None:
@@ -432,50 +488,50 @@ class IrAttachment(models.Model):
                 pass
 
     @api.model
-    def _same_content(self, bin_data: bytes, filepath: str) -> bool:
-        BLOCK_SIZE = 1024
-        with Path(filepath).open("rb") as fd:
-            i = 0
+    def _same_content(self, file1: io.IOBase, file2: io.IOBase) -> bool:
+        """Compare two file objects for byte-identical content.
+
+        Saves and restores seek positions so callers are not affected.
+        """
+        with contextlib.ExitStack() as stack:
+            stack.callback(file1.seek, file1.tell())
+            file1.seek(0)
+            stack.callback(file2.seek, file2.tell())
+            file2.seek(0)
             while True:
-                data = fd.read(BLOCK_SIZE)
-                if data != bin_data[i * BLOCK_SIZE : (i + 1) * BLOCK_SIZE]:
+                chunk1 = file1.read(io.DEFAULT_BUFFER_SIZE)
+                chunk2 = file2.read(io.DEFAULT_BUFFER_SIZE)
+                if chunk1 != chunk2:
                     return False
-                if not data:
-                    break
-                i += 1
-        return True
+                if not chunk1:
+                    return True
 
     @api.autovacuum
     def _gc_file_store(self) -> None | bool:
-        """Perform the garbage collection of the filestore."""
+        """Perform the garbage collection of the filestore.
+
+        Uses a PostgreSQL advisory lock instead of a table-level SHARE MODE
+        lock so that concurrent writes (uploads) are never blocked by GC.
+        """
         assert isinstance(self, IrAttachment)
         if self._storage() != "file":
             return None
 
-        # Continue in a new transaction. The LOCK statement below must be the
-        # first one in the current transaction, otherwise the database snapshot
-        # used by it may not contain the most recent changes made to the table
-        # ir_attachment! Indeed, if concurrent transactions create attachments,
-        # the LOCK statement will wait until those concurrent transactions end.
-        # But this transaction will not see the new attachements if it has done
-        # other requests before the LOCK (like the method _storage() above).
         cr = self.env.cr
         cr.commit()
 
-        # prevent all concurrent updates on ir_attachment while collecting,
-        # but only attempt to grab the lock for a little bit, otherwise it'd
-        # start blocking other transactions. (will be retried later anyway)
-        cr.execute("SET LOCAL lock_timeout TO '10s'")
-        try:
-            cr.execute("LOCK ir_attachment IN SHARE MODE")
-        except psycopg.errors.LockNotAvailable:
-            cr.rollback()
+        # Advisory lock: prevents two concurrent GC runs but does NOT block
+        # any INSERT/UPDATE/DELETE on ir_attachment.
+        cr.execute("SELECT pg_try_advisory_lock(hashtext('ir_attachment_gc'))")
+        if not cr.fetchone()[0]:
+            # Another GC is already running — skip this run.
             return False
 
-        self._gc_file_store_unsafe()
-
-        # commit to release the lock
-        cr.commit()
+        try:
+            self._gc_file_store_unsafe()
+        finally:
+            cr.execute("SELECT pg_advisory_unlock(hashtext('ir_attachment_gc'))")
+            cr.commit()
         return None
 
     def _gc_file_store_unsafe(self) -> None:
@@ -493,9 +549,14 @@ class IrAttachment(models.Model):
         # for each chunk.
         removed = 0
         for names in batched(checklist, self.env.cr.BATCH_SIZE, strict=False):
-            # determine which files to keep among the checklist
+            # Determine which files to keep among the checklist.
+            # FOR KEY SHARE SKIP LOCKED: if a row is locked by a concurrent
+            # INSERT/UPDATE (e.g. a file being uploaded right now), we skip it
+            # — treating it as "in use" and keeping the file safe.
             self.env.cr.execute(
-                "SELECT store_fname FROM ir_attachment WHERE store_fname = ANY(%s)",
+                "SELECT store_fname FROM ir_attachment"
+                " WHERE store_fname = ANY(%s)"
+                " FOR KEY SHARE SKIP LOCKED",
                 [list(names)],
             )
             whitelist = {row[0] for row in self.env.cr.fetchall()}
@@ -504,9 +565,9 @@ class IrAttachment(models.Model):
             for fname in names:
                 filepath = checklist[fname]
                 if fname not in whitelist:
-                    full_path = self._full_path(fname)
+                    full_path = Path(self._full_path(fname))
                     try:
-                        Path(full_path).unlink()
+                        full_path.unlink(missing_ok=True)
                         _logger.debug("_file_gc unlinked %s", full_path)
                         removed += 1
                     except OSError:
@@ -522,6 +583,33 @@ class IrAttachment(models.Model):
                     Path(filepath).unlink()
 
         _logger.info("filestore gc %d checked, %d removed", len(checklist), removed)
+
+    @api.autovacuum
+    def _index_pending_attachments(self, batch_size: int = 50) -> None:
+        """Process attachments whose content indexation was deferred.
+
+        Called by the autovacuum cron.  Processes at most ``batch_size``
+        records per run, committing after each to release locks quickly.
+        """
+        pending = self.search([("index_pending", "=", True)], limit=batch_size)
+        if not pending:
+            return
+        for attachment in pending:
+            try:
+                index_content = self._index(
+                    attachment.raw, attachment.mimetype, checksum=attachment.checksum,
+                )
+            except Exception:
+                _logger.warning(
+                    "Failed to index attachment %s (%s)",
+                    attachment.id, attachment.name, exc_info=True,
+                )
+                index_content = None
+            attachment.write({
+                "index_content": index_content or False,
+                "index_pending": False,
+            })
+            self.env.cr.commit()
 
     def _set_attachment_data(self, asbytes: Callable[[Any], bytes]) -> None:
         old_fnames = []
@@ -571,7 +659,7 @@ class IrAttachment(models.Model):
         if use_filestore is None:
             use_filestore = self._storage() != "db"
         if data and use_filestore:
-            values["store_fname"], _full_path = self._get_path(data, checksum)
+            values["store_fname"], _full_path = self._get_path(io.BytesIO(data), checksum)
             values["db_datas"] = False
         return values
 
@@ -958,6 +1046,108 @@ class IrAttachment(models.Model):
             }
         )
 
+    def _upload_file(self, file: io.IOBase, create_vals: ValuesType) -> Self:
+        """Create an attachment from a file object without loading it all into memory.
+
+        The file is read in chunks to compute the BLAKE3 checksum, file size,
+        and destination path.  When the file is not already on the local
+        filesystem (e.g. a ``BytesIO``), it is saved to a temporary file in
+        ``filestore/upload/`` first.  In all cases, the file is hard-linked (or
+        copied as fallback) to the correct content-addressed location and a new
+        attachment record is created.
+        """
+        if "raw" in create_vals or "db_datas" in create_vals:
+            msg = "Cannot use 'raw' or 'db_datas' with _upload_file."
+            raise ValueError(msg)
+
+        if self._storage() == "db":
+            return self.create(dict(create_vals, raw=file.read()))
+
+        # Check permissions before reading the file.
+        if any(self._inaccessible_comodel_records(
+            model_and_ids={create_vals.get("res_model"): [create_vals.get("res_id")]},
+            operation="write",
+        )):
+            raise AccessError(_("Sorry, you are not allowed to access this document."))
+
+        with contextlib.ExitStack() as exit_stack:
+            # Ensure the file is seekable and accessible on the filesystem.
+            # When it is not, save it to a named temporary file.
+            src_path = getattr(file, "name", None)
+            try:
+                if not isinstance(src_path, (str, bytes, os.PathLike)):
+                    raise FileNotFoundError(f"not a path: {src_path}")
+                Path(src_path).open("rb").close()
+                file.seek(0)
+            except OSError:
+                upload_dir = self._full_path("upload")
+                Path(upload_dir).mkdir(0o755, exist_ok=True, parents=True)
+                file_upload = exit_stack.enter_context(
+                    tempfile.NamedTemporaryFile(
+                        dir=upload_dir,
+                        prefix=f"{create_vals.get('res_model', '')}-"
+                               f"{create_vals.get('res_id', '')}-"
+                               f"{self.env.uid}-",
+                        suffix=".part",
+                    ),
+                )
+                src_path = file_upload.name
+            else:
+                file_upload = None
+
+            # Read in chunks: compute BLAKE3 hash + file size; copy to
+            # tempfile when the source isn't on disk.
+            computed: dict[str, Any] = {"file_size": 0}
+            hasher = _blake3.blake3()
+            while chunk := file.read(io.DEFAULT_BUFFER_SIZE):
+                hasher.update(chunk)
+                computed["file_size"] += len(chunk)
+                if file_upload:
+                    file_upload.write(chunk)
+            if file_upload:
+                file_upload.flush()
+
+            computed["checksum"] = hasher.hexdigest()
+            computed["store_fname"], dst_path = self._get_path(
+                file_upload or file, computed["checksum"],
+            )
+
+            # Detect mimetype from the on-disk file if not provided.
+            if "mimetype" not in create_vals:
+                head = b""
+                with Path(src_path).open("rb") as f:
+                    head = f.read(MIMETYPE_HEAD_SIZE)
+                computed["mimetype"] = guess_mimetype(head)
+
+            # Order matters for _gc_file_store safety:
+            # create record → mark for GC → link/copy file → commit/rollback.
+            attach = (
+                self.with_context(ir_attachment_from_stream=CREATE_FROM_STREAM_FLAG)
+                    .create(create_vals | computed)
+                    .with_env(self.env)
+            )
+            self._mark_for_gc(attach.store_fname)
+
+            try:
+                os.link(src_path, dst_path)  # fast hardlink
+            except FileExistsError:
+                pass
+            except OSError:
+                shutil.copyfile(src_path, dst_path)  # slow copy fallback
+
+            # Prevent accidental content modification (breaks checksum).
+            Path(dst_path).chmod(0o444)
+
+            if self._fsync_enabled():
+                fd = os.open(dst_path, os.O_RDONLY)
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+                self._fsync_directory(str(Path(dst_path).parent))
+
+        return attach
+
     def _to_http_stream(self) -> Stream:
         """Create a :class:`~Stream`: from an ir.attachment record."""
         self.ensure_one()
@@ -971,10 +1161,7 @@ class IrAttachment(models.Model):
 
         if self.store_fname:
             stream.type = "path"
-            stream.path = werkzeug.security.safe_join(
-                str(Path(config.filestore(request.db)).resolve()),
-                self.store_fname,
-            )
+            stream.path = self._full_path(self.store_fname)
             stat = Path(stream.path).stat()
             stream.last_modified = stat.st_mtime
             stream.size = stat.st_size
@@ -986,17 +1173,8 @@ class IrAttachment(models.Model):
             stream.size = len(stream.data)
 
         elif self.url:
-            # When the URL targets a file located in an addon, assume it
-            # is a path to the resource. It saves an indirection and
-            # stream the file right away.
-            static_path = root.get_static_file(
-                self.url, host=request.httprequest.environ.get("HTTP_HOST", "")
-            )
-            if static_path:
-                stream = Stream.from_path(static_path, public=True)
-            else:
-                stream.type = "url"
-                stream.url = self.url
+            stream.type = "url"
+            stream.url = self.url
 
         else:
             stream.type = "data"

@@ -2,6 +2,7 @@
 # python3-* equivalent distributed in Ubuntu 24.04 (Noble) and Debian 13 (Trixie)
 asn1crypto==1.5.1
 Babel==2.18.0
+blake3>=1.0.8
 cbor2==5.8.0
 chardet==5.2.0
 cryptography==46.0.4

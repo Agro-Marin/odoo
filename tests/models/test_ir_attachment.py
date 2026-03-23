@@ -1,6 +1,6 @@
 """Database-free tests for ``ir.attachment`` pure methods.
 
-Covers ``_compute_checksum()`` (SHA-1 hex digest) and
+Covers ``_compute_checksum()`` (BLAKE3 hex digest) and
 ``_compute_mimetype()`` (multi-fallback MIME detection).
 
 Run with::
@@ -9,40 +9,40 @@ Run with::
 """
 
 import base64
-import hashlib
+import blake3 as _blake3
 
 # ── _compute_checksum ─────────────────────────────────────────
 
 
 class TestComputeChecksum:
-    """``_compute_checksum``: SHA-1 hex digest of binary data."""
+    """``_compute_checksum``: BLAKE3 hex digest of binary data."""
 
     def test_standard_data(self, env):
-        """Known content produces expected SHA-1."""
+        """Known content produces expected BLAKE3."""
         data = b"hello world"
         att = env["ir.attachment"].browse()
         result = att._compute_checksum(data)
-        assert result == hashlib.sha1(b"hello world").hexdigest()
+        assert result == _blake3.blake3(b"hello world").hexdigest()
 
     def test_empty_bytes(self, env):
-        """Empty bytes → SHA-1 of empty string (not None)."""
+        """Empty bytes → BLAKE3 of empty string (not None)."""
         att = env["ir.attachment"].browse()
         result = att._compute_checksum(b"")
-        assert result == hashlib.sha1(b"").hexdigest()
-        assert len(result) == 40  # SHA-1 hex digest length
+        assert result == _blake3.blake3(b"").hexdigest()
+        assert len(result) == 64  # BLAKE3 hex digest length
 
     def test_none_input(self, env):
         """None → treated as empty bytes."""
         att = env["ir.attachment"].browse()
         result = att._compute_checksum(None)
-        assert result == hashlib.sha1(b"").hexdigest()
+        assert result == _blake3.blake3(b"").hexdigest()
 
     def test_binary_content(self, env):
         """Non-UTF8 binary data is hashed correctly."""
         data = bytes(range(256))
         att = env["ir.attachment"].browse()
         result = att._compute_checksum(data)
-        assert result == hashlib.sha1(data).hexdigest()
+        assert result == _blake3.blake3(data).hexdigest()
 
 
 # ── _compute_mimetype ─────────────────────────────────────────
