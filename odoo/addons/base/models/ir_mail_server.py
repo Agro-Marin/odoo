@@ -616,14 +616,14 @@ class IrMail_Server(models.Model):
                             "The private key or the certificate is not a valid file. \n%s",
                             str(e),
                         )
-                    )
+                    ) from None
                 except SSLError as e:
                     raise UserError(
                         _(
                             "Could not load your certificate / private key. \n%s",
                             str(e),
                         )
-                    )
+                    ) from None
             elif mail_server.smtp_encryption != "none":
                 if mail_server.smtp_encryption in (
                     "ssl_strict",
@@ -674,14 +674,14 @@ class IrMail_Server(models.Model):
                             "The private key or the certificate is not a valid file. \n%s",
                             str(e),
                         )
-                    )
+                    ) from None
                 except SSLError as e:
                     raise UserError(
                         _(
                             "Could not load your certificate / private key. \n%s",
                             str(e),
                         )
-                    )
+                    ) from None
 
         if not smtp_server:
             raise UserError(
@@ -1136,7 +1136,7 @@ class IrMail_Server(models.Model):
                 message=e,
             )
             _logger.info(msg)
-            raise MailDeliveryError(_("Mail Delivery Failed"), msg)
+            raise MailDeliveryError(_("Mail Delivery Failed"), msg) from None
         return message_id
 
     def _find_mail_server_allowed_domain(self) -> list[Any]:

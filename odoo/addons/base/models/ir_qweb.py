@@ -1843,7 +1843,7 @@ class IrQweb(models.AbstractModel):
         try:
             tokens = list(tokenize.tokenize(readable.readline))
         except tokenize.TokenError:
-            raise ValueError(f"Can not compile expression: {expr}")
+            raise ValueError(f"Can not compile expression: {expr}") from None
 
         expression = self._compile_expr_tokens(
             tokens, ALLOWED_KEYWORD, raise_on_missing=raise_on_missing
@@ -3799,11 +3799,10 @@ class IrQweb(models.AbstractModel):
         # 3. Modulepreload hints for faster loading (skip in debug mode
         #    to reduce noise and allow individual file debugging)
         if not debug_assets:
-            for url in native_data["preload_urls"]:
-                pre_nodes.append(("link", {
-                    "rel": "modulepreload",
-                    "href": url,
-                }))
+            pre_nodes.extend(
+                ("link", {"rel": "modulepreload", "href": url})
+                for url in native_data["preload_urls"]
+            )
 
         # Bridge — only needed when legacy modules depend on native
         # modules (so require() can return their exports).

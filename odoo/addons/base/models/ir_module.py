@@ -805,7 +805,7 @@ class IrModuleModule(models.Model):
                     "Odoo is currently processing another module operation.\n"
                     "Please try again later or contact your system administrator."
                 )
-            )
+            ) from None
 
         try:
             # This is done because the installation/uninstallation/upgrade can modify a currently
@@ -819,7 +819,7 @@ class IrModuleModule(models.Model):
                     "Module operations are not possible at this time, "
                     "please try again later or contact your system administrator."
                 )
-            )
+            ) from None
         function(self)
 
         self.env.cr.commit()

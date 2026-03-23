@@ -93,7 +93,7 @@ class IrRule(models.Model):
                     model = self.env[rule.model_id.model].sudo()
                     Domain(domain).validate(model)
                 except Exception as e:
-                    raise ValidationError(_("Invalid domain: %s", e))
+                    raise ValidationError(_("Invalid domain: %s", e)) from None
 
     def _compute_domain_keys(self) -> list[str]:
         """Return the list of context keys to use for caching ``_compute_domain``."""

@@ -28,7 +28,7 @@ class LangData(ReadonlyDict):
         try:
             return self[name]
         except KeyError:
-            raise AttributeError
+            raise AttributeError from None
 
 
 class LangDataDict(ReadonlyDict):
@@ -45,7 +45,7 @@ class LangDataDict(ReadonlyDict):
             some_lang = next(iter(self.values()), None)
             if some_lang is None:
                 msg = "LangData is empty: at least one active language must exist"
-                raise RuntimeError(msg)
+                raise RuntimeError(msg) from None
             return LangData(dict.fromkeys(some_lang, False))
 
 

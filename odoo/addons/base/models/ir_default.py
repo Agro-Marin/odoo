@@ -56,7 +56,7 @@ class IrDefault(models.Model):
             except json.JSONDecodeError:
                 raise ValidationError(
                     self.env._("Invalid JSON format in Default Value field.")
-                )
+                ) from None
             except ValueError, TypeError:
                 raise ValidationError(
                     self.env._(
@@ -65,7 +65,7 @@ class IrDefault(models.Model):
                         model_name=model_name,
                         field_name=record.field_id.name,
                     )
-                )
+                ) from None
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -134,7 +134,7 @@ class IrDefault(models.Model):
                     model=model_name,
                     field=field_name,
                 )
-            )
+            ) from None
         except ValueError, TypeError:
             raise ValidationError(
                 self.env._(
@@ -143,7 +143,7 @@ class IrDefault(models.Model):
                     field=field_name,
                     value=value,
                 )
-            )
+            ) from None
         if field.type == "integer" and not (-(2**31) <= parsed <= 2**31 - 1):
             raise ValidationError(
                 self.env._(

@@ -28,7 +28,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         # Blob1
         self.blob1 = b"blob1"
         self.blob1_b64 = base64.b64encode(self.blob1)
-        self.blob1_hash = hashlib.sha1(self.blob1).hexdigest()
+        self.blob1_hash = hashlib.sha1(self.blob1, usedforsecurity=False).hexdigest()
         self.blob1_fname = self.blob1_hash[:HASH_SPLIT] + "/" + self.blob1_hash
 
         # Blob2
@@ -345,6 +345,59 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 [("id", "in", main_partner.ids)], ["image_128"]
             )
             self.assertEqual(patch_file_read.call_count, 0)
+
+    def test_create_unique_invalid_base64(self):
+        """create_unique raises UserError with chained exception on bad base64."""
+        from odoo.exceptions import UserError
+
+        with self.assertRaises(UserError) as cm:
+            self.Attachment.create_unique([{
+                "name": "bad.txt",
+                "datas": "NOT_VALID_BASE64!!!",
+                "mimetype": "text/plain",
+            }])
+        # Verify the exception chain is preserved (from exc)
+        self.assertIsNotNone(cm.exception.__cause__, "Exception chain should be preserved")
+
+    def test_create_unique_dedup(self):
+        """create_unique deduplicates by checksum/size/mimetype."""
+        data = base64.b64encode(b"hello dedup").decode()
+        ids = self.Attachment.create_unique([
+            {"name": "a.txt", "datas": data, "mimetype": "text/plain"},
+            {"name": "b.txt", "datas": data, "mimetype": "text/plain"},
+        ])
+        self.assertEqual(len(ids), 2)
+        self.assertEqual(ids[0], ids[1], "Same content should deduplicate")
+
+    @mute_logger("odoo.addons.base.models.ir_attachment")
+    def test_to_http_stream_missing_file(self):
+        """_to_http_stream gracefully handles missing filestore file."""
+        self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
+        att = self.Attachment.create({
+            "name": "test.txt",
+            "raw": b"test content",
+        })
+        self.assertTrue(att.store_fname, "Attachment should be stored in filestore")
+
+        # Delete the filestore file to simulate missing file
+        full_path = att._full_path(att.store_fname)
+        Path(full_path).unlink()
+
+        # Push a fake request onto the LocalStack so `request.db` resolves.
+        from types import SimpleNamespace
+
+        from odoo.http.core import _request_stack
+
+        fake_request = SimpleNamespace(db=self.env.cr.dbname)
+        _request_stack.push(fake_request)
+        try:
+            with patch("odoo.addons.base.models.ir_attachment.root"):
+                stream = att._to_http_stream()
+                self.assertEqual(stream.type, "data")
+                self.assertEqual(stream.data, b"")
+                self.assertEqual(stream.size, 0)
+        finally:
+            _request_stack.pop()
 
 
 class TestPermissions(TransactionCaseWithUserDemo):

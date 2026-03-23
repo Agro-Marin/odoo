@@ -894,10 +894,8 @@ css_error_message {{
         """Transform CSS for right-to-left languages using rtlcss."""
         rtlcss_bin = "rtlcss"
         if os.name == "nt":
-            try:
+            with suppress(OSError):
                 rtlcss_bin = misc.find_in_path("rtlcss.cmd")
-            except OSError:
-                pass
 
         cmd = [rtlcss_bin, "-c", file_path("base/data/rtlcss.json"), "-"]
 
@@ -1008,7 +1006,7 @@ class WebAsset:
                 )
                 self._ir_attach.ensure_one()
             except ValueError:
-                raise AssetNotFoundError(f"Could not find {self.name}")
+                raise AssetNotFoundError(f"Could not find {self.name}") from None
 
     @property
     def last_modified(self) -> float | int:
@@ -1041,9 +1039,9 @@ class WebAsset:
             else:
                 return self._ir_attach.raw.decode()
         except UnicodeDecodeError:
-            raise AssetError(f"{self.name} is not utf-8 encoded.")
+            raise AssetError(f"{self.name} is not utf-8 encoded.") from None
         except OSError:
-            raise AssetNotFoundError(f"File {self.name} does not exist.")
+            raise AssetNotFoundError(f"File {self.name} does not exist.") from None
         except (AssetError, ValueError) as e:
             raise AssetError(f"Could not get content for {self.name}.") from e
 
@@ -1273,7 +1271,7 @@ class PreprocessedCSS(StylesheetAsset):
                 command, stdin=PIPE, stdout=PIPE, stderr=PIPE, encoding="utf-8"
             )
         except OSError:
-            raise CompileError(f"Could not execute command {command[0]!r}")
+            raise CompileError(f"Could not execute command {command[0]!r}") from None
 
         out, err = compiler.communicate(input=source)
         if compiler.returncode:

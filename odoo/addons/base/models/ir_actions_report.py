@@ -75,7 +75,7 @@ def _get_weasy_font_config():
     # mutex concern (see comment above) is fork-specific, not thread-specific.
     # At worst two threads both see None and both create a config; the second
     # assignment wins and the first is GC'd.  Benign TOCTOU, not a real race.
-    global _weasy_font_config
+    global _weasy_font_config  # noqa: PLW0603 — intentional lazy singleton
     if _weasy_font_config is None:
         _weasy_font_config = FontConfiguration()
     return _weasy_font_config
@@ -124,7 +124,7 @@ def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets):
         # Reset font config so WeasyPrint re-discovers fonts cleanly after the
         # patch.  The concurrent-write risk here is benign — see the comment in
         # _get_weasy_font_config() above.
-        global _weasy_font_config
+        global _weasy_font_config  # noqa: PLW0603 — intentional reset after monkey-patch
         _weasy_font_config = None
         return weasyprint.HTML(
             string=html_string,
@@ -549,7 +549,7 @@ class OdooURLFetcher(URLFetcher):
         """
         current_test = modules.module.current_test
         if not current_test:
-            return requests.get(url, cookies=cookies, timeout=10, verify=False)
+            return requests.get(url, cookies=cookies, timeout=10, verify=False)  # noqa: S501 — localhost PDF render
 
         from odoo.tests.common import TEST_CURSOR_COOKIE_NAME, release_test_lock
 
@@ -567,7 +567,7 @@ class OdooURLFetcher(URLFetcher):
         current_test.http_request_key = key
         try:
             with release_test_lock():
-                return requests.get(url, cookies=cookies, timeout=10, verify=False)
+                return requests.get(url, cookies=cookies, timeout=10, verify=False)  # noqa: S501 — localhost PDF render
         finally:
             current_test.http_request_key = saved_key
 
@@ -1098,7 +1098,7 @@ class IrActionsReport(models.Model):
                             "PDF rendering failed. Please check the report template.\n\nDetails: %s",
                             str(e),
                         )
-                    )
+                    ) from None
 
             if not bodies:
                 raise UserError(_("No content to render as PDF."))
@@ -1160,7 +1160,7 @@ class IrActionsReport(models.Model):
                         "PDF rendering failed. Please check the report template.\n\nDetails: %s",
                         str(ve),
                     )
-                )
+                ) from None
             except Exception as e:
                 _logger.error("WeasyPrint PDF serialization failed: %s", e)
                 raise UserError(
@@ -1168,7 +1168,7 @@ class IrActionsReport(models.Model):
                         "PDF rendering failed. Please check the report template.\n\nDetails: %s",
                         str(e),
                     )
-                )
+                ) from None
 
     @staticmethod
     def _inject_page_css(html: str, css: str) -> str:
@@ -1376,7 +1376,7 @@ class IrActionsReport(models.Model):
         except ValueError, AttributeError:
             if barcode_type in ("Code128", "QR"):
                 msg = f"Cannot convert into {barcode_type} barcode."
-                raise ValueError(msg)
+                raise ValueError(msg) from None
             # Fall back to Code128 for unsupported symbologies.  Re-use the
             # already-processed kwargs (humanReadable already renamed, etc.)
             # instead of recursing through barcode() which would re-process
@@ -1461,7 +1461,7 @@ class IrActionsReport(models.Model):
         try:
             writer.write(result_stream)
         except PdfReadError:
-            raise UserError(_("Odoo is unable to merge the generated PDFs."))
+            raise UserError(_("Odoo is unable to merge the generated PDFs.")) from None
         return result_stream
 
     def _render_qweb_pdf_prepare_streams(
