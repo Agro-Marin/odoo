@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ImStatus } from "@mail/core/common/im_status";
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";

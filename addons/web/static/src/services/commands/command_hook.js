@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/commands/command_hook - useCommand hook to register/unregister commands with component lifecycle */
 

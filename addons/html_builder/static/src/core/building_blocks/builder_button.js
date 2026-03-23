@@ -4,7 +4,7 @@ import {
     useActionInfo,
     useSelectableItemComponent,
 } from "../utils";
-import { BuilderComponent } from "./builder_component";
+import { BuilderComponent } from "./builder_component.js";
 import { Img } from "../img";
 
 export class BuilderButton extends Component {

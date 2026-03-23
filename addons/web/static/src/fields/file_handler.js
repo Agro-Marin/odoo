@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/file_handler - FileUploader component for handling file input, validation, and base64 conversion */
 

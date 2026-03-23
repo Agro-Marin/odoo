@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/cog_menu/cog_menu - Combined cog dropdown merging Action, Print, and registry-based menu items */
 

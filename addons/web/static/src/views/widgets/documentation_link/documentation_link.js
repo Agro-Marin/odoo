@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/widgets/documentation_link/documentation_link - Widget rendering a hyperlink to versioned Odoo documentation */
 

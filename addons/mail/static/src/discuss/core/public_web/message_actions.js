@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { registerMessageAction } from "@mail/core/common/message_actions";
 import { _t } from "@web/core/l10n/translation";
 registerMessageAction("create-or-view-thread", {

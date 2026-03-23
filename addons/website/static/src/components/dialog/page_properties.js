@@ -1,3 +1,4 @@
+import { Popover } from "@web/libs/bootstrap";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { _t } from "@web/core/l10n/translation";
 import { useService, useAutofocus } from "@web/core/utils/hooks";
@@ -60,7 +61,7 @@ export class PageDependencies extends Component {
     }
 
     showDependencies() {
-        const popover = window.Popover.getOrCreateInstance(this.action.el, {
+        const popover = Popover.getOrCreateInstance(this.action.el, {
             title: _t("Dependencies"),
             boundary: "viewport",
             placement: "right",
@@ -75,7 +76,7 @@ export class PageDependencies extends Component {
 
     async destroyDependenciesPopover() {
         const actionEl = this.action.el;
-        const popover = window.Popover.getInstance(actionEl);
+        const popover = Popover.getInstance(actionEl);
         if (popover) {
             // If popover is hiding (animation), wait for the animation to
             // complete.

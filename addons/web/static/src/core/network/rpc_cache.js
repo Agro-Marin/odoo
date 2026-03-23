@@ -1,8 +1,9 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/network/rpc_cache - Encrypted RAM/IndexedDB cache for RPC responses */
 
+import { ConnectionLostError } from "@web/core/network/rpc";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { Deferred } from "@web/core/utils/concurrency";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
@@ -238,9 +239,16 @@ export class RPCCache {
                         }
                     }
                     if (fromCacheValue) {
-                        // Promise was already fulfilled with cached value — log the
-                        // background refresh failure but don't show an error dialog.
-                        console.warn("RPC cache: background refresh failed", error);
+                        // Promise was already fulfilled with cached value — the
+                        // caller already got its data, so don't reject.  But if
+                        // the failure is a ConnectionLostError we must still
+                        // surface it so the global handler can show the "Connection
+                        // lost" notification to the user.
+                        if (error instanceof ConnectionLostError) {
+                            Promise.reject(error);
+                        } else {
+                            console.warn("RPC cache: background refresh failed", error);
+                        }
                         return;
                     }
                     reject(error);

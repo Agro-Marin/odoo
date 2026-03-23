@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { on, setFrameRate } from "@odoo/hoot-dom";
 import { markRaw, reactive, toRaw } from "@odoo/owl";
@@ -27,37 +27,37 @@ import {
     storageGet,
     storageSet,
     stringify,
-} from "../hoot_utils";
-import { cleanupAnimations } from "../mock/animation";
-import { cleanupDate } from "../mock/date";
-import { internalRandom } from "../mock/math";
-import { cleanupNavigator } from "../mock/navigator";
-import { cleanupNetwork, throttleNetwork } from "../mock/network";
+} from "../hoot_utils.js";
+import { cleanupAnimations } from "../mock/animation.js";
+import { cleanupDate } from "../mock/date.js";
+import { internalRandom } from "../mock/math.js";
+import { cleanupNavigator } from "../mock/navigator.js";
+import { cleanupNetwork, throttleNetwork } from "../mock/network.js";
 import {
     cleanupWindow,
     getViewPortHeight,
     getViewPortWidth,
     mockTouch,
     setupWindow,
-} from "../mock/window";
-import { DEFAULT_CONFIG, FILTER_KEYS } from "./config";
-import { makeExpect } from "./expect";
-import { destroy, makeFixtureManager } from "./fixture";
-import { logger } from "./logger";
-import { Suite, suiteError } from "./suite";
-import { Tag, getTagSimilarities, getTags } from "./tag";
-import { Test, testError } from "./test";
-import { EXCLUDE_PREFIX, createUrlFromId, setParams } from "./url";
+} from "../mock/window.js";
+import { DEFAULT_CONFIG, FILTER_KEYS } from "./config.js";
+import { makeExpect } from "./expect.js";
+import { destroy, makeFixtureManager } from "./fixture.js";
+import { logger } from "./logger.js";
+import { Suite, suiteError } from "./suite.js";
+import { Tag, getTagSimilarities, getTags } from "./tag.js";
+import { Test, testError } from "./test.js";
+import { EXCLUDE_PREFIX, createUrlFromId, setParams } from "./url.js";
 
 // Import all helpers for debug mode
 import * as _hootDom from "@odoo/hoot-dom";
-import * as _animation from "../mock/animation";
-import * as _date from "../mock/date";
-import * as _math from "../mock/math";
-import * as _navigator from "../mock/navigator";
-import * as _network from "../mock/network";
-import * as _notification from "../mock/notification";
-import * as _window from "../mock/window";
+import * as _animation from "../mock/animation.js";
+import * as _date from "../mock/date.js";
+import * as _math from "../mock/math.js";
+import * as _navigator from "../mock/navigator.js";
+import * as _network from "../mock/network.js";
+import * as _notification from "../mock/notification.js";
+import * as _window from "../mock/window.js";
 
 const { isPrevented, mockPreventDefault } = _window;
 

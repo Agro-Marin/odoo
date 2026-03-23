@@ -1,3 +1,4 @@
+import { Carousel } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { registry } from "@web/core/registry";
@@ -51,7 +52,7 @@ export class CarouselSlider extends Interaction {
             this.el.dataset.bsRide = this.hasInterval ? "carousel" : "false";
         }
         if (this.el.dataset.bsRide === "false") {
-            window.Carousel.getOrCreateInstance(this.el, { ride: false, pause: true });
+            Carousel.getOrCreateInstance(this.el, { ride: false, pause: true });
         } else if (!this.hasInterval) {
             this.el.dataset.bsInterval = "1000";
         }
@@ -60,7 +61,7 @@ export class CarouselSlider extends Interaction {
     start() {
         this.computeMaxHeight();
         this.updateContent();
-        const carouselBS = window.Carousel.getOrCreateInstance(this.el, this.carouselOptions);
+        const carouselBS = Carousel.getOrCreateInstance(this.el, this.carouselOptions);
         this.registerCleanup(() => carouselBS.dispose());
 
         const itemWidth = getComputedStyle(this.el).getPropertyValue(
@@ -118,7 +119,7 @@ export class CarouselSlider extends Interaction {
             // slide once the next images are loaded.
             ev.preventDefault();
             onceAllImagesLoaded(this.carouselInnerEl).then(() => {
-                window.Carousel.getOrCreateInstance(this.el).to(ev.to);
+                Carousel.getOrCreateInstance(this.el).to(ev.to);
             });
             return;
         }

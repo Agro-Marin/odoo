@@ -2,6 +2,7 @@ import { ReCaptcha } from "@google_recaptcha/js/recaptcha";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
 import { Interaction } from "@web/public/interaction";
+import { Modal } from "@web/libs/bootstrap";
 
 export class ModalRegistration extends Interaction {
     static selector = "#modal_attendees_registration,.o_wevent_modal_slot_ticket_registration";
@@ -33,7 +34,7 @@ export class ModalRegistration extends Interaction {
     }
 
     start() {
-        const formModal = window.Modal.getOrCreateInstance(this.el, {
+        const formModal = Modal.getOrCreateInstance(this.el, {
             backdrop: "static",
             keyboard: false,
         });

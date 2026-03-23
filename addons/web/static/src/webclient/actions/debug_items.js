@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/actions/debug_items - Debug menu items for editing actions and views in the admin editor */
 

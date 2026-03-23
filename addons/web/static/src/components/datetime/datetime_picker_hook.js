@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/datetime/datetime_picker_hook - Hook that wires input refs to the datetime picker service */
 

@@ -1,9 +1,9 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { markup, reactive } from "@odoo/owl";
-import { HootError, stringify } from "../hoot_utils";
-import { Job } from "./job";
-import { Tag } from "./tag";
+import { HootError, stringify } from "../hoot_utils.js";
+import { Job } from "./job.js";
+import { Tag } from "./tag.js";
 
 /**
  * @template T

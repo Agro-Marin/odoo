@@ -4,7 +4,7 @@ import { rpc } from "@web/core/network/rpc";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { DEFAULT_PALETTE } from "@html_editor/utils/color";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
-import { Attachment, FileSelector, IMAGE_EXTENSIONS, IMAGE_MIMETYPES } from "./file_selector";
+import { Attachment, FileSelector, IMAGE_EXTENSIONS, IMAGE_MIMETYPES } from "./file_selector.js";
 import { isSrcCorsProtected } from "@html_editor/utils/image";
 
 export class AutoResizeImage extends Attachment {

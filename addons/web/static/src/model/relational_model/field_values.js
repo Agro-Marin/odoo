@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/field_values - Server value parsing, aggregation constants, and default value helpers */
 

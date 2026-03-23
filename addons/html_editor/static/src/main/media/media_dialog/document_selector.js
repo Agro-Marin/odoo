@@ -1,5 +1,5 @@
 import { _t } from "@web/core/l10n/translation";
-import { Attachment, FileSelector, IMAGE_MIMETYPES } from "./file_selector";
+import { Attachment, FileSelector, IMAGE_MIMETYPES } from "./file_selector.js";
 import { renderToElement } from "@web/core/utils/render";
 
 export class DocumentAttachment extends Attachment {

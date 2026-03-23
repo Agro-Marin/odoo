@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Component, useExternalListener, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";

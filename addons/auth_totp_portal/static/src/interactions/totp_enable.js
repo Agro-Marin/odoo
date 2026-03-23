@@ -1,5 +1,6 @@
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Tooltip } from "@web/libs/bootstrap";
 
 import { InputConfirmationDialog } from "@portal/js/components/input_confirmation_dialog/input_confirmation_dialog";
 import { handleCheckIdentity } from "@portal/interactions/portal_security";
@@ -51,7 +52,7 @@ function fromField(f, record) {
             copyButton.setAttribute("class", "btn btn-sm btn-primary o_clipboard_button o_btn_char_copy py-0 px-2");
             copyButton.onclick = async function (event) {
                 event.preventDefault();
-                const tooltip = new window.Tooltip(copyButton, {
+                const tooltip = new Tooltip(copyButton, {
                     title: _t("Copied!"),
                     trigger: "manual",
                     placement: "bottom",

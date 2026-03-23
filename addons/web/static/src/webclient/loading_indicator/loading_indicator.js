@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/loading_indicator/loading_indicator - Loading indicator counting active RPCs and blocking the UI after a 3s delay */
 

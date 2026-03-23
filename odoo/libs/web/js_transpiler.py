@@ -1054,6 +1054,20 @@ def is_native_module(url: str, content: str) -> bool:
     return bool(result and result["native"])
 
 
+def get_native_module_alias(url: str, content: str) -> str | None:
+    """Return the import map alias for a native module, if declared.
+
+    For native modules with ``@odoo-module native alias=@odoo/hoot``,
+    returns the alias specifier (``"@odoo/hoot"``).  The caller should
+    add an extra import map entry mapping this alias to the module's URL
+    so that ``import ... from "@odoo/hoot"`` resolves correctly.
+    """
+    result = _parse_odoo_module_header(url, content)
+    if result and result["native"] and result["alias"]:
+        return result["alias"]
+    return None
+
+
 def get_aliased_odoo_define_content(module_path: str, content: str) -> str | None:
     """To allow smooth transition between the new system and the legacy one, we have the possibility to
     defined an alternative module name (an alias) that will act as proxy between legacy require calls and

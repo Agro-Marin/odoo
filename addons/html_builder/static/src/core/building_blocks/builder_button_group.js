@@ -5,7 +5,7 @@ import {
     useApplyVisibility,
     useSelectableComponent,
 } from "../utils";
-import { BuilderComponent } from "./builder_component";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderButtonGroup extends Component {
     static template = "html_builder.BuilderButtonGroup";

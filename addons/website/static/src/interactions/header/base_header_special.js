@@ -1,3 +1,4 @@
+import { Dropdown } from "@web/libs/bootstrap";
 import { BaseHeader } from "@website/interactions/header/base_header";
 import { registry } from "@web/core/registry";
 

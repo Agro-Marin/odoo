@@ -4,6 +4,7 @@ import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { addLoadingEffect } from "@web/core/utils/dom/ui";
 import { browser } from "@web/core/browser/browser";
+import { Tooltip } from "@web/libs/bootstrap";
 import { WebsiteLinksTagsWrapper } from "@website_links/components/website_links_tags_wrapper";
 
 class WebsiteLinks extends Interaction {
@@ -64,7 +65,7 @@ class WebsiteLinks extends Interaction {
 
     onCopyShortURL(event) {
         const copyBtnEl = event.currentTarget;
-        const tooltip = window.Tooltip.getOrCreateInstance(copyBtnEl, {
+        const tooltip = Tooltip.getOrCreateInstance(copyBtnEl, {
             title: _t("Link Copied!"),
             trigger: "manual",
             placement: "top",

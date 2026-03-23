@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module search/search_domain - Domain computation utilities for SearchModel */
 

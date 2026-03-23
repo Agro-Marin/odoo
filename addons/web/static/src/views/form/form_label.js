@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/form/form_label - Label component for form fields with tooltip, validity, and company-dependent indicators */
 

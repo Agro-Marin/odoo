@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/legacy/js/public/public_root - Legacy PublicRoot widget that bootstraps the OWL app and public widget registry */
 
@@ -420,6 +420,9 @@ export const PublicRoot = /** @type {any} */ (publicWidget.Widget).extend({
  */
 export async function createPublicRoot(RootWidget) {
     await lazyloader.allScriptsLoaded;
+    // Yield to allow ESM bridge scripts to complete registering native
+    // modules in odoo.loader and populating service/component registries.
+    await new Promise((r) => setTimeout(r, 0));
     await whenReady();
     const env = makeEnv();
     await startServices(env);

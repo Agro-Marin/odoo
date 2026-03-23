@@ -4,6 +4,7 @@ import { rpc } from '@web/core/network/rpc';
 import { session } from '@web/session';
 import { ReCaptcha } from '@google_recaptcha/js/recaptcha';
 import { isVisible } from "@html_editor/utils/dom_info";
+import { Modal } from "@web/libs/bootstrap";
 
 export class Subscribe extends Interaction {
     static selector = '.js_subscribe';
@@ -126,7 +127,7 @@ export class Subscribe extends Interaction {
             this._updateSubscribeControlsStatus(true);
             const modalEl = this.el.closest('.o_newsletter_modal');
             if (modalEl) {
-                window.Modal.getOrCreateInstance(modalEl).hide();
+                Modal.getOrCreateInstance(modalEl).hide();
             }
         }
         this.notification.add(result.toast_content, {

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ScheduledMessage } from "@mail/chatter/web/scheduled_message";
 import { Chatter } from "@mail/chatter/web_portal/chatter";
 import { AttachmentList } from "@mail/core/common/attachment_list";

@@ -1,4 +1,4 @@
-import { closestBlock, isBlock } from "./blocks";
+import { closestBlock, isBlock } from "./blocks.js";
 import {
     getDeepestPosition,
     isContentEditable,
@@ -6,9 +6,9 @@ import {
     isSelfClosingElement,
     nextLeaf,
     previousLeaf,
-} from "./dom_info";
-import { isFakeLineBreak } from "./dom_state";
-import { closestElement, createDOMPathGenerator } from "./dom_traversal";
+} from "./dom_info.js";
+import { isFakeLineBreak } from "./dom_state.js";
+import { closestElement, createDOMPathGenerator } from "./dom_traversal.js";
 import {
     DIRECTIONS,
     childNodeIndex,
@@ -17,7 +17,7 @@ import {
     nodeSize,
     rightPos,
     startPos,
-} from "./position";
+} from "./position.js";
 
 /**
  * @typedef { import("./selection_plugin").EditorSelection } EditorSelection

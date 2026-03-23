@@ -10,7 +10,7 @@ import {
     getPreValue,
     highlightPre,
 } from "../../core/syntax_highlighting/syntax_highlighting_utils";
-import { CodeToolbar } from "./code_toolbar";
+import { CodeToolbar } from "./code_toolbar.js";
 
 export class EmbeddedSyntaxHighlightingComponent extends Component {
     static template = "html_editor.EmbeddedSyntaxHighlighting";

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { CalendarCommonRenderer } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 

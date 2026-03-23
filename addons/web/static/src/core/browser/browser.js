@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/browser/browser - Patchable browser API facade (localStorage, fetch, setTimeout, etc.) for testability */
 

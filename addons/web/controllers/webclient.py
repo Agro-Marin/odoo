@@ -135,7 +135,6 @@ class WebClient(http.Controller):
         "/web/bundle/<string:bundle_name>",
         auth="public",
         methods=["GET"],
-        readonly=True,
     )
     def bundle(self, bundle_name: str, **bundle_params: Any) -> Response:
         """
@@ -151,10 +150,7 @@ class WebClient(http.Controller):
             bundle_name, debug=debug, js=True, css=True
         )
         data = [
-            {
-                "type": tag,
-                "src": attrs.get("src") or attrs.get("data-src") or attrs.get("href"),
-            }
+            {"tag": tag, **attrs}
             for tag, attrs in files
         ]
 

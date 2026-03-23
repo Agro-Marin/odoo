@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/settings/searchable_setting - Setting variant with search-based visibility filtering and URL hash highlighting */
 

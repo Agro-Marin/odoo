@@ -4,17 +4,23 @@ import io
 import logging
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 import textwrap
 import uuid
 from contextlib import suppress
 from datetime import UTC
+from itertools import batched
 from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import Any
+from urllib.parse import quote as url_quote
 
 from lxml import etree
 from rjsmin import jsmin as rjsmin
 
+import odoo
 from odoo import release
 from odoo.api import SUPERUSER_ID
 from odoo.http import request
@@ -28,13 +34,15 @@ from odoo.libs.constants import (
 )
 from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
 from odoo.libs.web.js_transpiler import (
+    URL_RE as _URL_RE,
+    get_native_module_alias,
     is_native_module,
     is_odoo_module,
     transpile_javascript,
     url_to_module_path,
 )
 from odoo.tools import SQL, OrderedSet, misc, profiler
-from odoo.tools.json import scriptsafe as json
+from odoo.tools.json import scriptsafe as json_safe
 from odoo.tools.misc import file_open, file_path
 
 _logger = logging.getLogger(__name__)
@@ -65,12 +73,27 @@ class XMLAssetError(Exception):
     pass
 
 
+# Regexes for detecting ESM import statements in native modules.
+# Used by _build_native_to_legacy_bridge() to generate shims.
+_RX_ESM_NAMED_IMPORT = re.compile(
+    r'import\s*\{([^}]+)\}\s*from\s*["\'](@[^"\']+)["\']'
+)
+_RX_ESM_DEFAULT_IMPORT = re.compile(
+    r'import\s+(\w+)\s+from\s*["\'](@[^"\']+)["\']'
+)
+_RX_ESM_STAR_IMPORT = re.compile(
+    r'import\s*\*\s*as\s+\w+\s+from\s*["\'](@[^"\']+)["\']'
+)
+
+
 class AssetsBundle:
     rx_css_import = re.compile(r"(@import[^;{]+;?)", re.MULTILINE)
     rx_preprocess_imports = re.compile(r"""(@import\s?['"]([^'"]+)['"](;?))""")
     rx_css_split = re.compile(r"\/\*\! ([a-f0-9-]+) \*\/")
 
     TRACKED_BUNDLES = ["web.assets_web"]
+
+
 
     def __init__(
         self,
@@ -171,78 +194,291 @@ class AssetsBundle:
         return self.external_assets + response
 
     def get_native_module_data(self) -> dict:
-        """Return import map entries and module URLs for native ESM modules.
+        """Return import map and preload data for native ESM modules.
 
         Returns a dict with:
-        - ``import_map``: ``{specifier: url}`` entries for the import map
-        - ``module_urls``: list of URLs for ``<script type="module">`` tags
-        - ``preload_urls``: list of URLs for ``<link rel="modulepreload">``
-        - ``native_checksum``: SHA256 hex digest of all native module descriptors
-        - ``legacy_native_deps``: set of native specifiers that legacy modules
-          depend on (used to build a slim bridge — only these need registering
-          in ``odoo.loader.modules``)
+        - ``import_map``: ``{specifier: url}`` for the import map
+        - ``preload_urls``: URLs for ``<link rel="modulepreload">``
+        - ``bridge_import_map``: ``{specifier: data_uri}`` for
+          legacy modules that native modules import from
         """
         if not self.native_modules:
             return {
                 "import_map": {},
-                "module_urls": [],
                 "preload_urls": [],
-                "native_checksum": "",
-                "legacy_native_deps": set(),
+                "bridge_import_map": {},
             }
 
-        # Compute a version hash over all native modules for cache-busting.
-        # Individual files use their static URL (the import map can't use
-        # versioned paths since import specifiers are fixed), but the overall
-        # checksum is used to version the import map script tag itself.
-        h = hashlib.sha256()
         import_map = {}
-        module_urls = []
+        preload_urls = []
         native_specifiers = set()
         for asset in self.native_modules:
             spec = asset.module_path
-            url = asset.url
-            # Append ?v=<last_modified> for browser cache busting on
-            # individual native module files.  The import map resolves
-            # bare specifiers to these versioned URLs.
-            if asset.last_modified:
-                url = f"{url}?v={asset.last_modified}"
-            import_map[spec] = url
-            module_urls.append(url)
+            # Use bare URLs without ?v= cache-busting.  Native ESM modules
+            # are resolved by the browser's module system — relative imports
+            # (e.g. ``./error_dialogs.js``) resolve to bare URLs.  If the
+            # import map uses ``?v=`` but relatives don't, the browser treats
+            # them as different modules and evaluates the file TWICE, causing
+            # duplicate registry errors.  Cache invalidation for native
+            # modules relies on the import map script tag changing (which
+            # triggers a full page reload via bus.bus bundle_changed).
+            import_map[spec] = asset.url
+            preload_urls.append(asset.url)
             native_specifiers.add(spec)
-            h.update(asset.unique_descriptor.encode())
-        native_checksum = h.hexdigest()[:7]
 
-        # Determine which native modules are depended on by legacy modules.
-        # We parse their raw source (already cached by the is_native check)
-        # to extract import specifiers.  A simple regex on the raw source is
-        # sufficient because import statements follow a predictable syntax.
-        import re as re_mod
-        _import_re = re_mod.compile(r'''(?:from|import)\s+["'](@[^"']+)["']''')
-        legacy_native_deps = set()
-        for asset in self.javascripts:
-            if not asset.is_transpiled:
-                continue
-            # Use raw_content (pre-transpilation) where import statements are
-            for match in _import_re.finditer(asset.raw_content):
-                dep = match.group(1)
-                if dep in native_specifiers:
-                    legacy_native_deps.add(dep)
+            # Support ``@odoo-module native alias=@odoo/hoot`` — adds an
+            # extra import map entry so ``import ... from "@odoo/hoot"``
+            # resolves to this module's URL without transpilation.
+            alias = get_native_module_alias(asset.url, asset.raw_content)
+            if alias:
+                import_map[alias] = asset.url
+                native_specifiers.add(alias)
+
+        bridge_import_map = self._build_native_to_legacy_bridge(
+            native_specifiers,
+        )
 
         return {
             "import_map": import_map,
-            "module_urls": module_urls,
-            "preload_urls": module_urls,
-            "native_checksum": native_checksum,
-            "legacy_native_deps": legacy_native_deps,
+            "preload_urls": preload_urls,
+            "bridge_import_map": bridge_import_map,
         }
 
+    def esbuild_native_bundle(self) -> str:
+        """Bundle native ESM modules into a single minified file using esbuild.
+
+        Generates an entry point that re-exports all native modules as
+        namespaces, runs esbuild to bundle + minify, and returns the
+        output JS content.  The bundled file is a self-contained ES module
+        that awaits ``__legacyReady``, then registers all modules.
+
+        Requires esbuild (``npm install`` in the Odoo root).
+        """
+        if not self.native_modules:
+            return ""
+
+        odoo_root = Path(odoo.__path__[0]).parent
+        esbuild = shutil.which("esbuild") or shutil.which(
+            "esbuild",
+            path=str(odoo_root / "node_modules" / ".bin"),
+        )
+        if not esbuild:
+            msg = (
+                "esbuild is required for native ESM bundling. "
+                "Run 'npm install' in the Odoo root directory."
+            )
+            raise FileNotFoundError(msg)
+
+        entry_lines = []
+        register_entries = []
+        for i, asset in enumerate(self.native_modules):
+            spec = asset.module_path
+            # Skip lib/ modules — they're loaded individually via import
+            # map (as @odoo/* aliases or @addon/../lib/* specifiers).
+            # Including them here would bundle them inline AND the import
+            # map would load them again individually → double execution.
+            url_match = _URL_RE.match(asset.url)
+            if url_match and url_match["type"] == "lib":
+                continue
+            # Use the filesystem path so esbuild resolves it to the real
+            # file.  This ensures intra-bundle imports (via specifier alias)
+            # resolve to the SAME file and are deduplicated by esbuild.
+            if asset._filename:
+                import_path = "./" + os.path.relpath(asset._filename, odoo_root)
+            else:
+                import_path = "./" + f"addons{asset.url}"
+            entry_lines.append(f'import * as __m{i} from "{import_path}";')
+            register_entries.append(f"  {json_safe.dumps(spec)}: __m{i}")
+
+        bundle_name_js = json_safe.dumps(self.name)
+        entry_lines.extend([
+            f"console.log('[ESM] {self.name}: waiting for __legacyReady');",
+            "await odoo.__legacyReady;",
+            f"console.log('[ESM] {self.name}: __legacyReady resolved');",
+            "odoo.loader.registerNativeModules({",
+            ",\n".join(register_entries),
+            "});",
+            # Signal that native modules are registered.  The `load` event
+            # on <script type="module"> fires at the first `await`, before
+            # registerNativeModules() runs.  loadBundle() listens for this
+            # event to know when native modules are actually available.
+            f"(odoo.__nativeReady ??= {{}})["
+            f"{bundle_name_js}]?.();",
+        ])
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".js", dir=odoo_root, delete=False,
+        ) as tmp:
+            tmp.write("\n".join(entry_lines))
+            entry_path = tmp.name
+
+        # Build --alias flags from ALL addon paths so esbuild can
+        # resolve bare specifiers like @web/core/registry → addons/web/static/src/core/registry.
+        from odoo.addons import __path__ as _addon_paths
+        alias_flags = []
+        # Externalize @odoo/* — these are loaded individually via import
+        # map and deduplicated by the browser's module system across
+        # bundles.  This includes owl, hoot, hoot-dom, hoot-mock.
+        external_flags = ["--external:@odoo/*"]
+        # Map expanded alias paths back to original specifiers so that
+        # esbuild's externalized imports remain valid browser specifiers.
+        # esbuild expands @web/../tests/X → addons/web/static/src/../tests/X
+        # which Chrome rejects.  We post-process the output to restore
+        # the original @web/../tests/X form (resolved via import map).
+        external_rewrites: dict[str, str] = {}
+        seen_addons = set()
+        for addon_dir in _addon_paths:
+            addon_dir = Path(addon_dir)
+            if not addon_dir.is_dir():
+                continue
+            for entry in addon_dir.iterdir():
+                name = entry.name
+                if name in seen_addons:
+                    continue
+                seen_addons.add(name)
+                static_src = entry / "static" / "src"
+                if static_src.is_dir():
+                    rel = os.path.relpath(static_src, odoo_root)
+                    alias_flags.append(f"--alias:@{name}={rel}")
+                    # Record rewrite rules for post-processing esbuild
+                    # output (restoring specifiers from expanded paths).
+                    for subdir in ("tests", "lib"):
+                        if (entry / "static" / subdir).is_dir():
+                            expanded = f"{rel}/../{subdir}/"
+                            external_rewrites[expanded] = (
+                                f"@{name}/../{subdir}/"
+                            )
+
+        # No blanket externalization of tests/ or lib/ paths.
+        # esbuild resolves all imports to filesystem paths and deduplicates
+        # them: same-bundle modules that appear in both the entry point
+        # (via filesystem path) and in other modules (via specifier alias)
+        # resolve to the same file → bundled once.  Cross-bundle imports
+        # are bundled inline (acceptable duplication; the alternative —
+        # individual file loading — breaks because relative imports in
+        # native modules lack .js extensions).
+
+        try:
+            result = subprocess.run(
+                [
+                    esbuild, entry_path,
+                    "--bundle", "--format=esm", "--minify",
+                    "--target=es2022",
+                    "--log-level=error",
+                    *external_flags,
+                    *alias_flags,
+                ],
+                capture_output=True, text=True, timeout=30,
+                cwd=str(odoo_root), check=False,
+            )
+            if result.returncode != 0:
+                _logger.warning(
+                    "esbuild failed for bundle %r (exit %d), "
+                    "native modules will use individual files: %s",
+                    self.name, result.returncode,
+                    result.stderr[:300],
+                )
+                return ""
+
+            output = result.stdout
+            # Rewrite expanded alias paths back to original specifiers.
+            for expanded, original in external_rewrites.items():
+                output = output.replace(expanded, original)
+
+            _logger.info(
+                "esbuild bundled %d native modules (%d bytes)",
+                len(self.native_modules), len(output),
+            )
+            return output
+        except subprocess.TimeoutExpired:
+            msg = "esbuild timed out after 30s"
+            raise RuntimeError(msg)
+        finally:
+            Path(entry_path).unlink(missing_ok=True)
+
+    def _build_native_to_legacy_bridge(
+        self,
+        native_specifiers: set[str],
+    ) -> dict[str, str]:
+        """Build ``data:`` URI shims so native ESM modules can import legacy ones.
+
+        For each legacy specifier imported by a native module, generate a
+        tiny ES module that re-exports from ``odoo.loader.modules``.  The
+        shim uses ``await odoo.__legacyReady`` (resolved at the end of the
+        concatenated bundle) to ensure all ``define()`` calls have run.
+
+        Returns ``{specifier: data_uri}`` for the import map.
+        """
+        # Collect {legacy_specifier: {export_name, ...}} from all native modules
+        legacy_imports: dict[str, set[str]] = {}
+        ignored = native_specifiers | {"@odoo/owl"}
+
+        def _is_cross_bundle_native(spec: str) -> bool:
+            """Whether this specifier is a native module from another bundle.
+
+            Modules under ``static/tests/`` or ``static/lib/`` are always
+            native ESM — they must NOT get a bridge shim (which reads
+            from the legacy loader where they'll never be registered).
+            """
+            return "/../tests/" in spec or "/../lib/" in spec
+
+        for asset in self.native_modules:
+            src = asset.raw_content
+
+            for match in _RX_ESM_NAMED_IMPORT.finditer(src):
+                specifier = match.group(2)
+                if specifier in ignored or _is_cross_bundle_native(specifier):
+                    continue
+                names = {
+                    n.strip().split(" as ")[0].strip()
+                    for n in match.group(1).split(",")
+                    if n.strip()
+                }
+                legacy_imports.setdefault(specifier, set()).update(names)
+
+            for match in _RX_ESM_DEFAULT_IMPORT.finditer(src):
+                specifier = match.group(2)
+                if specifier in ignored or _is_cross_bundle_native(specifier):
+                    continue
+                legacy_imports.setdefault(specifier, set()).add("__default__")
+
+            for match in _RX_ESM_STAR_IMPORT.finditer(src):
+                specifier = match.group(1)
+                if specifier in ignored or _is_cross_bundle_native(specifier):
+                    continue
+                legacy_imports.setdefault(specifier, set()).add("__star__")
+
+        bridge_map = {}
+        for specifier, names in sorted(legacy_imports.items()):
+            lines = [
+                "await odoo.__legacyReady;",
+                f'const _m = odoo.loader.modules.get("{specifier}");',
+            ]
+            if "__star__" in names:
+                lines.append("export default _m;")
+            else:
+                if "__default__" in names:
+                    lines.append(
+                        'export default _m[Symbol.for("default")] ?? _m;'
+                    )
+                lines.extend(
+                    f"export const {name} = _m.{name};"
+                    for name in sorted(names - {"__default__", "__star__"})
+                )
+
+            shim_js = "\n".join(lines)
+            bridge_map[specifier] = f"data:text/javascript,{url_quote(shim_js)}"
+
+        return bridge_map
+
     def get_link(self, asset_type: str) -> str:
+        """Return the URL for a minified (or debug) asset of the given type ('js' or 'css')."""
         unique = self.get_version(asset_type) if not self.is_debug_assets else "debug"
         extension = asset_type if self.is_debug_assets else f"min.{asset_type}"
         return self.get_asset_url(unique=unique, extension=extension)
 
     def get_version(self, asset_type: str) -> str:
+        """Return the first 7 hex chars of the asset checksum, used as cache-busting version."""
         return self.get_checksum(asset_type)[0:7]
 
     def get_checksum(self, asset_type: str) -> str:
@@ -372,8 +608,8 @@ class AssetsBundle:
         """
         self.env.cr.execute(query, [SUPERUSER_ID, url_pattern])
 
-        attachment_id = [r[0] for r in self.env.cr.fetchall()]
-        if not attachment_id and not ignore_version:
+        attachment_ids = [r[0] for r in self.env.cr.fetchall()]
+        if not attachment_ids and not ignore_version:
             fallback_url_pattern = self.get_asset_url(
                 unique=unique,
                 extension=extension,
@@ -404,10 +640,10 @@ class AssetsBundle:
                 attachment = (
                     self.env["ir.attachment"].with_user(SUPERUSER_ID).create(values)
                 )
-                attachment_id = attachment.id
+                attachment_ids = [attachment.id]
                 self._clean_attachments(extension, url)
 
-        return self.env["ir.attachment"].sudo().browse(attachment_id)
+        return self.env["ir.attachment"].sudo().browse(attachment_ids)
 
     def save_attachment(self, extension: str, content: str) -> Any:
         """Record the given bundle in an ir.attachment and delete
@@ -483,6 +719,7 @@ class AssetsBundle:
         return attachment
 
     def js(self) -> Any:
+        """Return the ir.attachment for the JS bundle (minified or debug with sourcemap)."""
         is_minified = not self.is_debug_assets
         extension = "min.js" if is_minified else "js"
         js_attachment = self.get_attachments(extension)
@@ -510,6 +747,11 @@ class AssetsBundle:
                     asset.minify() for asset in self.javascripts
                 )
                 content_bundle += template_bundle
+                # Resolve __legacyReady AFTER all define() calls.
+                # Native ESM bridge shims `await odoo.__legacyReady` before
+                # accessing odoo.loader.modules.
+                if self.native_modules:
+                    content_bundle += "\nodoo.__legacyReady_resolve?.();"
                 js_attachment = self.save_attachment(extension, content_bundle)
             else:
                 js_attachment = self.js_with_sourcemap(template_bundle=template_bundle)
@@ -558,6 +800,10 @@ class AssetsBundle:
         if template_bundle:
             content_bundle += template_bundle
 
+        # Resolve __legacyReady after all define() calls (see js() method).
+        if self.native_modules:
+            content_bundle += "\nodoo.__legacyReady_resolve?.();"
+
         content_bundle += "\n\n//# sourceMappingURL=" + sourcemap_attachment.url
         js_attachment = self.save_attachment("js", content_bundle)
 
@@ -572,7 +818,7 @@ class AssetsBundle:
         try:
             blocks = self.xml()
         except XMLAssetError as e:
-            content.append(f"throw new Error({json.dumps(str(e))});")
+            content.append(f"throw new Error({json_safe.dumps(str(e))});")
 
         def get_template(element: etree._Element) -> str:
             element.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
@@ -607,7 +853,7 @@ class AssetsBundle:
         missing_names_for_primary = primary_parents - names
         if missing_names_for_primary:
             content.append(
-                f"checkPrimaryTemplateParents({json.dumps(list(missing_names_for_primary))});"
+                f"checkPrimaryTemplateParents({json_safe.dumps(list(missing_names_for_primary))});"
             )
         missing_names_for_extension = extension_parents - names
         if missing_names_for_extension:
@@ -684,6 +930,7 @@ class AssetsBundle:
         return blocks
 
     def css(self) -> Any:
+        """Return the ir.attachment(s) for the CSS bundle (minified or debug with sourcemap)."""
         is_minified = not self.is_debug_assets
         extension = "min.css" if is_minified else "css"
         attachments = self.get_attachments(extension)
@@ -832,21 +1079,20 @@ css_error_message {{
             # Sass moves @at-rules to the top for CSS 2.1 compatibility
             self.stylesheets.insert(0, StylesheetAsset(self, inline=at_rules))
         assets_by_id = {a.id: a for a in self.stylesheets}
-        while fragments:
-            asset_id = fragments.pop(0)
+        for asset_id, fragment_content in batched(fragments, 2, strict=True):
             asset = assets_by_id.get(asset_id)
             if asset is None:
                 raise RuntimeError(
                     f"CSS asset {asset_id!r} not found in stylesheets — "
                     "compiled output is out of sync with the asset list"
                 )
-            asset._content = fragments.pop(0)
+            asset._content = fragment_content
 
         return "\n".join(asset.minify() for asset in self.stylesheets)
 
     def compile_css(self, compiler: Any, source: str) -> str:
         """Sanitize @import rules, remove duplicates, then compile."""
-        seen_imports: list[str] = []
+        seen_imports: set[str] = set()
 
         def sanitize_import(matchobj: re.Match) -> str:
             ref = matchobj.group(2)
@@ -856,7 +1102,7 @@ css_error_message {{
                 and line not in seen_imports
                 and not ref.startswith((".", "/", "~"))
             ):
-                seen_imports.append(line)
+                seen_imports.add(line)
                 return line
             msg = (
                 f"Local import {ref!r} is forbidden for security reasons."
@@ -894,10 +1140,8 @@ css_error_message {{
         """Transform CSS for right-to-left languages using rtlcss."""
         rtlcss_bin = "rtlcss"
         if os.name == "nt":
-            try:
+            with suppress(OSError):
                 rtlcss_bin = misc.find_in_path("rtlcss.cmd")
-            except OSError:
-                pass
 
         cmd = [rtlcss_bin, "-c", file_path("base/data/rtlcss.json"), "-"]
 
@@ -947,13 +1191,6 @@ css_error_message {{
                 error += f"\n    - {asset.url or '<inline sass>'}"
         return error
 
-    def get_preprocessor_error(self, stderr: str, **_kw: Any) -> str:
-        """Deprecated: use ``_format_compiler_error``."""
-        return self._format_compiler_error(stderr)
-
-    def get_rtlcss_error(self, stderr: str, **_kw: Any) -> str:
-        """Deprecated: use ``_format_compiler_error``."""
-        return self._format_compiler_error(stderr)
 
 
 class WebAsset:
@@ -1065,7 +1302,7 @@ class JavascriptAsset(WebAsset):
 
     def generate_error(self, msg: str) -> str:
         msg = super().generate_error(msg)
-        return f"console.error({json.dumps(msg)});"
+        return f"console.error({json_safe.dumps(msg)});"
 
     @property
     def bundle_version(self) -> str:
@@ -1091,7 +1328,9 @@ class JavascriptAsset(WebAsset):
     @property
     def is_transpiled(self) -> bool:
         if self._is_transpiled is None:
-            self._is_transpiled = bool(is_odoo_module(self.url, self.raw_content))
+            self._is_transpiled = bool(
+                is_odoo_module(self.url, self.raw_content)
+            )
         return self._is_transpiled
 
     @property
@@ -1226,13 +1465,13 @@ class StylesheetAsset(WebAsset):
 
             if self.rx_import:
                 content = self.rx_import.sub(
-                    r"""@import \1%s/""" % (web_dir,),
+                    rf"@import \\1{web_dir}/",
                     content,
                 )
 
             if self.rx_url:
                 content = self.rx_url.sub(
-                    r"url(\1%s/" % (web_dir,),
+                    rf"url(\\1{web_dir}/",
                     content,
                 )
 

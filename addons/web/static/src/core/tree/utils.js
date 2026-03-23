@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/utils - Shared helpers for value disambiguation, ID checking, model resolution, and default paths */
 

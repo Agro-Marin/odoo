@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/display/progress_bar/kanban_progress_bar_field - Kanban-view variant of the progress bar field */
 

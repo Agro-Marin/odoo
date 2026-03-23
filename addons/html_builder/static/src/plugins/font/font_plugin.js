@@ -4,7 +4,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { Cache } from "@web/core/utils/collections/cache";
 import { loadCSS } from "@web/core/assets";
-import { BuilderFontSizeSelector } from "./font_size_selector";
+import { BuilderFontSizeSelector } from "./font_size_selector.js";
 import { withSequence } from "@html_editor/utils/resource";
 
 /**

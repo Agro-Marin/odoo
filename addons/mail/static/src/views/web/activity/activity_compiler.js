@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { createElement, extractAttributes } from "@web/core/utils/dom/xml";
 import { toInterpolatedStringExpression, ViewCompiler } from "@web/views/view_compiler";
 import { toStringExpression } from "@web/views/view_utils";

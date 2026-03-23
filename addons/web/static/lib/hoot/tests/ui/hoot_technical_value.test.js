@@ -1,12 +1,12 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { after, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, Deferred } from "@odoo/hoot-dom";
 import { Component, reactive, useState, xml } from "@odoo/owl";
-import { mountForTest, parseUrl } from "../local_helpers";
+import { mountForTest, parseUrl } from "../local_helpers.js";
 
-import { logger } from "../../core/logger";
-import { HootTechnicalValue } from "../../ui/hoot_technical_value";
+import { logger } from "../../core/logger.js";
+import { HootTechnicalValue } from "../../ui/hoot_technical_value.js";
 
 const mountTechnicalValue = async (defaultValue) => {
     const updateValue = async (value) => {

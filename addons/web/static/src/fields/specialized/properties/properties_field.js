@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/properties/properties_field - Dynamic property field editor with drag-and-drop reordering and inline definition */
 

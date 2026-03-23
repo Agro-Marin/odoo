@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/debug/debug_items - Debug menu items for running unit tests, opening views, and toggling technical data */
 

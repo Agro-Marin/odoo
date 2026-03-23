@@ -1,4 +1,4 @@
-/** @odoo-module **/
+/** @odoo-module */
 
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {

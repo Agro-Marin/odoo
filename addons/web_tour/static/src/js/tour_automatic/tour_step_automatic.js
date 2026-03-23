@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { tourState } from "@web_tour/js/tour_state";
 import * as hoot from "@odoo/hoot-dom";
 import { serializeChanges, serializeMutation } from "@web_tour/js/utils/tour_utils";

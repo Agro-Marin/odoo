@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/relational_model - Top-level data model orchestrating records, groups, and lists with ORM loading and onchange */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { DateSection } from "@mail/core/common/date_section";
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";

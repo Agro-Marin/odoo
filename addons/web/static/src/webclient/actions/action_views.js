@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/actions/action_views - View lookup and action display mode resolution for the action service */
 

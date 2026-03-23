@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { Component, xml } from "@odoo/owl";
 

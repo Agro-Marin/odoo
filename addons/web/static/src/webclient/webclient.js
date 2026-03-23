@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/webclient - Root OWL component bootstrapping the action manager, navbar, and main components container */
 

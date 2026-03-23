@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { attClassObjectToString } from "@mail/utils/common/format";
 import { useComponent, useState } from "@odoo/owl";

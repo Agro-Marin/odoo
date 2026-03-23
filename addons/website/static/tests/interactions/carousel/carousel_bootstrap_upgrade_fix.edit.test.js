@@ -2,6 +2,7 @@ import { startInteractions, setupInteractionWhiteList } from "@web/../tests/publ
 import { describe, expect, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
+import { Carousel } from "@web/libs/bootstrap";
 import { switchToEditMode } from "../../helpers";
 
 setupInteractionWhiteList("website.carousel_bootstrap_upgrade_fix");
@@ -47,7 +48,7 @@ test("[EDIT] carousel_bootstrap_upgrade_fix prevents ride", async () => {
     expect(core.interactions).toHaveLength(1);
     await switchToEditMode(core);
     const carouselEl = queryOne(".carousel");
-    const carouselBS = window.Carousel.getInstance(carouselEl);
+    const carouselBS = Carousel.getInstance(carouselEl);
     expect(carouselBS._config.ride).toBe(false);
     expect(carouselBS._config.pause).toBe(true);
 });

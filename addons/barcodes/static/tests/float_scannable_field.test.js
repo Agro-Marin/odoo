@@ -1,4 +1,4 @@
-/** @odoo-module **/
+/** @odoo-module native */
 
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";

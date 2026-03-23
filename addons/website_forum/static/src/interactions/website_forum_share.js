@@ -1,5 +1,6 @@
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Modal } from "@web/libs/bootstrap";
 
 export class WebsiteForumShare extends Interaction {
     static selector = ".website_forum";
@@ -17,7 +18,7 @@ export class WebsiteForumShare extends Interaction {
                 }, document.body, "beforeend", (els) => {
                     this.addListener(els[0], "hidden.bs.modal", () => els[0].remove());
                 });
-                const bsModal = window.Modal.getOrCreateInstance(document.querySelector("#oe_social_share_modal"));
+                const bsModal = Modal.getOrCreateInstance(document.querySelector("#oe_social_share_modal"));
                 bsModal.show();
                 this.registerCleanup(() => bsModal.dispose());
             }

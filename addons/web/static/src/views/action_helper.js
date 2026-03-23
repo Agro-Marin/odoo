@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/action_helper - Empty-state placeholder shown when a view has no records */
 

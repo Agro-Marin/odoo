@@ -2,6 +2,7 @@ import { htmlEscape, markup } from "@odoo/owl";
 
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Popover } from "@web/libs/bootstrap";
 
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
@@ -17,7 +18,7 @@ export class SlideLike extends Interaction {
      * @param {String} message
      */
     showAlert(message) {
-        const bsPopover = window.Popover.getOrCreateInstance(this.el, {
+        const bsPopover = Popover.getOrCreateInstance(this.el, {
             trigger: 'focus',
             delay: { 'hide': 300 },
             placement: 'bottom',

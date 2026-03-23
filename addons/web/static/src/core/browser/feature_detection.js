@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/browser/feature_detection - Browser and device capability checks (Chrome, mobile, touch, PWA) */
 

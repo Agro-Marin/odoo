@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/selection/badge_selection_with_filter/badge_selection_field_with_filter - Badge selection field filtered by an allowed-values field */
 

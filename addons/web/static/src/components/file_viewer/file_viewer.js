@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/file_viewer/file_viewer - Full-screen image, PDF, video, and text file preview with navigation controls */
 

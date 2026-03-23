@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/l10n/translation - Runtime i18n: _t() tagged-template translator with markup-safe interpolation */
 

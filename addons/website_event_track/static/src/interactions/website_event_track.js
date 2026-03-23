@@ -1,5 +1,6 @@
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+import { Popover } from "@web/libs/bootstrap";
 
 export class WebsiteEventTrack extends Interaction {
     static selector = ".o_wevent_event";
@@ -27,7 +28,7 @@ export class WebsiteEventTrack extends Interaction {
 
     setup() {
         this.el.querySelectorAll("[data-bs-toggle='popover']").forEach((el) => {
-            const bsPopover = window.Popover.getOrCreateInstance(el);
+            const bsPopover = Popover.getOrCreateInstance(el);
             this.registerCleanup(() => bsPopover.dispose());
         });
 

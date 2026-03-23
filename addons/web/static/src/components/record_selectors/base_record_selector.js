@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/record_selectors/base_record_selector - Base class for record selector components with display name loading infrastructure */
 

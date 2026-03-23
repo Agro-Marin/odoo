@@ -1,6 +1,6 @@
-/** @odoo-module */
+/** @odoo-module native */
 
-import { HootError, levenshtein, normalize, stringify, stringToNumber } from "../hoot_utils";
+import { HootError, levenshtein, normalize, stringify, stringToNumber } from "../hoot_utils.js";
 
 /**
  * @typedef {import("./job").Job} Job

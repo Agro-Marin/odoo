@@ -3,7 +3,7 @@ import { withSequence } from "@html_editor/utils/resource";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { markup } from "@odoo/owl";
-import { AnchorDialog } from "./anchor_dialog";
+import { AnchorDialog } from "./anchor_dialog.js";
 import { getElementsWithOption } from "@html_builder/utils/utils";
 
 const anchorSelector = ":not(p).oe_structure > *, :not(p)[data-oe-type=html] > *, .accordion-item";

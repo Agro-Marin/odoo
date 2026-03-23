@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/kanban_dropdown_menu_wrapper - Wrapper adding keyboard navigation classes and close-on-click to kanban dropdown menus */
 

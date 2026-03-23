@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/legacy/js/core/class - Legacy class inheritance system based on John Resig's simple JavaScript inheritance */
 

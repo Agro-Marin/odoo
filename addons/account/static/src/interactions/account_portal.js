@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { PortalHomeCounters } from '@portal/interactions/portal_home_counters';
 

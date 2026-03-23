@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_hook - Hooks for action links, record export, and record deletion in views */
 

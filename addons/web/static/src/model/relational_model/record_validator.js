@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/record_validator - Pure validation logic to find unset required fields in a record */
 

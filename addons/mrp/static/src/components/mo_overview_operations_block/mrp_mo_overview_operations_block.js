@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { useBus } from "@web/core/utils/hooks";
 import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";

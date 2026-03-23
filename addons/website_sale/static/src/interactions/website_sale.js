@@ -7,6 +7,7 @@ import { markup } from '@odoo/owl';
 import wSaleUtils from '@website_sale/js/website_sale_utils';
 import { ProductImageViewer } from '@website_sale/js/components/website_sale_image_viewer';
 import VariantMixin from '@website_sale/js/variant_mixin';
+import { Carousel, Collapse } from "@web/libs/bootstrap";
 
 export class WebsiteSale extends Interaction {
     static selector = '.oe_website_sale';
@@ -257,7 +258,7 @@ export class WebsiteSale extends Interaction {
                 .setAttribute('content', shareImageSrc);
 
             if (images.id === 'o-carousel-product') {
-                window.Carousel.getOrCreateInstance(images).to(0);
+                Carousel.getOrCreateInstance(images).to(0);
             }
             this._startZoom();
         }

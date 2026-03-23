@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/resequence - Reorders records by sequence field via drag-and-drop position changes */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { after, destroy, getFixture } from "@odoo/hoot";
 import { App, Component, xml } from "@odoo/owl";

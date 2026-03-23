@@ -1,6 +1,6 @@
-/** @odoo-module */
+/** @odoo-module native */
 
-import { isNil, stringToNumber } from "../hoot_utils";
+import { isNil, stringToNumber } from "../hoot_utils.js";
 
 //-----------------------------------------------------------------------------
 // Global

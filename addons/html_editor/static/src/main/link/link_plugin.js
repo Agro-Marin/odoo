@@ -3,9 +3,9 @@ import { unwrapContents } from "@html_editor/utils/dom";
 import { closestElement, descendants, selectElements } from "@html_editor/utils/dom_traversal";
 import { findInSelection, callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { _t } from "@web/core/l10n/translation";
-import { LinkPopover } from "./link_popover";
+import { LinkPopover } from "./link_popover.js";
 import { DIRECTIONS, leftPos, nodeSize, rightPos } from "@html_editor/utils/position";
-import { EMAIL_REGEX, URL_REGEX, cleanZWChars, deduceURLfromText } from "./utils";
+import { EMAIL_REGEX, URL_REGEX, cleanZWChars, deduceURLfromText } from "./utils.js";
 import {
     isElement,
     isProtected,

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { delay } from "@web/core/utils/concurrency";
 import { registry } from "@web/core/registry";

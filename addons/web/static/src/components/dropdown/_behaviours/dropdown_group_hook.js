@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/dropdown/_behaviours/dropdown_group_hook - Hook that registers a dropdown within a DropdownGroup and tracks group open state */
 

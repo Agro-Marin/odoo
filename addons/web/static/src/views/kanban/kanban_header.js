@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/kanban_header - Column header with group title, record count, progress bar, and fold/edit/delete cog menu */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
@@ -16,8 +16,8 @@ import {
     S_CIRCULAR,
     title,
     toExplicitString,
-} from "../hoot_utils";
-import { mountForTest, parseUrl } from "./local_helpers";
+} from "../hoot_utils.js";
+import { mountForTest, parseUrl } from "./local_helpers.js";
 
 const recursive = {};
 recursive.self = recursive;

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/density/density_service - Service managing content density (default/compact/condensed) via body CSS class toggles */
 

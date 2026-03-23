@@ -8,8 +8,8 @@ import {
     useDomState,
     useHasPreview,
 } from "../utils";
-import { BuilderComponent } from "./builder_component";
-import { SelectMany2X } from "./select_many2x";
+import { BuilderComponent } from "./builder_component.js";
+import { SelectMany2X } from "./select_many2x.js";
 import { useCachedModel } from "../cached_model_utils";
 
 export class BuilderMany2One extends Component {

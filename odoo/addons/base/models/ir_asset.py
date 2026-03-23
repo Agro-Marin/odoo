@@ -71,21 +71,11 @@ class IrAsset(models.Model):
     _order = "sequence, id"
     _allow_sudo_commands = False
 
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-        self.env.registry.clear_cache("assets")
-        return super().create(vals_list)
-
-    def write(self, vals: dict[str, Any]) -> bool:
-        if self:
-            self.env.registry.clear_cache("assets")
-        return super().write(vals)
-
-    def unlink(self) -> bool:
-        self.env.registry.clear_cache("assets")
-        return super().unlink()
-
     name = fields.Char(string="Name", required=True)
+    active = fields.Boolean(string="active", default=True)
+    sequence = fields.Integer(
+        string="Sequence", default=DEFAULT_SEQUENCE, required=True,
+    )
     bundle = fields.Char(string="Bundle name", required=True)
     directive = fields.Selection(
         string="Directive",
@@ -102,10 +92,20 @@ class IrAsset(models.Model):
     )
     path = fields.Char(string="Path (or glob pattern)", required=True)
     target = fields.Char(string="Target")
-    active = fields.Boolean(string="active", default=True)
-    sequence = fields.Integer(
-        string="Sequence", default=DEFAULT_SEQUENCE, required=True
-    )
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        self.env.registry.clear_cache("assets")
+        return super().create(vals_list)
+
+    def write(self, vals: dict[str, Any]) -> bool:
+        if self:
+            self.env.registry.clear_cache("assets")
+        return super().write(vals)
+
+    def unlink(self) -> bool:
+        self.env.registry.clear_cache("assets")
+        return super().unlink()
 
     def _get_asset_params(self) -> dict[str, Any]:
         """

@@ -1,6 +1,6 @@
 import { Component } from "@odoo/owl";
 import { basicContainerBuilderComponentProps } from "../utils";
-import { SelectMany2X } from "./select_many2x";
+import { SelectMany2X } from "./select_many2x.js";
 
 export class BasicMany2Many extends Component {
     static template = "html_builder.BasicMany2Many";

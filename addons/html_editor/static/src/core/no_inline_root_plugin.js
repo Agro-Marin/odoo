@@ -1,6 +1,6 @@
 import { getDeepestPosition, isParagraphRelatedElement } from "@html_editor/utils/dom_info";
 import { Plugin } from "../plugin";
-import { isNotAllowedContent } from "./selection_plugin";
+import { isNotAllowedContent } from "./selection_plugin.js";
 import { endPos, startPos } from "@html_editor/utils/position";
 import { childNodes } from "@html_editor/utils/dom_traversal";
 

@@ -1,5 +1,7 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
+
+import { Modal } from "@web/libs/bootstrap";
 
 /** @module @web/public/database_manager - DOM event handlers for the database manager page (eye toggle, modals, master password) */
 

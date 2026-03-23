@@ -6,7 +6,7 @@ import {
     useInputBuilderComponent,
     useInputDebouncedCommit,
 } from "../utils";
-import { BuilderComponent } from "./builder_component";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderRange extends Component {
     static template = "html_builder.BuilderRange";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, markup, whenReady, validate } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";

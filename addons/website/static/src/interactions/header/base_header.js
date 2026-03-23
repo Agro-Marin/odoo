@@ -1,3 +1,4 @@
+import { Collapse, Dropdown, Offcanvas } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 
 import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";

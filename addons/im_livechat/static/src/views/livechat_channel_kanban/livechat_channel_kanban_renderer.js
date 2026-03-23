@@ -1,5 +1,5 @@
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
-import { LivechatChannelKanbanRecord } from "./livechat_channel_kanban_record";
+import { LivechatChannelKanbanRecord } from "./livechat_channel_kanban_record.js";
 
 export class LivechatChannelKanbanRenderer extends KanbanRenderer {
     static components = {

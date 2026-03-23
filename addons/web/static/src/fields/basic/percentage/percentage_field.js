@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/basic/percentage/percentage_field - Numeric input field that displays and parses percentage values */
 

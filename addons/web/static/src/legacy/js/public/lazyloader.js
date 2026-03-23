@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/legacy/js/public/lazyloader - Lazy script loader that defers event handling until all JS bundles are loaded */
 
@@ -211,13 +211,26 @@ function _loadScripts(scripts, index) {
         return;
     }
     const script = scripts[index];
-    script.addEventListener(
-        "load",
-        _loadScripts.bind(this, scripts, index + 1),
-    );
-    script.setAttribute("defer", "defer"); // See LAZY_LOAD_DEFER
-    script.src = script.dataset.src;
-    script.removeAttribute("data-src");
+    const next = _loadScripts.bind(this, scripts, index + 1);
+    if (script.type === "module") {
+        // Module scripts need a fresh element — browsers ignore src
+        // changes on already-inserted <script type="module"> elements.
+        const mod = document.createElement("script");
+        mod.type = "module";
+        mod.src = script.dataset.src;
+        for (const attr of script.attributes) {
+            if (attr.name !== "data-src" && attr.name !== "type") {
+                mod.setAttribute(attr.name, attr.value);
+            }
+        }
+        mod.addEventListener("load", next);
+        script.replaceWith(mod);
+    } else {
+        script.addEventListener("load", next);
+        script.setAttribute("defer", "defer"); // See LAZY_LOAD_DEFER
+        script.src = script.dataset.src;
+        script.removeAttribute("data-src");
+    }
 }
 
 export default {

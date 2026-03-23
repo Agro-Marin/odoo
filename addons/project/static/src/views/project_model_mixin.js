@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Domain } from "@web/core/domain";
 
 export const ProjectModelMixin = (T) => class ProjectModelMixin extends T {

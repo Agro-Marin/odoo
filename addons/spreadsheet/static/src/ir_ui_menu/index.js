@@ -1,7 +1,7 @@
 import { registry } from "@web/core/registry";
 import * as spreadsheet from "@odoo/o-spreadsheet";
 
-import { IrMenuPlugin } from "./ir_ui_menu_plugin";
+import { IrMenuPlugin } from "./ir_ui_menu_plugin.js";
 
 import {
     isMarkdownIrMenuIdUrl,
@@ -10,7 +10,7 @@ import {
     parseIrMenuXmlUrl,
     parseViewLink,
     parseIrMenuIdLink,
-} from "./odoo_menu_link_cell";
+} from "./odoo_menu_link_cell.js";
 import { _t } from "@web/core/l10n/translation";
 import { navigateTo } from "../actions/helpers";
 

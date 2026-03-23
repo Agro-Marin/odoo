@@ -1,4 +1,4 @@
-import { BaseVerticalAlignmentOption } from "./base_vertical_alignment_option";
+import { BaseVerticalAlignmentOption } from "./base_vertical_alignment_option.js";
 
 export class VerticalAlignmentOption extends BaseVerticalAlignmentOption {
     static selector =

@@ -1,6 +1,6 @@
 import { Plugin } from "@html_editor/plugin";
 import { Cache } from "@web/core/utils/collections/cache";
-import { ModelEdit } from "./cached_model_utils";
+import { ModelEdit } from "./cached_model_utils.js";
 
 /**
  * @typedef { Object } CachedModelShared

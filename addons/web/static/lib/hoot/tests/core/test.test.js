@@ -1,10 +1,10 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { parseUrl } from "../local_helpers";
+import { parseUrl } from "../local_helpers.js";
 
-import { Suite } from "../../core/suite";
-import { Test } from "../../core/test";
+import { Suite } from "../../core/suite.js";
+import { Test } from "../../core/test.js";
 
 function disableHighlighting() {
     if (!window.Prism) {

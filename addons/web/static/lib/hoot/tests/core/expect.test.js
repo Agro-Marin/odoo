@@ -1,12 +1,12 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { describe, expect, makeExpect, test } from "@odoo/hoot";
 import { check, manuallyDispatchProgrammaticEvent, tick, waitFor } from "@odoo/hoot-dom";
 import { Component, xml } from "@odoo/owl";
-import { mountForTest, parseUrl } from "../local_helpers";
+import { mountForTest, parseUrl } from "../local_helpers.js";
 
-import { Test } from "../../core/test";
-import { makeLabel } from "../../hoot_utils";
+import { Test } from "../../core/test.js";
+import { makeLabel } from "../../hoot_utils.js";
 
 describe(parseUrl(import.meta.url), () => {
     test("makeExpect passing, without a test", () => {

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/many2one/many2one_field - Standard Many2one field with autocomplete, create, and open actions */
 

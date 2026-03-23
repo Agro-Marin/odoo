@@ -3,6 +3,7 @@ import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network/rpc";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Tooltip } from "@web/libs/bootstrap";
 
 class WebsiteLinksCodeEditor extends Interaction {
     static selector = "#wrapwrap";
@@ -33,7 +34,7 @@ class WebsiteLinksCodeEditor extends Interaction {
 
     onCopyToClipboardClick(event) {
         const copyButtonEl = event.currentTarget;
-        const tooltip = window.Tooltip.getOrCreateInstance(copyButtonEl, {
+        const tooltip = Tooltip.getOrCreateInstance(copyButtonEl, {
             title: _t("Link Copied!"),
             trigger: "manual",
             placement: "right",

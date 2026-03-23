@@ -278,8 +278,6 @@ debug: "<t t-out="debug" />",
                     }
                 </script>
                 <t t-call-assets="web.assets_web_print" media="print" t-js="false" />
-                <t t-call-assets="web.assets_web" t-css="false" />
-
                 <t t-if="color_scheme == 'dark'">
                     <t t-call-assets="web.assets_web_dark" media="screen" t-js="false" />
                 </t>
@@ -290,6 +288,7 @@ debug: "<t t-out="debug" />",
                 <t t-else="">
                     <t t-call-assets="web.assets_web" media="screen" t-js="false" />
                 </t>
+                <t t-call-assets="web.assets_web" t-css="false" />
                 <t t-call="web.conditional_assets_tests" media="screen" />
             </t>
             <t t-set="head" t-value="head_web + (head or '')" />

@@ -1,13 +1,13 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { Component, useState, xml } from "@odoo/owl";
-import { CONFIG_KEYS } from "../core/config";
-import { LOG_LEVELS } from "../core/logger";
-import { refresh } from "../core/url";
-import { CASE_EVENT_TYPES, strictEqual } from "../hoot_utils";
-import { generateSeed, internalRandom } from "../mock/math";
-import { toggleColorScheme, useColorScheme } from "./hoot_colors";
-import { HootCopyButton } from "./hoot_copy_button";
+import { CONFIG_KEYS } from "../core/config.js";
+import { LOG_LEVELS } from "../core/logger.js";
+import { refresh } from "../core/url.js";
+import { CASE_EVENT_TYPES, strictEqual } from "../hoot_utils.js";
+import { generateSeed, internalRandom } from "../mock/math.js";
+import { toggleColorScheme, useColorScheme } from "./hoot_colors.js";
+import { HootCopyButton } from "./hoot_copy_button.js";
 
 /**
  * @typedef {"dark" | "light"} ColorScheme

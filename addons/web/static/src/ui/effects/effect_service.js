@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/effects/effect_service - Service that triggers visual effects (rainbow man) via the effects registry */
 

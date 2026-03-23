@@ -5,6 +5,7 @@ import { unremovableNodePredicates as deletePluginPredicates } from "@html_edito
 import { isUnremovableQWebElement as qwebPluginPredicate } from "@html_editor/others/qweb_plugin";
 import { isEditable } from "@html_builder/utils/utils";
 import { closestElement } from "@html_editor/utils/dom_traversal";
+import { Tooltip } from "@web/libs/bootstrap";
 
 /** @typedef {import("plugins").CSSSelector} CSSSelector */
 

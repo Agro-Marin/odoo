@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/graph/graph_chart_config - Pure chart configuration building extracted from GraphRenderer */
 

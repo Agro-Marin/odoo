@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/main_components_container - Renders all dynamically registered main_components from the registry */
 

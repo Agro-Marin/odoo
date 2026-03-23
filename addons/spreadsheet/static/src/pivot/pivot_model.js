@@ -6,7 +6,7 @@ import { PivotModel } from "@web/views/pivot/pivot_model";
 import { getLeafCounts } from "@web/views/pivot/pivot_group_tree";
 
 import { helpers, constants, EvaluationError, SpreadsheetPivotTable } from "@odoo/o-spreadsheet";
-import { parseGroupField } from "./pivot_helpers";
+import { parseGroupField } from "./pivot_helpers.js";
 
 const { toNormalizedPivotValue, toNumber, isDateOrDatetimeField, pivotTimeAdapter, deepEquals } =
     helpers;

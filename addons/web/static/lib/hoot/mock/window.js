@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { EventBus } from "@odoo/owl";
 import { getCurrentDimensions, getDocument, getWindow } from "@web/../lib/hoot-dom/helpers/dom";
@@ -10,9 +10,9 @@ import {
     mockedSetInterval,
     mockedSetTimeout,
 } from "@web/../lib/hoot-dom/helpers/time";
-import { interactor } from "../../hoot-dom/hoot_dom_utils";
-import { MockEventTarget, strictEqual, waitForDocument } from "../hoot_utils";
-import { ensureTest, getRunner } from "../main_runner";
+import { interactor } from "../../hoot-dom/hoot_dom_utils.js";
+import { MockEventTarget, strictEqual, waitForDocument } from "../hoot_utils.js";
+import { ensureTest, getRunner } from "../main_runner.js";
 import {
     MockAnimation,
     mockedAnimate,
@@ -23,11 +23,11 @@ import {
     mockedWindowScroll,
     mockedWindowScrollBy,
     mockedWindowScrollTo,
-} from "./animation";
-import { MockConsole } from "./console";
-import { mockCrypto } from "./crypto";
-import { MockDate, MockIntl } from "./date";
-import { MockClipboardItem, mockNavigator } from "./navigator";
+} from "./animation.js";
+import { MockConsole } from "./console.js";
+import { mockCrypto } from "./crypto.js";
+import { MockDate, MockIntl } from "./date.js";
+import { MockClipboardItem, mockNavigator } from "./navigator.js";
 import {
     MockBlob,
     MockBroadcastChannel,
@@ -45,9 +45,9 @@ import {
     mockHistory,
     mockLocation,
     mockedFetch,
-} from "./network";
-import { MockNotification } from "./notification";
-import { MockStorage } from "./storage";
+} from "./network.js";
+import { MockNotification } from "./notification.js";
+import { MockStorage } from "./storage.js";
 
 //-----------------------------------------------------------------------------
 // Global

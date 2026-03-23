@@ -414,7 +414,7 @@ export class PosOrderline extends PosOrderlineAccounting {
             (dp) => dp.name === "Product Price",
         );
         const parsed_price = !isNaN(price)
-            ? Number(price)
+            ? price
             : isNaN(parseFloat(price))
               ? 0
               : parseFloat("" + price);

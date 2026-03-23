@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/browser/cookie - Read, write, and delete browser cookies via document.cookie */
 

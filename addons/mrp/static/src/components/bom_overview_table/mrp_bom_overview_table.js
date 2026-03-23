@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { formatFloat, formatMonetary } from "@web/fields/formatters";
 import { useService } from "@web/core/utils/hooks";
 import { BomOverviewLine } from "../bom_overview_line/mrp_bom_overview_line.js";

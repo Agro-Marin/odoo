@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 /**
  * Registry of functions to sort threads in messaging menu.
  * The expected value is a function with the following

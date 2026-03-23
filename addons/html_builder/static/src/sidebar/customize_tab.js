@@ -1,5 +1,5 @@
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
-import { OptionsContainer } from "./option_container";
+import { OptionsContainer } from "./option_container.js";
 import { useVisibilityObserver } from "../core/utils";
 import { CustomizeComponent } from "@html_builder/sidebar/customize_component";
 

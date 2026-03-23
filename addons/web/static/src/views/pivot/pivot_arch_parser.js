@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/pivot/pivot_arch_parser - Parses pivot view XML arch into measures, row/column groupBy, and display flags */
 

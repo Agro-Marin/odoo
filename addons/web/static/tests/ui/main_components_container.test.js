@@ -41,8 +41,8 @@ test("simple rendering", async () => {
     expect(".o-main-components-container").toHaveInnerHTML(`
         <span>MainComponentA</span>
         <span>MainComponentB</span>
-        <div></div>
         <div class="o-overlay-container"></div>
+        <div></div>
         <div class="o_notification_manager"></div>
     `);
 });
@@ -84,8 +84,8 @@ test("unmounts erroring main component", async () => {
     expect("div.o-main-components-container").toHaveCount(1);
     expect(".o-main-components-container").toHaveInnerHTML(`
         <span>MainComponentA</span><span>MainComponentB</span>
-        <div></div>
         <div class="o-overlay-container"></div>
+        <div></div>
         <div class="o_notification_manager"></div>
     `);
     compA.state.shouldThrow = true;
@@ -137,8 +137,8 @@ test("unmounts erroring main component: variation", async () => {
     expect("div.o-main-components-container").toHaveCount(1);
     expect(".o-main-components-container").toHaveInnerHTML(`
         <span>MainComponentA</span><span>MainComponentB</span>
-        <div></div>
         <div class="o-overlay-container"></div>
+        <div></div>
         <div class="o_notification_manager"></div>
     `);
     compB.state.shouldThrow = true;

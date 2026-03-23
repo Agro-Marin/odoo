@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/selection/priority/priority_field - Star rating field for priority Selection columns */
 

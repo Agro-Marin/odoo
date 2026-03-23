@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /**
  * Command palette provider that offers debug mode toggle commands.

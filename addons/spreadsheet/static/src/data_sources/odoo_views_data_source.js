@@ -1,6 +1,6 @@
 // @ts-check
 
-import { LOADING_ERROR, LoadableDataSource, getFields } from "./data_source";
+import { LOADING_ERROR, LoadableDataSource, getFields } from "./data_source.js";
 import { Domain } from "@web/core/domain";
 import { user } from "@web/services/user";
 import { omit } from "@web/core/utils/collections/objects";

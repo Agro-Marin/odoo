@@ -1,5 +1,5 @@
 import { useState } from "@odoo/owl";
-import { ChatGPTDialog } from "./chatgpt_dialog";
+import { ChatGPTDialog } from "./chatgpt_dialog.js";
 
 export class ChatGPTTranslateDialog extends ChatGPTDialog {
     static template = "html_editor.ChatGPTTranslateDialog";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_compiler - Base view compiler: transforms XML arch nodes into OWL template elements with attribute and slot helpers */
 

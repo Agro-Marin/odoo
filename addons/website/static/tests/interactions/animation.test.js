@@ -3,6 +3,7 @@ import { setupInteractionWhiteList, startInteractions } from "@web/../tests/publ
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, queryOne, scroll } from "@odoo/hoot-dom";
 import { enableTransitions } from "@odoo/hoot-mock";
+import { Modal } from "@web/libs/bootstrap";
 
 setupInteractionWhiteList("website.animation");
 beforeEach(enableTransitions);
@@ -80,7 +81,7 @@ test("onAppearance animation in modal starts once visible", async () => {
     `);
     expect(core.interactions).toHaveLength(1);
     expect(".o_animate").not.toHaveClass("o_animating");
-    window.Modal.getOrCreateInstance(queryOne(".modal")).show();
+    Modal.getOrCreateInstance(queryOne(".modal")).show();
     await animationFrame();
     expect(".o_animate").toHaveClass("o_animating");
 });

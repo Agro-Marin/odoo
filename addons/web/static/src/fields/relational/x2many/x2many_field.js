@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/x2many/x2many_field - Full-featured x2many field with embedded list/kanban sub-views and CRUD controls */
 

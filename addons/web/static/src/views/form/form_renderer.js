@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/form/form_renderer - Compiles form arch into an OWL template and manages autofocus, sticky statusbar, and field ID uniqueness */
 

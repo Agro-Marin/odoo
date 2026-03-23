@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { CallPreview } from "@mail/discuss/call/common/call_preview";
 import { Component, useState, useSubEnv } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

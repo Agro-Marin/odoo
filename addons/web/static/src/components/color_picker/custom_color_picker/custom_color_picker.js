@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/color_picker/custom_color_picker/custom_color_picker - HSL/RGB color picker with canvas gradient, sliders, and hex input */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { ListRenderer } from "@web/views/list/list_renderer";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";

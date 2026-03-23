@@ -8,8 +8,8 @@ import { useDragAndDrop } from "@html_editor/utils/drag_and_drop";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
 import { useSnippets } from "@html_builder/snippets/snippet_service";
 import { scrollTo } from "@html_builder/utils/scrolling";
-import { Snippet } from "./snippet";
-import { CustomInnerSnippet } from "./custom_inner_snippet";
+import { Snippet } from "./snippet.js";
+import { CustomInnerSnippet } from "./custom_inner_snippet.js";
 
 /**
  * @typedef {import("@html_builder/core/drag_and_drop_plugin").DragState} DragState

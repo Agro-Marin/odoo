@@ -5,7 +5,7 @@ import {
     useActionInfo,
     useSelectableItemComponent,
 } from "../utils";
-import { BuilderComponent } from "./builder_component";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderSelectItem extends Component {
     static template = "html_builder.BuilderSelectItem";

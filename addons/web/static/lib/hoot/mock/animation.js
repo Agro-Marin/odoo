@@ -1,8 +1,8 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { on } from "@odoo/hoot-dom";
-import { MockEventTarget } from "../hoot_utils";
-import { ensureTest } from "../main_runner";
+import { MockEventTarget } from "../hoot_utils.js";
+import { ensureTest } from "../main_runner.js";
 
 //-----------------------------------------------------------------------------
 // Global

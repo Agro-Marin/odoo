@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/widgets/widget - Generic widget component resolving view_widgets registry entries with props extraction and validation */
 

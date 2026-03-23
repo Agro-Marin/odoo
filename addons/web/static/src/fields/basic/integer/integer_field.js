@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/basic/integer/integer_field - Numeric input field for Integer columns with locale-aware formatting */
 

@@ -1,3 +1,4 @@
+import { Tab } from "@web/libs/bootstrap";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
@@ -41,7 +42,7 @@ class NavTabsOptionPlugin extends Plugin {
     }
 
     showTab(navLinkEl, paneEl) {
-        this.window.Tab.getOrCreateInstance(navLinkEl).show();
+        Tab.getOrCreateInstance(navLinkEl).show();
         // Immediately show the pane so the history remains consistent.
         paneEl.classList.add("show");
     }

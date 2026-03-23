@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 export function dataUrlToBlob(data, type) {

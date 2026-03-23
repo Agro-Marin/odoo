@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/errors/uncaught_errors - Base classes for uncaught errors intercepted by the error service */
 

@@ -1,4 +1,4 @@
-import { isProtected, isProtecting, isUnprotecting } from "./utils/dom_info";
+import { isProtected, isProtecting, isUnprotecting } from "./utils/dom_info.js";
 
 export const isValidTargetForDomListener = (target) =>
     !isProtecting(target) && (!isProtected(target) || isUnprotecting(target));

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/widgets/ribbon/ribbon - Decorative ribbon on the top-right corner of a form view with configurable label and color */
 

@@ -1,14 +1,14 @@
-import { isBlock } from "./blocks";
-import { CTGROUPS, CTYPES, ctypeToString } from "./content_types";
-import { isInPre, isVisible, isWhitespace, whitespace } from "./dom_info";
+import { isBlock } from "./blocks.js";
+import { CTGROUPS, CTYPES, ctypeToString } from "./content_types.js";
+import { isInPre, isVisible, isWhitespace, whitespace } from "./dom_info.js";
 import {
     PATH_END_REASONS,
     ancestors,
     closestElement,
     closestPath,
     createDOMPathGenerator,
-} from "./dom_traversal";
-import { DIRECTIONS, leftPos, rightPos } from "./position";
+} from "./dom_traversal.js";
+import { DIRECTIONS, leftPos, rightPos } from "./position.js";
 
 const prepareUpdateLockedEditables = new Set();
 /**

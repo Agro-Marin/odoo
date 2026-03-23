@@ -1,7 +1,7 @@
-/** @odoo-module */
+/** @odoo-module native */
 
-import { getTag, isFirefox, isInstanceOf, isIterable, parseRegExp } from "../hoot_dom_utils";
-import { waitUntil } from "./time";
+import { getTag, isFirefox, isInstanceOf, isIterable, parseRegExp } from "../hoot_dom_utils.js";
+import { waitUntil } from "./time.js";
 
 /**
  * @typedef {number | [number, number] | {

@@ -3772,6 +3772,65 @@ class IrQweb(models.AbstractModel):
         if not native_data["import_map"]:
             return [], []
 
+        bridge_specifiers = sorted(native_data["import_map"])
+
+        # ── Production: esbuild bundling ──
+        # Single minified <script type="module"> replaces 600+ individual
+        # files + import map + modulepreload hints + bridge script.
+        if not debug_assets:
+            asset_bundle = self._get_asset_bundle(
+                bundle, js=True, css=False, debug_assets=False,
+                assets_params=assets_params,
+            )
+            esbuild_code = asset_bundle.esbuild_native_bundle()
+            if esbuild_code:
+                pre = []
+                post = []
+                # OWL pre-load (esbuild externalizes @odoo/owl)
+                pre.append(("script", {"src": self._OWL_LIB_URL}))
+                # Import map: only externalized specifiers need entries.
+                # esbuild bundles all native modules inline EXCEPT @odoo/*
+                # imports (owl, hoot, hoot-mock, hoot-dom).  Bundled modules
+                # must NOT appear in the import map — otherwise cross-bundle
+                # imports resolve to individual files, creating a SECOND
+                # module instance (e.g., customElements.define() called twice).
+                # Import map: @odoo/owl + all native module specifiers.
+                # lib/ modules are loaded individually (not bundled by
+                # esbuild) and need import map entries for the browser.
+                # src/ and tests/ modules are bundled inline — their
+                # import map entries are harmless (no cross-bundle code
+                # references them by specifier in production mode).
+                esm_import_map = {"@odoo/owl": self._OWL_ESM_URL}
+                esm_import_map.update(native_data["import_map"])
+                bridge_map = native_data.get("bridge_import_map", {})
+                esm_import_map.update(bridge_map)
+                pre.append(("script", {
+                    "type": "importmap",
+                    "data-bundle": bundle,
+                    "text": json_mod.dumps(
+                        {"imports": esm_import_map},
+                    ),
+                }))
+                # Native module names (suppress "missing dep" errors)
+                names_js = (
+                    "((globalThis.odoo ??= {}).__native_module_names__ ??= [])"
+                    ".push("
+                    + ",".join(json_mod.dumps(s) for s in bridge_specifiers)
+                    + ");"
+                )
+                pre.append(("script", {"text": names_js}))
+                # Bundled bridge module — save as ir.attachment for caching
+                esm_url = self._save_esm_attachment(
+                    bundle, esbuild_code, asset_bundle,
+                )
+                post.append(("script", {
+                    "type": "module",
+                    "src": esm_url,
+                    "data-bridge": bundle,
+                }))
+                return pre, post
+
+        # ── Debug mode: individual files + import map ──
         pre_nodes = []
         post_nodes = []
         import_map = dict(native_data["import_map"])
@@ -3843,6 +3902,51 @@ class IrQweb(models.AbstractModel):
             }))
 
         return pre_nodes, post_nodes
+
+    def _save_esm_attachment(
+        self,
+        bundle: str,
+        content: str,
+        asset_bundle,
+    ) -> str:
+        """Save esbuild output as an ir.attachment, return its URL.
+
+        Uses the JS checksum for versioning.  The attachment is served
+        by Odoo's static asset handler with proper cache headers.
+        """
+        IrAttachment = self.env["ir.attachment"]
+        version = asset_bundle.get_version("js")
+        url = f"/web/assets/{version}/{bundle}.esm.js"
+
+        # Check if attachment already exists
+        existing = IrAttachment.sudo().search(
+            [("url", "=", url), ("public", "=", True)], limit=1,
+        )
+        if existing:
+            return url
+
+        from odoo import SUPERUSER_ID
+        IrAttachment.with_user(SUPERUSER_ID).create({
+            "name": f"{bundle}.esm.js",
+            "mimetype": "text/javascript",
+            "res_model": "ir.ui.view",
+            "res_id": False,
+            "type": "binary",
+            "public": True,
+            "raw": content.encode("utf-8"),
+            "url": url,
+        })
+        # Clean old versions
+        stale = IrAttachment.sudo().search([
+            ("url", "=like", f"/web/assets/%/{bundle}.esm.js"),
+            ("url", "!=", url),
+            ("public", "=", True),
+        ])
+        if stale:
+            stale.unlink()
+            _logger.info("Deleted %d stale esm.js attachments", len(stale))
+        _logger.info("Saved esbuild attachment %s", url)
+        return url
 
     def _get_asset_link_urls(self, bundle: str, debug: str | bool = False) -> list[str]:
         asset_nodes = self._get_asset_nodes(bundle, js=False, debug=debug)

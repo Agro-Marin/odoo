@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/dom/classname - Helpers to add, merge, and toggle CSS classes from strings or objects */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { registerMessageAction } from "@mail/core/common/message_actions";
 import { getNonEditableMentions, parseEmail } from "@mail/utils/common/format";
 import { _t } from "@web/core/l10n/translation";

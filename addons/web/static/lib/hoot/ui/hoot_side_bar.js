@@ -1,10 +1,10 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { Component, onWillRender, useEffect, useRef, useState, xml } from "@odoo/owl";
-import { Suite } from "../core/suite";
-import { createUrlFromId } from "../core/url";
-import { lookup, parseQuery } from "../hoot_utils";
-import { HootJobButtons } from "./hoot_job_buttons";
+import { Suite } from "../core/suite.js";
+import { createUrlFromId } from "../core/url.js";
+import { lookup, parseQuery } from "../hoot_utils.js";
+import { HootJobButtons } from "./hoot_job_buttons.js";
 
 /**
  * @typedef {{

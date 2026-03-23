@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useDiscussSystray } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";

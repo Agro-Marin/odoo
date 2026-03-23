@@ -6,7 +6,7 @@ import { closest, touching } from "@web/core/utils/dom/ui";
 import { clamp } from "@web/core/utils/format/numbers";
 import { rowSize } from "@html_builder/utils/grid_layout_utils";
 import { isEditable, isVisible } from "@html_builder/utils/utils";
-import { DragAndDropMoveHandle } from "./drag_and_drop_move_handle";
+import { DragAndDropMoveHandle } from "./drag_and_drop_move_handle.js";
 
 /**
  * @typedef {{

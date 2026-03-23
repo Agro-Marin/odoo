@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/py_js/py_interpreter - AST-walking interpreter for Python expressions used in domains and QWeb */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { FileUploadKanbanController } from "../file_upload_kanban/file_upload_kanban_controller.js";
 import { AccountFileUploader } from "@account/components/account_file_uploader/account_file_uploader";
 

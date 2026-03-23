@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/switch_company_menu/switch_company_item - Single company row in the switch-company dropdown with toggle and log-into actions */
 

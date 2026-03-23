@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import {
     CALL_ICON_DEAFEN,

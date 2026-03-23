@@ -1,2 +1,2 @@
-/** @odoo-module */
+/** @odoo-module native */
 export * from "@mail/model/export";

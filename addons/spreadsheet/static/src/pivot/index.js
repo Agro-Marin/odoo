@@ -2,10 +2,10 @@ import { _t } from "@web/core/l10n/translation";
 
 import * as spreadsheet from "@odoo/o-spreadsheet";
 
-import { SEE_RECORDS_PIVOT, SEE_RECORDS_PIVOT_VISIBLE } from "./pivot_actions";
-import { PivotOdooCorePlugin } from "./plugins/pivot_odoo_core_plugin";
-import { PivotCoreViewGlobalFilterPlugin } from "./plugins/pivot_core_view_global_filter_plugin";
-import { PivotUIGlobalFilterPlugin } from "./plugins/pivot_ui_global_filter_plugin";
+import { SEE_RECORDS_PIVOT, SEE_RECORDS_PIVOT_VISIBLE } from "./pivot_actions.js";
+import { PivotOdooCorePlugin } from "./plugins/pivot_odoo_core_plugin.js";
+import { PivotCoreViewGlobalFilterPlugin } from "./plugins/pivot_core_view_global_filter_plugin.js";
+import { PivotUIGlobalFilterPlugin } from "./plugins/pivot_ui_global_filter_plugin.js";
 // Import odoo_pivot to trigger the pivotRegistry.add("ODOO", ...) side effect,
 // required before PivotUIPlugin.setupPivot() looks up the "ODOO" pivot type.
 import "./odoo_pivot";

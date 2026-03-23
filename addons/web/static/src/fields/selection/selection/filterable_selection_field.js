@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/selection/selection/filterable_selection_field - Selection dropdown field with whitelist/blacklist value filtering */
 

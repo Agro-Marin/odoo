@@ -1,9 +1,9 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/list/list_aggregates - Hook computing column aggregates and multi-currency popovers for the list view */
 
-/** @odoo-module */
+/** @odoo-module native */
 
 import { onWillStart, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";

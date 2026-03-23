@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/list/list_confirmation_dialog - Confirmation dialog for multi-record bulk edits showing affected records and changed values */
 

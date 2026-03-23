@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/search_bar/search_bar - Search bar with autocomplete suggestions, facet display, and keyboard navigation */
 

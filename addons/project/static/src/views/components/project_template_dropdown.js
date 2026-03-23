@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { Dropdown } from "@web/components/dropdown/dropdown";

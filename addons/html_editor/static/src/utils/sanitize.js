@@ -1,5 +1,5 @@
-import { containsAnyInline } from "./dom_info";
-import { wrapInlinesInBlocks } from "./dom";
+import { containsAnyInline } from "./dom_info.js";
+import { wrapInlinesInBlocks } from "./dom.js";
 import { markup } from "@odoo/owl";
 import { htmlReplace } from "@web/core/utils/dom/html";
 

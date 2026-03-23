@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/dnd/draggable_hook_builder - Factory for configurable drag-and-drop OWL hooks with touch and scroll support */
 

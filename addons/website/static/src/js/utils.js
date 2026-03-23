@@ -1,3 +1,4 @@
+import { Modal } from "@web/libs/bootstrap";
 import { intersection } from "@web/core/utils/collections/arrays";
 import { _t, appTranslateFn } from "@web/core/l10n/translation";
 import { renderToElement } from "@web/core/utils/render";
@@ -186,7 +187,7 @@ function prompt(options, _qweb) {
             if (fill) {
                 field.fillWith(fill);
             }
-            const bsModal = window.Modal.getOrCreateInstance(dialog);
+            const bsModal = Modal.getOrCreateInstance(dialog);
             bsModal.show();
             field.focus();
             dialog.addEventListener("click", function (e) {

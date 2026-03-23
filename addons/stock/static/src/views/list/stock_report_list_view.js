@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { listView } from '@web/views/list/list_view';
 import { registry } from "@web/core/registry";
 import { StockReportSearchModel } from "../search/stock_report_search_model.js";

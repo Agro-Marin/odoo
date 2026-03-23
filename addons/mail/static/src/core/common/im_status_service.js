@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 export const AWAY_DELAY = 30 * 60 * 1000; // 30 minutes

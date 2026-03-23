@@ -7,7 +7,7 @@ import {
     useDependencyDefinition,
     useDomState,
 } from "../utils";
-import { BuilderComponent } from "./builder_component";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderCheckbox extends Component {
     static template = "html_builder.BuilderCheckbox";

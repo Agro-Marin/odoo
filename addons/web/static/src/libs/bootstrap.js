@@ -1,26 +1,41 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /**
- * The bootstrap library extensions and fixes should be done here to avoid
- * patching in place.
- */
-
-/**
- * Review Bootstrap Sanitization: leave it enabled by default but extend it to
- * accept more common tag names like tables and buttons, and common attributes
- * such as style or data-. If a specific tooltip or popover must accept custom
- * tags or attributes, they must be supplied through the whitelist BS
- * parameter explicitely.
+ * Bootstrap library ESM imports and Odoo-specific patches.
  *
- * We cannot disable sanitization because bootstrap uses tooltip/popover
- * DOM attributes in an "unsafe" way.
+ * This module is the single entry point for Bootstrap JS components.
+ * It imports from Bootstrap's native ESM source (js/esm/) instead of
+ * the UMD dist files, making Bootstrap a proper ES module dependency
+ * that esbuild can bundle.
+ *
+ * All Odoo-specific patches to Bootstrap behavior are applied here
+ * to avoid modifying the library source files.
  */
+
+import Alert from "../../lib/bootstrap/js/esm/alert.js";
+import Carousel from "../../lib/bootstrap/js/esm/carousel.js";
+import Collapse from "../../lib/bootstrap/js/esm/collapse.js";
+import Dropdown from "../../lib/bootstrap/js/esm/dropdown.js";
+import Modal from "../../lib/bootstrap/js/esm/modal.js";
+import Offcanvas from "../../lib/bootstrap/js/esm/offcanvas.js";
+import Popover from "../../lib/bootstrap/js/esm/popover.js";
+import ScrollSpy from "../../lib/bootstrap/js/esm/scrollspy.js";
+import Tab from "../../lib/bootstrap/js/esm/tab.js";
+import Toast from "../../lib/bootstrap/js/esm/toast.js";
+import Tooltip from "../../lib/bootstrap/js/esm/tooltip.js";
 
 import {
     compensateScrollbar,
     getScrollingElement,
 } from "@web/core/utils/dom/scrolling";
+
+// ── Sanitization allowlist ──────────────────────────────────────────
+// Extend Bootstrap's default sanitizer allowlist to accept common tags
+// and attributes used by Odoo templates.  We cannot disable sanitization
+// entirely because Bootstrap uses tooltip/popover DOM attributes in an
+// "unsafe" way.
+
 const bsSanitizeAllowList = Tooltip.Default.allowList;
 
 bsSanitizeAllowList["*"].push("title", "style", /^data-[\w-]+/);
@@ -49,7 +64,8 @@ bsSanitizeAllowList.section = [];
 bsSanitizeAllowList.button = ["type"];
 bsSanitizeAllowList.del = [];
 
-/* Bootstrap tooltip defaults overwrite */
+// ── Tooltip defaults ────────────────────────────────────────────────
+
 Tooltip.Default.placement = "auto";
 Tooltip.Default.fallbackPlacement = ["bottom", "right", "left", "top"];
 Tooltip.Default.html = true;
@@ -58,43 +74,36 @@ Tooltip.Default.container = "body";
 Tooltip.Default.boundary = "window";
 Tooltip.Default.delay = { show: 1000, hide: 0 };
 
+// ── Tooltip.show patch ──────────────────────────────────────────────
+// Remove any existing tooltips before showing a new one to prevent
+// duplicates.  Silently ignore "show on visible elements" errors.
+
 const bootstrapShowFunction = Tooltip.prototype.show;
-/**
- * Patched Tooltip.show: removes any existing tooltips before showing a new one
- * to prevent duplicates. Silently ignores "show on visible elements" errors.
- * @returns {*} The original show() return value, or 0 if suppressed.
- */
 Tooltip.prototype.show = function () {
-    // Overwrite bootstrap tooltip method to prevent showing 2 tooltip at the
-    // same time
     document.querySelectorAll(".tooltip").forEach((el) => el.remove());
-    const errorsToIgnore = ["Please use show on visible elements"];
     try {
         return bootstrapShowFunction.call(this);
     } catch (error) {
-        if (errorsToIgnore.includes(error.message)) {
+        if (error.message === "Please use show on visible elements") {
             return 0;
         }
         throw error;
     }
 };
 
-/**
- * Patched _detectNavbar: always returns false so Bootstrap enables dynamic
- * dropdown positioning, preventing website sub-menu overflow.
- * @returns {false}
- */
+// ── Dropdown._detectNavbar patch ────────────────────────────────────
+// Always return false so Bootstrap enables dynamic dropdown positioning,
+// preventing website sub-menu overflow.
+
 Dropdown.prototype._detectNavbar = function () {
     return false;
 };
 
-/* Bootstrap modal scrollbar compensation on non-body */
+// ── Modal scrollbar compensation ────────────────────────────────────
+// Compensate scrollbar on the actual scrolling element (not just
+// document.body) before delegating to the original Bootstrap logic.
+
 const bsAdjustDialogFunction = Modal.prototype._adjustDialog;
-/**
- * Patched _adjustDialog: compensates scrollbar on the actual scrolling element
- * (not just document.body) before delegating to the original Bootstrap logic.
- * @returns {*} The original _adjustDialog() return value.
- */
 Modal.prototype._adjustDialog = function () {
     const document = this._element.ownerDocument;
 
@@ -113,11 +122,6 @@ Modal.prototype._adjustDialog = function () {
 };
 
 const bsResetAdjustmentsFunction = Modal.prototype._resetAdjustments;
-/**
- * Patched _resetAdjustments: removes scrollbar compensation from the actual
- * scrolling element before delegating to the original Bootstrap logic.
- * @returns {*} The original _resetAdjustments() return value.
- */
 Modal.prototype._resetAdjustments = function () {
     const document = this._element.ownerDocument;
 
@@ -129,4 +133,19 @@ Modal.prototype._resetAdjustments = function () {
         compensateScrollbar(scrollable, false);
     }
     return bsResetAdjustmentsFunction.apply(this, arguments);
+};
+
+// ── Re-export for other modules ─────────────────────────────────────
+export {
+    Alert,
+    Carousel,
+    Collapse,
+    Dropdown,
+    Modal,
+    Offcanvas,
+    Popover,
+    ScrollSpy,
+    Tab,
+    Toast,
+    Tooltip,
 };

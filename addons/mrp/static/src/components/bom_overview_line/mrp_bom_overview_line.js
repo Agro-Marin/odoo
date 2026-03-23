@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";

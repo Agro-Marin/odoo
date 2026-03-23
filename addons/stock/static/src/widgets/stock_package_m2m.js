@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import {
     Many2ManyTagsField,
     many2ManyTagsField,

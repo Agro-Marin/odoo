@@ -1,7 +1,7 @@
-/** @odoo-module */
+/** @odoo-module native */
 
-import { generateHash, HootError, isOfType, normalize } from "../hoot_utils";
-import { applyTags } from "./tag";
+import { generateHash, HootError, isOfType, normalize } from "../hoot_utils.js";
+import { applyTags } from "./tag.js";
 
 /**
  * @typedef {{

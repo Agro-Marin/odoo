@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/debug/profiling/profiling_item - Debug menu dropdown item for toggling SQL/trace profiling collectors */
 

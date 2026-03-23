@@ -1,3 +1,5 @@
+import { Dropdown } from "@web/libs/bootstrap";
+
 // TODO: this code should probably be converted into an interaction. At the
 // moment, the `data-bs-auto-close` attribute of the dropdown is set both by
 // the code in this file and by the `website.dropdown_edit` interaction. Because
@@ -326,7 +328,7 @@ async function autoHideMenu(el, options) {
             if (anchorInExtra) {
                 el.addEventListener("shown.bs.dropdown", setSelection, { once: true });
             }
-            window.Dropdown.getOrCreateInstance(extraMenuEl).show();
+            Dropdown.getOrCreateInstance(extraMenuEl).show();
         }
         el.classList.remove(...options.loadingStyleClasses);
     }

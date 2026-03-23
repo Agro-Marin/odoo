@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/control_panel/control_panel - Control panel UI with search bar, breadcrumbs, filter/groupby menus, and embedded actions */
 

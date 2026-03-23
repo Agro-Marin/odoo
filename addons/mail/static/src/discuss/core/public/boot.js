@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";
 import { mount, whenReady } from "@odoo/owl";
 import { MainComponentsContainer } from "@web/components/main_components_container";

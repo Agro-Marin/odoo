@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field - Chart.js graph field for accounting journal dashboard data */
 

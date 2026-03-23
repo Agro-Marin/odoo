@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/widgets/res_config_invite_users - Settings widget for inviting users by email with validation and pending-invitation list */
 

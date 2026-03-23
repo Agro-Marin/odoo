@@ -1,3 +1,4 @@
+import { Carousel } from "@web/libs/bootstrap";
 import { CarouselSlider } from "@website/interactions/carousel/carousel_slider";
 import { registry } from "@web/core/registry";
 
@@ -26,7 +27,7 @@ const CarouselSliderPreview = (I) =>
          * Starts the carousel autoplay when the mouse enters the element.
          */
         mouseEnter() {
-            const carousel = window.Carousel.getOrCreateInstance(this.el);
+            const carousel = Carousel.getOrCreateInstance(this.el);
             carousel.cycle();
         }
 
@@ -35,7 +36,7 @@ const CarouselSliderPreview = (I) =>
          * leaves the element.
          */
         mouseLeave() {
-            const carousel = window.Carousel.getOrCreateInstance(this.el);
+            const carousel = Carousel.getOrCreateInstance(this.el);
             carousel.pause();
             carousel.to(0);
         }

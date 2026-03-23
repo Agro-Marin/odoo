@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/py_js/py_date - Python date, datetime, time, and relativedelta emulation in JavaScript */
 

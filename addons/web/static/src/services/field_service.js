@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/field_service - Service for loading field definitions, paths, and property definitions from the ORM */
 

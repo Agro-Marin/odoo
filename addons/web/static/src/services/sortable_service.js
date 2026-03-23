@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /**
  * @module @web/services/sortable_service - Service for creating sortable drag-and-drop outside OWL component lifecycle

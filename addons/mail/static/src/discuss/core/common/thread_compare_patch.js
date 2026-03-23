@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { threadCompareRegistry } from "@mail/core/common/thread_compare";
 import { compareDatetime } from "@mail/utils/common/misc";
 

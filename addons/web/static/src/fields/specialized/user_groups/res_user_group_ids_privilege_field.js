@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/user_groups/res_user_group_ids_privilege_field - Boolean/selection field for privilege toggles within the dynamically generated access rights form */
 

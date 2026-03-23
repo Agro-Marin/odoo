@@ -1,10 +1,10 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { Component, onWillRender, useState, xml } from "@odoo/owl";
-import { isFirefox } from "../../hoot-dom/hoot_dom_utils";
-import { Tag } from "../core/tag";
-import { Test } from "../core/test";
-import { subscribeToURLParams } from "../core/url";
+import { isFirefox } from "../../hoot-dom/hoot_dom_utils.js";
+import { Tag } from "../core/tag.js";
+import { Test } from "../core/test.js";
+import { subscribeToURLParams } from "../core/url.js";
 import {
     CASE_EVENT_TYPES,
     formatHumanReadable,
@@ -13,10 +13,10 @@ import {
     isLabel,
     Markup,
     ordinal,
-} from "../hoot_utils";
-import { HootCopyButton } from "./hoot_copy_button";
-import { HootLink } from "./hoot_link";
-import { HootTechnicalValue } from "./hoot_technical_value";
+} from "../hoot_utils.js";
+import { HootCopyButton } from "./hoot_copy_button.js";
+import { HootLink } from "./hoot_link.js";
+import { HootTechnicalValue } from "./hoot_technical_value.js";
 
 /**
  * @typedef {import("../core/expect").CaseEvent} CaseEvent

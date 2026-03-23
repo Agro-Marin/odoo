@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/search_enrichment - Pure search-item enrichment producing activated copies with period/interval metadata */
 

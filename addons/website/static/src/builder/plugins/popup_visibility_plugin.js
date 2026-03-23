@@ -1,3 +1,4 @@
+import { Modal } from "@web/libs/bootstrap";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
@@ -33,8 +34,8 @@ export class PopupVisibilityPlugin extends Plugin {
             }
         });
         const history = this.dependencies.history;
-        this.unpatchModal = this.window.Modal // null in tests without loadAssetsFrontendJS
-            ? patch(this.window.Modal.prototype, {
+        this.unpatchModal = Modal // null in tests without loadAssetsFrontendJS
+            ? patch(Modal.prototype, {
                   _hideModal() {
                       return history.ignoreDOMMutations(() => super._hideModal());
                   },
@@ -58,7 +59,7 @@ export class PopupVisibilityPlugin extends Plugin {
         // save (see save plugin) and Bootstrap moves it if it is not within the
         // document (see Bootstrap Modal's _showElement).
         if (targetEl.matches(".s_popup") && this.editable.contains(targetEl)) {
-            this.window.Modal.getOrCreateInstance(targetEl.querySelector(".modal")).show();
+            Modal.getOrCreateInstance(targetEl.querySelector(".modal")).show();
         }
     }
 
@@ -66,7 +67,7 @@ export class PopupVisibilityPlugin extends Plugin {
         // Do not use Bootstrap to close the popup, as we are cleaning a
         // clone of it. Instead, hide it manually (see `cleanForSave`).
         if (targetEl.matches(".s_popup") && !isCleaning) {
-            this.window.Modal.getOrCreateInstance(targetEl.querySelector(".modal")).hide();
+            Modal.getOrCreateInstance(targetEl.querySelector(".modal")).hide();
         }
     }
 
@@ -78,8 +79,8 @@ export class PopupVisibilityPlugin extends Plugin {
             // Do not call .hide() directly, because it is queued whereas
             // .dispose() is not.
             modalEl.classList.remove("show");
-            this.window.Modal.getOrCreateInstance(modalEl)._hideModal();
-            this.window.Modal.getInstance(modalEl).dispose();
+            Modal.getOrCreateInstance(modalEl)._hideModal();
+            Modal.getInstance(modalEl).dispose();
         }
     }
 

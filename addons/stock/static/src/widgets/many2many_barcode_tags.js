@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import {
     Many2ManyTagsField,

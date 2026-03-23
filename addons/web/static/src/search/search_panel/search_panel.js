@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/search_panel/search_panel - Sidebar filter panel with category trees and grouped checkbox filters */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useBus } from "@web/core/utils/hooks";
 import { BomOverviewLine } from "../bom_overview_line/mrp_bom_overview_line.js";
 import { BomOverviewSpecialLine } from "../bom_overview_special_line/mrp_bom_overview_special_line.js";

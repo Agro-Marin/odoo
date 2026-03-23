@@ -1,7 +1,7 @@
 import { Plugin } from "@html_editor/plugin";
 import { uniqueId } from "@web/core/utils/functions";
-import { isRemovable } from "./remove_plugin";
-import { isClonable } from "./clone_plugin";
+import { isRemovable } from "./remove_plugin.js";
+import { isClonable } from "./clone_plugin.js";
 import { getElementsWithOption, isElementInViewport } from "@html_builder/utils/utils";
 import { shouldEditableMediaBeEditable } from "@html_builder/utils/utils_css";
 import { OptionsContainer } from "@html_builder/sidebar/option_container";

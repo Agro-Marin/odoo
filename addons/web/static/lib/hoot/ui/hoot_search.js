@@ -1,12 +1,12 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { Component, onPatched, onWillPatch, useRef, useState, xml } from "@odoo/owl";
 import { getActiveElement } from "@web/../lib/hoot-dom/helpers/dom";
 import { R_REGEX, REGEX_MARKER } from "@web/../lib/hoot-dom/hoot_dom_utils";
-import { Suite } from "../core/suite";
-import { Tag } from "../core/tag";
-import { Test } from "../core/test";
-import { refresh } from "../core/url";
+import { Suite } from "../core/suite.js";
+import { Tag } from "../core/tag.js";
+import { Test } from "../core/test.js";
+import { refresh } from "../core/url.js";
 import {
     debounce,
     EXACT_MARKER,
@@ -21,8 +21,8 @@ import {
     title,
     useHootKey,
     useWindowListener,
-} from "../hoot_utils";
-import { HootTagButton } from "./hoot_tag_button";
+} from "../hoot_utils.js";
+import { HootTagButton } from "./hoot_tag_button.js";
 
 /**
  * @typedef {{

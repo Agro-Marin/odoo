@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/calendar_filter_section/calendar_filter_section - Collapsible sidebar filter section for a calendar filter field (attendees, resources) */
 

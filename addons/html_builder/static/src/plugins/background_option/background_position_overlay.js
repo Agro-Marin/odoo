@@ -8,6 +8,7 @@ import {
     useExternalListener,
     useRef,
 } from "@odoo/owl";
+import { Tooltip } from "@web/libs/bootstrap";
 
 export class BackgroundPositionOverlay extends Component {
     static template = "html_builder.BackgroundPositionOverlay";
@@ -79,7 +80,7 @@ export class BackgroundPositionOverlay extends Component {
         });
 
         useEffect(() => {
-            this.tooltip = window.Tooltip.getOrCreateInstance(this.bgDraggerRef.el, {
+            this.tooltip = Tooltip.getOrCreateInstance(this.bgDraggerRef.el, {
                 trigger: "manual",
                 container: this.backgroundOverlayRef.el,
             });

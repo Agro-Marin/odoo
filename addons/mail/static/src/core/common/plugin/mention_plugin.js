@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { generateThreadMentionElement } from "@mail/utils/common/format";

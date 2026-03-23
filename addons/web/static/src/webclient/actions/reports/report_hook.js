@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/actions/reports/report_hook - Hook enriching DOM elements with [res-id][res-model] into clickable action links */
 

@@ -15,7 +15,7 @@ import {
     getBaseContainerSelector,
 } from "@html_editor/utils/base_container";
 import { DIRECTIONS } from "../utils/position";
-import { isHtmlContentSupported } from "./selection_plugin";
+import { isHtmlContentSupported } from "./selection_plugin.js";
 
 /**
  * @typedef { import("./selection_plugin").EditorSelection } EditorSelection

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 let multiTabId = 0;

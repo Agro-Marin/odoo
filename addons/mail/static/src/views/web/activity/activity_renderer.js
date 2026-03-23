@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { MailColumnProgress } from "@mail/core/web/mail_column_progress";
 import { ActivityCell } from "@mail/views/web/activity/activity_cell";
 import { ActivityRecord } from "@mail/views/web/activity/activity_record";

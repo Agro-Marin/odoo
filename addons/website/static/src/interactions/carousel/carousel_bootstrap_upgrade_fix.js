@@ -1,3 +1,4 @@
+import { Carousel } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
@@ -45,14 +46,14 @@ export class CarouselBootstrapUpgradeFix extends Interaction {
                     this.addListener(this.el, "slid.bs.carousel", () => resolve(), { once: true });
                 });
             }
-            window.Carousel.getInstance(this.el)?.dispose();
+            Carousel.getInstance(this.el)?.dispose();
         }
     }
 
     start() {
         if (this.hasInterval || this.el.dataset.bsRide) {
             // Respawn carousel.
-            const carousel = window.Carousel.getOrCreateInstance(this.el, this.carouselOptions);
+            const carousel = Carousel.getOrCreateInstance(this.el, this.carouselOptions);
             this.registerCleanup(() => carousel.dispose());
         }
     }

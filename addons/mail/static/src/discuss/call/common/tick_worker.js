@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 /* eslint-env worker */
 /* eslint-disable no-restricted-globals */
 

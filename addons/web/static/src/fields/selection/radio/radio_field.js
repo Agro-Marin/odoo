@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/selection/radio/radio_field - Radio button group field for Selection and Many2one columns */
 

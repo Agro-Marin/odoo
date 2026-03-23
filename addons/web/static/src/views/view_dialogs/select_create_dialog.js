@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_dialogs/select_create_dialog - Modal with embedded list/kanban for selecting existing records or creating new ones (Many2one/Many2many) */
 

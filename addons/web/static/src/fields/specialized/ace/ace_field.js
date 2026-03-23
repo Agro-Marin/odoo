@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/ace/ace_field - Code editor field using the Ace/CodeEditor component */
 

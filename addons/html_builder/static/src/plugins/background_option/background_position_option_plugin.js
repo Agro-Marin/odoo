@@ -1,7 +1,7 @@
 import { getBgImageURLFromEl } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { BackgroundPositionOverlay } from "./background_position_overlay";
+import { BackgroundPositionOverlay } from "./background_position_overlay.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { loadImage } from "@html_editor/utils/image_processing";
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { HtmlField, htmlField } from "@html_editor/fields/html_field";
 import { ColumnPlugin } from "@html_editor/main/column_plugin";
 import { registry } from "@web/core/registry";

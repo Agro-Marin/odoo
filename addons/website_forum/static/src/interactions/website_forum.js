@@ -13,6 +13,7 @@ import { FlagMarkAsOffensiveDialog } from "../components/flag_mark_as_offensive/
 import { WebsiteForumTagsWrapper } from "../components/website_forum_tags_wrapper";
 import { WebsiteForumWysiwyg } from "@website_forum/components/website_forum_wysiwyg/website_forum_wysiwyg";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { Tooltip, Popover } from "@web/libs/bootstrap";
 
 export class WebsiteForum extends Interaction {
     static selector = ".website_forum";
@@ -78,12 +79,12 @@ export class WebsiteForum extends Interaction {
 
         // Initialize forum's tooltips
         this.el.querySelectorAll("[data-bs-toggle='tooltip']").forEach((el) => {
-            const bsTooltip = window.Tooltip.getOrCreateInstance(el);
+            const bsTooltip = Tooltip.getOrCreateInstance(el);
             this.registerCleanup(() => bsTooltip.dispose());
         });
 
         this.el.querySelectorAll("[data-bs-toggle='popover']").forEach((el) => {
-            const bsPopover = window.Popover.getOrCreateInstance(el);
+            const bsPopover = Popover.getOrCreateInstance(el);
             this.registerCleanup(() => bsPopover.dispose());
         });
 
@@ -129,7 +130,7 @@ export class WebsiteForum extends Interaction {
         });
 
         this.el.querySelectorAll(".o_wforum_bio_popover").forEach((authorBox) => {
-            const bsPopover = window.Popover.getOrCreateInstance(authorBox, {
+            const bsPopover = Popover.getOrCreateInstance(authorBox, {
                 trigger: "hover",
                 offset: "10",
                 animation: false,

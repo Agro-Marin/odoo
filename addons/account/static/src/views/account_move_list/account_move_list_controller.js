@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { FileUploadListController } from "../file_upload_list/file_upload_list_controller.js";
 import { AccountFileUploader } from "@account/components/account_file_uploader/account_file_uploader";

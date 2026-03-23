@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/calendar_side_panel/calendar_side_panel - Side panel with date picker and filter sections for the calendar view */
 

@@ -1,8 +1,8 @@
-/** @odoo-module */
+/** @odoo-module native */
 
-import { getColorHex } from "../../hoot-dom/hoot_dom_utils";
-import { isNil, stringify } from "../hoot_utils";
-import { urlParams } from "./url";
+import { getColorHex } from "../../hoot-dom/hoot_dom_utils.js";
+import { isNil, stringify } from "../hoot_utils.js";
+import { urlParams } from "./url.js";
 
 //-----------------------------------------------------------------------------
 // Global

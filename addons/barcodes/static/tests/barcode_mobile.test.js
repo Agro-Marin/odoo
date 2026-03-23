@@ -1,4 +1,4 @@
-/** @odoo-module **/
+/** @odoo-module native */
 
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { getActiveElement, queryFirst, keyDown, click } from "@odoo/hoot-dom";

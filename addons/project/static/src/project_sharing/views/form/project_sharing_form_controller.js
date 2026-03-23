@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { FormController } from '@web/views/form/form_controller';
 import { useService } from '@web/core/utils/hooks';

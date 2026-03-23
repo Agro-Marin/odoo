@@ -5,6 +5,7 @@ import { rpc, RPCError } from '@web/core/network/rpc';
 import { registry } from '@web/core/registry';
 import { renderToMarkup } from '@web/core/utils/render';
 import { Interaction } from '@web/public/interaction';
+import { Tooltip } from "@web/libs/bootstrap";
 
 export class PaymentForm extends Interaction {
     static selector = '#o_payment_form';
@@ -28,7 +29,7 @@ export class PaymentForm extends Interaction {
 
         // Enable tooltips.
         this.el.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
-            const tooltip = window.Tooltip.getOrCreateInstance(el);
+            const tooltip = Tooltip.getOrCreateInstance(el);
             this.registerCleanup(() => tooltip.dispose());
         });
     }

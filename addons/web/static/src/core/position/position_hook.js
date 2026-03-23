@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/position/position_hook - OWL hook for auto-repositioning a popper element relative to a target */
 

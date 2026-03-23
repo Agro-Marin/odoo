@@ -1,3 +1,4 @@
+import { Dropdown } from "@web/libs/bootstrap";
 import { browser } from "@web/core/browser/browser";
 
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
@@ -366,7 +367,7 @@ export class DescriptionScreen extends Component {
         // outside of it
         if (isBrowserSafari() && this.safariHackFocusedOutDropdown) {
             if (ev.target.closest(".dropdown") !== this.safariHackFocusedOutDropdown) {
-                window.Dropdown.getOrCreateInstance(this.safariHackFocusedOutDropdown).hide();
+                Dropdown.getOrCreateInstance(this.safariHackFocusedOutDropdown).hide();
             }
             this.safariHackFocusedOutDropdown = null;
         }
@@ -384,7 +385,7 @@ export class DescriptionScreen extends Component {
             return;
         }
         if (ev.relatedTarget?.closest(".dropdown") !== ev.currentTarget) {
-            window.Dropdown.getOrCreateInstance(ev.currentTarget).hide();
+            Dropdown.getOrCreateInstance(ev.currentTarget).hide();
         }
     }
 

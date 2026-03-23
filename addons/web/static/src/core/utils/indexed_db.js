@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/indexed_db - IndexedDB wrapper with versioned schema, quota management, and mutex locking */
 

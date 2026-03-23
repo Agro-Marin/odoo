@@ -6,6 +6,7 @@ import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 import { fadeIn, fadeOut } from "@survey/utils";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { Tooltip, Popover } from "@web/libs/bootstrap";
 
 const nextPageTooltips = {
     closingWords: _t("End of Survey"),
@@ -105,7 +106,7 @@ export class SurveySessionManage extends Interaction {
         // Background Management
         this.refreshBackground = this.el.dataset.refreshBackground;
         // Prepare the copy link tooltip
-        this.copyBtnTooltip = window.Tooltip.getOrCreateInstance(
+        this.copyBtnTooltip = Tooltip.getOrCreateInstance(
             this.el.querySelector(".o_survey_session_copy"),
             {
                 title: _t("Click to copy link"),
@@ -175,7 +176,7 @@ export class SurveySessionManage extends Interaction {
         const copyBtnTooltipHideDelay = 800;
         this.copyBtnTooltip?.dispose();
         delete this.copyBtnTooltip;
-        this.copyBtnPopover = window.Popover.getOrCreateInstance(ev.currentTarget, {
+        this.copyBtnPopover = Popover.getOrCreateInstance(ev.currentTarget, {
             content: _t("Copied!"),
             trigger: "manual",
             placement: "right",

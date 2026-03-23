@@ -1,8 +1,8 @@
 import { Component, onMounted, onWillDestroy, useRef, useSubEnv } from "@odoo/owl";
-import { Editor } from "./editor";
-import { Toolbar } from "./main/toolbar/toolbar";
+import { Editor } from "./editor.js";
+import { Toolbar } from "./main/toolbar/toolbar.js";
 import { useChildRef, useSpellCheck } from "@web/core/utils/hooks";
-import { LocalOverlayContainer } from "./local_overlay_container";
+import { LocalOverlayContainer } from "./local_overlay_container.js";
 import { uniqueId } from "@web/core/utils/functions";
 
 /**

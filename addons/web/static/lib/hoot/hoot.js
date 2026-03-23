@@ -1,11 +1,11 @@
-/** @odoo-module alias=@odoo/hoot default=false */
+/** @odoo-module native alias=@odoo/hoot */
 
-import { logger } from "./core/logger";
-import { Runner } from "./core/runner";
-import { urlParams } from "./core/url";
-import { copyAndBind, makeRuntimeHook } from "./hoot_utils";
-import { setRunner } from "./main_runner";
-import { setupHootUI } from "./ui/setup_hoot_ui";
+import { logger } from "./core/logger.js";
+import { Runner } from "./core/runner.js";
+import { urlParams } from "./core/url.js";
+import { copyAndBind, makeRuntimeHook } from "./hoot_utils.js";
+import { setRunner } from "./main_runner.js";
+import { setupHootUI } from "./ui/setup_hoot_ui.js";
 
 /**
  * @typedef {import("../hoot-dom/helpers/dom").Dimensions} Dimensions
@@ -66,29 +66,29 @@ export const getCurrent = runner.exportFn(runner.getCurrent);
 export const start = runner.exportFn(runner.start);
 export const stop = runner.exportFn(runner.stop);
 
-export { makeExpect } from "./core/expect";
-export { destroy } from "./core/fixture";
-export { defineTags } from "./core/tag";
-export { createJobScopedGetter } from "./hoot_utils";
+export { makeExpect } from "./core/expect.js";
+export { destroy } from "./core/fixture.js";
+export { defineTags } from "./core/tag.js";
+export { createJobScopedGetter } from "./hoot_utils.js";
 
 // Constants
 export const globals = copyAndBind(globalThis);
 export const isHootReady = setupHootUI();
 
 // Mock
-export { disableAnimations, enableTransitions } from "./mock/animation";
-export { mockDate, mockLocale, mockTimeZone, onTimeZoneChange } from "./mock/date";
-export { makeSeededRandom } from "./mock/math";
-export { mockPermission, mockSendBeacon, mockUserAgent, mockVibrate } from "./mock/navigator";
-export { mockFetch, mockLocation, mockWebSocket, mockWorker, withFetch } from "./mock/network";
-export { flushNotifications } from "./mock/notification";
+export { disableAnimations, enableTransitions } from "./mock/animation.js";
+export { mockDate, mockLocale, mockTimeZone, onTimeZoneChange } from "./mock/date.js";
+export { makeSeededRandom } from "./mock/math.js";
+export { mockPermission, mockSendBeacon, mockUserAgent, mockVibrate } from "./mock/navigator.js";
+export { mockFetch, mockLocation, mockWebSocket, mockWorker, withFetch } from "./mock/network.js";
+export { flushNotifications } from "./mock/notification.js";
 export {
     mockMatchMedia,
     mockTouch,
     watchAddedNodes,
     watchKeys,
     watchListeners,
-} from "./mock/window";
+} from "./mock/window.js";
 
 // HOOT-DOM
 export {
@@ -163,7 +163,7 @@ export {
 } from "@odoo/hoot-dom";
 
 // Debug
-export { exposeHelpers } from "../hoot-dom/hoot_dom_utils";
+export { exposeHelpers } from "../hoot-dom/hoot_dom_utils.js";
 export const __debug__ = runner;
 
 /**

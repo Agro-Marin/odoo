@@ -1,6 +1,7 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
+import { Popover } from "@web/libs/bootstrap";
 
 import { parseDate } from "@web/core/l10n/dates";
 
@@ -8,7 +9,7 @@ export class ProjectRatingImage extends Interaction {
     static selector = ".o_portal_project_rating .o_rating_image";
 
     start() {
-        window.Popover.getOrCreateInstance(this.el, {
+        Popover.getOrCreateInstance(this.el, {
             placement: "bottom",
             trigger: "hover",
             html: true,

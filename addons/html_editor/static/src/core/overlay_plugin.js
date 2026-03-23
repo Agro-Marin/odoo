@@ -1,6 +1,6 @@
 import { markRaw, EventBus } from "@odoo/owl";
 import { Plugin } from "../plugin";
-import { EditorOverlay } from "./overlay";
+import { EditorOverlay } from "./overlay.js";
 
 /**
  * @typedef { Object } OverlayShared

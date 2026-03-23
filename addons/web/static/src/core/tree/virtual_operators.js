@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/virtual_operators - Introduces and eliminates virtual operators (between, in range, any/all) in condition trees */
 

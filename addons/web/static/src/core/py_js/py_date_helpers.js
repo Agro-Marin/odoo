@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/py_js/py_date_helpers - Calendar arithmetic: ordinal conversion, leap year, day-in-month, and overflow normalization */
 

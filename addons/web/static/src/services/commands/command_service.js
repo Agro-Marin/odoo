@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/commands/command_service - Service that registers, manages, and opens the command palette */
 

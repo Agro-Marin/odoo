@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/popover/popover_service - Service for programmatically attaching popover components to target elements */
 

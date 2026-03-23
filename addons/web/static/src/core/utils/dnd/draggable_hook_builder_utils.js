@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/dnd/draggable_hook_builder_utils - Stateless helpers, constants, and DOM utilities for the draggable hook builder */
 

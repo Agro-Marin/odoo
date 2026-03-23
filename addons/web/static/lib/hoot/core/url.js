@@ -1,9 +1,9 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { onWillRender, reactive, useState } from "@odoo/owl";
 import { isIterable } from "@web/../lib/hoot-dom/hoot_dom_utils";
-import { debounce, ensureArray, isNil } from "../hoot_utils";
-import { CONFIG_KEYS, CONFIG_SCHEMA, FILTER_KEYS, FILTER_SCHEMA } from "./config";
+import { debounce, ensureArray, isNil } from "../hoot_utils.js";
+import { CONFIG_KEYS, CONFIG_SCHEMA, FILTER_KEYS, FILTER_SCHEMA } from "./config.js";
 
 /**
  * @typedef {{

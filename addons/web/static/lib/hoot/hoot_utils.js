@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { on, queryAll } from "@odoo/hoot-dom";
 import { reactive, useComponent, useEffect, useExternalListener } from "@odoo/owl";
@@ -10,7 +10,7 @@ import {
     R_WHITE_SPACE,
     toSelector,
 } from "@web/../lib/hoot-dom/hoot_dom_utils";
-import { getRunner } from "./main_runner";
+import { getRunner } from "./main_runner.js";
 
 /**
  * @typedef {ArgumentPrimitive | `${ArgumentPrimitive}[]` | null} ArgumentType

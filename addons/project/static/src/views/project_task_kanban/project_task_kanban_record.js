@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { ProjectTaskKanbanCompiler } from "./project_task_kanban_compiler.js";
 import { RottingKanbanRecord } from "@mail/js/rotting_mixin/rotting_kanban_record";

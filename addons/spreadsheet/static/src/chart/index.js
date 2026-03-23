@@ -1,9 +1,9 @@
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { OdooChartCorePlugin } from "./plugins/odoo_chart_core_plugin";
-import { ChartOdooMenuPlugin } from "./plugins/chart_odoo_menu_plugin";
-import { OdooChartCoreViewPlugin } from "./plugins/odoo_chart_core_view_plugin";
+import { OdooChartCorePlugin } from "./plugins/odoo_chart_core_plugin.js";
+import { ChartOdooMenuPlugin } from "./plugins/chart_odoo_menu_plugin.js";
+import { OdooChartCoreViewPlugin } from "./plugins/odoo_chart_core_view_plugin.js";
 import { _t } from "@web/core/l10n/translation";
-import { chartOdooMenuPlugin } from "./odoo_menu/odoo_menu_chartjs_plugin";
+import { chartOdooMenuPlugin } from "./odoo_menu/odoo_menu_chartjs_plugin.js";
 
 const { chartComponentRegistry, chartSubtypeRegistry, chartJsExtensionRegistry } =
     spreadsheet.registries;

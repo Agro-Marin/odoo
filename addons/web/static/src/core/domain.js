@@ -1,13 +1,14 @@
 // @ts-check
+/** @odoo-module native */
 
 /** @module @web/core/domain - Domain expression AST: parsing, combining, evaluation, and conversion to string */
 
 import { shallowEqual } from "@web/core/utils/collections/arrays";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 
-import { evaluate, formatAST, parseExpr } from "./py_js/py";
-import { EvaluationError } from "./py_js/py_builtin";
-import { toPyValue } from "./py_js/py_utils";
+import { evaluate, formatAST, parseExpr } from "./py_js/py.js";
+import { EvaluationError } from "./py_js/py_builtin.js";
+import { toPyValue } from "./py_js/py_utils.js";
 
 /**
  * Domain uses AST nodes pervasively via .value/.type without discriminated

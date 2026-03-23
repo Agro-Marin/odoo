@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/user_menu/user_menu - Systray dropdown displaying current user avatar and menu items from the user_menuitems registry */
 

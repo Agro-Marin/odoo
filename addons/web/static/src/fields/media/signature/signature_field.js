@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/media/signature/signature_field - Signature pad field for capturing and storing handwritten signatures */
 

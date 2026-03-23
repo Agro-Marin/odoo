@@ -1,6 +1,6 @@
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { Many2OneOption } from "./many2one_option";
+import { Many2OneOption } from "./many2one_option.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 
 export class Many2OneOptionPlugin extends Plugin {

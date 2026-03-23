@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import {
     Component,
@@ -10,7 +10,7 @@ import {
 } from "@odoo/owl";
 import { isNode, toSelector } from "@web/../lib/hoot-dom/helpers/dom";
 import { isInstanceOf, isIterable } from "@web/../lib/hoot-dom/hoot_dom_utils";
-import { logger } from "../core/logger";
+import { logger } from "../core/logger.js";
 import {
     getTypeOf,
     isSafe,
@@ -20,7 +20,7 @@ import {
     S_NONE,
     stringify,
     toExplicitString,
-} from "../hoot_utils";
+} from "../hoot_utils.js";
 
 /**
  * @typedef {{

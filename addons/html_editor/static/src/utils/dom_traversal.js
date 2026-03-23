@@ -1,4 +1,4 @@
-import { DIRECTIONS } from "./position";
+import { DIRECTIONS } from "./position.js";
 
 export const closestPath = function* (node) {
     while (node) {

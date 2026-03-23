@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/actions/reports/report_action - Client action rendering an HTML report in an iframe with print button and action link enrichment */
 

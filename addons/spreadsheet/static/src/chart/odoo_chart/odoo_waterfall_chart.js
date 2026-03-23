@@ -1,7 +1,7 @@
 import { registries, chartHelpers } from "@odoo/o-spreadsheet";
 import { _t } from "@web/core/l10n/translation";
-import { OdooChart } from "./odoo_chart";
-import { onOdooChartItemHover, onWaterfallOdooChartItemClick } from "./odoo_chart_helpers";
+import { OdooChart } from "./odoo_chart.js";
+import { onOdooChartItemHover, onWaterfallOdooChartItemClick } from "./odoo_chart_helpers.js";
 
 const { chartRegistry } = registries;
 

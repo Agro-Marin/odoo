@@ -1,3 +1,4 @@
+import { Dropdown } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 import { MegaMenuDropdown } from "./mega_menu_dropdown";
 
@@ -35,7 +36,7 @@ const MegaMenuDropdownEdit = (I) =>
             this.registerCleanup(() => {
                 const megaMenuToggleEls = this.el.querySelectorAll(".o_mega_menu_toggle.show");
                 for (const megaMenuToggleEl of megaMenuToggleEls) {
-                    const bsDropdown = window.Dropdown.getOrCreateInstance(megaMenuToggleEl);
+                    const bsDropdown = Dropdown.getOrCreateInstance(megaMenuToggleEl);
                     bsDropdown.hide();
                     bsDropdown.dispose();
                 }

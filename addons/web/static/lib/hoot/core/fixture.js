@@ -1,13 +1,13 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { animationFrame } from "@odoo/hoot-dom";
 import { App } from "@odoo/owl";
 import { getActiveElement, getCurrentDimensions } from "@web/../lib/hoot-dom/helpers/dom";
 import { setupEventActions } from "@web/../lib/hoot-dom/helpers/events";
 import { isInstanceOf } from "@web/../lib/hoot-dom/hoot_dom_utils";
-import { HootError } from "../hoot_utils";
-import { subscribeToTransitionChange } from "../mock/animation";
-import { getViewPortHeight, getViewPortWidth } from "../mock/window";
+import { HootError } from "../hoot_utils.js";
+import { subscribeToTransitionChange } from "../mock/animation.js";
+import { getViewPortHeight, getViewPortWidth } from "../mock/window.js";
 
 /**
  * @typedef {Parameters<typeof import("@odoo/owl").mount>[2] & {

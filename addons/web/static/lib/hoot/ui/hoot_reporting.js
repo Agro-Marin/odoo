@@ -1,12 +1,12 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { Component, onWillRender, useState, xml } from "@odoo/owl";
-import { Test } from "../core/test";
-import { formatTime, parseQuery } from "../hoot_utils";
-import { HootJobButtons } from "./hoot_job_buttons";
-import { HootLogCounters } from "./hoot_log_counters";
-import { HootTestPath } from "./hoot_test_path";
-import { HootTestResult } from "./hoot_test_result";
+import { Test } from "../core/test.js";
+import { formatTime, parseQuery } from "../hoot_utils.js";
+import { HootJobButtons } from "./hoot_job_buttons.js";
+import { HootLogCounters } from "./hoot_log_counters.js";
+import { HootTestPath } from "./hoot_test_path.js";
+import { HootTestResult } from "./hoot_test_result.js";
 
 /**
  * @typedef {import("../core/test").Test} Test

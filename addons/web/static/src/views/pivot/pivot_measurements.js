@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/pivot/pivot_measurements - Builds measure specs (fieldName:aggregator) and data comparison logic for the pivot model */
 

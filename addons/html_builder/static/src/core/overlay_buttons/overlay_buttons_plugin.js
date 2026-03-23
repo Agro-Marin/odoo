@@ -3,7 +3,7 @@ import { reactive } from "@odoo/owl";
 import { throttleForAnimation } from "@web/core/utils/timing";
 import { getScrollingElement, getScrollingTarget } from "@web/core/utils/dom/scrolling";
 import { checkElement } from "../builder_options_plugin";
-import { OverlayButtons } from "./overlay_buttons";
+import { OverlayButtons } from "./overlay_buttons.js";
 import { withSequence } from "@html_editor/utils/resource";
 
 /** @typedef {import("@html_builder/core/builder_options_plugin").BuilderButtonDescriptor} BuilderButtonDescriptor */

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ActionList } from "@mail/core/common/action_list";
 import { Component, useSubEnv } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";

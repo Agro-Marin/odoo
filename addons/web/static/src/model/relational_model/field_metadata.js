@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/field_metadata - ActiveField construction with visibility, readonly, and required modifiers */
 

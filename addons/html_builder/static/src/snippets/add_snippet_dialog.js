@@ -7,7 +7,7 @@ import { localization } from "@web/core/l10n/localization";
 import { getFirstAndLastTabableElements } from "@web/ui/block/ui_service";
 import { cookie } from "@web/core/browser/cookie";
 import { useChildRef } from "@web/core/utils/hooks";
-import { SnippetViewer } from "./snippet_viewer";
+import { SnippetViewer } from "./snippet_viewer.js";
 
 /**
  * @typedef {((arg: { iframe: HTMLIFrameElement }) => void)[]} snippet_preview_dialog_stylesheets_handlers

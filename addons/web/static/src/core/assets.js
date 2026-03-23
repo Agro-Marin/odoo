@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/assets - Lazy-loads CSS/JS asset bundles into documents with caching */
 
@@ -12,7 +12,10 @@ import { registry } from "./registry.js";
  * @typedef {{
  *  cssLibs: string[];
  *  jsLibs: string[];
- * }} BundleFileNames
+ *  importMaps: object[];
+ *  inlineScripts: object[];
+ *  moduleScripts: object[];
+ * }} BundleDescriptor
  */
 
 export const globalBundleCache = new Map();
@@ -80,7 +83,7 @@ const onLoadAndError = (el, onLoad, onError) => {
 
 /**
  * @param {string} bundleName
- * @returns {Promise<BundleFileNames>}
+ * @returns {Promise<BundleDescriptor>}
  */
 export function getBundle(bundleName) {
     return assets.getBundle(bundleName);
@@ -157,7 +160,7 @@ export const assets = {
      * Get the files information as descriptor object from a public asset template.
      *
      * @param {string} bundleName Name of the bundle containing the list of files
-     * @returns {Promise<BundleFileNames>}
+     * @returns {Promise<BundleDescriptor>}
      */
     getBundle(bundleName) {
         const cacheMap = getGlobalBundleCache();
@@ -172,17 +175,32 @@ export const assets = {
             .then(async (response) => {
                 const cssLibs = [];
                 const jsLibs = [];
+                const importMaps = [];
+                const inlineScripts = [];
+                const moduleScripts = [];
                 if (!response.bodyUsed) {
-                    const result = await response.json();
-                    for (const { src, type } of Object.values(result)) {
-                        if (type === "link" && src) {
-                            cssLibs.push(src);
-                        } else if (type === "script" && src) {
+                    for (const node of await response.json()) {
+                        const { tag, src, href, type, text } = node;
+                        if (tag === "link" && type === "importmap") {
+                            // skip — importmap is in script nodes
+                        } else if (tag === "link" && href) {
+                            if (node.rel === "modulepreload") {
+                                // modulepreload hints: skip during lazy load
+                            } else {
+                                cssLibs.push(href);
+                            }
+                        } else if (tag === "script" && type === "importmap") {
+                            importMaps.push(node);
+                        } else if (tag === "script" && type === "module") {
+                            moduleScripts.push(node);
+                        } else if (tag === "script" && text && !src) {
+                            inlineScripts.push(node);
+                        } else if (tag === "script" && src) {
                             jsLibs.push(src);
                         }
                     }
                 }
-                return { cssLibs, jsLibs };
+                return { cssLibs, jsLibs, importMaps, inlineScripts, moduleScripts };
             })
             .catch((reason) => {
                 cacheMap.delete(bundleName);
@@ -197,6 +215,9 @@ export const assets = {
     /**
      * Loads the given js/css libraries and asset bundles. Note that no library or
      * asset will be loaded if it was already done before.
+     *
+     * Handles native ESM bundles: injects import maps before regular scripts,
+     * then loads JS, then injects module scripts last (correct execution order).
      *
      * @param {string} bundleName
      * @param {Object} options
@@ -213,20 +234,93 @@ export const assets = {
                 )} as ${typeof bundleName}`,
             );
         }
-        return getBundle(bundleName).then(({ cssLibs, jsLibs }) => {
-            const promises = [];
-            if (css && cssLibs) {
-                promises.push(
-                    ...cssLibs.map((url) => assets.loadCSS(url, { targetDoc })),
-                );
-            }
-            if (js && jsLibs) {
-                promises.push(
-                    ...jsLibs.map((url) => assets.loadJS(url, { targetDoc })),
-                );
-            }
-            return Promise.all(promises);
-        });
+        return getBundle(bundleName).then(
+            ({ cssLibs, jsLibs, importMaps, inlineScripts, moduleScripts }) => {
+                const promises = [];
+
+
+
+                if (css && cssLibs) {
+                    promises.push(
+                        ...cssLibs.map((url) => assets.loadCSS(url, { targetDoc })),
+                    );
+                }
+
+                if (js) {
+                    // 1. Import maps MUST be injected before any module scripts
+                    for (const node of importMaps) {
+                        const el = targetDoc.createElement("script");
+                        el.type = "importmap";
+                        el.textContent = node.text;
+                        targetDoc.head.appendChild(el);
+                    }
+
+                    // 2. Inline scripts (e.g. __native_module_names__)
+                    for (const node of inlineScripts) {
+                        const el = targetDoc.createElement("script");
+                        el.textContent = node.text;
+                        targetDoc.head.appendChild(el);
+                    }
+
+                    // 3. Regular scripts (legacy bundle)
+                    promises.push(
+                        ...jsLibs.map((url) => assets.loadJS(url, { targetDoc })),
+                    );
+
+                    // 4. Module scripts (bridge/esbuild bundle) — must come
+                    //    after the legacy bundle loads so __legacyReady resolves.
+                    //    We wait for the __nativeReady callback instead of the
+                    //    `load` event because module scripts with top-level await
+                    //    fire `load` at the first await, not after completion.
+                    if (moduleScripts.length) {
+                        const jsPromise = Promise.all(
+                            jsLibs.map((url) => assets.loadJS(url, { targetDoc })),
+                        );
+                        const nativeReady = new Promise((resolve) => {
+                            ((odoo.__nativeReady ??= {})[bundleName] = resolve);
+                        });
+                        promises.push(
+                            jsPromise.then(() => {
+                                console.log(`[loadBundle] ${bundleName}: JS done, yielding for import map`);
+                                // Yield a microtask so Chrome's MutationObserver
+                                // processes the import map we just injected before
+                                // we append the module script that depends on it.
+                                return new Promise((r) => setTimeout(r, 0));
+                            }).then(() => {
+                                const maps = targetDoc.querySelectorAll('script[type="importmap"]');
+                                console.log(`[loadBundle] ${bundleName}: ${maps.length} import maps in DOM`);
+                                try {
+                                    const lastMap = JSON.parse(maps[maps.length - 1]?.textContent || '{}');
+                                    const keys = Object.keys(lastMap.imports || {});
+                                    console.log(`[loadBundle] ${bundleName}: last import map has ${keys.length} entries: ${keys.slice(0, 5).join(', ')}...`);
+                                } catch {}
+                                console.log(`[loadBundle] ${bundleName}: injecting module scripts`);
+                                for (const node of moduleScripts) {
+                                    const el = targetDoc.createElement("script");
+                                    el.type = "module";
+                                    if (node.src) {
+                                        el.src = node.src;
+                                    } else if (node.text) {
+                                        el.textContent = node.text;
+                                    }
+                                    el.addEventListener("error", (e) => {
+                                        console.error(`[loadBundle] ${bundleName}: MODULE SCRIPT ERROR`, e);
+                                    });
+                                    el.addEventListener("load", () => {
+                                        console.log(`[loadBundle] ${bundleName}: module script load event fired`);
+                                    });
+                                    targetDoc.head.appendChild(el);
+                                }
+                                console.log(`[loadBundle] ${bundleName}: waiting for __nativeReady`);
+                                return nativeReady;
+                            }).then(() => console.log(`[loadBundle] ${bundleName}: DONE`)),
+                        );
+                    }
+                }
+
+                return Promise.all(promises);
+            },
+        );
     },
 
     /**

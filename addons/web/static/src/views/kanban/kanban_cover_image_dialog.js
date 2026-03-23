@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/kanban_cover_image_dialog - Dialog for selecting, uploading, or removing a cover image on a kanban record */
 

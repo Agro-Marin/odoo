@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { parseVersion } from "@mail/utils/common/misc";
 import { markup, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

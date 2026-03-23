@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/dynamic_placeholder_hook - OWL hook that opens a dynamic placeholder popover on trigger key */
 

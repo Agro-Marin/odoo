@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
 import { fillEmpty } from "@html_editor/utils/dom";
 import { isEmpty } from "@html_editor/utils/dom_info";

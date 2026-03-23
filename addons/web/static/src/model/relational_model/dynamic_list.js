@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/dynamic_list - Abstract paginated list with sorting, domain filtering, and drag-and-drop resequencing */
 

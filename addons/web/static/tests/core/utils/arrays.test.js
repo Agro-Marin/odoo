@@ -6,9 +6,13 @@ import {
     ensureArray,
     groupBy,
     intersection,
+    isIterable,
+    rotate,
+    sections,
     shallowEqual,
     slidingWindow,
     sortBy,
+    symmetricalDifference,
     unique,
     zip,
     zipWith,
@@ -319,5 +323,104 @@ describe("slidingWindow", () => {
         expect(slidingWindow([1, 2, 3, 4], 4)).toEqual([[1, 2, 3, 4]]);
         expect(slidingWindow([1, 2, 3, 4], 5)).toEqual([]);
         expect(slidingWindow([], 1)).toEqual([]);
+    });
+});
+
+describe("sections", () => {
+    test("all initial sections of array", () => {
+        expect(sections([1, 2])).toEqual([[], [1], [1, 2]]);
+    });
+
+    test("single element", () => {
+        expect(sections([42])).toEqual([[], [42]]);
+    });
+
+    test("empty iterable", () => {
+        expect(sections([])).toEqual([[]]);
+    });
+
+    test("accepts any iterable", () => {
+        expect(sections(new Set(["a", "b"]))).toEqual([[], ["a"], ["a", "b"]]);
+    });
+});
+
+describe("rotate", () => {
+    test("rotates forward by default", () => {
+        const arr = ["a", "b", "c"];
+        expect(rotate(0, arr)).toBe(1);
+        expect(rotate(1, arr)).toBe(2);
+        expect(rotate(2, arr)).toBe(0);
+    });
+
+    test("rotates backward with negative increment", () => {
+        const arr = ["a", "b", "c"];
+        expect(rotate(0, arr, -1)).toBe(2);
+        expect(rotate(1, arr, -1)).toBe(0);
+        expect(rotate(2, arr, -1)).toBe(1);
+    });
+
+    test("wraps around with large increment", () => {
+        const arr = [1, 2, 3];
+        expect(rotate(0, arr, 5)).toBe(2);
+    });
+
+    test("throws on empty array", () => {
+        expect(() => rotate(0, [])).toThrow(/Cannot rotate on an empty array/);
+    });
+});
+
+describe("symmetricalDifference", () => {
+    test("elements unique to each side", () => {
+        expect(symmetricalDifference([1, 2, 3], [2, 3, 4])).toEqual([1, 4]);
+    });
+
+    test("identical iterables yield empty result", () => {
+        expect(symmetricalDifference([1, 2], [1, 2])).toEqual([]);
+    });
+
+    test("disjoint iterables yield all elements", () => {
+        expect(symmetricalDifference([1, 2], [3, 4])).toEqual([1, 2, 3, 4]);
+    });
+
+    test("handles empty iterables", () => {
+        expect(symmetricalDifference([], [1, 2])).toEqual([1, 2]);
+        expect(symmetricalDifference([1, 2], [])).toEqual([1, 2]);
+        expect(symmetricalDifference([], [])).toEqual([]);
+    });
+
+    test("deduplicates within each iterable", () => {
+        expect(symmetricalDifference([1, 1, 2], [2, 3, 3])).toEqual([1, 3]);
+    });
+});
+
+describe("isIterable", () => {
+    test("arrays are iterable", () => {
+        expect(isIterable([1, 2])).toBe(true);
+        expect(isIterable([])).toBe(true);
+    });
+
+    test("Sets and Maps are iterable", () => {
+        expect(isIterable(new Set())).toBe(true);
+        expect(isIterable(new Map())).toBe(true);
+    });
+
+    test("strings are excluded", () => {
+        expect(isIterable("hello")).toBe(false);
+    });
+
+    test("primitives and null are not iterable", () => {
+        expect(isIterable(null)).toBe(false);
+        expect(isIterable(undefined)).toBe(false);
+        expect(isIterable(42)).toBe(false);
+        expect(isIterable(true)).toBe(false);
+    });
+
+    test("plain objects are not iterable", () => {
+        expect(isIterable({ a: 1 })).toBe(false);
+    });
+
+    test("custom iterables are recognized", () => {
+        const iterable = { [Symbol.iterator]: () => ({ next: () => ({ done: true }) }) };
+        expect(isIterable(iterable)).toBe(true);
     });
 });

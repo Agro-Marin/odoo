@@ -1,4 +1,4 @@
-import { closestElement } from "./dom_traversal";
+import { closestElement } from "./dom_traversal.js";
 
 /**
  * Get the index of the given table row/cell.

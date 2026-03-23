@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/many2many_tags/many2many_tags_field - Colored tag list field with autocomplete for Many2many relations */
 

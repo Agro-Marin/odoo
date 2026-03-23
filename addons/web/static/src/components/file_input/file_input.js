@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/file_input/file_input - Customizable file upload input with route-based server upload and multi-file support */
 

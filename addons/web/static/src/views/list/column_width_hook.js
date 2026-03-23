@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/list/column_width_hook - Column width calculation, min/max enforcement, and resize-freeze hook for list view */
 

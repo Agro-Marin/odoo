@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/pager/pager_indicator - Floating toast indicator showing current page position on pager updates */
 

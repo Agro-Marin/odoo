@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/dropdown/dropdown_item - Single selectable item within a dropdown menu with configurable close behavior */
 

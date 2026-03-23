@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module native */
 
 /** @module @web/core/network/rpc_dedup - Shares a single promise across identical concurrent RPC requests */
 

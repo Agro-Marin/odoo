@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/timing - Batched callbacks, debounce, throttle, and recurring animation frame scheduling */
 

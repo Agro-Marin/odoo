@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { ChannelMember } from "@mail/discuss/core/common/channel_member_model";
 import { browser } from "@web/core/browser/browser";

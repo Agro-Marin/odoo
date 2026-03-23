@@ -6,8 +6,8 @@ import {
     useBuilderComponent,
     useDomState,
 } from "../utils";
-import { BuilderComponent } from "./builder_component";
-import { BasicMany2Many } from "./basic_many2many";
+import { BuilderComponent } from "./builder_component.js";
+import { BasicMany2Many } from "./basic_many2many.js";
 
 export class BuilderMany2Many extends Component {
     static template = "html_builder.BuilderMany2Many";

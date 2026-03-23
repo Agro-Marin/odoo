@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Chatter } from "@mail/chatter/web_portal/chatter";
 
 import { useSubEnv } from "@odoo/owl";

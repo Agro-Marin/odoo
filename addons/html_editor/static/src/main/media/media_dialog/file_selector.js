@@ -5,7 +5,7 @@ import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useDebounced } from "@web/core/utils/timing";
-import { SearchMedia } from "./search_media";
+import { SearchMedia } from "./search_media.js";
 
 import { Component, xml, useState, useRef, onWillStart, useEffect } from "@odoo/owl";
 

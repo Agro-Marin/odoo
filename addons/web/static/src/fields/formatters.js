@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/formatters - Field value formatters for all ORM field types (date, float, monetary, selection, etc.) */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { browser } from "@web/core/browser/browser";
 export const NO_MEMBERS_DEFAULT_OPEN_LS = "mail.user_setting.no_members_default_open";

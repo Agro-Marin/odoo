@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/pivot/pivot_model - Pivot table data loading, group tree expansion, measure aggregation, and cell computation */
 

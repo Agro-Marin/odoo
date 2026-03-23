@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/many2one_barcode/many2one_barcode_field - Many2one field with barcode scanner support */
 

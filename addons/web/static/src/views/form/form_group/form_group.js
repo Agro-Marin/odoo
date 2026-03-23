@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/form/form_group/form_group - OuterGroup and InnerGroup components for form view column layout */
 

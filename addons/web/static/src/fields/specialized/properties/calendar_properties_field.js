@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/properties/calendar_properties_field - Calendar-view read-only variant of the properties field */
 

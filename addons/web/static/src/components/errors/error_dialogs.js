@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/errors/error_dialogs - Error dialog components for RPC, client, network, and validation errors */
 

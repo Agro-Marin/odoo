@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { charField, CharField } from "@web/fields/basic/char/char_field";
 import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";

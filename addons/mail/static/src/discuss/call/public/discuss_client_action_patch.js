@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import "@mail/discuss/core/public/discuss_client_action_patch";
 
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";

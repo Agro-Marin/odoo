@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields, OR, Record } from "./record.js";
 
 export class Volume extends Record {

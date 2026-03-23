@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/widgets/week_days/week_days - Widget rendering seven day-of-week checkboxes respecting the locale's week start day */
 

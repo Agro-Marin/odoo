@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/media/contact_image/contact_image_field - Image field variant with fallback to a preview image when empty */
 

@@ -1,5 +1,5 @@
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { URL_REGEX, cleanZWChars } from "./utils";
+import { URL_REGEX, cleanZWChars } from "./utils.js";
 import { isImageUrl } from "@html_editor/utils/url";
 import { Plugin } from "@html_editor/plugin";
 import { childNodeIndex } from "@html_editor/utils/position";

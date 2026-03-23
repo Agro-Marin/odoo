@@ -5,6 +5,7 @@ import { renderToMarkup } from "@web/core/utils/render";
 import { InputConfirmationDialog } from "@portal/js/components/input_confirmation_dialog/input_confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { user } from "@web/services/user";
+import { Modal } from "@web/libs/bootstrap";
 
 export class PortalSecurity extends Interaction {
     static selector = ".o_portal_security_body";
@@ -43,7 +44,7 @@ export class PortalSecurity extends Interaction {
         const modalEl = document.querySelector(".modal.show#portal_deactivate_account_modal");
         if (modalEl) {
             modalEl.classList.remove("d-block");
-            window.Modal.getOrCreateInstance(modalEl).show();
+            Modal.getOrCreateInstance(modalEl).show();
         }
     }
 

@@ -7,7 +7,7 @@ import {
     useApplyVisibility,
     useSelectableComponent,
 } from "../utils";
-import { BuilderComponent } from "./builder_component";
+import { BuilderComponent } from "./builder_component.js";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { setElementContent } from "@web/core/utils/dom/html";
 

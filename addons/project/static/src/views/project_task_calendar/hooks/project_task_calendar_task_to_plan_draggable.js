@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder";
 import { pick } from "@web/core/utils/collections/objects";

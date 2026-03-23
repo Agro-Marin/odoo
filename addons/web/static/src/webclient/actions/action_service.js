@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/actions/action_service - Action manager that routes server/client actions to views, dialogs, and URL redirects */
 

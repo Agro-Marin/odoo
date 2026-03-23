@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/search_split_domain - Domain-splitting logic that decomposes compound filters into individual search items */
 

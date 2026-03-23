@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import * as hootDom from "@odoo/hoot-dom";
 import { enableEventLogs, setupEventActions } from "@web/../lib/hoot-dom/helpers/events";
 import { browser } from "@web/core/browser/browser";

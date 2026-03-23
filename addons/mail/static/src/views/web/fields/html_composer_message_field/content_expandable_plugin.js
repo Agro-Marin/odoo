@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { fillEmpty } from "@html_editor/utils/dom";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";

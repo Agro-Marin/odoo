@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/barcode/barcode_dialog - Dialog wrapper for the barcode video scanner with error state handling */
 

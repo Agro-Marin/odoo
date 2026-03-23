@@ -1,9 +1,9 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/ir_ui_view_code_editor/code_editor - Extended code editor that highlights invalid XPath locators in ir.ui.view arch */
 
-/** @odoo-module */
+/** @odoo-module native */
 import { onMounted, useEffect } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { escapeRegExp } from "@web/core/utils/format/strings";

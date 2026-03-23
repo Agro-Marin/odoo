@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Gif } from "@mail/core/common/gif";
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";

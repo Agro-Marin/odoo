@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/form/form_controller - Form view lifecycle: record save, discard, duplicate, archive, pager navigation, and error recovery */
 

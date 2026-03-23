@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/public/error_notifications - Registers Odoo exception types as notification-style error handlers instead of dialogs */
 

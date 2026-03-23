@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/virtual_grid - useVirtualGrid hook for windowed rendering of large row/column grids */
 

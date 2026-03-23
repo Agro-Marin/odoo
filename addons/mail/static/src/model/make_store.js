@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { markRaw, reactive, toRaw } from "@odoo/owl";
 
 import {

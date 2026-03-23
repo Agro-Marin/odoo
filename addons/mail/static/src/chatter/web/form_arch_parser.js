@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { FormArchParser } from "@web/views/form/form_arch_parser";
 patch(FormArchParser.prototype, {

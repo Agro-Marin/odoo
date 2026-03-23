@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/localization_service - Fetches translations and configures Luxon locale, numbering system, and date/number formats */
 

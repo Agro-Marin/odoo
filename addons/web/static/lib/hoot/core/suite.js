@@ -1,7 +1,7 @@
-/** @odoo-module */
+/** @odoo-module native */
 
-import { Callbacks, HootError, createReporting, stringify } from "../hoot_utils";
-import { Job } from "./job";
+import { Callbacks, HootError, createReporting, stringify } from "../hoot_utils.js";
+import { Job } from "./job.js";
 
 /**
  * @typedef {import("./tag").Tag} Tag

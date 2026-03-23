@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/settings_form_renderer - FormRenderer subclass registering settings-specific sub-components (search highlight, tabs) */
 

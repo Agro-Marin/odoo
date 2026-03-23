@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import {
     StateSelectionField,
@@ -24,16 +24,14 @@ export class ProjectTaskStateSelection extends StateSelectionField {
             isStateButtonHighlighted: false,
         });
         this.icons = {
-            "todo": "o_status o_status_todo",
             "in_progress": "o_status",
             "approved": "o_status o_status_green",
-            "changes_requested": "fa-solid fa-circle-exclamation fa-lg",
-            "done": "fa-solid fa-circle-check fa-lg",
-            "canceled": "fa-solid fa-circle-xmark fa-lg",
+            "changes_requested": "fa-solid fa-exclamation-circle fa-lg",
+            "done": "fa-solid fa-check-circle fa-lg",
+            "canceled": "fa-solid fa-times-circle fa-lg",
             "blocked": "fa-solid fa-hourglass fa-lg",
         };
         this.colorIcons = {
-            "todo": "",
             "in_progress": "",
             "approved": "text-success",
             "changes_requested": "o_status_changes_requested",
@@ -42,7 +40,6 @@ export class ProjectTaskStateSelection extends StateSelectionField {
             "blocked": "btn-outline-info",
         };
         this.colorButton = {
-            "todo": "btn-outline-info",
             "in_progress": "btn-outline-secondary",
             "approved": "btn-outline-success",
             "changes_requested": "btn-outline-warning",
@@ -86,7 +83,7 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         const states = ["canceled", "done"];
         const currentState = this.props.record.data[this.props.name];
         if (currentState != "blocked") {
-            states.unshift("todo", "in_progress", "changes_requested", "approved");
+            states.unshift("in_progress", "changes_requested", "approved");
         }
         return states.map((state) => [state, labels.get(state)]);
     }

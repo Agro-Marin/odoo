@@ -1,11 +1,12 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/network/rpc - JSON-RPC client with error classification, request bus events, and XHR settings */
 
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { omit } from "@web/core/utils/collections/objects";
+import { RpcEvent } from "@web/core/events";
+import { isObject, omit } from "@web/core/utils/collections/objects";
 
 /**
  * @typedef {{
@@ -106,14 +107,9 @@ rpc.setCache = function (/** @type {any} */ cache) {
     rpcCache = cache;
 };
 
-rpcBus.addEventListener("CLEAR-CACHES", (event) => {
+rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, (event) => {
     const detail = /** @type {any} */ (event).detail;
-    if (
-        detail &&
-        typeof detail === "object" &&
-        !Array.isArray(detail) &&
-        detail.model
-    ) {
+    if (isObject(detail) && detail.model) {
         rpcCache?.invalidateByModel(detail.tables, detail.model);
     } else {
         rpcCache?.invalidate(detail);
@@ -149,18 +145,18 @@ rpc._rpc = function (url, params, settings) {
         id: rpcId++,
         jsonrpc: "2.0",
         method: "call",
-        params: params,
+        params,
     };
     const request = settings.xhr || new XHR();
     let aborted = false;
     const { promise, resolve, reject } = Promise.withResolvers();
-    rpcBus.trigger("RPC:REQUEST", { data, url, settings });
+    rpcBus.trigger(RpcEvent.REQUEST, { data, url, settings });
     // handle success
     request.addEventListener("load", () => {
         if (request.status === 502) {
             // If Odoo is behind another server (eg.: nginx)
             const error = new ConnectionLostError(url);
-            rpcBus.trigger("RPC:RESPONSE", { data, settings, error });
+            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
             reject(error);
             return;
         }
@@ -171,12 +167,12 @@ rpc._rpc = function (url, params, settings) {
             // the response isn't json parsable, which probably means that the rpc request could
             // not be handled by the server, e.g. PoolError('The Connection Pool Is Full')
             const error = new ConnectionLostError(url);
-            rpcBus.trigger("RPC:RESPONSE", { data, settings, error });
+            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
             return reject(error);
         }
         const { error: responseError, result: responseResult } = response;
         if (!response.error) {
-            rpcBus.trigger("RPC:RESPONSE", {
+            rpcBus.trigger(RpcEvent.RESPONSE, {
                 data,
                 settings,
                 result: response.result,
@@ -185,7 +181,7 @@ rpc._rpc = function (url, params, settings) {
         }
         const error = makeErrorFromResponse(responseError);
         /** @type {any} */ (error).model = data.params.model;
-        rpcBus.trigger("RPC:RESPONSE", { data, settings, error });
+        rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
         reject(error);
     });
     // handle failure (skip if already aborted — abort fires its own RPC:RESPONSE)
@@ -194,7 +190,7 @@ rpc._rpc = function (url, params, settings) {
             return;
         }
         const error = new ConnectionLostError(url);
-        rpcBus.trigger("RPC:RESPONSE", { data, settings, error });
+        rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
         reject(error);
     });
     // configure and send request
@@ -215,7 +211,7 @@ rpc._rpc = function (url, params, settings) {
             request.abort();
         }
         const error = new ConnectionAbortedError("XmlHttpRequestError abort");
-        rpcBus.trigger("RPC:RESPONSE", { data, settings, error });
+        rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
         if (rejectError) {
             reject(error);
         }

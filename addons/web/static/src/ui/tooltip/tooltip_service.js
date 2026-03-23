@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/tooltip/tooltip_service - Service for data-tooltip attribute-driven tooltips with hover/touch support */
 

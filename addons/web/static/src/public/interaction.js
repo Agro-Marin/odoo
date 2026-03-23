@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/public/interaction - Base class for public page interactions with selector matching, dynamic content, and service access */
 

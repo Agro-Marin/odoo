@@ -1,6 +1,6 @@
-/** @odoo-module */
+/** @odoo-module native */
 
-import { getColorHex, getTag, isFirefox, isInstanceOf, isIterable } from "../hoot_dom_utils";
+import { getColorHex, getTag, isFirefox, isInstanceOf, isIterable } from "../hoot_dom_utils.js";
 import {
     getActiveElement,
     getDocument,
@@ -23,8 +23,8 @@ import {
     queryAny,
     setDimensions,
     toSelector,
-} from "./dom";
-import { microTick } from "./time";
+} from "./dom.js";
+import { microTick } from "./time.js";
 
 /**
  * @typedef {Target | Promise<Target>} AsyncTarget

@@ -1,7 +1,7 @@
 import { Component, onMounted, onWillStart, xml } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { cookie } from "@web/core/browser/cookie";
-import { DEFAULT_LANGUAGE_ID, getPreValue, highlightPre } from "./syntax_highlighting_utils";
+import { DEFAULT_LANGUAGE_ID, getPreValue, highlightPre } from "./syntax_highlighting_utils.js";
 
 export class ReadonlySyntaxHighlightingComponent extends Component {
     static props = {

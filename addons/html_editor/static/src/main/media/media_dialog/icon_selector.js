@@ -1,4 +1,4 @@
-import { SearchMedia } from "./search_media";
+import { SearchMedia } from "./search_media.js";
 import { fonts } from "@html_editor/utils/fonts";
 
 import { Component, useState } from "@odoo/owl";

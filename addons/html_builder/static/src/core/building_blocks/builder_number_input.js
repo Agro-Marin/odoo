@@ -6,7 +6,7 @@ import {
     useBuilderComponent,
     useInputDebouncedCommit,
 } from "../utils";
-import { BuilderComponent } from "./builder_component";
+import { BuilderComponent } from "./builder_component.js";
 import {
     BuilderTextInputBase,
     textInputBasePassthroughProps,

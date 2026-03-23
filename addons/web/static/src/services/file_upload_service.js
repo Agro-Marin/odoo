@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/file_upload_service - XHR-based file upload service with progress tracking and event bus */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Component, useEffect } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { x2ManyCommands } from "@web/model/relational_model/commands";

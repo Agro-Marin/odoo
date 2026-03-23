@@ -1,3 +1,4 @@
+import { Carousel } from "@web/libs/bootstrap";
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -235,7 +236,7 @@ export class CarouselOptionPlugin extends Plugin {
                 { once: true }
             );
 
-            const carouselInstance = window.Carousel.getOrCreateInstance(editingElement, {
+            const carouselInstance = Carousel.getOrCreateInstance(editingElement, {
                 ride: false,
                 pause: true,
                 keyboard: false,

@@ -1,7 +1,7 @@
 import { Plugin } from "@html_editor/plugin";
 import { closestElement, selectElements } from "@html_editor/utils/dom_traversal";
 import { leftPos, rightPos } from "@html_editor/utils/position";
-import { QWebPicker } from "./qweb_picker";
+import { QWebPicker } from "./qweb_picker.js";
 import { isElement } from "@html_editor/utils/dom_info";
 import { withSequence } from "@html_editor/utils/resource";
 
