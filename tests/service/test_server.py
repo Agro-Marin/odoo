@@ -265,38 +265,38 @@ class TestWorkerCronConnectPostgres:
         conn.cursor.return_value = cursor
         return conn, cursor
 
-    def test_executes_listen_when_not_in_recovery(self, worker_cron):
-        conn, cursor = self._mock_db(in_recovery=False)
-        with patch("odoo.service.server.db.db_connect", return_value=conn):
+    def _connect(self, worker_cron, in_recovery):
+        """Helper: call ``_connect_postgres`` with mocked DB and selector."""
+        conn, cursor = self._mock_db(in_recovery=in_recovery)
+        with (
+            patch("odoo.service.server.db.db_connect", return_value=conn) as mock_connect,
+            patch("odoo.service.server.selectors.DefaultSelector", return_value=MagicMock()),
+        ):
             worker_cron._connect_postgres()
+        return conn, cursor, mock_connect
+
+    def test_executes_listen_when_not_in_recovery(self, worker_cron):
+        _, cursor, _ = self._connect(worker_cron, in_recovery=False)
         executed = [c.args[0] for c in cursor.execute.call_args_list]
         assert "LISTEN cron_trigger" in executed
 
     def test_skips_listen_in_recovery_mode(self, worker_cron):
-        conn, cursor = self._mock_db(in_recovery=True)
-        with patch("odoo.service.server.db.db_connect", return_value=conn):
-            worker_cron._connect_postgres()
+        _, cursor, _ = self._connect(worker_cron, in_recovery=True)
         executed = [c.args[0] for c in cursor.execute.call_args_list]
         assert "LISTEN cron_trigger" not in executed
 
     def test_commits_after_listen(self, worker_cron):
         """``COMMIT`` ensures the LISTEN takes effect within the transaction."""
-        conn, cursor = self._mock_db(in_recovery=False)
-        with patch("odoo.service.server.db.db_connect", return_value=conn):
-            worker_cron._connect_postgres()
+        _, cursor, _ = self._connect(worker_cron, in_recovery=False)
         cursor.commit.assert_called_once()
 
     def test_sets_dbcursor_on_self(self, worker_cron):
-        conn, cursor = self._mock_db(in_recovery=False)
-        with patch("odoo.service.server.db.db_connect", return_value=conn):
-            worker_cron._connect_postgres()
+        _, cursor, _ = self._connect(worker_cron, in_recovery=False)
         assert worker_cron.dbcursor is cursor
 
     def test_connects_to_postgres_database(self, worker_cron):
         """Must connect to the ``postgres`` maintenance database, not a tenant db."""
-        conn, _ = self._mock_db(in_recovery=False)
-        with patch("odoo.service.server.db.db_connect", return_value=conn) as mock_connect:
-            worker_cron._connect_postgres()
+        _, _, mock_connect = self._connect(worker_cron, in_recovery=False)
         mock_connect.assert_called_once_with("postgres")
 
 
