@@ -359,14 +359,14 @@ class PurchaseBillLineMatch(models.Model):
             (
                 po.state = 'done'
                 AND (
-                    -- Lines needing invoicing: no linked draft/posted invoices
+                    -- Lines with pending qty to invoice (includes partially invoiced)
                     (
-                        (pol.product_qty > pol.qty_invoiced OR pol.qty_to_invoice > 0)
+                        pol.qty_to_invoice > 0
                         AND NOT EXISTS (
                             SELECT 1 FROM account_move_line_purchase_order_line_rel rel
                             JOIN account_move_line aml ON rel.move_line_id = aml.id
                             WHERE rel.order_line_id = pol.id
-                            AND aml.parent_state IN ('draft', 'posted')
+                            AND aml.parent_state = 'draft'
                         )
                     )
                     -- OR over-invoiced lines needing credit notes
