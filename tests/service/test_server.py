@@ -89,6 +89,7 @@ def prefork_server(srv):
     obj = object.__new__(srv.PreforkServer)
     obj.queue = deque()
     obj.population = 4
+    obj.logger = MagicMock()
     return obj
 
 
@@ -555,6 +556,7 @@ def bare_worker(srv, multi):
     w.alive = True
     w.request_count = 0
     w.request_max = 100
+    w.logger = MagicMock()
     return w
 
 
@@ -627,6 +629,7 @@ class TestCommonServerCallbacks:
 
     def test_stop_calls_all_registered_callbacks(self, srv):
         server = object.__new__(srv.CommonServer)
+        server.logger = MagicMock()
         cb1, cb2 = MagicMock(), MagicMock()
         srv.CommonServer._on_stop_funcs.extend([cb1, cb2])
         server.stop()
@@ -636,6 +639,7 @@ class TestCommonServerCallbacks:
     def test_stop_continues_after_callback_exception(self, srv):
         """An exception in one callback must not prevent subsequent callbacks."""
         server = object.__new__(srv.CommonServer)
+        server.logger = MagicMock()
         cb1 = MagicMock(side_effect=RuntimeError("boom"))
         cb1.__name__ = "cb1"  # stop() logs func.__name__; MagicMock needs it set
         cb2 = MagicMock()
@@ -691,7 +695,7 @@ class TestPreforkProcessZombie:
         """Exit status 3 signals a critical worker failure and must abort."""
         prefork_server.worker_pop = MagicMock()
         with patch("os.waitpid", return_value=(5678, 3 << 8)):
-            with pytest.raises(Exception, match="Critical worker error"):
+            with pytest.raises(Exception, match=r"Worker \(\d+\): dead"):
                 prefork_server.process_zombie()
 
     def test_echild_breaks_loop_cleanly(self, prefork_server):
@@ -786,13 +790,15 @@ class TestPreforkWorkerKill:
 @pytest.fixture()
 def log_handler(srv):
     """Minimal CommonRequestHandler for log_request / log_error tests."""
+    import threading  # noqa: PLC0415
+
     h = object.__new__(srv.CommonRequestHandler)
     h.path = "/web/test"
     h.command = "GET"
     h.request_version = "HTTP/1.1"
     h.requestline = "GET /web/test HTTP/1.1"
     h.log = MagicMock()
-    srv.thread_local.rpc_model_method = ""
+    threading.current_thread().rpc_model_method = ""
     return h
 
 
@@ -852,11 +858,13 @@ class TestCommonRequestHandlerLogRequest:
 
     def test_bad_requestline_falls_back_to_requestline(self, srv):
         """AttributeError on ``self.path`` (malformed request) must not raise."""
+        import threading  # noqa: PLC0415
+
         h = object.__new__(srv.CommonRequestHandler)
         # Intentionally do NOT set h.path → AttributeError in the try block
         h.requestline = "GARBAGE_LINE"
         h.log = MagicMock()
-        srv.thread_local.rpc_model_method = ""
+        threading.current_thread().rpc_model_method = ""
         h.log_request(200, 0)
         logged_msg = str(h.log.call_args)
         assert "GARBAGE_LINE" in logged_msg
@@ -1129,6 +1137,7 @@ def tserver(srv):
     s = object.__new__(srv.ThreadedServer)
     s.limits_reached_threads = set()
     s.limit_reached_time = None
+    s.logger = MagicMock()
     return s
 
 

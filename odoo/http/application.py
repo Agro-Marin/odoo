@@ -11,7 +11,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix as ProxyFix_
 import odoo.tools
 from odoo.exceptions import AccessDenied, AccessError, UserError
 from odoo.modules import module as module_manager
-from odoo.service.server import thread_local
 from odoo.tools import config, file_path
 from odoo.tools.misc import real_time, submap
 
@@ -191,7 +190,7 @@ class Application:
             del current_thread.dbname
         if hasattr(current_thread, "uid"):
             del current_thread.uid
-        thread_local.rpc_model_method = ""
+        current_thread.rpc_model_method = ""
 
         if odoo.tools.config["proxy_mode"] and environ.get("HTTP_X_FORWARDED_HOST"):
             # The ProxyFix middleware has a side effect of updating the
