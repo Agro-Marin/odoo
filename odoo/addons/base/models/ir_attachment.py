@@ -51,23 +51,26 @@ SECURITY_FIELDS = ("res_model", "res_id", "create_uid", "public", "res_field")
 
 
 def condition_values(model: Any, field_name: str, domain: Domain) -> list[Any] | None:
-    """Get the values in the domain for a specific field name.
+    """Extract the restricted values for *field_name* from *domain*.
 
-    Returns the values appearing in the `in` conditions that would be restricted
-    to by the domain.
+    Returns a list of values from ``=`` or ``in`` conditions, or ``None``
+    if the domain does not restrict *field_name* with those operators.
     """
     domain = domain.optimize(model)
     for condition in (
         domain.map_conditions(
             lambda cond: (
                 cond
-                if cond.field_expr == field_name and cond.operator == "in"
+                if cond.field_expr == field_name and cond.operator in ("in", "=")
                 else Domain.TRUE
             )
         )
         .optimize(model)
         .iter_conditions()
     ):
+        # Normalize '=' to a list for uniform handling by callers
+        if condition.operator == "=":
+            return [condition.value]
         return condition.value
     return None
 
@@ -350,13 +353,12 @@ class IrAttachment(models.Model):
     def _migrate(self) -> None:
         record_count = len(self)
         storage = self._storage().upper()
-        for index, attach in enumerate(self):
-            _logger.debug(
-                "Migrate attachment %s/%s to %s",
-                index + 1,
-                record_count,
-                storage,
-            )
+        _logger.info("Migrating %d attachments to %s", record_count, storage)
+        for index, attach in enumerate(self, 1):
+            if index % 100 == 0 or index == record_count:
+                _logger.info(
+                    "Migrating attachment %d/%d to %s", index, record_count, storage
+                )
             # pass mimetype, to avoid recomputation
             attach.write({"raw": attach.raw, "mimetype": attach.mimetype})
 
@@ -949,7 +951,10 @@ class IrAttachment(models.Model):
             mimetype = guess_mimetype(head)
             filename = fix_filename_extension(file.filename, mimetype)
             if mimetype in ("application/zip", *_olecf_mimetypes):
-                mimetype = mimetypes.guess_type(filename)[0]
+                # Re-guess from the (potentially corrected) filename to get a
+                # more specific type (e.g. .docx → openxmlformats).  Keep the
+                # content-detected mimetype as fallback for extensionless files.
+                mimetype = mimetypes.guess_type(filename)[0] or mimetype
         elif all(mimetype.partition("/")):
             filename = fix_filename_extension(file.filename, mimetype)
         else:
@@ -1113,10 +1118,13 @@ class IrAttachment(models.Model):
                     forbidden_ids.add(att_id)
                     continue
                 if res_field := attachment.res_field:
+                    if res_model not in self.env:
+                        # model no longer exists (module uninstalled)
+                        forbidden_ids.add(att_id)
+                        continue
                     try:
                         field = self.env[res_model]._fields[res_field]
                     except KeyError:
-                        # field does not exist
                         field = None
                     if field is None or not self._has_field_access(field, operation):
                         forbidden_ids.add(att_id)
