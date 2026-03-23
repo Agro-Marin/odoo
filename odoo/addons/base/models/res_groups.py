@@ -3,8 +3,8 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import SetDefinitions
 from odoo.orm._typing import ValuesType
+from odoo.tools import SetDefinitions
 
 
 class ResGroups(models.Model):

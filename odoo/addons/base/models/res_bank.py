@@ -2,8 +2,8 @@ import re
 from typing import Any, Self
 
 from odoo import api, fields, models
-from odoo.tools import _
 from odoo.orm._typing import ValuesType
+from odoo.tools import _
 
 
 def sanitize_account_number(acc_number: str | bool) -> str | bool:

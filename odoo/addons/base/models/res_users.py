@@ -518,7 +518,10 @@ class ResUsers(models.Model):
                 window_ids.append(user.action_id.id)
 
         if client_ids:
-            for action in self.env["ir.actions.client"].browse(client_ids):
+            # Sudo: ir.actions.client is restricted to group_system, but
+            # group_erp_manager users manage home actions and need read access
+            # for constraint validation.
+            for action in self.env["ir.actions.client"].sudo().browse(client_ids):
                 if action.tag == "reload":
                     raise ValidationError(
                         _(
@@ -527,7 +530,7 @@ class ResUsers(models.Model):
                         )
                     )
         if window_ids:
-            for action in self.env["ir.actions.act_window"].browse(window_ids):
+            for action in self.env["ir.actions.act_window"].sudo().browse(window_ids):
                 if action.context and "active_id" in action.context:
                     raise ValidationError(
                         _(
@@ -1665,60 +1668,45 @@ ResUsersPatchedInTest = ResUsers
 class UsersMultiCompany(models.Model):
     _inherit = "res.users"
 
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-        users = super().create(vals_list)
+    def _sync_multi_company_group(self) -> None:
+        """Add/remove group_multi_company based on the number of companies.
+
+        Users with >1 company get the group; users with <=1 lose it.
+        Sudo required: the global res.users record rule hides share users
+        whose company_ids don't overlap with the admin's companies.
+        """
         group_multi_company_id = self.env["ir.model.data"]._xmlid_to_res_id(
             "base.group_multi_company", raise_if_not_found=False
         )
-        if group_multi_company_id:
-            # Sudo required: the global res.users record rule hides share
-            # users whose company_ids don't overlap with the admin's companies.
-            # A newly created portal user for a foreign company would be
-            # invisible at read time, making u.company_ids inaccessible.
-            to_remove = users.filtered(
-                lambda u: (
-                    len(u.sudo().company_ids) <= 1
-                    and group_multi_company_id in u.group_ids.ids
-                )
+        if not group_multi_company_id:
+            return
+        to_remove = self.filtered(
+            lambda u: (
+                len(u.sudo().company_ids) <= 1
+                and group_multi_company_id in u.group_ids.ids
             )
-            to_add = users.filtered(
-                lambda u: (
-                    len(u.sudo().company_ids) > 1
-                    and group_multi_company_id not in u.group_ids.ids
-                )
+        )
+        to_add = self.filtered(
+            lambda u: (
+                len(u.sudo().company_ids) > 1
+                and group_multi_company_id not in u.group_ids.ids
             )
-            if to_remove:
-                to_remove.write({"group_ids": [Command.unlink(group_multi_company_id)]})
-            if to_add:
-                to_add.write({"group_ids": [Command.link(group_multi_company_id)]})
+        )
+        if to_remove:
+            to_remove.write({"group_ids": [Command.unlink(group_multi_company_id)]})
+        if to_add:
+            to_add.write({"group_ids": [Command.link(group_multi_company_id)]})
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        users = super().create(vals_list)
+        users._sync_multi_company_group()
         return users
 
     def write(self, vals: dict[str, Any]) -> bool:
         res = super().write(vals)
-        if "company_ids" not in vals:
-            return res
-        group_multi_company_id = self.env["ir.model.data"]._xmlid_to_res_id(
-            "base.group_multi_company", raise_if_not_found=False
-        )
-        if group_multi_company_id:
-            # See create() above: same record rule concern applies here.
-            to_remove = self.filtered(
-                lambda u: (
-                    len(u.sudo().company_ids) <= 1
-                    and group_multi_company_id in u.group_ids.ids
-                )
-            )
-            to_add = self.filtered(
-                lambda u: (
-                    len(u.sudo().company_ids) > 1
-                    and group_multi_company_id not in u.group_ids.ids
-                )
-            )
-            if to_remove:
-                to_remove.write({"group_ids": [Command.unlink(group_multi_company_id)]})
-            if to_add:
-                to_add.write({"group_ids": [Command.link(group_multi_company_id)]})
+        if "company_ids" in vals:
+            self._sync_multi_company_group()
         return res
 
     @api.model

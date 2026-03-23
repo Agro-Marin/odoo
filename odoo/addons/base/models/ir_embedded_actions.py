@@ -23,15 +23,16 @@ class IrEmbeddedActions(models.Model):
     parent_res_model = fields.Char(string="Active Parent Model", required=True)
     # It is required to have either action_id or python_method
     action_id = fields.Many2one(
-        "ir.actions.actions", string="Action", ondelete="cascade"
+        "ir.actions.actions",
+        string="Action",
+        ondelete="cascade",
     )
     python_method = fields.Char(help="Python method returning an action")
-
     user_id = fields.Many2one(
         "res.users",
         string="User",
-        help="User specific embedded action. If empty, shared embedded action",
         ondelete="cascade",
+        help="User specific embedded action. If empty, shared embedded action",
     )
     is_deletable = fields.Boolean(compute="_compute_is_deletable")
     default_view_mode = fields.Char(
@@ -45,11 +46,12 @@ class IrEmbeddedActions(models.Model):
     )
     is_visible = fields.Boolean(
         string="Embedded visibility",
-        help="Computed field to check if the record should be visible according to the domain",
         compute="_compute_is_visible",
+        help="Computed field to check if the record should be visible according to the domain",
     )
     domain = fields.Char(
-        default="[]", help="Domain applied to the active id of the parent model"
+        default="[]",
+        help="Domain applied to the active id of the parent model",
     )
     context = fields.Char(
         default="{}",
@@ -106,7 +108,14 @@ class IrEmbeddedActions(models.Model):
 
     # Compute if the record should be visible to the user based on the domain applied to the active id of the parent
     # model and based on the groups allowed to access the record.
-    @api.depends("domain", "groups_ids", "parent_res_model", "parent_res_id", "python_method", "user_id")
+    @api.depends(
+        "domain",
+        "groups_ids",
+        "parent_res_model",
+        "parent_res_id",
+        "python_method",
+        "user_id",
+    )
     @api.depends_context("active_id", "uid")
     def _compute_is_visible(self) -> None:
         active_id = self.env.context.get("active_id", False)
@@ -118,7 +127,9 @@ class IrEmbeddedActions(models.Model):
             if parent_res_model not in self.env:
                 records.is_visible = False
                 continue
-            active_model_record = self.env[parent_res_model].search(  # noqa: E8507 — bounded: one per distinct parent_res_model
+            active_model_record = self.env[
+                parent_res_model
+            ].search(  # noqa: E8507 — bounded: one per distinct parent_res_model
                 domain_id, order="id"
             )
             for record in records:

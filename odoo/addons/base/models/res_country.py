@@ -5,8 +5,8 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError
 from odoo.fields import Domain
-from odoo.tools.translate import _
 from odoo.orm._typing import DomainType, ValuesType
+from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
 
@@ -254,7 +254,7 @@ class ResCountryState(models.Model):
     name = fields.Char(
         string="State Name",
         required=True,
-        help="Administrative divisions of a country. E.g. Fed. State, Departement, Canton",
+        help="Administrative divisions of a country. E.g. Fed. State, Department, Canton",
     )
     code = fields.Char(string="State Code", help="The state code.", required=True)
 

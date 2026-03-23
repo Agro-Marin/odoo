@@ -42,7 +42,6 @@ from odoo.tools import config, is_html_empty
 from odoo.tools.pdf import PdfFileReader, PdfFileWriter, PdfReadError
 from odoo.tools.safe_eval import safe_eval, time
 
-
 # WeasyPrint logs thousands of CSS warnings (box-shadow, @keyframes, vendor
 # pseudo-elements, responsive @media queries, etc.) because the full web client
 # CSS bundle includes Bootstrap and theme CSS designed for browsers, not paged
@@ -801,13 +800,13 @@ class IrActionsReport(models.Model):
         args = specific_paperformat_args or {}
         # Warn about wkhtmltopdf-era attributes that WeasyPrint ignores entirely.
         # These are no-ops in CSS Paged Media — remove them from templates.
-        for _dead_attr in ("data-report-header-spacing", "data-report-dpi"):
-            if _dead_attr in args:
+        for dead_attr in ("data-report-header-spacing", "data-report-dpi"):
+            if dead_attr in args:
                 _logger.warning(
                     "_paperformat_to_css: %r is a wkhtmltopdf-specific attribute "
                     "with no WeasyPrint equivalent and is silently ignored. "
                     "Remove it from the report template to suppress this warning.",
-                    _dead_attr,
+                    dead_attr,
                 )
         # data-report-landscape is set by QWeb templates that require landscape output
         # regardless of the paperformat record (e.g. report_bom_structure, report_stock_rule:
@@ -1297,10 +1296,8 @@ class IrActionsReport(models.Model):
             return ReportSudo.browse(report_ref)
         if isinstance(report_ref, models.Model):
             if report_ref._name != self._name:
-                raise ValueError(
-                    "Expected report of type %s, got %s"
-                    % (self._name, report_ref._name)
-                )
+                msg = f"Expected report of type {self._name}, got {report_ref._name}"
+                raise ValueError(msg)
             return report_ref.sudo()
         report = ReportSudo.search([("report_name", "=", report_ref)], limit=1)
         if report:
@@ -1323,12 +1320,8 @@ class IrActionsReport(models.Model):
             "quiet": (True, lambda x: bool(int(x))),
             "mask": (None, lambda x: x),
             "barBorder": (4, int),
-            # The QR code can have different layouts depending on the Error Correction Level
-            # See: https://en.wikipedia.org/wiki/QR_code#Error_correction
-            # Level 'L' - up to 7% damage   (default)
-            # Level 'M' - up to 15% damage  (i.e. required by l10n_ch QR bill)
-            # Level 'Q' - up to 25% damage
-            # Level 'H' - up to 30% damage
+            # QR code Error Correction Level:
+            # 'L' up to 7% (default), 'M' 15%, 'Q' 25%, 'H' 30%
             "barLevel": (
                 "L",
                 lambda x: (x in ("L", "M", "Q", "H") and x) or "L",
@@ -1356,20 +1349,16 @@ class IrActionsReport(models.Model):
             symbology_guess = {8: "EAN8", 13: "EAN13"}
             barcode_type = symbology_guess.get(len(value), "Code128")
         elif barcode_type == "QR":
-            # for `QR` type, `quiet` is not supported. And is simply ignored.
-            # But we can use `barBorder` to get a similar behaviour.
-            # quiet=True & barBorder=4 by default cf above, remove border only if quiet=False
+            # For QR, `quiet` is not supported — use `barBorder` instead.
             if not kwargs["quiet"]:
                 kwargs["barBorder"] = 0
 
         if barcode_type in ("EAN8", "EAN13") and not check_barcode_encoding(
             value, barcode_type
         ):
-            # If the barcode does not respect the encoding specifications, convert its type into Code128.
-            # Otherwise, the report-lab method may return a barcode different from its value. For instance,
-            # if the barcode type is EAN-8 and the value 11111111, the report-lab method will take the first
-            # seven digits and will compute the check digit, which gives: 11111115 -> the barcode does not
-            # match the expected value.
+            # EAN barcodes with invalid check digits would silently produce
+            # a barcode that doesn't match the requested value.  Fall back to
+            # Code128 which accepts arbitrary strings.
             barcode_type = "Code128"
 
         try:
@@ -1377,8 +1366,6 @@ class IrActionsReport(models.Model):
                 barcode_type, value=value, format="png", **kwargs
             )
 
-            # If a mask is asked and it is available, call its function to
-            # post-process the generated QR-code image
             if kwargs["mask"]:
                 available_masks = self.get_available_barcode_masks()
                 mask_to_apply = available_masks.get(kwargs["mask"])
@@ -1387,13 +1374,18 @@ class IrActionsReport(models.Model):
 
             return barcode.asString("png")
         except ValueError, AttributeError:
-            if barcode_type == "Code128":
-                msg = "Cannot convert into barcode."
+            if barcode_type in ("Code128", "QR"):
+                msg = f"Cannot convert into {barcode_type} barcode."
                 raise ValueError(msg)
-            if barcode_type == "QR":
-                msg = "Cannot convert into QR code."
-                raise ValueError(msg)
-            return self.barcode("Code128", value, **kwargs)
+            # Fall back to Code128 for unsupported symbologies.  Re-use the
+            # already-processed kwargs (humanReadable already renamed, etc.)
+            # instead of recursing through barcode() which would re-process
+            # them and lose the humanReadable → humanreadable rename.
+            barcode_type = "Code128"
+            barcode = createBarcodeDrawing(
+                barcode_type, value=value, format="png", **kwargs
+            )
+            return barcode.asString("png")
 
     @api.model
     def get_available_barcode_masks(self) -> dict[str, Callable]:

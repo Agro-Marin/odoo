@@ -23,7 +23,7 @@ from psycopg import IsolationLevel
 from psycopg import sql as _sql
 
 from odoo import tools
-from odoo.libs.func import frame_codeinfo
+from odoo.libs.func import frame_codeinfo, reset_cached_properties
 from odoo.tools import SQL
 from odoo.tools.misc import Callbacks, real_time
 
@@ -138,25 +138,60 @@ class Savepoint:
 
 
 class _FlushingSavepoint(Savepoint):
+    """Savepoint that flushes and saves ORM state for correct rollback.
+
+    On creation, flushes pending writes and snapshots the transaction's
+    ``default_env`` and ``registry_sequence``.  On rollback, restores both
+    so the ORM view of the world matches the database state after
+    ``ROLLBACK TO SAVEPOINT``.
+    """
+
+    __slots__ = ("_saved_default_env", "_saved_registry_seq")
+
     def __init__(self, cr: BaseCursor) -> None:
         cr.flush()
+        # Save ORM state that must survive rollback.
+        # Cache/compute state is ephemeral — clear() handles it.
+        # default_env and registry_sequence are the only durable state.
+        txn = cr.transaction
+        self._saved_default_env = txn.default_env if txn else None
+        self._saved_registry_seq = (
+            txn.registry.registry_sequence if txn else -1
+        )
+        if txn is not None:
+            txn.savepoint_depth += 1
         super().__init__(cr)
 
     def rollback(self) -> None:
-        assert isinstance(self._cr, BaseCursor)
-        self._cr.clear()
-        super().rollback()
+        cr = self._cr
+        assert isinstance(cr, BaseCursor)
+        super().rollback()  # SQL ROLLBACK TO SAVEPOINT first
+        txn = cr.transaction
+        if txn is None:
+            return
+        # Restore default_env to pre-savepoint value
+        txn.default_env = self._saved_default_env
+        # If registry was reloaded inside the savepoint, full reset
+        if txn.registry.registry_sequence != self._saved_registry_seq:
+            txn.reset()
+        else:
+            txn.clear()
+            for env in txn.envs:
+                reset_cached_properties(env)
 
     def _close(self, rollback: bool) -> None:
-        assert isinstance(self._cr, BaseCursor)
+        cr = self._cr
+        assert isinstance(cr, BaseCursor)
         try:
             if not rollback:
-                self._cr.flush()
+                cr.flush()
         except Exception:
             rollback = True
             raise
         finally:
             super()._close(rollback)
+            if cr.transaction is not None:
+                cr.transaction.savepoint_depth -= 1
 
 
 # _CursorProtocol declares the available methods and type information,
@@ -964,6 +999,11 @@ class Cursor(BaseCursor):
 
     def commit(self) -> None:
         """Perform an SQL `COMMIT`"""
+        if self.transaction is not None:
+            assert self.transaction.savepoint_depth == 0, (
+                "Cannot commit inside a savepoint! "
+                "This would corrupt the savepoint's rollback state."
+            )
         self.flush()
         self._cnx.commit()
         self.clear()
@@ -979,6 +1019,11 @@ class Cursor(BaseCursor):
         so hooks can still read uncommitted transaction state (e.g. for cache
         invalidation decisions).  After ROLLBACK, that data is gone.
         """
+        if self.transaction is not None:
+            assert self.transaction.savepoint_depth == 0, (
+                "Cannot rollback inside a savepoint! "
+                "Use cr.savepoint() for nested transaction control."
+            )
         self.clear()
         self.postcommit.clear()
         self.prerollback.run()

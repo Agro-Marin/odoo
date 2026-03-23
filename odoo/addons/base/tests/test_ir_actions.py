@@ -869,6 +869,51 @@ ZeroDivisionError: division by zero"""
         )
         self.assertEqual(self.action._eval_value()[self.action.id], 20.99)
 
+    def test_91_update_related_model_cleared_on_state_change(self):
+        """update_related_model_id must be cleared when switching away from object_write."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "country_id",
+                "evaluation_type": "value",
+            }
+        )
+        self.action.flush_recordset()
+        self.assertTrue(
+            self.action.update_related_model_id,
+            "update_related_model_id should be set for a relational update_path",
+        )
+        # Switch to object_create — update_related_model_id must be cleared
+        self.action.write({"state": "object_create"})
+        self.action.flush_recordset()
+        self.assertFalse(
+            self.action.update_related_model_id,
+            "update_related_model_id should be cleared when state changes to object_create",
+        )
+
+    def test_92_relation_chain_duplicate_field_names(self):
+        """_get_relation_chain must handle paths with repeated field names (e.g. parent_id.parent_id)."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "parent_id.parent_id",
+            }
+        )
+        self.action.flush_recordset()
+        # The update_field_id should point to parent_id on res.partner
+        # (the second parent_id in the chain), not incorrectly treat the
+        # first parent_id as the last field.
+        self.assertEqual(
+            self.action.update_field_id.name,
+            "parent_id",
+            "update_field_id should be the last field in the path",
+        )
+        self.assertEqual(
+            self.action.crud_model_id.model,
+            "res.partner",
+            "crud_model_id should be res.partner (parent_id is self-referential)",
+        )
+
 
 class TestCommonCustomFields(common.TransactionCase):
     MODEL = "res.partner"

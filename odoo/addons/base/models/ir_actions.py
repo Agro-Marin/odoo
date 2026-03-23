@@ -2,6 +2,7 @@ import base64
 import collections.abc
 import re
 from collections import defaultdict
+from contextlib import suppress
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
@@ -9,9 +10,11 @@ from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.libs.datetime.tz import timezone
 from odoo.libs.numbers.float_utils import float_compare
+from odoo.orm._typing import ValuesType
 from odoo.tools import SQL, _, frozendict
 from odoo.tools.safe_eval import safe_eval
-from odoo.orm._typing import ValuesType
+
+_RX_ACTION_PATH = re.compile(r"[a-z][a-z0-9_-]*")
 
 
 class IrActionsActions(models.Model):
@@ -21,19 +24,14 @@ class IrActionsActions(models.Model):
     _order = "name, id"
     _allow_sudo_commands = False
 
-    _path_unique = models.Constraint(
-        "unique(path)",
-        "Path to show in the URL must be unique! Please choose another one.",
-    )
-
     name = fields.Char(string="Action Name", required=True, translate=True)
     type = fields.Char(string="Action Type", required=True)
     xml_id = fields.Char(compute="_compute_xml_id", string="External ID")
     path = fields.Char(string="Path to show in the URL")
     help = fields.Html(
         string="Action Description",
-        help="Optional help text for the users with a description of the target view, such as its usage and purpose.",
         translate=True,
+        help="Optional help text for the users with a description of the target view, such as its usage and purpose.",
     )
     binding_model_id = fields.Many2one(
         "ir.model",
@@ -47,12 +45,17 @@ class IrActionsActions(models.Model):
     )
     binding_view_types = fields.Char(default="list,form")
 
+    _path_unique = models.Constraint(
+        "unique(path)",
+        "Path to show in the URL must be unique! Please choose another one.",
+    )
+
     @api.constrains("path")
     def _check_path(self) -> None:
         """Validate action path format and cross-table uniqueness."""
         for action in self:
             if action.path:
-                if not re.fullmatch(r"[a-z][a-z0-9_-]*", action.path):
+                if not _RX_ACTION_PATH.fullmatch(action.path):
                     raise ValidationError(
                         _(
                             "The path should contain only lowercase alphanumeric characters, underscore, and dash, and it should start with a letter."
@@ -83,11 +86,6 @@ class IrActionsActions(models.Model):
                 _("Path to show in the URL must be unique! Please choose another one.")
             )
 
-    def _compute_xml_id(self) -> None:
-        res = self.get_external_id()
-        for record in self:
-            record.xml_id = res.get(record.id)
-
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
@@ -102,8 +100,11 @@ class IrActionsActions(models.Model):
         return res
 
     def unlink(self) -> bool:
-        """unlink ir.action.todo/ir.filters which are related to actions which will be deleted.
-        NOTE: ondelete cascade will not work on ir.actions.actions so we will need to do it manually.
+        """Manually cascade-delete ir.actions.todo and ir.filters before unlinking.
+
+        PostgreSQL ``ON DELETE CASCADE`` does not propagate across table
+        inheritance boundaries (ir_actions → ir_act_window, etc.), so we
+        must delete dependent records explicitly.
         """
         todos = self.env["ir.actions.todo"].search([("action_id", "in", self.ids)])
         todos.unlink()
@@ -122,6 +123,11 @@ class IrActionsActions(models.Model):
         self.env["res.users"].with_context(active_test=False).search(
             [("action_id", "in", self.ids)]
         ).sudo().write({"action_id": None})
+
+    def _compute_xml_id(self) -> None:
+        res = self.get_external_id()
+        for record in self:
+            record.xml_id = res.get(record.id)
 
     @api.model
     def _get_eval_context(self, action: Any = None) -> dict[str, Any]:
@@ -151,20 +157,20 @@ class IrActionsActions(models.Model):
         for action_type, all_actions in self._get_bindings(model_name).items():
             actions = []
             for action in all_actions:
-                action = dict(action)
-                groups = action.pop("group_ids", None)
+                action_data = dict(action)
+                groups = action_data.pop("group_ids", None)
                 if groups and not any(
                     self.env.user.has_group(ext_id) for ext_id in groups
                 ):
                     # the user may not perform this action
                     continue
-                res_model = action.pop("res_model", None)
+                res_model = action_data.pop("res_model", None)
                 if res_model and not self.env["ir.model.access"].check(
                     res_model, mode="read", raise_exception=False
                 ):
                     # the user won't be able to read records
                     continue
-                actions.append(action)
+                actions.append(action_data)
             if actions:
                 result[action_type] = actions
         return result
@@ -175,6 +181,10 @@ class IrActionsActions(models.Model):
         cr = self.env.cr
         result = defaultdict(list)
 
+        # Must flush_all because the raw SQL below queries ir_actions (parent
+        # table) but pending writes may be on any child model (ir_act_server,
+        # ir_act_window, etc.).  flush_model on ir.actions.actions alone won't
+        # catch writes pending on child models.
         self.env.flush_all()
         cr.execute(
             """
@@ -292,67 +302,6 @@ class IrActionsAct_Window(models.Model):
     _order = "name, id"
     _allow_sudo_commands = False
 
-    @api.constrains("res_model", "binding_model_id")
-    def _check_model(self) -> None:
-        for action in self:
-            if action.res_model not in self.env:
-                raise ValidationError(
-                    _(
-                        "Invalid model name “%s” in action definition.",
-                        action.res_model,
-                    )
-                )
-            if (
-                action.binding_model_id
-                and action.binding_model_id.model not in self.env
-            ):
-                raise ValidationError(
-                    _(
-                        "Invalid model name “%s” in action definition.",
-                        action.binding_model_id.model,
-                    )
-                )
-
-    @api.depends("view_ids.view_mode", "view_mode", "view_id.type")
-    def _compute_views(self) -> None:
-        """Compute an ordered list of the specific view modes that should be
-        enabled when displaying the result of this action, along with the
-        ID of the specific view to use for each mode, if any were required.
-
-        This function hides the logic of determining the precedence between
-        the view_modes string, the view_ids o2m, and the view_id m2o that
-        can be set on the action.
-        """
-        for act in self:
-            views = []
-            got_modes = []
-            for view in act.view_ids:
-                views.append((view.view_id.id, view.view_mode))
-                got_modes.append(view.view_mode)
-            act.views = views
-            all_modes = act.view_mode.split(",")
-            missing_modes = [mode for mode in all_modes if mode not in got_modes]
-            if missing_modes:
-                if act.view_id.type in missing_modes:
-                    # reorder missing modes to put view_id first if present
-                    missing_modes.remove(act.view_id.type)
-                    act.views.append((act.view_id.id, act.view_id.type))
-                act.views.extend([(False, mode) for mode in missing_modes])
-
-    @api.constrains("view_mode")
-    def _check_view_mode(self) -> None:
-        for rec in self:
-            modes = rec.view_mode.split(",")
-            if len(modes) != len(set(modes)):
-                raise ValidationError(
-                    _(
-                        "The modes in view_mode must not be duplicated: %s",
-                        modes,
-                    )
-                )
-            if any(" " in mode for mode in modes):
-                raise ValidationError(_("No spaces allowed in view_mode: “%s”", modes))
-
     type = fields.Char(default="ir.actions.act_window")
     view_id = fields.Many2one("ir.ui.view", string="View Ref.", ondelete="set null")
     domain = fields.Char(
@@ -398,7 +347,9 @@ class IrActionsAct_Window(models.Model):
         help="Used to filter menu and home actions from the user form.",
     )
     view_ids = fields.One2many(
-        "ir.actions.act_window.view", "act_window_id", string="No of Views"
+        "ir.actions.act_window.view",
+        "act_window_id",
+        string="No of Views",
     )
     views = fields.Binary(
         compute="_compute_views",
@@ -425,6 +376,41 @@ class IrActionsAct_Window(models.Model):
         help="If enabled, this action will cache the related data used in list, Kanban and form views with the aim to increase the loading speed",
     )
 
+    @api.constrains("res_model", "binding_model_id")
+    def _check_model(self) -> None:
+        for action in self:
+            if action.res_model not in self.env:
+                raise ValidationError(
+                    _(
+                        "Invalid model name “%s” in action definition.",
+                        action.res_model,
+                    )
+                )
+            if (
+                action.binding_model_id
+                and action.binding_model_id.model not in self.env
+            ):
+                raise ValidationError(
+                    _(
+                        "Invalid model name “%s” in action definition.",
+                        action.binding_model_id.model,
+                    )
+                )
+
+    @api.constrains("view_mode")
+    def _check_view_mode(self) -> None:
+        for rec in self:
+            modes = rec.view_mode.split(",")
+            if len(modes) != len(set(modes)):
+                raise ValidationError(
+                    _(
+                        "The modes in view_mode must not be duplicated: %s",
+                        modes,
+                    )
+                )
+            if any(" " in mode for mode in modes):
+                raise ValidationError(_("No spaces allowed in view_mode: “%s”", modes))
+
     def _compute_embedded_actions(self) -> None:
         embedded_actions = (
             self.env["ir.embedded.actions"]
@@ -437,8 +423,44 @@ class IrActionsAct_Window(models.Model):
                 action, self.env["ir.embedded.actions"]
             )
 
+    @api.depends("view_ids.view_mode", "view_mode", "view_id.type")
+    def _compute_views(self) -> None:
+        """Compute an ordered list of the specific view modes that should be
+        enabled when displaying the result of this action, along with the
+        ID of the specific view to use for each mode, if any were required.
+
+        This function hides the logic of determining the precedence between
+        the view_modes string, the view_ids o2m, and the view_id m2o that
+        can be set on the action.
+        """
+        for act in self:
+            views = []
+            got_modes = set()
+            for view in act.view_ids:
+                views.append((view.view_id.id, view.view_mode))
+                got_modes.add(view.view_mode)
+            act.views = views
+            all_modes = act.view_mode.split(",")
+            missing_modes = [mode for mode in all_modes if mode not in got_modes]
+            if missing_modes:
+                if act.view_id.type in missing_modes:
+                    # reorder missing modes to put view_id first if present
+                    missing_modes.remove(act.view_id.type)
+                    act.views.append((act.view_id.id, act.view_id.type))
+                act.views.extend([(False, mode) for mode in missing_modes])
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        self.env.registry.clear_cache()
+        for vals in vals_list:
+            if not vals.get("name") and vals.get("res_model"):
+                vals["name"] = self.env[vals["res_model"]]._description
+        return super().create(vals_list)
+
     def read(
-        self, fields: collections.abc.Sequence[str] | None = None, load: str = "_classic_read"
+        self,
+        fields: collections.abc.Sequence[str] | None = None,
+        load: str = "_classic_read",
     ) -> list[ValuesType]:
         """call the method get_empty_list_help of the model and set the window action help message"""
         result = super().read(fields, load=load)
@@ -459,21 +481,13 @@ class IrActionsAct_Window(models.Model):
                     )
         return result
 
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-        self.env.registry.clear_cache()
-        for vals in vals_list:
-            if not vals.get("name") and vals.get("res_model"):
-                vals["name"] = self.env[vals["res_model"]]._description
-        return super().create(vals_list)
+    def exists(self) -> Self:
+        ids = self._existing()
+        return self.filtered(lambda rec: rec.id in ids)
 
     def unlink(self) -> bool:
         self.env.registry.clear_cache()
         return super().unlink()
-
-    def exists(self) -> Self:
-        ids = self._existing()
-        return self.filtered(lambda rec: rec.id in ids)
 
     @api.model
     @tools.ormcache()
@@ -533,7 +547,6 @@ class IrActionsAct_WindowView(models.Model):
     _order = "sequence,id"
     _allow_sudo_commands = False
 
-    _unique_mode_per_action = models.UniqueIndex("(act_window_id, view_mode)")
 
     sequence = fields.Integer()
     view_id = fields.Many2one("ir.ui.view", string="View")
@@ -548,6 +561,8 @@ class IrActionsAct_WindowView(models.Model):
         string="On Multiple Doc.",
         help="If set to true, the action will not be displayed on the right toolbar of a form view.",
     )
+
+    _unique_mode_per_action = models.UniqueIndex("(act_window_id, view_mode)")
 
 
 class IrActionsAct_Window_Close(models.Model):
@@ -598,34 +613,32 @@ class IrActionsAct_Url(models.Model):
 
 
 class IrActionsTodo(models.Model):
-    """
-    Configuration Wizards
-    """
-
     _name = "ir.actions.todo"
     _description = "Configuration Wizards"
     _rec_name = "action_id"
     _order = "sequence, id"
     _allow_sudo_commands = False
 
-    action_id = fields.Many2one(
-        "ir.actions.actions", string="Action", required=True, index=True
-    )
+    name = fields.Char()
     sequence = fields.Integer(default=10)
+    action_id = fields.Many2one(
+        "ir.actions.actions",
+        string="Action",
+        required=True,
+        index=True,
+    )
     state = fields.Selection(
         [("open", "To Do"), ("done", "Done")],
         string="Status",
         default="open",
         required=True,
     )
-    name = fields.Char()
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         todos = super().create(vals_list)
-        for todo in todos:
-            if todo.state == "open":
-                self.ensure_one_open_todo()
+        if any(todo.state == "open" for todo in todos):
+            self.ensure_one_open_todo()
         return todos
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -634,17 +647,10 @@ class IrActionsTodo(models.Model):
             self.ensure_one_open_todo()
         return res
 
-    @api.model
-    def ensure_one_open_todo(self) -> None:
-        open_todo = self.search(
-            [("state", "=", "open")], order="sequence asc, id desc", offset=1
-        )
-        if open_todo:
-            open_todo.write({"state": "done"})
-
     def unlink(self) -> bool:
         if self:
-            try:
+            # ValueError: env.ref() raises when xmlid doesn't exist (e.g. during uninstall)
+            with suppress(ValueError):
                 todo_open_menu = self.env.ref("base.open_menu")
                 # don't remove base.open_menu todo but set its original action
                 if todo_open_menu in self:
@@ -652,9 +658,15 @@ class IrActionsTodo(models.Model):
                         "base.action_client_base_menu"
                     ).id
                     self -= todo_open_menu
-            except ValueError:
-                pass
         return super().unlink()
+
+    @api.model
+    def ensure_one_open_todo(self) -> None:
+        open_todo = self.search(
+            [("state", "=", "open")], order="sequence asc, id desc", offset=1
+        )
+        if open_todo:
+            open_todo.write({"state": "done"})
 
     def action_launch(self) -> dict[str, Any]:
         """Launch Action of Wizard"""
@@ -702,7 +714,6 @@ class IrActionsClient(models.Model):
     _allow_sudo_commands = False
 
     type = fields.Char(default="ir.actions.client")
-
     tag = fields.Char(
         string="Client action tag",
         required=True,

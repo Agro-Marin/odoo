@@ -1960,3 +1960,272 @@ commitment as deadline).
 | Practitioner blogs (Jeffries, Fowler) | Ideological — committed to specific agile vision | Use for qualitative insight, not quantitative claims |
 | Kanban University | Commercial — sells certification | Little's Law is mathematically sound independent of vendor |
 | Odoo forums | Self-selected dissatisfied users | Corroborate with feature analysis and competitor comparison |
+
+---
+
+## Appendix D: PMI and PMBOK — Deep Dive
+
+*Added 2026-03-22. Provides the detailed PMI content not covered in the main investigation — PMBOK edition details, EVM formulas, the PMI ecosystem beyond PMBOK, and an honest assessment of what PMI gets right.*
+
+### D.1 What PMI Gets Right: Honest Assessment
+
+Even sharp critics acknowledge genuine contributions:
+
+| Area | Genuine Value | Real Limitation |
+|------|--------------|-----------------|
+| Risk Management | Complete cyclical framework; opportunity + threat; qualitative→quantitative filter | Quantitative analysis often skipped |
+| EVM | Empirically validated early warning (CPI at 20% predicts final within 10%) | Fails with changing scope; quality-blind |
+| Stakeholder Management | Research-validated predictor of success; forces systematic identification | Power/Interest grid oversimplifies |
+| WBS | Forces scope clarity; 100% rule surfaces ambiguity | 100% upfront completeness breaks in adaptive contexts |
+| Communications Planning | Addresses systematically neglected area | Often becomes bureaucratic |
+| Change Control | Directly addresses scope creep | Can become gatekeeping |
+| Tailoring (7th/8th) | Honest admission no methodology is universal | Requires judgment PMI doesn't teach |
+| Vocabulary | "Scope creep," "stakeholder," "risk register," "baseline" — shared language | Can become jargon barrier |
+
+### D.2 PMBOK 6th Edition: The Process Framework
+
+**5 Process Groups** (iterative, overlapping — not lifecycle phases):
+1. **Initiating** — Authorize project, define scope, commit resources
+2. **Planning** — Establish scope, refine objectives, define action (24 of 49 processes live here)
+3. **Executing** — Integrate people and resources to carry out plan
+4. **Monitoring & Controlling** — Track, review, regulate progress
+5. **Closing** — Formally complete, obtain acceptance, archive, release resources
+
+**10 Knowledge Areas** with their process counts:
+
+| Knowledge Area | Processes | Key Contribution |
+|---------------|-----------|------------------|
+| Integration Management | 7 | Coordinates all others; charter, change control |
+| Scope Management | 6 | WBS, requirements, scope validation |
+| Schedule Management | 6 | CPM, activity sequencing, duration estimation |
+| Cost Management | 4 | Budgeting, EVM, cost control |
+| Quality Management | 3 | Quality planning, assurance, control |
+| Resource Management | 6 | Team acquisition, development, management |
+| Communications Management | 3 | Communication planning, execution, monitoring |
+| Risk Management | 7 | Identify → Qualitative → Quantitative → Respond → Monitor |
+| Procurement Management | 3 | Vendor selection, contract management |
+| Stakeholder Management | 4 | Identification, engagement planning, monitoring |
+
+**Total: 49 processes**, each described via the **ITTO framework** (Input → Tools & Techniques → Output). The value: traceability and auditability. The weakness: hundreds of ITTOs become exam memorization, not practical guidance.
+
+### D.3 PMBOK 7th Edition (2021): The Principles Pivot
+
+Replaced processes with **12 Principles**: Stewardship, Team, Stakeholders, Value, Systems Thinking, Leadership, Tailoring, Quality, Complexity, Risk, Adaptability/Resilience, Change.
+
+And **8 Performance Domains**: Stakeholders, Team, Development Approach & Lifecycle, Planning, Project Work, Delivery, Measurement, Uncertainty.
+
+Genuinely more intellectually honest — acknowledging projects fail for behavioral/cultural reasons. The "Tailoring" principle alone is a major departure. **The backlash**: practitioners found it too abstract.
+
+### D.4 PMBOK 8th Edition (November 2025)
+
+The pendulum swings back:
+- **6 Principles** (condensed from 12): Value, Quality, Leadership/Accountability, Sustainability, Systems Thinking, Empowerment
+- **7 Performance Domains**: Governance, Scope, Schedule, Finance, Stakeholders, Resources, Risk
+- **40 Processes** reintroduced within domains
+- **5 Focus Areas**: Initiating, Planning, Executing, Monitoring/Controlling, Closing
+- First edition with **AI integration** guidance and **sustainability** as a principle
+
+The structural story: 6th (dense processes) → 7th (pure principles, too abstract) → 8th (hybrid). PMI hasn't resolved the tension.
+
+### D.5 EVM: Core Metrics and Formulas
+
+| Metric | Formula | Meaning |
+|--------|---------|---------|
+| Schedule Variance (SV) | EV − PV | Negative = behind schedule |
+| Cost Variance (CV) | EV − AC | Negative = over budget |
+| Schedule Performance Index (SPI) | EV / PV | < 1.0 = behind |
+| Cost Performance Index (CPI) | EV / AC | < 1.0 = over budget |
+| Estimate at Completion (EAC) | BAC / CPI | Projected final cost |
+| To-Complete Performance Index | (BAC − EV) / (BAC − AC) | Efficiency needed to hit budget |
+
+**Where EVM works**: Stable scope, measurable deliverables, long duration. Construction, defense, aerospace.
+
+**Where EVM fails**: Agile (assumes stable baseline), discovery work, quality-blind (CPI = 1.0 with useless software), gameable (% complete inflation).
+
+### D.6 PMI's Risk Management Framework (7 Processes)
+
+1. **Plan Risk Management** — Define approach, tools, roles, probability/impact scales
+2. **Identify Risks** — Brainstorming, expert interviews, SWOT, assumption analysis → Risk Register
+3. **Qualitative Risk Analysis** — Probability × Impact matrix for prioritization
+4. **Quantitative Risk Analysis** — Monte Carlo, decision trees, sensitivity analysis, EMV
+5. **Plan Risk Responses** — Threats: Avoid, Transfer, Mitigate, Accept. Opportunities: Exploit, Share, Enhance, Accept
+6. **Implement Risk Responses** — Actually execute (added in 6th edition)
+7. **Monitor Risks** — Track identified, identify new, evaluate effectiveness
+
+The **qualitative → quantitative two-stage filter** is pragmatically sound. The explicit treatment of **opportunities** (not just threats) is a genuine contribution.
+
+### D.7 WBS, Stakeholder Management, and Power/Interest Grid
+
+**WBS (Work Breakdown Structure)**: Hierarchical decomposition with the **100% rule** — WBS captures all work; nothing outside it is in scope. Forces scope clarity before planning. In modern practice, agile backlogs serve a similar function (Epics → Features → Stories → Tasks) without upfront completeness.
+
+**Power/Interest Grid** (Eden & Ackermann, adopted by PMI):
+
+| | Low Interest | High Interest |
+|---|---|---|
+| **High Power** | Keep Satisfied | Manage Closely |
+| **Low Power** | Monitor | Keep Informed |
+
+Research (Ika 2009, Shenhar & Dvir) consistently identifies stakeholder management as a top predictor of long-term project success.
+
+### D.8 PMI's Ecosystem Beyond PMBOK
+
+**Standards Library**: Portfolio Management (4th Ed.), Program Management (5th Ed.), Practice Standard for Scheduling, Practice Standard for EVM.
+
+**PMIstandards+**: Digital platform filling the gap PMBOK 7 left. Searchable standards, templates (risk registers, stakeholder matrices), case studies, continuously updated.
+
+**Agile Practice Guide (2017, with Agile Alliance)**: Honest hybrid guidance. Life cycle selection spectrum (Predictive → Agile), suitability filters, hybrid approaches, organizational change needed.
+
+**Disciplined Agile (DA)**: Acquired 2019. "Choose your WoW" — no single right agile approach. Four layers: Foundation, DevOps, Value Streams, Enterprise. Process Goal Diagrams show options with trade-offs per context. DA vs. SAFe: SAFe prescribes; DA helps you choose.
+
+**Benefits Realization Management**: Tracks whether projects deliver business value after the iron triangle is met. Named benefits ownership dramatically outperforms assumption-based approaches (2014 ScienceDirect, UK/USA/Brazil).
+
+**OPM3** (Maturity Model): ~600 best practices across project/program/portfolio. Useful as diagnostic framework. Evidence is real but inconsistent.
+
+**PMO Research**: PMOs with strong executive support achieve **7x higher** success rates. Organizations with systematic project selection: **2.3x more likely** strategic alignment. Three types: Supportive, Controlling, Directive.
+
+**Talent Triangle** (updated 2022): Ways of Working (formerly Technical PM), Power Skills (formerly Leadership), Business Acumen (formerly Strategic/Business Management). The rename acknowledges PM skill ≠ PMBOK knowledge.
+
+**Project Management Journal**: Legitimate Q1 academic journal (SAGE). IF 4.4, h-index 61. Most influential: Shenhar & Dvir (Diamond Model), Slevin & Pinto (10 CSFs), Ika 2009.
+
+---
+
+## Appendix E: PM Techniques — Evidence Assessment
+
+*Added 2026-03-22. Technique-by-technique evidence assessment not covered in the main investigation sections.*
+
+### E.1 Risk Techniques
+
+**Pre-Mortem Analysis (Gary Klein)**: Mitchell, Russo & Pennington (1989): prospective hindsight increases cause identification by **30%**. Veinott et al. (2010): reduces overconfidence more effectively than pros/cons. Kahneman calls it his favourite de-biasing technique.
+
+**Monte Carlo Simulation for Schedules**: Most rigorous quantification technique. Replaces PERT's single path with probability distributions, runs 5,000-10,000 iterations. **Critical constraint**: propagates optimism bias with false precision if input distributions are biased.
+
+### E.2 Scope Techniques
+
+**MoSCoW Prioritization**: 2024 empirical study: "not as effective and precise as previously believed." Category inflation, no weighting, no value tie. Useful as conversation-starter only.
+
+**Kano Model**: Original 1984 research (900 participants). Consistently outperforms importance surveys. Limitation: categories shift over time (excitement → basic).
+
+**User Story Mapping (Patton, 2014)**: "No good evidence that user stories increase success or productivity" but "they facilitate sensemaking." Practitioner evidence, not empirical.
+
+**Impact Mapping (Adzic, 2012)**: Goal → Actors → Impacts → Deliverables. Forces behavioral change hypotheses. Evidence is case-study level.
+
+### E.3 Schedule Techniques
+
+**Critical Path Method**: Works best as a **constraint identifier** (zero-float tasks). In software, useful for infrastructure/migration, less for features.
+
+**PERT Three-Point**: (O + 4M + P) / 6. Outperforms single-point estimates. Doesn't eliminate systematic bias — all three anchored on the same subjective model.
+
+**Crashing vs. Fast-Tracking**: Crashing adds resources (cost ↑, Brooks's Law risk). Fast-tracking overlaps tasks (rework risk when upstream changes).
+
+### E.4 Quality Techniques
+
+**TDD as Quality Management**: Nagappan et al. (2008, Microsoft/IBM): **Pre-release defect density decreased 40-90%** vs. non-TDD. 15-35% initial time increase, offset by reduced maintenance. Among the strongest empirical evidence for any agile practice.
+
+### E.5 Lessons Learned / Retrospectives — Why They Fail
+
+**NASA LLIS**: Three assessments (2002, 2003, 2011) concluded lessons existed but weren't applied.
+
+**Springer (37 teams, 3 years)**: Only **40-50% of action items completed**. Topics recurred for 3 years. Most actions were single-loop (fix symptom), not double-loop (question assumption).
+
+**What works**: Pre-meeting data preparation, smaller groups (3-5), psychological safety as precondition, forcing function to next planning cycle, double-loop framing ("what assumption were we wrong about?").
+
+### E.6 Visual Management
+
+**Kanban boards**: Anderson (Microsoft, 2007) — measurable lead time and defect reduction from WIP limits. The limit is the mechanism, not the board.
+
+**Cumulative Flow Diagrams vs. Burndowns**: CFDs reveal bottlenecks (widening bands = queuing) and enable probabilistic forecasting. For sprint tracking: burndowns suffice. For portfolio forecasting: CFDs are more accurate.
+
+### E.7 Progressive Elaboration / Rolling Wave Planning
+
+Near-term in detail; future at summary level. Distant detailed planning has near-zero accuracy. This is Waterfall's recognition that it can't predict everything.
+
+### E.8 Milestone-Based Planning
+
+Milestones as **commitment devices**: accumulated slip becomes visible at defined points. Works best for governance/stakeholder communication (binary, high-stakes). Continuous flow metrics work better for team-level feedback.
+
+---
+
+## Appendix F: PM for Small Teams (5-50 People)
+
+*Added 2026-03-22. Dedicated coverage of lightweight approaches for small organizations.*
+
+### F.1 What Successful Small Companies Do
+
+**Named ownership** — one person per piece of work. **Rhythm, not rituals** — time-boxed cycles (2-6 weeks) + breathing room. **Short written specs** (1-2 pages). **Small backlogs or none** — Linear discards low-priority items; 37signals has no backlog. **Async by default**.
+
+### F.2 Shape Up (37signals)
+
+**Appetite vs. Estimates**: "How much time is this worth?" not "How long will it take?" Work shaped to fit budget. **Six-week cycles + two-week cooldown**. **Hill Charts** (uphill = figuring out, downhill = executing). **Betting Table** (no backlog; if not bet on, it drops). **Tiny teams**: 1 designer + 1-2 engineers.
+
+### F.3 The "Just Enough Process" Principle
+
+3-person fintech, full Scrum ceremonies over 8 weeks: **90 engineering hours** consumed by coordination — two full development weeks.
+
+**Meta-rule**: Add process only when you've felt the specific pain it addresses. Never preemptively for "when we scale."
+
+### F.4 Decision-Making
+
+**Bezos: One-Way vs. Two-Way Doors** — Reversible → decide fast, push down. Irreversible → deliberate. The failure: using Type 1 process on Type 2 decisions.
+
+**DARE** (McKinsey RACI alternative): Deciders (vote), Advisors (no vote), Recommenders (analysis), Execution Stakeholders (implement).
+
+For teams under 20: **one named decider per decision, everyone else advises.**
+
+### F.5 Async-First
+
+**37signals**: Written check-ins (2x/week), weekly plans Monday, 6-week cycles, "managers of one" principle.
+
+**GitLab**: Handbook-first, all meetings optional with agenda, decisions recorded publicly. **37% reduction in meeting hours**.
+
+### F.6 Real-World Examples
+
+**Linux Kernel**: Mailing lists, named subsystem maintainers, merge windows. No PM, no sprint, no backlog. World-class reliability.
+
+**PostgreSQL**: CommitFest (time-boxed review), pgsql-hackers mailing list, patches as diffs. Minimal PM.
+
+### F.7 The Minimum Viable PM System
+
+**Structure**: Named owner per work item. Time-boxed cycles (2-6 weeks). Short written specs. Written async standup (3 sentences).
+
+**Decision-making**: One named decider. Classify reversible vs. irreversible. Disagree and commit.
+
+**Risk**: Pre-mortem at kickoff. Lightweight risk register for > 2 weeks work. EVM only for fixed-scope/budget.
+
+**Tooling**: GitHub Issues → Linear → Jira (only when genuinely needed). Never SAFe under 100 engineers.
+
+**Meta-rule**: Add process only for pain you've felt. The cost is immediate; the benefit is hypothetical.
+
+---
+
+## Appendix G: Additional Sources (from 2026-03-22 Research)
+
+### Academic / Peer-Reviewed (not in main bibliography)
+- ACM 2024 — Critical Success Factors (doi: 10.1145/3664968.3664976)
+- Springer 2016 — Aristotle to Ringelmann: team productivity (doi: 10.1007/s10664-015-9406-4)
+- Wells 2012 — How Effective Are PM Methodologies? (PMJ 43(6))
+- Starkweather & Stevenson 2011 — PMP as Core Competency (PMJ 42(1))
+- Nagappan et al. 2008 — TDD Quality Improvement (Microsoft Research)
+- Mitchell, Russo & Pennington 1989 — Prospective hindsight (+30%)
+- Veinott et al. 2010 — Pre-mortem effectiveness (ISCRAM)
+- Georgetown Law Journal 2025 — Credentialism at Work
+
+### PMI Publications (not in main bibliography)
+- PMBOK Guide 6th, 7th, 8th Editions
+- Agile Practice Guide (2017)
+- Standard for Portfolio Management (4th Ed.)
+- Standard for Program Management (5th Ed.)
+- Practice Standard for EVM
+- Navigating Complexity Practice Guide (2014)
+- Benefits Realization Management Guide
+- Project Management Journal (SAGE, IF 4.4)
+
+### Practitioner / Books (not in main bibliography)
+- Goldratt — Critical Chain (1997)
+- Reinertsen — Principles of Product Development Flow (2009)
+- DeMarco — Slack (2001)
+- Singer — Shape Up (basecamp.com/shapeup)
+- Pink — Drive (2009)
+- Spolsky — Evidence-Based Scheduling (2007)
+- Fowler — The State of Agile Software in 2018
+- Jeffries — Developers Should Abandon Agile (2018), Story Points Revisited (2019)
+- Thomas — Agile is Dead (Long Live Agility) (2014)

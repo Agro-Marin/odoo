@@ -4,9 +4,9 @@ from typing import Any, Self
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
+from odoo.orm._typing import ValuesType
 from odoo.tools import SQL, config
 from odoo.tools.safe_eval import safe_eval
-from odoo.orm._typing import ValuesType
 
 _logger = logging.getLogger(__name__)
 
