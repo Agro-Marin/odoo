@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/registry - Hierarchical key-value store for services, components, fields, and actions */
 

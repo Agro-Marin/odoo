@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     getCurrentShadow,
     getDefaultShadow,
@@ -9,8 +10,8 @@ import { StyleAction } from "@html_builder/core/core_builder_action_plugin";
 import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { HeaderBoxOption } from "./header_box_option";
-import { HEADER_BOX } from "./header_option_plugin";
+import { HeaderBoxOption } from "./header_box_option.js";
+import { HEADER_BOX } from "./header_option_plugin.js";
 
 class HeaderBoxOptionPlugin extends Plugin {
     static id = "HeaderBoxOptionPlugin";

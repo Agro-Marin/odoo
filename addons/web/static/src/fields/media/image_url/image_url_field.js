@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/media/image_url/image_url_field - Image display field that loads from a URL stored in a Char column */
 

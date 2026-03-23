@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { App, whenReady } from "@odoo/owl";
 import { getTemplate } from "@web/core/templates";
 import { DocClient } from "@api_doc/doc_client";

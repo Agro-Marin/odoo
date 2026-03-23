@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { EventRegistrationSummaryDialog } from "@event/client_action/event_registration_summary_dialog";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";

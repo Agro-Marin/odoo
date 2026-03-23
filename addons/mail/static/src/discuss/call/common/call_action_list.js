@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ACTION_TAGS } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
 import { useCallActions } from "@mail/discuss/call/common/call_actions";

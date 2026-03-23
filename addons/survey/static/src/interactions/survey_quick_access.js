@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";

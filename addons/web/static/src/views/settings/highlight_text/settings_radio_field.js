@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/highlight_text/settings_radio_field - RadioField variant with search-term highlighting on option labels */
 

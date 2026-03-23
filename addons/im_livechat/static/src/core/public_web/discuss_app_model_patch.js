@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { DiscussApp } from "@mail/core/public_web/discuss_app_model";
 import { effectWithDebouncedCleanup } from "@mail/utils/common/misc";

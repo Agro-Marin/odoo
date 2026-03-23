@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Component } from "@odoo/owl";

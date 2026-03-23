@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { downloadFile } from "@web/core/network/download";
 import { useFileViewer } from "@web/components/file_viewer/file_viewer_hook";

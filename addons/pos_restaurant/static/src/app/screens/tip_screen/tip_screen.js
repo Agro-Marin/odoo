@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, useRef } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useRouterParamsChecker } from "@point_of_sale/app/hooks/pos_router_hook";

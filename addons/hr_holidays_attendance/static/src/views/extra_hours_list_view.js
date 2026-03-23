@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, useEffect } from "@odoo/owl";
 import { ListRenderer } from "@web/views/list/list_renderer";
 import { listView } from "@web/views/list/list_view";

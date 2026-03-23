@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillUpdateProps, useState, useRef } from "@odoo/owl";
 import { CustomColorPicker as ColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
 import {

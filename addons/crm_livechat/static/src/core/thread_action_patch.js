@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { ThreadAction } from "@mail/core/common/thread_actions";
 

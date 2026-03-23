@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ResPartner } from "@mail/core/common/res_partner_model";
 
 import { patch } from "@web/core/utils/patch";

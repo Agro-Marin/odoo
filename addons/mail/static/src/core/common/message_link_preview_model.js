@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { rpc } from "@web/core/network/rpc";
 export class MessageLinkPreview extends Record {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { livechatRoutingMap } from "@im_livechat/embed/cors/livechat_routing_map";
 
 import { browser } from "@web/core/browser/browser";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module search/search_group_by - GroupBy/OrderBy computation utilities for SearchModel */
 

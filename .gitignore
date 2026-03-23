@@ -39,8 +39,6 @@ setup/win32/static/postgresql*.exe
 node_modules
 jsconfig.json
 tsconfig.json
-package-lock.json
-package.json
 .husky
 
 # Rust build artifacts (platform-specific, must be compiled per environment)

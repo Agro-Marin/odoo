@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from '@odoo/owl';
 import { Dialog } from '@web/ui/dialog/dialog';
 

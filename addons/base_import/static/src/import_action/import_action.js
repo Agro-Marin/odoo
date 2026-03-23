@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillStart, useRef, useState } from "@odoo/owl";
 import { useDropzone } from "@web/components/dropzone/dropzone_hook";
 import { FileInput } from "@web/components/file_input/file_input";
@@ -8,10 +9,10 @@ import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
 import { DocumentationLink } from "@web/views/widgets/documentation_link/documentation_link";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
-import { ImportDataContent } from "../import_data_content/import_data_content";
-import { ImportDataProgress } from "../import_data_progress/import_data_progress";
-import { ImportDataSidepanel } from "../import_data_sidepanel/import_data_sidepanel";
-import { useImportModel } from "../import_model";
+import { ImportDataContent } from "../import_data_content/import_data_content.js";
+import { ImportDataProgress } from "../import_data_progress/import_data_progress.js";
+import { ImportDataSidepanel } from "../import_data_sidepanel/import_data_sidepanel.js";
+import { useImportModel } from "../import_model.js";
 
 export class ImportAction extends Component {
     static template = "ImportAction";

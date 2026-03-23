@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { onWillStart, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { usePopover } from "@web/ui/popover/popover_hook";
-import { FloatTimeSelectionPopover } from "./float_time_selection_popover";
+import { FloatTimeSelectionPopover } from "./float_time_selection_popover.js";
 
 import { FloatTimeField, floatTimeField } from "@web/fields/basic/float_time/float_time_field";
 const { DateTime } = luxon;

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/l10n/utils/format_list - Locale-aware list formatting via Intl.ListFormat (conjunction, disjunction, unit) */
 

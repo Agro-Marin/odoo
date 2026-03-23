@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/user_menu/user_menu_items - User menu item factories registered in user_menuitems registry (help, shortcuts, preferences, PWA install, log out) */
 

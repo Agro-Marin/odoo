@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     containsAnyNonPhrasingContent,
     getDeepestPosition,
@@ -8,13 +9,13 @@ import {
     isProtected,
     isProtecting,
 } from "@html_editor/utils/dom_info";
-import { Plugin } from "../plugin";
+import { Plugin } from "../plugin.js";
 import { fillEmpty } from "@html_editor/utils/dom";
 import {
     BASE_CONTAINER_CLASS,
     baseContainerGlobalSelector,
     createBaseContainer,
-} from "../utils/base_container";
+} from "../utils/base_container.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { childNodeIndex } from "@html_editor/utils/position";

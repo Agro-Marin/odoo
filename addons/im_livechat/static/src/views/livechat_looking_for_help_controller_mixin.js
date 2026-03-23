@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LivechatViewControllerMixin } from "@im_livechat/views/livechat_view_controller_mixin";
 
 import { onWillDestroy } from "@odoo/owl";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/construct_tree_from_expression - Parses a Python expression string into a condition tree structure */
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_button/multi_record_view_button - ViewButton variant for list/kanban headers that operates on multiple selected records */
 

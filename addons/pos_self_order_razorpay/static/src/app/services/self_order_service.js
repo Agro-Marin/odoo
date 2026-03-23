@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { Razorpay, RazorpayError } from "@pos_self_order_razorpay/app/razorpay";
 

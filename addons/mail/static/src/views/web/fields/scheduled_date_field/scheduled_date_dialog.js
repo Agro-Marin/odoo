@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { today } from "@web/core/l10n/dates";

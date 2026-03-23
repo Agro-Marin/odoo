@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Dialog } from "@web/ui/dialog/dialog";
 import { _t } from "@web/core/l10n/translation";
 import { useChildRef } from "@web/core/utils/hooks";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BasePrinter } from "@point_of_sale/app/utils/printer/base_printer";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 

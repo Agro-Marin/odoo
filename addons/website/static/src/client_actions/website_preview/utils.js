@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Checks if the 2 given URLs are the same, to prevent redirecting uselessly
  * from one to another.

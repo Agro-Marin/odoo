@@ -1,4 +1,5 @@
-import { SectionListRenderer } from "./section_list_renderer";
+/** @odoo-module native */
+import { SectionListRenderer } from "./section_list_renderer.js";
 import { registry } from "@web/core/registry";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 

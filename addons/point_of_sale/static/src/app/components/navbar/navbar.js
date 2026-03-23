@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { barcodeService } from "@barcodes/barcode_service";
 import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";

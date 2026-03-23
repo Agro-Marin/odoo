@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { Form } from "@website/snippets/s_website_form/form";
 import { patch } from "@web/core/utils/patch";
 
 import { uniqueId } from "@web/core/utils/functions";
 import { session } from "@web/session";
-import { TurnStile } from "./turnstile";
+import { TurnStile } from "./turnstile.js";
 
 patch(Form.prototype, {
     /**

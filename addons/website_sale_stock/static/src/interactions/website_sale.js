@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { rpc } from '@web/core/network/rpc';
 import { isEmail } from '@web/core/utils/format/strings';
 import { patch } from '@web/core/utils/patch';

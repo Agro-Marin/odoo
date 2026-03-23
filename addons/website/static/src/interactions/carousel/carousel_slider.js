@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { registry } from "@web/core/registry";

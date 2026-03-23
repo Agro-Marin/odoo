@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onMounted, onRendered, useEffect, useRef, useState } from "@odoo/owl";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";

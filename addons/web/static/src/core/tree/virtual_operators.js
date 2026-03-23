@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/virtual_operators - Introduces and eliminates virtual operators (between, in range, any/all) in condition trees */
 
@@ -379,18 +379,41 @@ function removeFalseTrueLeaves(tree) {
  * @param {Options} [options={}]
  * @returns {Tree}
  */
+// Patchable object for functions that need to be extended by other modules.
+// ESM namespace objects are non-configurable, so patch() cannot redefine
+// their properties. This object provides a patchable indirection layer.
+// The exported functions below delegate to this object, so patching it
+// affects ALL consumers — even those using direct named imports.
+export const virtualOperatorFunctions = {
+    introduceVirtualOperators(tree, options = {}) {
+        return applyTransformations(
+            [
+                eliminateAnyOperators,
+                introduceSetOperators,
+                introduceStartsWithOperators,
+                introduceBetweenOperators,
+                introduceInRangeOperators,
+            ],
+            tree,
+            options,
+        );
+    },
+    eliminateVirtualOperators(tree, options = {}) {
+        return applyTransformations(
+            [
+                eliminateInRangeOperators,
+                eliminateBetweenOperators,
+                eliminateStartsWithOperators,
+                eliminateSetOperators,
+            ],
+            tree,
+            options,
+        );
+    },
+};
+
 export function introduceVirtualOperators(tree, options = {}) {
-    return applyTransformations(
-        [
-            eliminateAnyOperators,
-            introduceSetOperators,
-            introduceStartsWithOperators,
-            introduceBetweenOperators,
-            introduceInRangeOperators,
-        ],
-        tree,
-        options,
-    );
+    return virtualOperatorFunctions.introduceVirtualOperators(tree, options);
 }
 
 /**
@@ -401,16 +424,7 @@ export function introduceVirtualOperators(tree, options = {}) {
  * @returns {Tree}
  */
 export function eliminateVirtualOperators(tree, options = {}) {
-    return applyTransformations(
-        [
-            eliminateInRangeOperators,
-            eliminateBetweenOperators,
-            eliminateStartsWithOperators,
-            eliminateSetOperators,
-        ],
-        tree,
-        options,
-    );
+    return virtualOperatorFunctions.eliminateVirtualOperators(tree, options);
 }
 
 /**
@@ -420,6 +434,7 @@ export function eliminateVirtualOperators(tree, options = {}) {
  * @param {Tree} otherTree
  * @returns {boolean}
  */
+
 export function areEquivalentTrees(tree, otherTree) {
     const simplifiedTree = removeFalseTrueLeaves(eliminateVirtualOperators(tree));
     const otherSimplifiedTree = removeFalseTrueLeaves(

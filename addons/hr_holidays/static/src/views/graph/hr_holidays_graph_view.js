@@ -1,4 +1,4 @@
-/** @odoo-module **/
+/** @odoo-module native **/
 
 import { graphView } from "@web/views/graph/graph_view";
 import { registry } from "@web/core/registry";

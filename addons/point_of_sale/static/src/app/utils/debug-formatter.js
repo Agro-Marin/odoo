@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { toRaw } from "@odoo/owl";
 
-import { WithLazyGetterTrap } from "../../lazy_getter";
-import { Base } from "../models/related_models";
-import { RAW_SYMBOL } from "../models/related_models/utils";
+import { WithLazyGetterTrap } from "../../lazy_getter.js";
+import { Base } from "../models/related_models.js";
+import { RAW_SYMBOL } from "../models/related_models/utils.js";
 
 // https://www.mattzeunert.com/2016/02/19/custom-chrome-devtools-object-formatters.html
 

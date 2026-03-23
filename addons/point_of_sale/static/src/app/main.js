@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { mount, reactive, whenReady } from "@odoo/owl";
 import { Loader } from "@point_of_sale/app/components/loader/loader";
 import { Chrome } from "@point_of_sale/app/pos_app";

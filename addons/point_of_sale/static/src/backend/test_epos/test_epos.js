@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
 import { initLNA } from "@point_of_sale/app/utils/init_lna";
 import { _t } from "@web/core/l10n/translation";

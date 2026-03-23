@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { Store } from "@mail/core/common/store_service";
 import { patch } from "@web/core/utils/patch";

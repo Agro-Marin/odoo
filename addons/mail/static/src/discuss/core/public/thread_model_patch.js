@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";

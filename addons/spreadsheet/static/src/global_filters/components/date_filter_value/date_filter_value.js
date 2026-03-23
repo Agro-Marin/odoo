@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DateFilterDropdown } from "../date_filter_dropdown/date_filter_dropdown";
+import { DateFilterDropdown } from "../date_filter_dropdown/date_filter_dropdown.js";
 import { dateFilterValueToString } from "@spreadsheet/global_filters/helpers";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 

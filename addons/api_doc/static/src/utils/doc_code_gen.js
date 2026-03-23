@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export const LANGUAGES = {
     json: "json",
     javascript: "javascript",

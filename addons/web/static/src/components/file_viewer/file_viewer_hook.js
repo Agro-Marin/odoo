@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/file_viewer/file_viewer_hook - Factory and hook for opening/closing a file viewer as a main component */
 

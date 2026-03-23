@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/progress_bar_hook - Progress bar state computation, active bar filtering, and per-group aggregate tracking for kanban columns */
 

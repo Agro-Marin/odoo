@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/datapoint - Abstract reactive base class for all data model nodes (records, lists, groups) */
 

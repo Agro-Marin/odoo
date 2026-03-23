@@ -1,16 +1,17 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
-import { AnimateOption } from "./animate_option";
+import { AnimateOption } from "./animate_option.js";
 import { _t } from "@web/core/l10n/translation";
-import { AnimateText } from "./animate_text";
+import { AnimateText } from "./animate_text.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { ancestors, closestElement, findFurthest } from "@html_editor/utils/dom_traversal";
 import { ANIMATE } from "@html_builder/utils/option_sequence";
 import { childNodeIndex, DIRECTIONS, nodeSize } from "@html_editor/utils/position";
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { EmphasizeAnimatedText } from "./emphasize_animated_text";
+import { EmphasizeAnimatedText } from "./emphasize_animated_text.js";
 
 /**
  * @typedef { Object } AnimateOptionShared

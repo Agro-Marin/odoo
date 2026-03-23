@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { TestsSharedJsPython } from "@account/components/tests_shared_js_python/tests_shared_js_python";
 import { accountTaxHelpers } from "@account/helpers/account_tax";

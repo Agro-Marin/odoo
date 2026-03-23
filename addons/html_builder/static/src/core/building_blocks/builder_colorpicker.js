@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ColorSelector } from "@html_editor/main/font/color_selector";
 import { Component, useComponent, useRef } from "@odoo/owl";
 import {
@@ -5,7 +6,7 @@ import {
     DEFAULT_COLORS,
     DEFAULT_THEME_COLOR_VARS,
 } from "@web/components/color_picker/color_picker";
-import { BuilderComponent } from "./builder_component";
+import { BuilderComponent } from "./builder_component.js";
 import {
     basicContainerBuilderComponentProps,
     getAllActionsAndOperations,
@@ -13,7 +14,7 @@ import {
     useBuilderComponent,
     useDomState,
     useHasPreview,
-} from "../utils";
+} from "../utils.js";
 import { isCSSColor, isColorGradient } from "@web/core/utils/format/colors";
 import { getAllUsedColors } from "@html_builder/utils/utils_css";
 

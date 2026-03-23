@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { cookie } from '@web/core/browser/cookie';
 
 const COMPARISON_PRODUCT_IDS_COOKIE_NAME = 'comparison_product_ids';

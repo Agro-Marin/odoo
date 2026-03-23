@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CorePlugin, CoreViewPlugin, UIPlugin } from "@odoo/o-spreadsheet";
 
 /**

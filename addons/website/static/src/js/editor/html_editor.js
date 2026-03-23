@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LinkPopover } from "@html_editor/main/link/link_popover";
 import { rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/l10n/translation";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/basic/float_time/float_time_field - Time duration input that stores hours as a float (e.g. 1.5 = 1h30) */
 

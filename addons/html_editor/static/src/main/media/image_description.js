@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useEffect, useRef } from "@odoo/owl";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";

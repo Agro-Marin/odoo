@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/currency_service - Service that auto-reloads currencies when res.currency records are mutated */
 

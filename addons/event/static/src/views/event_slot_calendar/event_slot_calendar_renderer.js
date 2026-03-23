@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CalendarCommonRenderer } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 import { CalendarRenderer } from "@web/views/calendar/calendar_renderer";
 import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";

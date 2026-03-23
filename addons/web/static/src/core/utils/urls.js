@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/urls - URL construction, origin resolution, image URL generation, and redirect handling */
 
@@ -90,10 +90,10 @@ export function imageUrl(
     /** @type {{[key: string]: any}} */
     const urlParams = {};
     if (access_token) {
-        Object.assign(urlParams, { access_token });
+        urlParams.access_token = access_token;
     }
     if (crop) {
-        Object.assign(urlParams, { crop });
+        urlParams.crop = crop;
     }
     if (unique) {
         const { DateTime } = /** @type {any} */ (luxon);

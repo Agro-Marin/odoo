@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { cookie as cookieManager } from "@web/core/browser/cookie";
 
 export class EventBus extends EventTarget {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { localization } from "@web/core/l10n/localization";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/list/list_renderer - Table rendering, inline editing, column resize, and drag-and-drop for list view */
 

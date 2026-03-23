@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/name_service - Batched and cached display_name lookups across arbitrary models */
 

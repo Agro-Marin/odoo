@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/custom_group_by_item/custom_group_by_item - Dropdown item for selecting a custom field to group by */
 

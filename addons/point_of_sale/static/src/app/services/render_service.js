@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, reactive, useRef, xml } from "@odoo/owl";
 import { toCanvas } from "@point_of_sale/app/utils/html-to-image";
 import { waitImages } from "@point_of_sale/utils";

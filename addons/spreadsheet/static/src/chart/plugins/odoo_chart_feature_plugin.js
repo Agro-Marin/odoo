@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { OdooUIPlugin } from "@spreadsheet/plugins";
-import { getBestGranularity, getValidGranularities } from "../../global_filters/helpers";
+import { getBestGranularity, getValidGranularities } from "../../global_filters/helpers.js";
 
 export class OdooChartFeaturePlugin extends OdooUIPlugin {
     static getters = /** @type {const} */ (["getAvailableChartGranularities"]);

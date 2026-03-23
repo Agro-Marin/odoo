@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { HrPresenceStatus, hrPresenceStatus } from "../hr_presence_status/hr_presence_status";
+import { HrPresenceStatus, hrPresenceStatus } from "../hr_presence_status/hr_presence_status.js";
 
 export class HrPresenceStatusPill extends HrPresenceStatus {
     static template = "hr.HrPresenceStatusPill";

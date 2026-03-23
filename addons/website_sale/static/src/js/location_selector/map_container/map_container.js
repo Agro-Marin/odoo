@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     MapContainer
 } from '@delivery/js/location_selector/map_container/map_container';

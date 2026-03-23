@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";

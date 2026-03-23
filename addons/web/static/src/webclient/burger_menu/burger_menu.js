@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/burger_menu/burger_menu - Fullscreen mobile menu displaying user menu, company switcher, and current app sub-menus */
 

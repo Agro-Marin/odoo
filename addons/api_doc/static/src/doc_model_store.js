@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { markRaw, markup } from "@odoo/owl";
 import { Reactive } from "@web/core/utils/reactive";
 

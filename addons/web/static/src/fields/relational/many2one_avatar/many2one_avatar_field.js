@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/many2one_avatar/many2one_avatar_field - Many2one field variant that displays the related record avatar */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { floatField, FloatField } from "@web/fields/basic/float/float_field";
 

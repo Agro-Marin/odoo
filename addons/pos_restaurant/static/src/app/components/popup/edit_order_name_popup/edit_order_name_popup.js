@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ListContainer } from "@point_of_sale/app/components/list_container/list_container";
 import { TextInputPopup } from "@point_of_sale/app/components/popups/text_input_popup/text_input_popup";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";

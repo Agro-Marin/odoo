@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { SelectionField, selectionField } from "@web/fields/selection/selection/selection_field";

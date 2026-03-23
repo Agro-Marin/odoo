@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/record - Field value management, change tracking, dirty state, and save/discard for individual records */
 

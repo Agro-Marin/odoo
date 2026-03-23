@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Base } from "@point_of_sale/app/models/related_models";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 export const LT = -1;

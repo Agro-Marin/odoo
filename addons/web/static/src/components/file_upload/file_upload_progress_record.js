@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/file_upload/file_upload_progress_record - Per-record file upload overlay showing percentage and MB progress */
 

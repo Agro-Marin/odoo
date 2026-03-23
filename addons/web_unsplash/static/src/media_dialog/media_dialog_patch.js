@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { MediaDialog, TABS } from "@html_editor/main/media/media_dialog/media_dialog";
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";

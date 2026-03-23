@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Domain } from "@web/core/domain";
 import { ActivityMenu } from "@mail/core/web/activity_menu";
 import { patch } from "@web/core/utils/patch";

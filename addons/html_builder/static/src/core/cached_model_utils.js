@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useEnv } from "@odoo/owl";
 
 export function useCachedModel() {

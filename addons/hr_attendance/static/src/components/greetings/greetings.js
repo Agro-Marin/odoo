@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {Component, onWillDestroy} from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { deserializeDateTime } from "@web/core/l10n/dates";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
 import { applyFunDependOnSelectorAndExclude } from "@html_builder/plugins/utils";
@@ -6,8 +7,8 @@ import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
 import { CONTAINER_WIDTH } from "@website/builder/option_sequence";
-import { connectorOptionParams, ProcessStepsOption } from "./process_steps_option";
-import { BaseWebsiteBackgroundOption } from "./background_option";
+import { connectorOptionParams, ProcessStepsOption } from "./process_steps_option.js";
+import { BaseWebsiteBackgroundOption } from "./background_option.js";
 
 export class WebsiteBackgroundProcessStepOption extends BaseWebsiteBackgroundOption {
     static selector = ".s_process_step .s_process_step_number";

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { cropperDataFieldsWithAspectRatio, loadImage } from "@html_editor/utils/image_processing";
 import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
-import { ImageToolOption } from "./image_tool_option";
+import { ImageToolOption } from "./image_tool_option.js";
 import { isImageCorsProtected } from "@html_editor/utils/image";
 import { withSequence } from "@html_editor/utils/resource";
 import {
@@ -9,7 +10,7 @@ import {
     IMAGE_TOOL,
     ALIGNMENT_STYLE_PADDING,
 } from "@html_builder/utils/option_sequence";
-import { ReplaceMediaOption, searchSupportedParentLinkEl } from "./replace_media_option";
+import { ReplaceMediaOption, searchSupportedParentLinkEl } from "./replace_media_option.js";
 import { computeMaxDisplayWidth } from "@html_builder/plugins/image/image_format_option";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { ClassAction } from "@html_builder/core/core_builder_action_plugin";

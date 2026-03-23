@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { RPCErrorDialog } from "@web/components/errors/error_dialogs";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";

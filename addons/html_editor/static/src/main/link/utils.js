@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* eslint-disable */
 
 const tldWhitelist = [

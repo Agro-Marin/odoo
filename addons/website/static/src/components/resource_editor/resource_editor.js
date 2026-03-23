@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -11,8 +12,8 @@ import { sortBy } from "@web/core/utils/collections/arrays";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 
-import { ResourceEditorWarningOverlay } from "./resource_editor_warning";
-import { checkSCSS, checkXML, formatXML } from "./utils";
+import { ResourceEditorWarningOverlay } from "./resource_editor_warning.js";
+import { checkSCSS, checkXML, formatXML } from "./utils.js";
 
 import { Component, onWillUnmount, onWillStart, reactive, useRef, useState } from "@odoo/owl";
 

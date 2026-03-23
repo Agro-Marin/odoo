@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 
 /** @typedef {{ thread?: import("models").Thread }} ChatWindowData */

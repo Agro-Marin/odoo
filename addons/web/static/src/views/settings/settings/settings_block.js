@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/settings/settings_block - Collapsible group of settings within an app tab with search-based visibility toggling */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { FormController } from "@web/views/form/form_controller";

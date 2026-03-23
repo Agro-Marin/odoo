@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /** @ts-check */
 
 /**
@@ -22,9 +23,9 @@ import {
     getDateRange,
 } from "@spreadsheet/global_filters/helpers";
 import { OdooCoreViewPlugin } from "@spreadsheet/plugins";
-import { getItemId } from "../../helpers/model";
+import { getItemId } from "../../helpers/model.js";
 import { serializeDate } from "@web/core/l10n/dates";
-import { getFilterCellValue, getFilterValueDomain } from "../helpers";
+import { getFilterCellValue, getFilterValueDomain } from "../helpers.js";
 import { deepEqual } from "@web/core/utils/collections/objects";
 
 const { DateTime } = luxon;

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useOperation } from "@html_builder/core/operation_plugin";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 

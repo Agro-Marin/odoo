@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* eslint-env serviceworker */
 /* eslint-disable no-restricted-globals */
 /* global idbKeyval */

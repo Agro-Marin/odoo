@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { EventBus, reactive } from "@odoo/owl";
 import { HWPrinter } from "@point_of_sale/app/utils/printer/hw_printer";
 import { deduceUrl } from "@point_of_sale/utils";
@@ -5,7 +6,7 @@ import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { effect } from "@web/core/utils/reactive";
-import { logPosMessage } from "../utils/pretty_console_log";
+import { logPosMessage } from "../utils/pretty_console_log.js";
 /**
  * This object interfaces with the local proxy to communicate to the various hardware devices
  * connected to the Point of Sale. As the communication only goes from the POS to the proxy,

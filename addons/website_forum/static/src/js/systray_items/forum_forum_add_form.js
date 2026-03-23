@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {NewContentFormController, NewContentFormView} from '@website/js/new_content_form';
 import {registry} from "@web/core/registry";
 

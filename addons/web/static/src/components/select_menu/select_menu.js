@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/select_menu/select_menu - Searchable dropdown select menu with multi-select tags and keyboard navigation */
 

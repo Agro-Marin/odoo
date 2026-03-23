@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/templates - Template registry: parses, inherits, caches, and retrieves QWeb templates */
 

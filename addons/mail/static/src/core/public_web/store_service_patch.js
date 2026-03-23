@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Store, storeService } from "@mail/core/common/store_service";
 import { router } from "@web/core/browser/router";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { PartnerLine } from "@point_of_sale/app/screens/partner_list/partner_line/partner_line";
 import { _t } from "@web/core/l10n/translation";

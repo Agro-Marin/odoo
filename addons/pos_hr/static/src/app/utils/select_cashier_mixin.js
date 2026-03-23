@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global Sha1 */
 
 import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/number_popup";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/signature/signature_dialog - Dialog wrapper for capturing and uploading a signature */
 

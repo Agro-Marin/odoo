@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { DiscussSidebarCallParticipants } from "@mail/discuss/call/public_web/discuss_sidebar_call_participants";
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { patch } from "@web/core/utils/patch";

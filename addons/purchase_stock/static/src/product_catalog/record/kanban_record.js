@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { ProductCatalogKanbanRecord } from "@product/product_catalog/kanban_record";
-import { ProductCatalogPurchaseSuggestOrderLine } from "./purchase_order_line";
+import { ProductCatalogPurchaseSuggestOrderLine } from "./purchase_order_line.js";
 
 export class ProductCatalogPurchaseSuggestKanbanRecord extends ProductCatalogKanbanRecord {
     /* Hides suggest line if suggest_qty == qty in PO */

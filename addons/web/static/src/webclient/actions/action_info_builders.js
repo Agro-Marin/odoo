@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/actions/action_info_builders - Builds props, config, and state for client action and view controllers */
 

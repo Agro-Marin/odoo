@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     ProductLabelSectionAndNoteField,
     productLabelSectionAndNoteField,
@@ -10,10 +11,10 @@ import { x2ManyCommands } from "@web/model/relational_model/commands";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { uuid } from "@web/core/utils/format/strings";
-import { ComboConfiguratorDialog } from "./combo_configurator_dialog/combo_configurator_dialog";
-import { ProductCombo } from "./models/product_combo";
-import { ProductConfiguratorDialog } from "./product_configurator_dialog/product_configurator_dialog";
-import { getLinkedSaleOrderLines, serializeComboItem, getSelectedCustomPtav } from "./sale_utils";
+import { ComboConfiguratorDialog } from "./combo_configurator_dialog/combo_configurator_dialog.js";
+import { ProductCombo } from "./models/product_combo.js";
+import { ProductConfiguratorDialog } from "./product_configurator_dialog/product_configurator_dialog.js";
+import { getLinkedSaleOrderLines, serializeComboItem, getSelectedCustomPtav } from "./sale_utils.js";
 
 async function applyProduct(record, product) {
     // handle custom values & no variants

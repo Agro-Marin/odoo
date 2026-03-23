@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";

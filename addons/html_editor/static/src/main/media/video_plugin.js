@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { VideoSelector } from "./media_dialog/video_selector";
+import { VideoSelector } from "./media_dialog/video_selector.js";
 import { _t } from "@web/core/l10n/translation";
 
 export class VideoPlugin extends Plugin {

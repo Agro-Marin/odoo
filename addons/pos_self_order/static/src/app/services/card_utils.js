@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PosOrderline } from "@point_of_sale/app/models/pos_order_line";
 import { STORE_SYMBOL } from "@point_of_sale/app/models/related_models/utils";
 import { computeComboItems } from "@point_of_sale/app/models/utils/compute_combo_items";

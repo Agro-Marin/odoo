@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { EmojisFieldCommon } from "@mail/views/web/fields/emojis_field_common/emojis_field_common";
 import { useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
 import { NotificationItem } from "@mail/core/public_web/notification_item";

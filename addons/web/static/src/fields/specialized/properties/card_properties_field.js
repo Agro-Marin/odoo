@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/properties/card_properties_field - Kanban/hierarchy card read-only variant of the properties field */
 

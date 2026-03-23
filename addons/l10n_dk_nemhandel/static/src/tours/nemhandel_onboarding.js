@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { accountTourSteps } from "@account/js/tours/account";
 

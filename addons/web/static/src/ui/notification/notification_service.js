@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/notification/notification_service - Service that manages toast notifications displayed in the top-right corner */
 

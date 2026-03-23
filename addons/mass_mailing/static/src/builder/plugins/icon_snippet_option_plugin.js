@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { wrapInlinesInBlocks } from "@html_editor/utils/dom";
 import { registry } from "@web/core/registry";

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ActivityButton } from "@mail/core/web/activity_button";
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { handleCheckIdentity } from "@portal/interactions/portal_security";
 import { Interaction } from "@web/public/interaction";
 import { InputConfirmationDialog } from "@portal/js/components/input_confirmation_dialog/input_confirmation_dialog";

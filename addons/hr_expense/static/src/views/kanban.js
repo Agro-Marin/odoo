@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { registry } from '@web/core/registry';
 
-import { ExpenseDashboard } from '../components/expense_dashboard';
-import { ExpenseMobileQRCode } from '../mixins/qrcode';
-import { ExpenseDocumentUpload, ExpenseDocumentDropZone } from '../mixins/document_upload';
+import { ExpenseDashboard } from '../components/expense_dashboard.js';
+import { ExpenseMobileQRCode } from '../mixins/qrcode.js';
+import { ExpenseDocumentUpload, ExpenseDocumentDropZone } from '../mixins/document_upload.js';
 
 import { kanbanView } from '@web/views/kanban/kanban_view';
 import { KanbanController } from '@web/views/kanban/kanban_controller';

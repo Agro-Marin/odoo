@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/autocomplete/autocomplete - Generic autocomplete dropdown with multi-source results, keyboard navigation, and debounced search */
 

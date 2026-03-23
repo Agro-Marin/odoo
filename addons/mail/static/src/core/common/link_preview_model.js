@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { convertToEmbedURL } from "@mail/utils/common/misc";
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Initialize Local Network Access permission handling.
  *

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/kanban_record_quick_create - Inline mini-form for quick-creating records within a kanban column */
 

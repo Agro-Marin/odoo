@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/barcode/ZXingBarcodeDetector - BarcodeDetector polyfill built on ZXing for browsers without native support */
 

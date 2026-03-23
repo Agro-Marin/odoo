@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/many2x_autocomplete - Autocomplete component for many2one/many2many fields with search, quick-create, and dialog creation */
 

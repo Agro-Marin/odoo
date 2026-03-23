@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/legacy/js/public/public_widget - Legacy widget framework for public pages with parent-child lifecycle and DOM event handling */
 

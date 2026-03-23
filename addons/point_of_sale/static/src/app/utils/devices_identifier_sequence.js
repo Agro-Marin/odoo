@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export default class DeviceIdentifierSequence {
     static uniqueDeviceIdentifierKey = `${odoo.access_token}-unique_device_identifier`;
 

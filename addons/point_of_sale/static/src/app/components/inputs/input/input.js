@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onPatched, useRef, useState } from "@odoo/owl";
 import { TModelInput } from "@point_of_sale/app/components/inputs/t_model_input";
 import { useAutofocus } from "@web/core/utils/hooks";

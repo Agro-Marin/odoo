@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ANIMATE, before } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/reload_company_service - Service that triggers a page reload when res.company records are modified */
 

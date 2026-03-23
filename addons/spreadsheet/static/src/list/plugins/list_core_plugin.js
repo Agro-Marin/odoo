@@ -1,4 +1,5 @@
-import { CommandResult } from "../../o_spreadsheet/cancelled_reason";
+/** @odoo-module native */
+import { CommandResult } from "../../o_spreadsheet/cancelled_reason.js";
 import { helpers } from "@odoo/o-spreadsheet";
 import { Domain } from "@web/core/domain";
 import { deepCopy } from "@web/core/utils/collections/objects";

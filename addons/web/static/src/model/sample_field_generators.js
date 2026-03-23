@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/sample_field_generators - Pure functions generating realistic fake field values by type */
 

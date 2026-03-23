@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";

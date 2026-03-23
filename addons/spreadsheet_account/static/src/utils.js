@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // @ts-check
 
 import { helpers } from "@odoo/o-spreadsheet";

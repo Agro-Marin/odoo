@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * reconstruction of a customizable_css_variable:
  * --optionName-propertyLikeName (i.e. --button-padding-x, --button-padding-y

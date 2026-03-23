@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { TrapDisabler } from "@point_of_sale/proxy_trap";
 import { uuidv4 } from "@point_of_sale/utils";
 
-import { Base } from "./base";
-import { createExtraField, processModelClasses } from "./model_classes";
-import { processModelDefs } from "./model_defs";
-import { RecordStore } from "./record_store";
-import { ormSerialization } from "./serialization";
+import { Base } from "./base.js";
+import { createExtraField, processModelClasses } from "./model_classes.js";
+import { processModelDefs } from "./model_defs.js";
+import { RecordStore } from "./record_store.js";
+import { ormSerialization } from "./serialization.js";
 import {
     AggregatedUpdates,
     BACKREF_PREFIX,
@@ -19,7 +20,7 @@ import {
     SERIALIZED_UI_STATE_PROP,
     STORE_SYMBOL,
     X2MANY_TYPES,
-} from "./utils";
+} from "./utils.js";
 
 const AVAILABLE_EVENT = ["create", "update", "delete"];
 
@@ -1004,4 +1005,4 @@ function convertToX2ManyCommands(values, strict = false) {
     return commands;
 }
 
-export { Base } from "./base";
+export { Base } from "./base.js";

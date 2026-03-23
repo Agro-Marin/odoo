@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { actionService } from "@web/webclient/actions/action_service";
 patch(actionService, {

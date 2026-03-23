@@ -1,16 +1,17 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { Plugin } from "../plugin";
-import { closestBlock } from "../utils/blocks";
-import { closestElement, firstLeaf, selectElements } from "../utils/dom_traversal";
+import { Plugin } from "../plugin.js";
+import { closestBlock } from "../utils/blocks.js";
+import { closestElement, firstLeaf, selectElements } from "../utils/dom_traversal.js";
 import {
     isEmptyBlock,
     isListItemElement,
     paragraphRelatedElementsSelector,
-} from "../utils/dom_info";
+} from "../utils/dom_info.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { removeClass } from "@html_editor/utils/dom";
 import { withSequence } from "@html_editor/utils/resource";
-import { fillEmpty } from "../utils/dom";
+import { fillEmpty } from "../utils/dom.js";
 
 export class SeparatorPlugin extends Plugin {
     static id = "separator";

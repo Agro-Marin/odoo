@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { HierarchyArchParser } from "./hierarchy_arch_parser";
-import { HierarchyController } from "./hierarchy_controller";
-import { HierarchyModel } from "./hierarchy_model";
-import { HierarchyRenderer } from "./hierarchy_renderer";
+import { HierarchyArchParser } from "./hierarchy_arch_parser.js";
+import { HierarchyController } from "./hierarchy_controller.js";
+import { HierarchyModel } from "./hierarchy_model.js";
+import { HierarchyRenderer } from "./hierarchy_renderer.js";
 
 export const hierarchyView = {
     type: "hierarchy",

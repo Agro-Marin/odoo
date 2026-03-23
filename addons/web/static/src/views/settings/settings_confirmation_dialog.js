@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/settings_confirmation_dialog - Three-way dialog (Save/Discard/Stay) for unsaved settings changes */
 

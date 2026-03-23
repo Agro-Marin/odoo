@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     constructAttributeString,
     constructFullProductName,
@@ -7,7 +8,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { parseFloat } from "@web/fields/parsers";
-import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting";
+import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";
 
 export class PosOrderline extends PosOrderlineAccounting {
     static pythonModel = "pos.order.line";
@@ -414,7 +415,7 @@ export class PosOrderline extends PosOrderlineAccounting {
             (dp) => dp.name === "Product Price",
         );
         const parsed_price = !isNaN(price)
-            ? Number(price)
+            ? price
             : isNaN(parseFloat(price))
               ? 0
               : parseFloat("" + price);

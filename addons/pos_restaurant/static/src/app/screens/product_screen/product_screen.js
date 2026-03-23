@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillDestroy } from "@odoo/owl";
 import { DECIMAL, SWITCHSIGN } from "@point_of_sale/app/components/numpad/numpad";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";

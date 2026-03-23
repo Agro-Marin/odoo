@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 import { registry } from "@web/core/registry";

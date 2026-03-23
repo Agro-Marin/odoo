@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/orm_service - ORM RPC client for CRUD, read_group, and x2many command helpers */
 

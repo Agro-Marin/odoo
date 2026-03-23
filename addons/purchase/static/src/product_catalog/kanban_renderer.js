@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 
 import { ProductCatalogKanbanRenderer } from "@product/product_catalog/kanban_renderer";

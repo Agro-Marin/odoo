@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ListController } from "@web/views/list/list_controller";
 import { onWillStart } from "@odoo/owl";
 import { user } from "@web/services/user";

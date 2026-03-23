@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Dialog } from "@web/ui/dialog/dialog";
 import { Notebook } from "@web/components/notebook/notebook";
 import { formatDateTime } from "@web/core/l10n/dates";

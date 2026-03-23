@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { BackgroundOption } from "@html_builder/plugins/background_option/background_option";
-import { ParallaxOption } from "./parallax_option";
+import { ParallaxOption } from "./parallax_option.js";
 import { useBackgroundOption } from "@html_builder/plugins/background_option/background_hook";
 
 export class BaseWebsiteBackgroundOption extends BaseOptionComponent {

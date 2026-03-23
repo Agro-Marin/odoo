@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LivechatCommandDialog } from "@im_livechat/core/common/livechat_command_dialog";
 
 import { registerThreadAction } from "@mail/core/common/thread_actions";

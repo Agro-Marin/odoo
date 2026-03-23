@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { reactive } from "@odoo/owl";
 
-import { Base } from "./base";
-import { RAW_SYMBOL } from "./utils";
+import { Base } from "./base.js";
+import { RAW_SYMBOL } from "./utils.js";
 
 export class RecordStore {
     /**

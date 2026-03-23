@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
-import { DynamicSvgOption } from "./dynamic_svg_option";
+import { DynamicSvgOption } from "./dynamic_svg_option.js";
 import { normalizeCSSColor } from "@web/core/utils/format/colors";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { loadImage } from "@html_editor/utils/image_processing";

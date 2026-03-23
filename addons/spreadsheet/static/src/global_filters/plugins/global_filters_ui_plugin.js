@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /** @ts-check */
 
 /**
@@ -8,7 +9,7 @@
  */
 
 import { OdooUIPlugin } from "@spreadsheet/plugins";
-import { globalFieldMatchingRegistry } from "../helpers";
+import { globalFieldMatchingRegistry } from "../helpers.js";
 
 export class GlobalFiltersUIPlugin extends OdooUIPlugin {
     /**

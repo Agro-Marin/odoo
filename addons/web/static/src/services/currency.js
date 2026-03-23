@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/currency - Currency lookup, formatting, and exchange rate fetching */
 

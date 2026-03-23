@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export function simplifyString(str) {
     return (
         str

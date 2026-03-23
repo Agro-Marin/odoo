@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { markup, onWillStart } from "@odoo/owl";
 
 import { HistoryDialog } from "@html_editor/components/history_dialog/history_dialog";
@@ -6,7 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";
 import { FormControllerWithHTMLExpander } from "@resource/views/form_with_html_expander/form_controller_with_html_expander";
-import { TodoFormCogMenu } from "./todo_form_cog_menu";
+import { TodoFormCogMenu } from "./todo_form_cog_menu.js";
 
 /**
  *  The FormController is overridden to be able to manage the edition of the name of a to-do directly

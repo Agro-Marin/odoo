@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global owl */
 
 const { useState, useEnv } = owl;

@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { getBgImageURLFromEl, normalizeColor } from "@html_builder/utils/utils_css";
-import { ImageSize } from "../image/image_size";
+import { ImageSize } from "../image/image_size.js";
 import { getHtmlStyle } from "@html_editor/utils/formatting";
 
 export class BackgroundImageOption extends BaseOptionComponent {

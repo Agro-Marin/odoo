@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { PublicComponentInteraction } from "@web/public/public_component_interaction";
 

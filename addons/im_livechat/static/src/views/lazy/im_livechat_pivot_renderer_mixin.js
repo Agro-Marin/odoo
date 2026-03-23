@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PivotRenderer } from "@web/views/pivot/pivot_renderer";
 
 export const LivechatPivotRendererMixin = (model) =>

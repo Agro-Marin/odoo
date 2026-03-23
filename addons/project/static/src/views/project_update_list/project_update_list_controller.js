@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ListController } from '@web/views/list/list_controller';
 import { ProjectRightSidePanel } from '../../components/project_right_side_panel/project_right_side_panel.js';
 

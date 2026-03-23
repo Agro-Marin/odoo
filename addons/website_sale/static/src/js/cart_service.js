@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     ComboConfiguratorDialog
 } from '@sale/js/combo_configurator_dialog/combo_configurator_dialog';

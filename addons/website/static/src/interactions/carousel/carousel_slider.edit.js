@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CarouselSlider } from "@website/interactions/carousel/carousel_slider";
 import { registry } from "@web/core/registry";
 

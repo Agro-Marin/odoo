@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/construct_domain_from_tree - Converts a condition tree into an Odoo domain string representation */
 

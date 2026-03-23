@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from '@web/core/utils/patch';
 import { FormOptionPlugin } from "@website/builder/plugins/form/form_option_plugin";
 

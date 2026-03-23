@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/selection/badge_selection/badge_selection_field - Clickable badge group field for Selection and Many2one columns */
 

@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { ProductCatalogKanbanModel } from "@product/product_catalog/kanban_model";
-import { getSuggestToggleState } from "./utils";
+import { getSuggestToggleState } from "./utils.js";
 
 export class PurchaseSuggestCatalogKanbanModel extends ProductCatalogKanbanModel {
     /**

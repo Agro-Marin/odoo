@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Instance of this class is useful in a context of a proxy trap handler.
  * A trap handler's main purpose is to introduce a new behavior which is prone to

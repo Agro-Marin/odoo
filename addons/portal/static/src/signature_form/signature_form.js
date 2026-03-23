@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { addLoadingEffect } from '@web/core/utils/dom/ui';

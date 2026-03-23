@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CustomerAddress } from '@portal/interactions/address';
 import { patch } from '@web/core/utils/patch';
 

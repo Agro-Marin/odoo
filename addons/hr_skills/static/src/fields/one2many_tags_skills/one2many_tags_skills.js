@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";

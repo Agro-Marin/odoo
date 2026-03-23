@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { TimesheetUOM } from "../timesheet_uom/timesheet_uom";
-import { TimeHourField } from "../time_hour_field/time_hour_field";
+import { TimesheetUOM } from "../timesheet_uom/timesheet_uom.js";
+import { TimeHourField } from "../time_hour_field/time_hour_field.js";
 
 export class TimesheetDurationUOM extends TimesheetUOM {
     static components = {

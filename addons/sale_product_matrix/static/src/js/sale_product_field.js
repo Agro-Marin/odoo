@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useMatrixConfigurator } from "@product_matrix/js/matrix_configurator_hook";
 import { SaleOrderLineProductField, saleOrderLineProductField } from "@sale/js/sale_product_field";
 import { patch } from "@web/core/utils/patch";

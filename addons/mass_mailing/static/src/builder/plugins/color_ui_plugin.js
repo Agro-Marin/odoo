@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ColorUIPlugin } from "@html_builder/core/color_ui_plugin";
 import { registry } from "@web/core/registry";
 

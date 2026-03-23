@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import publicRootData from "@web/legacy/js/public/public_root";
 import { initZoomOdoo } from "@website/libs/zoomodoo/zoomodoo";
 import { pick } from "@web/core/utils/collections/objects";

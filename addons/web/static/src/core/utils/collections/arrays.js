@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/collections/arrays - Array helpers: groupBy, sortBy, unique, intersection, cartesian, zip */
 
@@ -206,11 +206,11 @@ export const shallowEqual = _shallowEqual;
  */
 export function sections(iterable) {
     const array = [...iterable];
-    const sections = [];
+    const result = [];
     for (let i = 0; i < array.length + 1; i++) {
-        sections.push(array.slice(0, i));
+        result.push(array.slice(0, i));
     }
-    return sections;
+    return result;
 }
 
 /**

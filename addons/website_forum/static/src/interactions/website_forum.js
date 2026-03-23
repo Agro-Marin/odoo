@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { scrollTo, closestScrollable } from "@html_builder/utils/scrolling";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
@@ -9,8 +10,8 @@ import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { htmlJoin } from "@web/core/utils/dom/html";
 import { session } from "@web/session";
-import { FlagMarkAsOffensiveDialog } from "../components/flag_mark_as_offensive/flag_mark_as_offensive";
-import { WebsiteForumTagsWrapper } from "../components/website_forum_tags_wrapper";
+import { FlagMarkAsOffensiveDialog } from "../components/flag_mark_as_offensive/flag_mark_as_offensive.js";
+import { WebsiteForumTagsWrapper } from "../components/website_forum_tags_wrapper.js";
 import { WebsiteForumWysiwyg } from "@website_forum/components/website_forum_wysiwyg/website_forum_wysiwyg";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 

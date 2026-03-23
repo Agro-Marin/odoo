@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 import { useDebounced } from "@web/core/utils/timing";

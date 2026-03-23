@@ -1,4 +1,5 @@
-import { Base } from "./base";
+/** @odoo-module native */
+import { Base } from "./base.js";
 import {
     convertRawToDate,
     convertRawToDateTime,
@@ -7,7 +8,7 @@ import {
     RELATION_TYPES,
     STORE_SYMBOL,
     X2MANY_TYPES,
-} from "./utils";
+} from "./utils.js";
 
 // It allows us to track which fields have been dynamically added to the model.
 // This is usefull to avoid conflicts during Hoot tests, where the model class prototype

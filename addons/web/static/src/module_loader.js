@@ -116,8 +116,8 @@
                     `Module factory should be a function, got: ${String(factory)}`,
                 );
             }
-            if (this.factories.has(name)) {
-                return; // Ignore duplicate modules
+            if (this.factories.has(name) || this.modules.has(name) || this._nativePending.has(name)) {
+                return; // Ignore: already defined, loaded, or pending native ESM
             }
             this.factories.set(name, {
                 deps,
@@ -460,4 +460,18 @@
         // remove debug mode if not explicitly set in url
         odoo.debug = "";
     }
+
+    // Signal for native ESM bridge shims (data: URI modules) that the
+    // legacy bundle has finished all synchronous define() calls.
+    //
+    // Bridge shims use `await odoo.__legacyReady` before accessing
+    // `odoo.loader.modules`.  The promise is created here but resolved
+    // explicitly at the END of the concatenated bundle via
+    // `odoo.__legacyReady_resolve()` — guaranteeing that all define()
+    // calls have been processed.
+    //
+    // If no bridge shims exist, this is a harmless no-op.
+    odoo.__legacyReady = new Promise((r) => {
+        odoo.__legacyReady_resolve = r;
+    });
 })(/** @type {any} */ (globalThis.odoo ||= {}));

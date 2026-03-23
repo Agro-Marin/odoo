@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/widgets/standard_widget_props - Standard OWL prop definitions shared by all view widgets (record and readonly) */
 

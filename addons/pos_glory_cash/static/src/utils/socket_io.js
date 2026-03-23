@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // https://socket.io/docs/v4/engine-io-protocol/#protocol
 const PACKET_TYPES = {
     OPEN: "0",

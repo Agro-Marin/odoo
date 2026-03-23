@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/error_service - Global error/rejection interceptor with UncaughtError classification and handler pipeline */
 

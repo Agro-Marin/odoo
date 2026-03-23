@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
-import { SlideUnsubscribeDialog } from "../js/public/components/slide_unsubscribe_dialog/slide_unsubscribe_dialog";
+import { SlideUnsubscribeDialog } from "../js/public/components/slide_unsubscribe_dialog/slide_unsubscribe_dialog.js";
 
 export class Unsubscribe extends Interaction {
     static selector = ".o_wslides_js_channel_unsubscribe";

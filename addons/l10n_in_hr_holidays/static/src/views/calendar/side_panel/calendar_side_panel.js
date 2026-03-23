@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
 import { TimeOffCalendarSidePanel } from "@hr_holidays/views/calendar/calendar_side_panel/calendar_side_panel";

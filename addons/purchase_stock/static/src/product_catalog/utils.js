@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /** False if PO is not draft, otherwise loads last toggle state from local storage (defaults to false)  */
 export function getSuggestToggleState(poState) {
     if (poState == "draft") {

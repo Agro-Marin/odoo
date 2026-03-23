@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, useSubEnv } from "@odoo/owl";
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
 import { useOptionsSubEnv } from "@html_builder/utils/utils";

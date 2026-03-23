@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { getOnNotified } from "@point_of_sale/utils";
 import { _t } from "@web/core/l10n/translation";

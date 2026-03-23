@@ -1,4 +1,5 @@
-import { DonationSnippet } from "./donation_snippet";
+/** @odoo-module native */
+import { DonationSnippet } from "./donation_snippet.js";
 import { registry } from "@web/core/registry";
 
 const DonationSnippetEdit = I => class extends I {

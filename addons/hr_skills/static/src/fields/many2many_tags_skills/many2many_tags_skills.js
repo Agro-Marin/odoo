@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
 
-import { SkillsTagList } from "../hr_skills_tags_list/hr_skills_tags_list";
+import { SkillsTagList } from "../hr_skills_tags_list/hr_skills_tags_list.js";
 
 
 class SkillsMany2ManyTags extends Many2ManyTagsField {

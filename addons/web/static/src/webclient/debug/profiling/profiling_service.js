@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/debug/profiling/profiling_service - Service managing Python profiling session state, collector toggles, and systray indicator */
 

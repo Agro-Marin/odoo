@@ -1,15 +1,16 @@
-import { Plugin } from "../plugin";
-import { isBlock } from "../utils/blocks";
-import { fillEmpty, splitTextNode } from "../utils/dom";
+/** @odoo-module native */
+import { Plugin } from "../plugin.js";
+import { isBlock } from "../utils/blocks.js";
+import { fillEmpty, splitTextNode } from "../utils/dom.js";
 import {
     isContentEditable,
     isContentEditableAncestor,
     isTextNode,
     isVisible,
-} from "../utils/dom_info";
-import { prepareUpdate } from "../utils/dom_state";
-import { childNodes, closestElement, firstLeaf, lastLeaf } from "../utils/dom_traversal";
-import { DIRECTIONS, childNodeIndex, nodeSize } from "../utils/position";
+} from "../utils/dom_info.js";
+import { prepareUpdate } from "../utils/dom_state.js";
+import { childNodes, closestElement, firstLeaf, lastLeaf } from "../utils/dom_traversal.js";
+import { DIRECTIONS, childNodeIndex, nodeSize } from "../utils/position.js";
 import { isProtected, isProtecting } from "@html_editor/utils/dom_info";
 
 /**

@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Component, onWillStart, useState, useSubEnv } from '@odoo/owl';
 import { rpc } from '@web/core/network/rpc';
 import { useBus } from '@web/core/utils/hooks';
 import comparisonUtils from '@website_sale_comparison/js/website_sale_comparison_utils';
-import { ProductRow } from '../product_row/product_row';
+import { ProductRow } from '../product_row/product_row.js';
 
 export class ProductComparisonBottomBar extends Component {
     static template = 'website_sale_comparison.ProductComparisonBottomBar';

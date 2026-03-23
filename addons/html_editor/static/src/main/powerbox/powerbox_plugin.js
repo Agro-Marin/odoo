@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { reactive } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { rotate } from "@web/core/utils/collections/arrays";
-import { Powerbox } from "./powerbox";
+import { Powerbox } from "./powerbox.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { omit, pick } from "@web/core/utils/collections/objects";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { formatFloat, formatMonetary } from "@web/fields/formatters";
 

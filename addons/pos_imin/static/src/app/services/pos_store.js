@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { IminPrinterAdapter } from "@pos_imin/app/utils/imin_printer";

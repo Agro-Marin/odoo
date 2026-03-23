@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Dialog } from "@web/ui/dialog/dialog";
 import { useService } from "@web/core/utils/hooks";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { useKEProxy } from "./ke_proxy_hook";
+import { useKEProxy } from "./ke_proxy_hook.js";
 import { Component } from "@odoo/owl";
 
 

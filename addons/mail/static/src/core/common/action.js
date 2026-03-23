@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { isRecord, STORE_SYM } from "@mail/model/misc";
 import { Component, toRaw } from "@odoo/owl";
 import { DropdownState } from "@web/components/dropdown/dropdown_hooks";

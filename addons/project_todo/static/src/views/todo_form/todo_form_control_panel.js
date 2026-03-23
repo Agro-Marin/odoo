@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onMounted, useEffect } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";

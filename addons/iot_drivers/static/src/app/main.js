@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global owl */
 
 import { Homepage } from "./Homepage.js";

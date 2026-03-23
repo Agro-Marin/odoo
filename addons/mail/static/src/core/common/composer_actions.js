@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Action, UseActions } from "@mail/core/common/action";
 import { toRaw, useComponent, useEffect, useRef, useState } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";

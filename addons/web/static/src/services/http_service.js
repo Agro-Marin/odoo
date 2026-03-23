@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/http_service - Simple HTTP GET/POST helpers with status checking and FormData support */
 

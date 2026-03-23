@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/py_js/py_tokenizer - Lexer that splits Python expression strings into typed tokens */
 

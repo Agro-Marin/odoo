@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     many2OneAvatarUserField,
     Many2OneAvatarUserField,

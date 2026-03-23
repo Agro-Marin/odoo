@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 
 export class StockReportSearchPanel extends SearchPanel {

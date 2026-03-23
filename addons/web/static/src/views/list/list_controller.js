@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/list/list_controller - List view orchestrator: pagination, selection, inline editing, multi-edit, and export */
 

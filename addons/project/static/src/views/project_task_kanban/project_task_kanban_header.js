@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { RottingKanbanHeader } from "@mail/js/rotting_mixin/rotting_kanban_header";
 import { ProjectTaskGroupConfigMenu } from "./project_task_group_config_menu.js";
 

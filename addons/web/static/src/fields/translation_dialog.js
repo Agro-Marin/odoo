@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/translation_dialog - Dialog for editing field translation values across installed languages */
 

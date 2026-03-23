@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { ReceptionReportLine } from "../reception_report_line/stock_reception_report_line.js";
 import { Component } from "@odoo/owl";

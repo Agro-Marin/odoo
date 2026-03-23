@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useState, onRendered, onMounted } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { StateSelectionField, stateSelectionField } from "@web/fields/selection/state_selection/state_selection_field";

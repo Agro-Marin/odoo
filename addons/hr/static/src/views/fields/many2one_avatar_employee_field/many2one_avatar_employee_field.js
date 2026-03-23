@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AvatarEmployee } from "@hr/components/avatar_employee/avatar_employee";
 import { Component, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 

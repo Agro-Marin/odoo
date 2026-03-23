@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { withSequence } from "@html_editor/utils/resource";
-import { Plugin } from "../../plugin";
+import { Plugin } from "../../plugin.js";
 import { _t } from "@web/core/l10n/translation";
-import { MediaDialog } from "./media_dialog/media_dialog";
+import { MediaDialog } from "./media_dialog/media_dialog.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { ICON_SELECTOR, isElement } from "@html_editor/utils/dom_info";
 

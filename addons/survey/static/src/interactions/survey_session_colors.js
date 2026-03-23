@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Small tool that returns common colors for survey session interactions.
  */

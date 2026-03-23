@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";

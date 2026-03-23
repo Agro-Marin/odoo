@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PaymentPostProcessing } from '@payment/interactions/post_processing';
 import { patch } from '@web/core/utils/patch';
 

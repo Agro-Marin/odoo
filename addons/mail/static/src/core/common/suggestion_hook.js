@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { isContentEditable, isTextNode } from "@html_editor/utils/dom_info";
 import { rightPos } from "@html_editor/utils/position";
 import {

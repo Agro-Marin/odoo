@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useSubEnv } from '@odoo/owl';
 import {
     ProductConfiguratorDialog

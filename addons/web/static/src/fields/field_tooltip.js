@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/field_tooltip - Builds JSON tooltip info for field debug tooltips */
 

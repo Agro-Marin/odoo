@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/datetime/datetime_picker_popover - Popover wrapper that hosts a DateTimePicker with keyboard dismiss support */
 

@@ -1,10 +1,11 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/browser/router - URL routing: parse, serialize, and push browser history state */
 
 import { EventBus } from "@odoo/owl";
 import { isDisplayStandalone } from "@web/core/browser/feature_detection";
+import { RouterEvent } from "@web/core/events";
 import { slidingWindow } from "@web/core/utils/collections/arrays";
 import { omit, pick } from "@web/core/utils/collections/objects";
 import { isNumeric } from "@web/core/utils/format/strings";
@@ -318,7 +319,7 @@ browser.addEventListener("popstate", (ev) => {
     // Some client actions want to handle loading their own state. This is a ugly hack to allow not
     // reloading the webclient's state when they manipulate history.
     if (!ev.state?.skipRouteChange && !router.skipLoad) {
-        routerBus.trigger("ROUTE_CHANGE");
+        routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
     router.skipLoad = false;
 });
@@ -333,7 +334,7 @@ browser.addEventListener("popstate", (ev) => {
 browser.addEventListener("pageshow", (ev) => {
     if (ev.persisted) {
         browser.clearTimeout(pushTimeout);
-        routerBus.trigger("ROUTE_CHANGE");
+        routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
 });
 
@@ -371,7 +372,7 @@ browser.addEventListener("click", (ev) => {
             if (url.pathname.startsWith("/odoo") && url.hash) {
                 browser.history.pushState({ nextState: state }, "", url.href);
             }
-            setTimeout(() => routerBus.trigger("ROUTE_CHANGE"), 0);
+            setTimeout(() => routerBus.trigger(RouterEvent.ROUTE_CHANGE), 0);
         }
     }
 });

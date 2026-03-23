@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 export const rottingProgressBarPatch = {
     rotIsFiltered: {},
     async toggleFilterRotten(group) {

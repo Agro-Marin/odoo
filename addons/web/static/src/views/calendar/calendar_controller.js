@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/calendar_controller - Calendar view orchestrator: date navigation, event CRUD, quick-create, and multi-selection */
 

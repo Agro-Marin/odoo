@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Provides a way to start JS code for snippets' initialization and animations.
  */

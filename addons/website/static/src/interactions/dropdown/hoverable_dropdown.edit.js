@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { HoverableDropdown } from "@website/interactions/dropdown/hoverable_dropdown";
 import { registry } from "@web/core/registry";
 

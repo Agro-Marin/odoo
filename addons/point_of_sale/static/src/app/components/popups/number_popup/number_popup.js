@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { buttonsType, Numpad } from "@point_of_sale/app/components/numpad/numpad";
 import { _t } from "@web/core/l10n/translation";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { visitXML } from "@web/core/utils/dom/xml";
 import { stringToOrderBy } from "@web/core/utils/order_by";
 import { Field } from "@web/fields/field";

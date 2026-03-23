@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AttendeeCalendarModel } from "@calendar/views/attendee_calendar/attendee_calendar_model";
 import { serializeDate } from "@web/core/l10n/dates";
 import { patch } from "@web/core/utils/patch";

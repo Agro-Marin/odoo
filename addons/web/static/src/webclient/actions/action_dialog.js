@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/actions/action_dialog - Dialog subclass for rendering action components (target="new") with debug menu integration */
 

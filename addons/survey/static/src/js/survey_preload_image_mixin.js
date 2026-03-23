@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Load the target section background and render it when loaded.
  *

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/form/button_box/button_box - Responsive stat-button container with overflow dropdown for form views */
 

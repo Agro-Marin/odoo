@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useEffect, useExternalListener, useState } from "@odoo/owl";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 /**

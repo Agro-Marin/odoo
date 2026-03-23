@@ -1,5 +1,6 @@
-import { usePageManager } from "./page_manager_hook";
-import { PageSearchModel } from "./page_search_model";
+/** @odoo-module native */
+import { usePageManager } from "./page_manager_hook.js";
+import { PageSearchModel } from "./page_search_model.js";
 import { registry } from "@web/core/registry";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 

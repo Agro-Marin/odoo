@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/dynamic_group_list - Server-backed grouped list with expand/collapse, cross-group record moves, and progress bars */
 

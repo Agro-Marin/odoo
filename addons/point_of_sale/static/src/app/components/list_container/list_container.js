@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useEffect, useRef, xml } from "@odoo/owl";
 import { useIsChildLarger } from "@point_of_sale/app/hooks/hooks";
 import { _t } from "@web/core/l10n/translation";

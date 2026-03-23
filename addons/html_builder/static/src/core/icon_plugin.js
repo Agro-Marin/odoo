@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { IconPlugin as EditorIconPlugin } from "@html_editor/main/media/icon_plugin";
 import { DISABLED_NAMESPACE } from "@html_editor/main/toolbar/toolbar_plugin";
 

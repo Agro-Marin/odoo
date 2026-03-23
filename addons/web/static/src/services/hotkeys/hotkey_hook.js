@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/hotkeys/hotkey_hook - useHotkey hook to register/unregister keyboard shortcuts with component lifecycle */
 

@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { mount, reactive, whenReady } from "@odoo/owl";
 import { Loader } from "@point_of_sale/app/components/loader/loader";
 import { getTemplate } from "@web/core/templates";
 import { mountComponent } from "@web/env";
 
-import { selfOrderIndex as Index } from "./self_order_index";
+import { selfOrderIndex as Index } from "./self_order_index.js";
 
 whenReady(async () => {
     try {

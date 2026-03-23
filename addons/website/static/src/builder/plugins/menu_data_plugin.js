@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { NavbarLinkPopover } from "./navbar_link_popover/navbar_link_popover";
+import { NavbarLinkPopover } from "./navbar_link_popover/navbar_link_popover.js";
 import { MenuDialog, EditMenuDialog } from "@website/components/dialog/edit_menu";
 import { withSequence } from "@html_editor/utils/resource";
 

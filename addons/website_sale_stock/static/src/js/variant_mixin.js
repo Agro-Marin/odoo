@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import VariantMixin from '@website_sale/js/variant_mixin';
 import { renderToFragment } from '@web/core/utils/render';
 import { formatFloat } from '@web/core/utils/format/numbers';

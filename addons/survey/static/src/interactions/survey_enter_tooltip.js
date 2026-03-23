@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { isMacOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";

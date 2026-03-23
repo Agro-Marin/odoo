@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { patch } from "@web/core/utils/patch";

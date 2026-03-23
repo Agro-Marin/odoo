@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";

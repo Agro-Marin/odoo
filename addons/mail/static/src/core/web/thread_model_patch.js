@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { rpc } from "@web/core/network/rpc";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global google */
 
 import { Interaction } from "@web/public/interaction";

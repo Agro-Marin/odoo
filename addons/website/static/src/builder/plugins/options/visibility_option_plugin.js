@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { pyToJsLocale } from "@web/core/l10n/utils";
-import { VisibilityOption } from "./visibility_option";
+import { VisibilityOption } from "./visibility_option.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { CONDITIONAL_VISIBILITY, DEVICE_VISIBILITY } from "@website/builder/option_sequence";
 import { BuilderAction } from "@html_builder/core/builder_action";

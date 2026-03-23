@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/selection/badge_selection/list_badge_selection_field - List-view variant of the badge selection field with color support */
 

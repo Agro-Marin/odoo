@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { selectionField, SelectionField } from "@web/fields/selection/selection/selection_field";
-import { TRIGGER_FILTERS } from "./utils";
+import { TRIGGER_FILTERS } from "./utils.js";
 import { useService } from "@web/core/utils/hooks";
 
 const OPT_GROUPS = [

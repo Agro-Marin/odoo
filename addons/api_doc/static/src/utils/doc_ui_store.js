@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useEnv, useExternalListener, useState, useSubEnv } from "@odoo/owl";
 
 function isSmall() {

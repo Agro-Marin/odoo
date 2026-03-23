@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Parallax } from "@website/interactions/parallax/parallax";
 import { registry } from "@web/core/registry";
 

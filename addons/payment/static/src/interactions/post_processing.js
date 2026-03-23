@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ConnectionLostError, rpc, RPCError } from '@web/core/network/rpc';
 import { registry } from '@web/core/registry';
 import { Interaction } from '@web/public/interaction';

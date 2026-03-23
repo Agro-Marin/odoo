@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";

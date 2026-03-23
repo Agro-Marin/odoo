@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/format/numbers - Locale-aware number formatting, parsing, rounding, and human-readable display */
 

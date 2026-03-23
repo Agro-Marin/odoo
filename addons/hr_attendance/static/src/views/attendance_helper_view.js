@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";
 

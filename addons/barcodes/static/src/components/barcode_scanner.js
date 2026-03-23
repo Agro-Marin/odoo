@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { scanBarcode } from "@web/components/barcode/barcode_dialog";
 import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video_scanner";

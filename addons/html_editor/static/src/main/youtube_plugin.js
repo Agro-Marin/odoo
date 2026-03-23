@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-import { Plugin } from "../plugin";
-import { VideoSelector } from "./media/media_dialog/video_selector";
+import { Plugin } from "../plugin.js";
+import { VideoSelector } from "./media/media_dialog/video_selector.js";
 
 export const YOUTUBE_URL_GET_VIDEO_ID =
     /^(?:(?:https?:)?\/\/)?(?:(?:www|m)\.)?(?:youtube\.com|youtu\.be)(?:\/(?:[\w-]+\?v=|embed\/|v\/)?)([^\s?&#]+)(?:\S+)?$/i;

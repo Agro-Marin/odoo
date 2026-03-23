@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Discuss } from "@mail/core/public_web/discuss";
 
 import { onWillStart, onWillUpdateProps, useEffect, useState } from "@odoo/owl";

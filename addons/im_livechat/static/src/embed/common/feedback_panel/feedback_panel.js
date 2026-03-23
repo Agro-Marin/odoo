@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { RATING } from "@im_livechat/embed/common/livechat_service";
 import { TranscriptSender } from "@im_livechat/core/common/transcript_sender";
 

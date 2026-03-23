@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { reactive } from "@odoo/owl";
 import { Model } from "@odoo/o-spreadsheet";
 import { registry } from "@web/core/registry";

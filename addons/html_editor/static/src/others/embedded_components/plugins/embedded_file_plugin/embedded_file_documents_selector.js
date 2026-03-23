@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { DocumentSelector } from "@html_editor/main/media/media_dialog/document_selector";
 import { renderToElement } from "@web/core/utils/render";
 

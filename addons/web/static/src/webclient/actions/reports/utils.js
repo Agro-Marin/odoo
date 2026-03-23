@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/actions/reports/utils - Report URL generation and download helper for ir.actions.report */
 

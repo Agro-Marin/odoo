@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { BinaryField, binaryField } from "@web/fields/media/binary/binary_field";
 

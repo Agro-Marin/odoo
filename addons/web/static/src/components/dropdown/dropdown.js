@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/dropdown/dropdown - Core dropdown component with popover positioning, nesting, and keyboard navigation */
 

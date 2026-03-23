@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/domain_from_tree - High-level tree-to-domain conversion with virtual operator elimination */
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/record_selectors/multi_record_selector - Multi-value record picker with tag display and autocomplete search */
 

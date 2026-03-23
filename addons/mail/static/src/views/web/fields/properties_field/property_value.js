@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useOpenChat } from "@mail/core/web/open_chat_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { patch } from "@web/core/utils/patch";

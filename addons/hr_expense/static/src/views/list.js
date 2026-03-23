@@ -1,6 +1,7 @@
-import { ExpenseDashboard } from '../components/expense_dashboard';
-import { ExpenseMobileQRCode } from '../mixins/qrcode';
-import { ExpenseDocumentUpload, ExpenseDocumentDropZone } from '../mixins/document_upload';
+/** @odoo-module native */
+import { ExpenseDashboard } from '../components/expense_dashboard.js';
+import { ExpenseMobileQRCode } from '../mixins/qrcode.js';
+import { ExpenseDocumentUpload, ExpenseDocumentDropZone } from '../mixins/document_upload.js';
 
 import { registry } from '@web/core/registry';
 import { useService } from '@web/core/utils/hooks';

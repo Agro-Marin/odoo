@@ -1,12 +1,13 @@
+/** @odoo-module native */
 import { getValueFromVar } from "@html_builder/utils/utils";
 import { normalizeColor } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { deepCopy, deepMerge, pick } from "@web/core/utils/collections/objects";
-import { backgroundShapesDefinition } from "./background_shapes_definition";
+import { backgroundShapesDefinition } from "./background_shapes_definition.js";
 import { ShapeSelector } from "@html_builder/plugins/shape/shape_selector";
-import { getDefaultColors } from "./background_shape_option";
+import { getDefaultColors } from "./background_shape_option.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { getBgImageURLFromURL } from "@html_editor/utils/image";
 import { BuilderAction } from "@html_builder/core/builder_action";

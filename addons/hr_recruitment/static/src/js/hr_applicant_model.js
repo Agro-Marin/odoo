@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 
 export class HrApplicant extends Record {

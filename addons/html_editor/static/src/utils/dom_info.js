@@ -1,7 +1,8 @@
-import { baseContainerGlobalSelector } from "./base_container";
-import { closestBlock, isBlock } from "./blocks";
-import { childNodes, closestElement, firstLeaf, lastLeaf } from "./dom_traversal";
-import { DIRECTIONS, nodeSize } from "./position";
+/** @odoo-module native */
+import { baseContainerGlobalSelector } from "./base_container.js";
+import { closestBlock, isBlock } from "./blocks.js";
+import { childNodes, closestElement, firstLeaf, lastLeaf } from "./dom_traversal.js";
+import { DIRECTIONS, nodeSize } from "./position.js";
 
 export function isEmpty(el) {
     if (isProtecting(el) || isProtected(el)) {

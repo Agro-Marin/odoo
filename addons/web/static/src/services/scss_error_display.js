@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/scss_error_display - Detects SCSS compilation errors in stylesheets and shows a sticky notification */
 

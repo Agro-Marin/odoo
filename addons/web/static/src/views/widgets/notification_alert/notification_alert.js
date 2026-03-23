@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/widgets/notification_alert/notification_alert - Widget displaying a warning banner when browser push notifications are blocked */
 

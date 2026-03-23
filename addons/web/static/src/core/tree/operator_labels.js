@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/operator_labels - Operator descriptions, labels, and serialization for domain condition trees */
 

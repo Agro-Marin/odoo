@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ATTR_SYM, MANY_SYM, ONE_SYM } from "./misc.js";
 
 export class ModelInternal {

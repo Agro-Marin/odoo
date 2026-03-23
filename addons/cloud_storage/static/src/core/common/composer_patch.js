@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 
 import { patch } from "@web/core/utils/patch";

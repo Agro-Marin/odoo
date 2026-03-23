@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/copy_button/copy_button - Clipboard copy button with success tooltip feedback */
 

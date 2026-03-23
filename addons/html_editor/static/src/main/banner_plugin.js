@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { fillEmpty, fillShrunkPhrasingParent } from "@html_editor/utils/dom";
 import { closestElement } from "@html_editor/utils/dom_traversal";
@@ -6,7 +7,7 @@ import { withSequence } from "@html_editor/utils/resource";
 import { htmlEscape } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { closestBlock } from "@html_editor/utils/blocks";
-import { isEmptyBlock, isParagraphRelatedElement } from "../utils/dom_info";
+import { isEmptyBlock, isParagraphRelatedElement } from "../utils/dom_info.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 function isAvailable(selection) {

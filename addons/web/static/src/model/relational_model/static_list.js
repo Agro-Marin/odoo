@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/static_list - In-memory x2many list: add, remove, reorder records and generate ORM commands */
 

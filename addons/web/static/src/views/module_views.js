@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/module_views - Cog-menu item to reset ir.module.module installation state */
 

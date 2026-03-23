@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { session } from "@web/session";
 import { patch } from "@web/core/utils/patch";
 import { barcodeService } from '@barcodes/barcode_service';

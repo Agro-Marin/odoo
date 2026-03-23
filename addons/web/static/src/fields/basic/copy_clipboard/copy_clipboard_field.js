@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/basic/copy_clipboard/copy_clipboard_field - Wrapper field that adds a copy-to-clipboard button to Char/URL fields */
 

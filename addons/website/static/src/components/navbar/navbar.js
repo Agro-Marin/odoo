@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { NavBar } from "@web/webclient/navbar/navbar";
 import { useService, useBus } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";

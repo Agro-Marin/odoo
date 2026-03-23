@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * This file is meant to load the different subparts of the module
  * to guarantee their plugins are loaded in the right order
@@ -33,11 +34,11 @@ import {
     OdooChartCorePlugin,
     OdooChartCoreViewPlugin,
 } from "@spreadsheet/chart/index"; // Odoochart depends on filter for its getters
-import { PivotCoreGlobalFilterPlugin } from "./pivot/plugins/pivot_core_global_filter_plugin";
-import { PivotOdooUIPlugin } from "./pivot/plugins/pivot_odoo_ui_plugin";
-import { ListCoreGlobalFilterPlugin } from "./list/plugins/list_core_global_filter_plugin";
-import { globalFieldMatchingRegistry } from "./global_filters/helpers";
-import { OdooChartFeaturePlugin } from "./chart/plugins/odoo_chart_feature_plugin";
+import { PivotCoreGlobalFilterPlugin } from "./pivot/plugins/pivot_core_global_filter_plugin.js";
+import { PivotOdooUIPlugin } from "./pivot/plugins/pivot_odoo_ui_plugin.js";
+import { ListCoreGlobalFilterPlugin } from "./list/plugins/list_core_global_filter_plugin.js";
+import { globalFieldMatchingRegistry } from "./global_filters/helpers.js";
+import { OdooChartFeaturePlugin } from "./chart/plugins/odoo_chart_feature_plugin.js";
 
 const { corePluginRegistry, coreViewsPluginRegistry, featurePluginRegistry } =
     spreadsheet.registries;

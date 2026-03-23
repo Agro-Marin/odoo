@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/pwa/install_prompt - Dialog showing Safari-specific PWA installation instructions (iOS and macOS) */
 

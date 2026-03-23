@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { Component } from "@odoo/owl";
 import { usePopover } from "@web/ui/popover/popover_hook";

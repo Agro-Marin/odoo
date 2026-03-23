@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AvatarCardEmployeePopover } from "@hr/components/avatar_card_employee/avatar_card_employee_popover";
 import { onWillStart } from "@odoo/owl";
 import { usePopover } from "@web/ui/popover/popover_hook";

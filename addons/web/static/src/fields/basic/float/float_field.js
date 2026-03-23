@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/basic/float/float_field - Numeric input field for Float columns with locale-aware formatting */
 

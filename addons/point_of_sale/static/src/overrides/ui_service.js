@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { SIZES, utils } from "@web/ui/block/ui_service";
 patch(utils, {

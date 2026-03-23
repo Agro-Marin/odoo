@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/settings/settings_page - Top-level settings page with app tabs, swipe navigation, and URL hash-based tab/anchor selection */
 

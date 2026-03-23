@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LivechatLookingForHelpReloadMixin } from "@im_livechat/views/livechat_looking_for_help_controller_mixin";
 
 import { registry } from "@web/core/registry";

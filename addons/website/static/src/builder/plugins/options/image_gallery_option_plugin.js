@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
 import { loadImageInfo } from "@html_editor/utils/image_processing";
-import { ImageGalleryComponent } from "./image_gallery_option";
+import { ImageGalleryComponent } from "./image_gallery_option.js";
 import { renderToElement } from "@web/core/utils/render";
-import { updateCarouselIndicators } from "../carousel_option_plugin";
+import { updateCarouselIndicators } from "../carousel_option_plugin.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { withSequence } from "@html_editor/utils/resource";
 import { SNIPPET_SPECIFIC, SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";

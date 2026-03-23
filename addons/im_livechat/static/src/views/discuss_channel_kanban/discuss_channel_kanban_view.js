@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { registry } from "@web/core/registry";
-import { LivechatViewControllerMixin } from "../livechat_view_controller_mixin";
+import { LivechatViewControllerMixin } from "../livechat_view_controller_mixin.js";
 
 class DiscussChannelKanbanController extends LivechatViewControllerMixin(KanbanController) {}
 

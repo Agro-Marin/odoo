@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useExternalListener, useRef } from "@odoo/owl";
 
 /**

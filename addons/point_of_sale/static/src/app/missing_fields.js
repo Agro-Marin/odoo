@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 // so this is a workaround such that we don't have console warnings

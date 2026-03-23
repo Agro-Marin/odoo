@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
-import { Plugin } from "../plugin";
+import { Plugin } from "../plugin.js";
 import { childNodes } from "@html_editor/utils/dom_traversal";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { withSequence } from "@html_editor/utils/resource";

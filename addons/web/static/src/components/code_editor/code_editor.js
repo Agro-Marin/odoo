@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/code_editor/code_editor - Ace-based code editor component with syntax highlighting and theme support */
 

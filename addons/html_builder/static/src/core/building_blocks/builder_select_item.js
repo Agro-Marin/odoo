@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { Component, markup, onMounted, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import {
     clickableBuilderComponentProps,
     useActionInfo,
     useSelectableItemComponent,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderSelectItem extends Component {
     static template = "html_builder.BuilderSelectItem";

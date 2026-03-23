@@ -1,9 +1,9 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/google_slide_viewer/google_slide_viewer - Embedded Google Slides presentation viewer field */
 
-/** @odoo-module */
+/** @odoo-module native */
 
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";

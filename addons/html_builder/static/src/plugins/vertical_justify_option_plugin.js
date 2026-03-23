@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { END } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";

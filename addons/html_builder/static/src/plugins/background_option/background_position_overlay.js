@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { scrollTo } from "@html_builder/utils/scrolling";
 import {
     Component,

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BarcodeParser } from "@barcodes/js/barcode_parser";
 import { GS1BarcodeError } from "@barcodes_gs1_nomenclature/js/barcode_parser";
 import { _t } from "@web/core/l10n/translation";
@@ -5,7 +6,7 @@ import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
 import { session } from "@web/session";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-import { logPosMessage } from "../utils/pretty_console_log";
+import { logPosMessage } from "../utils/pretty_console_log.js";
 
 export class BarcodeReader {
     static serviceDependencies = [

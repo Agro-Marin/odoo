@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { formatPercentage } from "@web/fields/formatters";
 import { progressBarField, ProgressBarField } from "@web/fields/display/progress_bar/progress_bar_field";

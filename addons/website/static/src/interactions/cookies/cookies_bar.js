@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Popup } from "@website/interactions/popup/popup";
 import { registry } from "@web/core/registry";
 

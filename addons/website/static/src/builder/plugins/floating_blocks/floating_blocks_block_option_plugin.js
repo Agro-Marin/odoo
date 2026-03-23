@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { withSequence } from "@html_editor/utils/resource";
 import { BEGIN } from "@html_builder/utils/option_sequence";
 import { LAYOUT_GRID } from "@website/builder/option_sequence";
-import { FloatingBlocksBlockOption } from "./floating_blocks_block_option";
-import { FloatingBlocksBlockMobileOption } from "./floating_blocks_block_mobile_option";
+import { FloatingBlocksBlockOption } from "./floating_blocks_block_option.js";
+import { FloatingBlocksBlockMobileOption } from "./floating_blocks_block_mobile_option.js";
 
 class FloatingBlocksBlockOptionPlugin extends Plugin {
     static id = "floatingBlocksBlockOptionPlugin";

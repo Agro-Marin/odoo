@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Gif } from "@mail/core/common/gif";
 import { useOnBottomScrolled, useSequential } from "@mail/utils/common/hooks";
 import { Component, onWillStart, useEffect, useState } from "@odoo/owl";

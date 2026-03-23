@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { CancelPopup } from "@pos_self_order/app/components/cancel_popup/cancel_popup";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";

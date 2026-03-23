@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * @typedef { import("../../../../html_editor/static/src/editor").EditorContext } EditorContext
  * @typedef { any } LoadResult

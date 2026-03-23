@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CW_LIVECHAT_STEP } from "@im_livechat/core/common/chat_window_model_patch";
 import { FeedbackPanel } from "@im_livechat/embed/common/feedback_panel/feedback_panel";
 

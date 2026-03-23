@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/display/percent_pie/percent_pie_field - Pie chart visualization showing a percentage value */
 

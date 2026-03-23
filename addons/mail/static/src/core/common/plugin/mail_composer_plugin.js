@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";

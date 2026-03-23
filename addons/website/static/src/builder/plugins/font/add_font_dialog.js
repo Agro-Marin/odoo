@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { rpc } from "@web/core/network/rpc";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ChannelMember } from "@mail/discuss/core/common/channel_member_model";
 import { patch } from "@web/core/utils/patch";
 

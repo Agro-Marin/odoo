@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { AvatarResource } from "@resource_mail/components/avatar_resource/avatar_resource";
 import { registry } from "@web/core/registry";

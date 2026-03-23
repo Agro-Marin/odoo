@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Thread } from "@mail/core/common/thread";
 import { toRaw, useEffect } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

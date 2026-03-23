@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global QRCode */
 
 import { deserializeDateTime } from "@web/core/l10n/dates";

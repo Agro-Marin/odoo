@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/display/handle/handle_field - Drag handle icon for manual record reordering in list views */
 

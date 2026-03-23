@@ -7,10 +7,13 @@ import {
     capitalize,
     escape,
     escapeRegExp,
+    exprToBoolean,
+    hashCode,
     intersperse,
     isEmail,
     isNumeric,
     sprintf,
+    uuid,
 } from "@web/core/utils/format/strings";
 
 function _t() {
@@ -155,4 +158,67 @@ test("isNumeric", () => {
     expect(isNumeric("12.34")).toBe(false);
 
     expect(isNumeric("1234")).toBe(true);
+});
+
+describe("hashCode", () => {
+    test("produces consistent results", () => {
+        const h1 = hashCode("hello");
+        const h2 = hashCode("hello");
+        expect(h1).toBe(h2);
+    });
+
+    test("returns 8-character hex string", () => {
+        const h = hashCode("test");
+        expect(h).toMatch(/^[0-9a-f]{8}$/);
+    });
+
+    test("different inputs produce different hashes", () => {
+        expect(hashCode("abc")).not.toBe(hashCode("def"));
+    });
+
+    test("multiple arguments are joined", () => {
+        const combined = hashCode("a", "b");
+        expect(combined).not.toBe(hashCode("a"));
+        expect(combined).not.toBe(hashCode("b"));
+        // Consistent with itself
+        expect(combined).toBe(hashCode("a", "b"));
+    });
+
+    test("empty string produces valid hash", () => {
+        expect(hashCode("")).toMatch(/^[0-9a-f]{8}$/);
+    });
+});
+
+describe("uuid", () => {
+    test("returns 16-character hex string", () => {
+        const id = uuid();
+        expect(id).toMatch(/^[0-9a-f]{16}$/);
+    });
+
+    test("generates unique values", () => {
+        const ids = new Set(Array.from({ length: 100 }, () => uuid()));
+        expect(ids.size).toBe(100);
+    });
+});
+
+describe("exprToBoolean", () => {
+    test("falsy strings return false", () => {
+        expect(exprToBoolean("false")).toBe(false);
+        expect(exprToBoolean("False")).toBe(false);
+        expect(exprToBoolean("0")).toBe(false);
+    });
+
+    test("truthy strings return true", () => {
+        expect(exprToBoolean("true")).toBe(true);
+        expect(exprToBoolean("1")).toBe(true);
+        expect(exprToBoolean("anything")).toBe(true);
+    });
+
+    test("empty string with trueIfEmpty=false returns false", () => {
+        expect(exprToBoolean("")).toBe(false);
+    });
+
+    test("empty string with trueIfEmpty=true returns true", () => {
+        expect(exprToBoolean("", true)).toBe(true);
+    });
 });

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { useMessageSearch } from "@mail/core/common/message_search_hook";
 import { Thread } from "@mail/core/common/thread";

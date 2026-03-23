@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { NavigableList } from "@mail/core/common/navigable_list";
 import { useSequential } from "@mail/utils/common/hooks";
 import { Component, useEffect, useState } from "@odoo/owl";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Scrolls a horizontally scrollable container to ensure a specific item is visible
  *

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { OdooCorePlugin } from "@spreadsheet/plugins";
 import { coreTypes, constants } from "@odoo/o-spreadsheet";
 const { FIGURE_ID_SPLITTER } = constants;

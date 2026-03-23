@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { escapeRegExp } from "@web/core/utils/format/strings";

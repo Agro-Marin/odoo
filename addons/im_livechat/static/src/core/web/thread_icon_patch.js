@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ThreadIcon } from "@mail/core/common/thread_icon";
 import { _t } from "@web/core/l10n/translation";
 

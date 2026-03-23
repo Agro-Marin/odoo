@@ -1,8 +1,9 @@
+/** @odoo-module native */
 // @ts-check
 
 import { astToFormula, helpers } from "@odoo/o-spreadsheet";
-import { getFirstListFunction, getNumberOfListFormulas } from "./list_helpers";
-import { navigateTo } from "../actions/helpers";
+import { getFirstListFunction, getNumberOfListFormulas } from "./list_helpers.js";
+import { navigateTo } from "../actions/helpers.js";
 
 const { isMatrix } = helpers;
 

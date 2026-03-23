@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/fields/settings_binary_field/settings_binary_field - BinaryField variant resolving download URLs via the related field's relation */
 

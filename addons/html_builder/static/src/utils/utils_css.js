@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { EDITOR_COLOR_CSS_VARIABLES, isColorCombinationName } from "@html_editor/utils/color";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { backgroundImageCssToParts, getBgImageURLFromURL } from "@html_editor/utils/image";

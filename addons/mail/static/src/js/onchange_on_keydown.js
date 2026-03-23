@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useEffect } from "@odoo/owl";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { patch } from "@web/core/utils/patch";

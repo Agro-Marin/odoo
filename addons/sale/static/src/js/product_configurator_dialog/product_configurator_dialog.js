@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Component, onWillStart, useState, useSubEnv } from "@odoo/owl";
 import { Dialog } from '@web/ui/dialog/dialog';
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
-import { ProductList } from "../product_list/product_list";
+import { ProductList } from "../product_list/product_list.js";
 import { formatCurrency } from '@web/services/currency';
 
 export class ProductConfiguratorDialog extends Component {

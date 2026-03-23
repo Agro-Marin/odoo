@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
-import { AttributeTranslateDialog } from "../translation_components/attributeTranslateDialog";
-import { SelectTranslateDialog } from "../translation_components/selectTranslateDialog";
+import { AttributeTranslateDialog } from "../translation_components/attributeTranslateDialog.js";
+import { SelectTranslateDialog } from "../translation_components/selectTranslateDialog.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { makeContentsInline, unwrapContents } from "@html_editor/utils/dom";
 

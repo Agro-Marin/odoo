@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
 import { redirect } from "@web/core/utils/urls";
-import { ExhibitorConnectClosedDialog } from "../components/exhibitor_connect_closed_dialog/exhibitor_connect_closed_dialog";
+import { ExhibitorConnectClosedDialog } from "../components/exhibitor_connect_closed_dialog/exhibitor_connect_closed_dialog.js";
 
 export class ExhibitorConnect extends Interaction {
     static selector = ".o_wesponsor_connect_button";

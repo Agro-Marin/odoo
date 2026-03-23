@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";

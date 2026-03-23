@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/barcode/crop_overlay - Draggable and resizable crop region overlay for barcode scanning area */
 

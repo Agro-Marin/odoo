@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { user } from "@web/services/user";
-import { onEmployeeSubRedirect } from './hooks';
+import { onEmployeeSubRedirect } from './hooks.js';
 import { Component, useState } from "@odoo/owl";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";

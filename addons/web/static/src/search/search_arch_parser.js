@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/search_arch_parser - Parses search view XML arch into structured filter, groupby, and search panel items */
 

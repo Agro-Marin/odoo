@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global owl */
 
 import { DeviceDialog } from "./components/dialog/DeviceDialog.js";

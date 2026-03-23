@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { getSnippetName, isElementInViewport } from "@html_builder/utils/utils";
 

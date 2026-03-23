@@ -1,17 +1,18 @@
-import { BorderConfigurator } from "../plugins/border_configurator_option";
-import { ShadowOption } from "../plugins/shadow_option";
+/** @odoo-module native */
+import { BorderConfigurator } from "../plugins/border_configurator_option.js";
+import { ShadowOption } from "../plugins/shadow_option.js";
 import { getSnippetName, useOptionsSubEnv } from "@html_builder/utils/utils";
 import { onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";
-import { useOperation } from "../core/operation_plugin";
+import { useOperation } from "../core/operation_plugin.js";
 import {
     BaseOptionComponent,
     useApplyVisibility,
     useDomState,
     useGetItemValue,
     useVisibilityObserver,
-} from "../core/utils";
+} from "../core/utils.js";
 import { isRemovable } from "@html_builder/core/remove_plugin";
 import { isClonable } from "@html_builder/core/clone_plugin";
 

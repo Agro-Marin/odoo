@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/expression_editor/expression_editor_operator_editor - Filters domain operators to the subset valid for Python expressions */
 

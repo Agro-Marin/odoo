@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ImStatus } from "@mail/core/common/im_status";
 import { cleanTerm } from "@mail/utils/common/format";
 import { Component, useState } from "@odoo/owl";

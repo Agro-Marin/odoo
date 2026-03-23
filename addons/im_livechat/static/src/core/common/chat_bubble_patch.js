@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ChatBubble } from "@mail/core/common/chat_bubble";
 
 import { patch } from "@web/core/utils/patch";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { RELATIVE_PERIODS } from "@spreadsheet/global_filters/helpers";
 import { Dropdown } from "@web/components/dropdown/dropdown";

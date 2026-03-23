@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { WORKER_STATE } from "@bus/workers/websocket_worker";
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

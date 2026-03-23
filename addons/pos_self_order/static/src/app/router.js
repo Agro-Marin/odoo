@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillRender, xml } from "@odoo/owl";
 import { zip } from "@web/core/utils/collections/arrays";
 import { escapeRegExp } from "@web/core/utils/format/strings";

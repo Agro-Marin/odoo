@@ -1,10 +1,11 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/env - OWL environment factory, service dependency resolution, and app mounting */
 
 import { App, EventBus } from "@odoo/owl";
 import { isMacOS } from "@web/core/browser/feature_detection";
+import { AppEvent } from "@web/core/events";
 import { appTranslateFn } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
@@ -39,7 +40,7 @@ import { session } from "@web/session";
 export function makeEnv() {
     const bus = new EventBus();
     const prom = new Promise((resolve) => {
-        bus.addEventListener("SERVICES-LOADED", resolve, { once: true });
+        bus.addEventListener(AppEvent.SERVICES_LOADED, resolve, { once: true });
     });
     return /** @type {any} */ ({
         bus,
@@ -213,7 +214,7 @@ async function _startServices(env, toStart) {
 
         const proms = [];
         while (_readyQueue.length) {
-            const name = _readyQueue.pop();
+            const name = _readyQueue.shift();
             if (name in services) {
                 continue;
             }
@@ -274,7 +275,7 @@ async function _startServices(env, toStart) {
             : [...toStart.keys()].join(", ");
         throw new Error(`Circular service dependency detected: ${cycleInfo}`);
     }
-    env.bus.trigger("SERVICES-LOADED");
+    env.bus.trigger(AppEvent.SERVICES_LOADED);
 }
 
 export const customDirectives = {

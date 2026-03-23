@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/calendar_arch_parser - Parses calendar view XML arch into field mappings, scales, filters, and popover config */
 

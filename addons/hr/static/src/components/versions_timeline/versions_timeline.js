@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillUpdateProps, useComponent, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { Domain } from "@web/core/domain";

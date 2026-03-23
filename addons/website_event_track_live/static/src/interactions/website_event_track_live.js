@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global YT */
 
 import { Interaction } from "@web/public/interaction";

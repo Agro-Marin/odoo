@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { kanbanView } from "@web/views/kanban/kanban_view";
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { EventRegistrationSummaryDialog } from "@event/client_action/event_registration_summary_dialog";

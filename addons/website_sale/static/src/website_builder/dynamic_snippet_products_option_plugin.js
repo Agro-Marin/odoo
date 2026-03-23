@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { DYNAMIC_SNIPPET_CAROUSEL } from "@website/builder/plugins/options/dynamic_snippet_carousel_option_plugin";
 import { setDatasetIfUndefined } from "@website/builder/plugins/options/dynamic_snippet_option_plugin";
 import { Plugin } from "@html_editor/plugin";
@@ -6,7 +7,7 @@ import { registry } from "@web/core/registry";
 import {
     DynamicSnippetProductsOption,
     getContextualFilterDomain,
-} from "./dynamic_snippet_products_option";
+} from "./dynamic_snippet_products_option.js";
 
 class DynamicSnippetProductsOptionPlugin extends Plugin {
     static id = "dynamicSnippetProductsOption";

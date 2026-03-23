@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
 
 export class AccordionItem extends Component {

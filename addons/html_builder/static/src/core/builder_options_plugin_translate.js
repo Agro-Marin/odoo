@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
 import { Plugin } from "@html_editor/plugin";
-import { BuilderOptionsPlugin } from "./builder_options_plugin";
+import { BuilderOptionsPlugin } from "./builder_options_plugin.js";
 
 /** @typedef {import("./builder_options_plugin").BuilderOptionContainer[]} translate_options */
 

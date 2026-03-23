@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { ProductCatalogKanbanRecord } from "@product/product_catalog/kanban_record";
-import { ProductCatalogSaleOrderLine } from "./sale_order_line/sale_order_line";
+import { ProductCatalogSaleOrderLine } from "./sale_order_line/sale_order_line.js";
 import { patch } from "@web/core/utils/patch";
 
 patch(ProductCatalogKanbanRecord.prototype, {

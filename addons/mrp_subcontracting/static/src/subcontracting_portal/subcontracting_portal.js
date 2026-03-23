@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useService } from '@web/core/utils/hooks';
 import { ActionContainer } from '@web/webclient/actions/action_container';
 import { MainComponentsContainer } from "@web/components/main_components_container";

@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { usePageManager } from "./page_manager_hook";
-import { PageSearchModel } from "./page_search_model";
+import { usePageManager } from "./page_manager_hook.js";
+import { PageSearchModel } from "./page_search_model.js";
 import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";

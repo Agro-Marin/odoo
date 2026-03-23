@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import {_t} from "@web/core/l10n/translation";
 import { FloatTimeField } from "@web/fields/basic/float_time/float_time_field";

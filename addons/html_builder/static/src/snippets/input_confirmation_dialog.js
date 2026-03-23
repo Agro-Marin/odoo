@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 

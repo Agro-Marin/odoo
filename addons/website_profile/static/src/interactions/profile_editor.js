@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
-import { ProfileDialog } from "../components/profile_dialog/profile_dialog";
+import { ProfileDialog } from "../components/profile_dialog/profile_dialog.js";
 
 export class ProfileEditor extends Interaction {
     static selector = ".o_wprofile_editor";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/form/status_bar_buttons/status_bar_buttons - Renders action buttons in the form status bar with overflow dropdown */
 

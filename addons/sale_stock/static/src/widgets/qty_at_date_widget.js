@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { formatDateTime } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { registry } from "@web/core/registry";

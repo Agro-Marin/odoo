@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useExternalListener } from "@odoo/owl";
 
 const UserPresenceEvents = [

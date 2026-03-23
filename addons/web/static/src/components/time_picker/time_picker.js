@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/time_picker/time_picker - Time input component with dropdown hour/minute selection and configurable rounding */
 

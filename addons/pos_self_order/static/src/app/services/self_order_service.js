@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { markup } from "@odoo/owl";
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
 import { initLNA } from "@point_of_sale/app/utils/init_lna";
@@ -21,7 +22,7 @@ import { useService } from "@web/core/utils/hooks";
 import { Reactive } from "@web/core/utils/reactive";
 import { renderToElement } from "@web/core/utils/render";
 import { formatCurrency as webFormatCurrency } from "@web/services/currency";
-import { getOrderLineValues } from "./card_utils";
+import { getOrderLineValues } from "./card_utils.js";
 export class SelfOrder extends Reactive {
     constructor(...args) {
         super();

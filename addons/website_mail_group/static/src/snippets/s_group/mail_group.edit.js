@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { MailGroup } from "@mail_group/interactions/mail_group";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";

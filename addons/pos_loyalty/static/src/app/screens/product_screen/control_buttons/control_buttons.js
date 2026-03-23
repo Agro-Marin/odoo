@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillRender, useState } from "@odoo/owl";
 import { SelectionPopup } from "@point_of_sale/app/components/popups/selection_popup/selection_popup";
 import { TextInputPopup } from "@point_of_sale/app/components/popups/text_input_popup/text_input_popup";

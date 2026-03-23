@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Message } from "@mail/core/common/message_model";
 import { patch } from "@web/core/utils/patch";
 /** @type {import("models").Message} */

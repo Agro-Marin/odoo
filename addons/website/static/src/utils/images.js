@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // Definitely not the right location for this file !!!
 
 /**

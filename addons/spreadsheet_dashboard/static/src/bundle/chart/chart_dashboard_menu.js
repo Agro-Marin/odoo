@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { components } from "@odoo/o-spreadsheet";
 import { patch } from "@web/core/utils/patch";
 

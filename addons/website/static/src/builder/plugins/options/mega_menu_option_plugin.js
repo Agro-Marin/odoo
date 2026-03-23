@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { MegaMenuOption } from "@website/builder/plugins/options/mega_menu_option";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";

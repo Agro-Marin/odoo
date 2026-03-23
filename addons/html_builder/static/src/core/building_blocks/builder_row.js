@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
 import { useTransition } from "@web/components/transition";
 import { uniqueId } from "@web/core/utils/functions";
@@ -7,8 +8,8 @@ import {
     useApplyVisibility,
     useBuilderComponent,
     useVisibilityObserver,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderRow extends Component {
     static template = "html_builder.BuilderRow";

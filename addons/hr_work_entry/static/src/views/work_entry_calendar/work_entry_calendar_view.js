@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { calendarView } from "@web/views/calendar/calendar_view";
 import { WorkEntryCalendarRenderer } from "@hr_work_entry/views/work_entry_calendar/work_entry_calendar_renderer";
 import { WorkEntryCalendarModel } from "@hr_work_entry/views/work_entry_calendar/work_entry_calendar_model";

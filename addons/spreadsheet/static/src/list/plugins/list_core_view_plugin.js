@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { getFirstListFunction } from "../list_helpers";
+import { getFirstListFunction } from "../list_helpers.js";
 import { Domain } from "@web/core/domain";
-import { ListDataSource } from "../list_data_source";
+import { ListDataSource } from "../list_data_source.js";
 import { OdooCoreViewPlugin } from "@spreadsheet/plugins";
 
 const { astToFormula } = spreadsheet;

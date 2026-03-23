@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { chatHubService } from "@mail/core/common/chat_hub";
 import { patch } from "@web/core/utils/patch";
 

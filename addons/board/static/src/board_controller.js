@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { browser } from "@web/core/browser/browser";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
@@ -8,7 +9,7 @@ import { useService } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { standardViewProps } from "@web/views/standard_view_props";
-import { BoardAction } from "./board_action";
+import { BoardAction } from "./board_action.js";
 import { blockDom, Component, useState, useRef } from "@odoo/owl";
 
 export class BoardController extends Component {

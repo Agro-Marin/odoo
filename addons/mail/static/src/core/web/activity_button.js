@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
 import { Component, useEnv, useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

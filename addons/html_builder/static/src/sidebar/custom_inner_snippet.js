@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Img } from "@html_builder/core/img";
 import { Component, useState, useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

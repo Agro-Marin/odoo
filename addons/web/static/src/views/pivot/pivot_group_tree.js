@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/pivot/pivot_group_tree - Tree data structure for managing pivot table row/column group hierarchies */
 

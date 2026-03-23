@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/kanban_arch_parser - Parses kanban view XML arch into card templates, field nodes, progress bars, and quick-create config */
 

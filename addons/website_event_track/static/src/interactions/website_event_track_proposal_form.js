@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { scrollTo } from "@html_builder/utils/scrolling";
 import { _t } from "@web/core/l10n/translation";
 import { post } from "@web/services/http_service";

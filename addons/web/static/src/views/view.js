@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view - Generic view loader: resolves arch, fields, and compiler then renders the appropriate view component */
 

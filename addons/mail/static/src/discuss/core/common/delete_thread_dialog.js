@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

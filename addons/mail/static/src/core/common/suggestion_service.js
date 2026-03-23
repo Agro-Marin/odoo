@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { partnerCompareRegistry } from "@mail/core/common/partner_compare";
 import { cleanTerm } from "@mail/utils/common/format";
 import { toRaw } from "@odoo/owl";

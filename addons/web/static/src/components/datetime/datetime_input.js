@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/datetime/datetime_input - Date/time text input component that opens a DateTimePicker popover */
 

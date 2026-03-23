@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { Component, xml } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";

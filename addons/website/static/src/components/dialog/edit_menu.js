@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { useService, useAutofocus } from "@web/core/utils/hooks";
 import { useNestedSortable } from "@web/core/utils/dnd/nested_sortable";
 import wUtils from "@website/js/utils";
-import { WebsiteDialog } from "./dialog";
+import { WebsiteDialog } from "./dialog.js";
 import { Component, useState, useEffect, onWillStart, useRef, reactive } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";

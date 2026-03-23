@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/field - Generic Field component that resolves and renders the appropriate field widget from the registry */
 

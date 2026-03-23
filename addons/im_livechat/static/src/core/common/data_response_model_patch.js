@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { DataResponse } from "@mail/core/common/data_response_model";
 import { fields } from "@mail/model/misc";
 

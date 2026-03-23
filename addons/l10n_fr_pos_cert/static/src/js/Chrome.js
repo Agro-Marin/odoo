@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onMounted } from "@odoo/owl";
 import { ClosePosPopup } from "@point_of_sale/app/components/popups/closing_popup/closing_popup";
 import { Chrome } from "@point_of_sale/app/pos_app";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/x2many_dialog - Form dialog component for creating and editing x2many inline records */
 

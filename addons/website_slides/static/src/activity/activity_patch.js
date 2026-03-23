@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Activity } from "@mail/core/web/activity";
 
 import { patch } from "@web/core/utils/patch";

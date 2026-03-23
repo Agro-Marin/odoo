@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
 import { registry } from '@web/core/registry';
 import { hasTouch, isBrowserFirefox } from '@web/core/browser/feature_detection';

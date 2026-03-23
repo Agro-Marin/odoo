@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import { Plugin } from "@html_editor/plugin";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/debug/debug_menu - Extended debug menu with command palette integration */
 

@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { SnippetVisibilityOption } from "../options/snippet_visibility_option";
+import { SnippetVisibilityOption } from "../options/snippet_visibility_option.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { effect } from "@web/core/utils/reactive";
 import { DataAttributeAction } from "@html_builder/core/core_builder_action_plugin";

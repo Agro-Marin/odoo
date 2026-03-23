@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from '@odoo/owl';
 import { formatCurrency } from '@web/services/currency';
 import comparisonUtils from '@website_sale_comparison/js/website_sale_comparison_utils';

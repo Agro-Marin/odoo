@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/display/stat_info/stat_info_field - Stat button content showing a formatted value with a label */
 

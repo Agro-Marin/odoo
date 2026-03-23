@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
 import { browser } from '@web/core/browser/browser';
 import { registry } from '@web/core/registry';

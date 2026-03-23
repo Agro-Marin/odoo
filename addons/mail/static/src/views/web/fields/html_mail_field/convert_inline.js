@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { isBlock } from "@html_editor/utils/blocks";
 import { getAdjacentPreviousSiblings } from "@html_editor/utils/dom_traversal";
 import { getImageSrc } from "@html_editor/utils/image";

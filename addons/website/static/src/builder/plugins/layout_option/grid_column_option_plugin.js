@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { GridColumnsOption } from "./grid_column_option";
+import { GridColumnsOption } from "./grid_column_option.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { GRID_COLUMNS } from "@website/builder/option_sequence";
 import { StyleAction } from "@html_builder/core/core_builder_action_plugin";

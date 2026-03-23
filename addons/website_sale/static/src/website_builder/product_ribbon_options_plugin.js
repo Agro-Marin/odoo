@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { SNIPPET_SPECIFIC_NEXT } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
@@ -6,7 +7,7 @@ import { reactive } from "@odoo/owl";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { ProductsRibbonOption } from "./product_ribbon_options";
+import { ProductsRibbonOption } from "./product_ribbon_options.js";
 
 export class ProductHeaderShopOption2 extends ProductsRibbonOption {
     static name = 'ProductsRibbonOption';

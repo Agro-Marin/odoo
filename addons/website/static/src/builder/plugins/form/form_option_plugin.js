@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Cache } from "@web/core/utils/collections/cache";
 import { Plugin } from "@html_editor/plugin";
 import { reactive } from "@odoo/owl";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { redirect } from "@web/core/utils/urls";
-import { FormFieldOptionRedraw } from "./form_field_option_redraw";
-import { FormOptionAddFieldButton } from "./form_option_add_field_button";
+import { FormFieldOptionRedraw } from "./form_field_option_redraw.js";
+import { FormOptionAddFieldButton } from "./form_option_add_field_button.js";
 import {
     deleteConditionalVisibility,
     findCircular,
@@ -33,13 +34,13 @@ import {
     setVisibilityDependency,
     getParsedDataFor,
     rerenderField,
-} from "./utils";
+} from "./utils.js";
 import { SyncCache } from "@html_builder/utils/sync_cache";
 import { _t } from "@web/core/l10n/translation";
 import { renderToElement } from "@web/core/utils/render";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { FormOption } from "./form_option";
+import { FormOption } from "./form_option.js";
 import { isSmallInteger } from "@html_builder/utils/utils";
 import { localization } from "@web/core/l10n/localization";
 import { formatDate } from "@web/core/l10n/dates";

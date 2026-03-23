@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SearchModal as WebsiteSearchModal } from "@website/interactions/search_modal";
 import { registry } from "@web/core/registry";
 

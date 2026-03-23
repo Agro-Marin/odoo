@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/list/list_virtualization - Row virtualization hook rendering only visible rows plus buffer for large list views */
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/dynamic_record_list - Server-backed flat record list with pagination, CRUD, and domain-based selection */
 

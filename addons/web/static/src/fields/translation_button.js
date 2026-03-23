@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/translation_button - Translation button component and useTranslationDialog hook for translatable fields */
 

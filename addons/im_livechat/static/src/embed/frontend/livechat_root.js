@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LivechatButton } from "@im_livechat/embed/common/livechat_button";
 
 import { ChatHub } from "@mail/core/common/chat_hub";

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
-import { SlideShareDialog } from '../js/public/components/slide_share_dialog/slide_share_dialog';
+import { SlideShareDialog } from '../js/public/components/slide_share_dialog/slide_share_dialog.js';
 
 export class Share extends Interaction {
     static selector = ".o_wslides_share";

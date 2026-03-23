@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { markRaw } from "@odoo/owl";
 import { Base, createRelatedModels } from "@point_of_sale/app/models/related_models";
 import { getOnNotified, uuidv4 } from "@point_of_sale/utils";
@@ -8,10 +9,10 @@ import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
 import { Reactive } from "@web/core/utils/reactive";
 import { debounce } from "@web/core/utils/timing";
-import { DataServiceOptions } from "../models/data_service_options";
-import IndexedDB from "../models/utils/indexed_db";
-import DeviceIdentifierSequence from "../utils/devices_identifier_sequence";
-import { logPosMessage } from "../utils/pretty_console_log";
+import { DataServiceOptions } from "../models/data_service_options.js";
+import IndexedDB from "../models/utils/indexed_db.js";
+import DeviceIdentifierSequence from "../utils/devices_identifier_sequence.js";
+import { logPosMessage } from "../utils/pretty_console_log.js";
 const { DateTime } = luxon;
 const CONSOLE_COLOR = "#28ffeb";
 

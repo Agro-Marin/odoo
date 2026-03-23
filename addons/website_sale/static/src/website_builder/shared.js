@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 
 // TODO: need to fetch _get_product_sort_mapping to remove duplicate data

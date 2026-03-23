@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /*!
  * chartjs-plugin-datalabels v2.2.0
  * https://chartjs-plugin-datalabels.netlify.app

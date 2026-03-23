@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ListRenderer } from "@web/views/list/list_renderer";
 import { SurveySurveyActionHelper } from "@survey/views/components/survey_survey_action_helper/survey_survey_action_helper";
 

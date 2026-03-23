@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/many2one/many2one_field - Standard Many2one field with autocomplete, create, and open actions */
 
@@ -135,9 +135,10 @@ export class Many2OneField extends Component {
     }
 }
 
-registry.category("fields").add("many2one", {
+export const many2OneField = {
     ...buildM2OFieldDescription(Many2OneField),
-});
+};
+registry.category("fields").add("many2one", many2OneField);
 
 // Fallback for res_partner_many2one — enhanced by partner_autocomplete when installed
 registry.category("fields").add("res_partner_many2one", {

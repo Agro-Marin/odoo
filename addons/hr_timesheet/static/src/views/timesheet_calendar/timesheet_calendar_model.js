@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 
-import { TimesheetCalendarMyTimesheetsModel } from "../timesheet_calendar_my_timesheets/timesheet_calendar_my_timesheets_model";
+import { TimesheetCalendarMyTimesheetsModel } from "../timesheet_calendar_my_timesheets/timesheet_calendar_my_timesheets_model.js";
 
 export class TimesheetCalendarModel extends TimesheetCalendarMyTimesheetsModel {
     setup(params, services) {

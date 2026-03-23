@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global Stripe */
 
 import { StripeOptions } from '@payment_stripe/interactions/stripe_options';

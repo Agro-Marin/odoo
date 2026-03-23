@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { FilterValue } from "@spreadsheet/global_filters/components/filter_value/filter_value";
 import { _t } from "@web/core/l10n/translation";
@@ -8,7 +9,7 @@ import {
     getFilterTypeOperators,
 } from "@spreadsheet/global_filters/helpers";
 import { useService } from "@web/core/utils/hooks";
-import { isEmptyFilterValue } from "../../helpers";
+import { isEmptyFilterValue } from "../../helpers.js";
 import { deepEqual } from "@web/core/utils/collections/objects";
 
 /**

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { ListController } from "@web/views/list/list_controller";
 import { listView } from "@web/views/list/list_view";

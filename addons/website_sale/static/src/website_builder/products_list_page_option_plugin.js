@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { PreviewableWebsiteConfigAction } from "@website/builder/plugins/customize_website_plugin";
 import { Plugin } from "@html_editor/plugin";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/debug/debug_menu_basic - Base debug menu dropdown grouped by section (Record, UI, Security, etc.) */
 

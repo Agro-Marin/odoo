@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Message } from "@mail/core/common/message_model";
 import { fields } from "@mail/core/common/record";
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/legacy/js/public/public_root - Legacy PublicRoot widget that bootstraps the OWL app and public widget registry */
 

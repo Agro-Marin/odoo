@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AddZatcaRefundReasonPopup } from "@l10n_sa_pos/app/add_zatca_refund_reason_popup/add_zatca_refund_reason_popup";
 import { TicketScreen } from "@point_of_sale/app/screens/ticket_screen/ticket_screen";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";

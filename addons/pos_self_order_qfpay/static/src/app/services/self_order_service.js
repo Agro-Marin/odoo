@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { QFPay, QFPayError } from "@pos_qfpay/app/qfpay";
 

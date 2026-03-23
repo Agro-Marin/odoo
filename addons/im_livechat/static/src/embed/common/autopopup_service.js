@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { expirableStorage } from "@im_livechat/core/common/expirable_storage";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
-import { ImportDataColumnError } from "../import_data_column_error/import_data_column_error";
-import { ImportDataOptions } from "../import_data_options/import_data_options";
+import { ImportDataColumnError } from "../import_data_column_error/import_data_column_error.js";
+import { ImportDataOptions } from "../import_data_options/import_data_options.js";
 import { _t } from "@web/core/l10n/translation";
 
 export class ImportDataContent extends Component {

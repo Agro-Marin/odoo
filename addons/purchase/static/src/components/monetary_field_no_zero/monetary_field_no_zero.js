@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { monetaryField, MonetaryField } from "@web/fields/basic/monetary/monetary_field";
 import { registry } from "@web/core/registry";
 import { floatIsZero } from "@web/core/utils/format/numbers";

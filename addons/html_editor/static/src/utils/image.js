@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { isColorGradient } from "@web/core/utils/format/colors";
 
 /**

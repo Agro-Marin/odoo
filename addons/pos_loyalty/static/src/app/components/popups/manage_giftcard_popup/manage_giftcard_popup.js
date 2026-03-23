@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { debounce } from "@bus/workers/bus_worker_utils";
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";

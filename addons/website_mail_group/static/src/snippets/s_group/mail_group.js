@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { MailGroup } from "@mail_group/interactions/mail_group";
 import { patch } from "@web/core/utils/patch";
 import { patchDynamicContent } from "@web/public/utils";

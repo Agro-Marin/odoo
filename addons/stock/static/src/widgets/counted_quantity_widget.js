@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 import { registry } from "@web/core/registry";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";

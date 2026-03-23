@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global Carousel */
 
 import { Component, onMounted, onWillStart, onWillUnmount, useRef } from "@odoo/owl";

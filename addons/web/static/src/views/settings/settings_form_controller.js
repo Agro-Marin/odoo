@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/settings_form_controller - Controller for res.config.settings with search filtering and save-via-Apply behavior */
 

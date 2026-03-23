@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { SearchMessagesPanel } from "@mail/core/common/search_messages_panel";
 import { MeetingChat } from "@mail/discuss/call/common/meeting_chat";

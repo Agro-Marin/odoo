@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { unwrapContents } from "@html_editor/utils/dom";
 import { closestElement, firstLeaf, lastLeaf } from "@html_editor/utils/dom_traversal";
 import { getFontSizeOrClass } from "@html_editor/utils/formatting";

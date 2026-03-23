@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useRef, onMounted, useState, useEffect, onWillDestroy } from "@odoo/owl";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 

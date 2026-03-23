@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { closeStream } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
 const FPS = 30; // Frames per second for the blurred background stream

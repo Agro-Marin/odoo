@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, xml } from "@odoo/owl";
 
 export class CenteredIcon extends Component {

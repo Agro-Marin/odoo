@@ -175,6 +175,13 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
 
         code = str(code)
 
+        # In ESM mode the browser fetches each JS/CSS file individually,
+        # flooding the log with hundreds of static-asset lines.  Downgrade
+        # those to DEBUG so they only appear with --log-level=debug.
+        if "/static/" in self.path and not config["dev_mode"]:
+            self.log("debug", '"%s" %s %s', msg, code, size)
+            return
+
         if code[0] == "1":  # 1xx - Informational
             msg = werkzeug.serving._ansi_style(msg, "bold")
         elif code == "200":  # 2xx - Success

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/pivot/pivot_controller - Controller wiring PivotModel to PivotRenderer with search bar and scroll restoration */
 

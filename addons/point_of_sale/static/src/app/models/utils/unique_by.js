@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* Returns an array containing all elements of the given
  * array corresponding to the rule function {agg} and without duplicates
  *

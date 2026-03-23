@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global ChartDataLabels */
 
 import { loadJS } from "@web/core/assets";

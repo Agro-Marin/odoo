@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/calendar_model - Calendar event data loading, date range computation, filter sections, and timezone handling */
 

@@ -1,13 +1,14 @@
-import { Plugin } from "../../plugin";
+/** @odoo-module native */
+import { Plugin } from "../../plugin.js";
 import { _t } from "@web/core/l10n/translation";
 import { isImageUrl } from "@html_editor/utils/url";
-import { ImageDescription, ImageDescriptionPopover } from "./image_description";
-import { ImageToolbarDropdown } from "./image_toolbar_dropdown";
+import { ImageDescription, ImageDescriptionPopover } from "./image_description.js";
+import { ImageToolbarDropdown } from "./image_toolbar_dropdown.js";
 import { createFileViewer } from "@web/components/file_viewer/file_viewer_hook";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { boundariesOut } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
-import { ImageTransformButton } from "./image_transform_button";
+import { ImageTransformButton } from "./image_transform_button.js";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { fillEmpty } from "@html_editor/utils/dom";

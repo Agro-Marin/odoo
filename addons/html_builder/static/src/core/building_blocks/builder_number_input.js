@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { convertNumericToUnit, getHtmlStyle } from "@html_editor/utils/formatting";
 import { Component } from "@odoo/owl";
 import {
@@ -5,8 +6,8 @@ import {
     useInputBuilderComponent,
     useBuilderComponent,
     useInputDebouncedCommit,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
 import {
     BuilderTextInputBase,
     textInputBasePassthroughProps,

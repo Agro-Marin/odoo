@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 
-import { TimesheetUOM, timesheetUOM } from "../timesheet_uom/timesheet_uom";
+import { TimesheetUOM, timesheetUOM } from "../timesheet_uom/timesheet_uom.js";
 
 export class TimesheetUOMNoToggle extends TimesheetUOM {
     get timesheetComponent() {

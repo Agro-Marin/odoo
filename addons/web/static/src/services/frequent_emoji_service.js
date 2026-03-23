@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/frequent_emoji_service - Tracks and retrieves frequently used emojis from localStorage */
 

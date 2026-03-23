@@ -1,4 +1,5 @@
-import { CrmColumnProgress } from "./crm_column_progress";
+/** @odoo-module native */
+import { CrmColumnProgress } from "./crm_column_progress.js";
 import { RottingKanbanRecord } from "@mail/js/rotting_mixin/rotting_kanban_record";
 import { RottingKanbanHeader } from "@mail/js/rotting_mixin/rotting_kanban_header";
 import { RottingKanbanRenderer } from "@mail/js/rotting_mixin/rotting_kanban_renderer";

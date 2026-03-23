@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/basic/boolean_icon/boolean_icon_field - Clickable icon field that toggles a Boolean value */
 

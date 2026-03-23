@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { FontFamilyPicker } from "../fontfamily_picker";
+import { FontFamilyPicker } from "../fontfamily_picker.js";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 
 export const OPTION_POSITIONS = {

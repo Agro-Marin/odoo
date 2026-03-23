@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { user } from "@web/services/user";
 import { patch } from "@web/core/utils/patch";
 

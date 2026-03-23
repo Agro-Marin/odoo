@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { getDataURLFromFile, getOrigin, redirect, url } from "@web/core/utils/urls";
+import { compareUrls, getDataURLFromFile, getOrigin, redirect, url } from "@web/core/utils/urls";
 
 describe.current.tags("headless");
 
@@ -90,4 +90,36 @@ test("redirect", () => {
 
     expect(() => testRedirect("https://www.odoo.com")).toThrow(/Can't redirect/);
     expect(() => testRedirect("javascript:alert('boom');")).toThrow(/Can't redirect/);
+});
+
+describe("compareUrls", () => {
+    test("identical URLs are equal", () => {
+        expect(compareUrls("http://host/path?a=1", "http://host/path?a=1")).toBe(true);
+    });
+
+    test("query parameter order does not matter", () => {
+        expect(compareUrls("http://host/path?a=1&b=2", "http://host/path?b=2&a=1")).toBe(
+            true,
+        );
+    });
+
+    test("different origins are not equal", () => {
+        expect(compareUrls("http://host1/path", "http://host2/path")).toBe(false);
+    });
+
+    test("different paths are not equal", () => {
+        expect(compareUrls("http://host/a", "http://host/b")).toBe(false);
+    });
+
+    test("different query values are not equal", () => {
+        expect(compareUrls("http://host/path?a=1", "http://host/path?a=2")).toBe(false);
+    });
+
+    test("extra query parameter makes URLs different", () => {
+        expect(compareUrls("http://host/path?a=1", "http://host/path?a=1&b=2")).toBe(false);
+    });
+
+    test("different hashes are not equal", () => {
+        expect(compareUrls("http://host/path#a", "http://host/path#b")).toBe(false);
+    });
 });

@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { useService, useOwnedDialogs } from "@web/core/utils/hooks";
-import { AllocationFormViewDialog } from "./view_dialog/allocation_form_view_dialog";
+import { AllocationFormViewDialog } from "./view_dialog/allocation_form_view_dialog.js";
 import { useComponent } from "@odoo/owl";
 
 export function formatNumber(lang, number, maxDecimals = 2) {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { rpc } from "@web/core/network/rpc";
 import { useService } from "@web/core/utils/hooks";
 import { View } from "@web/views/view";

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ACTION_TAGS } from "@mail/core/common/action";
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { AttachmentPanel } from "@mail/discuss/core/common/attachment_panel";

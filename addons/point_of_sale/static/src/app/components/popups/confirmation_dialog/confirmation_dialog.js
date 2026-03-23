@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SyncPopup } from "@point_of_sale/app/components/popups/sync_popup/sync_popup";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";

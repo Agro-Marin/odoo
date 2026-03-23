@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { simplifyString } from "@api_doc/utils/doc_model_search";
 

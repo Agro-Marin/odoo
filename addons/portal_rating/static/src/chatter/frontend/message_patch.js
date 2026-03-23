@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Message } from "@mail/core/common/message";
 import { convertBrToLineBreak } from "@mail/utils/common/format";
 

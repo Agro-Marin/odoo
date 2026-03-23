@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { ListContainer } from "@point_of_sale/app/components/list_container/list_container";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";

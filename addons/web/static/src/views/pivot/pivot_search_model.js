@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/pivot/pivot_search_model - SearchModel extension restoring pivot_row_groupby from saved favorites */
 

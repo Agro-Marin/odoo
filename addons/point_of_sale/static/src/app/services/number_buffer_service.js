@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { barcodeService } from "@barcodes/barcode_service";
 import { EventBus, onWillDestroy, useComponent } from "@odoo/owl";
 import { registry } from "@web/core/registry";

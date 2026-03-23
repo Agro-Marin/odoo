@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, validate } from "@odoo/owl";
 import { omit, pick } from "@web/core/utils/collections/objects";
 

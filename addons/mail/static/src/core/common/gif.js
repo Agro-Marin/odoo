@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { Deferred, KeepLast } from "@web/core/utils/concurrency";
 import { memoize } from "@web/core/utils/functions";

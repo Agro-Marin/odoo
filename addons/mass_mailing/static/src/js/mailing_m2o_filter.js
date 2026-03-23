@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { Domain } from '@web/core/domain';
 import { registry } from '@web/core/registry';

@@ -1,16 +1,17 @@
+/** @odoo-module native */
 import { Component, useState, useSubEnv } from '@odoo/owl';
 import { formatCurrency } from '@web/services/currency';
 import { Dialog } from '@web/ui/dialog/dialog';
 import { _t } from '@web/core/l10n/translation';
 import { rpc } from '@web/core/network/rpc';
 import { useService } from '@web/core/utils/hooks';
-import { ProductCombo } from '../models/product_combo';
-import { ProductTemplateAttributeLine } from '../models/product_template_attribute_line';
-import { ProductCard } from '../product_card/product_card';
+import { ProductCombo } from '../models/product_combo.js';
+import { ProductTemplateAttributeLine } from '../models/product_template_attribute_line.js';
+import { ProductCard } from '../product_card/product_card.js';
 import {
     ProductConfiguratorDialog
-} from '../product_configurator_dialog/product_configurator_dialog';
-import { QuantityButtons } from '../quantity_buttons/quantity_buttons';
+} from '../product_configurator_dialog/product_configurator_dialog.js';
+import { QuantityButtons } from '../quantity_buttons/quantity_buttons.js';
 
 export class ComboConfiguratorDialog extends Component {
     static template = 'sale.ComboConfiguratorDialog';

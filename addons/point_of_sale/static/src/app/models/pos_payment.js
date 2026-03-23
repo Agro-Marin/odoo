@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { Base } from "./related_models";
+import { Base } from "./related_models.js";
 const { DateTime } = luxon;
 
 export class PosPayment extends Base {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { ForecastedDetails } from "@stock/stock_forecasted/forecasted_details";
 

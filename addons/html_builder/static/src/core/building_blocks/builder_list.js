@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderComponent } from "@html_builder/core/building_blocks/builder_component";
 import {
     basicContainerBuilderComponentProps,

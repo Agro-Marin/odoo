@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { Component, onMounted, onPatched, useRef } from "@odoo/owl";
 
-import { scrollItemIntoViewX } from "../../utils/scroll";
-import { useDraggableScroll } from "../../utils/scroll_dnd_hook";
-import { useHorizontalScrollShadow } from "../../utils/scroll_shadow_hook";
+import { scrollItemIntoViewX } from "../../utils/scroll.js";
+import { useDraggableScroll } from "../../utils/scroll_dnd_hook.js";
+import { useHorizontalScrollShadow } from "../../utils/scroll_shadow_hook.js";
 
 export class ComboStepper extends Component {
     static template = "pos_self_order.comboStepper";

@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Component, onMounted } from "@odoo/owl";
-import { AddToCartNotification } from "../add_to_cart_notification/add_to_cart_notification";
-import { WarningNotification } from "../warning_notification/warning_notification";
+import { AddToCartNotification } from "../add_to_cart_notification/add_to_cart_notification.js";
+import { WarningNotification } from "../warning_notification/warning_notification.js";
 
 const AUTOCLOSE_DELAY = 4000;
 

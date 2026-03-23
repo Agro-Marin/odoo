@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/popover/popover - Positioned popover component with click-away close, hotkey escape, and arrow rendering */
 

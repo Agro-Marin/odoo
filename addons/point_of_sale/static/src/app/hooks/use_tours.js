@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { tourState } from "@web_tour/js/tour_state";
 
-import { TourSelectorPopup } from "../components/tour_selector_popup/tour_selector_popup";
-import { makeAwaitable } from "../utils/make_awaitable_dialog";
+import { TourSelectorPopup } from "../components/tour_selector_popup/tour_selector_popup.js";
+import { makeAwaitable } from "../utils/make_awaitable_dialog.js";
 export default function useTours() {
     const tour = useService("tour_service");
     const dialog = useService("dialog");

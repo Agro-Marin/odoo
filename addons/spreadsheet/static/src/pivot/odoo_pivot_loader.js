@@ -1,3 +1,4 @@
+/** @odoo-module native */
 //@ts-check
 
 import { EvaluationError, CellErrorType } from "@odoo/o-spreadsheet";

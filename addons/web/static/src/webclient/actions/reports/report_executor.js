@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/actions/reports/report_executor - Executes ir.actions.report as HTML preview or PDF/text download */
 

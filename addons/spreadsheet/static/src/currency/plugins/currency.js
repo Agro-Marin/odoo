@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { EvaluationError, helpers, registries } from "@odoo/o-spreadsheet";
 import { OdooUIPlugin } from "@spreadsheet/plugins";
 import { toServerDateString } from "@spreadsheet/helpers/helpers";

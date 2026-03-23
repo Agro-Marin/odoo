@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registries } from "@odoo/o-spreadsheet";
 import { useEffect, useEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";

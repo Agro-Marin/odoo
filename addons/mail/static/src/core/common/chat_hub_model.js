@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { getSectionRecords } from '@account/components/section_and_note_fields_backend/section_and_note_fields_backend';
 import { SaleOrderLineListRenderer } from '@sale/js/sale_order_line_field/sale_order_line_field';
 import { makeContext } from '@web/core/context';

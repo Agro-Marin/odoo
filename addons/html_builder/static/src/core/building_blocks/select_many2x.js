@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, onWillUpdateProps, onWillDestroy } from "@odoo/owl";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { useCachedModel } from "@html_builder/core/cached_model_utils";

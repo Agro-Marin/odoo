@@ -1,4 +1,5 @@
-import { isProtected, isProtecting, isUnprotecting } from "./utils/dom_info";
+/** @odoo-module native */
+import { isProtected, isProtecting, isUnprotecting } from "./utils/dom_info.js";
 
 export const isValidTargetForDomListener = (target) =>
     !isProtecting(target) && (!isProtected(target) || isUnprotecting(target));

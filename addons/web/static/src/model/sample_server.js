@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/sample_server - Fake ORM server generating realistic sample data for empty views */
 

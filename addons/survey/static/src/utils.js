@@ -1,3 +1,4 @@
+/** @odoo-module native */
 async function animate(el, keyFrame, duration) {
     if (!el) {
         return;

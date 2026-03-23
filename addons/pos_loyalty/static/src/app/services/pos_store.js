@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SelectionPopup } from "@point_of_sale/app/components/popups/selection_popup/selection_popup";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";

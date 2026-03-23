@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useEffect } from "@odoo/owl";
 import { CustomerDisplay } from "@point_of_sale/customer_display/customer_display";
 import { useSingleDialog } from "@point_of_sale/customer_display/utils";

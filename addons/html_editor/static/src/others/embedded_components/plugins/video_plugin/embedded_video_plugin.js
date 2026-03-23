@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { VideoPlugin } from "@html_editor/main/media/video_plugin";
-import { EmbeddedVideoSelector } from "./video_selector_dialog/embedded_video_selector";
+import { EmbeddedVideoSelector } from "./video_selector_dialog/embedded_video_selector.js";
 
 /**
  * This plugin is meant to replace the Video plugin.

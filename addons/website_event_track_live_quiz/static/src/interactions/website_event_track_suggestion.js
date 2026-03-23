@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { WebsiteEventTrackSuggestion } from "@website_event_track_live/interactions/website_event_track_suggestion";
 import { patch } from "@web/core/utils/patch";
 

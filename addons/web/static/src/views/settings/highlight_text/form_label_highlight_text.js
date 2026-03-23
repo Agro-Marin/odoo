@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/highlight_text/form_label_highlight_text - FormLabel variant with search-term highlighting and enterprise upgrade badge */
 

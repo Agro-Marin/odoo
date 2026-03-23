@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/tree_editor/tree_editor_operator_editor - Operator editor info for domain/expression tree conditions */
 

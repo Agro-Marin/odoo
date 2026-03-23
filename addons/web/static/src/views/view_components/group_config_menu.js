@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_components/group_config_menu - Dropdown menu on grouped column headers for editing/deleting the group's relational value */
 

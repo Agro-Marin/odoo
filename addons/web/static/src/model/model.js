@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/model - Abstract base Model class with OWL lifecycle integration and sample data fallback */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, useState } from "@odoo/owl";
 import { QuantityButtons } from "@point_of_sale/app/components/buttons/quantity_buttons/quantity_buttons";
 import { ProductCard } from "@point_of_sale/app/components/product_card/product_card";

@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Domain } from "@web/core/domain";
-import { ChartDataSource, chartTypeToDataSourceMode } from "../data_source/chart_data_source";
+import { ChartDataSource, chartTypeToDataSourceMode } from "../data_source/chart_data_source.js";
 import { OdooUIPlugin } from "@spreadsheet/plugins";
 import { deepEqual } from "@web/core/utils/collections/objects";
 

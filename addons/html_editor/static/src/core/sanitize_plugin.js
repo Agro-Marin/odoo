@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { selectElements } from "@html_editor/utils/dom_traversal";
-import { Plugin } from "../plugin";
+import { Plugin } from "../plugin.js";
 
 /**
  * @typedef { Object } SanitizeShared

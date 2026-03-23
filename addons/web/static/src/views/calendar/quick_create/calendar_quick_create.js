@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/quick_create/calendar_quick_create - Lightweight dialog for creating a calendar event with just a title */
 

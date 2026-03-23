@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { isColorGradient } from "@web/core/utils/format/colors";
 import { Component, useState } from "@odoo/owl";
 import {
@@ -6,7 +7,7 @@ import {
     DEFAULT_THEME_COLOR_VARS,
 } from "@web/components/color_picker/color_picker";
 import { effect } from "@web/core/utils/reactive";
-import { toolbarButtonProps } from "../toolbar/toolbar";
+import { toolbarButtonProps } from "../toolbar/toolbar.js";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { useChildRef } from "@web/core/utils/hooks";
 import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";

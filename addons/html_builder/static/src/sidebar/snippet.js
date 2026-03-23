@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Img } from "@html_builder/core/img";
 import { Component } from "@odoo/owl";
 

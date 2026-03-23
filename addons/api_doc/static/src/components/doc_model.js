@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, useEffect, onPatched, markup } from "@odoo/owl";
 import { DocTable, TABLE_TYPES } from "@api_doc/components/doc_table";
 import { getCrudMethodsExamples } from "@api_doc/utils/doc_model_utils";

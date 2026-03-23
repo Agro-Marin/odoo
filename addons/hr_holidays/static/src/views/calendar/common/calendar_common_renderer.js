@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
 import { user } from "@web/services/user";
 import { CalendarCommonRenderer } from '@web/views/calendar/calendar_common/calendar_common_renderer';
-import { useMandatoryDays } from '../../hooks';
-import { TimeOffCalendarCommonPopover } from './calendar_common_popover';
+import { useMandatoryDays } from '../../hooks.js';
+import { TimeOffCalendarCommonPopover } from './calendar_common_popover.js';
 
 
 export class TimeOffCalendarCommonRenderer extends CalendarCommonRenderer {

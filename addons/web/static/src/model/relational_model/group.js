@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/group - Single group node within a grouped list, holding aggregates and a nested record list */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { debounce, Deferred, Logger } from "@bus/workers/bus_worker_utils";
 
 /**

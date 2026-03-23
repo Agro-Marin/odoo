@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 import { formatDate } from "@web/core/l10n/dates";
 import { formatFloat } from "@web/fields/formatters";

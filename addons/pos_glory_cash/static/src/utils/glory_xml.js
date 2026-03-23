@@ -1,4 +1,5 @@
-import { GLORY_RESULT } from "./constants";
+/** @odoo-module native */
+import { GLORY_RESULT } from "./constants.js";
 
 import { parseXML } from "@web/core/utils/dom/xml";
 /**

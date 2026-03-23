@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/assets - Lazy-loads CSS/JS asset bundles into documents with caching */
 

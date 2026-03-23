@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // Little class to manage the refund of a line
 // This will be also usefull when needed to save
 // the refund in indexedDB

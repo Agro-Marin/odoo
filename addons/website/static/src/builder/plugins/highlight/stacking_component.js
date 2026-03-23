@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { xml, Component, reactive, useState, useEffect } from "@odoo/owl";
 import { POSITION_BUS } from "@web/core/position/position_hook";
 

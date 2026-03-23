@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { Component, xml, useRef, reactive, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { registry } from "@web/core/registry";
-import { HighlightConfigurator } from "./highlight_configurator";
-import { StackingComponent, useStackingComponentState } from "./stacking_component";
+import { HighlightConfigurator } from "./highlight_configurator.js";
+import { StackingComponent, useStackingComponentState } from "./stacking_component.js";
 import { formatsSpecs } from "@html_editor/utils/formatting";
 import { closestElement, descendants } from "@html_editor/utils/dom_traversal";
 import { removeClass, removeStyle } from "@html_editor/utils/dom";

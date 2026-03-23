@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { KEProxyDialog } from "./ke_proxy_dialog";
+import { KEProxyDialog } from "./ke_proxy_dialog.js";
 
 export function KESendInvoiceClientAction(env, action) {
     return new Promise((resolve) => {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import CourseJoin from "@website_slides/js/slides_course_join";
 
 const CourseJoinWidget = CourseJoin.courseJoinWidget;

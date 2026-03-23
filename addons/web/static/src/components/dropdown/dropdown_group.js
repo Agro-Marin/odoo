@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/dropdown/dropdown_group - Groups multiple dropdowns so only one can be open at a time */
 

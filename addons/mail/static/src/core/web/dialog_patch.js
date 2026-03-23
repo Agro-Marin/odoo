@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { Dialog } from "@web/ui/dialog/dialog";
 patch(Dialog.prototype, {

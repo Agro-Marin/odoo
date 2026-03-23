@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { htmlEscape, markup } from "@odoo/owl";
 
 import { Interaction } from "@web/public/interaction";

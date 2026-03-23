@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { session } from "@web/session";
 import { registry } from "@web/core/registry";
 import { formatFloatTime, formatFloatFactor } from "@web/fields/formatters";

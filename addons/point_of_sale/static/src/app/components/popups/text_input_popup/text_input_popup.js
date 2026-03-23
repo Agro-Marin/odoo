@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { Dialog } from "@web/ui/dialog/dialog";
 export class TextInputPopup extends Component {

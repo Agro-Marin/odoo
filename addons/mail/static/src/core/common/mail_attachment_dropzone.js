@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { Dropzone } from "@web/components/dropzone/dropzone";
 export class MailAttachmentDropzone extends Component {

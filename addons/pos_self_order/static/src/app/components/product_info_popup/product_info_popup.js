@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 
-import { useScrollShadow } from "../../utils/scroll_shadow_hook";
+import { useScrollShadow } from "../../utils/scroll_shadow_hook.js";
 export class ProductInfoPopup extends Component {
     static template = "pos_self_order.ProductInfoPopup";
     static props = {

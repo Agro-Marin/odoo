@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_components/report_view_measures - Dropdown selector for choosing numeric measures in pivot/graph report views */
 

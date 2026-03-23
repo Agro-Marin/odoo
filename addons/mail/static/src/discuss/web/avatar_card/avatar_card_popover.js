@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ImStatus } from "@mail/core/common/im_status";
 import { useOpenChat } from "@mail/core/web/open_chat_hook";
 import { Component } from "@odoo/owl";

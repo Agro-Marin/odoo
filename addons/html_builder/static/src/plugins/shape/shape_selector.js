@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { useRef, useState } from "@odoo/owl";
 import { ImgGroup } from "@html_builder/core/img_group";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
-import { getShapeURL } from "../image/image_helpers";
+import { getShapeURL } from "../image/image_helpers.js";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { useAutofocus } from "@web/core/utils/hooks";
 

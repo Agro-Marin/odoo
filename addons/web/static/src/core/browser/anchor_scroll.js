@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/browser/anchor_scroll - Prevents default scroll on bare "#" anchor clicks */
 

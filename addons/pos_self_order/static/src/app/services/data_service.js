@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PosData } from "@point_of_sale/app/services/data_service";
 import { rpc } from "@web/core/network/rpc";
 import { patch } from "@web/core/utils/patch";

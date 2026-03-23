@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { SearchMessageInput } from "@mail/core/common/search_message_input";
 import { SearchMessageResult } from "@mail/core/common/search_message_result";
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, markup } from "@odoo/owl";
 import { DocRequest } from "@api_doc/components/doc_request";
 import { DocTable, TABLE_TYPES } from "@api_doc/components/doc_table";

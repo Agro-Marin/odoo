@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { sizingGrid, sizingX, sizingY } from "@html_builder/core/builder_overlay/builder_overlay";
 import { patch } from "@web/core/utils/patch";
 

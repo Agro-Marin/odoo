@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/commands/default_providers - Default command palette providers: hotkey badges, clickable elements, setup registry */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ForecastedButtons } from "@stock/stock_forecasted/forecasted_buttons";
 import { patch } from "@web/core/utils/patch";
 import { onWillStart } from "@odoo/owl";

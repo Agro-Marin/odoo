@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 
 export class TimeoutPopup extends Component {

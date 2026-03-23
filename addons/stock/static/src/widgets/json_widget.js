@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { loadBundle } from "@web/core/assets";
 import { cookie } from "@web/core/browser/cookie";
 import { getColor } from "@web/core/colors/colors";

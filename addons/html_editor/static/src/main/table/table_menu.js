@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";

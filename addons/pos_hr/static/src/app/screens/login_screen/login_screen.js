@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillUnmount, useExternalListener, useState } from "@odoo/owl";
 import { LoginScreen } from "@point_of_sale/app/screens/login_screen/login_screen";
 import { useCashierSelector } from "@pos_hr/app/utils/select_cashier_mixin";

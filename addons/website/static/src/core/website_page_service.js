@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { jsToPyLocale } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";

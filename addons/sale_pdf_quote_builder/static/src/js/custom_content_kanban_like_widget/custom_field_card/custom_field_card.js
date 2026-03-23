@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";

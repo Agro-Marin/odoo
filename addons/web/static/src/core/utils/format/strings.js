@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/format/strings - String helpers: sprintf, escapeRegExp, email validation, intersperse */
 

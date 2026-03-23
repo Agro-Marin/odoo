@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AvatarEmployee } from "@hr/components/avatar_employee/avatar_employee";
 import { Component, onWillStart } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
