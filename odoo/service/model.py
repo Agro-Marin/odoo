@@ -22,8 +22,6 @@ from odoo.modules.registry import Registry
 from odoo.tools import lazy
 from odoo.tools.safe_eval import _UNSAFE_ATTRIBUTES
 
-from .server import thread_local
-
 if typing.TYPE_CHECKING:
     from odoo.api import Environment
 
@@ -67,6 +65,11 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
     method = getattr(cls, name, None)
     if not callable(method):
         raise AttributeError(f"The method '{model._name}.{name}' does not exist")
+
+    if method == getattr(model, name, None):  # classmethod, staticmethod
+        raise AccessError(
+            f"The method '{model._name}.{name}' cannot be called remotely."
+        )
 
     # Use __dict__.get instead of getattr to avoid re-checking inherited methods:
     # getattr() returns non-None for every ancestor class (via inheritance), causing
@@ -162,7 +165,7 @@ def execute_cr(
         raise UserError(  # pylint: disable=missing-gettext,E8507
             f"Object {obj} doesn't exist"
         )
-    thread_local.rpc_model_method = f"{obj}.{method}"
+    threading.current_thread().rpc_model_method = f"{obj}.{method}"
     result = retrying(partial(call_kw, recs, method, args, kw), env)
     # Force evaluation of lazy values before the cursor is closed, as it
     # would error afterwards if the lazy isn't already evaluated (and cached).

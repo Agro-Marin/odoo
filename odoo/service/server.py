@@ -82,12 +82,6 @@ _logger = logging.getLogger(__name__)
 SLEEP_INTERVAL = 60  # 1 min
 
 
-# A global-ish object, each thread/worker uses its own
-thread_local = threading.local()
-
-# the model and method name that was called via rpc, for logging
-thread_local.rpc_model_method = ""
-
 
 def memory_info(process: Any) -> int:
     """Return the resident memory (RSS) of the process in bytes.
@@ -171,7 +165,7 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
     def log_request(self, code: str | int = "-", size: str | int = "-") -> None:
         try:
             path = uri_to_iri(self.path)
-            fragment = thread_local.rpc_model_method
+            fragment = getattr(threading.current_thread(), "rpc_model_method", "")
             if fragment:
                 path += "#" + fragment
             msg = f"{self.command} {path} {self.request_version}"
@@ -443,6 +437,7 @@ class CommonServer:
         self.port: int = config["http_port"]
         # runtime
         self.pid: int = os.getpid()
+        self.logger = _logger.getChild(self.__class__.__name__)
 
     def close_socket(self, sock: socket.socket) -> None:
         """Closes a socket instance cleanly
@@ -476,10 +471,10 @@ class CommonServer:
     def stop(self) -> None:
         for func in self._on_stop_funcs:
             try:
-                _logger.debug("on_close call %s", func)
+                self.logger.debug("on_close call %s", func)
                 func()
             except Exception:
-                _logger.warning("Exception in %s", func.__name__, exc_info=True)
+                self.logger.warning("Exception in %s", func.__name__, exc_info=True)
 
 
 class ThreadedServer(CommonServer):
@@ -520,7 +515,7 @@ class ThreadedServer(CommonServer):
     def process_limit(self) -> None:
         memory = memory_info(psutil.Process(os.getpid()))
         if config["limit_memory_soft"] and memory > config["limit_memory_soft"]:
-            _logger.warning("Server memory limit (%s) reached.", memory)
+            self.logger.warning("Server memory limit (%s) reached.", memory)
             self.limits_reached_threads.add(threading.current_thread())
 
         now = time.monotonic()
@@ -544,7 +539,7 @@ class ThreadedServer(CommonServer):
                         thread_limit_time_real
                         and thread_execution_time > thread_limit_time_real
                     ):
-                        _logger.warning(
+                        self.logger.warning(
                             "Thread %s virtual real time limit (%d/%ds) reached.",
                             thread,
                             thread_execution_time,
@@ -577,6 +572,9 @@ class ThreadedServer(CommonServer):
 
         from odoo.addons.base.models.ir_cron import IrCron
 
+        cron_logger = self.logger.getChild(f"cron{number}")
+        cron_logger.info("Alive")
+
         def _run_cron(cr):
             pg_conn = cr._cnx
             # LISTEN / NOTIFY doesn't work in recovery mode
@@ -585,7 +583,7 @@ class ThreadedServer(CommonServer):
             if not in_recovery:
                 cr.execute("LISTEN cron_trigger")
             else:
-                _logger.warning(
+                cron_logger.warning(
                     "PG cluster in recovery mode, cron trigger not activated"
                 )
             cr.commit()
@@ -631,32 +629,38 @@ class ThreadedServer(CommonServer):
                         if not db_names:
                             continue
 
-                    _logger.debug(
-                        "cron%d polling for jobs (notified: %s)", number, notified
-                    )
+                    cron_logger.debug("polling for jobs (notified: %s)", notified)
                     for db_name in db_names:
                         thread = threading.current_thread()
                         thread.start_time = time.monotonic()
                         try:
                             IrCron._process_jobs(db_name)
                         except Exception:
-                            _logger.warning(
-                                "cron%d encountered an Exception:",
-                                number,
+                            cron_logger.warning(
+                                "Uncaught error for database %s",
+                                db_name,
                                 exc_info=True,
                             )
                         thread.start_time = None
 
         while True:
-            conn = db.db_connect("postgres")
-            with contextlib.closing(conn.cursor()) as cr:
-                _run_cron(cr)
-                cr._cnx.close()
-            _logger.info(
-                "cron%d max age (%ss) reached, releasing connection.",
-                number,
-                config["limit_time_worker_cron"],
-            )
+            try:
+                conn = db.db_connect("postgres")
+                with contextlib.closing(conn.cursor()) as cr:
+                    _run_cron(cr)
+                    cr._cnx.close()
+                cron_logger.info(
+                    "Max age (%ss) reached, recycling pg connection",
+                    config["limit_time_worker_cron"],
+                )
+            except SystemExit:
+                raise
+            except BaseException:
+                cron_logger.critical(
+                    "Uncaught error in main loop, retrying in 5s...",
+                    exc_info=True,
+                )
+                time.sleep(5)
 
     def cron_spawn(self) -> None:
         """Start the above runner function in a daemon thread.
@@ -671,11 +675,10 @@ class ThreadedServer(CommonServer):
                 target=self.cron_thread,
                 args=(i,),
                 name=f"odoo.service.cron.cron{i}",
+                daemon=True,
             )
-            t.daemon = True
             t.type = "cron"
             t.start()
-            _logger.debug("cron%d started!", i)
 
     def http_spawn(self) -> None:
         self.httpd = ThreadedWSGIServerReloadable(self.interface, self.port, self.app)
@@ -686,7 +689,7 @@ class ThreadedServer(CommonServer):
         ).start()
 
     def start(self, stop: bool = False) -> None:
-        _logger.debug("Setting signal handlers")
+        self.logger.debug("Setting signal handlers")
         set_limit_memory_hard()
         if os.name == "posix":
             signal.signal(signal.SIGINT, self.signal_handler)
@@ -711,10 +714,10 @@ class ThreadedServer(CommonServer):
     def stop(self) -> None:
         """Shutdown the WSGI server. Wait for non daemon threads."""
         if server_phoenix:
-            _logger.info("Initiating server reload")
+            self.logger.info("Initiating server reload")
         else:
-            _logger.info("Initiating shutdown")
-            _logger.info(
+            self.logger.info("Initiating shutdown")
+            self.logger.info(
                 "Hit CTRL-C again or send a second signal to force the shutdown."
             )
 
@@ -729,9 +732,9 @@ class ThreadedServer(CommonServer):
         # to trigger _force_quit() in case some non-daemon threads won't exit cleanly.
         # threading.Thread.join() should not mask signals.
         me = threading.current_thread()
-        _logger.debug("current thread: %r", me)
+        self.logger.debug("current thread: %r", me)
         for thread in threading.enumerate():
-            _logger.debug("process %r (%r)", thread, thread.daemon)
+            self.logger.debug("process %r (%r)", thread, thread.daemon)
             if (
                 thread != me
                 and not thread.daemon
@@ -740,7 +743,7 @@ class ThreadedServer(CommonServer):
             ):
                 while thread.is_alive() and (time.monotonic() - stop_time) < 1:
                     # We wait for requests to finish, up to 1 second.
-                    _logger.debug("join and sleep")
+                    self.logger.debug("join and sleep")
                     # Need a busyloop here as thread.join() masks signals
                     # and would prevent the forced shutdown.
                     thread.join(0.05)
@@ -751,11 +754,11 @@ class ThreadedServer(CommonServer):
         current_process = psutil.Process()
         children = current_process.children(recursive=False)
         for child in children:
-            _logger.info(
+            self.logger.info(
                 "A child process was found, pid is %s, process may hang", child
             )
 
-        _logger.debug("--")
+        self.logger.debug("--")
         logging.shutdown()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
@@ -806,7 +809,7 @@ class ThreadedServer(CommonServer):
                         # We wait there is no processing requests
                         # other than the ones exceeding the limits, up to 1 min,
                         # before asking for a reload.
-                        _logger.info(
+                        self.logger.info(
                             "Dumping stacktrace of limit exceeding threads before reloading"
                         )
                         dumpstacks(
@@ -844,14 +847,14 @@ class EventServer(CommonServer):
     def process_limits(self) -> None:
         restart = False
         if self.ppid != os.getppid():
-            _logger.warning("EventServer Parent changed: %s", self.pid)
+            self.logger.warning("Parent changed: %s", self.pid)
             restart = True
         memory = memory_info(psutil.Process(self.pid))
         limit_memory_soft = (
             config["limit_memory_soft_gevent"] or config["limit_memory_soft"]
         )
         if limit_memory_soft and memory > limit_memory_soft:
-            _logger.warning("EventServer virtual memory limit reached: %s", memory)
+            self.logger.warning("Virtual memory limit reached: %s", memory)
             restart = True
         if restart:
             os.kill(self.pid, signal.SIGTERM)
@@ -882,18 +885,18 @@ class EventServer(CommonServer):
             threaded=True,
             request_handler=RequestHandler,
         )
-        _logger.info(
-            "Evented Service (longpolling) running on %s:%s",
+        self.logger.info(
+            "Evented/WebSocket service running on %s:%s",
             self.interface,
             self.port,
         )
         try:
             self.httpd.serve_forever()
-        except Exception:
-            _logger.exception(
-                "Evented Service (longpolling): uncaught error during main loop"
-            )
+        except SystemExit:
             raise
+        except BaseException as exc:
+            self.logger.critical("Uncaught error in main loop", exc_info=True)
+            raise SystemExit(1) from exc
 
     def stop(self) -> None:
         self.httpd.shutdown()
@@ -948,7 +951,7 @@ class PreforkServer(CommonServer):
             self.queue.append(sig)
             self.pipe_ping(self.pipe)
         else:
-            _logger.warning("Dropping signal: %s", sig)
+            self.logger.warning("Dropping signal: %s", sig)
 
     def worker_spawn(self, klass: type, workers_registry: dict) -> Worker | None:
         """Fork a new worker of the given class and register it."""
@@ -961,7 +964,18 @@ class PreforkServer(CommonServer):
             workers_registry[pid] = worker
             return worker
         else:
-            worker.run()
+            try:
+                worker.run()
+            except SystemExit:
+                raise
+            except BaseException as exc:
+                self.logger.critical(
+                    "Worker %s (%d): uncaught error, exiting...",
+                    worker.__class__.__name__,
+                    os.getpid(),
+                    exc_info=exc,
+                )
+                raise SystemExit(1) from exc
             sys.exit(0)
 
     def long_polling_spawn(self) -> None:
@@ -976,7 +990,7 @@ class PreforkServer(CommonServer):
         if pid == self.long_polling_pid:
             self.long_polling_pid = None
         if pid in self.workers:
-            _logger.debug("Worker (%s) unregistered", pid)
+            self.logger.debug("worker (%s) unregistered", pid)
             try:
                 self.workers_http.pop(pid, None)
                 self.workers_cron.pop(pid, None)
@@ -1027,8 +1041,8 @@ class PreforkServer(CommonServer):
                 if not wpid:
                     break
                 if (status >> 8) == 3:
-                    msg = f"Critical worker error ({wpid})"
-                    _logger.critical(msg)
+                    msg = f"Worker ({wpid}): dead"
+                    self.logger.critical(msg)
                     raise Exception(msg)
                 self.worker_pop(wpid)
             except OSError as e:
@@ -1044,7 +1058,7 @@ class PreforkServer(CommonServer):
                 worker.watchdog_timeout is not None
                 and (now - worker.watchdog_time) >= worker.watchdog_timeout
             ):
-                _logger.error(
+                self.logger.error(
                     "%s (%s) timeout after %ss",
                     worker.__class__.__name__,
                     pid,
@@ -1116,11 +1130,11 @@ class PreforkServer(CommonServer):
 
         if config["http_enable"]:
             if config.http_socket_activation:
-                _logger.info(
+                self.logger.info(
                     "HTTP service (werkzeug) running through socket activation"
                 )
             else:
-                _logger.info(
+                self.logger.info(
                     "HTTP service (werkzeug) running on %s:%s",
                     self.interface,
                     self.port,
@@ -1150,7 +1164,7 @@ class PreforkServer(CommonServer):
 
     def fork_and_reload(self) -> None:
         """Fork: parent re-execs the new server; child waits for SIGHUP then shuts down."""
-        _logger.info("Reloading server")
+        self.logger.info("Reloading server")
         pid = os.fork()
         if pid != 0:
             # keep the http listening socket open during _reexec() to ensure uptime
@@ -1162,7 +1176,7 @@ class PreforkServer(CommonServer):
             _reexec()  # stops execution
 
         # child process handles old server shutdown
-        _logger.info("Waiting for new server to start ...")
+        self.logger.info("Waiting for new server to start ...")
         phoenix_hatched = False
 
         def sighup_handler(sig, frame):
@@ -1176,13 +1190,13 @@ class PreforkServer(CommonServer):
             time.sleep(0.1)
 
         if not phoenix_hatched:
-            _logger.error("Server reload timed out (check the updated code)")
+            self.logger.error("Server reload timed out (check the updated code)")
         else:
-            _logger.info("New server has started")
+            self.logger.info("New server has started")
 
     def stop_workers_gracefully(self) -> None:
         """Signal all workers to finish their current request then exit."""
-        _logger.info("Stopping workers gracefully")
+        self.logger.info("Stopping workers gracefully")
 
         if self.long_polling_pid is not None:
             # FIXME make longpolling process handle SIGTERM correctly
@@ -1207,7 +1221,7 @@ class PreforkServer(CommonServer):
             try:
                 self.process_signals()
             except KeyboardInterrupt:
-                _logger.info("Forced shutdown.")
+                self.logger.info("Forced shutdown.")
                 break
 
             if is_main_server:
@@ -1230,7 +1244,7 @@ class PreforkServer(CommonServer):
             self.fork_and_reload()
             self.stop_workers_gracefully()
 
-            _logger.info("Old server stopped")
+            self.logger.info("Old server stopped")
             return
 
         if self.socket:
@@ -1239,7 +1253,7 @@ class PreforkServer(CommonServer):
             super().stop()
             self.stop_workers_gracefully()
         else:
-            _logger.info("Stopping forcefully")
+            self.logger.info("Stopping forcefully")
         for pid in list(self.workers):
             self.worker_kill(pid, signal.SIGTERM)
 
@@ -1259,7 +1273,7 @@ class PreforkServer(CommonServer):
         if os.environ.get("ODOO_READY_SIGHUP_PID"):
             os.kill(int(os.environ.pop("ODOO_READY_SIGHUP_PID")), signal.SIGHUP)
 
-        _logger.debug("Multiprocess starting")
+        self.logger.debug("starting")
         while True:
             try:
                 # _logger.debug("Multiprocess beat (%s)",time.time())
@@ -1269,11 +1283,13 @@ class PreforkServer(CommonServer):
                 self.process_spawn()
                 self.sleep()
             except KeyboardInterrupt:
-                _logger.debug("Multiprocess clean stop")
+                self.logger.debug("clean stop")
                 self.stop()
                 break
-            except Exception as e:
-                _logger.exception(e)
+            except SystemExit:
+                raise
+            except BaseException as exc:
+                self.logger.critical("Uncaught error in main loop, exiting...", exc_info=exc)
                 self.stop(False)
                 return -1
         return None
@@ -1296,6 +1312,7 @@ class Worker:
         # should we rename into lifetime ?
         self.request_max = multi.limit_request
         self.request_count = 0
+        self.logger = _logger.getChild(self.__class__.__name__)
 
     def setproctitle(self, title: str = "") -> None:
         setproctitle(f"odoo: {self.__class__.__name__} {self.pid} {title}")
@@ -1313,11 +1330,7 @@ class Worker:
     def signal_time_expired_handler(self, n: int, stack: Any) -> None:
         # TODO: print actual RUSAGE_SELF (since last check_limits) instead of
         #       just repeating the config setting
-        _logger.info(
-            "Worker (%d) CPU time limit (%s) reached.",
-            self.pid,
-            config["limit_time_cpu"],
-        )
+        self.logger.info("CPU time limit (%s) reached.", config["limit_time_cpu"])
         # We dont suicide in such case
         msg = "CPU time limit exceeded."
         raise Exception(msg)
@@ -1335,24 +1348,16 @@ class Worker:
     def check_limits(self) -> None:
         # If our parent changed suicide
         if self.ppid != os.getppid():
-            _logger.info("Worker (%s) Parent changed", self.pid)
+            self.logger.info("Parent changed")
             self.alive = False
         # check for lifetime
         if self.request_count >= self.request_max:
-            _logger.info(
-                "Worker (%d) max request (%s) reached.",
-                self.pid,
-                self.request_count,
-            )
+            self.logger.info("Max request (%s) reached.", self.request_count)
             self.alive = False
         # Reset the worker if it consumes too much memory (e.g. caused by a memory leak).
         memory = memory_info(psutil.Process(os.getpid()))
         if config["limit_memory_soft"] and memory > config["limit_memory_soft"]:
-            _logger.info(
-                "Worker (%d) virtual memory limit (%s) reached.",
-                self.pid,
-                memory,
-            )
+            self.logger.info("Virtual memory limit (%s) reached.", memory)
             self.alive = False  # Commit suicide after the request.
 
         set_limit_memory_hard()
@@ -1373,7 +1378,7 @@ class Worker:
     def start(self) -> None:
         self.pid = os.getpid()
         self.setproctitle()
-        _logger.info("Worker %s (%s) alive", self.__class__.__name__, self.pid)
+        self.logger.info("Alive")
         # Reseed the random number generator
         random.seed()
         if self.multi.socket:
@@ -1403,26 +1408,20 @@ class Worker:
 
     def run(self) -> None:
         """Entry point for the forked worker process."""
-        try:
-            self.start()
-            t = threading.Thread(
-                name=f"Worker {self.__class__.__name__} ({self.pid}) workthread",
-                target=self._runloop,
-            )
-            t.daemon = True
-            t.start()
-            t.join()
-            _logger.info(
-                "Worker (%s) exiting. request_count: %s, registry count: %s.",
-                self.pid,
-                self.request_count,
-                len(Registry.registries),
-            )
-            self.stop()
-        except Exception:
-            _logger.exception("Worker (%s) Exception occurred, exiting...", self.pid)
-            # should we use 3 to abort everything ?
-            sys.exit(1)
+        self.start()
+        t = threading.Thread(
+            name=f"Worker {self.__class__.__name__} ({self.pid}) workthread",
+            target=self._runloop,
+            daemon=True,
+        )
+        t.start()
+        t.join()
+        self.logger.info(
+            "Exiting cleanly. request_count: %s, registry count: %s.",
+            self.request_count,
+            len(Registry.registries),
+        )
+        self.stop()
 
     def _runloop(self) -> None:
         """Main work loop run in a daemon thread inside the worker process."""
@@ -1444,13 +1443,9 @@ class Worker:
                 if not self.alive:
                     break
                 self.process_work()
-        except Exception:
-            _logger.exception(
-                "Worker %s (%s) Exception occurred, exiting...",
-                self.__class__.__name__,
-                self.pid,
-            )
-            sys.exit(1)
+        except BaseException as exc:
+            self.logger.exception("Exception occurred, exiting...")
+            raise SystemExit(1) from exc
 
 
 class WorkerHTTP(Worker):
@@ -1534,11 +1529,7 @@ class WorkerCron(Worker):
             config["limit_time_worker_cron"] > 0
             and (time.monotonic() - self.alive_time) > config["limit_time_worker_cron"]
         ):
-            _logger.info(
-                "WorkerCron (%s) max age (%ss) reached.",
-                self.pid,
-                config["limit_time_worker_cron"],
-            )
+            self.logger.info("Max age (%ss) reached.", config["limit_time_worker_cron"])
             self.alive = False
 
     def _connect_postgres(self) -> None:
@@ -1551,7 +1542,7 @@ class WorkerCron(Worker):
         if not in_recovery:
             self.dbcursor.execute("LISTEN cron_trigger")
         else:
-            _logger.warning("PG cluster in recovery mode, cron trigger not activated")
+            self.logger.warning("PG cluster in recovery mode, cron trigger not activated")
         self.dbcursor.commit()
         # Rebuild the selector: wakeup pipe (OS signals) + postgres socket (NOTIFY).
         # Called on initial connect and on reconnect after connection loss.
@@ -1563,7 +1554,7 @@ class WorkerCron(Worker):
 
     def process_work(self) -> None:
         """Process a single database."""
-        _logger.debug("WorkerCron (%s) polling for jobs", self.pid)
+        self.logger.debug("polling for jobs")
 
         if not self.db_queue:
             # list databases
@@ -1575,10 +1566,7 @@ class WorkerCron(Worker):
                     if notif.channel == "cron_trigger"
                 )
             except psycopg.OperationalError:
-                _logger.warning(
-                    "WorkerCron (%s) lost postgres connection, reconnecting...",
-                    self.pid,
-                )
+                self.logger.warning("Lost postgres connection, reconnecting...")
                 with contextlib.suppress(Exception):
                     self.dbcursor._cnx.close()
                 with contextlib.suppress(Exception):
@@ -1606,7 +1594,7 @@ class WorkerCron(Worker):
 
         self.request_count += 1
         if self.request_count >= self.request_max and self.request_max < self.db_count:
-            _logger.error(
+            self.logger.error(
                 "There are more databases to process than allowed "
                 "by the `limit_request` configuration variable: %s more.",
                 self.db_count - self.request_max,

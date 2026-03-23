@@ -1,3 +1,4 @@
+import threading
 from typing import Any
 
 from werkzeug.exceptions import NotFound
@@ -5,7 +6,6 @@ from werkzeug.exceptions import NotFound
 from odoo import http
 from odoo.http import request
 from odoo.service.model import call_kw
-from odoo.service.server import thread_local
 
 from .utils import clean_action
 
@@ -40,7 +40,7 @@ class DataSet(http.Controller):
         path: str | None = None,
     ) -> Any:
         if path != f"{model}.{method}":
-            thread_local.rpc_model_method = f"{model}.{method}"
+            threading.current_thread().rpc_model_method = f"{model}.{method}"
         return call_kw(request.env[model], method, args, kwargs)
 
     @http.route(
@@ -58,7 +58,7 @@ class DataSet(http.Controller):
         path: str | None = None,
     ) -> dict[str, Any] | bool:
         if path != f"{model}.{method}":
-            thread_local.rpc_model_method = f"{model}.{method}"
+            threading.current_thread().rpc_model_method = f"{model}.{method}"
         action = call_kw(request.env[model], method, args, kwargs)
         # type="" is a sentinel meaning "no action"; absent type gets defaulted to act_window_close
         if isinstance(action, dict) and action.get("type") != "":
