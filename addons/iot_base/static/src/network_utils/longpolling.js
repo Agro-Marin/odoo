@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from '@web/core/registry';
 import { post } from '@iot_base/network_utils/http';
 import { uuid } from "@web/core/utils/format/strings";

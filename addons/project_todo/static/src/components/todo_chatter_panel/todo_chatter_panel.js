@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Chatter } from "@mail/chatter/web_portal/chatter";
 
 import { Component, useState, useRef } from "@odoo/owl";

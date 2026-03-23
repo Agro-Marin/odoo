@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { renderToElement } from "@web/core/utils/render";
 import {
     addBackgroundGrid,

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { ImageTransformation } from "@html_editor/main/media/image_transformation";

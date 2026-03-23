@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
 import { registry } from '@web/core/registry';
 import wishlistUtils from '@website_sale_wishlist/js/website_sale_wishlist_utils';

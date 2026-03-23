@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/selection/label_selection/label_selection_field - Colored label display field for Selection columns */
 

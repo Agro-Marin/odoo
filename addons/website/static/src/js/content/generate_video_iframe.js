@@ -1,3 +1,4 @@
+/** @odoo-module native */
 const SUPPORTED_DOMAINS = [
     "youtu.be",
     "youtube.com",

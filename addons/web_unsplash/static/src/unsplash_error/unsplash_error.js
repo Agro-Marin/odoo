@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { UnsplashCredentials } from "../unsplash_credentials/unsplash_credentials";
+import { UnsplashCredentials } from "../unsplash_credentials/unsplash_credentials.js";
 
 export class UnsplashError extends Component {
     static template = "web_unsplash.UnsplashError";

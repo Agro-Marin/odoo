@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
 import { uniqueId } from "@web/core/utils/functions";
 import { session } from "@web/session";
-import { TurnStile } from "./turnstile";
+import { TurnStile } from "./turnstile.js";
 
 export class TurnstileCaptcha extends Interaction {
     static selector = "form[data-captcha]";

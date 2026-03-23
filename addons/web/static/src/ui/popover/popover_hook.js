@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/popover/popover_hook - usePopover hook for open/close lifecycle management within OWL components */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 import { useService } from "@web/core/utils/hooks"
 import { SIZES } from "@web/ui/block/ui_service";

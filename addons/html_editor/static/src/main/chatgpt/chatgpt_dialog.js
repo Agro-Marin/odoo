@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { rpc } from "@web/core/network/rpc";

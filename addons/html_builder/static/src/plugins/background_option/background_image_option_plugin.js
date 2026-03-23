@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { getValueFromVar } from "@html_builder/utils/utils";
 import { getBgImageURLFromEl, isBackgroundImageAttribute } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { removeOnImageChangeAttrs } from "@html_editor/utils/image_processing";
 import { registry } from "@web/core/registry";
 import { convertCSSColorToRgba } from "@web/core/utils/format/colors";
-import { getBackgroundImageColor } from "./background_image_option";
+import { getBackgroundImageColor } from "./background_image_option.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { StyleAction } from "@html_builder/core/core_builder_action_plugin";
 import { withSequence } from "@html_editor/utils/resource";

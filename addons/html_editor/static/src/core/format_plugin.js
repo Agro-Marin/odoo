@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { prepareUpdate } from "@html_editor/utils/dom_state";
 import { withSequence } from "@html_editor/utils/resource";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { _t } from "@web/core/l10n/translation";
-import { Plugin } from "../plugin";
-import { closestBlock, isBlock } from "../utils/blocks";
-import { cleanTextNode, fillEmpty, removeClass, splitTextNode, unwrapContents } from "../utils/dom";
+import { Plugin } from "../plugin.js";
+import { closestBlock, isBlock } from "../utils/blocks.js";
+import { cleanTextNode, fillEmpty, removeClass, splitTextNode, unwrapContents } from "../utils/dom.js";
 import {
     areSimilarElements,
     isContentEditable,
@@ -17,17 +18,17 @@ import {
     isZwnbsp,
     isZWS,
     previousLeaf,
-} from "../utils/dom_info";
-import { isFakeLineBreak } from "../utils/dom_state";
+} from "../utils/dom_info.js";
+import { isFakeLineBreak } from "../utils/dom_state.js";
 import {
     childNodes,
     closestElement,
     descendants,
     findFurthest,
     selectElements,
-} from "../utils/dom_traversal";
-import { formatsSpecs, FORMATTABLE_TAGS } from "../utils/formatting";
-import { boundariesIn, boundariesOut, DIRECTIONS, leftPos, rightPos } from "../utils/position";
+} from "../utils/dom_traversal.js";
+import { formatsSpecs, FORMATTABLE_TAGS } from "../utils/formatting.js";
+import { boundariesIn, boundariesOut, DIRECTIONS, leftPos, rightPos } from "../utils/position.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 const allWhitespaceRegex = /^[\s\u200b]*$/;

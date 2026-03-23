@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { before, SNIPPET_SPECIFIC } from "@html_builder/utils/option_sequence";
 import { POPUP } from "@website/builder/plugins/options/popup_option_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { NewsletterSubscribeCommonOption, NewsletterSubscribeCommonPopupOption } from "./newsletter_subscribe_common_option";
+import { NewsletterSubscribeCommonOption, NewsletterSubscribeCommonPopupOption } from "./newsletter_subscribe_common_option.js";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 
 export const NEWSLETTER_SELECT = before(POPUP);

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
 import { rpc } from "@web/core/network/rpc";

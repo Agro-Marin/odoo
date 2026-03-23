@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/resizable_panel/resizable_panel - Side panel component with drag handle for interactive width resizing */
 

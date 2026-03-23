@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AND, fields, Record } from "@mail/core/common/record";
 import { rpc } from "@web/core/network/rpc";
 import { browser } from "@web/core/browser/browser";

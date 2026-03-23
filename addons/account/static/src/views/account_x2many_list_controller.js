@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ListController } from "@web/views/list/list_controller";
 import { useService } from "@web/core/utils/hooks";
 import {registry} from "@web/core/registry";

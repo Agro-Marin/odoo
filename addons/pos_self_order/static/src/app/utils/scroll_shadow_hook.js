@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onMounted, onPatched, onWillUnmount, useState } from "@odoo/owl";
 import { debounce } from "@web/core/utils/timing";
 export function useScrollShadow(scrollContainerRef, options = {}) {

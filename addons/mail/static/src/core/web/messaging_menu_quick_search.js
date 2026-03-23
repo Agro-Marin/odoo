@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
 import { useAutofocus, useService } from "@web/core/utils/hooks";

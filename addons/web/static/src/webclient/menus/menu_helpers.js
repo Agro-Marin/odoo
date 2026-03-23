@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/menus/menu_helpers - Utility functions to traverse the menu tree and compute flat app/menuItem lists for HomeMenu */
 

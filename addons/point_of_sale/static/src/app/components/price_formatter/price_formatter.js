@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
 export class PriceFormatter extends Component {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useDomState } from "@html_builder/core/utils";
 import { onWillStart, useEnv } from "@odoo/owl";
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/display/gauge/gauge_field - Chart.js doughnut gauge visualization for numeric fields */
 

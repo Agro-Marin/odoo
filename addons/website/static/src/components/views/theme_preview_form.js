@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { FormController } from "@web/views/form/form_controller";
 import { formView } from "@web/views/form/form_view";

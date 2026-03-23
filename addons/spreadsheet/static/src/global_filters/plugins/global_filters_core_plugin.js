@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /** @ts-check */
 
 import { CommandResult } from "@spreadsheet/o_spreadsheet/cancelled_reason";

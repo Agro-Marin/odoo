@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/standard_field_props - Standard OWL props schema shared by all field widget components */
 

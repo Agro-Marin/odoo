@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/kanban_controller - Controller for the kanban view with grouping, quick-create, and progress bar support */
 

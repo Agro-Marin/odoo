@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
 import { formatCurrency } from "@point_of_sale/app/models/utils/currency";

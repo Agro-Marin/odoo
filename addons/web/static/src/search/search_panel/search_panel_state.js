@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/search_panel/search_panel_state - Search panel section management extracted from SearchModel */
 

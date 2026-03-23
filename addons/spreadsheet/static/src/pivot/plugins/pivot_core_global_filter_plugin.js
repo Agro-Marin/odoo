@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // @ts-check
 /**
  *
@@ -8,7 +9,7 @@
  * @typedef {import("@spreadsheet").FieldMatching} FieldMatching
  */
 
-import { CommandResult } from "../../o_spreadsheet/cancelled_reason";
+import { CommandResult } from "../../o_spreadsheet/cancelled_reason.js";
 import { checkFilterFieldMatching } from "@spreadsheet/global_filters/helpers";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { OdooCorePlugin } from "@spreadsheet/plugins";

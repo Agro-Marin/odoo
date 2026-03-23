@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { useEffect } from "@odoo/owl";
 

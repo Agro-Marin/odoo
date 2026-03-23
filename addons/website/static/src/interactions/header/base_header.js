@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 
 import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";

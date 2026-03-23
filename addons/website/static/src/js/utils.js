@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { intersection } from "@web/core/utils/collections/arrays";
 import { _t, appTranslateFn } from "@web/core/l10n/translation";
 import { renderToElement } from "@web/core/utils/render";
 import { App, Component } from "@odoo/owl";
 import { getTemplate } from "@web/core/templates";
 import { UrlAutoComplete } from "@website/components/autocomplete_with_pages/url_autocomplete";
-import * as urlUtils from "@html_editor/utils/url";
+import { urlFunctions } from "@html_editor/utils/url";
 import { patch } from "@web/core/utils/patch";
 
 /**
@@ -543,7 +544,7 @@ export function slugify(value) {
               .replace(/--+/g, "-"); // Replace multiple - with single -
 }
 
-patch(urlUtils, {
+patch(urlFunctions, {
     isAbsoluteURLInCurrentDomain(url, env = null) {
         const res = super.isAbsoluteURLInCurrentDomain(url, env);
         if (res) {

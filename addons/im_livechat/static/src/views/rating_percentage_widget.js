@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 
 registry.category("formatters").add("im_livechat.rating_percentage", (value) => {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     SNIPPET_SPECIFIC_END,
     SNIPPET_SPECIFIC_NEXT,
@@ -6,11 +7,11 @@ import {
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { HeaderElementsOption } from "./header_elements_option";
-import { HeaderFontOption } from "./header_font_option";
-import { HeaderTemplateOption } from "./header_template_option";
-import { HeaderIconBackgroundOption } from "./header_icon_background_option";
-import { HeaderTopOptions } from "./header_top_options";
+import { HeaderElementsOption } from "./header_elements_option.js";
+import { HeaderFontOption } from "./header_font_option.js";
+import { HeaderTemplateOption } from "./header_template_option.js";
+import { HeaderIconBackgroundOption } from "./header_icon_background_option.js";
+import { HeaderTopOptions } from "./header_top_options.js";
 
 const [
     HEADER_TEMPLATE,

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { Numpad } from "@point_of_sale/app/components/numpad/numpad";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";

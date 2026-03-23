@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global Stripe */
 
 import { patch } from '@web/core/utils/patch';

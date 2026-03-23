@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { HtmlViewer } from "@html_editor/components/html_viewer/html_viewer";
 import { EditorVersionPlugin } from "@html_editor/core/editor_version_plugin";

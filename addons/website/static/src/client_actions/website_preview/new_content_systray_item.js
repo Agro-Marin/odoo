@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, xml } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -9,7 +10,7 @@ import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";
 import { sprintf } from "@web/core/utils/format/strings";
 import { redirect } from "@web/core/utils/urls";
-import { InstallModuleDialog } from "./install_module_dialog";
+import { InstallModuleDialog } from "./install_module_dialog.js";
 
 export const MODULE_STATUS = {
     NOT_INSTALLED: "NOT_INSTALLED",

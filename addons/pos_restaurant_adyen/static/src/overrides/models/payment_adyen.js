@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PaymentAdyen } from "@pos_adyen/app/utils/payment/payment_adyen";
 import { patch } from "@web/core/utils/patch";
 patch(PaymentAdyen.prototype, {

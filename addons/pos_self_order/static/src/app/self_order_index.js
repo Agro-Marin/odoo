@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { init as initDebugFormatters } from "@point_of_sale/app/utils/debug-formatter";
 import { LoadingOverlay } from "@pos_self_order/app/components/loading_overlay/loading_overlay";
@@ -15,7 +16,7 @@ import { Router } from "@pos_self_order/app/router";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { hasTouch } from "@web/core/browser/feature_detection";
-import { insertKioskStyle } from "./kiosk_style";
+import { insertKioskStyle } from "./kiosk_style.js";
 
 export class selfOrderIndex extends Component {
     static template = "pos_self_order.selfOrderIndex";

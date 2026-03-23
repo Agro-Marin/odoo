@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useMessageActions } from "@mail/core/common/message_actions";
 import { MessageReactionList } from "@mail/core/common/message_reaction_list";
 import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";

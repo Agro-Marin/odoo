@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import * as spreadsheet from "@odoo/o-spreadsheet";
 import { useService } from "@web/core/utils/hooks";
-import { navigateToOdooMenu } from "../odoo_chart/odoo_chart_helpers";
+import { navigateToOdooMenu } from "../odoo_chart/odoo_chart_helpers.js";
 
 patch(spreadsheet.components.FigureComponent.prototype, {
     setup() {

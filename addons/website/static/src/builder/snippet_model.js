@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SnippetModel } from "@html_builder/snippets/snippet_service";
 import { applyTextHighlight } from "@website/js/highlight_utils";
 import { registry } from "@web/core/registry";

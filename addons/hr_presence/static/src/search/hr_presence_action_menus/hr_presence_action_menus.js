@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { ActionMenus } from "@web/search/action_menus/action_menus";
-import { getActionRecords, getPresenceActionItems } from "../../views/hooks";
+import { getActionRecords, getPresenceActionItems } from "../../views/hooks.js";
 
 /**
  * @extends ActionMenus

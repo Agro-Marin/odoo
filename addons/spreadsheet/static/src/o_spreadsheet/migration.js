@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
 const { tokenize, parse, convertAstNodes, astToFormula } = spreadsheet;
 const { migrationStepRegistry } = spreadsheet.registries;

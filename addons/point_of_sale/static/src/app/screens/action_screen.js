@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { ActionContainer } from "@web/webclient/actions/action_container";

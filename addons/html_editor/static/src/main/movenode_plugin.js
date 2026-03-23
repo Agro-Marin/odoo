@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { useNativeDraggable } from "@html_editor/utils/drag_and_drop";
 import { childNodeIndex, endPos, leftPos, nodeSize, rightPos } from "@html_editor/utils/position";
 import { xml } from "@odoo/owl";
-import { Plugin } from "../plugin";
-import { closestElement } from "../utils/dom_traversal";
+import { Plugin } from "../plugin.js";
+import { closestElement } from "../utils/dom_traversal.js";
 import { _t } from "@web/core/l10n/translation";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { getDeepestPosition, isContentEditable } from "@html_editor/utils/dom_info";

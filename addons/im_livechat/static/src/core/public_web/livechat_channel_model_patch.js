@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LivechatChannel } from "@im_livechat/core/common/livechat_channel_model";
 import { fields } from "@mail/core/common/record";
 

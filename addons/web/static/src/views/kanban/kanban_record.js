@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/kanban_record - Individual kanban card component with compiled template, color strips, cover images, and action handling */
 

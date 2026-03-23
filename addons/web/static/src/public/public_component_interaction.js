@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/public/public_component_interaction - Interaction that mounts OWL components declared via owl-component HTML elements */
 

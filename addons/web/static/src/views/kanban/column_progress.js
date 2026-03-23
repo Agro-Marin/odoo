@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/column_progress - Progress bar with colored segments for kanban column group aggregates */
 

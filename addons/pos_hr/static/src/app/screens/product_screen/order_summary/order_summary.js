@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { OrderSummary } from "@point_of_sale/app/screens/product_screen/order_summary/order_summary";
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";

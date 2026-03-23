@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* eslint-disable no-async-promise-executor */
 
 import { loadJS } from "@web/core/assets";

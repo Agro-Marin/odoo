@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/media/pdf_viewer/pdf_viewer_field - Embedded PDF viewer field for Binary columns using PDF.js */
 

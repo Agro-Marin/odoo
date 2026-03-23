@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useTime } from "@point_of_sale/app/hooks/time_hook";
 import { registry } from "@web/core/registry";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_components/multi_create_popover - Popover with mini form and optional time range picker for quick-creating records */
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/properties/property_definition - Property type and configuration editor for defining dynamic property fields */
 

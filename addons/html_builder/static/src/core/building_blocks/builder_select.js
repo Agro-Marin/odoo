@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, useRef, useSubEnv, xml } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -6,8 +7,8 @@ import {
     useVisibilityObserver,
     useApplyVisibility,
     useSelectableComponent,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { setElementContent } from "@web/core/utils/dom/html";
 

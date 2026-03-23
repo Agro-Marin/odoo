@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { PaymentGlory } from "@pos_glory_cash/app/payment_glory";
 

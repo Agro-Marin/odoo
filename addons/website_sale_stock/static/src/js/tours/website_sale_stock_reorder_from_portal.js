@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add('website_sale_stock_reorder_from_portal', {

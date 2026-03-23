@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { KanbanRenderer } from "@web/views/kanban/kanban_renderer";
 
 import { RottingKanbanHeader } from "./rotting_kanban_header.js";

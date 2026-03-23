@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/l10n/date_utils - Pure date comparison, clamping, range checks, and locale-aware week helpers */
 

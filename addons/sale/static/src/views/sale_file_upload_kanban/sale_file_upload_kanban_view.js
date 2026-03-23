@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { registry } from '@web/core/registry';
 import { fileUploadKanbanView } from '@account/views/file_upload_kanban/file_upload_kanban_view';
-import { SaleFileUploadKanbanController } from './sale_file_upload_kanban_controller';
-import { SaleFileUploadKanbanRenderer } from './sale_file_upload_kanban_renderer';
+import { SaleFileUploadKanbanController } from './sale_file_upload_kanban_controller.js';
+import { SaleFileUploadKanbanRenderer } from './sale_file_upload_kanban_renderer.js';
 
 export const saleFileUploadKanbanView = {
     ...fileUploadKanbanView,

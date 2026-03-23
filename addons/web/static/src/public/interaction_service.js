@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/public/interaction_service - Core service that discovers, mounts, and manages Interaction instances on DOM elements */
 

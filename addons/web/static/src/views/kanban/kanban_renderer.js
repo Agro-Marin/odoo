@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/kanban_renderer - Card layout, column grouping, drag-and-drop reorder, and quick-create for kanban view */
 

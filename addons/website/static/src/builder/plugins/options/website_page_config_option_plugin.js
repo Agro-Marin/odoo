@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { after } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { rgbaToHex } from "@web/core/utils/format/colors";
 import { withSequence } from "@html_editor/utils/resource";
-import { FOOTER_COPYRIGHT } from "./footer_option_plugin";
-import { HEADER_TEMPLATE } from "./header/header_option_plugin";
-import { TopMenuVisibilityOption } from "./website_page_config_option";
+import { FOOTER_COPYRIGHT } from "./footer_option_plugin.js";
+import { HEADER_TEMPLATE } from "./header/header_option_plugin.js";
+import { TopMenuVisibilityOption } from "./website_page_config_option.js";
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 

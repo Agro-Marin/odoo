@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/record_preprocessors - Field change preprocessing extracted from RelationalRecord */
 

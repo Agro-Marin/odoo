@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { markup, toRaw } from "@odoo/owl";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 

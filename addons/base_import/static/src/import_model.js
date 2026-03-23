@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { checkFileSize, DEFAULT_MAX_FILE_SIZE } from "@web/core/utils/files";
@@ -7,8 +8,8 @@ import { groupBy, sortBy } from "@web/core/utils/collections/arrays";
 import { memoize } from "@web/core/utils/functions";
 import { session } from "@web/session";
 import { useState } from "@odoo/owl";
-import { ImportBlockUI } from "./import_block_ui";
-import { BinaryFileManager } from "./binary_file_manager";
+import { ImportBlockUI } from "./import_block_ui.js";
+import { BinaryFileManager } from "./binary_file_manager.js";
 
 const mainComponentRegistry = registry.category("main_components");
 

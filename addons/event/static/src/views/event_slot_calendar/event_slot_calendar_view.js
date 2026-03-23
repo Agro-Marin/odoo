@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { calendarView } from "@web/views/calendar/calendar_view";
 import { EventSlotCalendarController } from "@event/views/event_slot_calendar/event_slot_calendar_controller";
 import { EventSlotCalendarModel } from "@event/views/event_slot_calendar/event_slot_calendar_model";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_button/view_button_hook - Hook wiring view button click handling with confirmation dialogs and UI blocking */
 

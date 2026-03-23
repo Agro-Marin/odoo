@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, onWillUnmount, useEffect, useState } from "@odoo/owl";
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
 import { PrintingFailurePopup } from "@pos_self_order/app/components/printing_failure_popup/printing_failure_popup";

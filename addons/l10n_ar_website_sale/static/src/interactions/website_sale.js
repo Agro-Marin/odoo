@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from '@web/core/utils/patch';
 import { WebsiteSale } from '@website_sale/interactions/website_sale';
 

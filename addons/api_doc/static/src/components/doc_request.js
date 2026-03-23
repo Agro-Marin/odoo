@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { LANGUAGES, createRequestCode } from "@api_doc/utils/doc_code_gen";
 import { CodeEditor } from "@web/components/code_editor/code_editor";

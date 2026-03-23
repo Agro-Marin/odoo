@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export default class Store {
     constructor() {
         this.setup();

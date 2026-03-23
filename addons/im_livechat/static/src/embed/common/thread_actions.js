@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registerThreadAction, threadActionsRegistry } from "@mail/core/common/thread_actions";
 import "@mail/discuss/call/common/thread_actions";
 

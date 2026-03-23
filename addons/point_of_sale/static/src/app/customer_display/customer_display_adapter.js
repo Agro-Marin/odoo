@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { toRaw } from "@odoo/owl";
 import { formatCurrency } from "@point_of_sale/app/models/utils/currency";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";

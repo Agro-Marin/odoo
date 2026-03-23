@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     ProductDocumentKanbanRenderer
 } from "@product/js/product_document_kanban/product_document_kanban_renderer";

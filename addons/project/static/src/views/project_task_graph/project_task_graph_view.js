@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { graphView } from "@web/views/graph/graph_view";
 import { ProjectTaskControlPanel } from "../project_task_control_panel/project_task_control_panel.js";
 import { ProjectTaskGraphModel } from "./project_task_graph_model.js";

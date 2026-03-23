@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { xml } from "@odoo/owl";
 import { NotificationContainer } from "@web/ui/notification/notification_container";
 import { notificationService } from "@web/ui/notification/notification_service";

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { removeClass } from "@html_editor/utils/dom";
 import { markup, onMounted, useExternalListener } from "@odoo/owl";
-import { BASIC_PLUGINS, FULL_EDIT_PLUGINS } from "../../plugins/plugin_sets";
-import { useResizer } from "./resizer_hook";
+import { BASIC_PLUGINS, FULL_EDIT_PLUGINS } from "../../plugins/plugin_sets.js";
+import { useResizer } from "./resizer_hook.js";
 import { Wysiwyg } from "@html_editor/wysiwyg";
 
 export class WebsiteForumWysiwyg extends Wysiwyg {

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/tree_from_expression - High-level expression-to-tree conversion with virtual operator introduction */
 

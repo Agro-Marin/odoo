@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/kanban/animated_number - Numeric display with smooth CSS animation on value changes and optional multi-currency popover */
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /**
  * Polyfill for the ClipboardItem constructor for browsers that partially

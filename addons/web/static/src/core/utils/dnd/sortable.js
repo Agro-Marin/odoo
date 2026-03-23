@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/dnd/sortable - useSortable hook for reordering elements within and across groups */
 

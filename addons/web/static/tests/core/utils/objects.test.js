@@ -254,4 +254,18 @@ test("deepMerge", () => {
         [symbolA]: 3,
         [symbolB]: 2,
     });
+
+    // Extension wins for non-object primitives
+    expect(deepMerge(0, 1)).toBe(1);
+    expect(deepMerge("a", "b")).toBe("b");
+    expect(deepMerge(false, true)).toBe(true);
+
+    // Extension undefined falls back to target
+    expect(deepMerge(42, undefined)).toBe(42);
+    expect(deepMerge("keep", undefined)).toBe("keep");
+
+    // Nested primitive values are preserved through recursive merge
+    expect(deepMerge({ a: { x: 1 } }, { a: { x: 2, y: 3 } })).toEqual({
+        a: { x: 2, y: 3 },
+    });
 });

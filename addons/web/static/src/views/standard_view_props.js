@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/standard_view_props - Shared OWL props validation shape for all standard view controllers */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -8,7 +9,7 @@ import {
     m2oSupportedOptions,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
-import { getProductRelatedModel, Many2XUomTagsAutocomplete } from "../many2x_uom_tags/many2x_uom_tags";
+import { getProductRelatedModel, Many2XUomTagsAutocomplete } from "../many2x_uom_tags/many2x_uom_tags.js";
 
 // @todo: this extension will be removed in the future
 // when the autocomplete source generation come from a hook.

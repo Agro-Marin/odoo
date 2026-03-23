@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PortalChatter } from "@portal/chatter/frontend/portal_chatter";
 import { App } from "@odoo/owl";
 import { registry } from "@web/core/registry";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module search/search_facets - Facet building utilities for SearchModel */
 

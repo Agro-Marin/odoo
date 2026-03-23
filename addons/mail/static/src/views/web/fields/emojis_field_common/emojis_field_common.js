@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useRef } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
 /*

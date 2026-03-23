@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/network/content_disposition - Content-Disposition header parser (RFC 6266/5987) */
 

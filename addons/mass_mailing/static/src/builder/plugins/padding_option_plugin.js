@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { after, VERTICAL_ALIGNMENT } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { PublicRoot } from "@web/legacy/js/public/public_root";
 import { Colibri } from "@web/public/colibri";

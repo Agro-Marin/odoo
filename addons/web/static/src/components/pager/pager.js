@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/pager/pager - Pagination component with prev/next navigation and editable page range input */
 

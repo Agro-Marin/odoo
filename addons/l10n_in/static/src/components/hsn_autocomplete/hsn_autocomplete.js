@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { useChildRef } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";

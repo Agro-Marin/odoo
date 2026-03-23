@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/domain_selector/utils - Default condition and domain builders for the domain selector */
 

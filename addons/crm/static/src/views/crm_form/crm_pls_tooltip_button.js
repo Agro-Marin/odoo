@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, status } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 import { localization } from "@web/core/l10n/localization";

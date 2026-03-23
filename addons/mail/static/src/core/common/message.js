@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ActionList } from "@mail/core/common/action_list";
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { Composer } from "@mail/core/common/composer";

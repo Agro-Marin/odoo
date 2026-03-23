@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillDestroy, useState } from '@odoo/owl';
 import { rpc } from '@web/core/network/rpc';
 import { registry } from '@web/core/registry';

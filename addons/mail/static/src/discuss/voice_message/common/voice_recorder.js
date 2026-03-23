@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_service";
 import { onWillUnmount, status, useComponent, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";

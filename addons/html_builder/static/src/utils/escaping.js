@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export function escapeTextNodes(el) {
     const nodeFilter = (node) => {
         if (

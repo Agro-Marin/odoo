@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/calendar_renderer - Top-level calendar renderer delegating to scale-specific sub-renderers */
 

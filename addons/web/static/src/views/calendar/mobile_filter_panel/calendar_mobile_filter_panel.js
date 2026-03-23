@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/mobile_filter_panel/calendar_mobile_filter_panel - Compact filter panel for mobile calendar with sidebar toggle */
 

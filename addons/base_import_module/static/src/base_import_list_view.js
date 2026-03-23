@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
-import { ImportModuleListRenderer } from "./base_import_list_renderer";
+import { ImportModuleListRenderer } from "./base_import_list_renderer.js";
 
 
 export const ImportModuleListView = {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
@@ -8,7 +9,7 @@ import {
     splitBetween,
 } from "@html_builder/utils/option_sequence";
 import { BuilderAction } from "@html_builder/core/builder_action";
-import { FooterTemplateChoice, FooterTemplateOption } from "./footer_template_option";
+import { FooterTemplateChoice, FooterTemplateOption } from "./footer_template_option.js";
 import { reactive } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { BaseOptionComponent } from "@html_builder/core/utils";

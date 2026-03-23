@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderAction } from '@html_builder/core/builder_action';
 import { BaseOptionComponent } from '@html_builder/core/utils';
 import { SNIPPET_SPECIFIC } from '@html_builder/utils/option_sequence';

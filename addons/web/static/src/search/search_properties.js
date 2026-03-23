@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/search_properties - Property-field search logic for lazy-loading definitions and creating search items */
 

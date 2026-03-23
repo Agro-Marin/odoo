@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global waitForWebfonts */
 
 import { markRaw, reactive } from "@odoo/owl";
@@ -39,16 +40,16 @@ import { debounce } from "@web/core/utils/timing";
 import { user } from "@web/services/user";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
-import { SelectionPopup } from "../components/popups/selection_popup/selection_popup";
-import { computeComboItems } from "../models/utils/compute_combo_items";
-import { changesToOrder, getOrderChanges } from "../models/utils/order_change";
-import { PartnerList } from "../screens/partner_list/partner_list";
-import { ScaleScreen } from "../screens/scale_screen/scale_screen";
-import { DebugWidget } from "../utils/debug/debug_widget";
-import DevicesSynchronisation from "../utils/devices_synchronisation";
-import { initLNA } from "../utils/init_lna";
-import OrderPaymentValidation from "../utils/order_payment_validation";
-import { logPosMessage } from "../utils/pretty_console_log";
+import { SelectionPopup } from "../components/popups/selection_popup/selection_popup.js";
+import { computeComboItems } from "../models/utils/compute_combo_items.js";
+import { changesToOrder, getOrderChanges } from "../models/utils/order_change.js";
+import { PartnerList } from "../screens/partner_list/partner_list.js";
+import { ScaleScreen } from "../screens/scale_screen/scale_screen.js";
+import { DebugWidget } from "../utils/debug/debug_widget.js";
+import DevicesSynchronisation from "../utils/devices_synchronisation.js";
+import { initLNA } from "../utils/init_lna.js";
+import OrderPaymentValidation from "../utils/order_payment_validation.js";
+import { logPosMessage } from "../utils/pretty_console_log.js";
 
 const { DateTime } = luxon;
 export const CONSOLE_COLOR = "#F5B427";

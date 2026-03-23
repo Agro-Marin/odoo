@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // @ts-check
 
 import { registries, helpers, constants, EvaluationError } from "@odoo/o-spreadsheet";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import {
     ICON_SELECTOR,
@@ -11,7 +12,7 @@ import {
     isContentEditable,
 } from "@html_editor/utils/dom_info";
 import { _t } from "@web/core/l10n/translation";
-import { MediaDialog, TABS } from "./media_dialog/media_dialog";
+import { MediaDialog, TABS } from "./media_dialog/media_dialog.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { boundariesOut, rightPos } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";

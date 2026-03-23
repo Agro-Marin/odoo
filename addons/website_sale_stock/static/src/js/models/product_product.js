@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from '@web/core/utils/patch';
 import { ProductProduct } from '@sale/js/models/product_product';
 

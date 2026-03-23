@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { DeviceSelect } from "@mail/discuss/call/common/device_select";
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 import { useMicrophoneVolume } from "@mail/utils/common/hooks";

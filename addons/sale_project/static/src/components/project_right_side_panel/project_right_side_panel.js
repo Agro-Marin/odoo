@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { ProjectRightSidePanel } from '@project/components/project_right_side_panel/project_right_side_panel';
 

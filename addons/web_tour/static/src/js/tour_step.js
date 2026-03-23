@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { session } from "@web/session";
 import { utils } from "@web/ui/block/ui_service";
 import * as hoot from "@odoo/hoot-dom";

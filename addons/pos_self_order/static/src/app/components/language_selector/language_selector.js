@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { LanguagePopup } from "@pos_self_order/app/components/language_popup/language_popup";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";

@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { UploadProgressToast } from "./upload_progress_toast";
+import { UploadProgressToast } from "./upload_progress_toast.js";
 import { _t } from "@web/core/l10n/translation";
 import { checkFileSize } from "@web/core/utils/files";
 import { humanNumber } from "@web/core/utils/format/numbers";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/signature/name_and_signature - Signature pad component with draw, auto-generate, and load modes */
 

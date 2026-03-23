@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/condition_tree - Core tree data structures (conditions, connectors, expressions) and tree manipulation functions */
 

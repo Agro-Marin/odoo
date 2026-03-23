@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Dialog } from "@web/ui/dialog/dialog";
 
 import { CalendarYearPopover } from "@web/views/calendar/calendar_year/calendar_year_popover";

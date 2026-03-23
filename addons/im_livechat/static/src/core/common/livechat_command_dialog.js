@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ActionPanel } from "@mail/discuss/core/common/action_panel";
 
 import { Component, useState } from "@odoo/owl";

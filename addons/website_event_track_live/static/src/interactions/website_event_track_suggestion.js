@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { redirect } from "@web/core/utils/urls";
 import { registry } from "@web/core/registry";

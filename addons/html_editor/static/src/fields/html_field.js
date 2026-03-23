@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { HtmlUpgradeManager } from "@html_editor/html_migrations/html_upgrade_manager";
 import { stripVersion } from "@html_editor/html_migrations/html_migrations_utils";
 import { stripHistoryIds } from "@html_editor/others/collaboration/collaboration_odoo_plugin";

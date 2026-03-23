@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export class AttributeSelectionHelper {
     constructor(selfOrder) {
         this.selectedValues = {};

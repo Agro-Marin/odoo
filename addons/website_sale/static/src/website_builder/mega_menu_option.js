@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
 import { MegaMenuOption } from "@website/builder/plugins/options/mega_menu_option";
 import { useService } from "@web/core/utils/hooks";

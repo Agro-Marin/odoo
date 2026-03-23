@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Component, useExternalListener, useRef } from "@odoo/owl";
 
-import { useScrollShadow } from "../../utils/scroll_shadow_hook";
+import { useScrollShadow } from "../../utils/scroll_shadow_hook.js";
 
 export class CategoryListPopup extends Component {
     static template = "pos_self_order.CategoryListPopup";

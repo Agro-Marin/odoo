@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/model/relational_model/utils - Barrel re-export of field metadata, spec, values, and context utilities for external consumers */
 

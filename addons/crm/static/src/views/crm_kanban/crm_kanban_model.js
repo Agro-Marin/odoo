@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { checkRainbowmanMessage } from "@crm/views/check_rainbowman_message";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BarcodeDialog } from "@web/components/barcode/barcode_dialog";
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";

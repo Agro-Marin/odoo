@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { TicketScreen } from "@point_of_sale/app/screens/ticket_screen/ticket_screen";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";

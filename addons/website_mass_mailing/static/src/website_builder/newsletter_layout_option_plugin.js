@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { before } from "@html_builder/utils/option_sequence";
 import { NEWSLETTER_SELECT } from "@website_mass_mailing/website_builder/newsletter_subscribe_common_option_plugin";
 import { Plugin } from "@html_editor/plugin";

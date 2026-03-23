@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { ProductsDesignPanel } from "./products_design_panel";
+import { ProductsDesignPanel } from "./products_design_panel.js";
 
 export class ProductsDesignPanelPlugin extends Plugin {
     static id = "productsDesignPanel";

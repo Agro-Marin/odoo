@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/dom/autoresize - useAutoresize hook to auto-grow input/textarea elements on content change */
 

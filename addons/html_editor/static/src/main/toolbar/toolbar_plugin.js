@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { isEmptyTextNode, isZWS } from "@html_editor/utils/dom_info";
 import { reactive } from "@odoo/owl";
-import { composeToolbarButton, Toolbar } from "./toolbar";
+import { composeToolbarButton, Toolbar } from "./toolbar.js";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
-import { ToolbarMobile } from "./mobile_toolbar";
+import { ToolbarMobile } from "./mobile_toolbar.js";
 import { debounce } from "@web/core/utils/timing";
 import { omit, pick } from "@web/core/utils/collections/objects";
 import { withSequence } from "@html_editor/utils/resource";

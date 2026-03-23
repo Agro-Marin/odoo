@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { QtyAtDatePopover, qtyAtDateWidget } from "@sale_stock/widgets/qty_at_date_widget";
 import { _t } from "@web/core/l10n/translation";

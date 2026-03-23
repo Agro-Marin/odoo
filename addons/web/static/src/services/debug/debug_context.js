@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/debug/debug_context - Debug context manager that collects and merges debug menu items by category */
 

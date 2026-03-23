@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { DECIMAL, enhancedButtons } from "@point_of_sale/app/components/numpad/numpad";
 import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/number_popup";

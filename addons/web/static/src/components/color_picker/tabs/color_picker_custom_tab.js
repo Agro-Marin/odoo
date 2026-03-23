@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/color_picker/tabs/color_picker_custom_tab - Color picker tab for custom color input with gradient support */
 

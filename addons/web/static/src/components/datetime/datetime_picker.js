@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/datetime/datetime_picker - Calendar grid date/time picker with range selection and time input */
 

@@ -1,4 +1,5 @@
 // @ts-check
+/** @odoo-module native */
 
 /** @module @web/core/utils/collections/objects - Object helpers: deepEqual, deepCopy, pick, omit, deepMerge */
 
@@ -135,19 +136,16 @@ export function pick(object, ...properties) {
 export function deepMerge(target, extension) {
     if (!isObject(target) && !isObject(extension)) {
         // Neither side is a plain object — nothing to merge.
-        return undefined;
+        // Follow "extension wins" semantics: return extension as-is,
+        // falling back to target only when extension is undefined.
+        return extension !== undefined ? extension : target;
     }
 
     target = target || {};
     const output = { ...target };
     if (isObject(extension)) {
         for (const key of Reflect.ownKeys(extension)) {
-            if (
-                key in target &&
-                isObject(extension[key]) &&
-                !Array.isArray(extension[key]) &&
-                typeof extension[key] !== "function"
-            ) {
+            if (key in target && isObject(extension[key])) {
                 output[key] = deepMerge(target[key], extension[key]);
             } else {
                 Object.assign(output, { [key]: extension[key] });

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 import { VERSION_SELECTOR } from "@html_editor/html_migrations/html_migrations_utils";

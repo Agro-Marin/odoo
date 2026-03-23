@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { Builder } from "@html_builder/builder";
 import { CORE_PLUGINS } from "@html_builder/core/core_plugins";
@@ -5,7 +6,7 @@ import { removePlugins } from "@html_builder/utils/utils";
 import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
 import { registry } from "@web/core/registry";
 import { CustomizeTab } from "@html_builder/sidebar/customize_tab";
-import { OptionsContainerWithSnippetVersionControl } from "./options/options_container";
+import { OptionsContainerWithSnippetVersionControl } from "./options/options_container.js";
 import { PowerButtonsPlugin } from "@html_editor/main/power_buttons_plugin";
 
 class CustomizeTabWithSnippetVersionControl extends CustomizeTab {

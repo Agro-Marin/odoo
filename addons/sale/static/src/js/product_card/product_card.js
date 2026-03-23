@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Component } from '@odoo/owl';
-import { BadgeExtraPrice } from '../badge_extra_price/badge_extra_price';
-import { ProductProduct } from '../models/product_product';
+import { BadgeExtraPrice } from '../badge_extra_price/badge_extra_price.js';
+import { ProductProduct } from '../models/product_product.js';
 
 export class ProductCard extends Component {
     static template = 'sale.ProductCard';

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";

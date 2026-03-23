@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/display/contact_statistics/contact_statistics - Read-only list display for contact statistics stored as JSON */
 

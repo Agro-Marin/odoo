@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CANCEL_GLOBAL_CLICK, KanbanRecord } from "@web/views/kanban/kanban_record";
 import { useService } from "@web/core/utils/hooks";
 import { useFileViewer } from "@web/components/file_viewer/file_viewer_hook";

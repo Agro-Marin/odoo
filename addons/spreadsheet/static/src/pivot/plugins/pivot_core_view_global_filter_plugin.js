@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Domain } from "@web/core/domain";
-import { NO_RECORD_AT_THIS_POSITION } from "../pivot_model";
+import { NO_RECORD_AT_THIS_POSITION } from "../pivot_model.js";
 import { OdooCoreViewPlugin } from "@spreadsheet/plugins";
 
 /**

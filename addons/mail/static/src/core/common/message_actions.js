@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
 import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
 import { toRaw, useComponent, useState } from "@odoo/owl";

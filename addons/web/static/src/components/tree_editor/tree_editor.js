@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/tree_editor/tree_editor - Recursive tree editor component for visually building domain and expression conditions */
 

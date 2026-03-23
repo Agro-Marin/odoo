@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 

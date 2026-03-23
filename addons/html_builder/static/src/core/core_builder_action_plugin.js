@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { getHtmlStyle } from "@html_editor/utils/formatting";
 import {

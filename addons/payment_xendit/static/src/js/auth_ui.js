@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, EventBus, xml } from '@odoo/owl';
 
 export class AuthUI extends Component {

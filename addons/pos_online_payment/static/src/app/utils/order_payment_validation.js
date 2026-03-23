@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ask } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import OrderPaymentValidation from "@point_of_sale/app/utils/order_payment_validation";
 import { qrCodeSrc } from "@point_of_sale/utils";

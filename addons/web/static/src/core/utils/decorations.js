@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/decorations - Maps decoration-* XML attributes to Bootstrap CSS classes */
 

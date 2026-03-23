@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import "@mail/chatter/web_portal/thread_model_patch";
 
 import { fields } from "@mail/core/common/record";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export const changesToOrder = (
     order,
     orderPreparationCategories,

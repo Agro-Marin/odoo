@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { convertNumericToUnit, getHtmlStyle } from "@html_editor/utils/formatting";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { Interaction } from "@web/public/interaction";

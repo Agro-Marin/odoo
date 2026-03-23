@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onMounted, useRef, Component, onWillDestroy } from "@odoo/owl";
 import {
     applyTextHighlight,

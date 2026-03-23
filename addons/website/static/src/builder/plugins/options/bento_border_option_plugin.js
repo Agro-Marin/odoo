@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { after } from "@html_builder/utils/option_sequence";
 import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";
 import { withSequence } from "@html_editor/utils/resource";

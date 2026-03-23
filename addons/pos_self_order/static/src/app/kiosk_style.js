@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export function insertKioskStyle(primaryBgColor) {
     const style = document.createElement("style");
     style.textContent = generateKioskCSS(primaryBgColor);

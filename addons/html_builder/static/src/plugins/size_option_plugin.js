@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { after, BLOCK_ALIGN } from "@html_builder/utils/option_sequence";
 import { withSequence } from "@html_editor/utils/resource";
 import { Plugin } from "@html_editor/plugin";

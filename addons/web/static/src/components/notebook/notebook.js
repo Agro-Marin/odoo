@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/notebook/notebook - Tabbed notebook component that renders one page at a time with tab navigation */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { RadioField, radioField } from "@web/fields/selection/radio/radio_field";
 

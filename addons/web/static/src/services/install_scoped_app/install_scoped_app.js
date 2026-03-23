@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/install_scoped_app/install_scoped_app - Public page component for installing scoped Progressive Web Apps */
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module views/list/list_aggregates_row - Footer aggregate row component for ListRenderer */
 

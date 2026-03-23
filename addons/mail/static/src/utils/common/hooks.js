@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { monitorAudio } from "@mail/utils/common/media_monitoring";
 import {
     Component,

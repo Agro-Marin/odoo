@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { CalendarFilterSection } from "@web/views/calendar/calendar_filter_section/calendar_filter_section";
-import { TimeOffCardMobile } from "../../../dashboard/time_off_card";
+import { TimeOffCardMobile } from "../../../dashboard/time_off_card.js";
 
 import { useService } from "@web/core/utils/hooks";
 import { useState, onWillStart } from "@odoo/owl";

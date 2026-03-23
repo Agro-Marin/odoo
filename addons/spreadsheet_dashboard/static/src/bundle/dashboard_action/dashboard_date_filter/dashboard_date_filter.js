@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { DateFilterDropdown } from "@spreadsheet/global_filters/components/date_filter_dropdown/date_filter_dropdown";
 import {

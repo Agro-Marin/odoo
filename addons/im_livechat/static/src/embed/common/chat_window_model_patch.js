@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { ChatWindow } from "@mail/core/common/chat_window_model";
 import { CW_LIVECHAT_STEP } from "@im_livechat/core/common/chat_window_model_patch";

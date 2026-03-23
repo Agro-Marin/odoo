@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/density/density_toggle - Systray toggle that cycles through content density modes (default/compact/condensed) */
 

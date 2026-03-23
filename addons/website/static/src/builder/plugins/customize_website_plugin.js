@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { isCSSVariable, setBuilderCSSVariables } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";

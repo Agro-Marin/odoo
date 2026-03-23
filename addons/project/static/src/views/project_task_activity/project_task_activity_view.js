@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { activityView } from "@mail/views/web/activity/activity_view";
 
 import { ProjectTaskControlPanel } from "../project_task_control_panel/project_task_control_panel.js";

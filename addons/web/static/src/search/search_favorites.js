@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module search/search_favorites - Favorites/ir.filters utilities for SearchModel */
 

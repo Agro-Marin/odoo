@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { useOpenChat } from "@mail/core/web/open_chat_hook";

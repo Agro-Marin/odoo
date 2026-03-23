@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/dnd/nested_sortable - useNestedSortable OWL hook for drag-and-drop with hierarchical nesting */
 

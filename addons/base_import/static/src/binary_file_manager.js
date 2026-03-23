@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Mutex } from "@web/core/utils/concurrency";
 import { checkFileSize } from "@web/core/utils/files";
 

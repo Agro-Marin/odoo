@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillRender, onWillStart, useState } from "@odoo/owl";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
 import { cookie } from "@web/core/browser/cookie";

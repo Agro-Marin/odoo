@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Component, useExternalListener, useState } from "@odoo/owl";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { registry } from "@web/core/registry";
-import { ImageTransformation } from "./image_transformation";
+import { ImageTransformation } from "./image_transformation.js";
 
 export function useImageTransform({ document, closeImageTransformation, buttonSelector }) {
     let pointerDownInsideTransform = false;

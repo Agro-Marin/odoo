@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { HEADER_ELEMENTS } from "@website/builder/plugins/options/header/header_option_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";

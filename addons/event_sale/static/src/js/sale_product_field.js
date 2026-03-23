@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { SaleOrderLineProductField } from "@sale/js/sale_product_field";
 import { useService } from "@web/core/utils/hooks";

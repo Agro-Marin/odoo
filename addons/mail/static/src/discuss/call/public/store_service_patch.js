@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Store } from "@mail/core/common/store_service";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";

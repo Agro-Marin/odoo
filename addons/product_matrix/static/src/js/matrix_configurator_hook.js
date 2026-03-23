@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
-import { ProductMatrixDialog } from "./product_matrix_dialog";
+import { ProductMatrixDialog } from "./product_matrix_dialog.js";
 
 export function useMatrixConfigurator() {
     const dialog = useService("dialog");

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { DEVICE_VISIBILITY_OPTION_SELECTOR } from "./options/visibility_option_plugin";
-import { VisibilityOption } from "./options/visibility_option";
+import { DEVICE_VISIBILITY_OPTION_SELECTOR } from "./options/visibility_option_plugin.js";
+import { VisibilityOption } from "./options/visibility_option.js";
 
 export class WebsiteVisibilityPlugin extends Plugin {
     static id = "websiteVisibilityPlugin";

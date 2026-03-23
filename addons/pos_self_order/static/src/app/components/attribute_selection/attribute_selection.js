@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 
-import { AttributeSelectionHelper } from "./attribute_selection_helper";
+import { AttributeSelectionHelper } from "./attribute_selection_helper.js";
 
 export class AttributeSelection extends Component {
     static template = "pos_self_order.AttributeSelection";

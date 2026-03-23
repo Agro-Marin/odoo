@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { ForumFontPlugin } from "./font_plugin";
-import { ForumHistoryPlugin } from "./history_plugin";
+import { ForumFontPlugin } from "./font_plugin.js";
+import { ForumHistoryPlugin } from "./history_plugin.js";
 
 const removedPlugins = new Set(["colorUi", "iconColor"]);
 

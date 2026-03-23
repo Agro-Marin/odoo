@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/hooks/calendar_popover_hook - Hook managing calendar event popovers with desktop/mobile responsive behavior */
 

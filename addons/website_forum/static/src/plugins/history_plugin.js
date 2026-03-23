@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { HistoryPlugin } from "@html_editor/core/history_plugin";
 import { withSequence } from "@html_editor/utils/resource";
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { rpc } from "@web/core/network/rpc";
 import { user } from "@web/services/user";
 import { useBus, useService } from "@web/core/utils/hooks";

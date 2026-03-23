@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/operators - Operator negation maps and comparator constants for domain/expression trees */
 

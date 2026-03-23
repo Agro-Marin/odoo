@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillUnmount } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 export class PrintingFailurePopup extends Component {

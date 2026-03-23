@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { activityView } from "@mail/views/web/activity/activity_view";
 
 import { ProjectActivityModel } from "./project_project_activity_model.js";

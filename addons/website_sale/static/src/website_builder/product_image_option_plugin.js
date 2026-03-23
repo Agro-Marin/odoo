@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { REPLACE_MEDIA } from "@html_builder/utils/option_sequence";
 import {
     ReplaceMediaOption,

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/pivot/pivot_value_utils - GroupBy normalization, value sanitization, and header cell computation for the pivot model */
 

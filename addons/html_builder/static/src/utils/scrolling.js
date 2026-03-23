@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // Scrolling util functions needed by the frontend apps and sub-modules. These
 // functions indeed take into account all frontend-specific concepts (like the
 // header at the top of the page, the wrapwrap,...) which are not considered in

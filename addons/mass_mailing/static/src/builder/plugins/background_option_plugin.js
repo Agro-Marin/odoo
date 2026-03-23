@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BackgroundOption } from "@html_builder/plugins/background_option/background_option";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";

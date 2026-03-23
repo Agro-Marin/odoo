@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { calendarView } from "@web/views/calendar/calendar_view";
-import { TimesheetCalendarMyTimesheetsModel } from "./timesheet_calendar_my_timesheets_model";
+import { TimesheetCalendarMyTimesheetsModel } from "./timesheet_calendar_my_timesheets_model.js";
 
 export const timesheetCalendarMyTimesheetsView = {
     ...calendarView,

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * @enum {string}
  */

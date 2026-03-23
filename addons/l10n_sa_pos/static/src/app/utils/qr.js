@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { formatDateTime } from "@web/core/l10n/dates";
 export function computeSAQRCode(name, vat, date_isostring, amount_total, amount_tax) {
     /* Generate the qr code for Saudi e-invoicing. Specs are available at the following link at page 23

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Cache } from "@web/core/utils/collections/cache";
 
 export class SyncCache {

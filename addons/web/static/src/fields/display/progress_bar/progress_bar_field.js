@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/display/progress_bar/progress_bar_field - Editable progress bar displaying current/max numeric values */
 

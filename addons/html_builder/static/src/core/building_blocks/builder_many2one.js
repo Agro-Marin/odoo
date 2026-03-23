@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import {
     basicContainerBuilderComponentProps,
@@ -7,10 +8,10 @@ import {
     useDependencyDefinition,
     useDomState,
     useHasPreview,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
-import { SelectMany2X } from "./select_many2x";
-import { useCachedModel } from "../cached_model_utils";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
+import { SelectMany2X } from "./select_many2x.js";
+import { useCachedModel } from "../cached_model_utils.js";
 
 export class BuilderMany2One extends Component {
     static template = "html_builder.BuilderMany2One";

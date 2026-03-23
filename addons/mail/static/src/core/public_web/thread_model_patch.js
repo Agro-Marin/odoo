@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Thread } from "@mail/core/common/thread_model";
 import { router } from "@web/core/browser/router";
 import { _t } from "@web/core/l10n/translation";

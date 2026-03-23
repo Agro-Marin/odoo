@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registries, helpers, constants } from "@odoo/o-spreadsheet";
 
 const { DEFAULT_LOCALE } = constants;

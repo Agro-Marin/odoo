@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // Gives names to options sequence.
 // Module-specific sequences are defined in other option_sequence.js files.
 

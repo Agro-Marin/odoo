@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global paypal */
 
 import { loadJS } from '@web/core/assets';

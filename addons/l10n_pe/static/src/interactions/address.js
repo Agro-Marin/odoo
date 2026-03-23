@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from '@web/core/utils/patch';
 import { patchDynamicContent } from '@web/public/utils';
 import { rpc } from '@web/core/network/rpc';

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { markup } from "@odoo/owl";
 import {
     compareVersions,

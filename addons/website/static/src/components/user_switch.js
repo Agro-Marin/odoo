@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { UserSwitch } from "@web/components/user_switch/user_switch";
 import { registry } from "@web/core/registry";
 export class UserSwitchEdit extends UserSwitch {

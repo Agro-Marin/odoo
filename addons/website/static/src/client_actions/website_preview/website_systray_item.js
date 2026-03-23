@@ -1,11 +1,12 @@
+/** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { EditInBackendSystrayItem } from "./edit_in_backend";
-import { EditWebsiteSystrayItem } from "./edit_website_systray_item";
-import { MobilePreviewSystrayItem } from "./mobile_preview_systray";
-import { NewContentSystrayItem } from "./new_content_systray_item";
-import { PublishSystrayItem } from "./publish_website_systray_item";
-import { WebsiteSwitcherSystrayItem } from "./website_switcher_systray_item";
+import { EditInBackendSystrayItem } from "./edit_in_backend.js";
+import { EditWebsiteSystrayItem } from "./edit_website_systray_item.js";
+import { MobilePreviewSystrayItem } from "./mobile_preview_systray.js";
+import { NewContentSystrayItem } from "./new_content_systray_item.js";
+import { PublishSystrayItem } from "./publish_website_systray_item.js";
+import { WebsiteSwitcherSystrayItem } from "./website_switcher_systray_item.js";
 
 export class WebsiteSystrayItem extends Component {
     static template = "website.WebsiteSystrayItem";

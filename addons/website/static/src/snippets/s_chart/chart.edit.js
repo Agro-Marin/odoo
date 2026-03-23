@@ -1,4 +1,5 @@
-import { Chart } from "./chart";
+/** @odoo-module native */
+import { Chart } from "./chart.js";
 import { registry } from "@web/core/registry";
 
 const ChartEdit = (I) =>

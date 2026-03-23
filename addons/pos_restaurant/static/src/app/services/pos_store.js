@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/number_popup";
 import { SelectionPopup } from "@point_of_sale/app/components/popups/selection_popup/selection_popup";
 import { CONSOLE_COLOR, PosStore } from "@point_of_sale/app/services/pos_store";

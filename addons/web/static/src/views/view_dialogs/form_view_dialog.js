@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_dialogs/form_view_dialog - Modal dialog embedding a full form view for creating or editing a single record */
 

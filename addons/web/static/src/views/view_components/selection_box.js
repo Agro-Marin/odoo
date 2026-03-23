@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_components/selection_box - Banner with "Select all matching" and "Unselect" actions shown when records are selected */
 

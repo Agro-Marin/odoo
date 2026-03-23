@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { checkFilterFieldMatching } from "@spreadsheet/global_filters/helpers";
-import { CommandResult } from "../../o_spreadsheet/cancelled_reason";
+import { CommandResult } from "../../o_spreadsheet/cancelled_reason.js";
 import { Domain } from "@web/core/domain";
 import { OdooCorePlugin } from "@spreadsheet/plugins";
 import { _t } from "@web/core/l10n/translation";

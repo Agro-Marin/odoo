@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { fadeIn, fadeOut } from "@survey/utils";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";

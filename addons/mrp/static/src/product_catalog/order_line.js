@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ProductCatalogOrderLine } from "@product/product_catalog/order_line/order_line";
 import { patch } from "@web/core/utils/patch";
 

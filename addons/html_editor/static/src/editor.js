@@ -1,9 +1,10 @@
-import { MAIN_PLUGINS } from "./plugin_sets";
-import { createBaseContainer, SUPPORTED_BASE_CONTAINER_NAMES } from "./utils/base_container";
-import { fillShrunkPhrasingParent, removeClass } from "./utils/dom";
-import { isEmpty } from "./utils/dom_info";
-import { resourceSequenceSymbol, withSequence } from "./utils/resource";
-import { fixInvalidHTML, initElementForEdition } from "./utils/sanitize";
+/** @odoo-module native */
+import { MAIN_PLUGINS } from "./plugin_sets.js";
+import { createBaseContainer, SUPPORTED_BASE_CONTAINER_NAMES } from "./utils/base_container.js";
+import { fillShrunkPhrasingParent, removeClass } from "./utils/dom.js";
+import { isEmpty } from "./utils/dom_info.js";
+import { resourceSequenceSymbol, withSequence } from "./utils/resource.js";
+import { fixInvalidHTML, initElementForEdition } from "./utils/sanitize.js";
 import { setElementContent } from "@web/core/utils/dom/html";
 
 /** @typedef {import("plugins").EditorResources} EditorResources */

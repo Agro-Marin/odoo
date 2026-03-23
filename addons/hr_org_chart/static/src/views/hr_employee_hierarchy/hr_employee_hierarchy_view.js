@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 
 import { hierarchyView } from "@web_hierarchy/hierarchy_view";
-import { HrEmployeeHierarchyRenderer } from "./hr_employee_hierarchy_renderer";
+import { HrEmployeeHierarchyRenderer } from "./hr_employee_hierarchy_renderer.js";
 
 export const hrEmployeeHierarchyView = {
     ...hierarchyView,

@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { EventConfiguratorPopup } from "@pos_event/app/components/popup/event_configurator_popup/event_configurator_popup";
-import { EventRegistrationPopup } from "../../components/popup/event_registration_popup/event_registration_popup";
-import { EventSlotSelectionPopup } from "../../components/popup/event_slot_selection_popup/event_slot_selection_popup";
+import { EventRegistrationPopup } from "../../components/popup/event_registration_popup/event_registration_popup.js";
+import { EventSlotSelectionPopup } from "../../components/popup/event_slot_selection_popup/event_slot_selection_popup.js";
 
 import { patch } from "@web/core/utils/patch";
 const { DateTime } = luxon;

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global Razorpay */
 
 import { loadJS } from '@web/core/assets';

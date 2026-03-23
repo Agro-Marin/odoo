@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { KanbanCompiler } from "@web/views/kanban/kanban_compiler";
 
 export class ProjectTaskKanbanCompiler extends KanbanCompiler {

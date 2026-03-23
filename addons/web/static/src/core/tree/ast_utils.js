@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/tree/ast_utils - AST manipulation helpers for boolean wrapping, negation, and path validation */
 

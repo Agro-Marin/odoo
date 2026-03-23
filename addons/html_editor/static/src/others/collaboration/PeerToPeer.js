@@ -1,3 +1,4 @@
+/** @odoo-module native */
 const urlParams = new URLSearchParams(window.location.search);
 const collaborationDebug = urlParams.get("collaborationDebug");
 const COLLABORATION_LOCALSTORAGE_KEY = "odoo_editor_collaboration_debug";

@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Component, useEffect } from "@odoo/owl";
 
-import { CriticalPOSError } from "./critical_pos_error/critical_pos_error";
+import { CriticalPOSError } from "./critical_pos_error/critical_pos_error.js";
 
 export class Loader extends Component {
     static template = "point_of_sale.Loader";

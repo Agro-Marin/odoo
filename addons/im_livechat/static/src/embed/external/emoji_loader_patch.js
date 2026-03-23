@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { loader } from "@web/components/emoji_picker/emoji_picker";
 
 import { loadJS } from "@web/core/assets";

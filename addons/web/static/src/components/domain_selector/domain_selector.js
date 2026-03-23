@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/domain_selector/domain_selector - Visual domain builder that converts between string domains and tree editors */
 

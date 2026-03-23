@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/user_switch/user_switch - Login page component for quick-switching between recently connected user accounts */
 

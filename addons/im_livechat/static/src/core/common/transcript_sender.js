@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { isValidEmail } from "@im_livechat/core/common/misc";
 import { Component, onWillUpdateProps, useEffect, useState } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";

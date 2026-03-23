@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { makeRoot, makeShadow } from "@im_livechat/embed/common/boot_helpers";
 import { canLoadLivechat } from "@im_livechat/embed/common/misc";
 import { LivechatRoot } from "@im_livechat/embed/frontend/livechat_root";

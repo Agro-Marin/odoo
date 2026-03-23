@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // @ts-check
 
 import { Domain } from "@web/core/domain";

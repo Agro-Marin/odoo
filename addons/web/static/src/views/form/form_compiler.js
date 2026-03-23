@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/form/form_compiler - Compiles form view XML arch into OWL template AST with layout, notebook, and field handling */
 

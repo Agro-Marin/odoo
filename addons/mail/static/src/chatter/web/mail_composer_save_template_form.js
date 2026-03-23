@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { formView } from "@web/views/form/form_view";

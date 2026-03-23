@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // Part of Odoo. See LICENSE file for full copyright and licensing details.
 import { ProductCard } from "@point_of_sale/app/components/product_card/product_card";
 

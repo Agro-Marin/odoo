@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BoothRegistration } from "@website_event_booth/interactions/booth_registration";
 import { patch } from "@web/core/utils/patch";
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { patch } from "@web/core/utils/patch";

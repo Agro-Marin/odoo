@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { loadJS } from "@web/core/assets";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";

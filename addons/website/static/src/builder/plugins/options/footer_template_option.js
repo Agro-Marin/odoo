@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { useState } from "@odoo/owl";
 

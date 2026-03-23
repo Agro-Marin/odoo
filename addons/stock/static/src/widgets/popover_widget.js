@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { Component } from "@odoo/owl";

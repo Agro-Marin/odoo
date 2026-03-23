@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /** @ts-check */
 
 import { Component, onWillStart, onWillUpdateProps, useEffect } from "@odoo/owl";

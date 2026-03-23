@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { isBlock, closestBlock } from "@html_editor/utils/blocks";
 import { unwrapContents } from "@html_editor/utils/dom";
@@ -26,14 +27,14 @@ import {
 } from "@html_editor/utils/formatting";
 import { DIRECTIONS } from "@html_editor/utils/position";
 import { _t } from "@web/core/l10n/translation";
-import { FontSelector } from "./font_selector";
+import { FontSelector } from "./font_selector.js";
 import {
     getBaseContainerSelector,
     SUPPORTED_BASE_CONTAINER_NAMES,
 } from "@html_editor/utils/base_container";
 import { withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
-import { FontSizeSelector } from "./font_size_selector";
+import { FontSizeSelector } from "./font_size_selector.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { weakMemoize } from "@html_editor/utils/functions";
 

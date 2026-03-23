@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { normalizeCSSColor } from "@web/core/utils/format/colors";
-import { removeClass } from "./dom";
-import { isBold, isDirectionSwitched, isItalic, isStrikeThrough, isUnderline } from "./dom_info";
-import { closestElement, closestPath, findNode } from "./dom_traversal";
-import { closestBlock, isBlock } from "./blocks";
+import { removeClass } from "./dom.js";
+import { isBold, isDirectionSwitched, isItalic, isStrikeThrough, isUnderline } from "./dom_info.js";
+import { closestElement, closestPath, findNode } from "./dom_traversal.js";
+import { closestBlock, isBlock } from "./blocks.js";
 
 /**
  * Array of all the classes used by the editor to change the font size.

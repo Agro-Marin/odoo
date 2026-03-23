@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/barcode/barcode_video_scanner - Camera-based barcode scanner using BarcodeDetector API with ZXing fallback */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { after } from "@html_builder/utils/option_sequence";
 import { FORUMS_INDEX } from "@website_forum/website_builder/forum_page_option_plugin";
 import { Plugin } from "@html_editor/plugin";

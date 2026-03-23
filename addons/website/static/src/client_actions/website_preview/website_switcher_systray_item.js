@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { browser } from "@web/core/browser/browser";
 import { useService } from "@web/core/utils/hooks";
@@ -5,7 +6,7 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { session } from "@web/session";
 import { Component } from "@odoo/owl";
-import { isHTTPSorNakedDomainRedirection } from "./utils";
+import { isHTTPSorNakedDomainRedirection } from "./utils.js";
 
 export class WebsiteSwitcherSystrayItem extends Component {
     static template = "website.WebsiteSwitcherSystrayItem";

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { useService, useBus } from "@web/core/utils/hooks";
 import { BomOverviewControlPanel } from "../bom_overview_control_panel/mrp_bom_overview_control_panel.js";

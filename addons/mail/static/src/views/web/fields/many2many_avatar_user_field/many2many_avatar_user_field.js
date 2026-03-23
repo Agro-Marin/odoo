@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { useAssignUserCommand } from "@mail/views/web/fields/assign_user_command_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";

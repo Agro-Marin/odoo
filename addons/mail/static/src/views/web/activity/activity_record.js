@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ActivityCompiler } from "@mail/views/web/activity/activity_compiler";
 import { Component } from "@odoo/owl";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";

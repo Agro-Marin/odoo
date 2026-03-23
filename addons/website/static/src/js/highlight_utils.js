@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { descendants } from "@html_editor/utils/dom_traversal";
 import { memoize } from "@web/core/utils/functions";
 

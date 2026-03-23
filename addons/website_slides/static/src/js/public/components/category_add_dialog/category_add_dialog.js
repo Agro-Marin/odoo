@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { useAutofocus } from "@web/core/utils/hooks";
 

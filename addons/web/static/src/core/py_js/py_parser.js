@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/py_js/py_parser - Pratt parser that converts Python token streams into AST nodes */
 

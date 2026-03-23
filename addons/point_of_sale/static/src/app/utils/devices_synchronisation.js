@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Domain } from "@web/core/domain";
-import { logPosMessage } from "./pretty_console_log";
+import { logPosMessage } from "./pretty_console_log.js";
 const CONSOLE_COLOR = "#b56be3";
 /**
  * Class representing the synchronization of records.

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/field_selector/field_selector_field - Model field path selector field for Char columns */
 

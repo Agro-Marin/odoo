@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Domain } from '@web/core/domain';
 import { rpc } from "@web/core/network/rpc";
 import { SearchModel } from '@web/search/search_model';

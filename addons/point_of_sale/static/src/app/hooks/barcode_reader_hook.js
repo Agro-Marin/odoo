@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useComponent, useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 export function useBarcodeReader(callbackMap, exclusive = false) {

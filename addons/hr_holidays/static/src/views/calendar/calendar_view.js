@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { calendarView } from '@web/views/calendar/calendar_view';
 
-import { TimeOffCalendarController, TimeOffReportCalendarController } from './calendar_controller';
-import { TimeOffCalendarModel } from './calendar_model';
-import { TimeOffCalendarRenderer, TimeOffDashboardCalendarRenderer } from './calendar_renderer';
+import { TimeOffCalendarController, TimeOffReportCalendarController } from './calendar_controller.js';
+import { TimeOffCalendarModel } from './calendar_model.js';
+import { TimeOffCalendarRenderer, TimeOffDashboardCalendarRenderer } from './calendar_renderer.js';
 
 import { registry } from '@web/core/registry';
 import { user } from "@web/services/user";

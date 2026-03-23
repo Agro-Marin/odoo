@@ -1,3 +1,4 @@
+/** @odoo-module native */
 const FIELDS_DEFAULT = [
     {
         types: ["integer", "float", "many2one_reference"],

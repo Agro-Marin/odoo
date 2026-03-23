@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ReCaptcha } from "@google_recaptcha/js/recaptcha";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";

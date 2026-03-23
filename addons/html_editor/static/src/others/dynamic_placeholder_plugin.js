@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
 import { DynamicPlaceholderPopover } from "@web/fields/dynamic_placeholder_popover";

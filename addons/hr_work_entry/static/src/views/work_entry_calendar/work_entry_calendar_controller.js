@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { WorkEntryCalendarMultiSelectionButtons } from "@hr_work_entry/views/work_entry_calendar/work_entry_multi_selection_buttons";
 import { useWorkEntry } from "@hr_work_entry/views/work_entry_hook";
 import { _t } from "@web/core/l10n/translation";

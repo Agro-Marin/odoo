@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/datetime/datetime_picker_service - Service managing date picker popover lifecycle, positioning, and input synchronization */
 

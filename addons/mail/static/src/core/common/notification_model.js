@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { _t } from "@web/core/l10n/translation";
 export class Notification extends Record {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global YT, Vimeo */
 
     import publicWidget from '@web/legacy/js/public/public_widget';
@@ -6,7 +7,7 @@
     import { Quiz } from '@website_slides/js/slides_course_quiz';
     import { SlideCoursePage } from '@website_slides/js/slides_course_page';
     import { unhideConditionalElements } from '@website/js/content/inject_dom';
-    import { SlideShareDialog } from './public/components/slide_share_dialog/slide_share_dialog';
+    import { SlideShareDialog } from './public/components/slide_share_dialog/slide_share_dialog.js';
     import '@website_slides/js/slides_course_join';
     import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
     import { rpc } from "@web/core/network/rpc";

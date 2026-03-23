@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { formatDate, serializeDateTime } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { PosOrderAccounting } from "./accounting/pos_order_accounting";
-import { computeComboItems } from "./utils/compute_combo_items";
+import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
+import { computeComboItems } from "./utils/compute_combo_items.js";
 const { DateTime } = luxon;
 
 export class PosOrder extends PosOrderAccounting {

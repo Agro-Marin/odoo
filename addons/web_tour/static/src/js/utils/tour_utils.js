@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Calls the given `func` then returns/resolves to `true`
  * if it will result to unloading of the page.

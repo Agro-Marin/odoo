@@ -1,10 +1,10 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { _t } from "@web/core/l10n/translation";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { Component, onMounted, onPatched, onWillUnmount, useEffect, useRef, useState } from "@odoo/owl";
 import { Many2OneField } from "@web/fields/relational/many2one/many2one_field";
-import { useProductAndLabelAutoresize } from "./product_and_label_autoresize";
+import { useProductAndLabelAutoresize } from "./product_and_label_autoresize.js";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import { useInputField } from "@web/fields/input_field_hook";
 

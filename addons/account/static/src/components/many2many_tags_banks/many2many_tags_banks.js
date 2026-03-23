@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import {
     many2ManyTagsFieldColorEditable,
     Many2ManyTagsFieldColorEditable,

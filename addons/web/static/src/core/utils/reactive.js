@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/reactive - Reactive base class and side-effect helper for OWL reactivity system */
 

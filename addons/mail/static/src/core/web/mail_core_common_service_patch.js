@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { MailCoreCommon } from "@mail/core/common/mail_core_common_service";
 import { patch } from "@web/core/utils/patch";
 patch(MailCoreCommon.prototype, {

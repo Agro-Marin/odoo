@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { CoverPropertiesOption } from "@website/builder/plugins/options/cover_properties_option";
@@ -5,7 +6,7 @@ import { BuilderAction } from "@html_builder/core/builder_action";
 import { rpc } from "@web/core/network/rpc";
 import { withSequence } from "@html_editor/utils/resource";
 import { COVER_PROPERTIES } from "@website/builder/option_sequence";
-import { coverSizeClassLabels } from "./cover_properties_option";
+import { coverSizeClassLabels } from "./cover_properties_option.js";
 
 class CoverPropertiesOptionPlugin extends Plugin {
     static id = "coverPropertiesOption";

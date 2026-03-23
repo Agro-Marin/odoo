@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";

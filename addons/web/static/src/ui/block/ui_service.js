@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/block/ui_service - UI service: viewport size tracking, active element management, block/unblock, and focus trapping */
 

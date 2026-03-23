@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/action_menus/action_menus - Action/Print dropdown menus for executing server actions on selected records */
 

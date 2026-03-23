@@ -1,4 +1,5 @@
-import { TimeOffCard } from "./time_off_card";
+/** @odoo-module native */
+import { TimeOffCard } from "./time_off_card.js";
 import { useNewAllocationRequest } from "@hr_holidays/views/hooks";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { DateTimeInput } from "@web/components/datetime/datetime_input";

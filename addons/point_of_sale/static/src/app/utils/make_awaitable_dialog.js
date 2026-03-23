@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 export function makeAwaitable(dialog, comp, props, options) {
     return new Promise((resolve) => {

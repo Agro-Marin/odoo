@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { DynamicSnippet } from "@website/snippets/s_dynamic_snippet/dynamic_snippet";
 import { registry } from "@web/core/registry";
 

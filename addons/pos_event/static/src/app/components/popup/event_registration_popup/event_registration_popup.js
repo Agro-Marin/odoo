@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // Part of Odoo. See LICENSE file for full copyright and licensing details.
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dialog } from "@web/ui/dialog/dialog";

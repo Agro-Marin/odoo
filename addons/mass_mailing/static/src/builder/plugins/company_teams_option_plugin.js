@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";

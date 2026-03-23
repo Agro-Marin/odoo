@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { CustomerFilterOption } from "./customer_filter_option";
+import { CustomerFilterOption } from "./customer_filter_option.js";
 
 export class CustomerFilterOptionPlugin extends Plugin {
     static id = "customerFilterOption";

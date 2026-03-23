@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { BoardController } from "./board_controller";
+import { BoardController } from "./board_controller.js";
 import { visitXML } from "@web/core/utils/dom/xml";
 import { Domain } from "@web/core/domain";
 export class BoardArchParser {

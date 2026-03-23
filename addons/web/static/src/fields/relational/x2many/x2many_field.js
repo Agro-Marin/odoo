@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/x2many/x2many_field - Full-featured x2many field with embedded list/kanban sub-views and CRUD controls */
 
@@ -28,9 +28,9 @@ export class X2ManyField extends Component {
     static get components() {
         return {
             Pager,
-            KanbanRenderer: views.get("kanban").Renderer,
-            ListRenderer: views.get("list").Renderer,
-            ViewButton: shared.get("ViewButton"),
+            KanbanRenderer: views.contains("kanban") ? views.get("kanban").Renderer : undefined,
+            ListRenderer: views.contains("list") ? views.get("list").Renderer : undefined,
+            ViewButton: shared.contains("ViewButton") ? shared.get("ViewButton") : undefined,
         };
     }
     static props = {

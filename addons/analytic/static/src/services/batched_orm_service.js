@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { ORM } from "@web/services/orm_service";
 import { unique } from "@web/core/utils/collections/arrays";

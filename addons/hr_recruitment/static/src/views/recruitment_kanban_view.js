@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";

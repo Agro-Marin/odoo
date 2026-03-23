@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/basic/boolean_favorite/boolean_favorite_field - Star toggle field for marking records as favorites */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { rpc } from "@web/core/network/rpc";

@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { startWebClient } from "@web/boot/start";
-import { SubcontractingPortalWebClient } from "./subcontracting_portal";
+import { SubcontractingPortalWebClient } from "./subcontracting_portal.js";
 import { registry } from "@web/core/registry";
 
 const servicesToRemove = ["menu"];

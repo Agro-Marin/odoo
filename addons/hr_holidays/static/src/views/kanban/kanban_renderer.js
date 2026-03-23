@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { KanbanRenderer } from '@web/views/kanban/kanban_renderer';
-import { TimeOffDashboard } from '../../dashboard/time_off_dashboard';
+import { TimeOffDashboard } from '../../dashboard/time_off_dashboard.js';
 
 export class TimeOffKanbanRenderer extends KanbanRenderer {
     static template = "hr_holidays.KanbanRenderer";

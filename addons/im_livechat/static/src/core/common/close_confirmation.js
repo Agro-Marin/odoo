@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useAutofocus } from "@web/core/utils/hooks";
 

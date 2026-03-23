@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { formatSelection } from "@web/fields/formatters";
 import { registry } from "@web/core/registry";
 import { StateSelectionField, stateSelectionField } from "@web/fields/selection/state_selection/state_selection_field";

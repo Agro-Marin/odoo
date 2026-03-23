@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/graph/graph_renderer - Chart.js integration for rendering bar, line, and pie charts with tooltips and legends */
 

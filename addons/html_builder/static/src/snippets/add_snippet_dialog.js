@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, onWillUnmount, onWillRender, useRef, useState } from "@odoo/owl";
 import { loadBundle, loadCSS } from "@web/core/assets";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
@@ -7,7 +8,7 @@ import { localization } from "@web/core/l10n/localization";
 import { getFirstAndLastTabableElements } from "@web/ui/block/ui_service";
 import { cookie } from "@web/core/browser/cookie";
 import { useChildRef } from "@web/core/utils/hooks";
-import { SnippetViewer } from "./snippet_viewer";
+import { SnippetViewer } from "./snippet_viewer.js";
 
 /**
  * @typedef {((arg: { iframe: HTMLIFrameElement }) => void)[]} snippet_preview_dialog_stylesheets_handlers

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
 import { qrCodeSrc } from "@point_of_sale/utils";

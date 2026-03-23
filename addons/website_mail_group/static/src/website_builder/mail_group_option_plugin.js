@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { InputConfirmationDialog } from "@html_builder/snippets/input_confirmation_dialog";

@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { _t } from "@web/core/l10n/translation";
 import { formatCurrency } from "@web/services/currency";
-import { Base } from "../related_models";
+import { Base } from "../related_models.js";
 
 export class PosOrderlineAccounting extends Base {
     static accountingFields = new Set([

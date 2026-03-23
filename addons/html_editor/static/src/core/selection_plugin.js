@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { closestBlock } from "@html_editor/utils/blocks";
 import {
     getDeepestPosition,
@@ -14,15 +15,15 @@ import {
     lastLeaf,
 } from "@html_editor/utils/dom_traversal";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { Plugin } from "../plugin";
-import { DIRECTIONS, leftPos, nodeSize, rightPos } from "../utils/position";
+import { Plugin } from "../plugin.js";
+import { DIRECTIONS, leftPos, nodeSize, rightPos } from "../utils/position.js";
 import {
     getAdjacentCharacter,
     normalizeDeepCursorPosition,
     normalizeFakeBR,
     normalizeNotEditableNode,
     normalizeSelfClosingElement,
-} from "../utils/selection";
+} from "../utils/selection.js";
 import { closestScrollableY } from "@web/core/utils/dom/scrolling";
 import { weakMemoize } from "@html_editor/utils/functions";
 

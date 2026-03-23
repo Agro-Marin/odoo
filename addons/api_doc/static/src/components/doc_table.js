@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, useExternalListener, useRef, onWillRender } from "@odoo/owl";
 
 export const TABLE_TYPES = {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Builder } from "@html_builder/builder";
 import { BuilderOptionsTranslationPlugin } from "@html_builder/core/builder_options_plugin_translate";
 import { CORE_PLUGINS, MAIN_PLUGINS } from "@html_builder/core/core_plugins";
@@ -5,7 +6,7 @@ import { DisableSnippetsPlugin } from "@html_builder/core/disable_snippets_plugi
 import { OperationPlugin } from "@html_builder/core/operation_plugin";
 import { SavePlugin } from "@html_builder/core/save_plugin";
 import { SetupEditorPlugin } from "@html_builder/core/setup_editor_plugin";
-import { TranslateSetupEditorPlugin } from "./plugins/translate_setup_editor_plugin";
+import { TranslateSetupEditorPlugin } from "./plugins/translate_setup_editor_plugin.js";
 import { VisibilityPlugin } from "@html_builder/core/visibility_plugin";
 import { removePlugins } from "@html_builder/utils/utils";
 import { closestElement } from "@html_editor/utils/dom_traversal";
@@ -15,34 +16,34 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useSetupAction } from "@web/core/action_hook";
-import { HighlightPlugin } from "./plugins/highlight/highlight_plugin";
-import { PopupVisibilityPlugin } from "./plugins/popup_visibility_plugin";
-import { SaveTranslationPlugin } from "./plugins/save_translation_plugin";
-import { TranslateAnnouncementScrollPlugin } from "./plugins/translate_announcement_scroll_plugin";
-import { TranslateLinkInlinePlugin } from "./plugins/translate_link_inline_plugin";
-import { TranslationPlugin } from "./plugins/translation_plugin";
-import { WebsiteVisibilityPlugin } from "./plugins/website_visibility_plugin";
-import { EditInteractionPlugin } from "./plugins/edit_interaction_plugin";
-import { AnimateOptionPlugin } from "./plugins/options/animate_option_plugin";
+import { HighlightPlugin } from "./plugins/highlight/highlight_plugin.js";
+import { PopupVisibilityPlugin } from "./plugins/popup_visibility_plugin.js";
+import { SaveTranslationPlugin } from "./plugins/save_translation_plugin.js";
+import { TranslateAnnouncementScrollPlugin } from "./plugins/translate_announcement_scroll_plugin.js";
+import { TranslateLinkInlinePlugin } from "./plugins/translate_link_inline_plugin.js";
+import { TranslationPlugin } from "./plugins/translation_plugin.js";
+import { WebsiteVisibilityPlugin } from "./plugins/website_visibility_plugin.js";
+import { EditInteractionPlugin } from "./plugins/edit_interaction_plugin.js";
+import { AnimateOptionPlugin } from "./plugins/options/animate_option_plugin.js";
 import { BuilderComponentPlugin } from "@html_builder/core/builder_component_plugin";
 import { BuilderActionsPlugin } from "@html_builder/core/builder_actions_plugin";
 import { CoreBuilderActionPlugin } from "@html_builder/core/core_builder_action_plugin";
-import { CarouselOptionTranslationPlugin } from "./plugins/carousel_option_translation_plugin";
+import { CarouselOptionTranslationPlugin } from "./plugins/carousel_option_translation_plugin.js";
 import { OverlayButtonsPlugin } from "@html_builder/core/overlay_buttons/overlay_buttons_plugin";
 import { DropZonePlugin } from "@html_builder/core/drop_zone_plugin";
 import { DropZoneSelectorPlugin } from "@html_builder/core/dropzone_selector_plugin";
 import { CustomizeTabPlugin } from "@html_builder/core/customize_tab_plugin";
 import { BuilderOverlayPlugin } from "@html_builder/core/builder_overlay/builder_overlay_plugin";
-import { WebsiteSetupEditorPlugin } from "./plugins/setup_editor_plugin";
-import { ThemeTab } from "./plugins/theme/theme_tab";
-import { TranslateTableOfContentOptionPlugin } from "./plugins/options/table_of_content_option_plugin_translate";
+import { WebsiteSetupEditorPlugin } from "./plugins/setup_editor_plugin.js";
+import { ThemeTab } from "./plugins/theme/theme_tab.js";
+import { TranslateTableOfContentOptionPlugin } from "./plugins/options/table_of_content_option_plugin_translate.js";
 import { FieldChangeReplicationPlugin } from "@html_builder/core/field_change_replication_plugin";
 import { BuilderContentEditablePlugin } from "@html_builder/core/builder_content_editable_plugin";
 import { ImageFieldPlugin } from "@html_builder/plugins/image_field_plugin";
 import { MonetaryFieldPlugin } from "@html_builder/plugins/monetary_field_plugin";
 import { Many2OneOptionPlugin } from "@html_builder/plugins/many2one_option_plugin";
 import { CustomizeTranslationTab } from "@website/builder/plugins/translation_tab/customize_translation_tab";
-import { CustomizeTranslationTabPlugin } from "./plugins/translation_tab/customize_translation_tab_plugin";
+import { CustomizeTranslationTabPlugin } from "./plugins/translation_tab/customize_translation_tab_plugin.js";
 import { Plugin } from "@html_editor/plugin";
 import { revertPreview } from "@html_builder/core/utils";
 import { rpc } from "@web/core/network/rpc";
@@ -51,7 +52,7 @@ import { browser } from "@web/core/browser/browser";
 import {
     localStorageNoDialogKey,
     TranslatorInfoDialog,
-} from "./translation_components/translatorInfoDialog";
+} from "./translation_components/translatorInfoDialog.js";
 
 const TRANSLATION_PLUGINS = [
     BuilderOptionsTranslationPlugin,

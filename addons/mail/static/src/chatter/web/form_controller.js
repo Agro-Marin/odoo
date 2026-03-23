@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { EventBus, useSubEnv } from "@odoo/owl";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";

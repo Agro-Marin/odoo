@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { QuestionPageListRenderer } from "./question_page_list_renderer";
+import { QuestionPageListRenderer } from "./question_page_list_renderer.js";
 import { registry } from "@web/core/registry";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";

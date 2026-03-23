@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useRef, useState, useEffect } from "@odoo/owl";
 
 import { useService } from "@web/core/utils/hooks";

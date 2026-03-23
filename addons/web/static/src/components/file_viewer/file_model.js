@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/file_viewer/file_model - FileModelMixin providing URL routing and type detection for viewable file attachments */
 

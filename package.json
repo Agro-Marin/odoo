@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Odoo 19.0 JS tooling",
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

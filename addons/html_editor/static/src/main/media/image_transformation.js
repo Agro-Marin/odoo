@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /*
 Copyright (c) 2014 Christophe Matthieu,
 

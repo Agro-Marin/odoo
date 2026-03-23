@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { getRow } from "@html_builder/utils/column_layout_utils";
 import {
     convertToNormalColumn,
@@ -6,7 +7,7 @@ import {
 } from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
-import { LayoutGridOption, LayoutOption } from "./layout_option";
+import { LayoutGridOption, LayoutOption } from "./layout_option.js";
 import { withSequence } from "@html_editor/utils/resource";
 import { LAYOUT, LAYOUT_GRID } from "@website/builder/option_sequence";
 import { BuilderAction } from "@html_builder/core/builder_action";

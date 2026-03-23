@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillUnmount, useEffect, useState } from "@odoo/owl";
 import { AccordionItem } from "@point_of_sale/app/components/accordion_item/accordion_item";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";

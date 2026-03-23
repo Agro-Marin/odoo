@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/action_hook - CallbackRecorder utility and useSetupAction hook for persisting view state across action switches */
 

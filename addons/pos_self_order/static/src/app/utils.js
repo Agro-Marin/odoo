@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export const attributeFlatter = (attribute) =>
     Object.values(attribute)
         .map((v) => {

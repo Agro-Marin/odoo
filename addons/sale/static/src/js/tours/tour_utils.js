@@ -1,3 +1,4 @@
+/** @odoo-module native */
 function createNewSalesOrder() {
     return [
         {

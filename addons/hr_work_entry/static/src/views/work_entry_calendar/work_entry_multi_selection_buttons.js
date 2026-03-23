@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { WorkEntryMultiCreatePopover } from "@hr_work_entry/views/work_entry_calendar/work_entry_multi_create_popover";
 import { useService } from "@web/core/utils/hooks";
 import { addFieldDependencies } from "@web/model/relational_model/utils";

@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { computeScore } from "./password_policy";
+import { computeScore } from "./password_policy.js";
 import { Component, xml } from "@odoo/owl";
 
 export class Meter extends Component {

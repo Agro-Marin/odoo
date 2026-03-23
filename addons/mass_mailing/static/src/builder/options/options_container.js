@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
 import { useState } from "@odoo/owl";
 

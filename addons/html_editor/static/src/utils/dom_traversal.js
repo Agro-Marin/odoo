@@ -1,4 +1,5 @@
-import { DIRECTIONS } from "./position";
+/** @odoo-module native */
+import { DIRECTIONS } from "./position.js";
 
 export const closestPath = function* (node) {
     while (node) {

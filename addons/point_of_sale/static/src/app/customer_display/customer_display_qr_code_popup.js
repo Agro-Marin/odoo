@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, xml } from "@odoo/owl";
 import { generateQRCodeDataUrl } from "@point_of_sale/utils";
 import { CopyButton } from "@web/components/copy_button/copy_button";

@@ -1,10 +1,11 @@
+/** @odoo-module native */
 import {
     activateCropper,
     loadImage,
     loadImageInfo,
     cropperDataFieldsWithAspectRatio,
 } from "@html_editor/utils/image_processing";
-import { IMAGE_SHAPES } from "./image_plugin";
+import { IMAGE_SHAPES } from "./image_plugin.js";
 import { _t } from "@web/core/l10n/translation";
 import {
     Component,

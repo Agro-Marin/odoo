@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { parseEmail } from "@mail/utils/common/format";
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PageDependencies } from "@website/components/dialog/page_properties";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { UrlField, urlField } from "@web/fields/basic/url/url_field";

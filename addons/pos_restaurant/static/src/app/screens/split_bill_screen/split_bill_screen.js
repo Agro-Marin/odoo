@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillDestroy, useState } from "@odoo/owl";
 import { OrderDisplay } from "@point_of_sale/app/components/order_display/order_display";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";

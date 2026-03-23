@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { listView } from "@web/views/list/list_view";
 import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
-import { CaledarListController } from "./calendar_list_controller";
+import { CaledarListController } from "./calendar_list_controller.js";
 
 export class CalendarListModel extends listView.Model {
     setup(params) {

@@ -1,21 +1,22 @@
+/** @odoo-module native */
 import {
     isTextNode,
     isParagraphRelatedElement,
     isEmptyBlock,
     isContentEditable,
-} from "../utils/dom_info";
-import { Plugin } from "../plugin";
-import { closestBlock } from "../utils/blocks";
-import { unwrapContents, wrapInlinesInBlocks, splitTextNode, fillEmpty } from "../utils/dom";
-import { fillHtmlTransferData } from "../utils/clipboard";
-import { childNodes, closestElement } from "../utils/dom_traversal";
-import { parseHTML } from "../utils/html";
+} from "../utils/dom_info.js";
+import { Plugin } from "../plugin.js";
+import { closestBlock } from "../utils/blocks.js";
+import { unwrapContents, wrapInlinesInBlocks, splitTextNode, fillEmpty } from "../utils/dom.js";
+import { fillHtmlTransferData } from "../utils/clipboard.js";
+import { childNodes, closestElement } from "../utils/dom_traversal.js";
+import { parseHTML } from "../utils/html.js";
 import {
     baseContainerGlobalSelector,
     getBaseContainerSelector,
 } from "@html_editor/utils/base_container";
-import { DIRECTIONS } from "../utils/position";
-import { isHtmlContentSupported } from "./selection_plugin";
+import { DIRECTIONS } from "../utils/position.js";
+import { isHtmlContentSupported } from "./selection_plugin.js";
 
 /**
  * @typedef { import("./selection_plugin").EditorSelection } EditorSelection

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/utils/group_by - Group-by descriptor parser and interval validation for search queries */
 

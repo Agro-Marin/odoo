@@ -1,6 +1,7 @@
+/** @odoo-module native */
 // @ts-check
 
-import { navigateTo } from "../actions/helpers";
+import { navigateTo } from "../actions/helpers.js";
 import { helpers } from "@odoo/o-spreadsheet";
 const { getNumberOfPivotFunctions } = helpers;
 

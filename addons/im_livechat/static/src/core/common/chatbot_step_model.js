@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AND, fields, Record } from "@mail/core/common/record";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 

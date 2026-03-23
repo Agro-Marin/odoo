@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { SuggestionService } from "@mail/core/common/suggestion_service";
 import { cleanTerm } from "@mail/utils/common/format";
 import { registry } from "@web/core/registry";

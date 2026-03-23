@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useEffect } from "@odoo/owl";
 import { useChildRef } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { Thread } from "@mail/core/common/thread";
 import {

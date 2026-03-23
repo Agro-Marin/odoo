@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/context - Builds an evaluation context by merging and evaluating Python expressions */
 

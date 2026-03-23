@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
-import { MailingListSubscribeOption } from "./mailing_list_subscribe_option";
-import { RecaptchaSubscribeOption } from "./recaptcha_subscribe_option";
+import { MailingListSubscribeOption } from "./mailing_list_subscribe_option.js";
+import { RecaptchaSubscribeOption } from "./recaptcha_subscribe_option.js";
 
 export class NewsletterSubscribeCommonOptionBase extends BaseOptionComponent {
     static template = "website_mass_mailing.NewsletterSubscribeCommonOption";

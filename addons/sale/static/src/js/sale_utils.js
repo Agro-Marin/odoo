@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * Checks whether the 2 provided sale order lines are linked.
  *

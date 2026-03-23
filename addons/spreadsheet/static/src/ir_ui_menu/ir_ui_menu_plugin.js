@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { OdooCorePlugin } from "@spreadsheet/plugins";
 
 export class IrMenuPlugin extends OdooCorePlugin {

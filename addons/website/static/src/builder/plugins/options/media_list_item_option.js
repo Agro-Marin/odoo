@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
 import { ShadowOption } from "@html_builder/plugins/shadow_option";

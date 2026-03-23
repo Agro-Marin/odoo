@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
-import { CalendarFormView } from "./calendar_form_view";
-import { CalendarFormController } from "./calendar_form_controller";
+import { CalendarFormView } from "./calendar_form_view.js";
+import { CalendarFormController } from "./calendar_form_controller.js";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 
 export const QUICK_CREATE_CALENDAR_EVENT_FIELDS = {

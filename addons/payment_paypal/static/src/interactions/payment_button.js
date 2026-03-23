@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from '@web/core/utils/patch';
 import { PaymentButton } from '@payment/interactions/payment_button';
 

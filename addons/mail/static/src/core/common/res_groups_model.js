@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 
 export class ResGroups extends Record {

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 

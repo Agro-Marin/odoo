@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
 import { fields, Record } from "@mail/core/common/record";
 import {

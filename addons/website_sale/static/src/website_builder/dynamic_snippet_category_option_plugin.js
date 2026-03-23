@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from '@html_editor/plugin';
 import { withSequence } from '@html_editor/utils/resource';
 import { BuilderAction } from '@html_builder/core/builder_action';
@@ -6,7 +7,7 @@ import { DEVICE_VISIBILITY } from '@website/builder/option_sequence';
 import {
     setDatasetIfUndefined
 } from '@website/builder/plugins/options/dynamic_snippet_option_plugin';
-import { DynamicSnippetCategoryOption } from './dynamic_snippet_category_options';
+import { DynamicSnippetCategoryOption } from './dynamic_snippet_category_options.js';
 
 const TEMPLATE_OPTIONS = {
     'clickable': 'website_sale.dynamic_filter_template_product_public_category_clickable_items',

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Record, fields } from "@mail/core/common/record";
 
 export class ChatbotScript extends Record {

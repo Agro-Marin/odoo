@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { FormCogMenu } from "@web/views/form/form_cog_menu/form_cog_menu";
 import { onWillStart } from "@odoo/owl";
-import { getActionRecords, getPresenceActionItems } from "../../views/hooks";
+import { getActionRecords, getPresenceActionItems } from "../../views/hooks.js";
 
 /**
  * @extends CogMenu

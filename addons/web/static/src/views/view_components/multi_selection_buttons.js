@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_components/multi_selection_buttons - Floating toolbar with Add/Cancel/Delete for multi-record selection in calendar/gantt views */
 

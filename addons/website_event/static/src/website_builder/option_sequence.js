@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { DEFAULT, END, splitBetween } from "@html_builder/utils/option_sequence";
 
 const EVENT_PAGE = DEFAULT;

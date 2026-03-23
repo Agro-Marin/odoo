@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global Accept */
 
 import { loadJS } from '@web/core/assets';

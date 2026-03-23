@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/debug/debug_utils - Opens a form view action for a given model/record in debug mode */
 

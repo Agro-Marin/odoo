@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useExternalListener, useRef } from "@odoo/owl";
 
 export class ApiKeyModal extends Component {

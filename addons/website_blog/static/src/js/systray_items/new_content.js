@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     NewContentSystrayItem,
     MODULE_STATUS,

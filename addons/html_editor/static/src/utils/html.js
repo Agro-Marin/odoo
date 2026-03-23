@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * @param { Document } document
  * @param { string } html

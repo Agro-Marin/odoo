@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { TranscriptSender } from "@im_livechat/core/common/transcript_sender";
 import { ExpertiseTagsAutocomplete } from "@im_livechat/core/web/expertise_tags_autocomplete";
 import { ConversationTagEdit } from "@im_livechat/core/web/livechat_conversation_tag_edit";

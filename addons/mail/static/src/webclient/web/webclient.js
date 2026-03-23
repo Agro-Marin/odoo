@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";

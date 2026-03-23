@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, onWillStart, useState } from "@odoo/owl";
 import { CenteredIcon } from "@point_of_sale/app/components/centered_icon/centered_icon";
 import {

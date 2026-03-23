@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, useState } from "@odoo/owl";
 import { useAutoFocusToLast } from "@point_of_sale/app/hooks/hooks";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";

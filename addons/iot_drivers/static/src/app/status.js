@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global owl */
 import { DEVICE_ICONS } from "./components/dialog/DeviceDialog.js";
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { wrapInlinesInBlocks } from "@html_editor/utils/dom";
 import { childNodes } from "@html_editor/utils/dom_traversal";
 import { Composer } from "@mail/core/common/composer";

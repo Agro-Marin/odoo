@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { RetryPrintPopup } from "@point_of_sale/app/components/popups/retry_print_popup/retry_print_popup";
 import { PrinterService } from "@point_of_sale/app/services/printer_service";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-import { logPosMessage } from "../utils/pretty_console_log";
+import { logPosMessage } from "../utils/pretty_console_log.js";
 
 export const posPrinterService = {
     dependencies: ["hardware_proxy", "dialog", "renderer"],

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export const fonts = {
     /**
      * Retrieves all the CSS rules which match the given parser (Regex).

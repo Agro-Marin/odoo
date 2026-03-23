@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LayoutColumnOption } from "@html_builder/plugins/layout_column_option";
 import { before, WIDTH } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";

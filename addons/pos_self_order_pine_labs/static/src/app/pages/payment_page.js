@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { PaymentPage } from "@pos_self_order/app/pages/payment_page/payment_page";
 
 import { patch } from "@web/core/utils/patch";

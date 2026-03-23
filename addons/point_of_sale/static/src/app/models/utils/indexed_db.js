@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 
 const BATCH_SIZE = 500; // Can be adjusted based on performance testing

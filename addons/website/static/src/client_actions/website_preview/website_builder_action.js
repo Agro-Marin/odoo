@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LocalOverlayContainer } from "@html_editor/local_overlay_container";
 import {
     Component,
@@ -27,13 +28,13 @@ import { redirect } from "@web/core/utils/urls";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { AddPageDialog } from "@website/components/dialog/add_page_dialog";
 import { ResourceEditor } from "@website/components/resource_editor/resource_editor";
-import { isHTTPSorNakedDomainRedirection } from "./utils";
-import { WebsiteSystrayItem } from "./website_systray_item";
+import { isHTTPSorNakedDomainRedirection } from "./utils.js";
+import { WebsiteSystrayItem } from "./website_systray_item.js";
 import { renderToElement } from "@web/core/utils/render";
 import { isBrowserChrome, isBrowserMicrosoftEdge } from "@web/core/browser/feature_detection";
 import { router } from "@web/core/browser/router";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
-import { CreatePageMessage } from "./create_page_message";
+import { CreatePageMessage } from "./create_page_message.js";
 
 const websiteSystrayRegistry = registry.category("website_systray");
 

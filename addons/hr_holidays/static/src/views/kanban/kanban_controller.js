@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { EventBus, useSubEnv } from "@odoo/owl";
 

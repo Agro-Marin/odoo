@@ -1,4 +1,5 @@
-import { Plugin } from "../plugin";
+/** @odoo-module native */
+import { Plugin } from "../plugin.js";
 
 /**
  * @typedef {((ev: InputEvent) => void)[]} beforeinput_handlers

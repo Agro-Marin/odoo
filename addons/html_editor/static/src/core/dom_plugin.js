@@ -1,5 +1,6 @@
-import { Plugin } from "../plugin";
-import { closestBlock, isBlock } from "../utils/blocks";
+/** @odoo-module native */
+import { Plugin } from "../plugin.js";
+import { closestBlock, isBlock } from "../utils/blocks.js";
 import {
     cleanTrailingBR,
     fillEmpty,
@@ -9,7 +10,7 @@ import {
     removeStyle,
     unwrapContents,
     wrapInlinesInBlocks,
-} from "../utils/dom";
+} from "../utils/dom.js";
 import {
     allowsParagraphRelatedElements,
     getDeepestPosition,
@@ -28,7 +29,7 @@ import {
     listElementSelector,
     isEditorTab,
     isPhrasingContent,
-} from "../utils/dom_info";
+} from "../utils/dom_info.js";
 import {
     childNodes,
     children,
@@ -36,9 +37,9 @@ import {
     descendants,
     firstLeaf,
     lastLeaf,
-} from "../utils/dom_traversal";
-import { FONT_SIZE_CLASSES, TEXT_STYLE_CLASSES } from "../utils/formatting";
-import { childNodeIndex, nodeSize, rightPos } from "../utils/position";
+} from "../utils/dom_traversal.js";
+import { FONT_SIZE_CLASSES, TEXT_STYLE_CLASSES } from "../utils/formatting.js";
+import { childNodeIndex, nodeSize, rightPos } from "../utils/position.js";
 import { normalizeCursorPosition } from "@html_editor/utils/selection";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 
 import { productCatalogKanbanView } from "@product/product_catalog/kanban_view";

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/selection/selection_like_field - Abstract base class for selection-like fields with special data loading */
 

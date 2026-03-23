@@ -1,7 +1,8 @@
+/** @odoo-module native */
 /** @ts-check */
 
 import { MultiRecordSelector } from "@web/components/record_selectors/multi_record_selector";
-import { DateFilterValue } from "../date_filter_value/date_filter_value";
+import { DateFilterValue } from "../date_filter_value/date_filter_value.js";
 
 import { Component, onWillStart } from "@odoo/owl";
 import { components } from "@odoo/o-spreadsheet";
@@ -9,15 +10,15 @@ import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Domain } from "@web/core/domain";
 import { user } from "@web/services/user";
-import { TextFilterValue } from "../filter_text_value/filter_text_value";
+import { TextFilterValue } from "../filter_text_value/filter_text_value.js";
 import { getFields, ModelNotFoundError } from "@spreadsheet/data_sources/data_source";
-import { SelectionFilterValue } from "../selection_filter_value/selection_filter_value";
+import { SelectionFilterValue } from "../selection_filter_value/selection_filter_value.js";
 import {
     isTextualOperator,
     isSetOperator,
     getDefaultValue,
 } from "@spreadsheet/global_filters/helpers";
-import { NumericFilterValue } from "../numeric_filter_value/numeric_filter_value";
+import { NumericFilterValue } from "../numeric_filter_value/numeric_filter_value.js";
 
 const { ValidationMessages } = components;
 

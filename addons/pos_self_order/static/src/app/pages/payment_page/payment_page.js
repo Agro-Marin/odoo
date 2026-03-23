@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { rpc } from "@web/core/network/rpc";

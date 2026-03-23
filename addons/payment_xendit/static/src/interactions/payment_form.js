@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global Xendit */
 
 import { loadJS } from '@web/core/assets';

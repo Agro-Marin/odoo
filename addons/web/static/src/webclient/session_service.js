@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/webclient/session_service - Service that lazy-loads additional session info after the web client is ready */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { closestBlock, isBlock } from "@html_editor/utils/blocks";
 import {
@@ -32,15 +33,15 @@ import {
 } from "@html_editor/utils/dom_traversal";
 import { childNodeIndex, nodeSize } from "@html_editor/utils/position";
 import { _t } from "@web/core/l10n/translation";
-import { compareListTypes, createList, insertListAfter, isListItem } from "./utils";
+import { compareListTypes, createList, insertListAfter, isListItem } from "./utils.js";
 import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
 import { withSequence } from "@html_editor/utils/resource";
 import { FONT_SIZE_CLASSES, getFontSizeOrClass } from "@html_editor/utils/formatting";
 import { getTextColorOrClass, TEXT_CLASSES_REGEX } from "@html_editor/utils/color";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
-import { ListSelector } from "./list_selector";
+import { ListSelector } from "./list_selector.js";
 import { reactive } from "@odoo/owl";
-import { composeToolbarButton } from "../toolbar/toolbar";
+import { composeToolbarButton } from "../toolbar/toolbar.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { pick } from "@web/core/utils/collections/objects";
 import { weakMemoize } from "@html_editor/utils/functions";

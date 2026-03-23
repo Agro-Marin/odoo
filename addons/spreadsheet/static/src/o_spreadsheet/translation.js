@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
 import { _t, appTranslateFn } from "@web/core/l10n/translation";
 import { OdooUIPlugin } from "@spreadsheet/plugins";

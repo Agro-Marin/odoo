@@ -1,6 +1,13 @@
 (function (exports) {
     'use strict';
 
+    // Idempotency guard: skip re-initialization if OWL is already loaded.
+    // The pre-load <script src="owl.js"> runs first (sets globalThis.owl),
+    // then the concatenated bundle includes owl.js again.  Without this
+    // guard, the second execution creates NEW class constructors, breaking
+    // instanceof checks for native ESM modules that extend Component.
+    if (exports.__esModule) return;
+
     function filterOutModifiersFromData(dataList) {
         dataList = dataList.slice();
         const modifiers = [];

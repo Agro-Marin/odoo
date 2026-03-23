@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { convertRecordToEvent } from "@web/views/calendar/calendar_utils";
 import { CalendarCommonRenderer } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 import { WorkEntryCalendarCommonPopover } from "@hr_work_entry/views/work_entry_calendar/calendar_common/work_entry_calendar_common_popover";

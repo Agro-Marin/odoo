@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { receiptLineGrouper } from "@point_of_sale/app/models/utils/order_change";
 import { patch } from "@web/core/utils/patch";
 patch(receiptLineGrouper, {

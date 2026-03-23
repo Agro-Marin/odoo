@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from '@web/core/registry';
 import { ListBooleanToggleField, listBooleanToggleField } from "@web/fields/basic/boolean_toggle/list_boolean_toggle_field";
 

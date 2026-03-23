@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { ListRenderer } from "@web/views/list/list_renderer";
 
 export class PredecessorIdsListRenderer extends ListRenderer {

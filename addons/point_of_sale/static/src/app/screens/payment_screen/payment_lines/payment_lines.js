@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { enhancedButtons } from "@point_of_sale/app/components/numpad/numpad";
 import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/number_popup";

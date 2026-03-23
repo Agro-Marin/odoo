@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/search_model - Search state machine managing facets, domains, groupbys, favorites, and comparisons */
 

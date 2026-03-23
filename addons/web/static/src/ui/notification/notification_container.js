@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/notification/notification_container - Renders all active notifications with fade-out transitions */
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/tooltip/tooltip_hook - useTooltip hook to attach tooltips to OWL component refs */
 

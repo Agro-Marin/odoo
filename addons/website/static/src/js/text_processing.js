@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { isVisible } from "@web/core/utils/dom/ui";
 
 //TODO: Delete higlight function (duplicate whith highlight_utils) when deleting snippets options

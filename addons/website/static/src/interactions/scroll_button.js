@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AnchorSlide } from "@website/interactions/anchor_slide";
 import { registry } from "@web/core/registry";
 

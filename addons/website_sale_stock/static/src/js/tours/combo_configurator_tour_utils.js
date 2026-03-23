@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import configuratorTourUtils from '@sale/js/tours/combo_configurator_tour_utils';
 
 function assertQuantityNotAvailable(productName) {

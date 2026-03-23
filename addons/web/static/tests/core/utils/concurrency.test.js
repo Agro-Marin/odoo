@@ -1,10 +1,44 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { tick } from "@odoo/hoot-mock";
-import { Deferred, KeepLast, Mutex, Race } from "@web/core/utils/concurrency";
+import { advanceTime, tick } from "@odoo/hoot-mock";
+import { Deferred, delay, KeepLast, Mutex, Race } from "@web/core/utils/concurrency";
 
 describe.current.tags("headless");
+
+describe("delay", () => {
+    test("resolves after the specified wait time", async () => {
+        let resolved = false;
+        delay(100).then(() => {
+            resolved = true;
+        });
+        expect(resolved).toBe(false);
+        await advanceTime(50);
+        expect(resolved).toBe(false);
+        await advanceTime(60);
+        expect(resolved).toBe(true);
+    });
+
+    test("resolves immediately when wait is 0", async () => {
+        let resolved = false;
+        delay(0).then(() => {
+            resolved = true;
+        });
+        expect(resolved).toBe(false);
+        await tick();
+        expect(resolved).toBe(true);
+    });
+
+    test("resolves immediately when no argument given", async () => {
+        let resolved = false;
+        delay().then(() => {
+            resolved = true;
+        });
+        expect(resolved).toBe(false);
+        await tick();
+        expect(resolved).toBe(true);
+    });
+});
 
 describe("Deferred", () => {
     test("basic use", async () => {

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/model_field_selector/model_field_selector_popover - Searchable field browser popover with pagination through relational field chains */
 

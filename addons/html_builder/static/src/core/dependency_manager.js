@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { EventBus } from "@odoo/owl";
 import { batched } from "@web/core/utils/timing";
 

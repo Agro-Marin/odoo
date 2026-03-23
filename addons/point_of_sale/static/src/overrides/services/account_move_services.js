@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AccountMoveService } from "@account/services/account_move_service";
 import { isIOS, isIosApp } from "@web/core/browser/feature_detection";
 import { patch } from "@web/core/utils/patch";

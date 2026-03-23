@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { products_sort_mapping } from "@website_sale/website_builder/shared";
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";

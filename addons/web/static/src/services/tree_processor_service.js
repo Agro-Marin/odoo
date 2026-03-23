@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/tree_processor_service - Converts domains to condition trees with human-readable descriptions and tooltips */
 

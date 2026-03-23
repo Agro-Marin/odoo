@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { MessagingMenuQuickSearch } from "@mail/core/web/messaging_menu_quick_search";
 import { onExternalClick } from "@mail/utils/common/hooks";

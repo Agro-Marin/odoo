@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/special_data - OWL hook for loading and caching special data tied to a record lifecycle */
 

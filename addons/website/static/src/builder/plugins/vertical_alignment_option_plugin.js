@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
-import { BOX_BORDER_SHADOW } from "../option_sequence";
+import { BOX_BORDER_SHADOW } from "../option_sequence.js";
 import { registry } from "@web/core/registry";
 import { BaseVerticalAlignmentOption } from "@html_builder/plugins/base_vertical_alignment_option";
 

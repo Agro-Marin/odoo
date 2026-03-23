@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/search_bar/search_bar_toggler - Toggle button and hook for responsive search bar visibility on small screens */
 

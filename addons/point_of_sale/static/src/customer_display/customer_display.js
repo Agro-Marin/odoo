@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useEffect, useRef, whenReady } from "@odoo/owl";
 import { OdooLogo } from "@point_of_sale/app/components/odoo_logo/odoo_logo";
 import { useSingleDialog } from "@point_of_sale/customer_display/utils";
@@ -7,7 +8,7 @@ import { useService } from "@web/core/utils/hooks";
 import { mountComponent } from "@web/env";
 import { session } from "@web/session";
 
-import { CustomerFacingQR } from "./customer_facing_qr";
+import { CustomerFacingQR } from "./customer_facing_qr.js";
 
 export class CustomerDisplay extends Component {
     static template = "point_of_sale.CustomerDisplay";

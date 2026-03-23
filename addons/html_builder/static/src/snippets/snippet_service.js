@@ -1,8 +1,9 @@
+/** @odoo-module native */
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { _t } from "@web/core/l10n/translation";
 import { uniqueId } from "@web/core/utils/functions";
 import { Reactive } from "@web/core/utils/reactive";
-import { AddSnippetDialog } from "./add_snippet_dialog";
+import { AddSnippetDialog } from "./add_snippet_dialog.js";
 import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 import { markup, useState } from "@odoo/owl";

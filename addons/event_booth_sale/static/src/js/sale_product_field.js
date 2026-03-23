@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SaleOrderLineProductField } from "@sale/js/sale_product_field";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
 import { useService } from "@web/core/utils/hooks";

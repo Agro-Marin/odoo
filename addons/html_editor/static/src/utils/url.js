@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
 
@@ -70,30 +71,35 @@ export function getVideoUrl(platform, videoId, params) {
  * @param {string} url
  * @returns {boolean}
  */
-export function isAbsoluteURLInCurrentDomain(url, env = null) {
-    // First check if it is a relative URL: if it is, we don't want to check
-    // further as we will always leave those untouched.
-    let hasProtocol;
-    try {
-        hasProtocol = !!new URL(url).protocol;
-    } catch {
-        hasProtocol = false;
-    }
-    if (!hasProtocol) {
-        return false;
-    }
+// Patchable object for functions that need to be extended by other modules.
+// ESM namespace objects are non-configurable, so patch() cannot redefine
+// their properties. This object provides a patchable indirection layer.
+// The exported functions below delegate to this object, so patching it
+// affects ALL consumers — even those using direct named imports.
+export const urlFunctions = {
+    isAbsoluteURLInCurrentDomain(url, env = null) {
+        // First check if it is a relative URL: if it is, we don't want to check
+        // further as we will always leave those untouched.
+        let hasProtocol;
+        try {
+            hasProtocol = !!new URL(url).protocol;
+        } catch {
+            hasProtocol = false;
+        }
+        if (!hasProtocol) {
+            return false;
+        }
 
-    const urlObj = new URL(url, window.location.origin);
-    return (
-        urlObj.origin === window.location.origin ||
-        // Chosen heuristic to detect someone trying to enter a link using
-        // its Odoo instance domain. We just suppose it should be a relative
-        // URL (if unexpected behavior, the user can just not enter its Odoo
-        // instance domain but its real domain, or opt-out from the domain
-        // stripping). Mentioning an .odoo.com domain, especially its own
-        // one, is always a bad practice anyway.
-        ODOO_DOMAIN_REGEX.test(urlObj.origin)
-    );
+        const urlObj = new URL(url, window.location.origin);
+        return (
+            urlObj.origin === window.location.origin ||
+            ODOO_DOMAIN_REGEX.test(urlObj.origin)
+        );
+    },
+};
+
+export function isAbsoluteURLInCurrentDomain(url, env = null) {
+    return urlFunctions.isAbsoluteURLInCurrentDomain(url, env);
 }
 
 export function scrollAndHighlightHeading(

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/dynamic_placeholder_popover - Popover component for selecting dynamic placeholder field paths */
 

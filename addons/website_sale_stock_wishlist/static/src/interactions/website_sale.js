@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from '@web/core/utils/patch';
 import { patchDynamicContent } from '@web/public/utils';
 import { WebsiteSale } from '@website_sale/interactions/website_sale';

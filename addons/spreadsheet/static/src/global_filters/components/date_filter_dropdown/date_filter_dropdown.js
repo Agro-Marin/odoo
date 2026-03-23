@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onWillUpdateProps } from "@odoo/owl";
 import {
     dateFilterValueToString,

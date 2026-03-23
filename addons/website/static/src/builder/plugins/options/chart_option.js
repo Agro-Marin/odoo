@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
 import { useState } from "@odoo/owl";

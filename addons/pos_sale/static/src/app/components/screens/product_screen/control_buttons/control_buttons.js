@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { ControlButtons } from "@point_of_sale/app/screens/product_screen/control_buttons/control_buttons";
 import { patch } from "@web/core/utils/patch";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";

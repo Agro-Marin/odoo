@@ -1,3 +1,4 @@
+/** @odoo-module native */
 function comboSelector(comboName) {
     return `
         .sale-combo-configurator-dialog

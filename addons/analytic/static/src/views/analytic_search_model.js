@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { SearchModel } from "@web/search/search_model";
 
 const PLAN_REGEX = /^(?:x_)?(x_plan\d+_id|account_id)(_\d+)?$/;

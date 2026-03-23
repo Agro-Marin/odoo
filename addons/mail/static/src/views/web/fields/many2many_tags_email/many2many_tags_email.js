@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { RecipientsInputTagsList } from "@mail/core/web/recipients_input_tags_list";
 import { RecipientsPopover } from "@mail/core/web/recipients_popover";
 import { parseEmail } from "@mail/utils/common/format";

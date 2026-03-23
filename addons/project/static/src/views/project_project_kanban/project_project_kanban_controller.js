@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { onWillStart } from "@odoo/owl";
 import { user } from "@web/services/user";

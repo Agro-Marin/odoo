@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { printerService } from "@point_of_sale/app/services/printer_service";
 import { registry } from "@web/core/registry";
 // When their assets are loaded simultaneously during unit tests, it causes a conflict.

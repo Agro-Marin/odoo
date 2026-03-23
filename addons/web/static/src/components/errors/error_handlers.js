@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/errors/error_handlers - Registry-based error handlers that route exceptions to appropriate dialogs or notifications */
 

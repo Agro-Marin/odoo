@@ -1,3 +1,4 @@
+/** @odoo-module native */
 // Part of Odoo. See LICENSE file for full copyright and licensing details.
 import { PosOrderline } from "@point_of_sale/app/models/pos_order_line";
 

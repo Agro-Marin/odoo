@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export const BASE_CONTAINER_CLASS = "o-paragraph";
 
 export const SUPPORTED_BASE_CONTAINER_NAMES = ["P", "DIV"];

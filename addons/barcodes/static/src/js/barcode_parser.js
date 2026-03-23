@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export class BarcodeParser {
     static barcodeNomenclatureFields = ["name", "rule_ids", "upc_ean_conv"];
     static barcodeRuleFields = ["name", "sequence", "type", "encoding", "pattern", "alias"];

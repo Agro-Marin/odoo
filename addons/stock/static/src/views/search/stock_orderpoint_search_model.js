@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { SearchModel } from "@web/search/search_model";
 import { debounce } from "@web/core/utils/timing";

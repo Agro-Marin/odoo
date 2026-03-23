@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/overlay/overlay_service - Low-level service for adding/removing overlay components (popovers, dialogs, effects) */
 

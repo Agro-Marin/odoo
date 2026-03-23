@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
 import { FloatFactorField } from "@web/fields/basic/float_factor/float_factor_field";

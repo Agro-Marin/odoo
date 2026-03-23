@@ -1,7 +1,8 @@
+/** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { useService } from "@web/core/utils/hooks";
-import { useScrollShadow } from "../../utils/scroll_shadow_hook";
+import { useScrollShadow } from "../../utils/scroll_shadow_hook.js";
 export class EatingLocationPage extends Component {
     static template = "pos_self_order.EatingLocationPage";
     static props = {};

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/services/navigation/navigation - Keyboard arrow-key navigation hook for selectable item lists */
 

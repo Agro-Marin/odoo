@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from '@web/core/utils/patch';
 import { patchDynamicContent } from '@web/public/utils';
 import { ProductComparison } from '@website_sale_comparison/interactions/product_comparison';

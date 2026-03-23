@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 

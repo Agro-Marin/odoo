@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /* global MarkerClusterer, google */
 function initialize_map() {
     'use strict';

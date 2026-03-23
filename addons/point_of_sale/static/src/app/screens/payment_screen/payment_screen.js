@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, onMounted } from "@odoo/owl";
 import { enhancedButtons, Numpad } from "@point_of_sale/app/components/numpad/numpad";
 import { DatePickerPopup } from "@point_of_sale/app/components/popups/date_picker_popup/date_picker_popup";

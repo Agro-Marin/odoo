@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { deserializeDateTime, serializeDateTime } from "@web/core/l10n/dates";
 import { CalendarModel } from '@web/views/calendar/calendar_model';
 

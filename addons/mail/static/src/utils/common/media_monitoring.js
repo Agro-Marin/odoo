@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 // Broad human voice range of frequencies in hz.
 const HUMAN_VOICE_FREQUENCY_RANGE = [80, 1000];
 

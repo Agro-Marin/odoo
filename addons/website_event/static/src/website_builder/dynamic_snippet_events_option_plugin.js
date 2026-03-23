@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     DYNAMIC_SNIPPET,
     setDatasetIfUndefined,
@@ -5,7 +6,7 @@ import {
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { DynamicSnippetEventsOption } from "./dynamic_snippet_events_option";
+import { DynamicSnippetEventsOption } from "./dynamic_snippet_events_option.js";
 
 class DynamicSnippetEventsOptionPlugin extends Plugin {
     static id = "dynamicSnippetEventsOption";

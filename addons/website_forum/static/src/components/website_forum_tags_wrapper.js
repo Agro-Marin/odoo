@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState, onWillStart } from "@odoo/owl";
 import { get } from "@web/services/http_service";
 import { SelectMenu } from "@web/components/select_menu/select_menu";

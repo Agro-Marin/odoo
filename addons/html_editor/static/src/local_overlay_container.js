@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { useForwardRefToParent } from "@web/core/utils/hooks";

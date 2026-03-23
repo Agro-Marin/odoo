@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/reference/reference_field - Reference field widget combining a model selector with a Many2one picker */
 

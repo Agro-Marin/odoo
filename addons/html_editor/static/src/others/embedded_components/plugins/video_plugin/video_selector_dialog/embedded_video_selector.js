@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { VideoSelector } from "@html_editor/main/media/media_dialog/video_selector";
 import { renderToElement } from "@web/core/utils/render";
 

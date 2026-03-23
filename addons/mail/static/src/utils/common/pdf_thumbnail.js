@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { loadPDFJSAssets } from "@web/core/utils/pdfjs";
 export async function generatePdfThumbnail(
     pdfUrl,

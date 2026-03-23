@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { PosOrderAccounting } from "@point_of_sale/app/models/accounting/pos_order_accounting";
 import { PosStore } from "@point_of_sale/app/services/pos_store";

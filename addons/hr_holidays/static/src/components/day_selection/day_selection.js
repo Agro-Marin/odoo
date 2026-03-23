@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { SelectionField, selectionField } from "@web/fields/selection/selection/selection_field";
 

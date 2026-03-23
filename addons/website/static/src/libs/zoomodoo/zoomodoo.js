@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
     This code has been more that widely inspired by easyZoom library.
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { onMounted, onWillUnmount } from "@odoo/owl";
 
 /**

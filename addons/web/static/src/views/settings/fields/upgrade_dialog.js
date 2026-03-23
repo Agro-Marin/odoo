@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/settings/fields/upgrade_dialog - Dialog prompting the user to upgrade to Odoo Enterprise */
 

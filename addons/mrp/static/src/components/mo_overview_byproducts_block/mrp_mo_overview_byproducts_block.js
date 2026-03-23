@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { MoOverviewOperationsBlock } from "../mo_overview_operations_block/mrp_mo_overview_operations_block.js";
 import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";
 

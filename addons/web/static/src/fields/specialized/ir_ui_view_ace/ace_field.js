@@ -1,9 +1,9 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/ir_ui_view_ace/ace_field - Code editor field variant for ir.ui.view XML arch editing */
 
-/** @odoo-module */
+/** @odoo-module native */
 import { IrUiViewCodeEditor } from "@web/components/ir_ui_view_code_editor/code_editor";
 import { registry } from "@web/core/registry";
 import { AceField, aceField } from "@web/fields/specialized/ace/ace_field";

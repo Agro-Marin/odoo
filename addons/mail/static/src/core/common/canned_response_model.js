@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Record } from "@mail/core/common/record";
 
 export class CannedResponse extends Record {

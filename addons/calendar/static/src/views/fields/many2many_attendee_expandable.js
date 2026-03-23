@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Many2ManyAttendee, many2ManyAttendee } from "@calendar/views/fields/many2many_attendee";
 import { useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";

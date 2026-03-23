@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { fileUploadListView } from "../file_upload_list/file_upload_list_view.js";
 import { AccountMoveListController } from "./account_move_list_controller.js";

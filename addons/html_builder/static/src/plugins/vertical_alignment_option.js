@@ -1,4 +1,5 @@
-import { BaseVerticalAlignmentOption } from "./base_vertical_alignment_option";
+/** @odoo-module native */
+import { BaseVerticalAlignmentOption } from "./base_vertical_alignment_option.js";
 
 export class VerticalAlignmentOption extends BaseVerticalAlignmentOption {
     static selector =

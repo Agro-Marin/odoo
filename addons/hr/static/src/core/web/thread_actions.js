@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { _t } from "@web/core/l10n/translation";
 

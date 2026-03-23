@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/expression_editor/expression_editor - Visual tree-based editor for Python expressions with field path selection */
 

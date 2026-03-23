@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/specialized/properties/property_value - Polymorphic value editor component supporting all property field types */
 

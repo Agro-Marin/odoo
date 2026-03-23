@@ -1,3 +1,4 @@
+/** @odoo-module native */
 async function getLogs() {
     try {
         const result = await fetch("/iot_drivers/iot_logs");

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { CTABadgeOption } from "@html_builder/plugins/cta_badge_option_plugin";
 import { BLOCK_ALIGN } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";

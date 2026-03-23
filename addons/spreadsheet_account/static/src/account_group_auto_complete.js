@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 
 import { registries, tokenColors, helpers } from "@odoo/o-spreadsheet";

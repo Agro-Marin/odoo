@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/basic/boolean_toggle/list_boolean_toggle_field - List-view variant of the Boolean toggle switch */
 

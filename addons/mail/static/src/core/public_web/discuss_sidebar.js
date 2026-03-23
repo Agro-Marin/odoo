@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { DISCUSS_SIDEBAR_COMPACT_LS } from "@mail/core/public_web/discuss_app_model";
 import { Component, onMounted, useSubEnv } from "@odoo/owl";
 import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";

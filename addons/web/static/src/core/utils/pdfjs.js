@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/utils/pdfjs - PDF.js viewer button visibility control and library lazy-loading */
 

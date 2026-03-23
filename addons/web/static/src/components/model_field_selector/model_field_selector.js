@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/model_field_selector/model_field_selector - Field path selector with breadcrumb display and popover field browser */
 

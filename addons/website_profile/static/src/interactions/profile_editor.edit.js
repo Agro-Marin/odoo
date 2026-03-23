@@ -1,4 +1,5 @@
-import { ProfileEditor } from "./profile_editor";
+/** @odoo-module native */
+import { ProfileEditor } from "./profile_editor.js";
 import { registry } from "@web/core/registry";
 
 const ProfileEditorEdit = I => class extends I {

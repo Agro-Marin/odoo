@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 
 import * as spreadsheet from "@odoo/o-spreadsheet";
@@ -8,7 +9,7 @@ import { ListCorePlugin } from "@spreadsheet/list/plugins/list_core_plugin";
 import { ListCoreViewPlugin } from "@spreadsheet/list/plugins/list_core_view_plugin";
 import { ListUIPlugin } from "@spreadsheet/list/plugins/list_ui_plugin";
 
-import { SEE_RECORD_LIST, SEE_RECORD_LIST_VISIBLE } from "./list_actions";
+import { SEE_RECORD_LIST, SEE_RECORD_LIST_VISIBLE } from "./list_actions.js";
 const { inverseCommandRegistry } = spreadsheet.registries;
 
 function identity(cmd) {

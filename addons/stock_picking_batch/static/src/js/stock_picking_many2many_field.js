@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_field";
 import { useService } from "@web/core/utils/hooks";
 import { useSelectCreate } from "@web/fields/relational/many2x_autocomplete";

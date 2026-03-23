@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/many2one/many2one - Core Many2One autocomplete component with search, navigation, and barcode support */
 

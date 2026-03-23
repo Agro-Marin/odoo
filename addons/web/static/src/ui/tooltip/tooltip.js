@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/tooltip/tooltip - Simple tooltip component rendered by the tooltip service */
 

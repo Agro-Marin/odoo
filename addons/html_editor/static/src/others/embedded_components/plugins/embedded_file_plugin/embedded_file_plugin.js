@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { nextLeaf } from "@html_editor/utils/dom_info";
 import { isBlock } from "@html_editor/utils/blocks";
 import {
     EmbeddedFileDocumentsSelector,
     renderEmbeddedFileBox,
-} from "./embedded_file_documents_selector";
+} from "./embedded_file_documents_selector.js";
 import { FilePlugin } from "@html_editor/main/media/file_plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 

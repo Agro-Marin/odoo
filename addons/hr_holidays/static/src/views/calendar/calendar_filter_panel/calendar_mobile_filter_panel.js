@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useState, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { CalendarMobileFilterPanel } from "@web/views/calendar/mobile_filter_panel/calendar_mobile_filter_panel";

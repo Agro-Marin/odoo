@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { LivechatChannelInfoList } from "@im_livechat/core/web/livechat_channel_info_list";
 
 import { compareDatetime } from "@mail/utils/common/misc";

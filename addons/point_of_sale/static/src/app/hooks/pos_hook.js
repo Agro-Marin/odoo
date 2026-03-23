@@ -1,3 +1,4 @@
+/** @odoo-module native */
 /**
  * @returns {import("@point_of_sale/app/services/pos_store").PosStore}
  */

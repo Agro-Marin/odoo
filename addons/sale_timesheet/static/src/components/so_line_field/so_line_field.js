@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";

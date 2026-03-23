@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
-import { getModelName, getParsedDataFor } from "./utils";
-import { FormActionFieldsOption } from "./form_action_fields_option";
+import { getModelName, getParsedDataFor } from "./utils.js";
+import { FormActionFieldsOption } from "./form_action_fields_option.js";
 import { session } from "@web/session";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 

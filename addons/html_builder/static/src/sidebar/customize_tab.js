@@ -1,6 +1,7 @@
+/** @odoo-module native */
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
-import { OptionsContainer } from "./option_container";
-import { useVisibilityObserver } from "../core/utils";
+import { OptionsContainer } from "./option_container.js";
+import { useVisibilityObserver } from "../core/utils.js";
 import { CustomizeComponent } from "@html_builder/sidebar/customize_component";
 
 export class CustomizeTab extends Component {

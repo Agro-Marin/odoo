@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import {
@@ -6,8 +7,8 @@ import {
     useClickableBuilderComponent,
     useDependencyDefinition,
     useDomState,
-} from "../utils";
-import { BuilderComponent } from "./builder_component";
+} from "../utils.js";
+import { BuilderComponent } from "./builder_component.js";
 
 export class BuilderCheckbox extends Component {
     static template = "html_builder.BuilderCheckbox";

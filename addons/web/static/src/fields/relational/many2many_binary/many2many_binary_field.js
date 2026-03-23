@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/fields/relational/many2many_binary/many2many_binary_field - File attachment list field for Many2many relations to ir.attachment */
 

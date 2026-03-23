@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 
 import { LIVECHAT_INFO_DEFAULT_OPEN_LS } from "@im_livechat/core/public_web/discuss_app_model_patch";

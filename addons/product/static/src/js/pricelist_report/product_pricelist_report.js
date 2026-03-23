@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, markup, onRendered, onWillStart, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";

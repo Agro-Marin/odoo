@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { AttendeeCalendarCommonPopover } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_popover";
 import { patch } from "@web/core/utils/patch";
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
 import { onWillStart } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

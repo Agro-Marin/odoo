@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
 import { PhoneField, phoneField, formPhoneField } from "@web/fields/basic/phone/phone_field";

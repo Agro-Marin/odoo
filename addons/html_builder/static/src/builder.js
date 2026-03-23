@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Editor } from "@html_editor/editor";
 import {
     Component,

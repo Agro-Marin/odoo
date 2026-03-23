@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { markup, reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 export class DiscussCoreCommon {

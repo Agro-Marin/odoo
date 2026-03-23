@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
 
 /**

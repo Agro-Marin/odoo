@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useRef, useState } from "@odoo/owl";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
@@ -8,8 +9,8 @@ import { PresetInfoPopup } from "@pos_self_order/app/components/preset_info_popu
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-import { formatProductName } from "../../utils";
-import { useScrollShadow } from "../../utils/scroll_shadow_hook";
+import { formatProductName } from "../../utils.js";
+import { useScrollShadow } from "../../utils/scroll_shadow_hook.js";
 export class CartPage extends Component {
     static template = "pos_self_order.CartPage";
     static components = { PopupTable, OrderWidget, PresetInfoPopup };

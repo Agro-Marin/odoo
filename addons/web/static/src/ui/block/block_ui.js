@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/block/block_ui - Full-screen overlay component that blocks UI during long-running operations */
 

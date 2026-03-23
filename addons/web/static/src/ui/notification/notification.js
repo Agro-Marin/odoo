@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/ui/notification/notification - Individual notification toast with auto-close progress bar and action buttons */
 

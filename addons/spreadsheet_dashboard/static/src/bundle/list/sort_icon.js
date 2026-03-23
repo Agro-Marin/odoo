@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { registries, constants, getCaretUpSvg, getCaretDownSvg } from "@odoo/o-spreadsheet";
 
 const { iconsOnCellRegistry } = registries;

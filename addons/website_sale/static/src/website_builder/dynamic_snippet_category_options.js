@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useDomState } from '@html_builder/core/utils';
 import { onWillStart } from '@odoo/owl';
 import { useService } from '@web/core/utils/hooks';

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getImageSrc, getMimetype } from "@html_editor/utils/image";
 import { clamp } from "@web/core/utils/format/numbers";

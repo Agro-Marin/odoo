@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/calendar_common/calendar_common_popover - Popover for calendar events in day/week/month scales */
 

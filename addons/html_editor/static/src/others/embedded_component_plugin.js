@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { nodeToTree } from "@html_editor/core/history_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";

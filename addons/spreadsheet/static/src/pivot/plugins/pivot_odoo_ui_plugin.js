@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { OdooUIPlugin } from "@spreadsheet/plugins";
 import { helpers } from "@odoo/o-spreadsheet";
 

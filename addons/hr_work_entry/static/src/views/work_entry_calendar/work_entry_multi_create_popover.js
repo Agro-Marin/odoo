@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { MultiCreatePopover } from "@web/views/view_components/multi_create_popover";
 
 export class WorkEntryMultiCreatePopover extends MultiCreatePopover {

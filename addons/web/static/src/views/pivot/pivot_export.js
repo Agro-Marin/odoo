@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/pivot/pivot_export - Pure formatting of pivot table data for Excel/spreadsheet export */
 

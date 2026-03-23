@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/view_components/multi_currency_popover - Popover showing a monetary value converted into each active company currency */
 

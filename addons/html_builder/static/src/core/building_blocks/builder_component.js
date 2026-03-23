@@ -1,5 +1,6 @@
+/** @odoo-module native */
 import { Component, xml } from "@odoo/owl";
-import { useDomState } from "../utils";
+import { useDomState } from "../utils.js";
 
 export class BuilderComponent extends Component {
     static template = xml`<t t-if="this.state.isVisible"><t t-slot="default"/></t>`;

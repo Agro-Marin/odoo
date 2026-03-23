@@ -1,4 +1,5 @@
-import { SupportedPaymentMethods } from './supported_payment_methods';
+/** @odoo-module native */
+import { SupportedPaymentMethods } from './supported_payment_methods.js';
 import { registry } from '@web/core/registry';
 import { browser } from '@web/core/browser/browser';
 

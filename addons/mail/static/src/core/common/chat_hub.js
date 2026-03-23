@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { Action } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
 import { CHAT_HUB_COMPACT_LS } from "@mail/core/common/chat_hub_model";

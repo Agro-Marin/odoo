@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { BorderConfigurator } from "@html_builder/plugins/border_configurator_option";
 import { before, VERTICAL_ALIGNMENT, WIDTH } from "@html_builder/utils/option_sequence";

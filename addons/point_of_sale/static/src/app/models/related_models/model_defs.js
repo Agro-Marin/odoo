@@ -1,4 +1,5 @@
-import { clone, getBackRef, RELATION_TYPES } from "./utils";
+/** @odoo-module native */
+import { clone, getBackRef, RELATION_TYPES } from "./utils.js";
 
 export function processModelDefs(modelDefs) {
     modelDefs = clone(modelDefs);

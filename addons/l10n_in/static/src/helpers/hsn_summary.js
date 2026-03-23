@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 
 import { accountTaxHelpers } from "@account/helpers/account_tax";

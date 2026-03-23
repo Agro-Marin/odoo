@@ -1,9 +1,10 @@
+/** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { ImageShapeOption } from "@html_builder/plugins/image/image_shape_option";
 import { ImageFilterOption } from "@html_builder/plugins/image/image_filter_option";
 import { ImageFormatOption } from "@html_builder/plugins/image/image_format_option";
-import { ImageTransformOption } from "./image_transform_option";
-import { dynamicSVGSelector } from "../utils";
+import { ImageTransformOption } from "./image_transform_option.js";
+import { dynamicSVGSelector } from "../utils.js";
 
 export class ImageToolOption extends BaseOptionComponent {
     static template = "html_builder.ImageToolOption";

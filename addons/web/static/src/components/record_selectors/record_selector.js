@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/record_selectors/record_selector - Single-value record picker with avatar display and autocomplete */
 

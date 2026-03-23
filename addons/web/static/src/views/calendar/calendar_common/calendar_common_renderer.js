@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/views/calendar/calendar_common/calendar_common_renderer - FullCalendar renderer for day/week/month scales */
 

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 const WISHLIST_PRODUCT_IDS_SESSION_NAME = 'wishlist_product_ids';
 
 /**

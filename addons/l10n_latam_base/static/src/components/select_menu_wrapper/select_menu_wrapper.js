@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { useBus } from "@web/core/utils/hooks";

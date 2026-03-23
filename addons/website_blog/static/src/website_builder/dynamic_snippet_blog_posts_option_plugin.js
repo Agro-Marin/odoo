@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     DYNAMIC_SNIPPET,
     setDatasetIfUndefined,
@@ -5,7 +6,7 @@ import {
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { registry } from "@web/core/registry";
-import { DynamicSnippetBlogPostsOption } from "./dynamic_snippet_blog_posts_option";
+import { DynamicSnippetBlogPostsOption } from "./dynamic_snippet_blog_posts_option.js";
 
 /**
  * @typedef { Object } DynamicSnippetBlogPostsOptionShared

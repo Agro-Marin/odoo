@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { RelativeTime } from "@mail/core/common/relative_time";
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";

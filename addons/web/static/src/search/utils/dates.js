@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/search/utils/dates - Date period/quarter/interval option definitions and domain generators for search filters */
 

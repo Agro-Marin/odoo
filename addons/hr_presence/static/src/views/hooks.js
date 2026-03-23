@@ -1,3 +1,4 @@
+/** @odoo-module native */
 export async function getActionRecords(orm) {
     return await orm.call("hr.employee", "get_presence_server_action_data", [[]]);
 }

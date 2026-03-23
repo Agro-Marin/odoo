@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useBarcodeReader } from "@point_of_sale/app/hooks/barcode_reader_hook";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
 import { useService } from "@web/core/utils/hooks";

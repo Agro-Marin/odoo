@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { _t } from "@web/core/l10n/translation";
 import { products_sort_mapping } from "@website_sale/website_builder/shared";

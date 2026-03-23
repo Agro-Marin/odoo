@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/legacy/js/public/minimal_dom - Async handler protection and button debouncing utilities for public DOM events */
 

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { reactive, toRaw } from "@odoo/owl";
 
 import { modelRegistry, STORE_SYM } from "./misc.js";

@@ -1,4 +1,4 @@
-/** @odoo-module */
+/** @odoo-module native */
 import { isToday } from "@mail/utils/common/dates";
 import { useHover } from "@mail/utils/common/hooks";
 import { Component, useRef, useSubEnv } from "@odoo/owl";

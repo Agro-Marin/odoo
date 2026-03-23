@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/components/transition - CSS transition helpers for mount/unmount animations with configurable class names */
 

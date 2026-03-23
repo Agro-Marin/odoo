@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";
 import { useService } from "@web/core/utils/hooks";

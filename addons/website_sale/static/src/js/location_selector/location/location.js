@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {
     Location
 } from '@delivery/js/location_selector/location/location';

@@ -1,5 +1,5 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /** @module @web/core/py_js/py_utils - AST-to-value conversion and AST-to-string formatting for Python expressions */
 

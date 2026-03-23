@@ -1,4 +1,5 @@
-import { Follow } from "./follow";
+/** @odoo-module native */
+import { Follow } from "./follow.js";
 import { registry } from "@web/core/registry";
 
 const FollowEdit = I => class extends I {
