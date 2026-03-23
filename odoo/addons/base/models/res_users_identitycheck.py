@@ -43,7 +43,7 @@ class ResUsersIdentitycheck(models.TransientModel):
                 _(
                     "Incorrect Password, try again or click on Forgot Password to reset your password."
                 )
-            )
+            ) from None
 
     def run_check(self) -> Any:
         """Execute the stored method after verifying the user's identity."""

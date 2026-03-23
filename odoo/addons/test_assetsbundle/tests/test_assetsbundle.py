@@ -23,7 +23,7 @@ from odoo.addons.base.models.assetsbundle import (
     AssetsBundle,
     XMLAssetError,
 )
-from odoo.addons.base.models.ir_asset import AssetPaths
+from odoo.addons.base.models.ir_asset import AssetPaths, _glob_static_file
 from odoo.addons.base.models.ir_attachment import IrAttachment
 
 ORIGINAL_PATH_STAT = pathlib.Path.stat
@@ -128,6 +128,96 @@ class TestAddonPaths(TransactionCase):
                 ("/home/user/odoo/addons/web/f", "/web/f", "bundle2", 1),
             ],
         )
+
+    def test_replace_empty_source(self):
+        """REPLACE with empty source should remove target without replacement."""
+        asset_paths = AssetPaths()
+        asset_paths.append(
+            [
+                ("/web/a.js", "/full/a.js", 1),
+                ("/web/b.js", "/full/b.js", 1),
+                ("/web/c.js", "/full/c.js", 1),
+            ],
+            "bundle1",
+        )
+        # Simulate REPLACE where source resolved to nothing:
+        # insert([], ...) is a no-op, then remove deletes the target.
+        target_index = asset_paths.index("/web/b.js", "bundle1")
+        asset_paths.insert([], "bundle1", target_index)
+        asset_paths.remove([("/web/b.js", "/full/b.js", 1)], "bundle1")
+
+        self.assertEqual(len(asset_paths.list), 2)
+        self.assertEqual(asset_paths.list[0][0], "/web/a.js")
+        self.assertEqual(asset_paths.list[1][0], "/web/c.js")
+        self.assertNotIn("/web/b.js", asset_paths.memo)
+
+    def test_glob_static_file_race_condition(self):
+        """Files deleted between glob() and stat() should be skipped."""
+        deleted_file = "/tmp/_test_asset_race_condition.js"
+        # Patch glob to return a file that doesn't exist on disk
+        with patch(
+            "odoo.addons.base.models.ir_asset.glob",
+            return_value=[deleted_file],
+        ):
+            result = _glob_static_file("/tmp/*.js")
+        self.assertEqual(result, [], "Deleted files should be silently skipped")
+
+    def test_glob_static_file_filters_extensions(self):
+        """Only ASSET_EXTENSIONS files should be returned."""
+        with patch(
+            "odoo.addons.base.models.ir_asset.glob",
+            return_value=["/tmp/file.js", "/tmp/file.py", "/tmp/file.css"],
+        ), patch(
+            "odoo.addons.base.models.ir_asset.Path"
+        ) as MockPath:
+            MockPath.return_value.stat.return_value.st_mtime = 100.0
+            result = _glob_static_file("/tmp/*")
+        # .py should be filtered out, .js and .css kept
+        paths = [r[0] for r in result]
+        self.assertIn("/tmp/file.js", paths)
+        self.assertIn("/tmp/file.css", paths)
+        self.assertNotIn("/tmp/file.py", paths)
+
+
+class TestParseBundleName(TransactionCase):
+    """Tests for IrAsset._parse_bundle_name error handling."""
+
+    def test_no_extension(self):
+        """Dot-less filename should raise ValueError with clear message."""
+        IrAsset = self.env["ir.asset"]
+        with self.assertRaises(ValueError) as cm:
+            IrAsset._parse_bundle_name("nodotfilename", debug_assets=True)
+        self.assertIn("no extension", str(cm.exception))
+        self.assertIn("nodotfilename", str(cm.exception))
+
+    def test_valid_debug_js(self):
+        """Valid JS bundle in debug mode should parse correctly."""
+        IrAsset = self.env["ir.asset"]
+        name, rtl, asset_type, autoprefix = IrAsset._parse_bundle_name(
+            "web.assets_frontend.js", debug_assets=True
+        )
+        self.assertEqual(name, "web.assets_frontend")
+        self.assertEqual(asset_type, "js")
+        self.assertFalse(rtl)
+        self.assertFalse(autoprefix)
+
+    def test_valid_min_css_rtl_autoprefixed(self):
+        """Full CSS bundle with rtl+autoprefix in non-debug should parse."""
+        IrAsset = self.env["ir.asset"]
+        name, rtl, asset_type, autoprefix = IrAsset._parse_bundle_name(
+            "web.assets_frontend.rtl.autoprefixed.min.css", debug_assets=False
+        )
+        self.assertEqual(name, "web.assets_frontend")
+        self.assertEqual(asset_type, "css")
+        self.assertTrue(rtl)
+        self.assertTrue(autoprefix)
+
+    def test_unsupported_extension(self):
+        """Non-js/css extension should raise ValueError."""
+        IrAsset = self.env["ir.asset"]
+        with self.assertRaises(ValueError) as cm:
+            IrAsset._parse_bundle_name("web.assets.xml", debug_assets=True)
+        self.assertIn("Only js and css", str(cm.exception))
 
 
 class Manifests(dict):

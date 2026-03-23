@@ -7,4 +7,5 @@ from . import base_export_language
 from . import base_partner_merge
 from . import change_password
 from . import reset_view_arch
+from . import server_action_history
 from . import wizard_ir_model_menu_create

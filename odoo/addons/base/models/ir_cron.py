@@ -1,6 +1,7 @@
 import contextvars
 import copy
 import logging
+import math
 import os
 import threading
 import time
@@ -20,8 +21,8 @@ from odoo.libs.constants import GC_UNLINK_LIMIT
 from odoo.modules import Manifest
 from odoo.modules.loading import reset_modules_state
 from odoo.modules.registry import Registry
-from odoo.tools import SQL
 from odoo.orm._typing import ValuesType
+from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterable
@@ -879,9 +880,8 @@ class IrCron(models.Model):
             return True
         return self.write({"active": active})
 
-    def _trigger(self, at: datetime | Iterable[datetime] | None = None) -> Any:
-        """
-        Schedule a cron job to be executed soon independently of its
+    def _trigger(self, at: datetime | Iterable[datetime] | None = None, *, coalesce: int = 0) -> Any:
+        """Schedule a cron job to be executed soon independently of its
         ``nextcall`` field value.
 
         By default, the cron is scheduled to be executed the next time
@@ -896,6 +896,9 @@ class IrCron(models.Model):
         :param at:
             When to execute the cron, at one or several moments in time
             instead of as soon as possible.
+        :param coalesce: coalescing window in minutes — every trigger is
+            shifted to the end of the window, limiting the number or
+            frequency of wakeups for less pressing triggers.
         :return: the created triggers records
         """
         if at is None:
@@ -906,6 +909,15 @@ class IrCron(models.Model):
             at_list = list(at)
             if not all(isinstance(at, datetime) for at in at_list):
                 raise TypeError("all items in at_list must be datetime objects")
+
+        if coalesce:
+            factor = coalesce * 60
+            at_list = [
+                datetime.fromtimestamp(
+                    math.ceil(dt.timestamp() / factor) * factor,
+                )
+                for dt in at_list
+            ]
 
         return self._trigger_list(at_list)
 

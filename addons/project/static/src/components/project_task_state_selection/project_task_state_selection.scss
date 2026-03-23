@@ -6,17 +6,22 @@
         margin-top: -0.5px;
     }
 
-    .fa-solid {
+    .fa-lg {
         font-size: 1.75em;
         margin-top: -2.5px;
         max-width: 20px;
         max-height: 20px;
     }
 
+    .fa-hourglass-o {
+        font-size: 1.4em !important;
+        margin-top: 0.5px !important;
+    }
+
     .o_task_state_list_view {
         height: $o-line-size;
 
-        .fa-solid {
+        .fa-lg {
             font-size: 1.315em;
             vertical-align: -6%;
         }
@@ -24,47 +29,39 @@
             width: $o-bubble-color-size;
             height: $o-bubble-color-size;
         }
+        .fa-hourglass-o {
+            font-size: 1.15em !important;
+            padding-left: 1px !important;
+        }
     }
 
     .o_status_changes_requested {
         color: $warning;
-    }
-
-    .o_status_todo {
-        background-color: map-get($theme-colors, "info");
     }
 }
 
 .project_task_state_selection_menu {
-    $dropdown-icon-size: 14.65px;
-
-    .fa-solid {
+    .fa {
+        margin-top: -1.5px;
         font-size: 1.315em;
-        display: inline-block;
-        width: $dropdown-icon-size;
-        text-align: center;
-        vertical-align: middle;
+        vertical-align: -6%;
         transform: translateX(-50%);
     }
 
     .o_status {
-        width: $dropdown-icon-size;
-        height: $dropdown-icon-size;
+        margin-top: 1px;
+        width: 14.65px;
+        height: 14.65px;
         text-align: center;
-        vertical-align: middle;
     }
 
     .o_status_changes_requested {
         color: $warning;
     }
-
-    .o_status_todo {
-        background-color: map-get($theme-colors, "info");
-    }
 }
 
 .o_field_task_step_with_state_selection {
-    .fa-solid {
+    .fa-lg {
         font-size: 1.57em;
     }
 }

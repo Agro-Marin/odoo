@@ -46,6 +46,7 @@ class Transaction:
         "default_env",
         "envs",
         "registry",
+        "savepoint_depth",
         "storage",
         "unit_of_work",
     )
@@ -63,6 +64,9 @@ class Transaction:
         self.default_env: Environment | None = None
         # MRU cache for fast env lookup (covers repeated with_user/sudo calls)
         self._last_env: Environment | None = None
+        # Number of active _FlushingSavepoints — used to guard against
+        # cr.commit() / cr.rollback() inside a savepoint.
+        self.savepoint_depth: int = 0
 
         # Standalone cache component — owns the data structures for
         # cached field values, dirty tracking, and x2many patches.

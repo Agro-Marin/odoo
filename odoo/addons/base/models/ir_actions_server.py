@@ -10,13 +10,12 @@ import babel
 from odoo import api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.http import request
 from odoo.libs.datetime import utc
 from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps as json_dumps
 from odoo.orm._typing import ValuesType
 from odoo.tools import _, get_lang
-from odoo.tools.misc import get_diff, unquote
+from odoo.tools.misc import unquote
 from odoo.tools.safe_eval import safe_eval, test_python_expr
 
 _logger = logging.getLogger(__name__)
@@ -27,116 +26,20 @@ _server_action_logger = logging.getLogger(
 
 
 class LoggerProxy:
-    """Proxy of the `_logger` element in order to be used in server actions.
-    We purposefully restrict its method as it will be executed in `safe_eval`.
+    """Restricted logger proxy for server action ``safe_eval`` sandbox.
+
+    Only ``log``, ``info``, ``warning``, ``error``, and ``exception`` are
+    exposed.  Attribute access to anything else raises ``AttributeError``,
+    preventing user code from reaching internal logger state.
     """
 
-    @staticmethod
-    def log(
-        level: int,
-        message: str,
-        *args: Any,
-        stack_info: bool = False,
-        exc_info: bool = False,
-    ) -> None:
-        _server_action_logger.log(
-            level, message, *args, stack_info=stack_info, exc_info=exc_info
-        )
+    _ALLOWED = frozenset({"log", "info", "warning", "error", "exception"})
 
-    @staticmethod
-    def info(
-        message: str,
-        *args: Any,
-        stack_info: bool = False,
-        exc_info: bool = False,
-    ) -> None:
-        _server_action_logger.info(
-            message, *args, stack_info=stack_info, exc_info=exc_info
-        )
-
-    @staticmethod
-    def warning(
-        message: str,
-        *args: Any,
-        stack_info: bool = False,
-        exc_info: bool = False,
-    ) -> None:
-        _server_action_logger.warning(
-            message, *args, stack_info=stack_info, exc_info=exc_info
-        )
-
-    @staticmethod
-    def error(
-        message: str,
-        *args: Any,
-        stack_info: bool = False,
-        exc_info: bool = False,
-    ) -> None:
-        _server_action_logger.error(
-            message, *args, stack_info=stack_info, exc_info=exc_info
-        )
-
-    @staticmethod
-    def exception(
-        message: str,
-        *args: Any,
-        stack_info: bool = False,
-        exc_info: bool = True,
-    ) -> None:
-        _server_action_logger.exception(
-            message, *args, stack_info=stack_info, exc_info=exc_info
-        )
-
-
-class ServerActionHistoryWizard(models.TransientModel):
-    """A wizard to compare and reset server action code."""
-
-    _name = "server.action.history.wizard"
-    _description = "Server Action History Wizard"
-
-    @api.model
-    def _default_revision(self) -> Self:
-        action_id = self.env["ir.actions.server"].browse(
-            self.env.context.get("default_action_id", False)
-        )
-        return self.env["ir.actions.server.history"].search(
-            [
-                ("action_id", "=", action_id.id),
-                ("code", "!=", action_id.code),
-            ],
-            limit=1,
-        )
-
-    action_id = fields.Many2one("ir.actions.server")
-    code_diff = fields.Html(compute="_compute_code_diff", sanitize_tags=False)
-    current_code = fields.Text(related="action_id.code", readonly=True)
-    revision = fields.Many2one(
-        "ir.actions.server.history",
-        domain="[('action_id', '=', action_id), ('code', '!=', current_code)]",
-        default=_default_revision,
-        required=True,
-    )
-
-    @api.depends("revision")
-    def _compute_code_diff(self) -> None:
-        for wizard in self:
-            rev_code = wizard.revision.code
-            actual_code = wizard.action_id.code
-            has_diff = actual_code != rev_code
-            wizard.code_diff = (
-                get_diff(
-                    (actual_code or "", _("Actual Code")),
-                    (rev_code or "", _("Revision Code")),
-                    dark_color_scheme=request
-                    and request.cookies.get("color_scheme") == "dark",
-                )
-                if has_diff
-                else False
-            )
-
-    def restore_revision(self) -> None:
-        self.ensure_one()
-        self.action_id.code = self.revision.code
+    def __getattr__(self, name: str) -> Any:
+        if name in self._ALLOWED:
+            return getattr(_server_action_logger, name)
+        msg = f"LoggerProxy has no attribute {name!r}"
+        raise AttributeError(msg)
 
 
 class IrActionsServerHistory(models.Model):
@@ -150,22 +53,19 @@ class IrActionsServerHistory(models.Model):
 
     def _compute_display_name(self) -> None:
         self.display_name = False
+        locale = get_lang(self.env).code
+        tzinfo = self.env.tz
         for history in self.filtered("create_date"):
-            locale = get_lang(self.env).code
-            tzinfo = self.env.tz
-            datetime = history.create_date.replace(microsecond=0)
-            datetime = datetime.replace(tzinfo=utc)
-            datetime = datetime.astimezone(tzinfo) if tzinfo else datetime
+            dt = history.create_date.replace(microsecond=0, tzinfo=utc)
+            if tzinfo:
+                dt = dt.astimezone(tzinfo)
             date_label = babel.dates.format_datetime(
-                datetime,
-                tzinfo=tzinfo,
-                locale=locale,
+                dt, tzinfo=tzinfo, locale=locale,
             )
-            author = history.create_uid.name
             history.display_name = _(
                 "%(date_label)s - %(author)s",
                 date_label=date_label,
-                author=author,
+                author=history.create_uid.name,
             )
 
     @api.autovacuum
@@ -279,15 +179,13 @@ class IrActionsServer(models.Model):
         required=True,
         copy=True,
         help="Type of server action. The following values are available:\n"
-        "- 'Update a Record': update the values of a record\n"
-        "- 'Create Activity': create an activity (Discuss)\n"
-        "- 'Send Email': post a message, a note or send an email (Discuss)\n"
-        "- 'Send SMS': send SMS, log them on documents (SMS)"
-        "- 'Add/Remove Followers': add or remove followers to a record (Discuss)\n"
+        "- 'Update Record': update the values of a record\n"
         "- 'Create Record': create a new record with new values\n"
+        "- 'Duplicate Record': copy an existing record\n"
         "- 'Execute Code': a block of Python code that will be executed\n"
-        "- 'Send Webhook Notification': send a POST request to an external system, also known as a Webhook\n"
-        "- 'Multi Actions': define an action that triggers several other server actions\n",
+        "- 'Send Webhook Notification': send a POST request to an external system\n"
+        "- 'Multi Actions': define an action that triggers several other server actions\n"
+        "\nAdditional types may be added by other modules (e.g. Discuss, SMS).",
     )
     allowed_states = fields.Json(
         string="Allowed states", compute="_compute_allowed_states"
@@ -545,33 +443,37 @@ class IrActionsServer(models.Model):
         self.ensure_one()
         warnings = []
 
-        if self.model_id and (
-            children_with_different_model := self.child_ids.filtered(
-                lambda a: a.model_id != self.model_id
-            )
-        ):
+        # Single pass over child_ids for model/group/warning checks
+        children_wrong_model = self.env["ir.actions.server"]
+        children_wrong_groups = self.env["ir.actions.server"]
+        children_with_warnings = self.env["ir.actions.server"]
+        for child in self.child_ids:
+            if self.model_id and child.model_id != self.model_id:
+                children_wrong_model |= child
+            if self.group_ids and child.group_ids != self.group_ids:
+                children_wrong_groups |= child
+            if child.warning:
+                children_with_warnings |= child
+
+        if children_wrong_model:
             warnings.append(
                 _(
                     "Following child actions should have the same model (%(model)s): %(children)s",
                     model=self.model_id.name,
-                    children=", ".join(children_with_different_model.mapped("name")),
+                    children=", ".join(children_wrong_model.mapped("name")),
                 )
             )
 
-        if self.group_ids and (
-            children_with_different_groups := self.child_ids.filtered(
-                lambda a: a.group_ids != self.group_ids
-            )
-        ):
+        if children_wrong_groups:
             warnings.append(
                 _(
                     "Following child actions should have the same groups (%(groups)s): %(children)s",
                     groups=", ".join(self.group_ids.mapped("name")),
-                    children=", ".join(children_with_different_groups.mapped("name")),
+                    children=", ".join(children_wrong_groups.mapped("name")),
                 )
             )
 
-        if children_with_warnings := self.child_ids.filtered("warning"):
+        if children_with_warnings:
             warnings.append(
                 _(
                     "Following child actions have warnings: %(children)s",
@@ -704,6 +606,9 @@ class IrActionsServer(models.Model):
         be updated by the action - only used for object_write actions.
         """
         for action in self:
+            # Default: clear all crud-related fields.  Only the matching
+            # branch below will set them to meaningful values.
+            action.update_related_model_id = False
             if action.model_id and action.state in (
                 "object_write",
                 "object_create",
@@ -715,20 +620,17 @@ class IrActionsServer(models.Model):
                     action.update_path = False
                 elif action.state == "object_write":
                     if action.update_path:
-                        # we need to traverse relations to find the target model and field
                         model, field = action._traverse_path()
                         action.crud_model_id = model
                         action.update_field_id = field
-                        need_update_model = (
+                        if (
                             action.evaluation_type == "value"
-                            and action.update_field_id
-                            and action.update_field_id.relation
-                        )
-                        action.update_related_model_id = (
-                            action.env["ir.model"]._get_id(field.relation)
-                            if need_update_model
-                            else False
-                        )
+                            and field
+                            and field.relation
+                        ):
+                            action.update_related_model_id = (
+                                action.env["ir.model"]._get_id(field.relation)
+                            )
                     else:
                         action.crud_model_id = action.model_id
                         action.update_field_id = False
@@ -767,8 +669,8 @@ class IrActionsServer(models.Model):
             return [], ""
         model = self.env[self.model_id.model]
         chain = []
-        for field_name in path:
-            is_last_field = field_name == path[-1]
+        for i, field_name in enumerate(path):
+            is_last_field = i == len(path) - 1
             field = model._fields[field_name]
             if not is_last_field:
                 if not field.relational:
@@ -973,40 +875,35 @@ class IrActionsServer(models.Model):
             except requests.exceptions.RequestException as e:
                 _logger.warning("Webhook call failed: %s", e)
 
+    def _link_to_active_record(self, new_id: int) -> None:
+        """Link a newly created/copied record to the active record via ``link_field_id``.
+
+        Used by both ``_run_action_object_copy`` and ``_run_action_object_create``
+        to associate the result with the source record.
+        """
+        if not self.link_field_id:
+            return
+        record = self.env[self.model_id.model].browse(
+            self.env.context.get("active_id")
+        )
+        if self.link_field_id.ttype in ("one2many", "many2many"):
+            record.write({self.link_field_id.name: [Command.link(new_id)]})
+        else:
+            record.write({self.link_field_id.name: new_id})
+
     def _run_action_object_copy(
         self, eval_context: dict[str, Any] | None = None
     ) -> None:
-        """Duplicate specified model object.
-        If applicable, link active_id.<self.link_field_id> to the new record.
-        """
+        """Duplicate the specified model object and optionally link to active record."""
         dupe = self.env[self.crud_model_id.model].browse(self.resource_ref.id).copy()
-
-        if self.link_field_id:
-            record = self.env[self.model_id.model].browse(
-                self.env.context.get("active_id")
-            )
-            if self.link_field_id.ttype in ["one2many", "many2many"]:
-                record.write({self.link_field_id.name: [Command.link(dupe.id)]})
-            else:
-                record.write({self.link_field_id.name: dupe.id})
+        self._link_to_active_record(dupe.id)
 
     def _run_action_object_create(
         self, eval_context: dict[str, Any] | None = None
     ) -> None:
-        """Create specified model object with specified name contained in value.
-
-        If applicable, link active_id.<self.link_field_id> to the new record.
-        """
+        """Create a new record via ``name_create`` and optionally link to active record."""
         res_id, _res_name = self.env[self.crud_model_id.model].name_create(self.value)
-
-        if self.link_field_id:
-            record = self.env[self.model_id.model].browse(
-                self.env.context.get("active_id")
-            )
-            if self.link_field_id.ttype in ["one2many", "many2many"]:
-                record.write({self.link_field_id.name: [Command.link(res_id)]})
-            else:
-                record.write({self.link_field_id.name: res_id})
+        self._link_to_active_record(res_id)
 
     def _get_eval_context(self, action: Self | None = None) -> dict[str, Any]:
         """Prepare the context used when evaluating python code, like the
@@ -1060,7 +957,7 @@ class IrActionsServer(models.Model):
                 "records": records,
                 # helpers
                 "log": log,
-                "_logger": LoggerProxy,
+                "_logger": LoggerProxy(),
             }
         )
         return eval_context
@@ -1116,8 +1013,8 @@ class IrActionsServer(models.Model):
             active_id = self.env.context.get("active_id")
             if not active_id and self.env.context.get("onchange_self"):
                 active_id = self.env.context["onchange_self"]._origin.id
-                if not active_id:  # onchange on new record
-                    res = runner(self, eval_context=eval_context)
+                if not active_id:  # onchange on new record — run once, no active_ids loop
+                    return runner(self, eval_context=eval_context) or False
             active_ids = self.env.context.get(
                 "active_ids", [active_id] if active_id else []
             )
@@ -1178,11 +1075,7 @@ class IrActionsServer(models.Model):
                 raise
 
     @api.depends("evaluation_type", "update_field_id.ttype")
-    def _compute_value_field_to_show(
-        self,
-    ) -> (
-        None
-    ):  # check if value_field_to_show can be removed and use ttype in xml view instead
+    def _compute_value_field_to_show(self) -> None:
         for action in self:
             if action.evaluation_type == "sequence":
                 action.value_field_to_show = "sequence_id"
@@ -1255,7 +1148,7 @@ class IrActionsServer(models.Model):
                 expr = safe_eval(action.value, eval_context)
             elif action.evaluation_type == "sequence":
                 expr = action.sequence_id.next_by_id()
-            elif action.update_field_id.ttype in ["one2many", "many2many"]:
+            elif action.update_field_id.ttype in ("one2many", "many2many"):
                 match action.update_m2m_operation:
                     case "add":
                         expr = [Command.link(int(action.value))]
@@ -1267,7 +1160,7 @@ class IrActionsServer(models.Model):
                         expr = [Command.clear()]
             elif action.update_field_id.ttype == "boolean":
                 expr = action.update_boolean_value == "true"
-            elif action.update_field_id.ttype in ["many2one", "integer"]:
+            elif action.update_field_id.ttype in ("many2one", "integer"):
                 try:
                     expr = int(action.value)
                     if expr == 0 and action.update_field_id.ttype == "many2one":

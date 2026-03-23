@@ -60,16 +60,22 @@ RFC5322_IDENTIFICATION_HEADERS = {
     "references",
     "resent-msg-id",
 }
+USER_DEFINED_HEADERS = {"bcc", "cc", "from", "reply-to", "subject", "to"}
 _noFoldPolicy = email.policy.SMTP.clone(max_line_length=None)
+_maxFoldPolicy = email.policy.SMTP.clone(max_line_length=998)  # rfc5322#section-2.1.1
 
 
 class IdentificationFieldsNoFoldPolicy(email.policy.EmailPolicy):
     # Override _fold() to avoid folding identification fields, excluded by RFC2047 section 5
     # These are particularly important to preserve, as MTAs will often rewrite non-conformant
     # Message-ID headers, causing a loss of thread information (replies are lost)
+    # Also override _fold() for user-defined headers that may not fit on 78 characters,
+    # as Python's folding algorithm is unreliable and fails to handle all weird cases.
     def _fold(self, name: str, value: str, *args: Any, **kwargs: Any) -> str:
         if name.lower() in RFC5322_IDENTIFICATION_HEADERS:
             return _noFoldPolicy._fold(name, value, *args, **kwargs)
+        if name.lower() in USER_DEFINED_HEADERS:
+            return _maxFoldPolicy._fold(name, value, *args, **kwargs)
         return super()._fold(name, value, *args, **kwargs)
 
 
@@ -230,7 +236,7 @@ class IrMail_Server(models.Model):
             if info := info_by_type.get(server.smtp_authentication):
                 server.smtp_authentication_info = info
             else:
-                server.smtp_authentication = False
+                server.smtp_authentication_info = False
 
     @api.constrains(
         "smtp_authentication", "smtp_ssl_certificate", "smtp_ssl_private_key"
@@ -610,14 +616,14 @@ class IrMail_Server(models.Model):
                             "The private key or the certificate is not a valid file. \n%s",
                             str(e),
                         )
-                    )
+                    ) from None
                 except SSLError as e:
                     raise UserError(
                         _(
                             "Could not load your certificate / private key. \n%s",
                             str(e),
                         )
-                    )
+                    ) from None
             elif mail_server.smtp_encryption != "none":
                 if mail_server.smtp_encryption in (
                     "ssl_strict",
@@ -668,14 +674,14 @@ class IrMail_Server(models.Model):
                             "The private key or the certificate is not a valid file. \n%s",
                             str(e),
                         )
-                    )
+                    ) from None
                 except SSLError as e:
                     raise UserError(
                         _(
                             "Could not load your certificate / private key. \n%s",
                             str(e),
                         )
-                    )
+                    ) from None
 
         if not smtp_server:
             raise UserError(
@@ -1130,7 +1136,7 @@ class IrMail_Server(models.Model):
                 message=e,
             )
             _logger.info(msg)
-            raise MailDeliveryError(_("Mail Delivery Failed"), msg)
+            raise MailDeliveryError(_("Mail Delivery Failed"), msg) from None
         return message_id
 
     def _find_mail_server_allowed_domain(self) -> list[Any]:

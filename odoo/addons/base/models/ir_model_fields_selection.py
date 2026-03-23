@@ -5,8 +5,8 @@ from psycopg.types.json import Json
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.tools import SQL, OrderedSet
 from odoo.orm._typing import ValuesType
+from odoo.tools import SQL, OrderedSet
 
 from .ir_model import (
     MODULE_UNINSTALL_FLAG,

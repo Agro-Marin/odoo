@@ -4,9 +4,9 @@ from typing import Any, Self
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
+from odoo.orm._typing import ValuesType
 from odoo.tools import SQL, config
 from odoo.tools.safe_eval import safe_eval
-from odoo.orm._typing import ValuesType
 
 _logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class IrRule(models.Model):
                     model = self.env[rule.model_id.model].sudo()
                     Domain(domain).validate(model)
                 except Exception as e:
-                    raise ValidationError(_("Invalid domain: %s", e))
+                    raise ValidationError(_("Invalid domain: %s", e)) from None
 
     def _compute_domain_keys(self) -> list[str]:
         """Return the list of context keys to use for caching ``_compute_domain``."""

@@ -75,14 +75,13 @@ class ResUsersSettings(models.Model):
     def set_res_users_settings(self, new_settings: dict[str, Any]) -> dict[str, Any]:
         self.ensure_one()
         changed_settings = {}
-        for setting in new_settings:
+        for setting, new_value in new_settings.items():
             if setting in self._PROTECTED_SETTINGS_FIELDS:
                 continue
             field = self._fields.get(setting)
             if not field or (field.compute and not field.inverse):
                 continue
             current_value = self[setting]
-            new_value = new_settings[setting]
             # For relational fields, compare IDs rather than recordset vs int
             if isinstance(current_value, models.BaseModel):
                 current_value = current_value.id

@@ -6,9 +6,9 @@ from typing import Any, Literal, Self
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
+from odoo.orm._typing import ValuesType
 from odoo.tools import OrderedSet
 from odoo.tools.misc import ReadonlyDict
-from odoo.orm._typing import ValuesType
 
 _logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class LangData(ReadonlyDict):
         try:
             return self[name]
         except KeyError:
-            raise AttributeError
+            raise AttributeError from None
 
 
 class LangDataDict(ReadonlyDict):
@@ -44,9 +44,8 @@ class LangDataDict(ReadonlyDict):
         except KeyError:
             some_lang = next(iter(self.values()), None)
             if some_lang is None:
-                raise RuntimeError(
-                    "LangData is empty: at least one active language must exist"
-                )
+                msg = "LangData is empty: at least one active language must exist"
+                raise RuntimeError(msg) from None
             return LangData(dict.fromkeys(some_lang, False))
 
 

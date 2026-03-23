@@ -61,7 +61,7 @@
                                                                                     <field name="size" groups="base.group_no_one" invisible="ttype not in ['char', 'reference']" readonly="ttype not in ['char', 'reference']" />
                                                                                     <field name="relation" invisible="ttype not in ['many2one', 'one2many', 'many2many']" readonly="ttype not in ['many2one', 'one2many', 'many2many']" required="ttype in ['many2one', 'one2many', 'many2many']" />
                                                                                     <field name="on_delete" groups="base.group_no_one" invisible="ttype != 'many2one'" readonly="ttype != 'many2one'" />
-                                                                                    <field name="relation_field" invisible="ttype != 'one2many'" readonly="ttype != 'one2many'" required="ttype == 'one2many'" />
+                                                                                    <field name="relation_field" invisible="ttype != 'one2many' or related or compute" readonly="ttype != 'one2many'" required="ttype == 'one2many' and not related and not compute" />
                                                                                     <field name="relation_table" groups="base.group_no_one" invisible="ttype != 'many2many' or state != 'manual'" readonly="ttype != 'many2many' or state != 'manual'" />
                                                                                     <field name="column1" groups="base.group_no_one" invisible="ttype != 'many2many' or state != 'manual'" readonly="ttype != 'many2many' or state != 'manual'" />
                                                                                     <field name="column2" groups="base.group_no_one" invisible="ttype != 'many2many' or state != 'manual'" readonly="ttype != 'many2many' or state != 'manual'" />
@@ -78,7 +78,7 @@
                                                                             </field>
                                                                     </group>
                                                             </page>
-                                                            <page name="compute" string="Compute" groups="base.group_no_one">
+                                                            <page name="compute" string="Compute" groups="base.group_no_one" invisible="ttype == 'one2many' and relation_field">
                                                                     <group>
                                                                             <field name="related" />
                                                                             <field name="depends" required="compute not in [False, '']" />
@@ -226,7 +226,7 @@ record['size'] = len(record.name)
                                     <field name="relation" invisible="ttype not in ['many2one', 'one2many', 'many2many']" readonly="ttype not in ['many2one', 'one2many', 'many2many']" required="ttype in ['many2one', 'one2many', 'many2many']" />
                                     <field name="group_expand" groups="base.group_no_one" invisible="ttype not in ['many2one', 'selection']" readonly="ttype not in ['many2one', 'selection']" />
                                     <field name="on_delete" groups="base.group_no_one" invisible="ttype != 'many2one'" readonly="ttype != 'many2one'" />
-                                    <field name="relation_field" invisible="ttype != 'one2many'" readonly="ttype != 'one2many'" required="ttype == 'one2many'" />
+                                    <field name="relation_field" invisible="ttype != 'one2many' or related or compute" readonly="ttype != 'one2many'" required="ttype == 'one2many' and not related and not compute" />
                                     <field name="relation_table" groups="base.group_no_one" invisible="ttype != 'many2many' or state != 'manual'" readonly="ttype != 'many2many' or state != 'manual'" />
                                     <field name="column1" groups="base.group_no_one" invisible="ttype != 'many2many' or state != 'manual'" readonly="ttype != 'many2many' or state != 'manual'" />
                                     <field name="column2" groups="base.group_no_one" invisible="ttype != 'many2many' or state != 'manual'" readonly="ttype != 'many2many' or state != 'manual'" />
@@ -258,7 +258,7 @@ record['size'] = len(record.name)
                                 </field>
                             </group>
                         </page>
-                        <page name="compute" string="Compute" groups="base.group_no_one">
+                        <page name="compute" string="Compute" groups="base.group_no_one" invisible="ttype == 'one2many' and relation_field">
                             <group>
                                 <field name="related" />
                                 <field name="depends" required="bool(compute) and store" />

@@ -1,6 +1,6 @@
 from typing import Any
 
-from lxml import etree  # noqa: TC002 — runtime import required (PEP 649)
+from lxml import etree
 
 from odoo import api, models
 

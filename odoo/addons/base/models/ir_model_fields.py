@@ -8,11 +8,11 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.orm._typing import ValuesType
 from odoo.orm.registration import pop_field
 from odoo.tools import SQL, OrderedSet, frozendict, sql, unique
 from odoo.tools.safe_eval import safe_eval
 from odoo.tools.translate import FIELD_TRANSLATE, _
-from odoo.orm._typing import ValuesType
 
 from .ir_model import (
     MODULE_UNINSTALL_FLAG,
@@ -667,7 +667,7 @@ class IrModelFields(models.Model):
                         fields=fields,
                         view=view.name,
                     )
-                )
+                ) from None
             # uninstall mode
             _logger.warning(
                 "The following fields were force-deleted to prevent a registry crash %s the following view might be broken %s",

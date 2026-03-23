@@ -151,7 +151,7 @@ class IrBinary(models.AbstractModel):
         except KeyError:
             raise UserError(  # pylint: disable=missing-gettext,E8507
                 f"Record has no field {field_name!r}."
-            )
+            ) from None
         if field_def.type != "binary":
             raise UserError(  # pylint: disable=missing-gettext
                 f"Field {field_def!r} is type {field_def.type!r} but "

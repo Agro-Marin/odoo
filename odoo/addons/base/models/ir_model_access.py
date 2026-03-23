@@ -5,9 +5,9 @@ from psycopg.types.json import Json
 
 from odoo import api, fields, models, tools
 from odoo.exceptions import AccessError
+from odoo.orm._typing import ValuesType
 from odoo.tools import SQL, OrderedSet, sql
 from odoo.tools.translate import _
-from odoo.orm._typing import ValuesType
 
 from .ir_model import (
     ACCESS_ERROR_GROUPS,

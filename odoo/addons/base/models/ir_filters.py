@@ -2,8 +2,8 @@ import ast
 from typing import Any, Self
 
 from odoo import api, fields, models
-from odoo.tools import SQL
 from odoo.orm._typing import ValuesType
+from odoo.tools import SQL
 
 
 class IrFilters(models.Model):
@@ -12,6 +12,7 @@ class IrFilters(models.Model):
     _order = "model_id, name, id desc"
 
     name = fields.Char(string="Filter Name", required=True)
+    active = fields.Boolean(default=True)
     user_ids = fields.Many2many(
         "res.users",
         string="Users",
@@ -40,7 +41,6 @@ class IrFilters(models.Model):
     embedded_parent_res_id = fields.Integer(
         help="id of the record the filter should be applied to. Only used in combination with embedded actions"
     )
-    active = fields.Boolean(default=True)
 
     _get_filters_index = models.Index(
         "(model_id, action_id, embedded_action_id, embedded_parent_res_id)",

@@ -10,6 +10,7 @@ from psycopg.types.json import Jsonb
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+from odoo.orm._typing import ValuesType
 from odoo.tools import (
     SQL,
     OrderedSet,
@@ -18,7 +19,6 @@ from odoo.tools import (
 )
 from odoo.tools.safe_eval import datetime, dateutil, safe_eval, time
 from odoo.tools.translate import LazyTranslate, _
-from odoo.orm._typing import ValuesType
 
 _lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
@@ -465,7 +465,7 @@ class IrModel(models.Model):
                     model.order
                 )  # regex check for the whole clause ('is it valid sql?')
             except UserError as e:
-                raise ValidationError(str(e))
+                raise ValidationError(str(e)) from None
             # add MAGIC_COLUMNS to 'stored_fields' in case 'model' has not been
             # initialized yet, or 'field_id' is not up-to-date in cache
             stored_fields = set(

@@ -361,10 +361,10 @@ class TestAPI(SavepointCaseWithUserDemo):
 
         # the recordset operations below use different prefetch sets
         diff_prefetch(partners, partners.browse())
-        diff_prefetch(partners, partners[0])
         diff_prefetch(partners, partners[:5])
 
         # the recordset operations below share the prefetch set
+        same_prefetch(partners, partners[0])
         same_prefetch(partners, partners.browse(partners.ids))
         same_prefetch(partners, partners.with_user(self.user_demo))
         same_prefetch(partners, partners.with_context(active_test=False))

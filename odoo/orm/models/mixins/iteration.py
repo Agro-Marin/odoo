@@ -395,7 +395,7 @@ class IterationMixin:
             rs = object.__new__(self.__class__)
             rs.env = self.env
             rs._ids = ids
-            rs._prefetch_ids = ids
+            rs._prefetch_ids = self._prefetch_ids
             return rs
 
     def __setitem__(self, key: str, value: typing.Any):

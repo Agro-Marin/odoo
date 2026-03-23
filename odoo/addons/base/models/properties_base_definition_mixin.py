@@ -3,8 +3,8 @@ from typing import Any, Self
 
 from odoo import api, fields, models
 from odoo.fields import Domain
-from odoo.tools import SQL
 from odoo.orm._typing import ValuesType
+from odoo.tools import SQL
 
 
 class PropertiesBaseDefinitionMixin(models.AbstractModel):
