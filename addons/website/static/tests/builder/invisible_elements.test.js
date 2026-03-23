@@ -12,7 +12,7 @@ import {
     invisibleEl,
     setupWebsiteBuilder,
     waitForSnippetDialog,
-} from "./website_helpers";
+} from "./website_helpers.js";
 
 defineWebsiteModels();
 

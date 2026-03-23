@@ -18,7 +18,7 @@ import {
     getRegularTableHtml,
     getTableHtml,
     getTdHtml,
-} from "./utils";
+} from "./utils.js";
 
 const TEST_WIDTH = 800;
 const TEST_HEIGHT = 600;

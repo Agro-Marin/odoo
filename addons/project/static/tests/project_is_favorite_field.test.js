@@ -4,7 +4,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 
 import { mountView, onRpc } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels, ProjectProject } from "./project_models";
+import { defineProjectModels, ProjectProject } from "./project_models.js";
 
 defineProjectModels();
 beforeEach(() => {

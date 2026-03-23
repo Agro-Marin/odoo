@@ -1,6 +1,6 @@
 import { test, expect } from "@odoo/hoot";
-import { getFilledOrder, setupPosEnv, expectFormattedPrice } from "../utils";
-import { definePosModels } from "../data/generate_model_definitions";
+import { getFilledOrder, setupPosEnv, expectFormattedPrice } from "../utils.js";
+import { definePosModels } from "../data/generate_model_definitions.js";
 import { CustomerDisplayPosAdapter } from "@point_of_sale/app/customer_display/customer_display_adapter";
 
 definePosModels();

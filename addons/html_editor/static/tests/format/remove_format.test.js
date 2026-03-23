@@ -1,12 +1,12 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { getContent } from "../_helpers/selection";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { getContent } from "../_helpers/selection.js";
 import { click, press, queryAll, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { execCommand } from "../_helpers/userCommands";
-import { expandToolbar } from "../_helpers/toolbar";
-import { unformat } from "../_helpers/format";
-import { expectElementCount } from "../_helpers/ui_expectations";
+import { execCommand } from "../_helpers/userCommands.js";
+import { expandToolbar } from "../_helpers/toolbar.js";
+import { unformat } from "../_helpers/format.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
 import { FONT_SIZE_CLASSES } from "@html_editor/utils/formatting";
 
 test("should do nothing if no format is set", async () => {

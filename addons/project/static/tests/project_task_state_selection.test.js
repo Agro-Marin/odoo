@@ -4,7 +4,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 
 import { mountView } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels, ProjectTask } from "./project_models";
+import { defineProjectModels, ProjectTask } from "./project_models.js";
 
 describe.current.tags("desktop");
 defineProjectModels();

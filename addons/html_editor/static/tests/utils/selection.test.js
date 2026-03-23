@@ -6,10 +6,10 @@ import {
 } from "@html_editor/utils/selection";
 import { describe, expect, test } from "@odoo/hoot";
 import { manuallyDispatchProgrammaticEvent as dispatch } from "@odoo/hoot-dom";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { insertText } from "../_helpers/user_actions";
-import { unformat } from "../_helpers/format";
-import { setSelection } from "../_helpers/selection";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { insertText } from "../_helpers/user_actions.js";
+import { unformat } from "../_helpers/format.js";
+import { setSelection } from "../_helpers/selection.js";
 
 describe("ensureFocus", () => {
     // TODO @phoenix: unskipped when ensureFocus is add in the code base

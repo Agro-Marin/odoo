@@ -1,10 +1,10 @@
 import { test, expect, describe } from "@odoo/hoot";
-import { getFilledOrder, setupPosEnv } from "../utils";
-import { definePosModels } from "../data/generate_model_definitions";
+import { getFilledOrder, setupPosEnv } from "../utils.js";
+import { definePosModels } from "../data/generate_model_definitions.js";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { onRpc } from "@web/../tests/web_test_helpers";
 import { imageUrl } from "@web/core/utils/urls";
-import { prepareRoundingVals } from "../accounting/utils";
+import { prepareRoundingVals } from "../accounting/utils.js";
 const { DateTime } = luxon;
 
 definePosModels();

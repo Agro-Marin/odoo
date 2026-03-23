@@ -3,7 +3,7 @@ import { LoadableDataSource } from "@spreadsheet/data_sources/data_source";
 import { Deferred } from "@web/core/utils/concurrency";
 import { makeServerError } from "@web/../tests/web_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { defineSpreadsheetActions, defineSpreadsheetModels } from "../helpers/data";
+import { defineSpreadsheetActions, defineSpreadsheetModels } from "../helpers/data.js";
 
 describe.current.tags("headless");
 

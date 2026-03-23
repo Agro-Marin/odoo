@@ -1,7 +1,7 @@
 import { describe, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { base64Img, testEditor } from "./_helpers/editor";
-import { insertText } from "./_helpers/user_actions";
+import { base64Img, testEditor } from "./_helpers/editor.js";
+import { insertText } from "./_helpers/user_actions.js";
 
 describe("inline code", () => {
     test("should convert text into inline code (start) (1)", async () => {

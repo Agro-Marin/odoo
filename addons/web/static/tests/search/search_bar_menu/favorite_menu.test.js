@@ -19,7 +19,7 @@ import { registry } from "@web/core/registry";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 
-import { defineSearchBarModels } from "./models";
+import { defineSearchBarModels } from "./models.js";
 
 const favoriteMenuRegistry = registry.category("favoriteMenu");
 

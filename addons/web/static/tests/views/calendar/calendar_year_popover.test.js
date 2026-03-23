@@ -9,7 +9,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { CalendarYearPopover } from "@web/views/calendar/calendar_year/calendar_year_popover";
 
-import { DEFAULT_DATE, FAKE_MODEL } from "./calendar_test_helpers";
+import { DEFAULT_DATE, FAKE_MODEL } from "./calendar_test_helpers.js";
 
 describe.current.tags("desktop");
 

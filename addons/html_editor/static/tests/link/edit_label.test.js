@@ -1,6 +1,6 @@
 import { describe, test } from "@odoo/hoot";
-import { deleteBackward, insertLineBreak, insertText, undo } from "../_helpers/user_actions";
-import { testEditor } from "../_helpers/editor";
+import { deleteBackward, insertLineBreak, insertText, undo } from "../_helpers/user_actions.js";
+import { testEditor } from "../_helpers/editor.js";
 import { animationFrame } from "@odoo/hoot-mock";
 
 describe("range collapsed", () => {

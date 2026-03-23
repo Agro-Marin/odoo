@@ -4,7 +4,7 @@ import { click, queryAllTexts, queryFirst, queryOne, waitFor } from "@odoo/hoot-
 
 import { contains, mountView, onRpc } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels, ProjectTask } from "./project_models";
+import { defineProjectModels, ProjectTask } from "./project_models.js";
 import { serializeDateTime } from "@web/core/l10n/dates";
 
 describe.current.tags("desktop");

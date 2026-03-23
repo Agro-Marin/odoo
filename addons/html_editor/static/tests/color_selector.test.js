@@ -14,11 +14,11 @@ import {
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { contains } from "@web/../tests/web_test_helpers";
-import { setupEditor } from "./_helpers/editor";
-import { getContent, setSelection } from "./_helpers/selection";
-import { expandToolbar } from "./_helpers/toolbar";
-import { execCommand } from "./_helpers/userCommands";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { setupEditor } from "./_helpers/editor.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { expandToolbar } from "./_helpers/toolbar.js";
+import { execCommand } from "./_helpers/userCommands.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 
 test("can set foreground color", async () => {
     const { el } = await setupEditor("<p>[test]</p>");

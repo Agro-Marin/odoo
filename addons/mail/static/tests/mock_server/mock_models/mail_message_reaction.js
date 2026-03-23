@@ -1,6 +1,6 @@
 import { makeKwArgs, models } from "@web/../tests/web_test_helpers";
 import { groupBy } from "@web/core/utils/collections/arrays";
-import { mailDataHelpers } from "../mail_mock_server";
+import { mailDataHelpers } from "../mail_mock_server.js";
 
 export class MailMessageReaction extends models.ServerModel {
     _name = "mail.message.reaction";

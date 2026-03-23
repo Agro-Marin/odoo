@@ -9,7 +9,7 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { queryAll, queryFirst } from "@odoo/hoot-dom";
-import { defineResourceMailModels } from "./resource_mail_test_helpers";
+import { defineResourceMailModels } from "./resource_mail_test_helpers.js";
 import { onRpc } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");

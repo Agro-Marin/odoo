@@ -1,8 +1,8 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { getContent } from "../_helpers/selection";
-import { execCommand } from "../_helpers/userCommands";
-import { simulateArrowKeyPress } from "../_helpers/user_actions";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { getContent } from "../_helpers/selection.js";
+import { execCommand } from "../_helpers/userCommands.js";
+import { simulateArrowKeyPress } from "../_helpers/user_actions.js";
 import { animationFrame, click, tick } from "@odoo/hoot-dom";
 
 async function insertSeparator(editor) {

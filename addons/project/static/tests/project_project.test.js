@@ -7,7 +7,7 @@ import {
     toggleKanbanColumnActions
 } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels } from "./project_models";
+import { defineProjectModels } from "./project_models.js";
 
 defineProjectModels();
 describe.current.tags("desktop");

@@ -52,7 +52,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 
-import { SELECTORS } from "./domain_selector_helpers";
+import { SELECTORS } from "./domain_selector_helpers.js";
 
 function addProductIds() {
     Partner._fields.product_ids = fields.Many2many({

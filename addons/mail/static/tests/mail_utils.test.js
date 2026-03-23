@@ -7,7 +7,7 @@ import {
     openDiscuss,
     start,
     startServer,
-} from "./mail_test_helpers";
+} from "./mail_test_helpers.js";
 
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";

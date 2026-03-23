@@ -1,13 +1,13 @@
-import { testEditor } from "../_helpers/editor";
+import { testEditor } from "../_helpers/editor.js";
 import { test } from "@odoo/hoot";
 import {
     setColor,
     splitBlock,
     toggleOrderedList,
     toggleUnorderedList,
-} from "../_helpers/user_actions";
-import { execCommand } from "../_helpers/userCommands";
-import { unformat } from "../_helpers/format";
+} from "../_helpers/user_actions.js";
+import { execCommand } from "../_helpers/userCommands.js";
+import { unformat } from "../_helpers/format.js";
 
 test("should apply color to completely selected list item", async () => {
     await testEditor({

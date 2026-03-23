@@ -4,13 +4,13 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
 import { loadLanguages } from "@web/core/l10n/translation";
 import { user } from "@web/services/user";
-import { setupEditor } from "./_helpers/editor";
-import { getContent } from "./_helpers/selection";
+import { setupEditor } from "./_helpers/editor.js";
+import { getContent } from "./_helpers/selection.js";
 
 import { ChatGPTTranslatePlugin } from "@html_editor/main/chatgpt/chatgpt_translate_plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { expandToolbar } from "./_helpers/toolbar";
-import { execCommand } from "./_helpers/userCommands";
+import { expandToolbar } from "./_helpers/toolbar.js";
+import { execCommand } from "./_helpers/userCommands.js";
 
 const TRANSLATE_DIALOG_TITLE = "Translate with AI";
 

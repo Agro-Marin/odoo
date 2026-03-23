@@ -3,7 +3,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { startInteractions } from "@web/../tests/public/helpers";
-import { switchToEditMode } from "../helpers";
+import { switchToEditMode } from "../helpers.js";
 
 const publicComponentRegistry = registry.category("public_components");
 const publicComponentRegistryEdit = registry.category("public_components.edit");

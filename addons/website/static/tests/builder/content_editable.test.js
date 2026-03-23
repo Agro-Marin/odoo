@@ -8,7 +8,7 @@ import {
     defineWebsiteModels,
     setupWebsiteBuilder,
     setupWebsiteBuilderWithSnippet,
-} from "./website_helpers";
+} from "./website_helpers.js";
 import { Plugin } from "@html_editor/plugin";
 import { insertText } from "@html_editor/../tests/_helpers/user_actions";
 import { setSelection } from "@html_editor/../tests/_helpers/selection";

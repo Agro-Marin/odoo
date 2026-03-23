@@ -8,7 +8,7 @@ import {
     models,
     mountView,
 } from "@web/../tests/web_test_helpers";
-import { defineAccountModels } from "./account_test_helpers";
+import { defineAccountModels } from "./account_test_helpers.js";
 
 class Account extends models.Model {
     _name = "account.account";

@@ -15,7 +15,7 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { mailModels } from "../mail_test_helpers";
+import { mailModels } from "../mail_test_helpers.js";
 
 function setSelectionInHtmlField(selector = "p", fieldName = "body") {
     const anchorNode = queryOne(`[name='${fieldName}'] .odoo-editor-editable ${selector}`);

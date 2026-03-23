@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
 import { onRpc } from "@web/../tests/web_test_helpers";
-import { switchToEditMode } from "../../helpers";
+import { switchToEditMode } from "../../helpers.js";
 
 setupInteractionWhiteList("website.form");
 

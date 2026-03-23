@@ -27,7 +27,7 @@ import { notificationService } from "@web/ui/notification/notification_service";
 import { CalendarModel } from "@web/views/calendar/calendar_model";
 import { WebClient } from "@web/webclient/webclient";
 
-import { selectDateRange } from "./calendar_test_helpers";
+import { selectDateRange } from "./calendar_test_helpers.js";
 
 class Event extends models.Model {
     name = fields.Char();

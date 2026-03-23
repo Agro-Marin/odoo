@@ -19,7 +19,7 @@ import { freezeOdooData, waitForDataLoaded } from "@spreadsheet/helpers/model";
 import { OdooPivot, OdooPivotRuntimeDefinition } from "@spreadsheet/pivot/odoo_pivot";
 
 import { getMenuServerData } from "@spreadsheet/../tests/links/menu_data_utils";
-import { createSpreadsheetWithList } from "../helpers/list";
+import { createSpreadsheetWithList } from "../helpers/list.js";
 
 const { pivotRegistry } = registries;
 

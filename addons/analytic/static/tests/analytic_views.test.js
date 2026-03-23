@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { contains, makeMockServer, mountView } from "@web/../tests/web_test_helpers";
-import { defineAnalyticModels } from "./analytic_test_helpers";
+import { defineAnalyticModels } from "./analytic_test_helpers.js";
 
 defineAnalyticModels()
 const searchViewArch = `

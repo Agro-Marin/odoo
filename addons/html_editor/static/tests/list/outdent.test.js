@@ -1,8 +1,8 @@
 import { describe, expect, test, before } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { bold, deleteBackward, keydownShiftTab } from "../_helpers/user_actions";
-import { getContent } from "../_helpers/selection";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { bold, deleteBackward, keydownShiftTab } from "../_helpers/user_actions.js";
+import { getContent } from "../_helpers/selection.js";
 
 before(
     () =>

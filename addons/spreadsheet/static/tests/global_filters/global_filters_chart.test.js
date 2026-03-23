@@ -6,7 +6,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { createSpreadsheetWithChart } from "@spreadsheet/../tests/helpers/chart";
 import { addGlobalFilter, setGlobalFilterValue } from "@spreadsheet/../tests/helpers/commands";
 import { globalFieldMatchingRegistry } from "@spreadsheet/global_filters/helpers";
-import { THIS_YEAR_GLOBAL_FILTER } from "../helpers/global_filter";
+import { THIS_YEAR_GLOBAL_FILTER } from "../helpers/global_filter.js";
 
 const { DateTime } = luxon;
 

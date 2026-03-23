@@ -8,15 +8,15 @@ import {
     patchWithCleanup,
     MockServer,
 } from "@web/../tests/web_test_helpers";
-import { DiscussChannel } from "./mock_server/mock_models/discuss_channel";
-import { DiscussChannelMember } from "./mock_server/mock_models/discuss_channel_member";
-import { LivechatChannel } from "./mock_server/mock_models/im_livechat_channel";
-import { LivechatChannelRule } from "./mock_server/mock_models/livechat_channel_rule";
-import { Im_LivechatExpertise } from "./mock_server/mock_models/im_livechat_expertise";
-import { ResGroupsPrivilege } from "./mock_server/mock_models/res_groups_privilege";
-import { ResGroups } from "./mock_server/mock_models/res_groups";
-import { ResPartner } from "./mock_server/mock_models/res_partner";
-import { ResUsers } from "./mock_server/mock_models/res_users";
+import { DiscussChannel } from "./mock_server/mock_models/discuss_channel.js";
+import { DiscussChannelMember } from "./mock_server/mock_models/discuss_channel_member.js";
+import { LivechatChannel } from "./mock_server/mock_models/im_livechat_channel.js";
+import { LivechatChannelRule } from "./mock_server/mock_models/livechat_channel_rule.js";
+import { Im_LivechatExpertise } from "./mock_server/mock_models/im_livechat_expertise.js";
+import { ResGroupsPrivilege } from "./mock_server/mock_models/res_groups_privilege.js";
+import { ResGroups } from "./mock_server/mock_models/res_groups.js";
+import { ResPartner } from "./mock_server/mock_models/res_partner.js";
+import { ResUsers } from "./mock_server/mock_models/res_users.js";
 import { session } from "@web/session";
 
 export function defineLivechatModels() {

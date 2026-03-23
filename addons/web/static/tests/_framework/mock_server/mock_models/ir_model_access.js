@@ -1,6 +1,6 @@
 // @ts-check
 
-import { Model } from "../mock_model";
+import { Model } from "../mock_model.js";
 
 export class IrModelAccess extends Model {
     _name = "ir.model.access";

@@ -10,7 +10,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { WebClient } from "@web/webclient/webclient";
-import { defineBusModels } from "./bus_test_helpers";
+import { defineBusModels } from "./bus_test_helpers.js";
 
 defineBusModels();
 describe.current.tags("desktop");

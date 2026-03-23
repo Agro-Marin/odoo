@@ -2,9 +2,9 @@ import { leftPos, rightPos } from "@html_editor/utils/position";
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, pointerDown, pointerUp, waitForNone } from "@odoo/hoot-dom";
 import { tick } from "@odoo/hoot-mock";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { getContent, setSelection } from "../_helpers/selection";
-import { unformat } from "../_helpers/format";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
+import { unformat } from "../_helpers/format.js";
 
 /**
  * Simulates placing the cursor at the editable root after a mouse click.

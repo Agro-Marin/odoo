@@ -1,7 +1,7 @@
 import { expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { splitBlock } from "../_helpers/user_actions";
-import { getContent } from "../_helpers/selection";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { splitBlock } from "../_helpers/user_actions.js";
+import { getContent } from "../_helpers/selection.js";
 
 test("should replace splitElementBlock with insertLineBreak (selection start)", async () => {
     await testEditor({

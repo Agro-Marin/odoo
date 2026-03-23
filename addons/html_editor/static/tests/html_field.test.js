@@ -40,12 +40,12 @@ import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
 import { delay } from "@web/core/utils/concurrency";
 import { FormController } from "@web/views/form/form_controller";
-import { Counter, EmbeddedWrapperMixin } from "./_helpers/embedded_component";
-import { moveSelectionOutsideEditor, setSelection } from "./_helpers/selection";
-import { insertText, pasteOdooEditorHtml, pasteText, undo } from "./_helpers/user_actions";
-import { unformat } from "./_helpers/format";
-import { expandToolbar } from "./_helpers/toolbar";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { Counter, EmbeddedWrapperMixin } from "./_helpers/embedded_component.js";
+import { moveSelectionOutsideEditor, setSelection } from "./_helpers/selection.js";
+import { insertText, pasteOdooEditorHtml, pasteText, undo } from "./_helpers/user_actions.js";
+import { unformat } from "./_helpers/format.js";
+import { expandToolbar } from "./_helpers/toolbar.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 
 class Partner extends models.Model {
     txt = fields.Html({ trim: true });

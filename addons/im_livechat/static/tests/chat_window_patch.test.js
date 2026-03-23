@@ -12,7 +12,7 @@ import { test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
 import { rpc } from "@web/core/network/rpc";
-import { defineLivechatModels } from "./livechat_test_helpers";
+import { defineLivechatModels } from "./livechat_test_helpers.js";
 import { serializeDate, today } from "@web/core/l10n/dates";
 
 defineLivechatModels();

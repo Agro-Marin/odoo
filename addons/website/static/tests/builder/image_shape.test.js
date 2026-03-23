@@ -2,8 +2,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { queryFirst, setInputRange } from "@odoo/hoot-dom";
 import { contains } from "@web/../tests/web_test_helpers";
 import { Plugin } from "@html_editor/plugin";
-import { addPlugin, defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers";
-import { testImg } from "./image_test_helpers";
+import { addPlugin, defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
+import { testImg } from "./image_test_helpers.js";
 
 defineWebsiteModels();
 

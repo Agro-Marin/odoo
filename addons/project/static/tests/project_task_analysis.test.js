@@ -12,7 +12,7 @@ import {
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels, projectModels } from "./project_models";
+import { defineProjectModels, projectModels } from "./project_models.js";
 
 describe.current.tags("desktop");
 

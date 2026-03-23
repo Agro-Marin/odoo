@@ -9,7 +9,7 @@ import {
     mountView,
 } from '@web/../tests/web_test_helpers';
 import { defineComboModels } from '@product/../tests/product_combo_test_helpers';
-import { saleModels } from './sale_test_helpers';
+import { saleModels } from './sale_test_helpers.js';
 
 class SaleOrderLine extends saleModels.SaleOrderLine {
     _records = [

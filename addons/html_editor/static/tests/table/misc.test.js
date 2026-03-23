@@ -1,13 +1,13 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor } from "../_helpers/editor";
+import { setupEditor } from "../_helpers/editor.js";
 import { click, manuallyDispatchProgrammaticEvent, queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
-import { getContent, setSelection } from "../_helpers/selection";
-import { execCommand } from "../_helpers/userCommands";
-import { expandToolbar } from "../_helpers/toolbar";
-import { expectElementCount } from "../_helpers/ui_expectations";
-import { deleteBackward } from "../_helpers/user_actions";
-import { unformat } from "../_helpers/format";
+import { getContent, setSelection } from "../_helpers/selection.js";
+import { execCommand } from "../_helpers/userCommands.js";
+import { expandToolbar } from "../_helpers/toolbar.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
+import { deleteBackward } from "../_helpers/user_actions.js";
+import { unformat } from "../_helpers/format.js";
 
 function insertTable(editor, cols, rows) {
     execCommand(editor, "insertTable", { cols, rows });

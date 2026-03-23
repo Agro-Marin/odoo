@@ -1,6 +1,6 @@
 import { expect, test, tick, waitFor, waitUntil } from "@odoo/hoot";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
-import { addPlugin, defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers";
+import { addPlugin, defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 import { getDragHelper, waitForEndOfOperation } from "@html_builder/../tests/helpers";
 import { Plugin } from "@html_editor/plugin";
 

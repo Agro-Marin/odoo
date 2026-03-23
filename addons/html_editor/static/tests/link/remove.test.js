@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { testEditor, setupEditor } from "../_helpers/editor";
-import { unlinkFromPopover, unlinkByCommand, unlinkFromToolbar } from "../_helpers/user_actions";
-import { getContent, setSelection } from "../_helpers/selection";
+import { testEditor, setupEditor } from "../_helpers/editor.js";
+import { unlinkFromPopover, unlinkByCommand, unlinkFromToolbar } from "../_helpers/user_actions.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
 
 describe("range collapsed, remove by popover unlink button", () => {
     test("should remove the link if collapsed range at the end of a link (1)", async () => {

@@ -1,8 +1,8 @@
 import { test, expect } from "@odoo/hoot";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { CartPage } from "@pos_self_order/app/pages/cart_page/cart_page";
-import { setupSelfPosEnv, getFilledSelfOrder, addComboProduct } from "../utils";
-import { definePosSelfModels } from "../data/generate_model_definitions";
+import { setupSelfPosEnv, getFilledSelfOrder, addComboProduct } from "../utils.js";
+import { definePosSelfModels } from "../data/generate_model_definitions.js";
 
 definePosSelfModels();
 

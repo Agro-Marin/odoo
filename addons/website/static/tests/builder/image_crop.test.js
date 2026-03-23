@@ -2,8 +2,8 @@ import { test } from "@odoo/hoot";
 import { press, waitFor, waitForNone } from "@odoo/hoot-dom";
 import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { ImageCrop } from "@html_editor/main/media/image_crop";
-import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers";
-import { testImg } from "./image_test_helpers";
+import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
+import { testImg } from "./image_test_helpers.js";
 
 defineWebsiteModels();
 

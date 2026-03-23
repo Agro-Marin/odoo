@@ -1,14 +1,14 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { deleteBackward, insertText } from "../_helpers/user_actions";
-import { setupEditor, testEditor } from "../_helpers/editor";
+import { deleteBackward, insertText } from "../_helpers/user_actions.js";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { descendants } from "@html_editor/utils/dom_traversal";
 import { tick } from "@odoo/hoot-mock";
-import { getContent, setSelection } from "../_helpers/selection";
-import { cleanLinkArtifacts } from "../_helpers/format";
+import { getContent, setSelection } from "../_helpers/selection.js";
+import { cleanLinkArtifacts } from "../_helpers/format.js";
 import { animationFrame, pointerDown, pointerUp, queryOne } from "@odoo/hoot-dom";
-import { dispatchNormalize } from "../_helpers/dispatch";
+import { dispatchNormalize } from "../_helpers/dispatch.js";
 import { nodeSize } from "@html_editor/utils/position";
-import { expectElementCount } from "../_helpers/ui_expectations";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
 
 test("should pad a link with ZWNBSPs and add visual indication", async () => {
     await testEditor({

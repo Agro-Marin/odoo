@@ -1,8 +1,8 @@
 import { describe, test, expect, click } from "@odoo/hoot";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { ProductPage } from "@pos_self_order/app/pages/product_page/product_page";
-import { setupSelfPosEnv } from "../utils";
-import { definePosSelfModels } from "../data/generate_model_definitions";
+import { setupSelfPosEnv } from "../utils.js";
+import { definePosSelfModels } from "../data/generate_model_definitions.js";
 
 definePosSelfModels();
 

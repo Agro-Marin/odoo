@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { getRelatedModelsInstance } from "../data/get_model_definitions";
+import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 import { makeMockServer } from "@web/../tests/web_test_helpers";
-import { definePosModels } from "../data/generate_model_definitions";
+import { definePosModels } from "../data/generate_model_definitions.js";
 
 definePosModels();
 

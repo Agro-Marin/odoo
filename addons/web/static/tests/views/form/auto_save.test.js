@@ -19,7 +19,7 @@ import {
     mountViewInDialog,
     mountWithCleanup,
     onRpc,
-} from "../../web_test_helpers";
+} from "../../web_test_helpers.js";
 
 onRpc("has_group", () => true);
 

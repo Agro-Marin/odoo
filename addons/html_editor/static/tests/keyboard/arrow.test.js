@@ -1,10 +1,10 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { tick } from "@odoo/hoot-mock";
 import { press } from "@odoo/hoot-dom";
-import { simulateArrowKeyPress } from "../_helpers/user_actions";
-import { getContent, setSelection } from "../_helpers/selection";
-import { unformat } from "../_helpers/format";
+import { simulateArrowKeyPress } from "../_helpers/user_actions.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
+import { unformat } from "../_helpers/format.js";
 
 const keyPress = (keys) => async (editor) => {
     await simulateArrowKeyPress(editor, keys);

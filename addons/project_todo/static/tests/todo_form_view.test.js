@@ -11,8 +11,8 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { WebClient } from "@web/webclient/webclient";
-import { ProjectTask } from "./mock_server/mock_models/project_task";
-import { defineTodoModels } from "./todo_test_helpers";
+import { ProjectTask } from "./mock_server/mock_models/project_task.js";
+import { defineTodoModels } from "./todo_test_helpers.js";
 
 defineTodoModels();
 

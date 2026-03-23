@@ -58,7 +58,7 @@ import {
     getYAxisLabel,
     selectMode,
     setupChartJsForTests,
-} from "./graph_test_helpers";
+} from "./graph_test_helpers.js";
 
 class Color extends models.Model {
     name = fields.Char();

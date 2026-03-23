@@ -1,4 +1,4 @@
-/** @odoo-module native **/
+/** @odoo-module native */
 
 import { GraphModel } from "@web/views/graph/graph_model";
 import { sortBy } from "@web/core/utils/collections/arrays";

@@ -27,7 +27,7 @@ import {
     restoreRegistry,
     waitForSteps,
 } from "@web/../tests/web_test_helpers";
-import { getWebSocketWorker, onWebsocketEvent } from "./mock_websocket";
+import { getWebSocketWorker, onWebsocketEvent } from "./mock_websocket.js";
 
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";

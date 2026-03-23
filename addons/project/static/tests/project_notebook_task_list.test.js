@@ -3,7 +3,7 @@ import { click } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { mountView } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels, ProjectProject, ProjectTask } from "./project_models";
+import { defineProjectModels, ProjectProject, ProjectTask } from "./project_models.js";
 
 defineProjectModels();
 

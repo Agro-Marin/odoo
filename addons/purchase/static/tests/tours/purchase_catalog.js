@@ -1,5 +1,5 @@
 import { addSectionFromProductCatalog } from "@account/js/tours/tour_utils";
-import { productCatalog, purchaseForm } from "./tour_helper";
+import { productCatalog, purchaseForm } from "./tour_helper.js";
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("test_add_section_from_product_catalog_on_purchase_order", {

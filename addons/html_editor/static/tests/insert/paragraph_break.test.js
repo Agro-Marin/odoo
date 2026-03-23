@@ -1,9 +1,9 @@
 import { beforeEach, describe, test } from "@odoo/hoot";
 import { animationFrame, waitFor } from "@odoo/hoot-dom";
 import { tick } from "@odoo/hoot-mock";
-import { testEditor } from "../_helpers/editor";
-import { insertText, splitBlock } from "../_helpers/user_actions";
-import { unformat } from "../_helpers/format";
+import { testEditor } from "../_helpers/editor.js";
+import { insertText, splitBlock } from "../_helpers/user_actions.js";
+import { unformat } from "../_helpers/format.js";
 import { EMBEDDED_COMPONENT_PLUGINS, MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { QWebPlugin } from "@html_editor/others/qweb_plugin";
 import { findInSelection } from "@html_editor/utils/selection";
@@ -11,7 +11,7 @@ import {
     compareHighlightedContent,
     highlightedPre,
     patchPrism,
-} from "../_helpers/syntax_highlighting";
+} from "../_helpers/syntax_highlighting.js";
 import { MAIN_EMBEDDINGS } from "@html_editor/others/embedded_components/embedding_sets";
 
 describe("Selection collapsed", () => {

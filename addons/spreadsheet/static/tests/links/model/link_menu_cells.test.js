@@ -5,7 +5,7 @@ import { makeSpreadsheetMockEnv } from "@spreadsheet/../tests/helpers/model";
 
 import { setCellContent } from "@spreadsheet/../tests/helpers/commands";
 import { getCell, getEvaluatedCell } from "@spreadsheet/../tests/helpers/getters";
-import { getMenuServerData } from "../menu_data_utils";
+import { getMenuServerData } from "../menu_data_utils.js";
 
 describe.current.tags("headless");
 defineSpreadsheetModels();

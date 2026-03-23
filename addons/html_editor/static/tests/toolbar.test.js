@@ -27,12 +27,12 @@ import {
     models,
     mountView,
 } from "@web/../tests/web_test_helpers";
-import { fontSizeItems } from "../src/main/font/font_plugin";
-import { Plugin } from "../src/plugin";
-import { MAIN_PLUGINS } from "../src/plugin_sets";
-import { convertNumericToUnit, getCSSVariableValue, getHtmlStyle } from "../src/utils/formatting";
-import { setupEditor } from "./_helpers/editor";
-import { unformat } from "./_helpers/format";
+import { fontSizeItems } from "../src/main/font/font_plugin.js";
+import { Plugin } from "../src/plugin.js";
+import { MAIN_PLUGINS } from "../src/plugin_sets.js";
+import { convertNumericToUnit, getCSSVariableValue, getHtmlStyle } from "../src/utils/formatting.js";
+import { setupEditor } from "./_helpers/editor.js";
+import { unformat } from "./_helpers/format.js";
 import {
     getContent,
     moveSelectionOutsideEditor,
@@ -43,11 +43,11 @@ import {
     firstClick,
     secondClick,
     thirdClick,
-} from "./_helpers/selection";
-import { insertText } from "./_helpers/user_actions";
-import { expandToolbar } from "./_helpers/toolbar";
+} from "./_helpers/selection.js";
+import { insertText } from "./_helpers/user_actions.js";
+import { expandToolbar } from "./_helpers/toolbar.js";
 import { nodeSize } from "@html_editor/utils/position";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import { ToolbarPlugin } from "@html_editor/main/toolbar/toolbar_plugin";
 import { ImageCrop } from "@html_editor/main/media/image_crop";
 import { Editor } from "@html_editor/editor";

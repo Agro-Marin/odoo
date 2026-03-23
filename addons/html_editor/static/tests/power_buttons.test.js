@@ -5,11 +5,11 @@ import { describe, expect, test } from "@odoo/hoot";
 import { click, press, tick, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { onRpc } from "@web/../tests/web_test_helpers";
-import { PowerboxPlugin } from "../src/main/powerbox/powerbox_plugin";
-import { setupEditor } from "./_helpers/editor";
-import { getContent, setSelection } from "./_helpers/selection";
-import { expectElementCount } from "./_helpers/ui_expectations";
-import { insertText } from "./_helpers/user_actions";
+import { PowerboxPlugin } from "../src/main/powerbox/powerbox_plugin.js";
+import { setupEditor } from "./_helpers/editor.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
+import { insertText } from "./_helpers/user_actions.js";
 
 describe.tags("desktop");
 describe("visibility", () => {

@@ -2,7 +2,7 @@
 
 import { deepCopy } from "@web/core/utils/collections/objects";
 
-import { MockServerError } from "./mock_server_utils";
+import { MockServerError } from "./mock_server_utils.js";
 
 /**
  * @typedef {import("fields").INumerical["aggregator"]} Aggregator

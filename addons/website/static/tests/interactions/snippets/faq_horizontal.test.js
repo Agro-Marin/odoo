@@ -3,7 +3,7 @@ import { startInteractions, setupInteractionWhiteList } from "@web/../tests/publ
 import { describe, expect, test } from "@odoo/hoot";
 import { queryFirst, queryOne } from "@odoo/hoot-dom";
 
-import { setupTest, simpleScroll, doubleScroll } from "./helpers";
+import { setupTest, simpleScroll, doubleScroll } from "./helpers.js";
 
 setupInteractionWhiteList([
     "website.header_standard",

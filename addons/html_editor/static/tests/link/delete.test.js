@@ -1,6 +1,6 @@
 import { describe, test } from "@odoo/hoot";
-import { deleteBackward, deleteImage } from "../_helpers/user_actions";
-import { base64Img, testEditor } from "../_helpers/editor";
+import { deleteBackward, deleteImage } from "../_helpers/user_actions.js";
+import { base64Img, testEditor } from "../_helpers/editor.js";
 
 describe("delete selection involving links", () => {
     test("should remove link", async () => {

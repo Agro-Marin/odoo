@@ -1,8 +1,8 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
 import { CORE_PLUGINS } from "@html_editor/plugin_sets";
-import { getContent, setSelection } from "../_helpers/selection";
+import { getContent, setSelection } from "../_helpers/selection.js";
 
 async function testCoreEditor(testConfig) {
     return testEditor({ ...testConfig, config: { Plugins: CORE_PLUGINS } });

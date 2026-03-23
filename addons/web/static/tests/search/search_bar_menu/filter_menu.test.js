@@ -35,7 +35,7 @@ import {
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 
-import { defineSearchBarModels, Foo, Partner } from "./models";
+import { defineSearchBarModels, Foo, Partner } from "./models.js";
 
 defineSearchBarModels();
 

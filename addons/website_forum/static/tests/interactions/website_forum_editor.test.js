@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { startInteractions, setupInteractionWhiteList } from "@web/../tests/public/helpers";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { WebsiteForumWysiwyg } from "../../src/components/website_forum_wysiwyg/website_forum_wysiwyg";
+import { WebsiteForumWysiwyg } from "../../src/components/website_forum_wysiwyg/website_forum_wysiwyg.js";
 import { onMounted } from "@odoo/owl";
 
 setupInteractionWhiteList(["website_forum.website_forum"]);

@@ -1,8 +1,8 @@
 import { waitFor } from "@odoo/hoot-dom";
-import { setupEditor } from "../_helpers/editor";
-import { getContent } from "../_helpers/selection";
+import { setupEditor } from "../_helpers/editor.js";
+import { getContent } from "../_helpers/selection.js";
 import { expect, test } from "@odoo/hoot";
-import { expandToolbar } from "../_helpers/toolbar";
+import { expandToolbar } from "../_helpers/toolbar.js";
 import { contains } from "@web/../tests/web_test_helpers";
 
 test("should change the containing block with the font", async () => {

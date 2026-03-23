@@ -1,7 +1,7 @@
 import { test, animationFrame } from "@odoo/hoot";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupPosEnv, getFilledOrder, expectFormattedPrice } from "../utils";
-import { definePosModels } from "../data/generate_model_definitions";
+import { setupPosEnv, getFilledOrder, expectFormattedPrice } from "../utils.js";
+import { definePosModels } from "../data/generate_model_definitions.js";
 import { queryOne } from "@odoo/hoot-dom";
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
 

@@ -2,7 +2,7 @@
 
 import { advanceTime, queryFirst } from "@odoo/hoot";
 
-import { contains } from "./dom_test_helpers";
+import { contains } from "./dom_test_helpers.js";
 
 /**
  * @typedef {import("@odoo/hoot").PointerOptions} PointerOptions

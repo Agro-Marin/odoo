@@ -8,8 +8,8 @@ import {
     makeMockEnv,
     onRpc,
 } from "@web/../tests/web_test_helpers";
-import { setCellContent } from "./commands";
-import { addRecordsFromServerData, addViewsFromServerData } from "./data";
+import { setCellContent } from "./commands.js";
+import { addRecordsFromServerData, addViewsFromServerData } from "./data.js";
 
 /**
  * @typedef {import("@spreadsheet/../tests/helpers/data").ServerData} ServerData

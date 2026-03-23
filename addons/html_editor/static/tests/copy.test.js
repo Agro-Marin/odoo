@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { setupEditor } from "./_helpers/editor";
+import { setupEditor } from "./_helpers/editor.js";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 
 describe("range collapsed", () => {

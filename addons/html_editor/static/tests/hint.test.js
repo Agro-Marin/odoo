@@ -1,14 +1,14 @@
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, tick } from "@odoo/hoot-mock";
-import { setupEditor } from "./_helpers/editor";
-import { unformat } from "./_helpers/format";
+import { setupEditor } from "./_helpers/editor.js";
+import { unformat } from "./_helpers/format.js";
 import {
     getContent,
     moveSelectionOutsideEditor,
     setContent,
     setSelection,
-} from "./_helpers/selection";
-import { insertText } from "./_helpers/user_actions";
+} from "./_helpers/selection.js";
+import { insertText } from "./_helpers/user_actions.js";
 
 test("hints are removed when editor is destroyed", async () => {
     const { el, editor } = await setupEditor("<p>[]</p>", {});

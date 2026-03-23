@@ -12,10 +12,10 @@ import {
 } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { contains, onRpc } from "@web/../tests/web_test_helpers";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { cleanLinkArtifacts, unformat } from "../_helpers/format";
-import { getContent, setSelection } from "../_helpers/selection";
-import { deleteBackward, insertText } from "../_helpers/user_actions";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { cleanLinkArtifacts, unformat } from "../_helpers/format.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
+import { deleteBackward, insertText } from "../_helpers/user_actions.js";
 
 describe("button style", () => {
     test("editable button should have cursor text", async () => {

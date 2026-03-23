@@ -3,7 +3,7 @@ import { startInteractions, setupInteractionWhiteList } from "@web/../tests/publ
 import { describe, expect, test } from "@odoo/hoot";
 import { hover, leave } from "@odoo/hoot-dom";
 
-import { switchToEditMode } from "../../helpers";
+import { switchToEditMode } from "../../helpers.js";
 
 setupInteractionWhiteList("website.hoverable_dropdown");
 

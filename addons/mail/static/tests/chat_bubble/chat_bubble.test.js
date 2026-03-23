@@ -16,7 +16,7 @@ import {
     startServer,
     triggerEvents,
     triggerHotkey,
-} from "../mail_test_helpers";
+} from "../mail_test_helpers.js";
 
 import { rpc } from "@web/core/network/rpc";
 import { range } from "@web/core/utils/format/numbers";

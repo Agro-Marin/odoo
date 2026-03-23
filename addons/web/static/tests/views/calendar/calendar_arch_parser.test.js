@@ -4,7 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { CalendarArchParser } from "@web/views/calendar/calendar_arch_parser";
 
-import { FAKE_FIELDS } from "./calendar_test_helpers";
+import { FAKE_FIELDS } from "./calendar_test_helpers.js";
 
 describe.current.tags("headless");
 

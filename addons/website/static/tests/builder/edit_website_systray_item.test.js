@@ -2,7 +2,7 @@ import { animationFrame, expect, test, waitFor } from "@odoo/hoot";
 import { contains, onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { EditWebsiteSystrayItem } from "@website/client_actions/website_preview/edit_website_systray_item";
-import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers";
+import { defineWebsiteModels, setupWebsiteBuilder } from "./website_helpers.js";
 
 defineWebsiteModels();
 

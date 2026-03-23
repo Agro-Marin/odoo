@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { setupInteractionWhiteList, startInteractions } from "@web/../tests/public/helpers";
-import { switchToEditMode } from "../../helpers";
+import { switchToEditMode } from "../../helpers.js";
 import { tick } from "@odoo/hoot-dom";
 
 describe.current.tags("interaction_dev");

@@ -1,6 +1,6 @@
 // @ts-check
 
-import { ServerModel } from "../mock_model";
+import { ServerModel } from "../mock_model.js";
 
 export class IrHttp extends ServerModel {
     _name = "ir.http";

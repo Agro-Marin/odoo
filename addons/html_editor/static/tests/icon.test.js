@@ -1,13 +1,13 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { click, tick, waitFor, waitForNone } from "@odoo/hoot-dom";
-import { setupEditor, testEditor } from "./_helpers/editor";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { animationFrame } from "@odoo/hoot-mock";
-import { getContent, setContent, setSelection } from "./_helpers/selection";
-import { splitBlock, undo } from "./_helpers/user_actions";
+import { getContent, setContent, setSelection } from "./_helpers/selection.js";
+import { splitBlock, undo } from "./_helpers/user_actions.js";
 import { contains } from "@web/../tests/web_test_helpers";
-import { expectElementCount } from "./_helpers/ui_expectations";
-import { execCommand } from "./_helpers/userCommands";
-import { unformat } from "./_helpers/format";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
+import { execCommand } from "./_helpers/userCommands.js";
+import { unformat } from "./_helpers/format.js";
 
 test("icon toolbar is displayed", async () => {
     const { el } = await setupEditor(`<p><span class="fa-solid fa-martini-glass-empty"></span></p>`);

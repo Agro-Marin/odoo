@@ -7,7 +7,7 @@ import {
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, queryAll, queryOne, scroll } from "@odoo/hoot-dom";
 
-import { setupTest, simpleScroll, doubleScroll } from "./helpers";
+import { setupTest, simpleScroll, doubleScroll } from "./helpers.js";
 
 setupInteractionWhiteList([
     "website.header_standard",

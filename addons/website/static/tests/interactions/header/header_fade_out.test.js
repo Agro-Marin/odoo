@@ -10,7 +10,7 @@ import {
     getTemplateWithHideOnScroll,
     getTemplateWithoutHideOnScroll,
     setupTest,
-} from "./helpers";
+} from "./helpers.js";
 
 setupInteractionWhiteList("website.header_fade_out");
 beforeEach(enableTransitions);

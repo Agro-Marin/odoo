@@ -1,8 +1,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { press, queryFirst } from "@odoo/hoot-dom";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { getContent, setSelection } from "./_helpers/selection";
-import { insertText, tripleClick, undo } from "./_helpers/user_actions";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { insertText, tripleClick, undo } from "./_helpers/user_actions.js";
 import { animationFrame } from "@odoo/hoot-mock";
 import { defineStyle } from "@web/../tests/web_test_helpers";
 

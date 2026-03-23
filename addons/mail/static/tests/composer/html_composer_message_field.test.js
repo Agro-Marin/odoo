@@ -33,7 +33,7 @@ import {
     registerArchs,
     start,
     startServer,
-} from "../mail_test_helpers";
+} from "../mail_test_helpers.js";
 
 // Need this hack to use the arch in mountView(...)
 mailModels.MailComposeMessage._views = {};

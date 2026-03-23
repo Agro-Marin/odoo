@@ -2,7 +2,7 @@ import { expect, test } from "@odoo/hoot";
 import { click } from "@odoo/hoot-dom";
 import { fields, mountView } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels, ProjectProject } from "./project_models";
+import { defineProjectModels, ProjectProject } from "./project_models.js";
 
 defineProjectModels();
 

@@ -1,13 +1,13 @@
 import { expect, test } from "@odoo/hoot";
 import { click, manuallyDispatchProgrammaticEvent, press, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { setupEditor } from "./_helpers/editor";
-import { getContent, setSelection } from "./_helpers/selection";
-import { insertText } from "./_helpers/user_actions";
+import { setupEditor } from "./_helpers/editor.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { insertText } from "./_helpers/user_actions.js";
 import { loader } from "@web/components/emoji_picker/emoji_picker";
-import { execCommand } from "./_helpers/userCommands";
-import { unformat } from "./_helpers/format";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { execCommand } from "./_helpers/userCommands.js";
+import { unformat } from "./_helpers/format.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 
 test("should insert a banner with focus inside followed by a paragraph", async () => {
     const { el, editor } = await setupEditor("<p>Test[]</p>");

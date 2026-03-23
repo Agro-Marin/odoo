@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, describe, getFixture } from "@odoo/hoot";
-import { setSelection } from "./_helpers/selection";
+import { setSelection } from "./_helpers/selection.js";
 import { click, hover, queryOne, waitFor, waitForNone } from "@odoo/hoot-dom";
 import {
     contains,
@@ -10,16 +10,16 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { animationFrame } from "@odoo/hoot-mock";
-import { unformat } from "./_helpers/format";
+import { unformat } from "./_helpers/format.js";
 import { Plugin } from "@html_editor/plugin";
 import { Component, onMounted, onWillUnmount, xml } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
-import { setupEditor } from "./_helpers/editor";
+import { setupEditor } from "./_helpers/editor.js";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { parseHTML } from "@html_editor/utils/html";
 import { closestScrollableY } from "@web/core/utils/dom/scrolling";
 import { Wysiwyg } from "@html_editor/wysiwyg";
-import { insertText } from "./_helpers/user_actions";
+import { insertText } from "./_helpers/user_actions.js";
 import { getScrollContainer } from "@html_editor/core/overlay";
 
 class Test extends models.Model {

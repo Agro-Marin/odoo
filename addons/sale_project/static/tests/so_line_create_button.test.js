@@ -5,7 +5,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { focus, mailModels } from "@mail/../tests/mail_test_helpers";
 import { projectModels } from "@project/../tests/project_models";
 import { contains, defineModels, mountView, onRpc } from "@web/../tests/web_test_helpers";
-import { ProductProduct, ProjectTask, SaleOrder, SaleOrderLine } from "./project_task_model";
+import { ProductProduct, ProjectTask, SaleOrder, SaleOrderLine } from "./project_task_model.js";
 
 describe.current.tags("desktop");
 

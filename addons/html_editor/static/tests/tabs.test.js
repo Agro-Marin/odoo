@@ -1,13 +1,13 @@
 import { describe, test } from "@odoo/hoot";
-import { testEditor } from "./_helpers/editor";
-import { TAB_WIDTH, getCharWidth, getIndentWidth, oeTab, testTabulation } from "./_helpers/tabs";
+import { testEditor } from "./_helpers/editor.js";
+import { TAB_WIDTH, getCharWidth, getIndentWidth, oeTab, testTabulation } from "./_helpers/tabs.js";
 import {
     deleteBackward,
     deleteForward,
     insertText,
     keydownShiftTab,
     keydownTab,
-} from "./_helpers/user_actions";
+} from "./_helpers/user_actions.js";
 
 describe("insert tabulation", () => {
     test("should insert a tab character", async () => {

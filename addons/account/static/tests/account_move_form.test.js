@@ -8,7 +8,7 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { asyncStep, contains, defineModels, fields, onRpc, models, waitForSteps} from "@web/../tests/web_test_helpers";
-import { defineAccountModels } from "./account_test_helpers";
+import { defineAccountModels } from "./account_test_helpers.js";
 
 defineAccountModels();
 

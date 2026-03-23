@@ -1,16 +1,16 @@
 import { expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { getContent } from "../_helpers/selection";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { getContent } from "../_helpers/selection.js";
 import {
     italic,
     tripleClick,
     simulateArrowKeyPress,
     insertText,
     undo,
-} from "../_helpers/user_actions";
-import { unformat } from "../_helpers/format";
+} from "../_helpers/user_actions.js";
+import { unformat } from "../_helpers/format.js";
 import { tick } from "@odoo/hoot-mock";
 
 test("should make a few characters italic", async () => {

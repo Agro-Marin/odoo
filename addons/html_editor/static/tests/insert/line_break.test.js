@@ -1,6 +1,6 @@
 import { describe, test } from "@odoo/hoot";
-import { testEditor } from "../_helpers/editor";
-import { insertLineBreak } from "../_helpers/user_actions";
+import { testEditor } from "../_helpers/editor.js";
+import { insertLineBreak } from "../_helpers/user_actions.js";
 
 describe("Selection collapsed", () => {
     describe("Basic", () => {

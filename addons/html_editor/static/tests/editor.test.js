@@ -4,10 +4,10 @@ import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { insertText } from "./_helpers/user_actions";
-import { getContent } from "./_helpers/selection";
-import { unformat } from "./_helpers/format";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { insertText } from "./_helpers/user_actions.js";
+import { getContent } from "./_helpers/selection.js";
+import { unformat } from "./_helpers/format.js";
 
 beforeEach(() => {
     patchWithCleanup(Editor.prototype, {

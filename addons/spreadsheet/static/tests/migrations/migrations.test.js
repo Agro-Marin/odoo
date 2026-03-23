@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { load } from "@odoo/o-spreadsheet";
-import { defineSpreadsheetActions, defineSpreadsheetModels } from "../helpers/data";
+import { defineSpreadsheetActions, defineSpreadsheetModels } from "../helpers/data.js";
 
 defineSpreadsheetModels();
 defineSpreadsheetActions();

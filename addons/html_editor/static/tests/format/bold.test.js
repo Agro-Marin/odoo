@@ -2,10 +2,10 @@ import { describe, expect, test } from "@odoo/hoot";
 import { click, manuallyDispatchProgrammaticEvent, press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { unformat } from "../_helpers/format";
-import { getContent } from "../_helpers/selection";
-import { expectElementCount } from "../_helpers/ui_expectations";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent } from "../_helpers/selection.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
 import {
     bold,
     insertText,
@@ -13,7 +13,7 @@ import {
     simulateArrowKeyPress,
     tripleClick,
     undo,
-} from "../_helpers/user_actions";
+} from "../_helpers/user_actions.js";
 
 const styleH1Bold = `h1 { font-weight: bold; }`;
 

@@ -19,10 +19,10 @@ import { MainComponentsContainer } from "@web/components/main_components_contain
 import { Dialog } from "@web/ui/dialog/dialog";
 import { View } from "@web/views/view";
 
-import { mountWithCleanup } from "./component_test_helpers";
-import { contains } from "./dom_test_helpers";
-import { getMockEnv, getService } from "./env_test_helpers";
-import { registerInlineViewArchs } from "./mock_server/mock_model";
+import { mountWithCleanup } from "./component_test_helpers.js";
+import { contains } from "./dom_test_helpers.js";
+import { getMockEnv, getService } from "./env_test_helpers.js";
+import { registerInlineViewArchs } from "./mock_server/mock_model.js";
 
 /**
  * @typedef {any} Config

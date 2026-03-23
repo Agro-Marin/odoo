@@ -5,7 +5,7 @@ import { Component, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { WebClient } from "@web/webclient/webclient";
 
-import { mountWithCleanup } from "./component_test_helpers";
+import { mountWithCleanup } from "./component_test_helpers.js";
 
 class TestClientAction extends Component {
     static template = xml`

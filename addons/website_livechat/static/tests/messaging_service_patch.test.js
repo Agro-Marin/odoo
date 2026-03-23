@@ -1,6 +1,6 @@
 import { contains, openFormView, start, startServer } from "@mail/../tests/mail_test_helpers";
 import { describe, test } from "@odoo/hoot";
-import { defineWebsiteLivechatModels } from "./website_livechat_test_helpers";
+import { defineWebsiteLivechatModels } from "./website_livechat_test_helpers.js";
 
 import { rpc } from "@web/core/network/rpc";
 

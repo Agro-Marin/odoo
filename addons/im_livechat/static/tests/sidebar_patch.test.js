@@ -15,7 +15,7 @@ import { asyncStep, Command, serverState, waitForSteps } from "@web/../tests/web
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { rpc } from "@web/core/network/rpc";
 import { url } from "@web/core/utils/urls";
-import { defineLivechatModels } from "./livechat_test_helpers";
+import { defineLivechatModels } from "./livechat_test_helpers.js";
 import { press } from "@odoo/hoot-dom";
 import { browser } from "@web/core/browser/browser";
 

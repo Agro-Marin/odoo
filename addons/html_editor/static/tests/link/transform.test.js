@@ -2,11 +2,11 @@ import { expect, test } from "@odoo/hoot";
 import { manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
 import { tick } from "@odoo/hoot-mock";
 import { onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { setupEditor, testEditor } from "../_helpers/editor";
-import { cleanLinkArtifacts } from "../_helpers/format";
-import { getContent, setSelection } from "../_helpers/selection";
-import { insertText, undo } from "../_helpers/user_actions";
-import { expectElementCount } from "../_helpers/ui_expectations";
+import { setupEditor, testEditor } from "../_helpers/editor.js";
+import { cleanLinkArtifacts } from "../_helpers/format.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
+import { insertText, undo } from "../_helpers/user_actions.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
 
 async function insertSpace(editor) {
     const keydownEvent = await manuallyDispatchProgrammaticEvent(editor.editable, "keydown", {

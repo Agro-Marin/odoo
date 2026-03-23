@@ -10,9 +10,9 @@ import {
     patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
-import { BusBus } from "./mock_server/mock_models/bus_bus";
-import { IrWebSocket } from "./mock_server/mock_models/ir_websocket";
-import { getWebSocketWorker, onWebsocketEvent } from "./mock_websocket";
+import { BusBus } from "./mock_server/mock_models/bus_bus.js";
+import { IrWebSocket } from "./mock_server/mock_models/ir_websocket.js";
+import { getWebSocketWorker, onWebsocketEvent } from "./mock_websocket.js";
 
 import { busService } from "@bus/services/bus_service";
 import { WEBSOCKET_CLOSE_CODES } from "@bus/workers/websocket_worker";

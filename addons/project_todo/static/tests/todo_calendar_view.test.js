@@ -3,8 +3,8 @@ import { click, edit } from "@odoo/hoot-dom";
 import { contains, mountView, onRpc } from "@web/../tests/web_test_helpers";
 import { mockDate, animationFrame } from "@odoo/hoot-mock";
 
-import { defineTodoModels } from "./todo_test_helpers";
-import { ProjectTask } from "./mock_server/mock_models/project_task";
+import { defineTodoModels } from "./todo_test_helpers.js";
+import { ProjectTask } from "./mock_server/mock_models/project_task.js";
 
 describe.current.tags("desktop");
 defineTodoModels();

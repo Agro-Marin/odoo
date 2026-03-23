@@ -31,16 +31,16 @@ import {
     useState,
     xml,
 } from "@odoo/owl";
-import { EmbeddedComponentPlugin } from "../src/others/embedded_component_plugin";
-import { setupEditor } from "./_helpers/editor";
-import { unformat } from "./_helpers/format";
-import { getContent, setSelection } from "./_helpers/selection";
-import { addStep, deleteBackward, deleteForward, redo, undo } from "./_helpers/user_actions";
+import { EmbeddedComponentPlugin } from "../src/others/embedded_component_plugin.js";
+import { setupEditor } from "./_helpers/editor.js";
+import { unformat } from "./_helpers/format.js";
+import { getContent, setSelection } from "./_helpers/selection.js";
+import { addStep, deleteBackward, deleteForward, redo, undo } from "./_helpers/user_actions.js";
 import { makeMockEnv, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { Deferred } from "@web/core/utils/concurrency";
 import { Plugin } from "@html_editor/plugin";
-import { cleanHints, dispatchCleanForSave } from "./_helpers/dispatch";
-import { expectElementCount } from "./_helpers/ui_expectations";
+import { cleanHints, dispatchCleanForSave } from "./_helpers/dispatch.js";
+import { expectElementCount } from "./_helpers/ui_expectations.js";
 import { renderToElement } from "@web/core/utils/render";
 
 function getConfig(components) {

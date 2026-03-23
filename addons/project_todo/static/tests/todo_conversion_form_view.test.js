@@ -4,8 +4,8 @@ import { animationFrame } from "@odoo/hoot-mock";
 
 import { mountView, contains, onRpc } from "@web/../tests/web_test_helpers";
 
-import { defineTodoModels } from "./todo_test_helpers";
-import { ProjectTask } from "./mock_server/mock_models/project_task";
+import { defineTodoModels } from "./todo_test_helpers.js";
+import { ProjectTask } from "./mock_server/mock_models/project_task.js";
 
 defineTodoModels();
 

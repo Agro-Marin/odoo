@@ -2,7 +2,7 @@ import { beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame, hover } from "@odoo/hoot-dom";
 import { contains, mockService, mountView, onRpc } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels, ProjectTask } from "./project_models";
+import { defineProjectModels, ProjectTask } from "./project_models.js";
 
 defineProjectModels();
 

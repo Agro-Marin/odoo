@@ -1,9 +1,9 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "./_helpers/editor";
-import { deleteBackward, deleteForward, insertText, undo } from "./_helpers/user_actions";
-import { getContent } from "./_helpers/selection";
-import { execCommand } from "./_helpers/userCommands";
-import { dispatchNormalize } from "./_helpers/dispatch";
+import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { deleteBackward, deleteForward, insertText, undo } from "./_helpers/user_actions.js";
+import { getContent } from "./_helpers/selection.js";
+import { execCommand } from "./_helpers/userCommands.js";
+import { dispatchNormalize } from "./_helpers/dispatch.js";
 
 function insertFontAwesome(faClass) {
     return (editor) => {

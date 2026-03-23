@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { mountView, serverState } from "@web/../tests/web_test_helpers";
 
-import { HRTimesheet, defineTimesheetModels, patchSession } from "./hr_timesheet_models";
+import { HRTimesheet, defineTimesheetModels, patchSession } from "./hr_timesheet_models.js";
 
 HRTimesheet._views.form = `
     <form>

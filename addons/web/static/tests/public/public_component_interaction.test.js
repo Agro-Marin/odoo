@@ -6,7 +6,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 
-import { setupInteractionWhiteList, startInteractions } from "./helpers";
+import { setupInteractionWhiteList, startInteractions } from "./helpers.js";
 
 setupInteractionWhiteList("public_components");
 

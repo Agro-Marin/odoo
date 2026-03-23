@@ -2,7 +2,7 @@ import { contains, openDiscuss, start, startServer } from "@mail/../tests/mail_t
 import { describe, test } from "@odoo/hoot";
 import { mockTimeZone } from "@odoo/hoot-mock";
 import { Command, serverState } from "@web/../tests/web_test_helpers";
-import { defineWebsiteLivechatModels } from "./website_livechat_test_helpers";
+import { defineWebsiteLivechatModels } from "./website_livechat_test_helpers.js";
 
 describe.current.tags("desktop");
 defineWebsiteLivechatModels();

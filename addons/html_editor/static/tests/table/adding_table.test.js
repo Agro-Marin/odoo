@@ -1,11 +1,11 @@
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
-import { setupEditor } from "../_helpers/editor";
-import { getContent } from "../_helpers/selection";
-import { insertText } from "../_helpers/user_actions";
-import { unformat } from "../_helpers/format";
+import { setupEditor } from "../_helpers/editor.js";
+import { getContent } from "../_helpers/selection.js";
+import { insertText } from "../_helpers/user_actions.js";
+import { unformat } from "../_helpers/format.js";
 import { press, waitFor, queryOne } from "@odoo/hoot-dom";
-import { expectElementCount } from "../_helpers/ui_expectations";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
 import { findInSelection } from "@html_editor/utils/selection";
 
 function expectContentToBe(el, html) {

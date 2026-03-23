@@ -1,5 +1,5 @@
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { unformat } from "./format";
+import { unformat } from "./format.js";
 import { EmbeddedSyntaxHighlightingComponent } from "@html_editor/others/embedded_components/backend/syntax_highlighting/syntax_highlighting";
 import { LANGUAGES } from "@html_editor/others/embedded_components/backend/syntax_highlighting/code_toolbar";
 import { expect } from "@odoo/hoot";

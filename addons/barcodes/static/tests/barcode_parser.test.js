@@ -1,4 +1,4 @@
-/** @odoo-module **/
+/** @odoo-module native */
 
 import { expect, test } from "@odoo/hoot";
 import { BarcodeParser } from "@barcodes/js/barcode_parser";

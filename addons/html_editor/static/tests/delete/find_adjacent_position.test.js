@@ -1,7 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor } from "../_helpers/editor";
-import { getContent, setSelection } from "../_helpers/selection";
-import { unformat } from "../_helpers/format";
+import { setupEditor } from "../_helpers/editor.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
+import { unformat } from "../_helpers/format.js";
 import { FilePlugin } from "@html_editor/main/media/file_plugin";
 import { CORE_PLUGINS } from "@html_editor/plugin_sets";
 

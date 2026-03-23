@@ -25,9 +25,9 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { redirect } from "@web/core/utils/urls";
-import { ImportAction } from "../src/import_action/import_action";
-import { ImportBlockUI } from "../src/import_block_ui";
-import { ImportDataProgress } from "../src/import_data_progress/import_data_progress";
+import { ImportAction } from "../src/import_action/import_action.js";
+import { ImportBlockUI } from "../src/import_block_ui.js";
+import { ImportDataProgress } from "../src/import_data_progress/import_data_progress.js";
 
 const FAKE_PREVIEW_HEADERS = ["Foo", "Bar", "Display name"];
 const FAKE_PREVIEW_DATA = [

@@ -14,7 +14,7 @@ import {
 } from "@web/env";
 import { getPopoverForTarget } from "@web/ui/popover/popover";
 
-import { getMockEnv, makeMockEnv } from "./env_test_helpers";
+import { getMockEnv, makeMockEnv } from "./env_test_helpers.js";
 
 /**
  * @typedef {import("@odoo/hoot").Target} Target

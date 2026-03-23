@@ -1,7 +1,7 @@
 import { expect, test } from "@odoo/hoot";
 import { mountWithCleanup, onRpc, contains } from "@web/../tests/web_test_helpers";
 import { NewContentSystrayItem } from "@website/client_actions/website_preview/new_content_systray_item";
-import { defineWebsiteModels } from "./builder/website_helpers";
+import { defineWebsiteModels } from "./builder/website_helpers.js";
 
 defineWebsiteModels();
 

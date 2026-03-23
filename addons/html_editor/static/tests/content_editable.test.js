@@ -1,5 +1,5 @@
 import { expect, test } from "@odoo/hoot";
-import { setupEditor } from "./_helpers/editor";
+import { setupEditor } from "./_helpers/editor.js";
 import { Plugin } from "@html_editor/plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { selectElements } from "@html_editor/utils/dom_traversal";

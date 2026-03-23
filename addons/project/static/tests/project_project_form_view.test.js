@@ -10,7 +10,7 @@ import {
     mockService,
 } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels, ProjectProject } from "./project_models";
+import { defineProjectModels, ProjectProject } from "./project_models.js";
 
 defineProjectModels();
 

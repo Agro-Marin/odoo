@@ -2,7 +2,7 @@
 
 import { ensureArray } from "@web/core/utils/collections/arrays";
 
-import { ServerModel } from "../mock_model";
+import { ServerModel } from "../mock_model.js";
 
 const ORM_AUTOMATIC_FIELDS = new Set([
     "create_date",

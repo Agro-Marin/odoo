@@ -4,7 +4,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { defineModels, mountView } from "@web/../tests/web_test_helpers";
 import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { defineProjectModels, projectModels } from "@project/../tests/project_models";
-import { ProductProduct, SaleOrderLine } from "./project_task_model";
+import { ProductProduct, SaleOrderLine } from "./project_task_model.js";
 
 describe.current.tags("desktop");
 defineModels([SaleOrderLine, ProductProduct]);

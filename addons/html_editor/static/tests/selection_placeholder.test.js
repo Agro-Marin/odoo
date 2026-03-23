@@ -1,9 +1,9 @@
 import { expect, test } from "@odoo/hoot";
-import { testEditor } from "./_helpers/editor";
-import { unformat } from "./_helpers/format";
+import { testEditor } from "./_helpers/editor.js";
+import { unformat } from "./_helpers/format.js";
 import { animationFrame, press, tick } from "@odoo/hoot-dom";
-import { insertText, simulateArrowKeyPress, splitBlock } from "./_helpers/user_actions";
-import { getContent } from "./_helpers/selection";
+import { insertText, simulateArrowKeyPress, splitBlock } from "./_helpers/user_actions.js";
+import { getContent } from "./_helpers/selection.js";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { isTableCell } from "@html_editor/utils/dom_info";
 import { parseHTML } from "@html_editor/utils/html";

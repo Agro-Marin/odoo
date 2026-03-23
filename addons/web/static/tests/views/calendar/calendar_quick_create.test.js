@@ -11,7 +11,7 @@ import {
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { CalendarQuickCreate } from "@web/views/calendar/quick_create/calendar_quick_create";
 
-import { FAKE_MODEL } from "./calendar_test_helpers";
+import { FAKE_MODEL } from "./calendar_test_helpers.js";
 
 const FAKE_PROPS = {
     model: FAKE_MODEL,

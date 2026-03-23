@@ -11,7 +11,7 @@ import {
     toggleSearchBarMenu,
 } from "@web/../tests/web_test_helpers";
 
-import { defineProjectModels } from "./project_models";
+import { defineProjectModels } from "./project_models.js";
 
 class ProjectTaskBurndownChartReport extends models.Model {
     _name = "project.task.burndown.chart.report";

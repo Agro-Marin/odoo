@@ -1,5 +1,5 @@
 import { models } from '@web/../tests/web_test_helpers';
-import { ProductProduct as ProductModel } from './product_product';
+import { ProductProduct as ProductModel } from './product_product.js';
 
 export class ProductProduct extends ProductModel {
     _records = [

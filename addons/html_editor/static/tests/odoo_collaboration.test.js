@@ -10,8 +10,8 @@ import { Component, xml, markup } from "@odoo/owl";
 import { mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
 import { Mutex } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
-import { getContent, getSelection, setSelection } from "./_helpers/selection";
-import { insertText } from "./_helpers/user_actions";
+import { getContent, getSelection, setSelection } from "./_helpers/selection.js";
+import { insertText } from "./_helpers/user_actions.js";
 
 /**
  * @typedef PeerPool

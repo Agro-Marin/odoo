@@ -8,7 +8,7 @@ import {
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
-import { defineAnalyticModels } from "./analytic_test_helpers";
+import { defineAnalyticModels } from "./analytic_test_helpers.js";
 
 defineAnalyticModels();
 

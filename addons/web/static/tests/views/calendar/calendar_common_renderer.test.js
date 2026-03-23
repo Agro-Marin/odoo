@@ -17,7 +17,7 @@ import {
     DEFAULT_DATE,
     FAKE_MODEL,
     selectTimeRange,
-} from "./calendar_test_helpers";
+} from "./calendar_test_helpers.js";
 
 const FAKE_PROPS = {
     model: FAKE_MODEL,

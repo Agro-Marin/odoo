@@ -1,6 +1,6 @@
 import { registry } from "@web/core/registry";
 import { assert } from "@stock/../tests/tours/tour_helper";
-import { catalogSuggestion } from "./tour_helper";
+import { catalogSuggestion } from "./tour_helper.js";
 import { purchaseForm, productCatalog } from "@purchase/../tests/tours/tour_helper";
 
 registry.category("web_tour.tours").add("test_purchase_order_suggest_search_panel_ux", {

@@ -1,8 +1,8 @@
-/** @odoo-module alias=root.widget */
+/** @odoo-module native */
 
 import { createPublicRoot } from "@web/legacy/js/public/public_root";
 import lazyloader from "@web/legacy/js/public/lazyloader";
-import { WebsiteRoot } from "./website_root";
+import { WebsiteRoot } from "./website_root.js";
 
 const prom = createPublicRoot(WebsiteRoot).then(async (rootInstance) => {
     if (window.frameElement) {
