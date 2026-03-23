@@ -3826,11 +3826,45 @@ class IrQweb(models.AbstractModel):
         # globalThis.owl which is set by the OWL UMD pre-load below.
         import_map["@odoo/owl"] = self._OWL_ESM_URL
 
+        # Pre-register lazy ESM bundle specifiers in the import map so
+        # that dynamic import() can resolve them at runtime without
+        # needing a second import map.  Only URLs are added — the modules
+        # are NOT eagerly loaded (that happens via loadBundle).
+        # Note: this code only runs in debug=assets mode (production
+        # returns early via the esbuild path above).
+        import re as re_mod
+        from odoo.addons.base.models.assetsbundle import AssetsBundle
+        lazy_bundles = []
+        for lazy_name in AssetsBundle.ESM_LAZY_BUNDLES.get(bundle, []):
+            lazy_ab = self._get_asset_bundle(
+                lazy_name, js=True, css=False, debug_assets=True,
+                assets_params=assets_params,
+            )
+            lazy_data = lazy_ab.get_native_module_data()
+            import_map.update(lazy_data["import_map"])
+            lazy_bundles.append(lazy_ab)
+
         # Native → Legacy bridge: data: URI shims that re-export from
         # ``odoo.loader.modules``.  Each shim uses ``await __legacyReady``
-        # (resolved at the end of the concatenated bundle) to ensure all
-        # legacy modules are loaded before accessing them.
-        bridge_map = native_data.get("bridge_import_map", {})
+        # to ensure all define() calls have run.
+        # When lazy bundles exist, rebuild the bridge with COMBINED native
+        # modules (main + lazy) so all needed exports are included in a
+        # single shim per specifier — avoids overwrites.
+        all_native_specifiers = set(native_data["import_map"])
+        combined_native_modules = list(asset_bundle.native_modules)
+        for lazy_ab in lazy_bundles:
+            all_native_specifiers.update(
+                m.module_path for m in lazy_ab.native_modules
+            )
+            combined_native_modules.extend(lazy_ab.native_modules)
+
+        # Temporarily swap native_modules to build a combined bridge
+        orig_modules = asset_bundle.native_modules
+        asset_bundle.native_modules = combined_native_modules
+        bridge_map = asset_bundle._build_native_to_legacy_bridge(
+            all_native_specifiers, re_mod,
+        )
+        asset_bundle.native_modules = orig_modules
         import_map.update(bridge_map)
 
         # 1. OWL pre-load: non-deferred script that runs immediately and

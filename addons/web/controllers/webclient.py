@@ -147,6 +147,17 @@ class WebClient(http.Controller):
             )
 
         debug = bundle_params.get("debug", request.session.debug)
+        debug_assets = debug and "assets" in debug
+
+        # Lazy ESM bundles are only ESM in debug=assets mode.
+        # In debug=0, they use transpiled odoo.define() (legacy path).
+        from odoo.addons.base.models.assetsbundle import AssetsBundle
+        is_lazy_esm = any(
+            bundle_name in lazies
+            for lazies in AssetsBundle.ESM_LAZY_BUNDLES.values()
+        )
+        use_esm = is_lazy_esm and debug_assets
+
         files = request.env["ir.qweb"]._get_asset_nodes(
             bundle_name, debug=debug, js=True, css=True
         )
@@ -157,5 +168,20 @@ class WebClient(http.Controller):
             }
             for tag, attrs in files
         ]
+
+        if use_esm:
+            # ESM lazy bundle in debug mode: return specifiers for import()
+            assets_params = request.env["ir.asset"]._get_asset_params()
+            asset_bundle = request.env["ir.qweb"]._get_asset_bundle(
+                bundle_name, js=True, css=False, debug_assets=True,
+                assets_params=assets_params,
+            )
+            native_data = asset_bundle.get_native_module_data()
+            specifiers = sorted(native_data["import_map"])
+            data = {
+                "is_esm": True,
+                "specifiers": specifiers,
+                "files": data,
+            }
 
         return request.make_json_response(data)
