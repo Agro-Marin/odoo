@@ -196,7 +196,7 @@ class ResCountry(models.Model):
                 try:
                     record.address_format % test_values
                 except ValueError, KeyError, TypeError:
-                    raise UserError(_("The layout contains an invalid format key"))
+                    raise UserError(_("The layout contains an invalid format key")) from None
 
     @api.depends("country_group_ids")
     def _compute_country_group_codes(self) -> None:

@@ -667,7 +667,7 @@ class IrModelFields(models.Model):
                         fields=fields,
                         view=view.name,
                     )
-                )
+                ) from None
             # uninstall mode
             _logger.warning(
                 "The following fields were force-deleted to prevent a registry crash %s the following view might be broken %s",

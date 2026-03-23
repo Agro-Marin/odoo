@@ -236,7 +236,7 @@ class IrFieldsConverter(models.AbstractModel):
             msg = self.env._(
                 "'%s' does not seem to be a valid JSON for field '%%(field)s'"
             )
-            raise self._format_import_error(ValueError, msg, value)
+            raise self._format_import_error(ValueError, msg, value) from None
 
     def _str_to_properties(
         self, model: Any, field: Any, value: str | list, savepoint: Any
@@ -250,7 +250,7 @@ class IrFieldsConverter(models.AbstractModel):
                 msg = self.env._(
                     "Unable to import '%%(field)s' Properties field as a whole, target individual property instead."
                 )
-                raise self._format_import_error(ValueError, msg)
+                raise self._format_import_error(ValueError, msg) from None
 
         if not isinstance(value, list):
             msg = self.env._(
@@ -390,7 +390,7 @@ class IrFieldsConverter(models.AbstractModel):
                                 "value": val,
                                 "label_property": property_dict["string"],
                             },
-                        )
+                        ) from None
 
                 case "float":
                     try:
@@ -406,7 +406,7 @@ class IrFieldsConverter(models.AbstractModel):
                                 "value": val,
                                 "label_property": property_dict["string"],
                             },
-                        )
+                        ) from None
 
         return value, warnings
 
@@ -464,7 +464,7 @@ class IrFieldsConverter(models.AbstractModel):
                     "'%s' does not seem to be an integer for field '%%(field)s'"
                 ),
                 value,
-            )
+            ) from None
 
     @api.model
     def _str_to_float(
@@ -477,7 +477,7 @@ class IrFieldsConverter(models.AbstractModel):
                 ValueError,
                 self.env._("'%s' does not seem to be a number for field '%%(field)s'"),
                 value,
-            )
+            ) from None
 
     _str_to_monetary = _str_to_float
 
@@ -506,7 +506,7 @@ class IrFieldsConverter(models.AbstractModel):
                 ),
                 value,
                 {"moreinfo": self.env._("Use the format '%s'", "2012-12-31")},
-            )
+            ) from None
 
     @api.model
     def _input_tz(self) -> Any:
@@ -526,7 +526,7 @@ class IrFieldsConverter(models.AbstractModel):
                 ),
                 value,
                 {"moreinfo": self.env._("Use the format '%s'", "2012-12-31 23:59:59")},
-            )
+            ) from None
 
         input_tz = self._input_tz()  # Apply input tz to the parsed naive datetime
         dt = parsed_value.replace(tzinfo=input_tz)
@@ -681,7 +681,7 @@ class IrFieldsConverter(models.AbstractModel):
                     self.env._("Invalid database id '%s' for the field '%%(field)s'"),
                     value,
                     {"moreinfo": action},
-                )
+                ) from None
             if RelatedModel.browse(tentative_id).exists():
                 id = tentative_id
         elif subfield == "id":

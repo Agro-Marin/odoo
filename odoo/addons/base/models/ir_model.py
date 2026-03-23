@@ -465,7 +465,7 @@ class IrModel(models.Model):
                     model.order
                 )  # regex check for the whole clause ('is it valid sql?')
             except UserError as e:
-                raise ValidationError(str(e))
+                raise ValidationError(str(e)) from None
             # add MAGIC_COLUMNS to 'stored_fields' in case 'model' has not been
             # initialized yet, or 'field_id' is not up-to-date in cache
             stored_fields = set(

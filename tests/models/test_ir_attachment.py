@@ -115,3 +115,62 @@ class TestComputeMimetype:
             "url": "/files/image.png",
         })
         assert result == "application/pdf"
+
+
+# ── _same_content ────────────────────────────────────────────
+
+
+class TestSameContent:
+    """``_same_content``: block-by-block file comparison."""
+
+    def test_identical(self, env, tmp_path):
+        """Identical content returns True."""
+        data = b"hello world"
+        filepath = tmp_path / "test.bin"
+        filepath.write_bytes(data)
+        att = env["ir.attachment"].browse()
+        assert att._same_content(data, str(filepath)) is True
+
+    def test_different(self, env, tmp_path):
+        """Different content returns False."""
+        filepath = tmp_path / "test.bin"
+        filepath.write_bytes(b"hello world")
+        att = env["ir.attachment"].browse()
+        assert att._same_content(b"goodbye world", str(filepath)) is False
+
+    def test_file_shorter(self, env, tmp_path):
+        """File shorter than bin_data returns False."""
+        filepath = tmp_path / "test.bin"
+        filepath.write_bytes(b"short")
+        att = env["ir.attachment"].browse()
+        assert att._same_content(b"short but longer", str(filepath)) is False
+
+    def test_data_shorter(self, env, tmp_path):
+        """bin_data shorter than file returns False."""
+        filepath = tmp_path / "test.bin"
+        filepath.write_bytes(b"long file content here")
+        att = env["ir.attachment"].browse()
+        assert att._same_content(b"long", str(filepath)) is False
+
+    def test_empty_both(self, env, tmp_path):
+        """Both empty returns True."""
+        filepath = tmp_path / "test.bin"
+        filepath.write_bytes(b"")
+        att = env["ir.attachment"].browse()
+        assert att._same_content(b"", str(filepath)) is True
+
+    def test_multiblock(self, env, tmp_path):
+        """Content spanning multiple 1024-byte blocks compares correctly."""
+        data = bytes(range(256)) * 10  # 2560 bytes — spans 3 blocks
+        filepath = tmp_path / "test.bin"
+        filepath.write_bytes(data)
+        att = env["ir.attachment"].browse()
+        assert att._same_content(data, str(filepath)) is True
+
+    def test_multiblock_differ_last(self, env, tmp_path):
+        """Difference in the last block is detected."""
+        data = b"\x00" * 2048 + b"\x01"
+        filepath = tmp_path / "test.bin"
+        filepath.write_bytes(b"\x00" * 2048 + b"\x02")
+        att = env["ir.attachment"].browse()
+        assert att._same_content(data, str(filepath)) is False

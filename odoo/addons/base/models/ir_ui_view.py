@@ -696,7 +696,7 @@ class IrUiView(models.Model):
                         view=view.key or view.id,
                         error=e,
                     )
-                )
+                ) from None
 
         return True
 

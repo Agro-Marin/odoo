@@ -10,7 +10,6 @@ from psycopg_pool import PoolTimeout
 
 from odoo import api
 from odoo.db import db_connect
-from odoo.tools import SQL
 from odoo.db.cursor import _id_sequence_cache
 from odoo.db.pool import (
     ConnectionPool,
@@ -23,6 +22,7 @@ from odoo.modules.registry import Registry
 from odoo.tests import common
 from odoo.tests.common import BaseCase, HttpCase
 from odoo.tests.test_cursor import TestCursor
+from odoo.tools import SQL
 
 ADMIN_USER_ID = common.ADMIN_USER_ID
 

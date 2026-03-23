@@ -422,13 +422,13 @@ Traceback (most recent call last):
     raise Exception("This is an error")
 Exception: This is an error
 
-During handling of the above exception, another exception occurred:
+The above exception was the direct cause of the following exception:
 
 Traceback (most recent call last):
   File "/root_path/odoo/odoo/addons/base/tests/test_test_suite.py", line $line, in test_handle_error
     alpha()
   File "/root_path/odoo/odoo/addons/base/tests/test_test_suite.py", line $line, in alpha
-    raise Exception("This is an error2")
+    raise Exception("This is an error2") from err
 Exception: This is an error2
 """
         self.expected_logs = [
@@ -439,8 +439,8 @@ Exception: This is an error2
         def alpha():
             try:
                 beta()
-            except Exception:
-                raise Exception("This is an error2")
+            except Exception as err:
+                raise Exception("This is an error2") from err
 
         def beta():
             raise Exception("This is an error")

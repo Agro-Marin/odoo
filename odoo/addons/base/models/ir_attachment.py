@@ -51,23 +51,26 @@ SECURITY_FIELDS = ("res_model", "res_id", "create_uid", "public", "res_field")
 
 
 def condition_values(model: Any, field_name: str, domain: Domain) -> list[Any] | None:
-    """Get the values in the domain for a specific field name.
+    """Extract the restricted values for *field_name* from *domain*.
 
-    Returns the values appearing in the `in` conditions that would be restricted
-    to by the domain.
+    Returns a list of values from ``=`` or ``in`` conditions, or ``None``
+    if the domain does not restrict *field_name* with those operators.
     """
     domain = domain.optimize(model)
     for condition in (
         domain.map_conditions(
             lambda cond: (
                 cond
-                if cond.field_expr == field_name and cond.operator == "in"
+                if cond.field_expr == field_name and cond.operator in ("in", "=")
                 else Domain.TRUE
             )
         )
         .optimize(model)
         .iter_conditions()
     ):
+        # Normalize '=' to a list for uniform handling by callers
+        if condition.operator == "=":
+            return [condition.value]
         return condition.value
     return None
 
@@ -142,7 +145,7 @@ class IrAttachment(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         record_tuple_set = set()
 
-        # remove computed field depending of datas
+        # remove computed fields depending on datas
         vals_list = [
             {
                 key: value
@@ -206,7 +209,7 @@ class IrAttachment(models.Model):
                 raise AccessError(
                     _("Sorry, you are not allowed to access this document.")
                 )
-        # remove computed field depending of datas
+        # remove computed fields depending on datas
         for field in ("file_size", "checksum", "store_fname"):
             vals.pop(field, False)
         if "mimetype" in vals or "datas" in vals or "raw" in vals:
@@ -243,6 +246,11 @@ class IrAttachment(models.Model):
         to_compute = self.filtered(lambda a: a.res_model and a.res_id)
         (self - to_compute).res_name = False
         for res_model, attachments in to_compute.grouped("res_model").items():
+            if res_model not in self.env:
+                # Model no longer exists (module uninstalled) — degrade gracefully
+                for attachment in attachments:
+                    attachment.res_name = False
+                continue
             res_ids = attachments.mapped("res_id")
             records = self.env[res_model].browse(res_ids)
             name_map = {record.id: record.display_name for record in records}
@@ -260,15 +268,6 @@ class IrAttachment(models.Model):
         for attach in self:
             attach.datas = base64.b64encode(attach.raw or b"")
 
-    def _get_pdf_raw(self) -> bytes | bool:
-        """Return raw PDF bytes if this attachment is a binary PDF, else False."""
-        self.ensure_one()
-        if self.type != "binary":
-            return False
-        if self.mimetype != "application/pdf":
-            return False
-        return self.raw
-
     @api.depends("store_fname", "db_datas")
     def _compute_raw(self) -> None:
         for attach in self:
@@ -278,11 +277,9 @@ class IrAttachment(models.Model):
                 attach.raw = attach.db_datas
 
     def _compute_checksum(self, bin_data: bytes) -> str:
-        """compute the checksum for the given datas
-        :param bin_data : datas in its binary form
-        """
+        """Return the SHA-1 hex digest of *bin_data* (for content-addressed storage)."""
         # an empty file has a checksum too (for caching)
-        return hashlib.sha1(bin_data or b"").hexdigest()
+        return hashlib.sha1(bin_data or b"", usedforsecurity=False).hexdigest()
 
     def _compute_mimetype(self, values: dict[str, Any]) -> str:
         """compute the mimetype of the given values
@@ -332,6 +329,15 @@ class IrAttachment(models.Model):
             "file": [("db_datas", "!=", False)],
         }[self._storage()]
 
+    def _get_pdf_raw(self) -> bytes | bool:
+        """Return raw PDF bytes if this attachment is a binary PDF, else False."""
+        self.ensure_one()
+        if self.type != "binary":
+            return False
+        if self.mimetype != "application/pdf":
+            return False
+        return self.raw
+
     @api.model
     def force_storage(self) -> None:
         """Force all attachments to be stored in the currently configured storage"""
@@ -347,13 +353,12 @@ class IrAttachment(models.Model):
     def _migrate(self) -> None:
         record_count = len(self)
         storage = self._storage().upper()
-        for index, attach in enumerate(self):
-            _logger.debug(
-                "Migrate attachment %s/%s to %s",
-                index + 1,
-                record_count,
-                storage,
-            )
+        _logger.info("Migrating %d attachments to %s", record_count, storage)
+        for index, attach in enumerate(self, 1):
+            if index % 100 == 0 or index == record_count:
+                _logger.info(
+                    "Migrating attachment %d/%d to %s", index, record_count, storage
+                )
             # pass mimetype, to avoid recomputation
             attach.write({"raw": attach.raw, "mimetype": attach.mimetype})
 
@@ -373,33 +378,34 @@ class IrAttachment(models.Model):
 
     @api.model
     def _get_path(self, bin_data: bytes, sha: str) -> tuple[str, str]:
-        # scatter files across 256 dirs
+        """Return ``(fname, full_path)`` for storing *bin_data* in the filestore.
+
+        Files are scattered across 256 directories using the first two hex
+        characters of the SHA-1 hash.  The directory is created if needed,
+        and a SHA-1 collision check is performed.
+        """
         # we use '/' in the db (even on windows)
         fname = sha[:2] + "/" + sha
-        full_path = self._full_path(fname)
-        dirname = str(Path(full_path).parent)
-        if not Path(dirname).is_dir():
-            Path(dirname).mkdir(exist_ok=True, parents=True)
+        full_path = Path(self._full_path(fname))
+        full_path.parent.mkdir(exist_ok=True, parents=True)
 
         # prevent sha-1 collision
-        if Path(full_path).is_file() and not self._same_content(bin_data, full_path):
+        if full_path.is_file() and not self._same_content(bin_data, str(full_path)):
             raise UserError(_("The attachment collides with an existing file."))
-        return fname, full_path
+        return fname, str(full_path)
 
     @api.model
     def _file_read(self, fname: str, size: int | None = None) -> bytes:
-        assert isinstance(self, IrAttachment)
         full_path = self._full_path(fname)
         try:
             with Path(full_path).open("rb") as f:
                 return f.read(size)
         except OSError:
-            _logger.info("_read_file reading %s", full_path, exc_info=True)
+            _logger.info("_file_read reading %s", full_path, exc_info=True)
         return b""
 
     @api.model
     def _file_write(self, bin_value: bytes, checksum: str) -> str:
-        assert isinstance(self, IrAttachment)
         fname, full_path = self._get_path(bin_value, checksum)
         if not Path(full_path).exists():
             try:
@@ -408,7 +414,7 @@ class IrAttachment(models.Model):
                 # add fname to checklist, in case the transaction aborts
                 self._mark_for_gc(fname)
             except OSError:
-                _logger.info("_file_write writing %s", full_path)
+                _logger.info("_file_write writing %s", full_path, exc_info=True)
                 raise
         return fname
 
@@ -419,16 +425,13 @@ class IrAttachment(models.Model):
 
     def _mark_for_gc(self, fname: str) -> None:
         """Add ``fname`` in a checklist for the filestore garbage collection."""
-        assert isinstance(self, IrAttachment)
-        fname = re.sub(r"[.:]", "", fname).strip("/\\")
-        # we use a spooldir: add an empty file in the subdirectory 'checklist'
-        full_path = str(Path(self._full_path("checklist"), fname))
-        if not Path(full_path).exists():
-            dirname = str(Path(full_path).parent)
-            if not Path(dirname).is_dir():
-                with contextlib.suppress(OSError):
-                    Path(dirname).mkdir(parents=True)
-            with Path(full_path).open("ab"):
+        # fname is sanitized by _full_path (dots/colons stripped, path-traversal blocked)
+        checklist_dir = Path(self._full_path("checklist"))
+        full_path = checklist_dir / re.sub(r"[.:]", "", fname).strip("/\\")
+        if not full_path.exists():
+            with contextlib.suppress(OSError):
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+            with full_path.open("ab"):
                 pass
 
     @api.model
@@ -448,7 +451,6 @@ class IrAttachment(models.Model):
     @api.autovacuum
     def _gc_file_store(self) -> None | bool:
         """Perform the garbage collection of the filestore."""
-        assert isinstance(self, IrAttachment)
         if self._storage() != "file":
             return None
 
@@ -457,7 +459,7 @@ class IrAttachment(models.Model):
         # used by it may not contain the most recent changes made to the table
         # ir_attachment! Indeed, if concurrent transactions create attachments,
         # the LOCK statement will wait until those concurrent transactions end.
-        # But this transaction will not see the new attachements if it has done
+        # But this transaction will not see the new attachments if it has done
         # other requests before the LOCK (like the method _storage() above).
         cr = self.env.cr
         cr.commit()
@@ -506,7 +508,7 @@ class IrAttachment(models.Model):
                 if fname not in whitelist:
                     full_path = self._full_path(fname)
                     try:
-                        Path(full_path).unlink()
+                        Path(full_path).unlink(missing_ok=True)
                         _logger.debug("_file_gc unlinked %s", full_path)
                         removed += 1
                     except OSError:
@@ -557,10 +559,7 @@ class IrAttachment(models.Model):
         self, data: bytes, mimetype: str, *, use_filestore: bool | None = None
     ) -> dict[str, Any]:
         checksum = self._compute_checksum(data)
-        try:
-            index_content = self._index(data, mimetype, checksum=checksum)
-        except TypeError:
-            index_content = self._index(data, mimetype)
+        index_content = self._index(data, mimetype, checksum=checksum)
         values = {
             "file_size": len(data),
             "checksum": checksum,
@@ -606,7 +605,15 @@ class IrAttachment(models.Model):
                         return values
 
                     w, h = img.image.size
-                    nw, nh = map(int, max_resolution.split("x"))
+                    try:
+                        nw, nh = map(int, max_resolution.split("x"))
+                    except ValueError:
+                        _logger.warning(
+                            "Invalid base.image_autoresize_max_px value: %r, "
+                            "skipping image resize",
+                            max_resolution,
+                        )
+                        return values
                     if w > nw or h > nh:
                         img = img.resize(nw, nh)
                         if _subtype == "jpeg":  # Do not affect PNGs color palette
@@ -660,7 +667,7 @@ class IrAttachment(models.Model):
                 # nothing to check
                 continue
             # forbid access to attachments linked to removed models as we do not
-            # know what persmissions should be checked
+            # know what permissions should be checked
             if res_model not in self.env:
                 for res_id in res_ids:
                     yield res_model, res_id
@@ -763,9 +770,11 @@ class IrAttachment(models.Model):
                     accessible_fields = [
                         field.name
                         for field in comodel._fields.values()
-                        if field.type == "binary"
-                        or (field.relational and field.comodel_name == self._name)
-                        if comodel._has_field_access(field, "read")
+                        if (
+                            field.type == "binary"
+                            or (field.relational and field.comodel_name == self._name)
+                        )
+                        and comodel._has_field_access(field, "read")
                     ]
                     accessible_fields.append(False)
                     codomain &= Domain("res_field", "in", accessible_fields)
@@ -855,8 +864,8 @@ class IrAttachment(models.Model):
         for values in values_list:
             try:
                 bin_data = base64.b64decode(values.get("datas", ""))
-            except binascii.Error:
-                raise UserError(_("Attachment is not encoded in base64."))
+            except binascii.Error as exc:
+                raise UserError(_("Attachment is not encoded in base64.")) from exc
             checksum = self._compute_checksum(bin_data)
             entries.append((values, checksum, len(bin_data), values["mimetype"]))
 
@@ -942,7 +951,10 @@ class IrAttachment(models.Model):
             mimetype = guess_mimetype(head)
             filename = fix_filename_extension(file.filename, mimetype)
             if mimetype in ("application/zip", *_olecf_mimetypes):
-                mimetype = mimetypes.guess_type(filename)[0]
+                # Re-guess from the (potentially corrected) filename to get a
+                # more specific type (e.g. .docx → openxmlformats).  Keep the
+                # content-detected mimetype as fallback for extensionless files.
+                mimetype = mimetypes.guess_type(filename)[0] or mimetype
         elif all(mimetype.partition("/")):
             filename = fix_filename_extension(file.filename, mimetype)
         else:
@@ -975,7 +987,20 @@ class IrAttachment(models.Model):
                 str(Path(config.filestore(request.db)).resolve()),
                 self.store_fname,
             )
-            stat = Path(stream.path).stat()
+            try:
+                stat = Path(stream.path).stat()
+            except FileNotFoundError:
+                _logger.warning(
+                    "Filestore file missing for attachment %s: %s",
+                    self.id,
+                    stream.path,
+                )
+                # Fall back to empty data so the caller gets a valid stream
+                # instead of an unhandled 500 error.
+                stream.type = "data"
+                stream.data = b""
+                stream.size = 0
+                return stream
             stream.last_modified = stat.st_mtime
             stream.size = stat.st_size
 
@@ -1093,10 +1118,13 @@ class IrAttachment(models.Model):
                     forbidden_ids.add(att_id)
                     continue
                 if res_field := attachment.res_field:
+                    if res_model not in self.env:
+                        # model no longer exists (module uninstalled)
+                        forbidden_ids.add(att_id)
+                        continue
                     try:
                         field = self.env[res_model]._fields[res_field]
                     except KeyError:
-                        # field does not exist
                         field = None
                     if field is None or not self._has_field_access(field, operation):
                         forbidden_ids.add(att_id)

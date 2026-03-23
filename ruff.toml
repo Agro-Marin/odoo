@@ -100,7 +100,7 @@ select = [
     "RUF039",     # unraw-re-pattern (regex missing r"" prefix)
     "RUF069",     # float-equality-comparison (precision bugs in financial code)
     "RUF065",     # f-string-in-logging (performance — use lazy %s formatting)
-    "FURB113",    # repeated-append (use .extend() instead)
+    # "FURB113",  # repeated-append — DISABLED: loses inter-append comments, rarely a real perf issue
     "FURB188",    # slice-to-remove-prefix (use removeprefix()/removesuffix())
 
     # Misc
@@ -155,6 +155,7 @@ ignore = [
     "TRY300",     # try-consider-else
     "TRY301",     # raise-within-try (UserError/ValidationError raised inside try is intentional)
     "TRY400",     # error-instead-of-exception
+    "EM101",      # string-in-exception (intermediate variable adds noise, no readability gain)
     "EM102",      # f-string-in-exception (pragmatic — f-strings in exceptions are fine)
 
     # --- CLI style ---
@@ -166,7 +167,7 @@ ignore = [
     # --- Other style ---
     "PIE790",     # unnecessary-placeholder (Odoo uses pass in abstract methods)
     "RET505",     # superfluous-else-return (readability preference)
-    "B904",       # raise-without-from-inside-except (legacy; new code should use `from`)
+    # B904 re-enabled — raise-without-from-inside-except preserves exception context for debugging
 
     # --- Security adjustments (S / flake8-bandit) ---
     "S101",       # assert-used (374 in non-test code — Odoo uses assert for ORM invariants)

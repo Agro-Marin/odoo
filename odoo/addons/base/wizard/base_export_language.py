@@ -74,7 +74,7 @@ class BaseLanguageExport(models.TransientModel):
                 try:
                     domain = ast.literal_eval(self.domain or "[]")
                 except ValueError, SyntaxError:
-                    raise UserError(_("Invalid domain filter: %s", self.domain))
+                    raise UserError(_("Invalid domain filter: %s", self.domain)) from None
                 ids = self.env[self.model_name].search(domain).ids
                 is_exported = trans_export_records(
                     lang, self.model_name, ids, buf, self.format, self.env
