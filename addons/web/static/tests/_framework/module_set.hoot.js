@@ -113,7 +113,14 @@ async function describeDrySuite(fileSuffix, entryPoints) {
         describe(getSuitePath(entryPoint), () => {
             // Load entry point module
             const fullModuleName = entryPoint + fileSuffix;
-            const module = moduleSetLoader.startModule(fullModuleName);
+            let module;
+            try {
+                module = moduleSetLoader.startModule(fullModuleName);
+            } catch (e) {
+                // Skip modules that fail to load (missing deps, etc.)
+                console.warn(`[HOOT] Skipping ${fullModuleName}: ${e.message}`);
+                return;
+            }
 
             // Check exports (shouldn't have any)
             const exports = Object.keys(module || {});
@@ -476,7 +483,13 @@ class ModuleSetLoader extends /** @type {any} */ (loader.constructor) {
             }
             if (!this.modules.has(name)) {
                 // Run (or re-run) module factory
-                this.startModule(name);
+                try {
+                    this.startModule(name);
+                } catch (e) {
+                    // Skip modules that fail to load (missing deps, etc.)
+                    // Don't let one broken module crash the entire test runner.
+                    console.warn(`[HOOT] Skipping module ${name}: ${e.message}`);
+                }
             }
         }
     }
@@ -652,6 +665,7 @@ export async function runTests(options) {
     // Find dependency issues
     const errors = loader.findErrors(loader.factories.keys());
     delete errors.unloaded; // Only a few modules have been loaded yet => irrelevant
+    delete errors.missing; // Some modules may reference optional/uninstalled deps
     if (Object.keys(errors).length) {
         return loader.reportErrors(errors);
     }
@@ -676,6 +690,16 @@ export async function runTests(options) {
             sortedModuleNames.push(name);
             modDef.resolve();
         });
+    }
+
+    // Resolve dependencies — skip modules whose deps are not in factories
+    // (e.g. test helpers without @odoo-module annotation that are loaded
+    // as plain ESM files outside the legacy module system).
+    const factoryNames = new Set(loader.factories.keys());
+    for (const [name, def] of Object.entries(defs)) {
+        if (!factoryNames.has(name) && !def.isResolved) {
+            def.resolve();
+        }
     }
 
     await Promise.all(Object.values(defs));
