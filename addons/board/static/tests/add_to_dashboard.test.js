@@ -3,7 +3,7 @@ import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { hover, press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import * as dsHelpers from "@web/../tests/core/domain_selector/domain_selector_helpers";
+import * as dsHelpers from "@web/../tests/components/domain_selector/domain_selector_helpers";
 import {
     contains,
     defineModels,
