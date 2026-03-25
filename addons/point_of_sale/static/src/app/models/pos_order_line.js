@@ -539,7 +539,7 @@ export class PosOrderline extends PosOrderlineAccounting {
         return this.order_id?.uiState?.selected_orderline_uuid === this.uuid;
     }
     get canBeRemoved() {
-        return this.product_id.uom_id.isZero(this.qty);
+        return this.product_id.uom_id?.isZero(this.qty) ?? this.qty === 0;
     }
     get refundedQty() {
         return (
