@@ -13,5 +13,16 @@
       id="survey_menu_questions"
       parent="menu_surveys"
       sequence="90"/>
+
+    <menuitem name="Configuration"
+      id="menu_survey_config"
+      parent="menu_surveys"
+      sequence="100"
+      groups="group_survey_manager"/>
+
+    <menuitem name="Tags"
+      id="menu_survey_tags"
+      action="survey_tag_action"
+      parent="menu_survey_config"/>
   </data>
 </odoo>

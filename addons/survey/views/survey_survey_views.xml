@@ -65,6 +65,7 @@
                             <field name="has_conditional_questions" invisible="1"/>
                             <field name="lang_ids" widget="many2many_tags" placeholder="All installed languages"
                                    options="{'no_quick_create': True, 'no_create_edit': True, 'no_open': True}"/>
+                            <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}"/>
                         </group>
                         <group class="ps-3 ps-md-0 ps-lg-3">
                             <field name="restrict_user_ids" widget="many2many_tags_avatar"/>
@@ -212,6 +213,7 @@
                     icon="fa-trophy" title="Certification" aria-label="Certification"
                     invisible="not certification"/>
                 <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="show"/>
                 <field name="answer_duration_avg" widget="float_time"/>
                 <field name="answer_count"/>
                 <field name="answer_done_count" optional="hide"/>
@@ -249,6 +251,7 @@
                             <div class="col-lg-2 col-sm-8 py-0 my-2 my-lg-0 col-12 g-0">
                                 <div class="d-flex flex-grow-1 flex-column my-0 my-lg-2">
                                     <field name="title" class="fw-bold"/>
+                                    <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
                                     <span t-if="!selection_mode" class="d-flex align-items-center">
                                         <field name="user_id" widget="many2one_avatar_user"
                                             options="{'display_avatar_name': True}"/>
@@ -364,6 +367,7 @@
                 <field string="Question &amp; Pages" name="question_and_page_ids"/>
                 <field name="user_id"/>
                 <field name="restrict_user_ids"/>
+                <field name="tag_ids" string="Tag"/>
                 <filter string="Is a Certification" name="certification" domain="[('certification', '=', True)]"/>
                 <filter string="Is not a Certification" name="not_certification" domain="[('certification', '=', False)]"/>
                 <separator/>
@@ -384,6 +388,8 @@
                         context="{'group_by': 'user_id'}"/>
                     <filter name="group_by_restrict_user_ids"
                         context="{'group_by': 'restrict_user_ids'}"/>
+                    <filter string="Tags" name="group_by_tags"
+                        context="{'group_by': 'tag_ids'}"/>
                 </group>
             </search>
         </field>

@@ -67,6 +67,7 @@ class SurveySurvey(models.Model):
         domain=[('share', '=', False)], tracking=1,
         default=lambda self: self.env.user)
     restrict_user_ids = fields.Many2many('res.users', string='Restricted to', domain=[('share', '=', False)], tracking=2)
+    tag_ids = fields.Many2many('survey.tag', string='Tags')
     # questions
     question_and_page_ids = fields.One2many('survey.question', 'survey_id', string='Sections and Questions', copy=True)
     page_ids = fields.One2many('survey.question', string='Pages', compute="_compute_page_and_question_ids")
