@@ -4,7 +4,12 @@ import { on, setFrameRate } from "@odoo/hoot-dom";
 import { markRaw, reactive, toRaw } from "@odoo/owl";
 import { cleanupDOM, defineRootNode } from "@web/../lib/hoot-dom/helpers/dom";
 import { cleanupEvents, enableEventLogs } from "@web/../lib/hoot-dom/helpers/events";
-import { cleanupTime, setupTime } from "@web/../lib/hoot-dom/helpers/time";
+import {
+    cleanupTime,
+    nativeClearTimeout,
+    nativeSetTimeout,
+    setupTime,
+} from "@web/../lib/hoot-dom/helpers/time";
 import { exposeHelpers, isInstanceOf, isIterable } from "@web/../lib/hoot-dom/hoot_dom_utils";
 import {
     CASE_EVENT_TYPES,
@@ -1008,8 +1013,11 @@ export class Runner {
                 this._resolveCurrent = resolve;
 
                 if (timeout && !this.debug) {
-                    // Set timeout
-                    timeoutId = setTimeout(() => {
+                    // Set timeout — use native setTimeout so the timeout
+                    // fires even when Hoot has frozen/mocked timers.
+                    console.warn(`[TIMEOUT] Setting ${timeout}ms timeout for "${test.name}", nativeSetTimeout=${nativeSetTimeout === globalThis.setTimeout ? 'MOCKED' : 'NATIVE'}`);
+                    timeoutId = nativeSetTimeout(() => {
+                        console.warn(`[TIMEOUT] FIRED for "${test.name}"`)
                         const msg = `test ${stringify(
                             test.name
                         )} timed out after ${timeout} milliseconds`;
@@ -1034,7 +1042,7 @@ export class Runner {
                     this._resolveCurrent = null;
 
                     if (timeoutId) {
-                        clearTimeout(timeoutId);
+                        nativeClearTimeout(timeoutId);
                     }
                 });
 

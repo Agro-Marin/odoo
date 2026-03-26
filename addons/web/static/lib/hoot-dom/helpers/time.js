@@ -31,6 +31,14 @@ const {
     setInterval,
     setTimeout,
 } = globalThis;
+
+// Native (un-mocked) timer functions for use by the test runner's own
+// timeout mechanism, which must fire even when time is frozen.
+// Assigned to new constants so the transpiler copies the *original*
+// globalThis values instead of re-resolving the names at export time.
+export const nativeSetTimeout = setTimeout;
+export const nativeClearTimeout = clearTimeout;
+
 /** @type {Performance["now"]} */
 const $performanceNow = performance.now.bind(performance);
 
