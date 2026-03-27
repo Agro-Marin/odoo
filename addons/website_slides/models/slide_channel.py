@@ -98,6 +98,7 @@ class SlideChannel(models.Model):
     nbr_infographic = fields.Integer('Infographics', compute='_compute_slides_statistics', store=True)
     nbr_article = fields.Integer("Articles", compute='_compute_slides_statistics', store=True)
     nbr_quiz = fields.Integer("Number of Quizs", compute='_compute_slides_statistics', store=True)
+    nbr_certification = fields.Integer("Number of Certifications", compute='_compute_slides_statistics', store=True)
     total_slides = fields.Integer('Number of Contents', compute='_compute_slides_statistics', store=True)
     total_views = fields.Integer('Visits', compute='_compute_slides_statistics', store=True)
     total_votes = fields.Integer('Votes', compute='_compute_slides_statistics', store=True)
@@ -785,7 +786,7 @@ class SlideChannel(models.Model):
         ])
         for partner_slide in slide_completed:
             slide = partner_slide.slide_id
-            if not slide.question_ids:
+            if not slide.has_questions:
                 continue
             gains = [
                 slide.quiz_first_attempt_reward,

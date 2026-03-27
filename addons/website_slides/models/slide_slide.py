@@ -72,13 +72,18 @@ class SlideSlide(models.Model):
     user_vote = fields.Integer('User vote', compute='_compute_user_membership_id', compute_sudo=False)
     user_has_completed = fields.Boolean('Is Member', compute='_compute_user_membership_id', compute_sudo=False)
     user_has_completed_category = fields.Boolean('Is Category Completed', compute='_compute_category_completed')
-    # Quiz related fields
-    question_ids = fields.One2many("slide.question", "slide_id", string="Questions", copy=True)
-    questions_count = fields.Integer(string="Numbers of Questions", compute='_compute_questions_count')
+    # Quiz / survey fields
+    survey_id = fields.Many2one('survey.survey', "Linked Survey", index='btree_not_null')
+    has_questions = fields.Boolean(
+        "Has Questions", compute='_compute_has_questions', store=True,
+        help="Whether this slide has quiz/certification questions (via its linked survey).",
+    )
+    questions_count = fields.Integer("Number of Questions", compute='_compute_questions_count')
     quiz_first_attempt_reward = fields.Integer("Reward: first attempt", default=10)
     quiz_second_attempt_reward = fields.Integer("Reward: second attempt", default=7)
-    quiz_third_attempt_reward = fields.Integer("Reward: third attempt", default=5,)
+    quiz_third_attempt_reward = fields.Integer("Reward: third attempt", default=5)
     quiz_fourth_attempt_reward = fields.Integer("Reward: every attempt after the third try", default=2)
+    nbr_certification = fields.Integer("Number of Certifications", compute='_compute_slides_statistics', store=True)
     # content
     can_self_mark_completed = fields.Boolean('Can Mark Completed', compute='_compute_mark_complete_actions',
         help='The slide can be marked as completed even without opening it')
@@ -89,7 +94,8 @@ class SlideSlide(models.Model):
         ('article', 'Article'),
         ('document', 'Document'),
         ('video', 'Video'),
-        ('quiz', "Quiz")],
+        ('quiz', "Quiz"),
+        ('certification', 'Certification')],
         string='Category', required=True,
         default='document')
     source_type = fields.Selection([
@@ -124,7 +130,8 @@ class SlideSlide(models.Model):
         ('slides', 'Slides (PowerPoint, Google Slides, ...)'),
         ('youtube_video', 'YouTube Video'),
         ('google_drive_video', 'Google Drive Video'),
-        ('vimeo_video', 'Vimeo Video')],
+        ('vimeo_video', 'Vimeo Video'),
+        ('certification', 'Certification')],
         string="Slide Type", compute='_compute_slide_type', store=True, readonly=False,
         help="Subtype of the slide category, allows more precision on the actual file type / source type.")
     document_google_url = fields.Char('Document Link', related='url', readonly=False,
@@ -174,6 +181,14 @@ class SlideSlide(models.Model):
         'CHECK(html_content IS NULL OR url IS NULL)',
         'A slide is either filled with a url or HTML content. Not both.',
     )
+    _check_survey_id = models.Constraint(
+        "CHECK(slide_category != 'certification' OR survey_id IS NOT NULL)",
+        "A slide of type 'certification' requires a certification.",
+    )
+    _check_certification_preview = models.Constraint(
+        "CHECK(slide_category != 'certification' OR is_preview = False)",
+        "A slide of type certification cannot be previewed.",
+    )
 
     @api.depends('slide_category', 'source_type', 'image_binary_content')
     def _compute_image_1920(self):
@@ -216,14 +231,20 @@ class SlideSlide(models.Model):
                 elif slide.category_id != current_category:
                     slide.category_id = current_category.id
 
-    @api.depends('slide_category', 'question_ids', 'channel_id.is_member')
+    @api.depends('survey_id.question_ids')
+    def _compute_has_questions(self):
+        """Check whether the linked survey has at least one question."""
+        for slide in self:
+            slide.has_questions = bool(slide.survey_id.question_ids)
+
+    @api.depends('slide_category', 'has_questions', 'channel_id.is_member')
     @api.depends_context('uid')
     def _compute_mark_complete_actions(self):
         """Determine if the slide can be marked as (un)completed.
 
-        We can't mark a slide with questions as completed manually because we need to
-        complete the quiz first. But we can mark as uncompleted a slide with questions,
-        and the answers will be reset, the karma removed, etc (see mark_uncompleted).
+        Slides with quiz questions cannot be manually completed — the quiz must
+        be passed first. They can still be marked as uncompleted (which resets
+        answers and removes karma).
         """
         for slide in self:
             slide.can_self_mark_uncompleted = slide.website_published and slide.channel_id.is_member
@@ -231,13 +252,13 @@ class SlideSlide(models.Model):
                 slide.website_published
                 and slide.channel_id.is_member
                 and slide.slide_category != 'quiz'
-                and not slide.question_ids
+                and not slide.has_questions
             )
 
-    @api.depends('question_ids')
+    @api.depends('survey_id.question_ids')
     def _compute_questions_count(self):
         for slide in self:
-            slide.questions_count = len(slide.question_ids)
+            slide.questions_count = len(slide.survey_id.question_ids) if slide.survey_id else 0
 
     @api.depends('website_message_ids.res_id', 'website_message_ids.model', 'website_message_ids.message_type')
     def _compute_comments_count(self):
@@ -339,6 +360,7 @@ class SlideSlide(models.Model):
             'youtube_video': 'fa-brands fa-youtube',
             'google_drive_video': 'fa-regular fa-circle-play',
             'vimeo_video': 'fa-brands fa-vimeo',
+            'certification': 'fa-trophy',
         }
         for slide in self:
             slide.slide_icon_class = icon_per_slide_type.get(slide.slide_type, 'fa-regular fa-file')
@@ -363,6 +385,8 @@ class SlideSlide(models.Model):
                 slide.slide_type = 'article'
             elif slide.slide_category == 'quiz':
                 slide.slide_type = 'quiz'
+            elif slide.slide_category == 'certification':
+                slide.slide_type = 'certification'
             elif slide.slide_category == 'video' and slide.video_source_type == 'youtube':
                 slide.slide_type = 'youtube_video'
             elif slide.slide_category == 'video' and slide.video_source_type == 'google_drive':
@@ -868,12 +892,11 @@ class SlideSlide(models.Model):
         ]).completed = False
 
     def _action_set_quiz_done(self, completed=True):
-        """Add or remove karma point related to the quiz.
+        """Add or remove karma points related to the quiz.
 
         :param completed:
-            True if the quiz will be marked as completed (karma will be increased)
-            If set to False, we will remove the karma instead of increasing it,
-            so that the user can take the quiz multiple times but not gain karma infinitely
+            True if the quiz will be marked as completed (karma will be increased).
+            If False, karma is removed so users can retake without infinite gain.
         """
         if any(not slide.channel_id.is_member or not slide.website_published for slide in self):
             raise UserError(
@@ -881,13 +904,12 @@ class SlideSlide(models.Model):
                 else _('You cannot mark a slide quiz as not completed if you are not among its members or it is unpublished.')
             )
 
-        points = 0
         for slide in self:
             user_membership_sudo = slide.user_membership_id.sudo()
             if not user_membership_sudo \
                or user_membership_sudo.completed == completed \
                or not user_membership_sudo.quiz_attempts_count \
-               or not slide.question_ids:
+               or not slide.has_questions:
                 continue
 
             gains = [slide.quiz_first_attempt_reward,
@@ -912,15 +934,37 @@ class SlideSlide(models.Model):
         action['context'] = {'search_default_slide_id': self.id}
         return action
 
+    def _ensure_quiz_survey(self):
+        """Create a lightweight survey for quiz slides that don't have one yet.
+
+        Quiz surveys are single-page, all-or-nothing (100% pass threshold) with
+        no attempt limit. They exist solely to store questions as
+        ``survey.question`` records, unifying the data model with certifications.
+        """
+        for slide in self.filtered(lambda s: not s.survey_id):
+            survey = self.env['survey.survey'].create({
+                'title': slide.name or _("Quiz"),
+                'scoring_type': 'scoring_without_answers',
+                'scoring_success_min': 100.0,
+                'questions_layout': 'one_page',
+                'questions_selection': 'all',
+                'access_mode': 'public',
+                'certification': False,
+                'is_attempts_limited': False,
+                'active': True,
+            })
+            slide.survey_id = survey
+
     def _compute_quiz_info(self, target_partner, quiz_done=False):
+        """Compute quiz karma info for a given partner across slides in ``self``."""
         result = dict.fromkeys(self.ids, False)
         slide_partners = self.env['slide.slide.partner'].sudo().search([
             ('slide_id', 'in', self.ids),
-            ('partner_id', '=', target_partner.id)
+            ('partner_id', '=', target_partner.id),
         ])
-        slide_partners_map = dict((sp.slide_id.id, sp) for sp in slide_partners)
+        slide_partners_map = {sp.slide_id.id: sp for sp in slide_partners}
         for slide in self:
-            if not slide.question_ids:
+            if not slide.has_questions:
                 gains = [0]
             else:
                 gains = [slide.quiz_first_attempt_reward,
@@ -928,17 +972,17 @@ class SlideSlide(models.Model):
                          slide.quiz_third_attempt_reward,
                          slide.quiz_fourth_attempt_reward]
             result[slide.id] = {
-                'quiz_karma_max': gains[0],  # what could be gained if succeed at first try
-                'quiz_karma_gain': gains[0],  # what would be gained at next test
-                'quiz_karma_won': 0,  # what has been gained
-                'quiz_attempts_count': 0,  # number of attempts
+                'quiz_karma_max': gains[0],
+                'quiz_karma_gain': gains[0],
+                'quiz_karma_won': 0,
+                'quiz_attempts_count': 0,
             }
             slide_partner = slide_partners_map.get(slide.id)
-            if slide.question_ids and slide_partner and slide_partner.quiz_attempts_count:
+            if slide.has_questions and slide_partner and slide_partner.quiz_attempts_count:
                 result[slide.id]['quiz_karma_gain'] = gains[slide_partner.quiz_attempts_count] if slide_partner.quiz_attempts_count < len(gains) else gains[-1]
                 result[slide.id]['quiz_attempts_count'] = slide_partner.quiz_attempts_count
                 if quiz_done or slide_partner.completed:
-                    result[slide.id]['quiz_karma_won'] = gains[slide_partner.quiz_attempts_count-1] if slide_partner.quiz_attempts_count < len(gains) else gains[-1]
+                    result[slide.id]['quiz_karma_won'] = gains[slide_partner.quiz_attempts_count - 1] if slide_partner.quiz_attempts_count < len(gains) else gains[-1]
         return result
 
     # --------------------------------------------------

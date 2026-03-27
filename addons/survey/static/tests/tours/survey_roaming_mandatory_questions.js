@@ -45,32 +45,33 @@ registry.category('web_tour.tours').add('test_survey_roaming_mandatory_questions
         trigger: 'button.btn-primary:contains("Submit")',
         run: "click",
     }, {
-        content: 'Check if question is Q1',
+        content: 'Check if question is Q1 (first skipped)',
         trigger: 'div.js_question-wrapper:contains("Q1")',
     }, {
-        content: 'Click on "Next Skipped" button',
+        content: 'Q1 is not the last skipped → click "Next Skipped" to go to Q2',
         trigger: 'button.btn:contains("Next Skipped")',
         run: "click",
     }, {
-        content: 'Check if question is Q2',
+        content: 'Check if question is Q2 (last skipped)',
         trigger: 'div.js_question-wrapper:contains("Q2")',
     }, {
-        content: 'Click on "Next Skipped" button',
-        trigger: 'button.btn:contains("Next Skipped")',
+        content: 'Q2 is the last skipped → shows Submit. Answer Q2.',
+        trigger: 'div.js_question-wrapper:contains("Q2") label:contains("Answer 3")',
         run: "click",
     }, {
-        content: 'Check if question is Q1 again (should loop on skipped questions)',
+        content: 'Click Submit for Q2 (last skipped question)',
+        trigger: 'button.btn:contains("Submit")',
+        run: "click",
+    }, {
+        content: 'Confirm the submit dialog',
+        trigger: '.modal-footer button.btn-primary:contains("Submit")',
+        run: "click",
+    }, {
+        content: 'Now only Q1 remains skipped → shows Q1',
         trigger: 'div.js_question-wrapper:contains("Q1")',
     }, {
         content: 'Answer Q1',
         trigger: 'div.js_question-wrapper:contains("Q1") label:contains("Answer 2")',
-        run: "click",
-    }, {
-        content: 'Check if the visible question is the skipped question Q2',
-        trigger: 'div.js_question-wrapper:contains("Q2")',
-    }, {
-        content: 'Answer Q2',
-        trigger: 'div.js_question-wrapper:contains("Q2") label:contains("Answer 3")',
         run: "click",
     }, {
         content: 'Click on Submit',

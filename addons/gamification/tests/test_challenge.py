@@ -1,69 +1,100 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import datetime
-from freezegun import freeze_time
 from datetime import timedelta
 
-from odoo.addons.gamification.tests.common import TransactionCaseGamification
+from freezegun import freeze_time
+
 from odoo.exceptions import UserError
 from odoo.tools import mute_logger
 
+from odoo.addons.gamification.tests.common import TransactionCaseGamification
+
 
 class TestGamificationCommon(TransactionCaseGamification):
-
     def setUp(self):
-        super(TestGamificationCommon, self).setUp()
-        employees_group = self.env.ref('base.group_user')
+        super().setUp()
+        employees_group = self.env.ref("base.group_user")
         self.user_ids = employees_group.all_user_ids
 
         # Push demo user into the challenge before creating a new one
-        self.env.ref('gamification.challenge_base_discover')._update_all()
-        self.robot = self.env['res.users'].with_context(no_reset_password=True).create({
-            'name': 'R2D2',
-            'login': 'r2d2@odoo.com',
-            'email': 'r2d2@odoo.com',
-            'group_ids': [(6, 0, [employees_group.id])]
-        })
-        self.badge_good_job = self.env.ref('gamification.badge_good_job')
+        self.env.ref("gamification.challenge_base_discover")._update_all()
+        self.robot = (
+            self.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "R2D2",
+                    "login": "r2d2@odoo.com",
+                    "email": "r2d2@odoo.com",
+                    "group_ids": [(6, 0, [employees_group.id])],
+                }
+            )
+        )
+        self.badge_good_job = self.env.ref("gamification.badge_good_job")
 
 
 class test_challenge(TestGamificationCommon):
-
     def test_00_join_challenge(self):
-        challenge = self.env.ref('gamification.challenge_base_discover')
-        self.assertGreaterEqual(len(challenge.user_ids), len(self.user_ids), "Not enough users in base challenge")
+        challenge = self.env.ref("gamification.challenge_base_discover")
+        self.assertGreaterEqual(
+            len(challenge.user_ids),
+            len(self.user_ids),
+            "Not enough users in base challenge",
+        )
         challenge._update_all()
-        self.assertGreaterEqual(len(challenge.user_ids), len(self.user_ids)+1, "These are not droids you are looking for")
+        self.assertGreaterEqual(
+            len(challenge.user_ids),
+            len(self.user_ids) + 1,
+            "These are not droids you are looking for",
+        )
 
     def test_10_reach_challenge(self):
-        Goals = self.env['gamification.goal']
-        challenge = self.env.ref('gamification.challenge_base_discover')
+        Goals = self.env["gamification.goal"]
+        challenge = self.env.ref("gamification.challenge_base_discover")
 
-        challenge.state = 'inprogress'
-        self.assertEqual(challenge.state, 'inprogress', "Challenge failed the change of state")
+        challenge.state = "inprogress"
+        self.assertEqual(
+            challenge.state, "inprogress", "Challenge failed the change of state"
+        )
 
-        goal_ids = Goals.search([('challenge_id', '=', challenge.id), ('state', '!=', 'draft')])
-        self.assertEqual(len(goal_ids), len(challenge.line_ids) * len(challenge.user_ids.ids), "Incorrect number of goals generated, should be 1 goal per user, per challenge line")
+        goal_ids = Goals.search(
+            [("challenge_id", "=", challenge.id), ("state", "!=", "draft")]
+        )
+        self.assertEqual(
+            len(goal_ids),
+            len(challenge.line_ids) * len(challenge.user_ids.ids),
+            "Incorrect number of goals generated, should be 1 goal per user, per challenge line",
+        )
 
         demo = self.user_demo
         # demo user will set a timezone
         demo.tz = "Europe/Brussels"
-        goal_ids = Goals.search([('user_id', '=', demo.id), ('definition_id', '=', self.env.ref('gamification.definition_base_timezone').id)])
+        goal_ids = Goals.search(
+            [
+                ("user_id", "=", demo.id),
+                (
+                    "definition_id",
+                    "=",
+                    self.env.ref("gamification.definition_base_timezone").id,
+                ),
+            ]
+        )
 
         goal_ids.update_goal()
 
-        missed = goal_ids.filtered(lambda g: g.state != 'reached')
+        missed = goal_ids.filtered(lambda g: g.state != "reached")
         self.assertFalse(missed, "Not every goal was reached after changing timezone")
 
         # reward for two firsts as admin may have timezone
         badge_id = self.badge_good_job.id
-        challenge.write({'reward_first_id': badge_id, 'reward_second_id': badge_id})
-        challenge.state = 'done'
+        challenge.write({"reward_first_id": badge_id, "reward_second_id": badge_id})
+        challenge.state = "done"
 
-        badge_ids = self.env['gamification.badge.user'].search([('badge_id', '=', badge_id), ('user_id', '=', demo.id)])
+        badge_ids = self.env["gamification.badge.user"].search(
+            [("badge_id", "=", badge_id), ("user_id", "=", demo.id)]
+        )
         self.assertEqual(len(badge_ids), 1, "Demo user has not received the badge")
 
-    @mute_logger('odoo.models.unlink', 'odoo.addons.mail', 'odoo.addons.auth_signup')
+    @mute_logger("odoo.models.unlink", "odoo.addons.mail", "odoo.addons.auth_signup")
     def test_20_update_all_goals_filter(self):
         # Enroll two internal and two portal users in the challenge
         (
@@ -71,26 +102,30 @@ class test_challenge(TestGamificationCommon):
             portal_last_active_recent,
             internal_last_active_old,
             internal_last_active_recent,
-        ) = all_test_users = self.env['res.users'].create([
-            {
-                'name': f'{kind} {age} login',
-                'login': f'{kind}_{age}',
-                'email': f'{kind}_{age}',
-                'group_ids': [(6, 0, group_ids)],
-            }
-            for kind, group_ids in (
-                ('Portal', []),
-                ('Internal', [self.env.ref('base.group_user').id]),
-            )
-            for age in ('Old', 'Recent')
-        ])
+        ) = all_test_users = self.env["res.users"].create(
+            [
+                {
+                    "name": f"{kind} {age} login",
+                    "login": f"{kind}_{age}",
+                    "email": f"{kind}_{age}",
+                    "group_ids": [(6, 0, group_ids)],
+                }
+                for kind, group_ids in (
+                    ("Portal", []),
+                    ("Internal", [self.env.ref("base.group_user").id]),
+                )
+                for age in ("Old", "Recent")
+            ]
+        )
 
-        challenge = self.env.ref('gamification.challenge_base_discover')
-        challenge.write({
-            'state': 'inprogress',
-            'user_domain': False,
-            'user_ids': [(6, 0, all_test_users.ids)]
-        })
+        challenge = self.env.ref("gamification.challenge_base_discover")
+        challenge.write(
+            {
+                "state": "inprogress",
+                "user_domain": False,
+                "user_ids": [(6, 0, all_test_users.ids)],
+            }
+        )
 
         # Setup user presence
         challenge.user_ids.presence_ids.unlink()
@@ -108,15 +143,19 @@ class test_challenge(TestGamificationCommon):
         all_test_users.partner_id.tz = False
 
         # Regenerate all goals
-        self.env['gamification.goal'].search([]).unlink()
-        self.assertFalse(self.env['gamification.goal'].search([]))
+        self.env["gamification.goal"].search([]).unlink()
+        self.assertFalse(self.env["gamification.goal"].search([]))
 
         challenge.action_check()
-        goal_ids = self.env['gamification.goal'].search(
-            [('challenge_id', '=', challenge.id), ('state', '!=', 'draft'), ('user_id', 'in', challenge.user_ids.ids)]
+        goal_ids = self.env["gamification.goal"].search(
+            [
+                ("challenge_id", "=", challenge.id),
+                ("state", "!=", "draft"),
+                ("user_id", "in", challenge.user_ids.ids),
+            ]
         )
         self.assertEqual(len(goal_ids), 4)
-        self.assertEqual(set(goal_ids.mapped('state')), {'inprogress'})
+        self.assertEqual(set(goal_ids.mapped("state")), {"inprogress"})
 
         # +1 second to avoid microsecond inaccuracy when comparing to write_date in _update_all
         current_date = datetime.datetime.now() + timedelta(seconds=1)
@@ -126,16 +165,18 @@ class test_challenge(TestGamificationCommon):
             self.env["mail.presence"]._update_presence(portal_last_active_recent)
 
         # Update goal objective checked by goal definition
-        all_test_users.partner_id.write({'tz': 'Europe/Paris'})
+        all_test_users.partner_id.write({"tz": "Europe/Paris"})
         all_test_users.flush_recordset()
 
         # Update goals as done by _cron_update
         challenge._update_all()
-        unchanged_goal_ids = self.env['gamification.goal'].search([
-            ('challenge_id', '=', challenge.id),
-            ('state', '=', 'inprogress'),  # others were updated to "reached"
-            ('user_id', 'in', challenge.user_ids.ids),
-        ])
+        unchanged_goal_ids = self.env["gamification.goal"].search(
+            [
+                ("challenge_id", "=", challenge.id),
+                ("state", "=", "inprogress"),  # others were updated to "reached"
+                ("user_id", "in", challenge.user_ids.ids),
+            ]
+        )
         # Check that goals of users not recently active were not updated
         self.assertEqual(
             portal_last_active_old | internal_last_active_old,
@@ -143,122 +184,163 @@ class test_challenge(TestGamificationCommon):
         )
 
     def test_30_create_challenge_with_sum_goal(self):
-        challenge = self.env['gamification.challenge'].create({
-            'name': 'test',
-            'state': 'draft',
-            'user_domain': '[("active", "=", True)]', #Include all active users to get a least one participant
-            'reward_id': 1,
-        })
+        challenge = self.env[
+            "gamification.challenge"
+        ].create(
+            {
+                "name": "test",
+                "state": "draft",
+                "user_domain": '[("active", "=", True)]',  # Include all active users to get a least one participant
+                "reward_id": 1,
+            }
+        )
 
-        model = self.env['ir.model'].search([('model', '=', 'gamification.badge')])[0]
-        field = self.env['ir.model.fields'].search([('model', '=', 'gamification.badge'), ('name', '=', 'rule_max_number')])[0]
+        model = self.env["ir.model"].search([("model", "=", "gamification.badge")])[0]
+        field = self.env["ir.model.fields"].search(
+            [("model", "=", "gamification.badge"), ("name", "=", "rule_max_number")]
+        )[0]
 
-        sum_goal = self.env['gamification.goal.definition'].create({
-            'name': 'test',
-            'computation_mode': 'sum',
-            'model_id': model.id,
-            'field_id': field.id
-        })
+        sum_goal = self.env["gamification.goal.definition"].create(
+            {
+                "name": "test",
+                "computation_mode": "sum",
+                "model_id": model.id,
+                "field_id": field.id,
+            }
+        )
 
-        self.env['gamification.challenge.line'].create({
-            'challenge_id': challenge.id,
-            'definition_id': sum_goal.id,
-            'condition': 'higher',
-            'target_goal': 1
-        })
+        self.env["gamification.challenge.line"].create(
+            {
+                "challenge_id": challenge.id,
+                "definition_id": sum_goal.id,
+                "condition": "higher",
+                "target_goal": 1,
+            }
+        )
 
         challenge.action_start()
 
         self.assertEqual(
             challenge.state,
-            'inprogress',
+            "inprogress",
             "Challenge failed to start",
         )
 
     def test_40_create_challenge_with_sum_goal(self):
-        challenge = self.env['gamification.challenge'].create({
-            'name': 'Test Challenge',
-            'state': 'draft',
-            'user_domain': '[("active", "=", True)]',
-            'reward_id': 1,
-        })
+        challenge = self.env["gamification.challenge"].create(
+            {
+                "name": "Test Challenge",
+                "state": "draft",
+                "user_domain": '[("active", "=", True)]',
+                "reward_id": 1,
+            }
+        )
 
-        model = self.env['ir.model'].search([('model', '=', 'gamification.badge')], limit=1)
+        model = self.env["ir.model"].search(
+            [("model", "=", "gamification.badge")], limit=1
+        )
 
-        field = self.env['ir.model.fields'].search([
-            ('model', '=', 'gamification.badge'),
-            ('name', '=', 'name')
-        ], limit=1)
+        field = self.env["ir.model.fields"].search(
+            [("model", "=", "gamification.badge"), ("name", "=", "name")], limit=1
+        )
 
-        self.assertNotIn(field.ttype, {'integer', 'float', 'monetary'}, "Field should not be numeric")
+        self.assertNotIn(
+            field.ttype, {"integer", "float", "monetary"}, "Field should not be numeric"
+        )
 
-        sum_goal = self.env['gamification.goal.definition'].create({
-            'name': 'Test Definition',
-            'computation_mode': 'sum',
-            'model_id': model.id,
-            'field_id': field.id,
-        })
+        sum_goal = self.env["gamification.goal.definition"].create(
+            {
+                "name": "Test Definition",
+                "computation_mode": "sum",
+                "model_id": model.id,
+                "field_id": field.id,
+            }
+        )
 
-        existing_badges_count = len(self.env['gamification.badge'].with_user(self.user_demo.id).search([]))
+        existing_badges_count = len(
+            self.env["gamification.badge"].with_user(self.user_demo.id).search([])
+        )
 
-        self.env['gamification.challenge.line'].create({
-            'challenge_id': challenge.id,
-            'definition_id': sum_goal.id,
-            'condition': 'higher',
-            'target_goal': existing_badges_count + 1,
-        })
+        self.env["gamification.challenge.line"].create(
+            {
+                "challenge_id": challenge.id,
+                "definition_id": sum_goal.id,
+                "condition": "higher",
+                "target_goal": existing_badges_count + 1,
+            }
+        )
 
         challenge.action_start()
-        self.assertEqual(challenge.state, 'inprogress', "Challenge failed to start")
+        self.assertEqual(challenge.state, "inprogress", "Challenge failed to start")
 
-        goal = self.env['gamification.goal'].search([
-            ('user_id', '=', self.user_demo.id),
-            ('definition_id', '=', sum_goal.id)
-        ])
-        self.assertLess(goal.current, goal.target_goal, "Current goal should be less than the target goal")
-        self.assertEqual(goal.state, 'inprogress')
+        goal = self.env["gamification.goal"].search(
+            [("user_id", "=", self.user_demo.id), ("definition_id", "=", sum_goal.id)]
+        )
+        self.assertLess(
+            goal.current,
+            goal.target_goal,
+            "Current goal should be less than the target goal",
+        )
+        self.assertEqual(goal.state, "inprogress")
 
-        badge = self.env['gamification.badge'].create({
-            'name': self.user_demo.name + " triggered",
-            'rule_auth': 'users',
-            'rule_auth_user_ids': self.user_demo,
-        })
+        badge = self.env["gamification.badge"].create(
+            {
+                "name": self.user_demo.name + " triggered",
+                "rule_auth": "users",
+                "rule_auth_user_ids": self.user_demo,
+            }
+        )
 
-        badge_user_wizard = self.env['gamification.badge.user.wizard'].create({
-            'user_id': self.user_demo.id,
-            'badge_id': badge.id,
-        })
+        badge_user_wizard = self.env["gamification.badge.user.wizard"].create(
+            {
+                "user_id": self.user_demo.id,
+                "badge_id": badge.id,
+            }
+        )
         badge_user_wizard.action_grant_badge()
 
         goal.update_goal()
-        self.assertEqual(goal.current, goal.target_goal, "Current goal should be equal to the target goal")
-        self.assertEqual(goal.state, 'reached')
+        self.assertEqual(
+            goal.current,
+            goal.target_goal,
+            "Current goal should be equal to the target goal",
+        )
+        self.assertEqual(goal.state, "reached")
 
     def test_send_report_in_ranking(self):
-        gamification_model = self.env['ir.model']._get_id('gamification.badge')
-        field = self.env['ir.model.fields'].search([('model', '=', 'gamification.badge'), ('name', '=', 'rule_max_number')], limit=1)
+        gamification_model = self.env["ir.model"]._get_id("gamification.badge")
+        field = self.env["ir.model.fields"].search(
+            [("model", "=", "gamification.badge"), ("name", "=", "rule_max_number")],
+            limit=1,
+        )
 
-        sum_goal = self.env['gamification.goal.definition'].create({
-            'name': 'test1',
-            'computation_mode': 'sum',
-            'model_id': gamification_model,
-            'field_id': field.id
-        })
+        sum_goal = self.env["gamification.goal.definition"].create(
+            {
+                "name": "test1",
+                "computation_mode": "sum",
+                "model_id": gamification_model,
+                "field_id": field.id,
+            }
+        )
 
-        challenge = self.env['gamification.challenge'].create({
-            'name': 'test1',
-            'state': 'draft',
-            'user_domain': '[("active", "=", True)]',
-            'reward_id': 1,
-            'visibility_mode': 'ranking'
-        })
+        challenge = self.env["gamification.challenge"].create(
+            {
+                "name": "test1",
+                "state": "draft",
+                "user_domain": '[("active", "=", True)]',
+                "reward_id": 1,
+                "visibility_mode": "ranking",
+            }
+        )
 
-        self.env['gamification.challenge.line'].create({
-            'challenge_id': challenge.id,
-            'definition_id': sum_goal.id,
-            'condition': 'higher',
-            'target_goal': 1
-        })
+        self.env["gamification.challenge.line"].create(
+            {
+                "challenge_id": challenge.id,
+                "definition_id": sum_goal.id,
+                "condition": "higher",
+                "target_goal": 1,
+            }
+        )
 
         challenge.action_start()
         current_date = datetime.datetime.now()
@@ -268,24 +350,111 @@ class test_challenge(TestGamificationCommon):
 
             self.assertEqual(
                 challenge.state,
-                'inprogress',
+                "inprogress",
                 "Challenge failed to start",
             )
 
             self.assertEqual(
                 challenge.last_report_date,
                 current_date.date(),
-                "Challenge last report date is not as expected"
+                "Challenge last report date is not as expected",
             )
 
 
-class test_badge_wizard(TestGamificationCommon):
+class TestChallengeRewardNobodyBadge(TestGamificationCommon):
+    """Regression test: challenge rewards with rule_auth='nobody' badges."""
 
+    def test_reward_nobody_badge_as_erp_manager(self):
+        """Challenge can reward a 'nobody' badge when closed by a non-admin manager.
+
+        Regression: _reward_user previously lacked sudo(), so check_granting()
+        blocked the badge creation for non-SUPERUSER users — even though
+        rule_auth='nobody' is specifically designed for challenge automation.
+        """
+        manager = (
+            self.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "Challenge Manager",
+                    "login": "challenge_mgr@odoo.com",
+                    "email": "challenge_mgr@odoo.com",
+                    "group_ids": [
+                        (6, 0, [self.env.ref("base.group_erp_manager").id]),
+                    ],
+                }
+            )
+        )
+
+        nobody_badge = self.env["gamification.badge"].create(
+            {
+                "name": "Challenge-Only Badge",
+                "rule_auth": "nobody",
+            }
+        )
+
+        challenge = self.env["gamification.challenge"].create(
+            {
+                "name": "Reward Nobody Test",
+                "state": "draft",
+                "reward_id": nobody_badge.id,
+                "period": "once",
+                "user_ids": [(6, 0, [self.user_demo.id])],
+            }
+        )
+
+        goal_def = self.env["gamification.goal.definition"].create(
+            {
+                "name": "Manual Test Goal",
+                "computation_mode": "manually",
+            }
+        )
+        self.env["gamification.challenge.line"].create(
+            {
+                "challenge_id": challenge.id,
+                "definition_id": goal_def.id,
+                "target_goal": 1,
+            }
+        )
+
+        # Start challenge and manually reach the goal
+        challenge.action_start()
+        goal = self.env["gamification.goal"].search(
+            [
+                ("challenge_id", "=", challenge.id),
+                ("user_id", "=", self.user_demo.id),
+            ],
+            limit=1,
+        )
+        self.assertTrue(goal, "Goal should have been created")
+        goal.write({"current": 1, "state": "reached"})
+
+        # Close challenge as the ERP manager (not group_system/superuser)
+        challenge.with_user(manager).write({"state": "done"})
+
+        # Verify badge was granted
+        badge_grant = self.env["gamification.badge.user"].search(
+            [
+                ("badge_id", "=", nobody_badge.id),
+                ("user_id", "=", self.user_demo.id),
+                ("challenge_id", "=", challenge.id),
+            ]
+        )
+        self.assertEqual(
+            len(badge_grant),
+            1,
+            "Nobody badge should be granted via challenge reward even by non-admin manager",
+        )
+
+
+class test_badge_wizard(TestGamificationCommon):
     def test_grant_badge(self):
-        wiz = self.env['gamification.badge.user.wizard'].create({
-            'user_id': self.env.user.id,
-            'badge_id': self.badge_good_job.id,
-        })
+        wiz = self.env["gamification.badge.user.wizard"].create(
+            {
+                "user_id": self.env.user.id,
+                "badge_id": self.badge_good_job.id,
+            }
+        )
         with self.assertRaises(UserError, msg="A user cannot grant a badge to himself"):
             wiz.action_grant_badge()
         wiz.user_id = self.robot.id

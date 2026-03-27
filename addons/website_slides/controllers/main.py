@@ -94,7 +94,7 @@ class WebsiteSlides(WebsiteProfile):
 
     def _slide_mark_completed(self, slide):
         # quiz use their specific mechanism to be marked as done
-        if slide.slide_category == 'quiz' or slide.question_ids:
+        if slide.slide_category == 'quiz' or slide.has_questions:
             raise UserError(_("Slide with questions must be marked as done when submitting all good answers "))
         if not slide.can_self_mark_completed:
             raise werkzeug.exceptions.Forbidden(_("This slide can not be marked as completed."))
@@ -153,6 +153,7 @@ class WebsiteSlides(WebsiteProfile):
     def _get_slide_quiz_data(self, slide):
         is_designer = request.env.user.has_group('website.group_website_designer')
         slides_resources = slide.slide_resource_ids if slide.channel_id.is_member else []
+        survey_questions = slide.survey_id.question_ids.filtered(lambda q: not q.is_page) if slide.survey_id else []
         values = {
             'slide_description': slide.description,
             'slide_questions': [{
@@ -160,11 +161,11 @@ class WebsiteSlides(WebsiteProfile):
                     'comment': answer.comment if is_designer else None,
                     'id': answer.id,
                     'is_correct': answer.is_correct if slide.user_has_completed or is_designer else None,
-                    'text_value': answer.text_value,
-                } for answer in question.sudo().answer_ids],
+                    'text_value': answer.value,
+                } for answer in question.sudo().suggested_answer_ids],
                 'id': question.id,
-                'question': question.question,
-            } for question in slide.question_ids],
+                'question': question.title,
+            } for question in survey_questions],
             'slide_resource_ids': [{
                 'display_name' : resource.display_name,
                 'download_url': resource.download_url,
@@ -222,7 +223,7 @@ class WebsiteSlides(WebsiteProfile):
             ])
             for slide_partner in slide_partners:
                 channel_progress[slide_partner.slide_id.id].update(slide_partner.read()[0])
-                if slide_partner.slide_id.question_ids:
+                if slide_partner.slide_id.has_questions:
                     gains = [slide_partner.slide_id.quiz_first_attempt_reward,
                              slide_partner.slide_id.quiz_second_attempt_reward,
                              slide_partner.slide_id.quiz_third_attempt_reward,
@@ -987,7 +988,7 @@ class WebsiteSlides(WebsiteProfile):
 
         values = self._get_slide_detail(slide)
         # quiz-specific: update with karma and quiz information
-        if slide.question_ids:
+        if slide.has_questions:
             values.update(self._get_slide_quiz_data(slide))
         # sidebar: update with user channel progress
         values['channel_progress'] = self._get_channel_progress(slide.channel_id, include_quiz=True)
@@ -1178,68 +1179,76 @@ class WebsiteSlides(WebsiteProfile):
 
     @http.route('/slides/slide/quiz/question_add_or_update', type='jsonrpc', methods=['POST'], auth='user', website=True)
     def slide_quiz_question_add_or_update(self, slide_id, question, sequence, answer_ids, existing_question_id=None):
-        """ Add a new question to an existing slide. Completed field of slide.partner
-        link is set to False to make sure that the creator can take the quiz again.
+        """Add or update a quiz question on a slide.
 
-        An optional question_id to udpate can be given. In this case question is
-        deleted first before creating a new one to simplify management.
+        Creates ``survey.question`` + ``survey.question.answer`` records. Auto-
+        creates a lightweight survey via ``_ensure_quiz_survey()`` if needed.
+        Resets the creator's completion so they can retake the quiz.
 
-        :param integer slide_id: Slide ID
-        :param string question: Question Title
-        :param integer sequence: Question Sequence
-        :param array answer_ids: Array containing all the answers :
-                [
-                    'sequence': Answer Sequence (Integer),
-                    'text_value': Answer Title (String),
-                    'is_correct': Answer Is Correct (Boolean)
-                ]
-        :param integer existing_question_id: question ID if this is an update
-
+        :param int slide_id: Slide ID
+        :param str question: Question title
+        :param int sequence: Question sequence
+        :param list answer_ids: Answers, each with keys: sequence, text_value,
+            is_correct, comment
+        :param int existing_question_id: Question ID to replace (delete + create)
         :return: rendered question template
         """
-
-        new_question_values = {
-            'sequence': sequence,
-            'question': question,
-            'slide_id': slide_id,
-            'answer_ids': [(0, 0, {
-                'sequence': answer['sequence'],
-                'text_value': answer['text_value'],
-                'is_correct': answer['is_correct'],
-                'comment': answer['comment']
-            }) for answer in answer_ids]
-        }
-
-        try:
-            # Attempt to create the question and validate the fields.
-            # We want to return the error to have a nice display instead of the default mechanism
-            # of exception handling that shows sticky toasters.
-            # (Use a 'new' and not a create to avoid having to rollback anything if an error is
-            # raised)
-            slide_question = request.env['slide.question'].new(new_question_values)
-            slide_question._validate_fields(new_question_values.keys())
-        except ValidationError as e:
-            return {'error': e.args[0]}
-
         fetch_res = self._fetch_slide(slide_id)
         if fetch_res.get('error'):
             return fetch_res
         slide = fetch_res['slide']
+
+        # Ensure this slide has a linked survey for questions
+        slide._ensure_quiz_survey()
+
+        new_question_values = {
+            'sequence': sequence,
+            'title': question,
+            'survey_id': slide.survey_id.id,
+            'question_type': 'simple_choice',
+            'suggested_answer_ids': [(0, 0, {
+                'sequence': answer['sequence'],
+                'value': answer['text_value'],
+                'is_correct': answer['is_correct'],
+                'answer_score': 1.0 if answer['is_correct'] else 0.0,
+                'comment': answer['comment'],
+            }) for answer in answer_ids],
+        }
+
+        try:
+            survey_question = request.env['survey.question'].new(new_question_values)
+            survey_question._validate_fields(new_question_values.keys())
+        except ValidationError as e:
+            return {'error': e.args[0]}
+
         if existing_question_id:
-            request.env['slide.question'].search([
-                ('slide_id', '=', slide.id),
-                ('id', '=', int(existing_question_id))
+            request.env['survey.question'].search([
+                ('survey_id', '=', slide.survey_id.id),
+                ('id', '=', int(existing_question_id)),
             ]).unlink()
 
         request.env['slide.slide.partner'].search([
             ('slide_id', '=', slide_id),
-            ('partner_id', '=', request.env.user.partner_id.id)
+            ('partner_id', '=', request.env.user.partner_id.id),
         ]).write({'completed': False})
 
-        slide_question = request.env['slide.question'].create(new_question_values)
+        survey_question = request.env['survey.question'].create(new_question_values)
+        # Map survey.question fields to the dict keys expected by the QWeb template
+        is_designer = request.env.user.has_group('website.group_website_designer')
+        question_data = {
+            'id': survey_question.id,
+            'question': survey_question.title,
+            'sequence': survey_question.sequence,
+            'answer_ids': [{
+                'id': a.id,
+                'text_value': a.value,
+                'is_correct': a.is_correct if is_designer else None,
+                'comment': a.comment if is_designer else None,
+            } for a in survey_question.suggested_answer_ids],
+        }
         return request.env['ir.qweb']._render('website_slides.lesson_content_quiz_question', {
             'slide': slide,
-            'question': slide_question,
+            'question': question_data,
         })
 
     @http.route('/slides/slide/quiz/get', type="jsonrpc", auth="public", website=True)
@@ -1273,9 +1282,11 @@ class WebsiteSlides(WebsiteProfile):
             self._channel_remove_session_answers(slide.channel_id, slide)
             return {'error': 'slide_quiz_done'}
 
-        all_questions = request.env['slide.question'].sudo().search([('slide_id', '=', slide.id)])
+        if not slide.survey_id:
+            return {'error': 'slide_quiz_incomplete'}
 
-        user_answers = request.env['slide.answer'].sudo().search([('id', 'in', answer_ids)])
+        all_questions = slide.survey_id.question_ids.filtered(lambda q: not q.is_page)
+        user_answers = request.env['survey.question.answer'].sudo().search([('id', 'in', answer_ids)])
         if user_answers.mapped('question_id') != all_questions:
             return {'error': 'slide_quiz_incomplete'}
 
@@ -1292,14 +1303,14 @@ class WebsiteSlides(WebsiteProfile):
             rank_progress.update({
                 'description': request.env.user.rank_id.description,
                 'last_rank': not request.env.user._get_next_rank(),
-                'level_up': rank_progress['previous_rank']['lower_bound'] != rank_progress['new_rank']['lower_bound']
+                'level_up': rank_progress['previous_rank']['lower_bound'] != rank_progress['new_rank']['lower_bound'],
             })
         self._channel_remove_session_answers(slide.channel_id, slide)
         return {
             'answers': {
                 answer.question_id.id: {
                     'is_correct': answer.is_correct,
-                    'comment': answer.comment
+                    'comment': answer.comment,
                 } for answer in user_answers
             },
             'completed': slide.user_has_completed,

@@ -1,52 +1,42 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!--
-        survey.tag views
-    -->
+
+    <record id="survey_tag_view_list" model="ir.ui.view">
+        <field name="name">survey.tag.view.list</field>
+        <field name="model">survey.tag</field>
+        <field name="arch" type="xml">
+            <list string="Tags" editable="bottom">
+                <field name="name" />
+                <field name="color" widget="color_picker" />
+            </list>
+        </field>
+    </record>
+
     <record id="survey_tag_view_form" model="ir.ui.view">
         <field name="name">survey.tag.view.form</field>
         <field name="model">survey.tag</field>
         <field name="arch" type="xml">
-            <form string="Tags">
+            <form string="Tag">
                 <sheet>
-                    <div class="oe_title">
-                        <label for="name"/>
-                        <h1>
-                            <field name="name" placeholder="e.g. Human Resources"/>
-                        </h1>
-                    </div>
                     <group>
-                        <group>
-                            <field name="color" required="True" widget="color_picker"/>
-                        </group>
+                        <field name="name" />
+                        <field name="color" widget="color_picker" />
                     </group>
                 </sheet>
             </form>
         </field>
     </record>
 
-    <record id="survey_tag_view_tree" model="ir.ui.view">
-        <field name="name">survey.tag.view.list</field>
-        <field name="model">survey.tag</field>
-        <field name="arch" type="xml">
-            <list string="Tags" editable="bottom" sample="1">
-                <field name="name"/>
-                <field name="color" widget="color_picker"/>
-            </list>
-        </field>
-    </record>
-
-    <!-- Tags Configuration -->
-    <record id="survey_tag_action" model="ir.actions.act_window">
+    <record id="action_survey_tag" model="ir.actions.act_window">
         <field name="name">Tags</field>
+        <field name="path">survey-tags</field>
         <field name="res_model">survey.tag</field>
-        <field name="view_id" ref="survey_tag_view_tree"/>
+        <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-            Create Survey Tags
-            </p><p>
-            Use tags to categorize and filter your surveys.
+                Create a new tag
             </p>
         </field>
     </record>
+
 </odoo>

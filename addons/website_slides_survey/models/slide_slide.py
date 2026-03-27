@@ -43,28 +43,20 @@ class SlideSlidePartner(models.Model):
 
 
 class SlideSlide(models.Model):
+    """Certification-specific extensions for slides.
+
+    Fields ``survey_id``, ``nbr_certification``, ``certification`` category/type,
+    and SQL constraints are declared in ``website_slides`` (which depends on
+    ``survey``). This module adds certification-specific behavior: auto-naming
+    from survey title, preview restrictions, gamification badge management,
+    and certification URL generation.
+    """
+
     _inherit = 'slide.slide'
 
     name = fields.Char(compute='_compute_name', readonly=False, store=True)
-    slide_category = fields.Selection(selection_add=[
-        ('certification', 'Certification')
-    ], ondelete={'certification': 'set default'})
-    slide_type = fields.Selection(selection_add=[
-        ('certification', 'Certification')
-    ], ondelete={'certification': 'set null'})
-    survey_id = fields.Many2one('survey.survey', 'Certification', index='btree_not_null')
-    nbr_certification = fields.Integer("Number of Certifications", compute='_compute_slides_statistics', store=True)
-    # small override of 'is_preview' to uncheck it automatically for slides of type 'certification'
+    # Override is_preview to uncheck it for certification slides.
     is_preview = fields.Boolean(compute='_compute_is_preview', readonly=False, store=True)
-
-    _check_survey_id = models.Constraint(
-        "CHECK(slide_category != 'certification' OR survey_id IS NOT NULL)",
-        "A slide of type 'certification' requires a certification.",
-    )
-    _check_certification_preview = models.Constraint(
-        "CHECK(slide_category != 'certification' OR is_preview = False)",
-        'A slide of type certification cannot be previewed.',
-    )
 
     @api.depends('survey_id')
     def _compute_name(self):
@@ -73,29 +65,19 @@ class SlideSlide(models.Model):
                 slide.name = slide.survey_id.title
 
     def _compute_mark_complete_actions(self):
-        slides_certification = self.filtered(lambda slide: slide.slide_category == 'certification')
-        slides_certification.can_self_mark_uncompleted = False
-        slides_certification.can_self_mark_completed = False
-        super(SlideSlide, self - slides_certification)._compute_mark_complete_actions()
+        """Certification slides cannot be manually (un)completed — the survey
+        completion flow handles this via ``survey_scoring_success``."""
+        super()._compute_mark_complete_actions()
+        for slide in self:
+            if slide.slide_category == 'certification':
+                slide.can_self_mark_uncompleted = False
+                slide.can_self_mark_completed = False
 
     @api.depends('slide_category')
     def _compute_is_preview(self):
         for slide in self:
             if slide.slide_category == 'certification' or not slide.is_preview:
                 slide.is_preview = False
-
-    @api.depends('slide_type')
-    def _compute_slide_icon_class(self):
-        certification = self.filtered(lambda slide: slide.slide_type == 'certification')
-        certification.slide_icon_class = 'fa-trophy'
-        super(SlideSlide, self - certification)._compute_slide_icon_class()
-
-    @api.depends('slide_category', 'source_type')
-    def _compute_slide_type(self):
-        super()._compute_slide_type()
-        for slide in self:
-            if slide.slide_category == 'certification':
-                slide.slide_type = 'certification'
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -152,20 +134,17 @@ class SlideSlide(models.Model):
                     user_input = slide.survey_id.sudo()._create_answer(
                         partner=self.env.user.partner_id,
                         check_attempts=False,
-                        **{
-                            'slide_id': slide.id,
-                            'slide_partner_id': user_membership_id_sudo.id
-                        },
-                        invite_token=self.env['survey.user_input']._generate_invite_token()
+                        slide_id=slide.id,
+                        slide_partner_id=user_membership_id_sudo.id,
+                        invite_token=self.env['survey.user_input']._generate_invite_token(),
                     )
                     certification_urls[slide.id] = user_input.get_start_url()
             else:
                 user_input = slide.survey_id.sudo()._create_answer(
                     partner=self.env.user.partner_id,
                     check_attempts=False,
-                    test_entry=True, **{
-                        'slide_id': slide.id
-                    }
+                    test_entry=True,
+                    slide_id=slide.id,
                 )
                 certification_urls[slide.id] = user_input.get_start_url()
         return certification_urls
