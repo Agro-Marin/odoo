@@ -33,6 +33,7 @@ from odoo.libs.constants import (
 )
 from odoo.libs.profiling.sourcemap_generator import SourceMapGenerator
 from odoo.libs.web.js_transpiler import (
+    _parse_odoo_module_header,
     is_native_module,
     is_odoo_module,
     transpile_javascript,
@@ -150,8 +151,6 @@ class AssetsBundle:
         "web.assets_backend_lazy_dark",
         "html_editor.assets_prism_dark",
         "web.assets_backend_lazy",
-        "web.assets_frontend_lazy",
-        "web.assets_frontend_minimal",
         "web.assets_inside_builder_iframe",
         "web.tests_assets",
     })
@@ -163,6 +162,8 @@ class AssetsBundle:
         "web.assets_web": [
             "web.assets_backend_lazy",
             "web.assets_backend_lazy_dark",
+            "web_tour.automatic",
+            "web_tour.interactive",
         ],
     }
 
@@ -380,6 +381,21 @@ class AssetsBundle:
                 if static_src.is_dir():
                     rel = os.path.relpath(static_src, odoo_root)
                     alias_flags.append(f"--alias:@{entry.name}=./{rel}")
+
+        # Resolve @odoo/* aliases declared in bundle JS files so esbuild
+        # can inline them instead of externalizing.  --alias takes
+        # precedence over --external, so @odoo/hoot-dom (aliased to a
+        # real file) gets bundled while @odoo/owl stays external.
+        for js_asset in self.javascripts + self.native_modules:
+            header = _parse_odoo_module_header(js_asset.url, js_asset.raw_content)
+            if header and header["alias"] and header["alias"].startswith("@odoo/"):
+                if js_asset._filename:
+                    alias_path = os.path.relpath(js_asset._filename, odoo_root)
+                else:
+                    alias_path = f"addons{js_asset.url}"
+                alias_flags.append(
+                    f"--alias:{header['alias']}=./{alias_path}"
+                )
 
         try:
             result = subprocess.run(
