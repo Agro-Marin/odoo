@@ -36,7 +36,7 @@ export async function getCurrencyRates() {
     const rates = reactive({});
 
     /**
-     * @param {Array<{id: number, inverse_rate: number, rate_date: string}>} records
+     * @param {Array<{id: number, inverse_rate: number, date: string}>} records
      * @returns {Record<number, {rate: number, date: string}>}
      */
     function recordsToRates(records) {
@@ -45,7 +45,7 @@ export async function getCurrencyRates() {
                 r.id,
                 {
                     rate: r.inverse_rate,
-                    date: parseDate(r.rate_date),
+                    date: parseDate(r.date),
                 },
             ]),
         );
@@ -61,7 +61,7 @@ export async function getCurrencyRates() {
     const params = {
         model,
         method,
-        args: [Object.keys(currencies).map(Number), ["inverse_rate", "rate_date"]],
+        args: [Object.keys(currencies).map(Number), ["inverse_rate", "date"]],
         kwargs: { context },
     };
     const records = await rpc(url, params, {

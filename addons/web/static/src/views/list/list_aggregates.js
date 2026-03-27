@@ -211,7 +211,7 @@ export function useListAggregates({
                                     }
                                     if (currency !== currencyId) {
                                         fieldValues[i] *= currency
-                                            ? state.currencyRates[currency].rate
+                                            ? (state.currencyRates[currency]?.rate ?? 1)
                                             : 1;
                                     }
                                 }
