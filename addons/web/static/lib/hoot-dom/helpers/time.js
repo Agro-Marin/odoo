@@ -32,10 +32,10 @@ const {
     setTimeout,
 } = globalThis;
 
-// Native (un-mocked) timer functions for use by the test runner's own
-// timeout mechanism, which must fire even when time is frozen.
-// Assigned to new constants so the transpiler copies the *original*
-// globalThis values instead of re-resolving the names at export time.
+// Native (un-mocked) timer functions.  These are now captured in
+// module_loader.js (odoo.__nativeTimers) which runs as the very first
+// synchronous script, before any mock can replace globalThis.setTimeout.
+// Kept here for backward compatibility with any code that imports them.
 export const nativeSetTimeout = setTimeout;
 export const nativeClearTimeout = clearTimeout;
 

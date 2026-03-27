@@ -6,10 +6,13 @@ import { cleanupDOM, defineRootNode } from "@web/../lib/hoot-dom/helpers/dom";
 import { cleanupEvents, enableEventLogs } from "@web/../lib/hoot-dom/helpers/events";
 import {
     cleanupTime,
-    nativeClearTimeout,
-    nativeSetTimeout,
     setupTime,
 } from "@web/../lib/hoot-dom/helpers/time";
+
+// Read the REAL (un-mocked) setTimeout/clearTimeout captured by
+// module_loader.js — the very first synchronous script in the bundle,
+// guaranteed to run before any mock can replace globalThis.setTimeout.
+const { setTimeout: nativeSetTimeout, clearTimeout: nativeClearTimeout } = odoo.__nativeTimers;
 import { exposeHelpers, isInstanceOf, isIterable } from "@web/../lib/hoot-dom/hoot_dom_utils";
 import {
     CASE_EVENT_TYPES,
@@ -188,6 +191,10 @@ function formatAssertions(assertions) {
                     lines.push(
                         `${number}.${detail.groupIndex}. (${formatHumanReadable(detail.content)})`
                     );
+                    continue;
+                }
+                if (!detail || typeof detail[Symbol.iterator] !== "function") {
+                    lines.push(`> ${String(detail)}`);
                     continue;
                 }
                 let [key, value] = detail;
@@ -993,13 +1000,20 @@ export class Runner {
             // (and not in debug).
             const restoreConsole = handleConsoleIssues(test, !this.debug);
 
-            // Before test
+            // Before test — wrap setup in a timeout to prevent hanging
             this.state.currentTest = test;
             this.expectHooks.before(test);
             test.before();
-            for (const callbackRegistry of [...callbackChain].reverse()) {
-                await callbackRegistry.call("before-test", test, handleError);
-            }
+            await Promise.race([
+                (async () => {
+                    for (const callbackRegistry of [...callbackChain].reverse()) {
+                        await callbackRegistry.call("before-test", test, handleError);
+                    }
+                })(),
+                new Promise((_, reject) =>
+                    nativeSetTimeout(() => reject("before-test timeout"), 5_000)
+                ),
+            ]).catch(() => {});
 
             let timeoutId = 0;
 
@@ -1015,9 +1029,7 @@ export class Runner {
                 if (timeout && !this.debug) {
                     // Set timeout — use native setTimeout so the timeout
                     // fires even when Hoot has frozen/mocked timers.
-                    console.warn(`[TIMEOUT] Setting ${timeout}ms timeout for "${test.name}", nativeSetTimeout=${nativeSetTimeout === globalThis.setTimeout ? 'MOCKED' : 'NATIVE'}`);
                     timeoutId = nativeSetTimeout(() => {
-                        console.warn(`[TIMEOUT] FIRED for "${test.name}"`)
                         const msg = `test ${stringify(
                             test.name
                         )} timed out after ${timeout} milliseconds`;
@@ -1046,13 +1058,19 @@ export class Runner {
                     }
                 });
 
-            // After test
+            // After test — wrap cleanup in a timeout to prevent hanging
+            // when afterEach callbacks await mocked timers.
             const { lastResults } = test;
-            await this._execAfterCallback(async () => {
-                for (const callbackRegistry of callbackChain) {
-                    await callbackRegistry.call("after-test", test, handleError);
-                }
-            });
+            await Promise.race([
+                this._execAfterCallback(async () => {
+                    for (const callbackRegistry of callbackChain) {
+                        await callbackRegistry.call("after-test", test, handleError);
+                    }
+                }),
+                new Promise((_, reject) =>
+                    nativeSetTimeout(() => reject("after-test timeout"), 5_000)
+                ),
+            ]).catch(() => {});
             test.after();
 
             restoreConsole();
