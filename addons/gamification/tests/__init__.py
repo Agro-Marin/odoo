@@ -1,6 +1,13 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import common
+from . import test_achievement
+from . import test_activity_feed
+from . import test_badge
 from . import test_challenge
+from . import test_engagement
+from . import test_intelligence
+from . import test_mentorship
 from . import test_karma_tracking
+from . import test_kudos
+from . import test_quest
+from . import test_streak
+from . import test_team

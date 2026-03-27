@@ -36,6 +36,7 @@
             <field name="model">gamification.karma.rank</field>
             <field name="arch" type="xml">
                 <list string="Ranks List">
+                    <field name="level_number" optional="show"/>
                     <field name="name"/>
                     <field name="karma_min"/>
                     <field name="rank_users_count"/>
@@ -67,7 +68,13 @@
                             </h1>
                         </div>
                         <group>
-                            <field name="karma_min"/>
+                            <group string="Progression">
+                                <field name="karma_min"/>
+                                <field name="level_number"/>
+                            </group>
+                            <group string="Rewards">
+                                <field name="unlock_badge_ids" widget="many2many_tags"/>
+                            </group>
                             <field name="create_date" invisible="1"/>
                         </group>
                         <notebook>
@@ -76,6 +83,9 @@
                             </page>
                             <page string="Motivational" name="motivational">
                                 <field name="description_motivational" placeholder="e.g. Reach this rank to gain a free mug!"/>
+                            </page>
+                            <page string="Unlocked Perks" name="perks">
+                                <field name="description_perks" placeholder="e.g. Can post answers without moderation, access to advanced reporting..."/>
                             </page>
                         </notebook>
                     </sheet>

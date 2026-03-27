@@ -1,28 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-  <data>
-    <!-- Main menu -->
+
+    <!-- Root menu -->
     <menuitem name="Surveys"
-      id="menu_surveys"
-      sequence="130"
-      groups="group_survey_user"
-      web_icon="survey,static/description/icon.png"/>
+        id="menu_surveys"
+        sequence="130"
+        groups="group_survey_user"
+        web_icon="survey,static/description/icon.png" />
 
-      <!-- Parent menus -->
+    <!-- Surveys -->
+    <menuitem name="Surveys"
+        id="menu_survey_form"
+        action="action_survey_form"
+        parent="menu_surveys"
+        sequence="1" />
+
+    <!-- Participants -->
+    <menuitem name="Participants"
+        id="menu_survey_type_form1"
+        action="action_survey_user_input"
+        parent="menu_surveys"
+        sequence="1" />
+
+    <!-- Questions & Answers -->
     <menuitem name="Questions &amp; Answers"
-      id="survey_menu_questions"
-      parent="menu_surveys"
-      sequence="90"/>
+        id="survey_menu_questions"
+        parent="menu_surveys"
+        sequence="90" />
 
+    <menuitem name="Questions"
+        id="menu_survey_question_form1"
+        action="action_survey_question_form"
+        parent="survey_menu_questions"
+        sequence="2" />
+
+    <menuitem name="Suggested Values"
+        id="menu_survey_label_form1"
+        action="survey_question_answer_action"
+        parent="survey_menu_questions"
+        sequence="3" />
+
+    <menuitem name="Detailed Answers"
+        id="menu_survey_response_line_form"
+        action="survey_user_input_line_action"
+        parent="survey_menu_questions"
+        sequence="4" />
+
+    <!-- Configuration -->
     <menuitem name="Configuration"
-      id="menu_survey_config"
-      parent="menu_surveys"
-      sequence="100"
-      groups="group_survey_manager"/>
+        id="survey_menu_configuration"
+        parent="menu_surveys"
+        sequence="100"
+        groups="group_survey_manager" />
 
     <menuitem name="Tags"
-      id="menu_survey_tags"
-      action="survey_tag_action"
-      parent="menu_survey_config"/>
-  </data>
+        id="survey_menu_tag"
+        action="action_survey_tag"
+        parent="survey_menu_configuration"
+        sequence="10" />
+
+    <menuitem name="Categories"
+        id="survey_menu_category"
+        action="action_survey_category"
+        parent="survey_menu_configuration"
+        sequence="20" />
+
 </odoo>

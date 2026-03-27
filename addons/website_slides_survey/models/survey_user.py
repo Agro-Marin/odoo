@@ -42,8 +42,8 @@ class SurveyUser_Input(models.Model):
             ])
 
             if user_inputs:
+                removed_memberships_per_partner = {}
                 for user_input in user_inputs:
-                    removed_memberships_per_partner = {}
                     if user_input.survey_id._has_attempts_left(user_input.partner_id, user_input.email, user_input.invite_token):
                         # skip if user still has attempts left
                         continue

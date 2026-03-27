@@ -569,4 +569,84 @@ _::-webkit-full-page-media, _:future, :root .o_survey_wrap {
     .o_survey_background {
         overflow: auto !important;
     }
- }
+}
+
+/**********************************************************
+                 Conversational Mode
+ **********************************************************/
+// Typeform-style full-screen single-question layout with
+// centered content, large typography, and smooth transitions.
+.o_survey_conversational {
+    .o_survey_form_content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 70vh;
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .js_question-wrapper {
+        animation: o_survey_conv_fade_in 0.4s ease-out;
+
+        h3 {
+            font-size: 1.75rem;
+            font-weight: 300;
+            line-height: 1.4;
+            margin-bottom: 1.5rem;
+        }
+    }
+
+    .o_survey_choice_btn {
+        font-size: 1.1rem;
+        padding: 0.75rem 1.25rem !important;
+        margin-bottom: 0.5rem;
+        border-radius: 0.5rem !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+
+        &:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+    }
+
+    .o_survey_navigation_wrapper {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 100;
+
+        button {
+            border-radius: 50%;
+            width: 56px;
+            height: 56px;
+            font-size: 1.25rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+    }
+
+    .o_survey_progress_wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+
+        .progress {
+            border-radius: 0;
+            height: 4px;
+        }
+    }
+}
+
+@keyframes o_survey_conv_fade_in {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

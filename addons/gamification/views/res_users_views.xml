@@ -16,6 +16,51 @@
         </field>
     </record>
 
+    <!-- Gamification tab in user preferences -->
+    <record id="res_users_view_form_gamification_prefs" model="ir.ui.view">
+        <field name="name">res.users.view.form.gamification.prefs</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Gamification" name="gamification" groups="base.group_no_one">
+                    <group>
+                        <group string="Level Progress">
+                            <field name="rank_id" readonly="1"/>
+                            <field name="next_rank_id" readonly="1"/>
+                            <field name="xp_progress_percent" widget="progressbar"/>
+                            <field name="xp_to_next_rank"/>
+                        </group>
+                        <group string="Badges">
+                            <field name="gold_badge"/>
+                            <field name="silver_badge"/>
+                            <field name="bronze_badge"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Profile Settings">
+                            <field name="gamification_visibility"/>
+                            <field name="featured_badge_ids" widget="many2many_tags"
+                                   domain="[('user_id', '=', id)]"/>
+                        </group>
+                    </group>
+                    <field name="streak_ids" readonly="1" string="Active Streaks">
+                        <list>
+                            <field name="streak_type_id"/>
+                            <field name="current_count"/>
+                            <field name="longest_count"/>
+                            <field name="last_activity_date"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state == 'active'"
+                                   decoration-danger="state == 'broken'"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
     <!-- ACTIONS -->
     <record id="action_current_rank_users" model="ir.actions.act_window">
         <field name="name">Users</field>

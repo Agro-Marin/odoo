@@ -33,5 +33,59 @@ gamification_karma_rank_access_user_manager,gamification.karma.rank.access.user.
 gamification_karma_tracking_access_all,gamification.karma.tracking.access.all,gamification.model_gamification_karma_tracking,,0,0,0,0
 gamification_karma_tracking_access_user_manager,gamification.karma.tracking.access.user.manager,gamification.model_gamification_karma_tracking,base.group_system,1,1,1,1
 
+streak_type_employee,"Streak Type Employee",model_gamification_streak_type,base.group_user,1,0,0,0
+streak_type_manager,"Streak Type Manager",model_gamification_streak_type,base.group_erp_manager,1,1,1,1
+
+streak_employee,"Streak Employee",model_gamification_streak,base.group_user,1,1,0,0
+streak_manager,"Streak Manager",model_gamification_streak,base.group_erp_manager,1,1,1,1
+
+kudos_category_employee,"Kudos Category Employee",model_gamification_kudos_category,base.group_user,1,0,0,0
+kudos_category_manager,"Kudos Category Manager",model_gamification_kudos_category,base.group_erp_manager,1,1,1,1
+
+kudos_employee,"Kudos Employee",model_gamification_kudos,base.group_user,1,1,1,0
+kudos_manager,"Kudos Manager",model_gamification_kudos,base.group_erp_manager,1,1,1,1
+
+achievement_employee,"Achievement Employee",model_gamification_achievement,base.group_user,1,0,0,0
+achievement_manager,"Achievement Manager",model_gamification_achievement,base.group_erp_manager,1,1,1,1
+
+achievement_unlock_employee,"Achievement Unlock Employee",model_gamification_achievement_unlock,base.group_user,1,0,0,0
+achievement_unlock_manager,"Achievement Unlock Manager",model_gamification_achievement_unlock,base.group_erp_manager,1,1,1,1
+
+team_employee,"Team Employee",model_gamification_team,base.group_user,1,0,0,0
+team_manager,"Team Manager",model_gamification_team,base.group_erp_manager,1,1,1,1
+
+engagement_snapshot_employee,"Engagement Snapshot Employee",model_gamification_engagement_snapshot,base.group_user,1,0,0,0
+engagement_snapshot_manager,"Engagement Snapshot Manager",model_gamification_engagement_snapshot,base.group_erp_manager,1,1,1,1
+
+activity_employee,"Activity Feed Employee",model_gamification_activity,base.group_user,1,0,0,0
+activity_manager,"Activity Feed Manager",model_gamification_activity,base.group_erp_manager,1,1,1,1
+
+mentorship_employee,"Mentorship Employee",model_gamification_mentorship,base.group_user,1,1,1,0
+mentorship_manager,"Mentorship Manager",model_gamification_mentorship,base.group_erp_manager,1,1,1,1
+
+quest_employee,"Quest Employee",model_gamification_quest,base.group_user,1,0,0,0
+quest_manager,"Quest Manager",model_gamification_quest,base.group_erp_manager,1,1,1,1
+
+quest_step_employee,"Quest Step Employee",model_gamification_quest_step,base.group_user,1,0,0,0
+quest_step_manager,"Quest Step Manager",model_gamification_quest_step,base.group_erp_manager,1,1,1,1
+
+quest_enrollment_employee,"Quest Enrollment Employee",model_gamification_quest_enrollment,base.group_user,1,1,1,0
+quest_enrollment_manager,"Quest Enrollment Manager",model_gamification_quest_enrollment,base.group_erp_manager,1,1,1,1
+
+quest_step_completion_employee,"Quest Step Completion Employee",model_gamification_quest_step_completion,base.group_user,1,1,1,0
+quest_step_completion_manager,"Quest Step Completion Manager",model_gamification_quest_step_completion,base.group_erp_manager,1,1,1,1
+
+season_employee,"Season Employee",model_gamification_season,base.group_user,1,0,0,0
+season_manager,"Season Manager",model_gamification_season,base.group_erp_manager,1,1,1,1
+
+skill_tree_employee,"Skill Tree Employee",model_gamification_skill_tree,base.group_user,1,0,0,0
+skill_tree_manager,"Skill Tree Manager",model_gamification_skill_tree,base.group_erp_manager,1,1,1,1
+
+skill_node_employee,"Skill Node Employee",model_gamification_skill_node,base.group_user,1,0,0,0
+skill_node_manager,"Skill Node Manager",model_gamification_skill_node,base.group_erp_manager,1,1,1,1
+
+skill_node_unlock_employee,"Skill Node Unlock Employee",model_gamification_skill_node_unlock,base.group_user,1,0,0,0
+skill_node_unlock_manager,"Skill Node Unlock Manager",model_gamification_skill_node_unlock,base.group_erp_manager,1,1,1,1
+
 access_gamification_goal_wizard,access.gamification.goal.wizard,model_gamification_goal_wizard,base.group_user,1,1,1,0
 access_gamification_badge_user_wizard,access.gamification.badge.user.wizard,model_gamification_badge_user_wizard,base.group_user,1,1,1,0

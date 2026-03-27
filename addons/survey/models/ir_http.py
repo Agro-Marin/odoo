@@ -1,10 +1,10 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import re
 
 from odoo import api, models
 from odoo.http import request
 
-SURVEY_URL_PREFIX_REGEX = re.compile(r"""
+SURVEY_URL_PREFIX_REGEX = re.compile(
+    r"""
     ^
     (                            # Optional locale part of the URL
         /[a-z]{2,3}              # Language (only 2- or 3-letter ISO 639 code)
@@ -15,23 +15,29 @@ SURVEY_URL_PREFIX_REGEX = re.compile(r"""
                                  #     e.g. sr@Cyrl
     )?
     /survey/
-""", re.VERBOSE)
+""",
+    re.VERBOSE,
+)
 
 
 class IrHttp(models.AbstractModel):
-    _inherit = 'ir.http'
+    """Extend ir.http to handle survey frontend language resolution."""
+
+    _inherit = "ir.http"
 
     @api.model
-    def get_nearest_lang(self, lang_code):
+    def get_nearest_lang(self, lang_code: str) -> str | None:
         if request and self._is_survey_frontend(request.httprequest.path):
-            return super(IrHttp, self.with_context(web_force_installed_langs=True)).get_nearest_lang(lang_code)
+            return super(
+                IrHttp, self.with_context(web_force_installed_langs=True)
+            ).get_nearest_lang(lang_code)
         return super().get_nearest_lang(lang_code)
 
     @classmethod
-    def _get_translation_frontend_modules_name(cls):
+    def _get_translation_frontend_modules_name(cls) -> list[str]:
         mods = super()._get_translation_frontend_modules_name()
-        return mods + ['survey']
+        return mods + ["survey"]
 
     @api.model
-    def _is_survey_frontend(self, path):
+    def _is_survey_frontend(self, path: str) -> bool:
         return bool(SURVEY_URL_PREFIX_REGEX.match(path))

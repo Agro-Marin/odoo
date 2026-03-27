@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="quest_list_action" model="ir.actions.act_window">
+        <field name="name">Quests</field>
+        <field name="res_model">gamification.quest</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first quest
+            </p>
+            <p>
+                Quests are multi-step narrative journeys that guide users
+                through a series of objectives with a story.
+            </p>
+        </field>
+    </record>
+
+    <record id="quest_list_view" model="ir.ui.view">
+        <field name="name">gamification.quest.list</field>
+        <field name="model">gamification.quest</field>
+        <field name="arch" type="xml">
+            <list string="Quests">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="difficulty" widget="badge"
+                       decoration-success="difficulty == 'beginner'"
+                       decoration-info="difficulty == 'intermediate'"
+                       decoration-warning="difficulty == 'advanced'"
+                       decoration-danger="difficulty == 'expert'"/>
+                <field name="quest_mode"/>
+                <field name="step_count"/>
+                <field name="enrollment_count"/>
+                <field name="completion_count"/>
+                <field name="reward_karma"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="quest_form_view" model="ir.ui.view">
+        <field name="name">gamification.quest.form</field>
+        <field name="model">gamification.quest</field>
+        <field name="arch" type="xml">
+            <form string="Quest">
+                <sheet>
+                    <div class="oe_button_box" name="button_box"/>
+                    <field name="icon" widget="image" class="oe_avatar"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. The Data Quality Crusade"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="quest_mode" widget="radio"/>
+                            <field name="difficulty"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="Rewards">
+                            <field name="reward_badge_id"/>
+                            <field name="reward_karma"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Story" name="story">
+                            <field name="description"
+                                   placeholder="The narrative framing for this quest..."/>
+                        </page>
+                        <page string="Steps" name="steps">
+                            <field name="step_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="definition_id"/>
+                                    <field name="target_goal"/>
+                                    <field name="prerequisite_ids" widget="many2many_tags"/>
+                                    <field name="karma_reward"/>
+                                    <field name="badge_id"/>
+                                    <field name="skill_node_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Enrollments" name="enrollments">
+                            <field name="enrollment_ids" readonly="1">
+                                <list>
+                                    <field name="user_id" widget="many2one_avatar_user"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state == 'completed'"
+                                           decoration-info="state == 'in_progress'"
+                                           decoration-muted="state == 'abandoned'"/>
+                                    <field name="progress_percent" widget="progressbar"/>
+                                    <field name="create_date"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+</odoo>

@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Dashboard client action -->
+    <record id="gamification_dashboard_action" model="ir.actions.client">
+        <field name="name">Gamification Dashboard</field>
+        <field name="tag">gamification_dashboard</field>
+        <field name="path">gamification-dashboard</field>
+    </record>
+
     <!-- menus in settings - technical feature required -->
     <menuitem id="gamification_menu"
               name="Gamification Tools"
               parent="base.menu_administration"
               groups="base.group_no_one" />
 
+    <menuitem id="gamification_dashboard_menu"
+              parent="gamification_menu"
+              action="gamification_dashboard_action"
+              sequence="-10"/>
     <menuitem id="gamification_challenge_menu"
               parent="gamification_menu"
               action="challenge_list_action"
@@ -30,4 +41,56 @@
               parent="gamification_menu"
               action="gamification_karma_tracking_action"
               sequence="50"/>
+    <menuitem id="gamification_streak_type_menu"
+              parent="gamification_menu"
+              action="streak_type_list_action"
+              sequence="60"/>
+    <menuitem id="gamification_streak_menu"
+              parent="gamification_menu"
+              action="streak_list_action"
+              sequence="70"/>
+    <menuitem id="gamification_team_menu"
+              parent="gamification_menu"
+              action="team_list_action"
+              sequence="75"/>
+    <menuitem id="gamification_kudos_menu"
+              parent="gamification_menu"
+              action="kudos_list_action"
+              sequence="80"/>
+    <menuitem id="gamification_kudos_category_menu"
+              parent="gamification_menu"
+              action="kudos_category_list_action"
+              sequence="85"/>
+    <menuitem id="gamification_achievement_menu"
+              parent="gamification_menu"
+              action="achievement_list_action"
+              sequence="90"/>
+    <menuitem id="gamification_achievement_unlock_menu"
+              parent="gamification_menu"
+              action="achievement_unlock_list_action"
+              sequence="95"/>
+    <menuitem id="gamification_quest_menu"
+              parent="gamification_menu"
+              action="quest_list_action"
+              sequence="15"/>
+    <menuitem id="gamification_season_menu"
+              parent="gamification_menu"
+              action="season_list_action"
+              sequence="16"/>
+    <menuitem id="gamification_skill_tree_menu"
+              parent="gamification_menu"
+              action="skill_tree_list_action"
+              sequence="17"/>
+    <menuitem id="gamification_activity_feed_menu"
+              parent="gamification_menu"
+              action="activity_feed_list_action"
+              sequence="96"/>
+    <menuitem id="gamification_mentorship_menu"
+              parent="gamification_menu"
+              action="mentorship_list_action"
+              sequence="97"/>
+    <menuitem id="gamification_engagement_menu"
+              parent="gamification_menu"
+              action="engagement_snapshot_list_action"
+              sequence="100"/>
 </odoo>

@@ -23,7 +23,7 @@
                 <attribute name="t-attf-href">#{'/slides_survey/slide/get_certification_url?slide_id=%s' %(slide.id) if slide.slide_category == 'certification' and slide.channel_id.total_slides == 1 else '/slides/slide/%s' %(slug(slide))}</attribute>
             </xpath>
             <xpath expr="//a[@name='o_wslides_list_slide_add_quizz']" position="attributes">
-                <attribute name="t-if">channel.can_upload and not slide.question_ids and slide.slide_category != 'certification'</attribute>
+                <attribute name="t-if">channel.can_upload and not slide.has_questions and slide.slide_category != 'certification'</attribute>
             </xpath>
             <xpath expr="//a[@name='o_wslides_slide_toggle_is_preview']" position="attributes">
                 <attribute name="t-attf-class">#{'d-none' if slide.slide_type == 'certification' else ''}</attribute>

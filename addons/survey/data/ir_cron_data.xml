@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="ir_cron_survey_cleanup_expired_responses" model="ir.cron">
+        <field name="name">Survey: Clean Up Expired Responses</field>
+        <field name="model_id" ref="model_survey_user_input"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_cleanup_expired_responses()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+
+    <record id="ir_cron_survey_scheduled_open_close" model="ir.cron">
+        <field name="name">Survey: Scheduled Open/Close</field>
+        <field name="model_id" ref="model_survey_survey"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_scheduled_open_close()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+    </record>
+</odoo>

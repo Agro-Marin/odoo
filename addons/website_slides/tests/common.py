@@ -108,17 +108,32 @@ class SlidesCase(MailCase):
             'sequence': 4,
             'quiz_first_attempt_reward': 42,
         })
-        cls.question_1 = cls.env['slide.question'].with_user(cls.user_officer).create({
-            'question': 'How long should be cooked a human?',
-            'slide_id': cls.slide_3.id,
+        # Create a lightweight survey for quiz questions on slide_3
+        cls.quiz_survey = cls.env['survey.survey'].with_user(cls.user_officer).create({
+            'title': 'Quiz: How To Cook Humans For Humans',
+            'scoring_type': 'scoring_without_answers',
+            'scoring_success_min': 100.0,
+            'questions_layout': 'one_page',
+            'questions_selection': 'all',
+            'access_mode': 'public',
+            'certification': False,
+            'is_attempts_limited': False,
         })
-        cls.answer_1 = cls.env['slide.answer'].with_user(cls.user_officer).create({
+        cls.slide_3.survey_id = cls.quiz_survey
+        cls.question_1 = cls.env['survey.question'].with_user(cls.user_officer).create({
+            'title': 'How long should be cooked a human?',
+            'survey_id': cls.quiz_survey.id,
+            'question_type': 'simple_choice',
+        })
+        cls.answer_1 = cls.env['survey.question.answer'].with_user(cls.user_officer).create({
             'question_id': cls.question_1.id,
-            'text_value': "25' at 180°C",
+            'value': "25' at 180°C",
             'is_correct': True,
+            'answer_score': 1.0,
         })
-        cls.answer_2 = cls.env['slide.answer'].with_user(cls.user_officer).create({
+        cls.answer_2 = cls.env['survey.question.answer'].with_user(cls.user_officer).create({
             'question_id': cls.question_1.id,
-            'text_value': "Raw",
+            'value': "Raw",
             'is_correct': False,
+            'answer_score': 0.0,
         })
