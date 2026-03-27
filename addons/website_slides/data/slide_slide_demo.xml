@@ -81,50 +81,71 @@
         <field name="completion_time">1</field>
         <field name="description">Show your newly mastered knowledge!</field>
     </record>
-        <record id="slide_slide_demo_0_4_question_0" model="slide.question">
-            <field name="question">What is a strawberry?</field>
-            <field name="sequence">1</field>
-            <field name="slide_id" ref="slide_slide_demo_0_4"/>
+        <record id="slide_slide_demo_0_4_quiz_survey" model="survey.survey">
+            <field name="title">Test your knowledge Quiz</field>
+            <field name="scoring_type">scoring_without_answers</field>
+            <field name="scoring_success_min" eval="100.0"/>
+            <field name="questions_layout">one_page</field>
+            <field name="questions_selection">all</field>
+            <field name="access_mode">public</field>
+            <field name="certification" eval="False"/>
+            <field name="is_attempts_limited" eval="False"/>
+            <field name="active" eval="True"/>
         </record>
-        <record id="slide_slide_demo_0_4_question_0_0" model="slide.answer">
-            <field name="text_value">A fruit</field>
+        <record id="slide_slide_demo_0_4" model="slide.slide">
+            <field name="survey_id" ref="slide_slide_demo_0_4_quiz_survey"/>
+        </record>
+        <record id="slide_slide_demo_0_4_question_0" model="survey.question">
+            <field name="title">What is a strawberry?</field>
+            <field name="sequence">1</field>
+            <field name="survey_id" ref="slide_slide_demo_0_4_quiz_survey"/>
+            <field name="question_type">simple_choice</field>
+        </record>
+        <record id="slide_slide_demo_0_4_question_0_0" model="survey.question.answer">
+            <field name="value">A fruit</field>
             <field name="sequence">1</field>
             <field name="is_correct" eval="True"/>
             <field name="comment">Correct! A strawberry is a fruit because it's the product of a tree.</field>
             <field name="question_id" ref="slide_slide_demo_0_4_question_0"/>
+            <field name="answer_score" eval="1.0"/>
         </record>
-        <record id="slide_slide_demo_0_4_question_0_1" model="slide.answer">
-            <field name="text_value">A vegetable</field>
+        <record id="slide_slide_demo_0_4_question_0_1" model="survey.question.answer">
+            <field name="value">A vegetable</field>
             <field name="sequence">2</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect! A strawberry is not a vegetable.</field>
             <field name="question_id" ref="slide_slide_demo_0_4_question_0"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
-        <record id="slide_slide_demo_0_4_question_0_2" model="slide.answer">
-            <field name="text_value">A table</field>
+        <record id="slide_slide_demo_0_4_question_0_2" model="survey.question.answer">
+            <field name="value">A table</field>
             <field name="sequence">3</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect! A table is a piece of furniture.</field>
             <field name="question_id" ref="slide_slide_demo_0_4_question_0"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
-        <record id="slide_slide_demo_0_4_question_1" model="slide.question">
-            <field name="question">What is the best tool to dig a hole for your plants?</field>
+        <record id="slide_slide_demo_0_4_question_1" model="survey.question">
+            <field name="title">What is the best tool to dig a hole for your plants?</field>
             <field name="sequence">2</field>
-            <field name="slide_id" ref="slide_slide_demo_0_4"/>
+            <field name="survey_id" ref="slide_slide_demo_0_4_quiz_survey"/>
+            <field name="question_type">simple_choice</field>
         </record>
-        <record id="slide_slide_demo_0_4_question_1_0" model="slide.answer">
-            <field name="text_value">A shovel</field>
+        <record id="slide_slide_demo_0_4_question_1_0" model="survey.question.answer">
+            <field name="value">A shovel</field>
             <field name="sequence">1</field>
             <field name="is_correct" eval="True"/>
             <field name="comment">Correct! A shovel is the perfect tool to dig a hole.</field>
             <field name="question_id" ref="slide_slide_demo_0_4_question_1"/>
+            <field name="answer_score" eval="1.0"/>
         </record>
-        <record id="slide_slide_demo_0_4_question_1_1" model="slide.answer">
-            <field name="text_value">A spoon</field>
+        <record id="slide_slide_demo_0_4_question_1_1" model="survey.question.answer">
+            <field name="value">A spoon</field>
             <field name="sequence">2</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect! Good luck digging a hole with a spoon...</field>
             <field name="question_id" ref="slide_slide_demo_0_4_question_1"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
 
     <!-- CHANNEL 1: Taking care of Trees -->
@@ -278,50 +299,71 @@
             <field name="link">http://www.example.com</field>
             <field name="slide_id" ref="slide_slide_demo_1_4"/>
         </record>
-        <record id="slide_slide_demo_1_4_question_0" model="slide.question">
-            <field name="question">Do you think Harry Potted has a good name?</field>
-            <field name="sequence">1</field>
-            <field name="slide_id" ref="slide_slide_demo_1_4"/>
+        <record id="slide_slide_demo_1_4_quiz_survey" model="survey.survey">
+            <field name="title">A little chat with Harry Potted Quiz</field>
+            <field name="scoring_type">scoring_without_answers</field>
+            <field name="scoring_success_min" eval="100.0"/>
+            <field name="questions_layout">one_page</field>
+            <field name="questions_selection">all</field>
+            <field name="access_mode">public</field>
+            <field name="certification" eval="False"/>
+            <field name="is_attempts_limited" eval="False"/>
+            <field name="active" eval="True"/>
         </record>
-        <record id="slide_slide_demo_1_4_question_0_0" model="slide.answer">
-            <field name="text_value">Yes</field>
+        <record id="slide_slide_demo_1_4" model="slide.slide">
+            <field name="survey_id" ref="slide_slide_demo_1_4_quiz_survey"/>
+        </record>
+        <record id="slide_slide_demo_1_4_question_0" model="survey.question">
+            <field name="title">Do you think Harry Potted has a good name?</field>
+            <field name="sequence">1</field>
+            <field name="survey_id" ref="slide_slide_demo_1_4_quiz_survey"/>
+            <field name="question_type">simple_choice</field>
+        </record>
+        <record id="slide_slide_demo_1_4_question_0_0" model="survey.question.answer">
+            <field name="value">Yes</field>
             <field name="sequence">1</field>
             <field name="is_correct" eval="True"/>
             <field name="comment">Correct!</field>
             <field name="question_id" ref="slide_slide_demo_1_4_question_0"/>
+            <field name="answer_score" eval="1.0"/>
         </record>
-        <record id="slide_slide_demo_1_4_question_0_1" model="slide.answer">
-            <field name="text_value">No</field>
+        <record id="slide_slide_demo_1_4_question_0_1" model="survey.question.answer">
+            <field name="value">No</field>
             <field name="sequence">2</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect!</field>
             <field name="question_id" ref="slide_slide_demo_1_4_question_0"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
-        <record id="slide_slide_demo_1_4_question_1" model="slide.question">
-            <field name="question">Did you read the whole article?</field>
+        <record id="slide_slide_demo_1_4_question_1" model="survey.question">
+            <field name="title">Did you read the whole article?</field>
             <field name="sequence">2</field>
-            <field name="slide_id" ref="slide_slide_demo_1_4"/>
+            <field name="survey_id" ref="slide_slide_demo_1_4_quiz_survey"/>
+            <field name="question_type">simple_choice</field>
         </record>
-        <record id="slide_slide_demo_1_4_question_1_0" model="slide.answer">
-            <field name="text_value">Yes</field>
+        <record id="slide_slide_demo_1_4_question_1_0" model="survey.question.answer">
+            <field name="value">Yes</field>
             <field name="sequence">1</field>
             <field name="is_correct" eval="True"/>
             <field name="comment">Correct! Congratulations you have time to loose</field>
             <field name="question_id" ref="slide_slide_demo_1_4_question_1"/>
+            <field name="answer_score" eval="1.0"/>
         </record>
-        <record id="slide_slide_demo_1_4_question_1_1" model="slide.answer">
-            <field name="text_value">No</field>
+        <record id="slide_slide_demo_1_4_question_1_1" model="survey.question.answer">
+            <field name="value">No</field>
             <field name="sequence">2</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect! You really should read it.</field>
             <field name="question_id" ref="slide_slide_demo_1_4_question_1"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
-        <record id="slide_slide_demo_1_4_question_1_2" model="slide.answer">
-            <field name="text_value">What was the question again?</field>
+        <record id="slide_slide_demo_1_4_question_1_2" model="survey.question.answer">
+            <field name="value">What was the question again?</field>
             <field name="sequence">3</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect! Seriously?</field>
             <field name="question_id" ref="slide_slide_demo_1_4_question_1"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
     <record id="slide_slide_demo_1_5" model="slide.slide">
         <field name="name">3 Main Methodologies</field>
@@ -413,50 +455,71 @@
             <field name="slide_id" ref="slide_slide_demo_2_0"/>
         </record>
         <!-- QUIZZ -->
-        <record id="slide_slide_demo_2_0_question_0" model="slide.question">
-            <field name="question">Do you make beams out of lemon trees?</field>
-            <field name="sequence">1</field>
-            <field name="slide_id" ref="slide_slide_demo_2_0"/>
+        <record id="slide_slide_demo_2_0_quiz_survey" model="survey.survey">
+            <field name="title">Main Trees Categories Quiz</field>
+            <field name="scoring_type">scoring_without_answers</field>
+            <field name="scoring_success_min" eval="100.0"/>
+            <field name="questions_layout">one_page</field>
+            <field name="questions_selection">all</field>
+            <field name="access_mode">public</field>
+            <field name="certification" eval="False"/>
+            <field name="is_attempts_limited" eval="False"/>
+            <field name="active" eval="True"/>
         </record>
-        <record id="slide_slide_demo_2_0_question_0_0" model="slide.answer">
-            <field name="text_value">Yes</field>
+        <record id="slide_slide_demo_2_0" model="slide.slide">
+            <field name="survey_id" ref="slide_slide_demo_2_0_quiz_survey"/>
+        </record>
+        <record id="slide_slide_demo_2_0_question_0" model="survey.question">
+            <field name="title">Do you make beams out of lemon trees?</field>
+            <field name="sequence">1</field>
+            <field name="survey_id" ref="slide_slide_demo_2_0_quiz_survey"/>
+            <field name="question_type">simple_choice</field>
+        </record>
+        <record id="slide_slide_demo_2_0_question_0_0" model="survey.question.answer">
+            <field name="value">Yes</field>
             <field name="sequence">1</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect!</field>
             <field name="question_id" ref="slide_slide_demo_2_0_question_0"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
-        <record id="slide_slide_demo_2_0_question_0_1" model="slide.answer">
-            <field name="text_value">No</field>
+        <record id="slide_slide_demo_2_0_question_0_1" model="survey.question.answer">
+            <field name="value">No</field>
             <field name="sequence">2</field>
             <field name="is_correct" eval="True"/>
             <field name="comment">Correct!</field>
             <field name="question_id" ref="slide_slide_demo_2_0_question_0"/>
+            <field name="answer_score" eval="1.0"/>
         </record>
-        <record id="slide_slide_demo_2_0_question_1" model="slide.question">
-            <field name="question">Do you make lemons out of beams?</field>
+        <record id="slide_slide_demo_2_0_question_1" model="survey.question">
+            <field name="title">Do you make lemons out of beams?</field>
             <field name="sequence">2</field>
-            <field name="slide_id" ref="slide_slide_demo_2_0"/>
+            <field name="survey_id" ref="slide_slide_demo_2_0_quiz_survey"/>
+            <field name="question_type">simple_choice</field>
         </record>
-        <record id="slide_slide_demo_2_0_question_1_0" model="slide.answer">
-            <field name="text_value">Yes</field>
+        <record id="slide_slide_demo_2_0_question_1_0" model="survey.question.answer">
+            <field name="value">Yes</field>
             <field name="sequence">1</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect!</field>
             <field name="question_id" ref="slide_slide_demo_2_0_question_1"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
-        <record id="slide_slide_demo_2_0_question_1_1" model="slide.answer">
-            <field name="text_value">No</field>
+        <record id="slide_slide_demo_2_0_question_1_1" model="survey.question.answer">
+            <field name="value">No</field>
             <field name="sequence">2</field>
             <field name="is_correct" eval="True"/>
             <field name="comment">Correct!</field>
             <field name="question_id" ref="slide_slide_demo_2_0_question_1"/>
+            <field name="answer_score" eval="1.0"/>
         </record>
-        <record id="slide_slide_demo_2_0_question_1_2" model="slide.answer">
-            <field name="text_value">And also bananas</field>
+        <record id="slide_slide_demo_2_0_question_1_2" model="survey.question.answer">
+            <field name="value">And also bananas</field>
             <field name="sequence">3</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect! of course not ...</field>
             <field name="question_id" ref="slide_slide_demo_2_0_question_1"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
     <record id="slide_slide_demo_2_1" model="slide.slide">
         <field name="name">A Mighty Forest from Ages</field>
@@ -799,24 +862,41 @@
         <field name="completion_time">0.5</field>
         <field name="description">Test your knowledge!</field>
     </record>
-        <record id="slide_slide_demo_5_3_question_0" model="slide.question">
-            <field name="question">Do you want to reply correctly?</field>
-            <field name="sequence">1</field>
-            <field name="slide_id" ref="slide_slide_demo_5_3"/>
+        <record id="slide_slide_demo_5_3_quiz_survey" model="survey.survey">
+            <field name="title">Test your knowledge! Quiz</field>
+            <field name="scoring_type">scoring_without_answers</field>
+            <field name="scoring_success_min" eval="100.0"/>
+            <field name="questions_layout">one_page</field>
+            <field name="questions_selection">all</field>
+            <field name="access_mode">public</field>
+            <field name="certification" eval="False"/>
+            <field name="is_attempts_limited" eval="False"/>
+            <field name="active" eval="True"/>
         </record>
-        <record id="slide_slide_demo_5_3_question_0_0" model="slide.answer">
-            <field name="text_value">Yes</field>
+        <record id="slide_slide_demo_5_3" model="slide.slide">
+            <field name="survey_id" ref="slide_slide_demo_5_3_quiz_survey"/>
+        </record>
+        <record id="slide_slide_demo_5_3_question_0" model="survey.question">
+            <field name="title">Do you want to reply correctly?</field>
+            <field name="sequence">1</field>
+            <field name="survey_id" ref="slide_slide_demo_5_3_quiz_survey"/>
+            <field name="question_type">simple_choice</field>
+        </record>
+        <record id="slide_slide_demo_5_3_question_0_0" model="survey.question.answer">
+            <field name="value">Yes</field>
             <field name="sequence">1</field>
             <field name="is_correct" eval="True"/>
             <field name="comment">Correct! You did it!</field>
             <field name="question_id" ref="slide_slide_demo_5_3_question_0"/>
+            <field name="answer_score" eval="1.0"/>
         </record>
-        <record id="slide_slide_demo_5_3_question_0_1" model="slide.answer">
-            <field name="text_value">No</field>
+        <record id="slide_slide_demo_5_3_question_0_1" model="survey.question.answer">
+            <field name="value">No</field>
             <field name="sequence">2</field>
             <field name="is_correct" eval="False"/>
             <field name="comment">Incorrect! You better think twice...</field>
             <field name="question_id" ref="slide_slide_demo_5_3_question_0"/>
+            <field name="answer_score" eval="0.0"/>
         </record>
 
     <!-- CHANNEL 6: DIY Furniture -->

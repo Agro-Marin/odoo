@@ -77,39 +77,44 @@ class TestUICommon(HttpCaseGamification, HttpCaseWithUserPortal):
                     'sequence': 5,
                     'slide_category': 'quiz',
                     'is_published': True,
-                    'question_ids': [
-                        (0, 0, {
-                            'question': 'What is a strawberry ?',
-                            'answer_ids': [
-                                (0, 0, {
-                                    'text_value': 'A fruit',
-                                    'is_correct': True,
-                                    'sequence': 1,
-                                }), (0, 0, {
-                                    'text_value': 'A vegetable',
-                                    'sequence': 2,
-                                }), (0, 0, {
-                                    'text_value': 'A table',
-                                    'sequence': 3,
-                                })
-                            ]
-                        }), (0, 0, {
-                            'question': 'What is the best tool to dig a hole for your plants ?',
-                            'answer_ids': [
-                                (0, 0, {
-                                    'text_value': 'A shovel',
-                                    'is_correct': True,
-                                    'sequence': 1,
-                                }), (0, 0, {
-                                    'text_value': 'A spoon',
-                                    'sequence': 2,
-                                })
-                            ]
-                        })
-                    ]
                 })
             ]
         })
+
+        # Create quiz survey for the quiz slide
+        quiz_slide = self.channel.slide_ids.filtered(lambda s: s.slide_category == 'quiz')
+        quiz_survey = self.env['survey.survey'].create({
+            'title': 'Test your knowledge',
+            'scoring_type': 'scoring_without_answers',
+            'scoring_success_min': 100.0,
+            'questions_layout': 'one_page',
+            'questions_selection': 'all',
+            'access_mode': 'public',
+            'certification': False,
+            'is_attempts_limited': False,
+        })
+        quiz_slide.survey_id = quiz_survey
+        self.env['survey.question'].create([
+            {
+                'title': 'What is a strawberry ?',
+                'survey_id': quiz_survey.id,
+                'question_type': 'simple_choice',
+                'suggested_answer_ids': [
+                    Command.create({'value': 'A fruit', 'is_correct': True, 'answer_score': 1.0, 'sequence': 1}),
+                    Command.create({'value': 'A vegetable', 'is_correct': False, 'answer_score': 0.0, 'sequence': 2}),
+                    Command.create({'value': 'A table', 'is_correct': False, 'answer_score': 0.0, 'sequence': 3}),
+                ],
+            },
+            {
+                'title': 'What is the best tool to dig a hole for your plants ?',
+                'survey_id': quiz_survey.id,
+                'question_type': 'simple_choice',
+                'suggested_answer_ids': [
+                    Command.create({'value': 'A shovel', 'is_correct': True, 'answer_score': 1.0, 'sequence': 1}),
+                    Command.create({'value': 'A spoon', 'is_correct': False, 'answer_score': 0.0, 'sequence': 2}),
+                ],
+            },
+        ])
 
 
 @tests.common.tagged('post_install', '-at_install')

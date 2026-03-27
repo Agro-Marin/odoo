@@ -202,7 +202,7 @@
          */
         _reorderQuestions: function () {
             this.orm
-                .webResequence("slide.question", this._getQuestionsIds())
+                .webResequence("survey.question", this._getQuestionsIds())
                 .then(this._modifyQuestionsSequence.bind(this))
         },
         /*
@@ -606,7 +606,7 @@
                 },
                 cancelLabel: _t('No'),
                 confirm: async () => {
-                    await this.orm.unlink('slide.question', [questionId]);
+                    await this.orm.unlink('survey.question', [questionId]);
                     this.trigger_up('delete_question', { questionId });
                 },
                 confirmLabel: _t('Yes'),

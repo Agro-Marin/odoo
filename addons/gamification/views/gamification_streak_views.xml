@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===== Actions (must be before views that reference them) ===== -->
+
+    <record id="streak_list_action" model="ir.actions.act_window">
+        <field name="name">Streaks</field>
+        <field name="res_model">gamification.streak</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_active_streaks': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No streaks yet
+            </p>
+            <p>
+                Streaks are created automatically when users start performing
+                daily activities tracked by streak types.
+            </p>
+        </field>
+    </record>
+
+    <record id="streak_type_list_action" model="ir.actions.act_window">
+        <field name="name">Streak Types</field>
+        <field name="res_model">gamification.streak.type</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Define your first streak type
+            </p>
+            <p>
+                Streak types define what daily activity keeps a user's streak alive.
+                Configure the target model, date field, and domain to detect activity.
+            </p>
+        </field>
+    </record>
+
+    <!-- ===== Streak Type Views ===== -->
+
+    <record id="streak_type_list_view" model="ir.ui.view">
+        <field name="name">gamification.streak.type.list</field>
+        <field name="model">gamification.streak.type</field>
+        <field name="arch" type="xml">
+            <list string="Streak Types">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="model_id"/>
+                <field name="karma_bonus"/>
+                <field name="freeze_allowance"/>
+                <field name="user_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="streak_type_form_view" model="ir.ui.view">
+        <field name="name">gamification.streak.type.form</field>
+        <field name="model">gamification.streak.type</field>
+        <field name="arch" type="xml">
+            <form string="Streak Type">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(streak_list_action)d" type="action"
+                                class="oe_stat_button" icon="fa-fire"
+                                context="{'search_default_streak_type_id': id}">
+                            <field name="user_count" widget="statinfo" string="Active Streaks"/>
+                        </button>
+                    </div>
+                    <field name="icon" widget="image" class="oe_avatar"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Daily CRM Update"/></h1>
+                    </div>
+                    <group>
+                        <group string="Activity Detection">
+                            <field name="model_id"/>
+                            <field name="date_field_id"
+                                   domain="[('model_id', '=', model_id), ('ttype', 'in', ['date', 'datetime']), ('store', '=', True)]"/>
+                            <field name="domain" widget="domain"
+                                   options="{'model': 'model_id.model'}"/>
+                        </group>
+                        <group string="Rewards &amp; Rules">
+                            <field name="karma_bonus"/>
+                            <field name="freeze_allowance"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <field name="description" placeholder="Describe what activity this streak tracks..."/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ===== Streak (User Instance) Views ===== -->
+
+    <record id="streak_list_view" model="ir.ui.view">
+        <field name="name">gamification.streak.list</field>
+        <field name="model">gamification.streak</field>
+        <field name="arch" type="xml">
+            <list string="Streaks" decoration-danger="state == 'broken'"
+                  decoration-success="state == 'active' and current_count &gt;= 7">
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="streak_type_id"/>
+                <field name="current_count"/>
+                <field name="longest_count"/>
+                <field name="last_activity_date"/>
+                <field name="freeze_remaining"/>
+                <field name="total_karma_earned"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-danger="state == 'broken'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="streak_form_view" model="ir.ui.view">
+        <field name="name">gamification.streak.form</field>
+        <field name="model">gamification.streak</field>
+        <field name="arch" type="xml">
+            <form string="Streak">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="streak_type_id"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Status">
+                            <field name="user_id" widget="many2one_avatar_user"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state == 'active'"
+                                   decoration-danger="state == 'broken'"/>
+                            <field name="last_activity_date"/>
+                        </group>
+                        <group string="Progress">
+                            <field name="current_count"/>
+                            <field name="longest_count"/>
+                            <field name="freeze_remaining"/>
+                            <field name="total_karma_earned"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="streak_search_view" model="ir.ui.view">
+        <field name="name">gamification.streak.search</field>
+        <field name="model">gamification.streak</field>
+        <field name="arch" type="xml">
+            <search string="Streaks">
+                <field name="user_id"/>
+                <field name="streak_type_id"/>
+                <filter string="Active" name="active_streaks"
+                        domain="[('state', '=', 'active')]"/>
+                <filter string="Broken" name="broken_streaks"
+                        domain="[('state', '=', 'broken')]"/>
+                <filter string="My Streaks" name="my_streaks"
+                        domain="[('user_id', '=', uid)]"/>
+                <separator/>
+                <group>
+                    <filter string="User" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Streak Type" name="group_type" context="{'group_by': 'streak_type_id'}"/>
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

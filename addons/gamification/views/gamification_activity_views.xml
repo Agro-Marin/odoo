@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="activity_feed_list_action" model="ir.actions.act_window">
+        <field name="name">Activity Feed</field>
+        <field name="res_model">gamification.activity</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_last_30d': 1}</field>
+    </record>
+
+    <record id="activity_feed_list_view" model="ir.ui.view">
+        <field name="name">gamification.activity.list</field>
+        <field name="model">gamification.activity</field>
+        <field name="arch" type="xml">
+            <list string="Activity Feed" create="0" edit="0">
+                <field name="activity_date" widget="datetime"/>
+                <field name="activity_type" widget="badge"
+                       decoration-info="activity_type == 'kudos'"
+                       decoration-warning="activity_type == 'badge'"
+                       decoration-success="activity_type in ('achievement', 'level_up')"
+                       decoration-danger="activity_type == 'streak_milestone'"/>
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="target_user_id" widget="many2one_avatar_user" optional="show"/>
+                <field name="summary"/>
+                <field name="karma_gained" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="activity_feed_search_view" model="ir.ui.view">
+        <field name="name">gamification.activity.search</field>
+        <field name="model">gamification.activity</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="user_id"/>
+                <field name="activity_type"/>
+                <filter string="Last 7 Days" name="last_7d"
+                        domain="[('activity_date', '&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%%Y-%%m-%%d'))]"/>
+                <filter string="Last 30 Days" name="last_30d"
+                        domain="[('activity_date', '&gt;=', (context_today() - datetime.timedelta(days=30)).strftime('%%Y-%%m-%%d'))]"/>
+                <separator/>
+                <filter string="Badges" name="badges" domain="[('activity_type', '=', 'badge')]"/>
+                <filter string="Kudos" name="kudos" domain="[('activity_type', '=', 'kudos')]"/>
+                <filter string="Achievements" name="achievements" domain="[('activity_type', '=', 'achievement')]"/>
+                <filter string="Level Ups" name="level_ups" domain="[('activity_type', '=', 'level_up')]"/>
+                <group>
+                    <filter string="Type" name="group_type" context="{'group_by': 'activity_type'}"/>
+                    <filter string="User" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Day" name="group_day" context="{'group_by': 'activity_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

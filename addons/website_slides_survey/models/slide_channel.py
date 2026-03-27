@@ -17,7 +17,6 @@ class SlideChannel(models.Model):
     _inherit = 'slide.channel'
 
     members_certified_count = fields.Integer('# Certified Attendees', compute='_compute_members_certified_count')
-    nbr_certification = fields.Integer("Number of Certifications", compute='_compute_slides_statistics', store=True)
 
     def _remove_membership(self, partner_ids):
         """Remove the relationship between the user_input and the slide_partner_id.

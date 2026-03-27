@@ -38,10 +38,12 @@ export class SurveyForm extends Interaction {
         },
         ".o_survey_lang_selector": { "t-on-change": this.onLanguageChange },
         ".o_survey_form_choice_item": { "t-on-change": this.onChoiceItemChange },
+        ".o_survey_dropdown_select": { "t-on-change": this.onDropdownChange },
         ".o_survey_matrix_btn": { "t-on-click": this.onMatrixButtonClick },
         "input[type='radio']": { "t-on-click": this.onRadioChoiceClick },
         "button[type='submit']": { "t-on-click": this.onSubmit },
         ".o_survey_choice_img img": { "t-on-click": this.onChoiceImageClick },
+        ".o_survey_save_later": { "t-on-click.prevent": this.onSaveLaterClick },
         ".o_survey_breadcrumb_container .breadcrumb-item a": {
             "t-on-click.prevent": this.onBreadcrumbClick,
         },
@@ -277,12 +279,16 @@ export class SurveyForm extends Interaction {
         const surveyLastTriggeringAnswers = this.el.querySelector(".o_survey_form_content_data")
             .dataset.surveyLastTriggeringAnswers;
         if (surveyLastTriggeringAnswers) {
-            const currentSelectedAnswers = Array.from(
+            const checkedAnswers = Array.from(
                 this.el.querySelectorAll(`
                 .o_survey_form_choice[data-question-type='simple_choice_radio'] input:checked,
                 .o_survey_form_choice[data-question-type='multiple_choice'] input:checked
             `)
             ).map((input) => parseInt(input.value));
+            const dropdownAnswers = Array.from(
+                this.el.querySelectorAll(".o_survey_form_choice[data-question-type='dropdown'] select")
+            ).filter((sel) => sel.value).map((sel) => parseInt(sel.value));
+            const currentSelectedAnswers = [...checkedAnswers, ...dropdownAnswers];
             const submitButton = this.el.querySelector("button[type=submit]");
             if (
                 currentSelectedAnswers.some((answerId) =>
@@ -325,6 +331,58 @@ export class SurveyForm extends Interaction {
     }
 
     /**
+     * Handle dropdown select change — propagates conditional question visibility
+     * and auto-advances in page_per_question layout.
+     *
+     * @param {Event} ev
+     */
+    async onDropdownChange(ev) {
+        const selectEl = ev.currentTarget;
+        const questionEl = selectEl.closest(".o_survey_form_choice");
+        if (!questionEl) {
+            return;
+        }
+
+        // Update conditional questions visibility
+        const previousValue = selectEl.dataset.previousValue || "";
+        const newValue = selectEl.value;
+        selectEl.dataset.previousValue = newValue;
+
+        if (this.options.questionsLayout !== "page_per_question") {
+            // Remove old answer, add new
+            if (previousValue) {
+                const idx = this.selectedAnswers.indexOf(parseInt(previousValue));
+                if (idx !== -1) {
+                    this.selectedAnswers.splice(idx, 1);
+                }
+            }
+            if (newValue) {
+                this.selectedAnswers.push(parseInt(newValue));
+            }
+            const toRecompute = (
+                this.options.triggeredQuestionsByAnswer[previousValue] || []
+            ).concat(this.options.triggeredQuestionsByAnswer[newValue] || []);
+            if (toRecompute.length) {
+                this.applyConditionalQuestionsVisibility(new Set(toRecompute));
+            }
+        }
+
+        // Auto-advance if page_per_question and question is answered
+        if (
+            newValue &&
+            this.options.questionsLayout === "page_per_question" &&
+            this.options.usersCanGoBack
+        ) {
+            const isLastQuestion = !!this.el.querySelector("button[value='finish']");
+            if (!isLastQuestion) {
+                await this.submitForm({
+                    nextSkipped: !!questionEl.dataset.isSkippedQuestion,
+                });
+            }
+        }
+    }
+
+    /**
      * Called when an image on an answer in multi-answers question is clicked.
      * @param {Event} ev
      */
@@ -339,6 +397,27 @@ export class SurveyForm extends Interaction {
             { sourceImage: ev.currentTarget.src },
             document.body
         );
+    }
+
+    async onSaveLaterClick(ev) {
+        const linkEl = ev.currentTarget;
+        const surveyToken = linkEl.dataset.surveyToken;
+        const answerToken = linkEl.dataset.answerToken;
+        try {
+            const result = await rpc(`/survey/save_later/${surveyToken}/${answerToken}`);
+            if (result.success) {
+                linkEl.innerHTML = `<i class="fa-solid fa-check me-1"></i>Link sent to ${result.email}`;
+                linkEl.classList.replace("text-muted", "text-success");
+            } else {
+                linkEl.textContent = result.error === "no_email"
+                    ? "No email address on file"
+                    : "Could not send link";
+                linkEl.classList.replace("text-muted", "text-danger");
+            }
+        } catch {
+            linkEl.textContent = "Failed to send link";
+            linkEl.classList.replace("text-muted", "text-danger");
+        }
     }
 
     removeTimer() {
@@ -656,6 +735,11 @@ export class SurveyForm extends Interaction {
             );
             return;
         }
+        // Handle skip action redirect
+        if (result.redirect_url) {
+            redirect(result.redirect_url);
+            return;
+        }
         const formContentEl = this.el.querySelector(".o_survey_form_content");
         this.replaceContent(result.survey_content, formContentEl);
 
@@ -914,6 +998,14 @@ export class SurveyForm extends Interaction {
                 case "multiple_choice":
                     params = this.prepareSubmitChoices(params, el, el.dataset.name);
                     break;
+                case "dropdown": {
+                    const selectEl = el.querySelector("select");
+                    if (selectEl && selectEl.value) {
+                        params = this.prepareSubmitAnswer(params, el.dataset.name, selectEl.value);
+                    }
+                    params = this.prepareSubmitComment(params, el, el.dataset.name, false);
+                    break;
+                }
                 case "matrix":
                     params = this.prepareSubmitAnswersMatrix(params, el);
                     break;
@@ -1417,7 +1509,7 @@ export class SurveyForm extends Interaction {
                 isCorrect = inputEl.value === correctAnswer;
             }
             answerWrapperEl.classList.add(`bg-${isCorrect ? "success" : "danger"}`);
-        } else if (["simple_choice_radio", "multiple_choice"].includes(questionType)) {
+        } else if (["simple_choice_radio", "dropdown", "multiple_choice"].includes(questionType)) {
             for (const buttonEl of answerWrapperEl.querySelectorAll(".o_survey_choice_btn")) {
                 const answerId = buttonEl.querySelector("input").value;
                 const isCorrect = correctAnswer.includes(parseInt(answerId));

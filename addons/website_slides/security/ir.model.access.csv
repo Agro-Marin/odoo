@@ -6,12 +6,6 @@ access_slide_slide_officer,slide.slide.officer,model_slide_slide,website_slides.
 access_slide_slide_manager,slide.slide.manager,model_slide_slide,website_slides.group_website_slides_manager,1,1,1,1
 access_slide_slide_partner_all,slide.slide.partner.all,model_slide_slide_partner,,0,0,0,0
 access_slide_slide_partner_system,slide.slide.partner.system,model_slide_slide_partner,website_slides.group_website_slides_officer,1,1,1,1
-access_slide_question_public,slide.question.all,model_slide_question,base.group_public,1,0,0,0
-access_slide_question_portal,slide.question.all,model_slide_question,base.group_portal,1,0,0,0
-access_slide_question_employee,slide.question.all,model_slide_question,base.group_user,1,0,0,0
-access_slide_question_officer,slide.question.officer,model_slide_question,website_slides.group_website_slides_officer,1,1,1,1
-access_slide_answer_all,slide.answer.all,model_slide_answer,,0,0,0,0
-access_slide_answer_officer,slide.answer.officer,model_slide_answer,website_slides.group_website_slides_officer,1,1,1,1
 access_slide_tag_public,slide.tag.all,model_slide_tag,base.group_public,1,0,0,0
 access_slide_tag_portal,slide.tag.all,model_slide_tag,base.group_portal,1,0,0,0
 access_slide_tag_employee,slide.tag.all,model_slide_tag,base.group_user,1,0,0,0
@@ -40,3 +34,6 @@ access_slide_slide_resource_portal,slide.slide.resource.portal,model_slide_slide
 access_slide_slide_resource_internal,slide.slide.resource.internal,model_slide_slide_resource,base.group_user,1,0,0,0
 access_slide_slide_resource_publisher,slide.slide.resource.publisher,model_slide_slide_resource,website_slides.group_website_slides_officer,1,1,1,1
 access_slide_channel_invite,access.slide.channel.invite,model_slide_channel_invite,base.group_user,1,1,1,0
+access_survey_survey_slides_officer,survey.survey.slides.officer,survey.model_survey_survey,website_slides.group_website_slides_officer,1,1,1,0
+access_survey_question_slides_officer,survey.question.slides.officer,survey.model_survey_question,website_slides.group_website_slides_officer,1,1,1,1
+access_survey_question_answer_slides_officer,survey.question.answer.slides.officer,survey.model_survey_question_answer,website_slides.group_website_slides_officer,1,1,1,1

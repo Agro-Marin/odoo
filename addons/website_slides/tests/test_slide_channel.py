@@ -280,7 +280,7 @@ class TestSlidesManagement(slides_common.SlidesCase, HttpCase):
         self.assertFalse(slide)
 
     def test_unlink_slide_channel(self):
-        self.assertTrue(self.channel.slide_content_ids.mapped('question_ids').exists(),
+        self.assertTrue(any(s.has_questions for s in self.channel.slide_content_ids),
             "Has question(s) linked to the slides")
         self.assertTrue(self.channel.channel_partner_ids.exists(), "Has participant(s)")
 

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- Default kudos categories -->
+    <record id="kudos_category_teamwork" model="gamification.kudos.category">
+        <field name="name">Teamwork</field>
+        <field name="description">Recognize great collaboration and helping others.</field>
+        <field name="icon">fa fa-users</field>
+        <field name="karma_granted">5</field>
+        <field name="sequence">1</field>
+    </record>
+
+    <record id="kudos_category_innovation" model="gamification.kudos.category">
+        <field name="name">Innovation</field>
+        <field name="description">Recognize creative solutions and new ideas.</field>
+        <field name="icon">fa fa-lightbulb-o</field>
+        <field name="karma_granted">10</field>
+        <field name="sequence">2</field>
+    </record>
+
+    <record id="kudos_category_quality" model="gamification.kudos.category">
+        <field name="name">Quality</field>
+        <field name="description">Recognize attention to detail and high-quality work.</field>
+        <field name="icon">fa fa-diamond</field>
+        <field name="karma_granted">5</field>
+        <field name="sequence">3</field>
+    </record>
+
+    <record id="kudos_category_speed" model="gamification.kudos.category">
+        <field name="name">Speed</field>
+        <field name="description">Recognize fast turnaround and meeting tight deadlines.</field>
+        <field name="icon">fa fa-bolt</field>
+        <field name="karma_granted">5</field>
+        <field name="sequence">4</field>
+    </record>
+
+    <record id="kudos_category_mentorship" model="gamification.kudos.category">
+        <field name="name">Mentorship</field>
+        <field name="description">Recognize teaching, training, and knowledge sharing.</field>
+        <field name="icon">fa fa-graduation-cap</field>
+        <field name="karma_granted">10</field>
+        <field name="sequence">5</field>
+    </record>
+
+</odoo>

@@ -26,6 +26,16 @@
         </xpath>
         <xpath expr="//head/t[@t-call-assets][last()]" position="after">
             <t t-call-assets="survey.survey_assets" lazy_load="True"/>
+            <!-- Theme customization via CSS variables -->
+            <t t-if="survey and survey.theme_color and survey.theme_color != '#714B67'">
+                <style t-out="':root { --survey-primary: %s; } .btn-primary { background-color: var(--survey-primary) !important; border-color: var(--survey-primary) !important; } .text-primary { color: var(--survey-primary) !important; } .o_survey_choice_btn.o_survey_selected { border-color: var(--survey-primary); }' % survey.theme_color"/>
+            </t>
+            <t t-if="survey and survey.theme_font and survey.theme_font != 'default'">
+                <style t-out="'.o_survey_form { font-family: %s; }' % survey.theme_font"/>
+            </t>
+            <t t-if="survey and survey.theme_custom_css">
+                <style t-out="survey.theme_custom_css"/>
+            </t>
         </xpath>
         <xpath expr="//header" position="before">
             <t t-set="no_header" t-value="True"/>
@@ -68,7 +78,7 @@
         <t t-call="survey.layout">
             <t t-if="answer.test_entry" t-call="survey.survey_button_form_view" />
             <div class="wrap o_survey_wrap d-flex">
-                <div class="o_container_small o_survey_form d-flex flex-column mb-5">
+                <div t-attf-class="o_container_small o_survey_form d-flex flex-column mb-5 #{'o_survey_conversational' if survey.questions_layout == 'conversational' else ''}">
                     <t t-call="survey.survey_fill_header" />
                     <t t-call="survey.survey_fill_form" />
                 </div>
@@ -82,7 +92,7 @@
                 <div class="container m-0 p-0">
                     <div class="row">
                         <div class="col-lg-10">
-                            <t t-set="displayTitle" t-value="answer.state == 'in_progress' and survey.questions_layout != 'page_per_question'"/>
+                            <t t-set="displayTitle" t-value="answer.state == 'in_progress' and survey.questions_layout not in ('page_per_question', 'conversational')"/>
                             <h1 t-out="survey.title" class="o_survey_main_title o_survey_main_title_fade pt-4"
                                 t-attf-class="o_survey_main_title o_survey_main_title_fade pt-4 {{'opacity-0' if not displayTitle else 'opacity-100'}}"/>
                         </div>
@@ -239,7 +249,7 @@
         <!-- Minimized display means we display the choices vertically (instead of optimized based on screen space).
         An exception is made for options with images, where we always want to optimize screen space.-->
         <t t-set="minimized_display" t-value="survey.questions_layout == 'page_per_question' and not any(suggestion.value_image for suggestion in question.suggested_answer_ids)" />
-        <div t-if="survey.questions_layout == 'page_per_question'"
+        <div t-if="survey.questions_layout in ('page_per_question', 'conversational')"
             t-attf-class="o_survey_page_per_question">
             <input type="hidden" name="question_id" t-att-value="question.id" />
             <!-- User has already answered for this session -->
@@ -332,22 +342,25 @@
 
     <!-- Question widgets -->
     <template id="question_container" name="Survey: question container">
+        <t t-set="is_per_question_layout" t-value="survey.questions_layout in ('page_per_question', 'conversational')"/>
         <t t-set="display_question"
-           t-value="survey.questions_layout == 'page_per_question'
+           t-value="is_per_question_layout
                     or survey.questions_selection == 'random'
                     or (survey.questions_layout == 'one_page' and not question.triggering_answer_ids)
                     or (survey.questions_layout == 'page_per_section' and (not question.triggering_answer_ids
                         or any(triggering_answer in selected_answers for triggering_answer in triggering_answers_by_question[question.id])))"/>
 
         <t t-set="answer_lines" t-value="answer.user_input_line_ids.filtered(lambda line: line.question_id == question)"/>
-        <t t-set="answers_contain_image" t-value="any(a.value_image for a in question.suggested_answer_ids)"/>
-        <t t-set="use_half_columns" t-value="survey.questions_layout == 'page_per_question' and answers_contain_image"/>
+        <!-- Shuffle suggested answers deterministically per respondent if enabled -->
+        <t t-set="displayed_suggested_answers" t-value="question._get_displayed_suggested_answers(answer.access_token)"/>
+        <t t-set="answers_contain_image" t-value="any(a.value_image for a in displayed_suggested_answers)"/>
+        <t t-set="use_half_columns" t-value="is_per_question_layout and answers_contain_image"/>
         <t t-set="use_half_col_lg" t-value="'col-lg-6' if (use_half_columns and not survey_form_readonly) or (answer.is_session_answer and answers_contain_image) else ''"/>
         <!--Use Key selection if number of choices is < 26 to keep Z for other choice if any-->
         <t t-set="letters" t-value="'ABCDEFGHIJKLMNOPQRSTUVWXYZ'"/>
-        <t t-set="useKeySelection" t-value="len(question.suggested_answer_ids) &lt; len(letters) and survey.questions_layout == 'page_per_question'"/>
+        <t t-set="useKeySelection" t-value="len(displayed_suggested_answers) &lt; len(letters) and is_per_question_layout"/>
         <!-- Extra 'right' margin is added on layouts that are not "page_per_question" to align with choices questions, since all choices have a me-2 class (pixel perfect yay...) -->
-        <t t-set="extra_right_margin" t-value="survey.questions_layout != 'page_per_question' and question.question_type not in ['simple_choice', 'multiple_choice']"/>
+        <t t-set="extra_right_margin" t-value="not is_per_question_layout and question.question_type not in ['simple_choice', 'multiple_choice']"/>
         <t t-set="default_constr_error_msg">This question requires an answer.</t>
         <t t-set="default_validation_error_msg">The answer you entered is not valid.</t>
         <t t-set="default_comments_message">If other, please specify:</t>
@@ -361,10 +374,10 @@
              t-att-data-validation-error-msg="question.validation_error_msg or default_validation_error_msg if question.validation_required else None">
             <div class="mb-4">
                 <h3 t-if="not hide_question_title">
-                    <span t-field='question.title' class="text-break" />
+                    <span t-out="answer._resolve_piping(question.title)" class="text-break" />
                     <span t-if="question.constr_mandatory" class="text-danger">*</span>
                 </h3>
-                <div t-if="not is_html_empty(question.description)" t-field='question.description' class="text-muted oe_no_empty mt-1 text-break"/>
+                <div t-if="not is_html_empty(question.description)" t-out="answer._resolve_piping(question.description)" class="text-muted oe_no_empty mt-1 text-break"/>
             </div>
             <t t-if="question.question_type == 'text_box'" t-call="survey.question_text_box"/>
             <t t-if="question.question_type == 'char_box'" t-call="survey.question_char_box"/>
@@ -372,9 +385,18 @@
             <t t-if="question.question_type == 'date'" t-call="survey.question_date"/>
             <t t-if="question.question_type == 'datetime'" t-call="survey.question_datetime"/>
             <t t-if="question.question_type == 'simple_choice'" t-call="survey.question_simple_choice"/>
+            <t t-if="question.question_type == 'dropdown'" t-call="survey.question_dropdown"/>
             <t t-if="question.question_type == 'scale'" t-call="survey.question_scale"/>
+            <t t-if="question.question_type == 'nps'" t-call="survey.question_nps"/>
+            <t t-if="question.question_type == 'slider'" t-call="survey.question_slider"/>
+            <t t-if="question.question_type == 'rating'" t-call="survey.question_rating"/>
+            <t t-if="question.question_type == 'ranking'" t-call="survey.question_ranking"/>
+            <t t-if="question.question_type == 'constant_sum'" t-call="survey.question_constant_sum"/>
+            <t t-if="question.question_type == 'file_upload'" t-call="survey.question_file_upload"/>
             <t t-if="question.question_type == 'multiple_choice'" t-call="survey.question_multiple_choice"/>
             <t t-if="question.question_type == 'matrix'" t-call="survey.question_matrix"/>
+            <t t-if="question.question_type == 'likert'" t-call="survey.question_likert"/>
+            <t t-if="question.question_type == 'statement'" t-call="survey.question_statement"/>
             <div t-attf-class="o_survey_question_error d-flex align-items-center justify-content-between overflow-hidden
                  border-0 py-0 px-3 alert alert-danger mt-2 #{'slide_in' if is_skipped_question else ''}" role="alert">
                 <span t-if="is_skipped_question" t-out="question.constr_error_msg or default_constr_error_msg"/>
@@ -458,6 +480,245 @@
         </div>
     </template>
 
+    <template id="question_nps" name="Question: Net Promoter Score">
+        <!-- NPS is always 0-10, color-coded: Detractor (0-6 red), Passive (7-8 yellow), Promoter (9-10 green) -->
+        <t t-set="answer_line" t-value="answer_lines and not answer_lines[0].skipped and answer_lines[0]"/>
+        <div class="o_survey_answer_wrapper o_survey_form_choice"
+             t-att-data-name="question.id"
+             t-att-data-is-skipped-question="is_skipped_question or None"
+             data-question-type="scale">
+            <div role="radiogroup" class="btn-group d-flex mb-2">
+                <t t-foreach="range(0, 11)" t-as="value">
+                    <t t-set="answer_selected" t-value="answer_line and answer_line.value_scale == value"/>
+                    <t t-set="nps_color"
+                       t-value="'text-danger' if value &lt;= 6 else 'text-warning' if value &lt;= 8 else 'text-success'"/>
+                    <label t-attf-class="o_survey_choice_btn flex-shrink-1 rounded text-nowrap #{'me-2' if not value_last else ''} #{'o_survey_selected' if answer_selected else ''}"
+                           t-attf-for="{{ question.id }}_{{ value }}">
+                        <div class="d-none d-md-flex align-items-center fs-5">
+                            <div t-attf-class="fw-bold my-3 flex-fill align-self-center text-center #{nps_color}" t-out="value"/>
+                            <i class="fa-solid fa-check-circle me-1 my-3"/>
+                            <i class="fa-regular fa-circle me-1 my-3"/>
+                        </div>
+                        <div class="d-block d-md-none my-3 text-center fs-5">
+                            <div t-attf-class="fw-bold #{nps_color}" t-out="value"/>
+                            <i class="fa-solid fa-check-circle"/>
+                            <i class="fa-regular fa-circle"/>
+                        </div>
+                        <input autocomplete="off"
+                               class="btn-check"
+                               type="radio"
+                               t-attf-class="o_survey_form_choice_item invisible position-absolute #{'o_survey_form_choice_item_selected' if answer_selected else ''}"
+                               t-att-data-selection-key="letters[value_index] if useKeySelection else ''"
+                               t-attf-name="{{ question.id }}"
+                               t-att-checked="'checked' if answer_selected else None"
+                               t-attf-value="{{ value }}"
+                               t-attf-id="{{ question.id }}_{{ value }}"
+                        />
+                    </label>
+                </t>
+            </div>
+            <div class="d-flex justify-content-between text-muted small">
+                <span class="text-danger">Not at all likely</span>
+                <span class="text-success">Extremely likely</span>
+            </div>
+        </div>
+    </template>
+
+    <template id="question_slider" name="Question: slider">
+        <t t-set="answer_line" t-value="answer_lines and not answer_lines[0].skipped and answer_lines[0]"/>
+        <div class="o_survey_answer_wrapper o_survey_form_choice"
+             t-att-data-name="question.id"
+             data-question-type="numerical_box">
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-muted small" t-out="question.slider_min"/>
+                <input type="range" class="form-range flex-fill o_survey_question_slider"
+                       t-att-name="question.id"
+                       t-att-min="question.slider_min"
+                       t-att-max="question.slider_max"
+                       t-att-step="question.slider_step"
+                       t-att-value="answer_line.value_numerical_box if answer_line else (question.slider_min + question.slider_max) / 2"
+                       oninput="this.closest('.o_survey_answer_wrapper').querySelector('.o_survey_slider_value').textContent = this.value"/>
+                <span class="text-muted small" t-out="question.slider_max"/>
+            </div>
+            <div class="text-center mt-2">
+                <span class="badge bg-primary fs-5 o_survey_slider_value"
+                      t-out="answer_line.value_numerical_box if answer_line else int((question.slider_min + question.slider_max) / 2)"/>
+                <span t-if="question.slider_unit" class="ms-1 text-muted" t-out="question.slider_unit"/>
+            </div>
+        </div>
+    </template>
+
+    <template id="question_rating" name="Question: rating (stars/hearts/thumbs)">
+        <t t-set="answer_line" t-value="answer_lines and not answer_lines[0].skipped and answer_lines[0]"/>
+        <t t-set="icon_class" t-value="'fa-star' if question.rating_icon == 'star' else 'fa-heart' if question.rating_icon == 'heart' else 'fa-thumbs-up'"/>
+        <div class="o_survey_answer_wrapper o_survey_form_choice o_survey_rating"
+             t-att-data-name="question.id"
+             data-question-type="scale">
+            <div class="d-flex gap-1 fs-3">
+                <t t-foreach="range(1, question.rating_max + 1)" t-as="value">
+                    <t t-set="answer_selected" t-value="answer_line and answer_line.value_scale == value"/>
+                    <t t-set="is_filled" t-value="answer_line and value &lt;= answer_line.value_scale"/>
+                    <label t-attf-class="o_survey_rating_item cursor-pointer #{'text-warning' if is_filled else 'text-muted'}"
+                           t-attf-for="{{ question.id }}_{{ value }}" style="cursor: pointer;">
+                        <i t-attf-class="#{'fa-solid' if is_filled else 'fa-regular'} #{icon_class}"/>
+                        <input type="radio" class="d-none o_survey_form_choice_item"
+                               t-attf-name="{{ question.id }}"
+                               t-att-value="value"
+                               t-att-checked="'checked' if answer_selected else None"
+                               t-attf-id="{{ question.id }}_{{ value }}"
+                               t-att-data-selection-key="letters[value_index] if useKeySelection else ''"/>
+                    </label>
+                </t>
+            </div>
+        </div>
+    </template>
+
+    <template id="question_ranking" name="Question: ranking (drag-and-drop)">
+        <div class="o_survey_answer_wrapper o_survey_ranking"
+             t-att-data-name="question.id"
+             data-question-type="ranking">
+            <p class="text-muted small mb-2">Drag items to rank them (1 = highest)</p>
+            <ol class="list-group o_survey_ranking_list">
+                <t t-foreach="displayed_suggested_answers" t-as="label">
+                    <t t-set="existing_rank" t-value="None"/>
+                    <li class="list-group-item d-flex align-items-center gap-2"
+                        t-att-data-answer-id="label.id">
+                        <i class="fa-solid fa-grip-vertical text-muted" style="cursor: grab;"/>
+                        <span class="o_survey_ranking_position badge bg-primary me-1" t-out="label_index + 1"/>
+                        <span class="flex-fill" t-field="label.value"/>
+                        <input type="hidden" t-attf-name="{{ question.id }}_{{ label.id }}"
+                               t-att-value="label_index + 1"/>
+                    </li>
+                </t>
+            </ol>
+        </div>
+    </template>
+
+    <template id="question_constant_sum" name="Question: constant sum">
+        <div class="o_survey_answer_wrapper o_survey_constant_sum"
+             t-att-data-name="question.id"
+             data-question-type="constant_sum">
+            <p class="text-muted small mb-2">
+                Distribute <strong t-out="question.constant_sum_total"/> points across the items below.
+            </p>
+            <t t-foreach="displayed_suggested_answers" t-as="label">
+                <t t-set="existing_line" t-value="answer_lines.filtered(lambda ln, l=label: ln.suggested_answer_id == l)"/>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="flex-fill" t-field="label.value"/>
+                    <input type="number" min="0" t-att-max="question.constant_sum_total"
+                           step="1" class="form-control o_survey_constant_sum_input"
+                           style="max-width: 100px;"
+                           t-attf-name="{{ question.id }}_{{ label.id }}"
+                           t-att-value="int(existing_line.value_numerical_box) if existing_line else 0"/>
+                </div>
+            </t>
+            <div class="d-flex justify-content-end mt-2 fw-bold">
+                <span class="me-2">Total:</span>
+                <span class="o_survey_constant_sum_total">0</span>
+                <span class="ms-1">/ <t t-out="question.constant_sum_total"/></span>
+            </div>
+        </div>
+    </template>
+
+    <template id="question_file_upload" name="Question: file upload">
+        <div class="o_survey_answer_wrapper o_survey_file_upload"
+             t-att-data-name="question.id"
+             data-question-type="file_upload">
+            <div class="border rounded p-4 text-center bg-light">
+                <i class="fa-solid fa-cloud-upload fa-3x text-muted mb-2" title="Upload"/>
+                <p class="mb-1">Drop a file here or click to browse</p>
+                <p class="text-muted small mb-2">
+                    Allowed: <t t-out="question.file_upload_types or 'any'"/>,
+                    Max size: <t t-out="question.file_upload_max_size"/> MB
+                </p>
+                <input type="file" class="form-control o_survey_file_input"
+                       t-attf-name="{{ question.id }}"
+                       t-att-accept="question.file_upload_types or None"/>
+            </div>
+        </div>
+    </template>
+
+    <template id="question_dropdown" name="Question: dropdown select">
+        <t t-set="answer_line" t-value="answer_lines.filtered(lambda line: line.suggested_answer_id)"/>
+        <div class="o_survey_answer_wrapper o_survey_form_choice"
+             t-att-data-name="question.id"
+             data-question-type="dropdown">
+            <select class="form-select o_survey_dropdown_select"
+                    t-att-name="question.id">
+                <option value="" t-att-selected="'selected' if not answer_line else None">
+                    -- <t t-out="question.question_placeholder or _('Select an option')"/> --
+                </option>
+                <t t-foreach="displayed_suggested_answers" t-as="label">
+                    <option t-att-value="label.id"
+                            t-att-selected="'selected' if answer_line and answer_line.suggested_answer_id.id == label.id else None">
+                        <t t-out="label.value_label"/>
+                    </option>
+                </t>
+            </select>
+            <div t-if="question.comments_allowed and not question.comment_count_as_answer"
+                 class="mb-2 o_survey_comment_container mt-3">
+                <t t-set="comment_line" t-value="answer_lines.filtered(lambda line: line.value_char_box)"/>
+                <textarea type="text" class="col form-control o_survey_comment o_survey_question_text_box bg-transparent rounded-0 p-0"
+                    t-att-placeholder="question.comments_message or default_comments_message if not survey_form_readonly else ''"><t t-esc="comment_line.value_char_box if comment_line else ''"/></textarea>
+            </div>
+        </div>
+    </template>
+
+    <template id="question_likert" name="Question: Likert scale">
+        <!-- Likert reuses the matrix data model (matrix_row_ids × suggested_answer_ids)
+             but renders with a compact scale-oriented layout. Each row is a statement,
+             each column is a scale level (e.g. Strongly Disagree → Strongly Agree). -->
+        <div class="o_survey_answer_wrapper o_survey_question_matrix"
+             t-att-data-name="question.id"
+             data-question-type="matrix">
+            <table class="table table-hover text-center o_survey_likert_table"
+                   t-att-data-sub-questions="json.dumps(question.matrix_row_ids.ids)">
+                <thead>
+                    <tr>
+                        <th class="text-start" style="width: 30%;"/>
+                        <t t-foreach="question.suggested_answer_ids" t-as="col_label">
+                            <th class="small">
+                                <t t-out="col_label.value"/>
+                            </th>
+                        </t>
+                    </tr>
+                </thead>
+                <tbody>
+                    <t t-foreach="question.matrix_row_ids" t-as="row_label">
+                        <tr t-att-id="row_label.id">
+                            <td class="text-start fw-bold">
+                                <t t-out="row_label.value"/>
+                            </td>
+                            <t t-foreach="question.suggested_answer_ids" t-as="col_label">
+                                <t t-set="answer_line" t-value="answer_lines.filtered(
+                                    lambda l, r=row_label, c=col_label: l.matrix_row_id == r and l.suggested_answer_id == c
+                                )"/>
+                                <td class="o_survey_matrix_btn"
+                                    t-att-class="'o_survey_selected' if answer_line else ''">
+                                    <label t-att-for="'%s_%s_%s' % (question.id, row_label.id, col_label.id)">
+                                        <input type="radio"
+                                               t-att-id="'%s_%s_%s' % (question.id, row_label.id, col_label.id)"
+                                               t-att-name="'%s_%s' % (question.id, row_label.id)"
+                                               t-att-value="'%s_%s' % (row_label.id, col_label.id)"
+                                               t-att-checked="'checked' if answer_line else None"
+                                               class="o_survey_form_choice_item"/>
+                                        <i class="fa-regular fa-circle"/>
+                                        <i class="fa-solid fa-check-circle"/>
+                                    </label>
+                                </td>
+                            </t>
+                        </tr>
+                    </t>
+                </tbody>
+            </table>
+        </div>
+    </template>
+
+    <template id="question_statement" name="Question: statement / info screen">
+        <!-- Statement questions display only — no answer input is rendered.
+             The title and description are already shown by the parent template. -->
+    </template>
+
     <template id="question_date" name="Question: date box">
         <div class="input-group o_survey_form_date o_survey_answer_wrapper p-1 rounded">
             <input type="text" class="form-control datetimepicker-input o_survey_question_date bg-transparent rounded-0 p-0"
@@ -505,8 +766,8 @@
              t-att-data-is-skipped-question="is_skipped_question or None"
              data-question-type="simple_choice_radio">
             <t t-set="item_idx" t-value="0"/>
-            <t t-set="has_correct_answer" t-value="scoring_display_correction and any(label.is_correct for label in question.suggested_answer_ids)"/>
-            <t t-foreach='question.suggested_answer_ids' t-as='label'>
+            <t t-set="has_correct_answer" t-value="scoring_display_correction and any(label.is_correct for label in displayed_suggested_answers)"/>
+            <t t-foreach='displayed_suggested_answers' t-as='label'>
                 <t t-set="item_idx" t-value="label_index"/>
                 <t t-set="answer_selected" t-value="answer_line and answer_line.suggested_answer_id.id == label.id"/>
 
@@ -573,8 +834,8 @@
              t-att-data-name="question.id"
              t-att-data-question-type="question.question_type">
             <t t-set="item_idx" t-value="0"/>
-            <t t-set="has_correct_answer" t-value="scoring_display_correction and any(label.is_correct for label in question.suggested_answer_ids)"/>
-            <t t-foreach='question.suggested_answer_ids' t-as='label'>
+            <t t-set="has_correct_answer" t-value="scoring_display_correction and any(label.is_correct for label in displayed_suggested_answers)"/>
+            <t t-foreach='displayed_suggested_answers' t-as='label'>
                 <t t-set="item_idx" t-value="label_index"/>
                 <t t-set="answer_line" t-value="answer_lines.filtered(lambda line: line.suggested_answer_id == label)"/>
                 <t t-set="answer_selected" t-value="answer_line and answer_line.suggested_answer_id.id == label.id"/>
@@ -641,16 +902,16 @@
             <thead>
                 <tr>
                     <th> </th>
-                    <th class="fw-normal" t-foreach="question.suggested_answer_ids" t-as="col_label"><span t-field="col_label.value" /></th>
+                    <th class="fw-normal" t-foreach="displayed_suggested_answers" t-as="col_label"><span t-field="col_label.value" /></th>
                 </tr>
             </thead>
             <tbody>
                 <t t-set="item_idx" t-value="0"/>
                 <!-- For matrix, we have an extra check because we have rows * columns total options -->
-                <t t-set="useKeySelection" t-value="useKeySelection and (len(question.suggested_answer_ids) * len(question.matrix_row_ids)) &lt; len(letters)" />
+                <t t-set="useKeySelection" t-value="useKeySelection and (len(displayed_suggested_answers) * len(question.matrix_row_ids)) &lt; len(letters)" />
                 <tr class="bg-white text-white" t-foreach="question.matrix_row_ids" t-as="row_label" t-att-id="row_label.id">
                     <th class="fw-normal text-start"><span t-field="row_label.value" /></th>
-                    <t t-foreach="question.suggested_answer_ids" t-as="col_label">
+                    <t t-foreach="displayed_suggested_answers" t-as="col_label">
                         <t t-set="answer" t-value="answer_lines.filtered(lambda line: line.suggested_answer_id == col_label and line.matrix_row_id == row_label)"/>
                         <td t-att-class="'o_survey_matrix_btn text-primary position-relative %s'
                         % ('o_survey_selected' if answer else '')">
