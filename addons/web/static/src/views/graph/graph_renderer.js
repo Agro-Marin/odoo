@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/graph/graph_renderer - Chart.js integration for rendering bar, line, and pie charts with tooltips and legends */
+/** @module @web/views/graph/graph_renderer - Chart.js integration for rendering bar, line, pie, and scatter charts with tooltips and legends */
 
 import {
     Component,
@@ -32,6 +32,7 @@ import {
     styleBarChartData,
     styleLineChartData,
     stylePieChartData,
+    styleScatterChartData,
 } from "./graph_chart_config.js";
 
 export class GraphRenderer extends Component {
@@ -213,10 +214,16 @@ export class GraphRenderer extends Component {
                 break;
             case "pie":
                 data = this.getPieChartData();
+                break;
+            case "scatter":
+                data = this.getScatterChartData();
+                break;
         }
         const options = this.prepareOptions();
-        const config = { data, options, type: mode };
-        if (mode === "line") {
+        // Scatter is rendered as a line chart with showLine:false on each dataset
+        const type = mode === "scatter" ? "line" : mode;
+        const config = { data, options, type };
+        if (mode === "line" || mode === "scatter") {
             config.plugins = [gridOnTop];
         }
         return config;
@@ -231,7 +238,7 @@ export class GraphRenderer extends Component {
             onHover: this.onLegendHover.bind(this),
             onLeave: this.onLegendLeave.bind(this),
         };
-        if (mode === "line") {
+        if (mode === "line" || mode === "scatter") {
             legendOptions.onClick = this.onLegendClick.bind(this);
         }
         if (mode === "pie") {
@@ -265,6 +272,14 @@ export class GraphRenderer extends Component {
     }
 
     /**
+     * Returns scatter chart data (line chart with showLine:false).
+     * @returns {Object}
+     */
+    getScatterChartData() {
+        return styleScatterChartData(this.model.data);
+    }
+
+    /**
      * Returns the options used to generate the chart axes.
      * @returns {Object}
      */
@@ -291,6 +306,10 @@ export class GraphRenderer extends Component {
             tooltipOptions.mode = "index";
             tooltipOptions.intersect = false;
             tooltipOptions.position = "average";
+        }
+        if (mode === "scatter") {
+            tooltipOptions.mode = "nearest";
+            tooltipOptions.intersect = true;
         }
         if (mode === "bar") {
             tooltipOptions.xAlign = "center";
@@ -414,6 +433,12 @@ export class GraphRenderer extends Component {
                 intersect: false,
             };
         }
+        if (mode === "scatter") {
+            options.interaction = {
+                mode: "nearest",
+                intersect: true,
+            };
+        }
         if (mode === "pie") {
             options.radius = "90%";
         }
@@ -529,7 +554,7 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * @param {"bar"|"line"|"pie"} mode
+     * @param {"bar"|"line"|"pie"|"scatter"} mode
      */
     onModeSelected(mode) {
         if (this.model.metaData.mode !== mode) {

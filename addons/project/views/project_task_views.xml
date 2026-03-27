@@ -92,6 +92,7 @@
                             ('date_deadline', '&lt;', 'today +1d'),
                         ]"/>
                         <filter name="deadline_past_due" string="Overdue" domain="[('date_deadline', '&lt;', 'today')]"/>
+                        <filter name="deadline_missed" string="Deadline Missed" domain="[('deadline_met', '=', False), ('state', 'in', ['done', 'canceled'])]"/>
                     </filter>
                 </filter>
                 <filter name="create_date" position="after">
@@ -132,6 +133,9 @@
                 </filter>
                 <filter name="unassigned" position="after">
                     <filter string="Private Tasks" name="private_tasks" domain="[('project_id', '=', False)]" invisible="context.get('default_project_id')"/>
+                    <separator/>
+                    <filter string="Backlog" name="backlog" domain="[('sprint_id', '=', False), ('project_id.use_sprints', '=', True)]"/>
+                    <filter string="Current Sprint" name="current_sprint" domain="[('sprint_id.state', '=', 'active')]"/>
                 </filter>
             </field>
         </record>
@@ -143,8 +147,8 @@
                 <graph string="Tasks" sample="1" js_class="project_task_graph">
                     <field name="project_id" invisible="context.get('default_project_id', False)"/>
                     <field name="step_id"/>
-                    <field name="working_hours_open" widget="float_time"/>
-                    <field name="working_hours_close" widget="float_time"/>
+                    <field name="queue_time_hours" widget="float_time"/>
+                    <field name="lead_time_hours" widget="float_time"/>
                     <field name="color" invisible="1"/>
                     <field name="sequence" invisible="1"/>
                     <field name="step_color" invisible="1"/>
@@ -170,6 +174,54 @@
         </record>
 
 
+        <!-- Sprint backlog: tasks not assigned to any sprint -->
+        <record id="action_view_backlog" model="ir.actions.act_window">
+            <field name="name">Backlog</field>
+            <field name="res_model">project.task</field>
+            <field name="view_mode">list,kanban,form,calendar,pivot,graph,activity</field>
+            <field name="search_view_id" ref="view_task_search_form"/>
+            <field name="context">{
+                'search_default_backlog': 1,
+            }</field>
+            <field name="domain">[('project_id', '!=', False), ('has_template_ancestor', '=', False)]</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No backlog tasks found.
+                </p>
+                <p>Tasks not assigned to any sprint appear here.</p>
+            </field>
+        </record>
+
+        <!-- Cycle time scatter plot: completion date on X, cycle time on Y -->
+        <record id="view_project_task_scatter" model="ir.ui.view">
+            <field name="name">project.task.scatter</field>
+            <field name="model">project.task</field>
+            <field name="arch" type="xml">
+                <graph string="Cycle Time Scatter" type="scatter" sample="1">
+                    <field name="date_end" interval="week"/>
+                    <field name="cycle_time_hours" type="measure"/>
+                </graph>
+            </field>
+        </record>
+
+        <record id="action_project_task_scatter" model="ir.actions.act_window">
+            <field name="name">Cycle Time Scatter</field>
+            <field name="res_model">project.task</field>
+            <field name="view_mode">graph</field>
+            <field name="view_id" ref="view_project_task_scatter"/>
+            <field name="context">{
+                'search_default_project_id': active_id,
+                'default_project_id': active_id,
+            }</field>
+            <field name="domain">[('date_end', '!=', False)]</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_empty_folder">
+                    No completed tasks yet.
+                </p>
+                <p>Complete some tasks to see their cycle time distribution over time.</p>
+            </field>
+        </record>
+
         <record id="view_project_task_pivot" model="ir.ui.view">
             <field name="name">project.task.pivot</field>
             <field name="model">project.task</field>
@@ -180,8 +232,8 @@
                     <field name="sequence" invisible="1"/>
                     <field name="step_color" invisible="1"/>
                     <field name="allocated_hours" widget="float_time"/>
-                    <field name="working_hours_close" widget="float_time"/>
-                    <field name="working_hours_open" widget="float_time"/>
+                    <field name="lead_time_hours" widget="float_time"/>
+                    <field name="queue_time_hours" widget="float_time"/>
                 </pivot>
             </field>
         </record>
@@ -395,6 +447,10 @@
                         <button name="action_dependent_tasks" type="object" invisible="successor_count == 0 or not allow_dependencies" class="oe_stat_button" icon="fa-check" groups="project.group_project_task_dependencies">
                             <field name="successor_count" widget="statinfo" string="Blocked Tasks" />
                         </button>
+                        <button name="action_view_schedule" type="object"
+                            class="oe_stat_button" icon="fa-calendar"
+                            string="Schedule"
+                            invisible="not user_ids"/>
                         <!-- Dummy tag used to organize buttons -->
                         <span id="end_button_box" invisible="1"/>
                     </div>
@@ -456,6 +512,8 @@
                             </div>
                             <!-- Field needed to trigger its compute in project_enterprise, but will be replaced in an override defined in hr_timesheet module -->
                             <field name="allocated_hours" invisible="1"/>
+                            <field name="allocated_percentage" invisible="1"/>
+                            <field name="schedule_conflict_count" invisible="1"/>
                         </group>
                     </group>
                         <field name="task_properties" columns="2"/>
@@ -510,6 +568,12 @@
                                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                                     <field name="create_date" optional="hide"/>
                                     <field name="step_id" optional="hide" context="{'default_project_id': project_id}"/>
+                                    <field name="deadline_met" optional="hide"/>
+                                    <field name="cd3_score" optional="hide"/>
+                                    <field name="is_critical_path" optional="hide"/>
+                                    <field name="planned_date_start" optional="hide"/>
+                                    <field name="planned_date_end" optional="hide"/>
+                                    <field name="is_overallocated" optional="hide"/>
                                 </list>
                             </field>
                         </page>
@@ -557,6 +621,12 @@
                                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                                     <field name="create_date" optional="hide"/>
                                     <field name="step_id" optional="hide"/>
+                                    <field name="deadline_met" optional="hide"/>
+                                    <field name="cd3_score" optional="hide" string="CD3"/>
+                                    <field name="is_critical_path" optional="hide"/>
+                                    <field name="planned_date_start" optional="hide"/>
+                                    <field name="planned_date_end" optional="hide"/>
+                                    <field name="is_overallocated" optional="hide"/>
                                 </list>
                             </field>
                         </page>
@@ -572,13 +642,31 @@
                                     <field name="date_assign" groups="base.group_no_one"/>
                                     <field name="date_last_status_change" groups="base.group_no_one"/>
                                 </group>
-                                <group string="Working Time to Assign" invisible="working_hours_open == 0.0">
-                                    <field name="working_hours_open" widget="float_time" string="Hours"/>
-                                    <field name="working_days_open" string="Days"/>
+                                <group string="Queue Time (create → assign)" invisible="queue_time_hours == 0.0">
+                                    <field name="queue_time_hours" widget="float_time" string="Hours"/>
+                                    <field name="queue_time_days" string="Days"/>
                                 </group>
-                                <group string="Working Time to Close" invisible="working_hours_close == 0.0">
-                                    <field name="working_hours_close" widget="float_time" string="Hours"/>
-                                    <field name="working_days_close" string="Days"/>
+                                <group string="Lead Time (create → close)" invisible="lead_time_hours == 0.0">
+                                    <field name="lead_time_hours" widget="float_time" string="Hours"/>
+                                    <field name="lead_time_days" string="Days"/>
+                                </group>
+                                <group string="Cycle Time (assign → close)" invisible="cycle_time_hours == 0.0">
+                                    <field name="cycle_time_hours" widget="float_time" string="Hours"/>
+                                    <field name="cycle_time_days" string="Days"/>
+                                </group>
+                                <group string="Deadline Compliance" invisible="not date_deadline or state not in ['done', 'canceled']">
+                                    <field name="deadline_met"/>
+                                </group>
+                                <group string="Economic Prioritization">
+                                    <field name="cost_of_delay"/>
+                                    <field name="cd3_score" invisible="not cd3_score"/>
+                                </group>
+                                <group string="Scheduling" invisible="not allow_dependencies">
+                                    <field name="is_critical_path"/>
+                                    <field name="total_float" widget="float_time" invisible="not is_critical_path and total_float == 0"/>
+                                    <field name="planned_date_start" readonly="True"/>
+                                    <field name="planned_date_end" readonly="True"/>
+                                    <field name="is_overallocated"/>
                                 </group>
                             </group>
                         </page>

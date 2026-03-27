@@ -31,6 +31,7 @@
                                 <field name="fold"/>
                                 <field name="auto_update_state" invisible="not rating_template_id"/>
                                 <field name="project_ids" widget="many2many_tags" options="{'color_field': 'color', 'edit_tags': True}" required="1"/>
+                                <field name="wip_limit"/>
                                 <field name="rotting_threshold_days"/>
                                 <field name="color" widget="color_picker"/>
                                 <field name="sequence" groups="base.group_no_one"/>
@@ -79,6 +80,7 @@
                 <list string="Workflow Step" delete="0" sample="1" multi_edit="1" editable="bottom" open_form_view="True">
                     <field name="sequence" widget="handle" optional="show"/>
                     <field name="name" placeholder="e.g. To Do"/>
+                    <field name="wip_limit" optional="show"/>
                     <field name="rotting_threshold_days" optional="hide"/>
                     <field name="mail_template_id" optional="hide"/>
                     <field name="project_ids" required="1" optional="show" widget="many2many_tags" options="{'color_field': 'color'}"/>

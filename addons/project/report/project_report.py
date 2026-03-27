@@ -33,14 +33,14 @@ class ReportProjectTaskUser(models.Model):
     project_id = fields.Many2one(
         "project.project", string="Project", readonly=True
     )
-    working_days_close = fields.Float(
-        string="Working Days to Close",
+    lead_time_days = fields.Float(
+        string="Lead Time (days)",
         digits=(16, 2),
         readonly=True,
         aggregator="avg",
     )
-    working_days_open = fields.Float(
-        string="Working Days to Assign",
+    queue_time_days = fields.Float(
+        string="Queue Time (days)",
         digits=(16, 2),
         readonly=True,
         aggregator="avg",
@@ -52,14 +52,14 @@ class ReportProjectTaskUser(models.Model):
         readonly=True,
     )
     nbr = fields.Integer("# of Tasks", readonly=True)
-    working_hours_open = fields.Float(
-        string="Working Hours to Assign",
+    queue_time_hours = fields.Float(
+        string="Queue Time (hours)",
         digits=(16, 2),
         readonly=True,
         aggregator="avg",
     )
-    working_hours_close = fields.Float(
-        string="Working Hours to Close",
+    lead_time_hours = fields.Float(
+        string="Lead Time (hours)",
         digits=(16, 2),
         readonly=True,
         aggregator="avg",
@@ -157,10 +157,10 @@ class ReportProjectTaskUser(models.Model):
                 t.description,
                 NULLIF(t.rating_last_value, 0) as rating_last_value,
                 AVG(rt.rating) as rating_avg,
-                NULLIF(t.working_days_close, 0) as Working_days_close,
-                NULLIF(t.working_days_open, 0) as working_days_open,
-                NULLIF(t.working_hours_open, 0) as working_hours_open,
-                NULLIF(t.working_hours_close, 0) as working_hours_close,
+                NULLIF(t.lead_time_days, 0) as lead_time_days,
+                NULLIF(t.queue_time_days, 0) as queue_time_days,
+                NULLIF(t.queue_time_hours, 0) as queue_time_hours,
+                NULLIF(t.lead_time_hours, 0) as lead_time_hours,
                 (extract('epoch' from (t.date_deadline-(now() at time zone 'UTC'))))/(3600*24) as delay_endings_days,
                 COUNT(td.task_id) as successor_ids_count,
                 t.is_template,
@@ -184,10 +184,10 @@ class ReportProjectTaskUser(models.Model):
                 t.step_id,
                 t.state,
                 t.rating_last_value,
-                t.working_days_close,
-                t.working_days_open,
-                t.working_hours_open,
-                t.working_hours_close,
+                t.lead_time_days,
+                t.queue_time_days,
+                t.queue_time_hours,
+                t.lead_time_hours,
                 t.milestone_id,
                 pm.id,
                 td.depends_on_id

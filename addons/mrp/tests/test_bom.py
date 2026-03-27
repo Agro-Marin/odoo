@@ -882,13 +882,14 @@ class TestBoM(TestMrpCommon):
         date_start = fields.Datetime.today() + timedelta(days=14 * 2 - 1)
         end_of_day = date_start + timedelta(days=1)
 
-        # Populate the workcenter's planning
-        self.env['resource.calendar.leaves'].create({
+        # Populate the workcenter's planning with a reservation
+        self.env['resource.reservation'].create({
             'name': 'Game update',
-            'date_from': fields.Date.today(),
-            'date_to': end_of_day - timedelta(minutes=15),
+            'date_start': fields.Date.today(),
+            'date_end': end_of_day - timedelta(minutes=15),
             'resource_id': workcenter.resource_id.id,
-            'time_type': 'other',
+            'allocated_percentage': 100.0,
+            'enforcement_mode': 'hard',
         })
 
         # Check that we still have one available slot of 15 minutes

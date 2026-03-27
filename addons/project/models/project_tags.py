@@ -22,6 +22,10 @@ class ProjectTags(models.Model):
         default=_get_default_color,
         help="Transparent tags are not visible in the kanban view of your projects and tasks.",
     )
+    is_strategic = fields.Boolean(
+        "Strategic Objective",
+        help="Mark this tag as representing a strategic objective for portfolio alignment.",
+    )
     project_ids = fields.Many2many(
         "project.project",
         "project_project_project_tags_rel",

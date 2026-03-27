@@ -15,6 +15,7 @@
                         <rng:value>bar</rng:value>
                         <rng:value>pie</rng:value>
                         <rng:value>line</rng:value>
+                        <rng:value>scatter</rng:value>
                     </rng:choice>
                 </rng:attribute>
             </rng:optional>

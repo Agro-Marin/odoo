@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="project_task_dependency_list" model="ir.ui.view">
+        <field name="name">project.task.dependency.list</field>
+        <field name="model">project.task.dependency</field>
+        <field name="arch" type="xml">
+            <list string="Task Dependencies" editable="bottom">
+                <field name="depends_on_id" string="Predecessor"/>
+                <field name="task_id" string="Dependent"/>
+                <field name="dependency_type"/>
+                <field name="lag_hours" widget="float_time" optional="show"/>
+                <field name="project_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="project_task_dependency_form" model="ir.ui.view">
+        <field name="name">project.task.dependency.form</field>
+        <field name="model">project.task.dependency</field>
+        <field name="arch" type="xml">
+            <form string="Task Dependency">
+                <group>
+                    <group>
+                        <field name="depends_on_id" string="Predecessor"/>
+                        <field name="task_id" string="Dependent"/>
+                    </group>
+                    <group>
+                        <field name="dependency_type"/>
+                        <field name="lag_hours" widget="float_time"/>
+                    </group>
+                </group>
+            </form>
+        </field>
+    </record>
+
+</odoo>

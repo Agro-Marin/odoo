@@ -518,11 +518,26 @@ class TestAccessRightsPrivateTask(TestAccessRights):
         values = {"name": name, "user_ids": [Command.set(user.ids)], **kwargs}
         return self.env["project.task"].with_user(user).create(values)
 
-    @users("Internal user", "Portal user")
-    def test_internal_cannot_crud_private_task(self) -> None:
+    @users("Portal user")
+    def test_portal_cannot_crud_private_task(self) -> None:
+        """Portal users have no ACL-level create permission on project.task."""
         with self.assertRaises(AccessError):
             self.create_private_task("Private task")
 
+        with self.assertRaises(AccessError):
+            self.private_task.with_user(self.env.user).write({"name": "Test write"})
+
+        with self.assertRaises(AccessError):
+            self.private_task.with_user(self.env.user).unlink()
+
+        with self.assertRaises(AccessError):
+            self.private_task.with_user(self.env.user).read(["name"])
+
+    @users("Internal user")
+    def test_internal_cannot_crud_others_private_task(self) -> None:
+        """Internal users (base.group_user) can create their own private tasks
+        (via project_todo ACL), but cannot access another user's private tasks.
+        """
         with self.assertRaises(AccessError):
             self.private_task.with_user(self.env.user).write({"name": "Test write"})
 

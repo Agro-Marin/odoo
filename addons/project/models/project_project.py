@@ -34,6 +34,19 @@ class ProjectProject(models.Model):
     _rating_satisfaction_days = 30  # takes 30 days by default
     _track_duration_field = "phase_id"
 
+    # Explicit override: both rating.parent.mixin and mail.thread (via rating
+    # module) define rating_ids.  The mail.thread version uses res_id/res_model
+    # (ratings OF this record), but projects need the parent version that uses
+    # parent_res_id/parent_res_model (ratings OF tasks BELONGING to this project).
+    rating_ids = fields.One2many(
+        "rating.rating",
+        "parent_res_id",
+        string="Ratings",
+        bypass_search_access=True,
+        domain=lambda self: [("parent_res_model", "=", self._name)],
+        groups="base.group_user",
+    )
+
     def __compute_task_count(
         self,
         count_field: str = "task_count",
@@ -243,6 +256,29 @@ class ProjectProject(models.Model):
         "Recurring Tasks",
         inverse="_inverse_allow_recurring_tasks",
     )
+    use_sprints = fields.Boolean(
+        "Use Sprints",
+        help="Enable time-boxed iterations for this project.",
+    )
+
+    # Sprint fields
+    sprint_ids = fields.One2many(
+        "project.sprint",
+        "project_id",
+        string="Sprints",
+        export_string_translation=False,
+    )
+    active_sprint_id = fields.Many2one(
+        "project.sprint",
+        string="Active Sprint",
+        compute="_compute_active_sprint_id",
+        export_string_translation=False,
+    )
+    sprint_count = fields.Integer(
+        "Sprint Count",
+        compute="_compute_sprint_count",
+        export_string_translation=False,
+    )
 
     tag_ids = fields.Many2many(
         "project.tags",
@@ -403,6 +439,164 @@ class ProjectProject(models.Model):
         export_string_translation=False,
     )
 
+    # ── Benefits Realization ────────────────────────────────────────
+    benefit_ids = fields.One2many(
+        "project.benefit",
+        "project_id",
+        string="Benefits",
+        export_string_translation=False,
+    )
+    benefit_count = fields.Integer(
+        "Benefit Count",
+        compute="_compute_benefit_count",
+        export_string_translation=False,
+    )
+
+    # ── Baselines ────────────────────────────────────────────────────
+    baseline_ids = fields.One2many(
+        "project.baseline",
+        "project_id",
+        string="Baselines",
+        export_string_translation=False,
+    )
+    current_baseline_id = fields.Many2one(
+        "project.baseline",
+        string="Current Baseline",
+        compute="_compute_current_baseline_id",
+        export_string_translation=False,
+    )
+
+    # ── Gate Reviews ─────────────────────────────────────────────────
+    gate_ids = fields.One2many(
+        "project.gate",
+        "project_id",
+        string="Gate Reviews",
+        export_string_translation=False,
+    )
+    gate_count = fields.Integer(
+        "Gates",
+        compute="_compute_gate_count",
+        export_string_translation=False,
+    )
+
+    # ── Project History ──────────────────────────────────────────────
+    history_ids = fields.One2many(
+        "project.history",
+        "project_id",
+        string="History Records",
+        export_string_translation=False,
+    )
+
+    # ── Pre-Mortem ───────────────────────────────────────────────────
+    # Klein (1998): +30% cause identification vs standard risk identification.
+    premortem_done = fields.Boolean(
+        "Pre-Mortem Conducted",
+        help="Was a pre-mortem exercise conducted at project kickoff?",
+    )
+    premortem_date = fields.Date("Pre-Mortem Date")
+    premortem_participants = fields.Many2many(
+        "res.users",
+        "project_premortem_participants_rel",
+        "project_id",
+        "user_id",
+        string="Pre-Mortem Participants",
+    )
+    premortem_notes = fields.Html(
+        "Pre-Mortem Notes",
+        help="'Imagine this project has failed. Why?' — capture all identified failure modes.",
+    )
+
+    # ── Retrospectives ─────────────────────────────────────────────
+    retrospective_ids = fields.One2many(
+        "project.retrospective",
+        "project_id",
+        string="Retrospectives",
+        export_string_translation=False,
+    )
+    retrospective_count = fields.Integer(
+        "Retrospective Count",
+        compute="_compute_retrospective_count",
+        export_string_translation=False,
+    )
+
+    # ── Health Indicators ──────────────────────────────────────────
+    # Computed from objective data to prevent status theater.
+    health_score = fields.Integer(
+        "Health Score",
+        compute="_compute_health_indicators",
+        help="Composite 0-100 score based on deadlines, milestones, risk, and staleness.",
+        export_string_translation=False,
+    )
+    health_status = fields.Selection(
+        [
+            ("healthy", "Healthy"),
+            ("attention", "Needs Attention"),
+            ("warning", "Warning"),
+            ("critical", "Critical"),
+        ],
+        string="Health",
+        compute="_compute_health_indicators",
+        help="Derived from health_score: healthy (80-100), attention (60-79), warning (40-59), critical (0-39).",
+        export_string_translation=False,
+    )
+
+    # ── Risk Register ────────────────────────────────────────────────
+    risk_ids = fields.One2many(
+        "project.risk",
+        "project_id",
+        string="Risks",
+        export_string_translation=False,
+    )
+    risk_count = fields.Integer(
+        "Risk Count",
+        compute="_compute_risk_count",
+        export_string_translation=False,
+    )
+    high_risk_count = fields.Integer(
+        "High/Critical Risks",
+        compute="_compute_risk_count",
+        export_string_translation=False,
+    )
+
+    # ── Flow Metrics ─────────────────────────────────────────────────
+    # Aggregated from task-level data. See gap_analysis_code.md §1.
+    wip_count = fields.Integer(
+        "WIP Count",
+        compute="_compute_flow_metrics",
+        help="Number of open, non-blocked tasks.",
+        export_string_translation=False,
+    )
+    avg_lead_time = fields.Float(
+        "Avg Lead Time (hours)",
+        compute="_compute_flow_metrics",
+        digits=(16, 1),
+        help="Average working hours from creation to closure (last 90 days). "
+             "Includes queue wait time.",
+        export_string_translation=False,
+    )
+    avg_cycle_time = fields.Float(
+        "Avg Cycle Time (hours)",
+        compute="_compute_flow_metrics",
+        digits=(16, 1),
+        help="Average working hours from assignment to closure (last 90 days). "
+             "Excludes queue wait time.",
+        export_string_translation=False,
+    )
+    throughput_week = fields.Float(
+        "Throughput / Week",
+        compute="_compute_flow_metrics",
+        digits=(16, 1),
+        help="Tasks closed per week (rolling 4-week average).",
+        export_string_translation=False,
+    )
+    deadline_compliance_pct = fields.Float(
+        "Deadline Compliance %",
+        compute="_compute_flow_metrics",
+        digits=(5, 1),
+        help="Percentage of closed tasks with deadlines that met their deadline.",
+        export_string_translation=False,
+    )
+
     is_template = fields.Boolean(
         copy=False,
         export_string_translation=False,
@@ -489,6 +683,485 @@ class ProjectProject(models.Model):
                     milestone_marked_as_done = True
             project.is_milestone_deadline_exceeded = milestone_deadline_exceeded
             project.can_mark_milestone_as_done = milestone_marked_as_done
+
+    @api.depends("sprint_ids", "sprint_ids.state")
+    def _compute_active_sprint_id(self) -> None:
+        """Find the currently active sprint for each project."""
+        for project in self:
+            project.active_sprint_id = project.sprint_ids.filtered(
+                lambda s: s.state == "active"
+            )[:1]
+
+    @api.depends("sprint_ids")
+    def _compute_sprint_count(self) -> None:
+        """Count sprints per project."""
+        for project in self:
+            project.sprint_count = len(project.sprint_ids)
+
+    @api.depends("benefit_ids")
+    def _compute_benefit_count(self) -> None:
+        """Count benefits per project."""
+        for project in self:
+            project.benefit_count = len(project.benefit_ids)
+
+    @api.depends("baseline_ids", "baseline_ids.is_current")
+    def _compute_current_baseline_id(self) -> None:
+        """Find the current baseline for each project."""
+        for project in self:
+            project.current_baseline_id = project.baseline_ids.filtered("is_current")[:1]
+
+    @api.depends("gate_ids")
+    def _compute_gate_count(self) -> None:
+        """Count gate reviews per project."""
+        for project in self:
+            project.gate_count = len(project.gate_ids)
+
+    def action_archive_to_history(self) -> None:
+        """Create a project.history record from this project's current state."""
+        self.ensure_one()
+        self.env["project.history"].create_from_project(self)
+
+    def action_compute_critical_path(self) -> None:
+        """Compute the critical path with all four dependency types and calendar dates.
+
+        Handles FS, SS, FF, SF dependency types per PMI definitions:
+        - FS: successor.ES = max(predecessor.EF + lag)
+        - SS: successor.ES = max(predecessor.ES + lag)
+        - FF: successor.EF = max(predecessor.EF + lag) -> ES = EF - duration
+        - SF: successor.EF = max(predecessor.ES + lag) -> ES = EF - duration
+
+        After computing abstract-hour positions, converts to real calendar
+        dates using the project's resource calendar.
+        """
+        self.ensure_one()
+        tasks = self.env["project.task"].search([
+            ("project_id", "=", self.id),
+            ("is_template", "=", False),
+            ("state", "not in", list(CLOSED_STATES)),
+        ])
+        if not tasks:
+            return
+
+        task_set = set(tasks.ids)
+        Dep = self.env["project.task.dependency"]
+        typed_deps = Dep.search([("project_id", "=", self.id)])
+
+        # Dependency data per task: predecessors with type and lag
+        deps_on: dict[int, list[tuple[int, str, float]]] = defaultdict(list)
+        successors_of: dict[int, list[int]] = defaultdict(list)
+
+        if typed_deps:
+            for dep in typed_deps:
+                tid = dep.task_id.id
+                pred_id = dep.depends_on_id.id
+                if tid in task_set and pred_id in task_set:
+                    deps_on[tid].append((pred_id, dep.dependency_type, dep.lag_hours))
+                    successors_of[pred_id].append(tid)
+        else:
+            for task in tasks:
+                for pred in task.predecessor_ids:
+                    if pred.id in task_set:
+                        deps_on[task.id].append((pred.id, "fs", 0.0))
+                        successors_of[pred.id].append(task.id)
+
+        duration = {t.id: t.allocated_hours or 0.0 for t in tasks}
+
+        # Forward pass
+        es: dict[int, float] = {}
+        ef: dict[int, float] = {}
+
+        def forward(tid: int) -> None:
+            """Compute earliest start/finish for a task."""
+            if tid in ef:
+                return
+            if not deps_on[tid]:
+                es[tid] = 0.0
+                ef[tid] = duration[tid]
+                return
+            for pred_id, _dtype, _lag in deps_on[tid]:
+                forward(pred_id)
+            max_es = 0.0
+            max_ef_constraint = 0.0
+            has_ef_constraint = False
+            for pred_id, dtype, lag in deps_on[tid]:
+                if dtype == "fs":
+                    max_es = max(max_es, ef[pred_id] + lag)
+                elif dtype == "ss":
+                    max_es = max(max_es, es[pred_id] + lag)
+                elif dtype == "ff":
+                    max_ef_constraint = max(max_ef_constraint, ef[pred_id] + lag)
+                    has_ef_constraint = True
+                elif dtype == "sf":
+                    max_ef_constraint = max(max_ef_constraint, es[pred_id] + lag)
+                    has_ef_constraint = True
+            if has_ef_constraint:
+                es_from_ef = max_ef_constraint - duration[tid]
+                max_es = max(max_es, es_from_ef)
+            es[tid] = max_es
+            ef[tid] = es[tid] + duration[tid]
+
+        for t in tasks:
+            forward(t.id)
+
+        project_end = max(ef.values()) if ef else 0.0
+
+        # Backward pass
+        lf: dict[int, float] = {}
+        ls_map: dict[int, float] = {}
+
+        def backward(tid: int) -> None:
+            """Compute latest start/finish for a task."""
+            if tid in ls_map:
+                return
+            if not successors_of[tid]:
+                lf[tid] = project_end
+            else:
+                for succ_id in successors_of[tid]:
+                    backward(succ_id)
+                lf[tid] = project_end
+                for succ_id in successors_of[tid]:
+                    for pred_id, dtype, lag in deps_on[succ_id]:
+                        if pred_id != tid:
+                            continue
+                        if dtype == "fs":
+                            lf[tid] = min(lf[tid], ls_map[succ_id] - lag)
+                        elif dtype == "ss":
+                            lf[tid] = min(lf[tid], ls_map[succ_id] - lag + duration[tid])
+                        elif dtype == "ff":
+                            lf[tid] = min(lf[tid], lf[succ_id] - lag)
+                        elif dtype == "sf":
+                            lf[tid] = min(lf[tid], lf[succ_id] - lag + duration[tid])
+            ls_map[tid] = lf[tid] - duration[tid]
+
+        for t in tasks:
+            backward(t.id)
+
+        # Convert abstract hours to calendar dates and write results
+        calendar = self.resource_calendar_id
+        now = fields.Datetime.now()
+        for task in tasks:
+            tid = task.id
+            es_h = es.get(tid, 0.0)
+            ls_h = ls_map.get(tid, 0.0)
+            total_fl = ls_h - es_h
+            planned_start = calendar.plan_hours(es_h, now) if es_h else now
+            planned_end = calendar.plan_hours(ef.get(tid, 0.0), now) if ef.get(tid) else now
+            ls_dt = calendar.plan_hours(ls_h, now) if ls_h else now
+            task.write({
+                "earliest_start": planned_start,
+                "latest_start": ls_dt,
+                "total_float": total_fl,
+                "is_critical_path": abs(total_fl) < 0.01,
+                "planned_date_start": planned_start,
+                "planned_date_end": planned_end,
+            })
+
+    def action_level_resources(self) -> None:
+        """Basic resource leveling: shift non-critical tasks to avoid overallocation.
+
+        Algorithm:
+        1. Run CPM first to establish planned dates.
+        2. Build per-user timeline from planned_date_start/end.
+        3. For each non-critical task (sorted by float descending):
+           if assigned user is overloaded in the planned window,
+           shift planned_date_start forward to next available slot.
+        4. Recompute dependent tasks' dates after each shift.
+
+        This is a heuristic, not an optimization solver.
+        """
+        self.ensure_one()
+        # Step 1: compute CPM to establish baseline dates
+        self.action_compute_critical_path()
+
+        calendar = self.resource_calendar_id
+        tasks = self.env["project.task"].search([
+            ("project_id", "=", self.id),
+            ("is_template", "=", False),
+            ("state", "not in", list(CLOSED_STATES)),
+            ("planned_date_start", "!=", False),
+            ("planned_date_end", "!=", False),
+        ])
+        if not tasks:
+            return
+
+        # Sort: process tasks with most float first (most flexible)
+        leveling_order = sorted(
+            tasks.filtered(lambda t: not t.is_critical_path),
+            key=lambda t: -(t.total_float or 0.0),
+        )
+
+        # Build per-user allocation map: user_id -> list of (start, end, hours)
+        user_slots: dict[int, list[tuple]] = defaultdict(list)
+        for task in tasks:
+            for user in task.user_ids:
+                user_slots[user.id].append((
+                    task.planned_date_start,
+                    task.planned_date_end,
+                    task.allocated_hours or 0.0,
+                    task.id,
+                ))
+
+        # Heuristic: check if user has > 8h/day in any overlapping window
+        for task in leveling_order:
+            if not task.user_ids or not task.allocated_hours:
+                continue
+            for user in task.user_ids:
+                slots = user_slots[user.id]
+                # Count concurrent hours in task's window
+                concurrent = sum(
+                    s[2] for s in slots
+                    if s[3] != task.id
+                    and s[0] < task.planned_date_end
+                    and s[1] > task.planned_date_start
+                )
+                if concurrent <= 0:
+                    continue
+                # Find latest end among overlapping tasks
+                latest_end = max(
+                    (s[1] for s in slots
+                     if s[3] != task.id
+                     and s[0] < task.planned_date_end
+                     and s[1] > task.planned_date_start),
+                    default=task.planned_date_start,
+                )
+                # Shift task to start after the overlap, respecting float
+                max_shift_hours = task.total_float or 0.0
+                new_start = calendar.plan_hours(
+                    task.allocated_hours, latest_end
+                ) if latest_end else task.planned_date_start
+                # Only shift if within float allowance
+                shift_hours = (new_start - task.planned_date_start).total_seconds() / 3600
+                if 0 < shift_hours <= max_shift_hours:
+                    new_end = calendar.plan_hours(
+                        task.allocated_hours, new_start
+                    )
+                    # Update slot tracking
+                    user_slots[user.id] = [
+                        s for s in slots if s[3] != task.id
+                    ] + [(new_start, new_end, task.allocated_hours, task.id)]
+                    task.write({
+                        "planned_date_start": new_start,
+                        "planned_date_end": new_end,
+                    })
+
+    @api.depends("retrospective_ids")
+    def _compute_retrospective_count(self) -> None:
+        """Count retrospectives per project."""
+        retro_data = self.env["project.retrospective"]._read_group(
+            [("project_id", "in", self.ids)],
+            ["project_id"],
+            ["__count"],
+        )
+        counts = {project.id: count for project, count in retro_data}
+        for project in self:
+            project.retrospective_count = counts.get(project.id, 0)
+
+    def _compute_health_indicators(self) -> None:
+        """Compute a composite health score from objective project data.
+
+        Components (each 0-100, weighted equally):
+        - Schedule: % of open tasks not past their deadline
+        - Milestones: % of milestones on track (reached or deadline in future)
+        - Risk: inverse of normalized risk exposure
+        - Staleness: % of open tasks that are not rotting
+        """
+        if not self.ids:
+            self.health_score = 100
+            self.health_status = "healthy"
+            return
+
+        self.env.cr.execute(SQL(
+            """
+            SELECT
+                t.project_id,
+                -- Schedule: pct of open tasks with deadline that are not overdue
+                CASE
+                    WHEN COUNT(*) FILTER (
+                        WHERE t.state NOT IN ('done', 'canceled')
+                          AND t.date_deadline IS NOT NULL
+                    ) = 0 THEN 100.0
+                    ELSE 100.0 * COUNT(*) FILTER (
+                        WHERE t.state NOT IN ('done', 'canceled')
+                          AND t.date_deadline IS NOT NULL
+                          AND t.date_deadline >= NOW()
+                    ) / NULLIF(COUNT(*) FILTER (
+                        WHERE t.state NOT IN ('done', 'canceled')
+                          AND t.date_deadline IS NOT NULL
+                    ), 0)
+                END AS schedule_score,
+                -- Staleness: pct of open tasks not rotting
+                CASE
+                    WHEN COUNT(*) FILTER (
+                        WHERE t.state NOT IN ('done', 'canceled')
+                    ) = 0 THEN 100.0
+                    ELSE 100.0 * COUNT(*) FILTER (
+                        WHERE t.state NOT IN ('done', 'canceled')
+                          AND (
+                              t.date_last_status_change IS NULL
+                              OR t.date_last_status_change >= NOW() - INTERVAL '14 days'
+                          )
+                    ) / NULLIF(COUNT(*) FILTER (
+                        WHERE t.state NOT IN ('done', 'canceled')
+                    ), 0)
+                END AS staleness_score
+            FROM project_task t
+            WHERE t.project_id IN %(project_ids)s
+              AND t.is_template = FALSE
+            GROUP BY t.project_id
+            """,
+            project_ids=tuple(self.ids),
+        ))
+        task_scores = {row[0]: (row[1], row[2]) for row in self.env.cr.fetchall()}
+
+        # Milestone scores
+        milestone_scores: dict[int, float] = {}
+        if self.ids:
+            self.env.cr.execute(SQL(
+                """
+                SELECT
+                    project_id,
+                    CASE
+                        WHEN COUNT(*) = 0 THEN 100.0
+                        ELSE 100.0 * COUNT(*) FILTER (
+                            WHERE is_reached OR deadline >= CURRENT_DATE
+                        ) / COUNT(*)
+                    END AS milestone_score
+                FROM project_milestone
+                WHERE project_id IN %(project_ids)s
+                GROUP BY project_id
+                """,
+                project_ids=tuple(self.ids),
+            ))
+            milestone_scores = {row[0]: row[1] for row in self.env.cr.fetchall()}
+
+        # Risk scores (from already-computed risk_count)
+        risk_data: dict[int, int] = {}
+        if self.ids:
+            self.env.cr.execute(SQL(
+                """
+                SELECT project_id, COALESCE(SUM(risk_score), 0)
+                FROM project_risk
+                WHERE project_id IN %(project_ids)s AND active = TRUE
+                GROUP BY project_id
+                """,
+                project_ids=tuple(self.ids),
+            ))
+            risk_data = dict(self.env.cr.fetchall())
+
+        for project in self:
+            schedule, staleness = task_scores.get(project.id, (100.0, 100.0))
+            milestone = milestone_scores.get(project.id, 100.0)
+            # Risk: convert total risk score to 0-100 where 0 risk = 100 health
+            total_risk = risk_data.get(project.id, 0)
+            # Normalize: 50+ total risk score = 0 health from risk component
+            risk_health = max(0.0, 100.0 - total_risk * 2)
+
+            score = int((schedule + staleness + milestone + risk_health) / 4)
+            project.health_score = max(0, min(100, score))
+            if score >= 80:
+                project.health_status = "healthy"
+            elif score >= 60:
+                project.health_status = "attention"
+            elif score >= 40:
+                project.health_status = "warning"
+            else:
+                project.health_status = "critical"
+
+    @api.depends("risk_ids", "risk_ids.risk_level", "risk_ids.active")
+    def _compute_risk_count(self) -> None:
+        """Count active risks and high/critical risks per project."""
+        if not self.ids:
+            self.risk_count = 0
+            self.high_risk_count = 0
+            return
+        risk_data = self.env["project.risk"]._read_group(
+            [("project_id", "in", self.ids), ("active", "=", True)],
+            ["project_id", "risk_level"],
+            ["__count"],
+        )
+        counts: dict[int, tuple[int, int]] = {}
+        for project, risk_level, count in risk_data:
+            total, high = counts.get(project.id, (0, 0))
+            total += count
+            if risk_level in ("high", "critical"):
+                high += count
+            counts[project.id] = (total, high)
+        for project in self:
+            total, high = counts.get(project.id, (0, 0))
+            project.risk_count = total
+            project.high_risk_count = high
+
+    def _compute_flow_metrics(self) -> None:
+        """Compute project-level flow metrics from task data.
+
+        Uses direct SQL for performance — these are read-heavy analytics fields
+        that aggregate across potentially thousands of tasks.
+        """
+        if not self.ids:
+            self.wip_count = 0
+            self.avg_lead_time = 0.0
+            self.avg_cycle_time = 0.0
+            self.throughput_week = 0.0
+            self.deadline_compliance_pct = 0.0
+            return
+
+        self.env.cr.execute(SQL(
+            """
+            SELECT
+                project_id,
+                -- WIP: open non-blocked tasks
+                COUNT(*) FILTER (
+                    WHERE state NOT IN ('done', 'canceled', 'blocked')
+                ) AS wip_count,
+                -- Avg lead time: create→end (last 90 days)
+                AVG(lead_time_hours) FILTER (
+                    WHERE state IN ('done', 'canceled')
+                      AND date_end >= NOW() - INTERVAL '90 days'
+                      AND lead_time_hours > 0
+                ) AS avg_lead_time,
+                -- Avg cycle time: assign→end (last 90 days)
+                AVG(cycle_time_hours) FILTER (
+                    WHERE state IN ('done', 'canceled')
+                      AND date_end >= NOW() - INTERVAL '90 days'
+                      AND cycle_time_hours > 0
+                ) AS avg_cycle_time,
+                -- Throughput: tasks closed in last 28 days / 4
+                COUNT(*) FILTER (
+                    WHERE state IN ('done', 'canceled')
+                      AND date_end >= NOW() - INTERVAL '28 days'
+                ) / 4.0 AS throughput_week,
+                -- Deadline compliance: pct of deadline-having closed tasks that met it
+                CASE
+                    WHEN COUNT(*) FILTER (
+                        WHERE state IN ('done', 'canceled')
+                          AND date_deadline IS NOT NULL
+                    ) = 0 THEN 0.0
+                    ELSE 100.0 * COUNT(*) FILTER (
+                        WHERE state IN ('done', 'canceled')
+                          AND date_deadline IS NOT NULL
+                          AND date_end <= date_deadline
+                    ) / COUNT(*) FILTER (
+                        WHERE state IN ('done', 'canceled')
+                          AND date_deadline IS NOT NULL
+                    )
+                END AS deadline_compliance_pct
+            FROM project_task
+            WHERE project_id IN %(project_ids)s
+              AND is_template = FALSE
+            GROUP BY project_id
+            """,
+            project_ids=tuple(self.ids),
+        ))
+        results = {row[0]: row[1:] for row in self.env.cr.fetchall()}
+        for project in self:
+            wip, avg_lt, avg_ct, tp, dcp = results.get(
+                project.id, (0, 0.0, 0.0, 0.0, 0.0)
+            )
+            project.wip_count = wip or 0
+            project.avg_lead_time = avg_lt or 0.0
+            project.avg_cycle_time = avg_ct or 0.0
+            project.throughput_week = tp or 0.0
+            project.deadline_compliance_pct = dcp or 0.0
 
     def _compute_access_url(self) -> None:
         super()._compute_access_url()
@@ -839,7 +1512,7 @@ class ProjectProject(models.Model):
             for follower in old_project.message_follower_ids:
                 new_project.message_subscribe(
                     partner_ids=follower.partner_id.ids,
-                    subworkflow_step_ids=follower.subworkflow_step_ids.ids,
+                    subtype_ids=follower.subtype_ids.ids,
                 )
             if old_project.allow_milestones:
                 new_project.milestone_ids = self.milestone_ids.copy().ids
@@ -1161,17 +1834,17 @@ class ProjectProject(models.Model):
     def message_subscribe(
         self,
         partner_ids: list[int] | None = None,
-        subworkflow_step_ids: list[int] | None = None,
+        subtype_ids: list[int] | None = None,
     ) -> bool:
         """Subscribe to newly created task but not all existing active task when subscribing to a project.
         User update notification preference of project its propagated to all the tasks that the user is
         currently following.
         """
         res = super().message_subscribe(
-            partner_ids=partner_ids, subworkflow_step_ids=subworkflow_step_ids
+            partner_ids=partner_ids, subtype_ids=subtype_ids
         )
-        if subworkflow_step_ids:
-            project_subtypes = self.env["mail.message.subtype"].browse(subworkflow_step_ids)
+        if subtype_ids:
+            project_subtypes = self.env["mail.message.subtype"].browse(subtype_ids)
             task_subtypes = (
                 project_subtypes.mapped("parent_id")
                 | project_subtypes.filtered(lambda sub: sub.internal or sub.default)
@@ -1182,10 +1855,10 @@ class ProjectProject(models.Model):
                     if partners:
                         task.message_subscribe(
                             partner_ids=list(partners),
-                            subworkflow_step_ids=task_subtypes,
+                            subtype_ids=task_subtypes,
                         )
                 self.update_ids.message_subscribe(
-                    partner_ids=partner_ids, subworkflow_step_ids=subworkflow_step_ids
+                    partner_ids=partner_ids, subtype_ids=subtype_ids
                 )
         return res
 
@@ -1368,6 +2041,39 @@ class ProjectProject(models.Model):
             }
         )
         action["context"] = context
+        return action
+
+    def action_open_scatter_plot(self) -> dict:
+        """Open cycle time scatter plot filtered to this project's tasks."""
+        action = self.env["ir.actions.act_window"]._for_xml_id(
+            "project.action_project_task_scatter"
+        )
+        action["display_name"] = _("%(name)s's Cycle Time Scatter", name=self.name)
+        return action
+
+    def action_find_similar_projects(self) -> dict:
+        """Open project history filtered to similar projects.
+
+        Matches by overlapping tag_ids and similar team_size (±2).
+        """
+        self.ensure_one()
+        domain = []
+        if self.tag_ids:
+            domain.append(("tag_ids", "in", self.tag_ids.ids))
+        if self.task_count:
+            # Use assignee count as proxy for team size
+            team_size = len(self.env["project.task"].search([
+                ("project_id", "=", self.id),
+                ("user_ids", "!=", False),
+            ]).mapped("user_ids"))
+            if team_size:
+                domain.append(("team_size", ">=", max(1, team_size - 2)))
+                domain.append(("team_size", "<=", team_size + 2))
+        action = self.env["ir.actions.act_window"]._for_xml_id(
+            "project.action_project_history"
+        )
+        action["display_name"] = _("Similar Projects to %(name)s", name=self.name)
+        action["domain"] = domain
         return action
 
     def project_update_all_action(self) -> dict:

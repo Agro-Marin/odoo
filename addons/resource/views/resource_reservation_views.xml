@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- List view -->
+    <record id="resource_reservation_view_list" model="ir.ui.view">
+        <field name="name">resource.reservation.list</field>
+        <field name="model">resource.reservation</field>
+        <field name="arch" type="xml">
+            <list string="Reservations">
+                <field name="name" />
+                <field name="resource_id" />
+                <field name="date_start" />
+                <field name="date_end" />
+                <field name="allocated_hours" widget="float_time" />
+                <field name="allocated_percentage" />
+                <field name="enforcement_mode" />
+                <field name="schedule_overlap_count" string="Conflicts" />
+                <field name="origin_display" string="Source" />
+                <field name="company_id" optional="hide" groups="base.group_multi_company" />
+            </list>
+        </field>
+    </record>
+
+    <!-- Form view -->
+    <record id="resource_reservation_view_form" model="ir.ui.view">
+        <field name="name">resource.reservation.form</field>
+        <field name="model">resource.reservation</field>
+        <field name="arch" type="xml">
+            <form string="Reservation">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_origin" type="object"
+                            class="oe_stat_button" icon="fa-external-link"
+                            string="Source Record"
+                            invisible="not res_model" />
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Reservation name" />
+                        </h1>
+                    </div>
+                    <group>
+                        <group name="schedule">
+                            <field name="resource_id" />
+                            <field name="resource_calendar_id" />
+                            <field name="date_start" />
+                            <field name="date_end" />
+                        </group>
+                        <group name="allocation">
+                            <field name="allocated_hours" widget="float_time" />
+                            <field name="allocated_percentage" />
+                            <field name="enforcement_mode" />
+                            <field name="schedule_overlap_count" />
+                        </group>
+                    </group>
+                    <group name="origin" string="Origin" invisible="not res_model">
+                        <field name="res_model" />
+                        <field name="res_id" />
+                        <field name="origin_display" />
+                    </group>
+                    <group name="extra">
+                        <field name="company_id" groups="base.group_multi_company" />
+                        <field name="active" invisible="1" />
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search view -->
+    <record id="resource_reservation_view_search" model="ir.ui.view">
+        <field name="name">resource.reservation.search</field>
+        <field name="model">resource.reservation</field>
+        <field name="arch" type="xml">
+            <search string="Reservations">
+                <field name="name" />
+                <field name="resource_id" />
+                <filter name="my_schedule" string="My Schedule"
+                    domain="[('resource_id.user_id', '=', uid)]" />
+                <separator />
+                <filter name="filter_tasks" string="Tasks"
+                    domain="[('res_model', '=', 'project.task')]" />
+                <filter name="filter_rooms" string="Room Bookings"
+                    domain="[('res_model', '=', 'room.booking')]" />
+                <filter name="filter_workorders" string="Work Orders"
+                    domain="[('res_model', '=', 'mrp.workorder')]" />
+                <separator />
+                <filter name="hard" string="Hard Enforcement"
+                    domain="[('enforcement_mode', '=', 'hard')]" />
+                <filter name="soft" string="Soft Enforcement"
+                    domain="[('enforcement_mode', '=', 'soft')]" />
+                <separator />
+                <filter name="inactive" string="Archived"
+                    domain="[('active', '=', False)]" />
+                <group>
+                    <filter name="group_resource" string="Resource"
+                        context="{'group_by': 'resource_id'}" />
+                    <filter name="group_source" string="Source Model"
+                        context="{'group_by': 'res_model'}" />
+                    <filter name="group_enforcement" string="Enforcement"
+                        context="{'group_by': 'enforcement_mode'}" />
+                    <filter name="group_start_week" string="Start Date"
+                        context="{'group_by': 'date_start:week'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Calendar view -->
+    <record id="resource_reservation_view_calendar" model="ir.ui.view">
+        <field name="name">resource.reservation.calendar</field>
+        <field name="model">resource.reservation</field>
+        <field name="arch" type="xml">
+            <calendar string="Reservations" date_start="date_start" date_stop="date_end"
+                color="color" mode="week" event_open_popup="1">
+                <field name="name" />
+                <field name="resource_id" />
+                <field name="origin_display" string="Source" />
+                <field name="allocated_percentage" />
+            </calendar>
+        </field>
+    </record>
+
+    <!-- Action: All Reservations -->
+    <record id="action_resource_reservation" model="ir.actions.act_window">
+        <field name="name">Reservations</field>
+        <field name="res_model">resource.reservation</field>
+        <field name="view_mode">list,calendar,form</field>
+        <field name="search_view_id" ref="resource_reservation_view_search" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No reservations yet
+            </p>
+            <p>
+                Reservations are created automatically when scheduling tasks,
+                booking rooms, or planning manufacturing orders.
+            </p>
+        </field>
+    </record>
+
+    <!-- Action: My Schedule -->
+    <record id="action_resource_my_schedule" model="ir.actions.act_window">
+        <field name="name">My Schedule</field>
+        <field name="res_model">resource.reservation</field>
+        <field name="view_mode">calendar,list,form</field>
+        <field name="search_view_id" ref="resource_reservation_view_search" />
+        <field name="context">{'search_default_my_schedule': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No scheduled reservations for you
+            </p>
+        </field>
+    </record>
+
+</odoo>

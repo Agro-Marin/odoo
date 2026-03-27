@@ -291,6 +291,9 @@
                                     <span class="o_stat_text">Performance</span>
                                 </div>
                             </button>
+                            <button name="action_view_schedule" type="object"
+                                class="oe_stat_button" icon="fa-clock-o"
+                                string="Schedule"/>
                         </div>
                         <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
                         <group>

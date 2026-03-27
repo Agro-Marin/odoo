@@ -25,4 +25,16 @@
         action="action_resource_resource_tree"
         sequence="3" />
 
+    <menuitem
+        id="menu_resource_reservation"
+        parent="menu_resource_config"
+        action="action_resource_reservation"
+        sequence="4" />
+
+    <menuitem
+        id="menu_resource_my_schedule"
+        parent="menu_resource_config"
+        action="action_resource_my_schedule"
+        sequence="5" />
+
 </odoo>

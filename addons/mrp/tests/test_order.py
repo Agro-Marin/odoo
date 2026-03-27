@@ -5020,7 +5020,7 @@ class TestMrpOrder(TestMrpCommon):
 
     def test_wo_date_finished_on_done_unplanned_mo(self):
         """
-        Checks that the work order's date_finished and leave_id.date_to fields are equal to
+        Checks that the work order's date_finished and reservation date_end fields are equal to
         the date_finished field on a done manufacturing order that was not planned.
         """
         production_form = Form(self.env['mrp.production'])
@@ -5030,12 +5030,12 @@ class TestMrpOrder(TestMrpCommon):
         production.action_confirm()
 
         self.assertFalse(production.workorder_ids[0].date_finished)
-        self.assertFalse(production.workorder_ids[0].leave_id)
+        self.assertFalse(production.workorder_ids[0].reservation_id)
 
         production.button_mark_done()
 
         self.assertAlmostEqual(production.workorder_ids[0].date_finished, production.date_finished, delta=timedelta(seconds=2))
-        self.assertAlmostEqual(production.workorder_ids[0].leave_id.date_to, production.date_finished, delta=timedelta(seconds=2))
+        self.assertAlmostEqual(production.workorder_ids[0].reservation_id.date_end, production.date_finished, delta=timedelta(seconds=2))
 
     def test_child_mo_after_qty_parent_mo_update(self):
         """

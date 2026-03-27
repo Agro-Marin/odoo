@@ -35,12 +35,12 @@ test("project.task (kanban): check task state widget", async () => {
 
     await click(".o-dropdown--menu span.text-danger");
     await animationFrame();
-    expect("div[name='state']:first-child button.dropdown-toggle i.fa-circle-xmark").toBeVisible({
+    expect("div[name='state']:first-child button.dropdown-toggle i.fa-times-circle").toBeVisible({
         message:
-            "If the canceled state as been selected, the fa-circle-xmark icon should be displayed",
+            "If the canceled state as been selected, the fa-times-circle icon should be displayed",
     });
 
-    await click("div[name='state'] i.fa-hourglass");
+    await click("div[name='state'] i.fa-hourglass-o");
     await animationFrame();
     expect(".o-dropdown--menu").toHaveCount(0, {
         message: "When trying to click on the waiting icon, no dropdown menu should display",
@@ -63,7 +63,6 @@ test("project.task (form): check task state widget", async () => {
     await click("button.o_state_button");
     await animationFrame();
     expect(queryAllTexts(".state_selection_field_menu > .dropdown-item")).toEqual([
-        "To Do",
         "In Progress",
         "Changes Requested",
         "Approved",

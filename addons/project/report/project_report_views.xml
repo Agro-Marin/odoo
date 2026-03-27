@@ -7,8 +7,8 @@
             <field name="arch" type="xml">
                 <pivot string="Tasks Analysis" display_quantity="1" sample="1" js_class="project_task_analysis_pivot">
                     <field name="project_id" type="row"/>
-                    <field name="working_hours_open" widget="timesheet_uom"/>
-                    <field name="working_hours_close" widget="timesheet_uom"/>
+                    <field name="queue_time_hours" widget="timesheet_uom"/>
+                    <field name="lead_time_hours" widget="timesheet_uom"/>
                     <field name="nbr" invisible="1"/>
                     <field name="rating_avg" invisible="1"/>
                 </pivot>
@@ -37,8 +37,8 @@
                      <field name="project_id"/>
                      <field name="step_id"/>
                      <field name="nbr" invisible="1"/>
-                     <field name="working_hours_open" widget="float_time"/>
-                     <field name="working_hours_close" widget="float_time"/>
+                     <field name="queue_time_hours" widget="float_time"/>
+                     <field name="lead_time_hours" widget="float_time"/>
                      <field name="rating_avg" invisible="1"/>
                  </graph>
              </field>

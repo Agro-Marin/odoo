@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="project_resource_report_search" model="ir.ui.view">
+        <field name="name">project.resource.report.search</field>
+        <field name="model">project.resource.report</field>
+        <field name="arch" type="xml">
+            <search string="Resource Utilization">
+                <field name="user_id"/>
+                <field name="project_id"/>
+                <separator/>
+                <filter string="Overallocated" name="overallocated" domain="[('is_overallocated', '=', True)]"/>
+                <group>
+                    <filter string="User" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="project_resource_report_pivot" model="ir.ui.view">
+        <field name="name">project.resource.report.pivot</field>
+        <field name="model">project.resource.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Resource Utilization">
+                <field name="user_id" type="row"/>
+                <field name="project_id" type="col"/>
+                <field name="allocated_hours" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="project_resource_report_list" model="ir.ui.view">
+        <field name="name">project.resource.report.list</field>
+        <field name="model">project.resource.report</field>
+        <field name="arch" type="xml">
+            <list string="Resource Utilization" decoration-danger="is_overallocated" default_order="allocated_hours desc">
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="project_id"/>
+                <field name="allocated_hours" widget="float_time"/>
+                <field name="task_count"/>
+                <field name="project_count"/>
+                <field name="is_overallocated"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="project_resource_report_graph" model="ir.ui.view">
+        <field name="name">project.resource.report.graph</field>
+        <field name="model">project.resource.report</field>
+        <field name="arch" type="xml">
+            <graph string="Resource Utilization" type="bar">
+                <field name="user_id"/>
+                <field name="allocated_hours" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="action_project_resource_report" model="ir.actions.act_window">
+        <field name="name">Resource Utilization</field>
+        <field name="res_model">project.resource.report</field>
+        <field name="view_mode">pivot,list,graph</field>
+        <field name="search_view_id" ref="project_resource_report_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No resource data available
+            </p>
+            <p>
+                This report shows how team members are allocated across projects.
+                Assign tasks and set allocated hours to see utilization data.
+            </p>
+        </field>
+    </record>
+
+</odoo>
