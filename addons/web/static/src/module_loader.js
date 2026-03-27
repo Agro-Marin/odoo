@@ -9,6 +9,16 @@
 (function (odoo) {
     "use strict";
 
+    // Capture native timers BEFORE any mock can replace them.
+    // This runs as the very first script in the bundle, so
+    // globalThis.setTimeout is guaranteed to be the real browser function.
+    // Hoot's test runner reads these to implement test timeouts that fire
+    // even when timers are mocked/frozen.
+    odoo.__nativeTimers = {
+        setTimeout: globalThis.setTimeout.bind(globalThis),
+        clearTimeout: globalThis.clearTimeout.bind(globalThis),
+    };
+
     if (odoo.loader) {
         // Allows for duplicate calls to `module_loader`: only the first one is
         // executed.
