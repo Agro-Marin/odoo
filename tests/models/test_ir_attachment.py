@@ -174,3 +174,20 @@ class TestSameContent:
         filepath.write_bytes(b"\x00" * 2048 + b"\x02")
         att = env["ir.attachment"].browse()
         assert att._same_content(data, str(filepath)) is False
+
+
+# ── _compute_checksum ─────────────────────────────────────────
+
+
+class TestComputeChecksumUsedForSecurity:
+    """Verify ``usedforsecurity=False`` doesn't change SHA-1 output."""
+
+    def test_matches_standard_sha1(self, env):
+        """usedforsecurity=False produces the same digest as the default."""
+        import hashlib
+
+        data = b"test content for checksum"
+        att = env["ir.attachment"].browse()
+        assert att._compute_checksum(data) == hashlib.sha1(data).hexdigest()
+
+
