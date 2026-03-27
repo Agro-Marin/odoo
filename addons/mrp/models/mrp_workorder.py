@@ -15,7 +15,7 @@ from odoo.libs.intervals import Intervals
 class MrpWorkorder(models.Model):
     _name = 'mrp.workorder'
     _description = 'Work Order'
-    _order = 'sequence, leave_id, date_start, id'
+    _order = 'sequence, reservation_id, date_start, id'
 
     def _default_sequence(self):
         return self.operation_id.sequence or 100
@@ -73,8 +73,12 @@ class MrpWorkorder(models.Model):
         default='ready', copy=False, index=True)
     leave_id = fields.Many2one(
         'resource.calendar.leaves',
-        help='Slot into workcenter calendar once planned',
+        help='Deprecated: use reservation_id instead.',
         check_company=True, copy=False)
+    reservation_id = fields.Many2one(
+        'resource.reservation',
+        help='Resource reservation booking this workcenter time slot.',
+        copy=False)
     date_start = fields.Datetime(
         'Start',
         compute='_compute_dates',
@@ -261,38 +265,37 @@ class MrpWorkorder(models.Model):
                     workorder_qty_ready = min(workorder_qty_ready, wo.qty_produced + wo.qty_reported_from_previous_wo)
             workorder.qty_ready = workorder_qty_ready - workorder.qty_produced - workorder.qty_reported_from_previous_wo
 
-    # Both `date_start` and `date_finished` are related fields on `leave_id`. Let's say
-    # we slide a workorder on a gantt view, a single call to write is made with both
-    # fields Changes. As the ORM doesn't batch the write on related fields and instead
-    # makes multiple call, the constraint check_dates() is raised.
-    # That's why the compute and set methods are needed. to ensure the dates are updated
-    # in the same time.
-    @api.depends('leave_id')
+    # Both date fields project from reservation_id.  Using compute+inverse
+    # instead of related= ensures Gantt drag-and-drop writes both dates in
+    # a single reservation.write() call, avoiding mid-way constraint errors.
+    @api.depends('reservation_id', 'reservation_id.date_start', 'reservation_id.date_end')
     def _compute_dates(self):
         for workorder in self:
-            workorder.date_start = workorder.leave_id.date_from
-            workorder.date_finished = workorder.leave_id.date_to
+            workorder.date_start = workorder.reservation_id.date_start
+            workorder.date_finished = workorder.reservation_id.date_end
 
     def _set_dates(self):
         for wo in self.sudo():
-            if wo.leave_id:
-                if (not wo.date_start or not wo.date_finished):
+            if wo.reservation_id:
+                if not wo.date_start or not wo.date_finished:
                     raise UserError(_("It is not possible to unplan one single Work Order. "
                               "You should unplan the Manufacturing Order instead in order to unplan all the linked operations."))
-                wo.leave_id.write({
-                    'date_from': wo.date_start,
-                    'date_to': wo.date_finished,
+                wo.reservation_id.write({
+                    'date_start': wo.date_start,
+                    'date_end': wo.date_finished,
                 })
             elif wo.date_start:
                 if not wo.date_finished:
                     wo.date_finished = wo._calculate_date_finished()
-                wo.leave_id = wo.env['resource.calendar.leaves'].create({
+                wo.reservation_id = wo.env['resource.reservation'].create({
                     'name': wo.display_name,
-                    'calendar_id': wo.workcenter_id.resource_calendar_id.id,
-                    'date_from': wo.date_start,
-                    'date_to': wo.date_finished,
                     'resource_id': wo.workcenter_id.resource_id.id,
-                    'time_type': 'other',
+                    'date_start': wo.date_start,
+                    'date_end': wo.date_finished,
+                    'allocated_percentage': 100.0,
+                    'enforcement_mode': 'soft',
+                    'res_model': 'mrp.workorder',
+                    'res_id': wo.id,
                 })
 
     @api.constrains('blocked_by_workorder_ids')
@@ -316,7 +319,7 @@ class MrpWorkorder(models.Model):
     def unlink(self):
         # Removes references to workorder to avoid Validation Error
         (self.mapped('move_raw_ids') | self.mapped('move_finished_ids')).write({'workorder_id': False})
-        self.mapped('leave_id').unlink()
+        self.mapped('reservation_id').unlink()
         mo_dirty = self.production_id.filtered(lambda mo: mo.state in ("confirmed", "progress", "to_close"))
 
         for workorder in self:
@@ -498,7 +501,7 @@ class MrpWorkorder(models.Model):
                 if workorder.workcenter_id.id != values['workcenter_id']:
                     if workorder.state in ('done', 'cancel'):
                         raise UserError(_('You cannot change the workcenter of a work order that is done.'))
-                    workorder.leave_id.resource_id = new_workcenter.resource_id
+                    workorder.reservation_id.resource_id = new_workcenter.resource_id
                     if workorder.state == 'progress':
                         continue
                     workorders_with_new_wc |= workorder
@@ -582,9 +585,9 @@ class MrpWorkorder(models.Model):
         # Plan only suitable workorders
         if self.state not in ['blocked', 'ready']:
             return
-        if self.leave_id:
+        if self.reservation_id:
             if replan:
-                self.leave_id.unlink()
+                self.reservation_id.unlink()
             else:
                 return
         # Consider workcenter and alternatives
@@ -615,16 +618,18 @@ class MrpWorkorder(models.Model):
         # If none of the workcenter are available, raise
         if best_date_finished == datetime.max:
             raise UserError(_('Impossible to plan the workorder. Please check the workcenter availabilities.'))
-        # Create leave on chosen workcenter calendar
-        leave = self.env['resource.calendar.leaves'].create({
+        # Create reservation on chosen workcenter resource
+        reservation = self.env['resource.reservation'].create({
             'name': self.display_name,
-            'calendar_id': best_workcenter.resource_calendar_id.id,
-            'date_from': best_date_start,
-            'date_to': best_date_finished,
             'resource_id': best_workcenter.resource_id.id,
-            'time_type': 'other'
+            'date_start': best_date_start,
+            'date_end': best_date_finished,
+            'allocated_percentage': 100.0,
+            'enforcement_mode': 'hard',
+            'res_model': 'mrp.workorder',
+            'res_id': self.id,
         })
-        vals['leave_id'] = leave.id
+        vals['reservation_id'] = reservation.id
         self.write(vals)
 
     def _cal_cost(self, date=False):
@@ -675,17 +680,19 @@ class MrpWorkorder(models.Model):
                 'state': 'progress',
                 'date_start': date_start,
             }
-            if not wo.leave_id:
-                leave = self.env['resource.calendar.leaves'].create({
+            if not wo.reservation_id:
+                reservation = self.env['resource.reservation'].create({
                     'name': wo.display_name,
-                    'calendar_id': wo.workcenter_id.resource_calendar_id.id,
-                    'date_from': date_start,
-                    'date_to': date_start + relativedelta(minutes=wo.duration_expected),
                     'resource_id': wo.workcenter_id.resource_id.id,
-                    'time_type': 'other'
+                    'date_start': date_start,
+                    'date_end': date_start + relativedelta(minutes=wo.duration_expected),
+                    'allocated_percentage': 100.0,
+                    'enforcement_mode': 'soft',
+                    'res_model': 'mrp.workorder',
+                    'res_id': wo.id,
                 })
-                vals['date_finished'] = leave.date_to
-                vals['leave_id'] = leave.id
+                vals['date_finished'] = reservation.date_end
+                vals['reservation_id'] = reservation.id
                 wo.write(vals)
             else:
                 if not wo.date_start or wo.date_start > date_start:
@@ -751,7 +758,7 @@ class MrpWorkorder(models.Model):
         return True
 
     def action_cancel(self):
-        self.leave_id.unlink()
+        self.reservation_id.unlink()
         self.end_all()
         return self.filtered(lambda wo: wo.state != 'cancel').write({'state': 'cancel'})
 

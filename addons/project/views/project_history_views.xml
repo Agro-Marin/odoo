@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="project_history_search" model="ir.ui.view">
+        <field name="name">project.history.search</field>
+        <field name="model">project.history</field>
+        <field name="arch" type="xml">
+            <search string="Project History">
+                <field name="name"/>
+                <field name="tag_ids"/>
+                <separator/>
+                <filter string="Over Schedule" name="over_schedule" domain="[('duration_variance_pct', '>', 0)]"/>
+                <filter string="Over Budget" name="over_budget" domain="[('hours_variance_pct', '>', 0)]"/>
+                <separator/>
+                <filter string="Small Team (1-3)" name="team_small" domain="[('team_size', '>=', 1), ('team_size', '&lt;=', 3)]"/>
+                <filter string="Medium Team (4-8)" name="team_medium" domain="[('team_size', '>=', 4), ('team_size', '&lt;=', 8)]"/>
+                <filter string="Large Team (9+)" name="team_large" domain="[('team_size', '>=', 9)]"/>
+                <group>
+                    <filter string="Tags" name="group_tags" context="{'group_by': 'tag_ids'}"/>
+                    <filter string="Completion Date" name="group_date" context="{'group_by': 'date_completed:quarter'}"/>
+                    <filter string="Team Size" name="group_team_size" context="{'group_by': 'team_size'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="project_history_form" model="ir.ui.view">
+        <field name="name">project.history.form</field>
+        <field name="model">project.history</field>
+        <field name="arch" type="xml">
+            <form string="Project History" create="0">
+                <sheet>
+                    <group>
+                        <group string="Project">
+                            <field name="name"/>
+                            <field name="project_id"/>
+                            <field name="date_start"/>
+                            <field name="date_completed"/>
+                            <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
+                        </group>
+                        <group string="Team">
+                            <field name="task_count"/>
+                            <field name="team_size"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Schedule">
+                            <field name="planned_duration_days"/>
+                            <field name="actual_duration_days"/>
+                            <field name="duration_variance_pct"
+                                decoration-danger="duration_variance_pct > 20"
+                                decoration-warning="duration_variance_pct > 0"
+                                decoration-success="duration_variance_pct &lt;= 0"/>
+                        </group>
+                        <group string="Effort">
+                            <field name="planned_hours" widget="float_time"/>
+                            <field name="actual_hours" widget="float_time"/>
+                            <field name="hours_variance_pct"
+                                decoration-danger="hours_variance_pct > 20"
+                                decoration-warning="hours_variance_pct > 0"
+                                decoration-success="hours_variance_pct &lt;= 0"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Performance">
+                            <field name="avg_lead_time" widget="float_time"/>
+                            <field name="avg_cycle_time" widget="float_time"/>
+                            <field name="deadline_compliance_pct" widget="percentage"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="project_history_list" model="ir.ui.view">
+        <field name="name">project.history.list</field>
+        <field name="model">project.history</field>
+        <field name="arch" type="xml">
+            <list string="Project History" create="0">
+                <field name="name"/>
+                <field name="date_completed"/>
+                <field name="task_count"/>
+                <field name="team_size"/>
+                <field name="planned_duration_days"/>
+                <field name="actual_duration_days"/>
+                <field name="duration_variance_pct"
+                    decoration-danger="duration_variance_pct > 20"
+                    decoration-warning="duration_variance_pct > 0"
+                    decoration-success="duration_variance_pct &lt;= 0"/>
+                <field name="deadline_compliance_pct" widget="percentage" optional="show"/>
+                <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_project_history" model="ir.actions.act_window">
+        <field name="name">Project History</field>
+        <field name="res_model">project.history</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="project_history_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No project history yet
+            </p>
+            <p>
+                Historical project data accumulates as projects are completed.
+                Use it for reference class forecasting on new projects.
+            </p>
+        </field>
+    </record>
+
+</odoo>

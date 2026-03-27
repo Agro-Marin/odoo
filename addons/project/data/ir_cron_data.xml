@@ -7,4 +7,13 @@
         <field name="code">model._send_rating_all()</field>
         <field name="interval_type">days</field>
     </record>
+
+    <record id="ir_cron_benefit_review" model="ir.cron">
+        <field name="name">Project: Check benefit review dates</field>
+        <field name="model_id" ref="project.model_project_benefit"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_check_review_dates()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
 </odoo>

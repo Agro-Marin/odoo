@@ -8,6 +8,7 @@ the shared-stage half of the legacy ``project.task.type`` god-model.
 from datetime import timedelta
 
 from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 
 class ProjectWorkflowStep(models.Model):
@@ -31,6 +32,15 @@ class ProjectWorkflowStep(models.Model):
     active = fields.Boolean("Active", default=True, export_string_translation=False)
     name = fields.Char(string="Name", required=True, translate=True)
     sequence = fields.Integer(default=1)
+    user_id = fields.Many2one(
+        "res.users",
+        string="Personal Stage Owner",
+        ondelete="cascade",
+        help=(
+            "When set, this step is a personal stage visible only to this user. "
+            "Personal stages and project stages are mutually exclusive."
+        ),
+    )
     project_ids = fields.Many2many(
         "project.project",
         "project_workflow_step_project_rel",
@@ -67,6 +77,14 @@ class ProjectWorkflowStep(models.Model):
             "Automatically update the task state based on customer rating replies:\n"
             " * Good feedback → Approved (green bullet).\n"
             " * Neutral or bad feedback → Changes Requested (orange bullet)."
+        ),
+    )
+    wip_limit = fields.Integer(
+        "WIP Limit",
+        default=0,
+        help=(
+            "Maximum number of tasks allowed in this step per project. "
+            "0 = no limit. When exceeded, the step header shows a warning."
         ),
     )
     rotting_threshold_days = fields.Integer(
@@ -111,6 +129,48 @@ class ProjectWorkflowStep(models.Model):
         required=True,
     )
 
+    @api.model_create_multi
+    def create(self, vals_list: list[dict]) -> ProjectWorkflowStep:
+        """Enforce mutual exclusivity between personal and project stages.
+
+        If ``project_ids`` is set, ``user_id`` is cleared.  If neither is
+        provided, ``user_id`` defaults to the current user (personal stage).
+        """
+        for vals in vals_list:
+            if vals.get("project_ids"):
+                vals.pop("user_id", None)
+            elif "user_id" not in vals:
+                vals["user_id"] = self.env.uid
+        return super().create(vals_list)
+
+    def write(self, vals: dict) -> bool:
+        """Enforce mutual exclusivity between personal and project stages.
+
+        Setting ``project_ids`` clears ``user_id``.  Setting ``user_id`` on a
+        step that already has ``project_ids`` (without clearing them) raises.
+        """
+        if vals.get("project_ids"):
+            # project_ids takes precedence — always clear user_id
+            vals["user_id"] = False
+        elif vals.get("user_id") and "project_ids" not in vals:
+            for step in self:
+                if step.project_ids:
+                    raise UserError(
+                        _(
+                            "Cannot set a personal owner on a project stage. "
+                            "Remove the project association first."
+                        )
+                    )
+        return super().write(vals)
+
+    def copy_data(self, default: dict | None = None) -> list[dict]:
+        """Append '(copy)' to the name when duplicating a workflow step."""
+        vals_list = super().copy_data(default=default)
+        return [
+            dict(vals, name=self.env._("%s (copy)", step.name))
+            for step, vals in zip(self, vals_list, strict=True)
+        ]
+
     @api.depends("rating_status", "rating_status_period")
     def _compute_rating_request_deadline(self) -> None:
         """Compute the next scheduled rating request deadline."""
@@ -126,14 +186,6 @@ class ProjectWorkflowStep(models.Model):
             step.rating_request_deadline = fields.Datetime.now() + timedelta(
                 days=periods.get(step.rating_status_period, 0)
             )
-
-    def copy_data(self, default: dict | None = None) -> list[dict]:
-        """Append '(copy)' to the name when duplicating a workflow step."""
-        vals_list = super().copy_data(default=default)
-        return [
-            dict(vals, name=self.env._("%s (copy)", step.name))
-            for step, vals in zip(self, vals_list, strict=True)
-        ]
 
     @api.model
     def _send_rating_all(self) -> None:

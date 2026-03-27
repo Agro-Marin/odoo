@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="project_sprint_search" model="ir.ui.view">
+        <field name="name">project.sprint.search</field>
+        <field name="model">project.sprint</field>
+        <field name="arch" type="xml">
+            <search string="Sprints">
+                <field name="name"/>
+                <field name="project_id"/>
+                <separator/>
+                <filter string="Active" name="active_sprint" domain="[('state', '=', 'active')]"/>
+                <filter string="Planning" name="planning" domain="[('state', '=', 'planning')]"/>
+                <filter string="Closed" name="closed" domain="[('state', '=', 'closed')]"/>
+                <group>
+                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="project_sprint_form" model="ir.ui.view">
+        <field name="name">project.sprint.form</field>
+        <field name="model">project.sprint</field>
+        <field name="arch" type="xml">
+            <form string="Sprint">
+                <header>
+                    <button string="Start Sprint" name="action_start" type="object"
+                        class="oe_highlight" invisible="state != 'planning'"/>
+                    <button string="Close Sprint" name="action_close" type="object"
+                        invisible="state != 'review'"
+                        confirm="Close this sprint? Incomplete tasks will remain in the backlog."/>
+                    <field name="state" widget="statusbar" statusbar_visible="planning,active,review,closed"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" icon="fa-tasks" disabled="1">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="completed_count"/> / <field name="task_count"/>
+                                </span>
+                                <span class="o_stat_text">Tasks</span>
+                            </div>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name" placeholder="e.g. Sprint 12"/>
+                            <field name="project_id"/>
+                            <field name="goal" placeholder="What is this sprint trying to achieve?"/>
+                        </group>
+                        <group>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="capacity_hours" widget="float_time"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Hours">
+                            <field name="committed_hours" widget="float_time"/>
+                            <field name="velocity" widget="float_time"/>
+                        </group>
+                        <group string="Story Points">
+                            <field name="story_points_committed"/>
+                            <field name="story_points_completed"/>
+                        </group>
+                        <group string="Progress">
+                            <field name="completion_pct" widget="progressbar"/>
+                        </group>
+                    </group>
+                    <field name="task_ids" widget="many2many"
+                        domain="[('project_id', '=', project_id), ('state', 'not in', ['done', 'canceled'])]"
+                        context="{'default_project_id': project_id}">
+                        <list>
+                            <field name="name"/>
+                            <field name="user_ids" widget="many2many_avatar_user"/>
+                            <field name="allocated_hours" widget="float_time"/>
+                            <field name="story_points" optional="show"/>
+                            <field name="state"/>
+                            <field name="step_id" optional="hide"/>
+                        </list>
+                    </field>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="project_sprint_list" model="ir.ui.view">
+        <field name="name">project.sprint.list</field>
+        <field name="model">project.sprint</field>
+        <field name="arch" type="xml">
+            <list string="Sprints" default_order="date_start desc">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="task_count"/>
+                <field name="completion_pct" widget="progressbar"/>
+                <field name="velocity" widget="float_time" optional="show" string="Velocity"/>
+                <field name="state" widget="badge"
+                    decoration-info="state == 'planning'"
+                    decoration-success="state == 'active'"
+                    decoration-warning="state == 'review'"
+                    decoration-muted="state == 'closed'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_project_sprint" model="ir.actions.act_window">
+        <field name="name">Sprints</field>
+        <field name="res_model">project.sprint</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="project_sprint_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No sprints yet
+            </p>
+            <p>
+                Create time-boxed iterations to plan and track
+                work in focused delivery cycles.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_project_sprint_from_project" model="ir.actions.act_window">
+        <field name="name">Sprints</field>
+        <field name="res_model">project.sprint</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'default_project_id': active_id}</field>
+        <field name="domain">[('project_id', '=', active_id)]</field>
+    </record>
+
+</odoo>

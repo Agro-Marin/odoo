@@ -11,6 +11,14 @@ from . import project_role
 from . import project_task
 from . import project_workflow_step
 from . import project_triage
+from . import project_baseline
+from . import project_benefit
+from . import project_gate
+from . import project_history
+from . import project_retrospective
+from . import project_risk
+from . import project_sprint
+from . import project_task_dependency
 from . import project_tags
 from . import project_collaborator
 from . import project_update

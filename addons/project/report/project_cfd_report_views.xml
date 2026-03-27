@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="project_cfd_report_view_search" model="ir.ui.view">
+        <field name="name">project.cfd.report.view.search</field>
+        <field name="model">project.cfd.report</field>
+        <field name="arch" type="xml">
+            <search string="Cumulative Flow Diagram">
+                <field name="tag_ids"/>
+                <field name="user_ids"/>
+                <field name="step_id"/>
+                <field name="project_id"/>
+                <field name="milestone_id" groups="project.group_project_milestone"/>
+                <field name="partner_id" filter_domain="[('partner_id', 'child_of', self)]"/>
+                <separator/>
+                <filter string="My Tasks" name="my_tasks" domain="[('user_ids', 'in', uid)]"/>
+                <filter string="Unassigned" name="unassigned" domain="[('user_ids', '=', False)]"/>
+                <separator/>
+                <filter name="filter_date" date="date" string="Date" default_period="year,year-1"/>
+                <filter name="filter_last_stage_update" date="date_last_status_change"/>
+                <filter name="filter_date_deadline" date="date_deadline"/>
+                <separator/>
+                <group>
+                    <filter string="Date" name="date" context="{'group_by': 'date:week'}"/>
+                    <filter string="Workflow Step" name="stage" context="{'group_by': 'step_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="project_cfd_report_view_graph" model="ir.ui.view">
+        <field name="name">project.cfd.report.view.graph</field>
+        <field name="model">project.cfd.report</field>
+        <field name="arch" type="xml">
+            <graph string="Cumulative Flow Diagram" type="line" stacked="True" sample="1" disable_linking="1">
+                <field name="date" string="Date" interval="week"/>
+                <field name="step_id"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="action_project_cfd_report" model="ir.actions.act_window">
+        <field name="name">Cumulative Flow Diagram</field>
+        <field name="res_model">project.cfd.report</field>
+        <field name="path">cfd</field>
+        <field name="view_mode">graph</field>
+        <field name="search_view_id" ref="project_cfd_report_view_search"/>
+        <field name="context">{
+            'search_default_project_id': active_id,
+            'search_default_date': 1,
+            'search_default_stage': 1,
+            'search_default_filter_date': 1,
+        }</field>
+        <field name="domain">[('project_id', '!=', False)]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">
+                No data yet!
+            </p>
+            <p>The Cumulative Flow Diagram shows how tasks flow through workflow steps over time, revealing bottlenecks and WIP trends.</p>
+        </field>
+    </record>
+
+</odoo>

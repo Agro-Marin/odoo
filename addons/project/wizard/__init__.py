@@ -1,3 +1,4 @@
+from . import project_forecast_wizard
 from . import res_config_settings
 from . import project_phase_delete
 from . import project_task_share_wizard

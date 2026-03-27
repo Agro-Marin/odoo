@@ -1,0 +1,170 @@
+"""Sprint (time-boxed iteration) management.
+
+Evidence basis: Shape Up (6-week cycles), Scrum sprints, and flow-based
+cadences all share the same principle — time-boxing forces prioritization
+and prevents scope creep within an iteration. The evidence on sprint-based
+vs flow-based is mixed; what matters is rhythm, not the specific mechanism.
+Feature-flagged via ``use_sprints`` on project.
+"""
+
+from odoo import api, fields, models
+from odoo.exceptions import ValidationError
+from odoo.tools.translate import _
+
+from .project_task import CLOSED_STATES
+
+
+class ProjectSprint(models.Model):
+    """A time-boxed iteration within a project."""
+
+    _name = "project.sprint"
+    _description = "Sprint"
+    _order = "date_start desc, id desc"
+    _inherit = ["mail.thread"]
+
+    name = fields.Char("Sprint Name", required=True, tracking=True)
+    project_id = fields.Many2one(
+        "project.project",
+        required=True,
+        ondelete="cascade",
+        index=True,
+    )
+    date_start = fields.Date("Start Date", required=True, tracking=True)
+    date_end = fields.Date("End Date", required=True, tracking=True)
+    goal = fields.Text(
+        "Sprint Goal",
+        help="One-sentence description of what this sprint aims to achieve.",
+    )
+    state = fields.Selection(
+        [
+            ("planning", "Planning"),
+            ("active", "Active"),
+            ("review", "Review"),
+            ("closed", "Closed"),
+        ],
+        default="planning",
+        required=True,
+        tracking=True,
+    )
+    capacity_hours = fields.Float(
+        "Team Capacity (hours)",
+        help="Total team hours available for this sprint.",
+    )
+    task_ids = fields.Many2many(
+        "project.task",
+        "project_sprint_task_rel",
+        "sprint_id",
+        "task_id",
+        string="Sprint Tasks",
+    )
+    task_count = fields.Integer(
+        "Tasks",
+        compute="_compute_task_metrics",
+        export_string_translation=False,
+    )
+    completed_count = fields.Integer(
+        "Completed",
+        compute="_compute_task_metrics",
+        export_string_translation=False,
+    )
+    completion_pct = fields.Float(
+        "Completion %",
+        compute="_compute_task_metrics",
+        export_string_translation=False,
+    )
+    committed_hours = fields.Float(
+        "Committed Hours",
+        compute="_compute_task_metrics",
+        help="Sum of allocated_hours for all sprint tasks.",
+        export_string_translation=False,
+    )
+    velocity = fields.Float(
+        "Velocity (hours)",
+        compute="_compute_task_metrics",
+        help="Sum of allocated_hours for completed sprint tasks.",
+        export_string_translation=False,
+    )
+    story_points_committed = fields.Float(
+        "Story Points Committed",
+        compute="_compute_task_metrics",
+        export_string_translation=False,
+    )
+    story_points_completed = fields.Float(
+        "Story Points Completed",
+        compute="_compute_task_metrics",
+        export_string_translation=False,
+    )
+
+    _sprint_date_check = models.Constraint(
+        "check(date_end >= date_start)",
+        "Sprint end date must be after start date.",
+    )
+
+    @api.depends(
+        "task_ids", "task_ids.state",
+        "task_ids.allocated_hours", "task_ids.story_points",
+    )
+    def _compute_task_metrics(self) -> None:
+        """Compute sprint metrics from task data."""
+        for sprint in self:
+            tasks = sprint.task_ids
+            closed = tasks.filtered(lambda t: t.state in CLOSED_STATES)
+            sprint.task_count = len(tasks)
+            sprint.completed_count = len(closed)
+            sprint.completion_pct = (
+                len(closed) / len(tasks) * 100 if tasks else 0.0
+            )
+            sprint.committed_hours = sum(tasks.mapped("allocated_hours"))
+            sprint.velocity = sum(closed.mapped("allocated_hours"))
+            # Story points — only if tasks have the field populated
+            sprint.story_points_committed = sum(tasks.mapped("story_points"))
+            sprint.story_points_completed = sum(closed.mapped("story_points"))
+
+    def action_start(self) -> None:
+        """Activate this sprint, ensuring only one is active per project."""
+        self.ensure_one()
+        active_sprints = self.search([
+            ("project_id", "=", self.project_id.id),
+            ("state", "=", "active"),
+            ("id", "!=", self.id),
+        ])
+        if active_sprints:
+            raise ValidationError(
+                _("Project '%s' already has an active sprint: %s",
+                  self.project_id.name, active_sprints[0].name)
+            )
+        self.state = "active"
+
+    def action_close(self) -> None:
+        """Close this sprint and clear sprint_id on incomplete tasks."""
+        self.ensure_one()
+        incomplete = self.task_ids.filtered(
+            lambda t: t.state not in CLOSED_STATES
+        )
+        if incomplete:
+            incomplete.write({"sprint_id": False})
+        self.state = "closed"
+
+    def write(self, vals: dict) -> bool:
+        """Sync task_ids M2M changes to task.sprint_id."""
+        res = super().write(vals)
+        if "task_ids" in vals:
+            self._sync_task_sprint_id()
+        return res
+
+    def _sync_task_sprint_id(self) -> None:
+        """Keep task.sprint_id in sync with sprint.task_ids M2M."""
+        for sprint in self:
+            # Set sprint_id on tasks currently in this sprint
+            tasks_in_sprint = sprint.task_ids
+            sprint_rec = sprint  # bind for lambda
+            tasks_in_sprint.filtered(
+                lambda t, s=sprint_rec: t.sprint_id != s
+            ).write({"sprint_id": sprint.id})
+            # Clear sprint_id on tasks removed from this sprint
+            orphaned = self.env["project.task"].search([
+                ("sprint_id", "=", sprint.id),
+                ("id", "not in", tasks_in_sprint.ids),
+            ])
+            if orphaned:
+                orphaned.write({"sprint_id": False})

@@ -811,5 +811,5 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
         with freeze_time("2019-05-28 14:00:00"):
             task.user_ids = [Command.set([self.user_employee_company_a.id])]
             task.date_assign = fields.Datetime.now()
-            self.assertEqual(task.working_hours_open, 3.0)
-            self.assertEqual(task.working_days_open, 0.375)
+            self.assertEqual(task.queue_time_hours, 3.0)
+            self.assertEqual(task.queue_time_days, 0.375)

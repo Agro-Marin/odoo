@@ -5,8 +5,8 @@
 
 /**
  * Chart.js data styling, option building, and label generation for
- * bar, line, and pie chart modes. All functions are pure — they depend
- * only on model data/metaData, not on component state or DOM.
+ * bar, line, pie, and scatter chart modes. All functions are pure — they
+ * depend only on model data/metaData, not on component state or DOM.
  */
 
 import { markup } from "@odoo/owl";
@@ -285,6 +285,36 @@ export function stylePieChartData(data) {
     return data;
 }
 
+/**
+ * Style scatter chart datasets as point-only (no connecting lines).
+ *
+ * Scatter is rendered via Chart.js "line" type with `showLine: false` so
+ * that individual data points are visible without connecting segments,
+ * while still using the categorical X axis from the existing data model.
+ *
+ * @param {Object} data
+ * @returns {Object}
+ */
+export function styleScatterChartData(data) {
+    for (let index = 0; index < data.datasets.length; ++index) {
+        const dataset = data.datasets[index];
+        const itemColor = getColor(index, colorScheme, data.datasets.length);
+        dataset.showLine = false;
+        dataset.backgroundColor = itemColor;
+        dataset.borderColor = itemColor;
+        dataset.borderWidth = 2;
+        dataset.pointRadius = 5;
+        dataset.pointHoverRadius = 8;
+        dataset.pointBackgroundColor = itemColor;
+        dataset.pointBorderColor = getCustomColor(
+            colorScheme,
+            lightenColor(itemColor, 0.3),
+            darkenColor(itemColor, 0.3),
+        );
+    }
+    return data;
+}
+
 /* --------------------------------------------------------
  * Chart option builders
  * -------------------------------------------------------- */
@@ -308,7 +338,7 @@ export function buildAnimationOptions(mode, labelsCount) {
         };
         animationOptions.delay = (context) => {
             let delay = 0;
-            if ((mode === "bar" || mode === "line") && !delayed) {
+            if ((mode === "bar" || mode === "line" || mode === "scatter") && !delayed) {
                 delay = context.dataIndex * (gap / labelsCount);
             }
             return delay;
@@ -329,6 +359,8 @@ export function buildElementOptions(mode, stacked) {
         elementOptions.bar = { borderWidth: 1 };
     } else if (mode === "line") {
         elementOptions.line = { fill: stacked, tension: 0 };
+    } else if (mode === "scatter") {
+        elementOptions.point = { radius: 5, hoverRadius: 8 };
     }
     return elementOptions;
 }
@@ -378,7 +410,7 @@ export function buildScaleOptions(data, metaData) {
         },
         stacked: mode === "line" && stacked ? stacked : undefined,
         grid: {
-            display: mode !== "line",
+            display: mode !== "line" && mode !== "scatter",
             color: GRAPH_GRID_COLOR,
         },
         border: {
@@ -438,8 +470,9 @@ export function buildTooltipItems(data, metaData, tooltipModel, lineOverlayDatas
             if (groupBy.length > 1) {
                 label = `${label} / ${dataset.label}`;
             }
-            boxColor =
-                mode === "bar" ? dataset.backgroundColor : dataset.borderColor;
+            boxColor = mode === "bar"
+                ? dataset.backgroundColor
+                : dataset.borderColor;
         }
         items.push({ label, value, boxColor, percentage });
     }

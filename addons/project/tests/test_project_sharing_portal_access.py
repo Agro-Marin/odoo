@@ -7,7 +7,7 @@ from lxml import etree
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import HttpCase, tagged
-from odoo.tools import config, mute_logger
+from odoo.tools import mute_logger
 
 from .test_project_sharing import TestProjectSharingCommon
 
@@ -221,8 +221,9 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
         self.assertTrue(
             mail_partner, "A mail should have been sent to the non portal user"
         )
+        base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
         self.assertIn(
-            f'href="http://localhost:{config["http_port"]}/web/signup',
+            f'href="{base_url}/web/signup',
             str(mail_partner.body),
             "The message link should contain the url to register to the portal",
         )

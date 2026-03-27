@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Search -->
+    <record id="project_risk_search" model="ir.ui.view">
+        <field name="name">project.risk.search</field>
+        <field name="model">project.risk</field>
+        <field name="arch" type="xml">
+            <search string="Risks">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="owner_id"/>
+                <separator/>
+                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter string="Critical" name="critical" domain="[('risk_level', '=', 'critical')]"/>
+                <filter string="High" name="high" domain="[('risk_level', 'in', ['high', 'critical'])]"/>
+                <separator/>
+                <filter string="My Risks" name="my_risks" domain="[('owner_id', '=', uid)]"/>
+                <group>
+                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="Risk Level" name="group_level" context="{'group_by': 'risk_level'}"/>
+                    <filter string="Category" name="group_category" context="{'group_by': 'category'}"/>
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Owner" name="group_owner" context="{'group_by': 'owner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Form -->
+    <record id="project_risk_form" model="ir.ui.view">
+        <field name="name">project.risk.form</field>
+        <field name="model">project.risk</field>
+        <field name="arch" type="xml">
+            <form string="Risk">
+                <header>
+                    <field name="state" widget="statusbar" statusbar_visible="identified,assessed,mitigated,resolved"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" placeholder="e.g. Key developer leaves mid-project"/>
+                            <field name="project_id"/>
+                            <field name="task_id" domain="[('project_id', '=', project_id)]"/>
+                            <field name="category"/>
+                            <field name="owner_id" widget="many2one_avatar_user"/>
+                        </group>
+                        <group>
+                            <field name="probability"/>
+                            <field name="impact"/>
+                            <field name="risk_score"/>
+                            <field name="risk_level" widget="badge"
+                                decoration-danger="risk_level in ('critical', 'high')"
+                                decoration-warning="risk_level == 'medium'"
+                                decoration-success="risk_level == 'low'"/>
+                            <field name="response_strategy"/>
+                            <field name="date_identified"/>
+                            <field name="date_resolved" invisible="state != 'resolved'"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Description" name="description">
+                            <field name="description" placeholder="Describe the risk in detail..."/>
+                        </page>
+                        <page string="Response Plan" name="response_plan">
+                            <field name="response_plan" placeholder="What actions will be taken to address this risk?"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- List -->
+    <record id="project_risk_list" model="ir.ui.view">
+        <field name="name">project.risk.list</field>
+        <field name="model">project.risk</field>
+        <field name="arch" type="xml">
+            <list string="Risk Register" decoration-danger="risk_level in ('critical', 'high')" decoration-warning="risk_level == 'medium'" default_order="risk_score desc">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="category"/>
+                <field name="probability"/>
+                <field name="impact"/>
+                <field name="risk_score"/>
+                <field name="risk_level" widget="badge"
+                    decoration-danger="risk_level in ('critical', 'high')"
+                    decoration-warning="risk_level == 'medium'"
+                    decoration-success="risk_level == 'low'"/>
+                <field name="response_strategy" optional="show"/>
+                <field name="owner_id" widget="many2one_avatar_user" optional="show"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Pivot (Risk Matrix) -->
+    <record id="project_risk_pivot" model="ir.ui.view">
+        <field name="name">project.risk.pivot</field>
+        <field name="model">project.risk</field>
+        <field name="arch" type="xml">
+            <pivot string="Risk Matrix">
+                <field name="probability" type="row"/>
+                <field name="impact" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_project_risk" model="ir.actions.act_window">
+        <field name="name">Risk Register</field>
+        <field name="res_model">project.risk</field>
+        <field name="view_mode">list,pivot,form</field>
+        <field name="search_view_id" ref="project_risk_search"/>
+        <field name="context">{'search_default_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No risks identified yet
+            </p>
+            <p>
+                Track project risks with probability × impact scoring
+                and response strategies.
+            </p>
+        </field>
+    </record>
+
+    <!-- Action for project-specific risks (used by smart button) -->
+    <record id="action_project_risk_from_project" model="ir.actions.act_window">
+        <field name="name">Risks</field>
+        <field name="res_model">project.risk</field>
+        <field name="view_mode">list,pivot,form</field>
+        <field name="search_view_id" ref="project_risk_search"/>
+        <field name="context">{'default_project_id': active_id, 'search_default_active': 1}</field>
+        <field name="domain">[('project_id', '=', active_id)]</field>
+    </record>
+
+</odoo>

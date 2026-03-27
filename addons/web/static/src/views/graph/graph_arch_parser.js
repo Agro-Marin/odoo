@@ -7,7 +7,7 @@ import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { GROUPABLE_TYPES } from "@web/search/utils/misc";
 
-const MODES = ["bar", "line", "pie"];
+const MODES = ["bar", "line", "pie", "scatter"];
 const ORDERS = ["ASC", "DESC", "asc", "desc", null];
 
 /** Parser for `<graph>` view architecture definitions. */

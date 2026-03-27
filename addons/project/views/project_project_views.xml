@@ -37,6 +37,14 @@
                     <header>
                         <button name="action_open_share_project_wizard" string="Share Project" type="object" class="oe_highlight" groups="project.group_project_manager"
                         invisible="privacy_visibility in ['followers', 'employees'] or is_template" context="{'default_access_mode': 'read'}" data-hotkey="r"/>
+                        <button name="action_compute_critical_path" string="Compute Critical Path" type="object"
+                            groups="project.group_project_manager" invisible="is_template or not allow_dependencies"/>
+                        <button name="action_level_resources" string="Level Resources" type="object"
+                            groups="project.group_project_manager" invisible="is_template or not allow_dependencies"
+                            confirm="This will run CPM and then shift non-critical tasks to reduce resource overallocation. Planned dates will be modified. Continue?"/>
+                        <button name="action_archive_to_history" string="Archive to History" type="object"
+                            groups="project.group_project_manager" invisible="is_template"
+                            confirm="This will create a historical snapshot of this project. Continue?"/>
                         <field name="phase_id" widget="statusbar_duration" options="{'clickable': '1', 'fold_field': 'fold'}" groups="project.group_project_stages" domain="[('company_id', 'in', (company_id, False))]"/>
                     </header>
                 <sheet string="Project">
@@ -48,6 +56,57 @@
                                     <field name="closed_task_count"/> / <field name="task_count"/>
                                     (<field name="task_completion_percentage" widget="percentage" options="{'digits': [1, 0]}"/>)
                                 </span>
+                            </div>
+                        </button>
+                        <button class="oe_stat_button" type="object" name="action_view_tasks" invisible="is_template">
+                            <field name="health_status" invisible="1"/>
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Health</span>
+                                <field name="health_score" string="Health"/>
+                                <field name="health_status" widget="badge"
+                                    decoration-success="health_status == 'healthy'"
+                                    decoration-info="health_status == 'attention'"
+                                    decoration-warning="health_status == 'warning'"
+                                    decoration-danger="health_status == 'critical'"/>
+                            </div>
+                        </button>
+                        <button class="oe_stat_button" name="%(action_project_retrospective_from_project)d" type="action" icon="fa-comments" invisible="is_template">
+                            <field name="retrospective_count" string="Retros" widget="statinfo"/>
+                        </button>
+                        <button class="oe_stat_button" name="%(action_project_risk_from_project)d" type="action" icon="fa-exclamation-triangle" invisible="is_template">
+                            <field name="risk_count" string="Risks" widget="statinfo"/>
+                        </button>
+                        <button class="oe_stat_button" name="%(action_project_benefit_from_project)d" type="action" icon="fa-bullseye" invisible="is_template">
+                            <field name="benefit_count" string="Benefits" widget="statinfo"/>
+                        </button>
+                        <button class="oe_stat_button" name="%(action_project_gate_from_project)d" type="action" icon="fa-flag-checkered" invisible="is_template">
+                            <field name="gate_count" string="Gates" widget="statinfo"/>
+                        </button>
+                        <button class="oe_stat_button" name="%(action_project_sprint_from_project)d" type="action" icon="fa-refresh" invisible="is_template or not use_sprints">
+                            <field name="sprint_count" string="Sprints" widget="statinfo"/>
+                        </button>
+                        <button class="oe_stat_button" name="%(action_project_baseline_from_project)d" type="action" icon="fa-camera" invisible="is_template">
+                            <field name="current_baseline_id" invisible="1"/>
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Baselines</span>
+                            </div>
+                        </button>
+                        <button class="oe_stat_button" name="%(action_project_cfd_report)d" type="action" icon="fa-area-chart" invisible="is_template"
+                            groups="project.group_project_user">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">CFD</span>
+                            </div>
+                        </button>
+                        <button class="oe_stat_button" name="action_open_scatter_plot" type="object" icon="fa-braille" invisible="is_template"
+                            groups="project.group_project_user">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Scatter</span>
+                            </div>
+                        </button>
+                        <button class="oe_stat_button" name="action_find_similar_projects" type="object" icon="fa-search" invisible="is_template or not tag_ids"
+                            groups="project.group_project_user">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Find Similar</span>
                             </div>
                         </button>
                         <button class="oe_stat_button" name="project_update_all_action" type="object" groups="project.group_project_user" context="{'active_id': id}" invisible="is_template">
@@ -129,9 +188,45 @@
                                         <setting class="col-lg-12" id="project_milestone_setting" help="Track major progress points that must be reached to achieve success">
                                             <field name="allow_milestones"/>
                                         </setting>
+                                        <setting class="col-lg-12" id="project_sprint_setting" help="Plan work in time-boxed iterations with velocity tracking">
+                                            <field name="use_sprints"/>
+                                        </setting>
                                     </div>
                                 </group>
                                 <group name="group_time_managment" string="Time Management" invisible="1" col="1" class="row mt16 o_settings_container"/>
+                            </group>
+                        </page>
+                        <page name="risk_planning" string="Risk &amp; Planning" invisible="is_template">
+                            <group string="Pre-Mortem Analysis">
+                                <group>
+                                    <field name="premortem_done"/>
+                                    <field name="premortem_date" invisible="not premortem_done"/>
+                                    <field name="premortem_participants" widget="many2many_avatar_user" invisible="not premortem_done"/>
+                                </group>
+                            </group>
+                            <field name="premortem_notes" invisible="not premortem_done"
+                                placeholder="'Imagine this project has failed 6 months from now. Why?' — List every failure mode the team can identify..."/>
+                        </page>
+                        <page name="flow_metrics" string="Metrics" invisible="is_template">
+                            <group>
+                                <group string="Health">
+                                    <field name="health_score"/>
+                                    <field name="health_status" widget="badge"
+                                        decoration-success="health_status == 'healthy'"
+                                        decoration-info="health_status == 'attention'"
+                                        decoration-warning="health_status == 'warning'"
+                                        decoration-danger="health_status == 'critical'"/>
+                                    <field name="high_risk_count"/>
+                                </group>
+                                <group string="Flow">
+                                    <field name="wip_count"/>
+                                    <field name="avg_lead_time" widget="float_time" string="Avg Lead Time"/>
+                                    <field name="avg_cycle_time" widget="float_time" string="Avg Cycle Time"/>
+                                    <field name="throughput_week"/>
+                                </group>
+                                <group string="Quality">
+                                    <field name="deadline_compliance_pct" widget="percentage"/>
+                                </group>
                             </group>
                         </page>
                     </notebook>
@@ -220,6 +315,11 @@
                     <field name="last_update_color" column_invisible="True"/>
                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                     <field name="last_update_status" string="Status" nolabel="1" width="20px" optional="show" widget="project_state_selection" invisible="is_template"/>
+                    <field name="health_status" widget="badge" optional="hide" invisible="is_template"
+                        decoration-success="health_status == 'healthy'"
+                        decoration-info="health_status == 'attention'"
+                        decoration-warning="health_status == 'warning'"
+                        decoration-danger="health_status == 'critical'"/>
                     <field name="phase_color" column_invisible="1"/>
                     <field name="phase_id" domain="[('company_id', 'in', (company_id, False))]" optional="show" widget="badge" options="{'no_open': True, 'color_field': 'phase_color'}" />
                     <button string="View Tasks" name="action_view_tasks" type="object"/>
@@ -395,6 +495,9 @@
                                         </div>
                                         <div class="d-inline-block" role="menuitem" name="project_burndown_menu" groups="project.group_project_user">
                                             <a name="action_project_task_burndown_chart_report" type="object">Burndown Chart</a>
+                                        </div>
+                                        <div class="d-inline-block" role="menuitem" name="project_cfd_menu" groups="project.group_project_user">
+                                            <a name="%(action_project_cfd_report)d" type="action">CFD</a>
                                         </div>
                                     </div>
                                 </div>
