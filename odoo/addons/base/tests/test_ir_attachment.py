@@ -399,6 +399,29 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         finally:
             _request_stack.pop()
 
+    @mute_logger("odoo.addons.base.models.ir_attachment")
+    def test_postprocess_bad_max_resolution(self):
+        """Bad base.image_autoresize_max_px config skips resize instead of crashing."""
+        # Create a real small PNG (1x1 pixel, red)
+        from PIL import Image as PILImage
+
+        img = PILImage.new("RGB", (2000, 2000), color="red")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        png_data = buf.getvalue()
+
+        for bad_val in ("1920", "abc", ""):
+            self.env["ir.config_parameter"].set_param(
+                "base.image_autoresize_max_px", bad_val
+            )
+            # Should NOT raise ValueError — just skip the resize
+            att = self.Attachment.create({
+                "name": "test.png",
+                "raw": png_data,
+            })
+            # Attachment was created successfully (content may or may not be resized)
+            self.assertTrue(att.id)
+
 
 class TestPermissions(TransactionCaseWithUserDemo):
     def setUp(self):

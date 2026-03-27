@@ -222,9 +222,10 @@ class IrAttachment(models.Model):
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
-        for attachment, vals in zip(self, vals_list, strict=True):
-            if not default.keys() & {"datas", "db_datas", "raw"}:
-                # ensure the content is kept and recomputes checksum/store_fname
+        if not default.keys() & {"datas", "db_datas", "raw"}:
+            # No explicit content override — preserve the original binary data
+            # so checksum/store_fname are recomputed from it.
+            for attachment, vals in zip(self, vals_list, strict=True):
                 vals["raw"] = attachment.raw
         return vals_list
 
@@ -1062,12 +1063,11 @@ class IrAttachment(models.Model):
     def _check_serving_attachments(self) -> None:
         if self.env.is_admin():
             return
+        has_group = self.env.user.has_group
         for attachment in self:
-            # restrict writing on attachments that could be served by the
-            # ir.http's dispatch exception handling
-            # XDO note: if read on sudo, read twice, one for constraints, one for _inverse_datas as user
+            # Restrict writing on attachments that could be served by the
+            # ir.http's dispatch exception handling.
             if attachment.type == "binary" and attachment.url:
-                has_group = self.env.user.has_group
                 if not any(has_group(g) for g in attachment.get_serving_groups()):
                     raise ValidationError(
                         _("Sorry, you are not allowed to write on this document")
