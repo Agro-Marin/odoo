@@ -550,11 +550,14 @@ class MobileToolbarOverlay {
     }
 
     close() {
+        if (!this.isOpen) {
+            return;
+        }
         const modal = this.editable.closest(".o_modal_full");
         if (modal) {
             modal.style.paddingBottom = "";
         }
-        registry.category("main_components").remove(this.overlayId, "MobileToolbar");
+        registry.category("main_components").remove(this.overlayId);
         this.isOpen = false;
     }
 }
