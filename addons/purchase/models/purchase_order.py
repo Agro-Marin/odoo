@@ -990,6 +990,7 @@ class PurchaseOrder(models.Model):
 
     def action_bill_matching(self):
         self.ensure_one()
+        product_ids = self.line_ids.product_id.ids
         return {
             "name": _("Bill Matching"),
             "type": "ir.actions.act_window",
@@ -1004,7 +1005,11 @@ class PurchaseOrder(models.Model):
                     "in",
                     (self.partner_id | self.partner_id.commercial_partner_id).ids,
                 ),
-                ("purchase_order_id", "in", [self.id, False]),
+                "|",
+                ("purchase_order_id", "=", self.id),
+                "&",
+                ("purchase_order_id", "=", False),
+                ("product_id", "in", product_ids),
             ],
         }
 
