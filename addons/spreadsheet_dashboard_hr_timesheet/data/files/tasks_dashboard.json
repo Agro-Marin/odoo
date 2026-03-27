@@ -520,13 +520,13 @@
         "B1": "=_t(\"Current\")",
         "B2": "=PIVOT.VALUE(5,\"nbr\")",
         "B3": "=PIVOT.VALUE(5,\"effective_hours\")",
-        "B4": "=PIVOT.VALUE(5,\"working_days_open\")",
-        "B5": "=PIVOT.VALUE(5,\"working_days_close\")",
+        "B4": "=PIVOT.VALUE(5,\"queue_time_days\")",
+        "B5": "=PIVOT.VALUE(5,\"lead_time_days\")",
         "C1": "=_t(\"Previous\")",
         "C2": "=PIVOT.VALUE(6,\"nbr\")",
         "C3": "=PIVOT.VALUE(6,\"effective_hours\")",
-        "C4": "=PIVOT.VALUE(6,\"working_days_open\")",
-        "C5": "=PIVOT.VALUE(6,\"working_days_close\")",
+        "C4": "=PIVOT.VALUE(6,\"queue_time_days\")",
+        "C5": "=PIVOT.VALUE(6,\"lead_time_days\")",
         "D1": "=_t(\"Current\")",
         "D2": "=FORMAT.LARGE.NUMBER(B2)",
         "D3": "=FORMAT.LARGE.NUMBER(B3)",
@@ -761,8 +761,8 @@
       "measures": [
         { "id": "nbr", "fieldName": "nbr" },
         { "id": "effective_hours", "fieldName": "effective_hours" },
-        { "id": "working_days_open", "fieldName": "working_days_open" },
-        { "id": "working_days_close", "fieldName": "working_days_close" }
+        { "id": "queue_time_days", "fieldName": "queue_time_days" },
+        { "id": "lead_time_days", "fieldName": "lead_time_days" }
       ],
       "model": "report.project.task.user",
       "name": "stats - current",
@@ -793,8 +793,8 @@
       "measures": [
         { "id": "nbr", "fieldName": "nbr" },
         { "id": "effective_hours", "fieldName": "effective_hours" },
-        { "id": "working_days_open", "fieldName": "working_days_open" },
-        { "id": "working_days_close", "fieldName": "working_days_close" }
+        { "id": "queue_time_days", "fieldName": "queue_time_days" },
+        { "id": "lead_time_days", "fieldName": "lead_time_days" }
       ],
       "model": "report.project.task.user",
       "name": "stats - previous",
