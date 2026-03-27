@@ -20,5 +20,41 @@
             <field name="interval_type">months</field>
             <field name="nextcall" eval="(DateTime.now() + relativedelta(day=1, months=1)).strftime('%Y-%m-%d 04:00:00')" />
         </record>
+        <record forcecreate="True" id="ir_cron_check_achievements" model="ir.cron">
+            <field name="name">Gamification: Achievement Check</field>
+            <field name="model_id" ref="model_gamification_achievement"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_check_achievements()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="nextcall" eval="(DateTime.now() + relativedelta(days=1)).strftime('%Y-%m-%d 07:00:00')"/>
+        </record>
+        <record forcecreate="True" id="ir_cron_update_streaks" model="ir.cron">
+            <field name="name">Gamification: Daily Streak Check</field>
+            <field name="model_id" ref="model_gamification_streak"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_update_streaks()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="nextcall" eval="(DateTime.now() + relativedelta(days=1)).strftime('%Y-%m-%d 06:00:00')"/>
+        </record>
+        <record forcecreate="True" id="ir_cron_engagement_nudges" model="ir.cron">
+            <field name="name">Gamification: Engagement Nudges</field>
+            <field name="model_id" ref="base.model_res_users"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_engagement_nudges()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="nextcall" eval="(DateTime.now() + relativedelta(days=1)).strftime('%Y-%m-%d 09:00:00')"/>
+        </record>
+        <record forcecreate="True" id="ir_cron_engagement_snapshot" model="ir.cron">
+            <field name="name">Gamification: Daily Engagement Snapshot</field>
+            <field name="model_id" ref="model_gamification_engagement_snapshot"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_record_snapshot()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="nextcall" eval="(DateTime.now() + relativedelta(days=1)).strftime('%Y-%m-%d 08:00:00')"/>
+        </record>
     </data>
 </odoo>

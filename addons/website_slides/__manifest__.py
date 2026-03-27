@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'eLearning',
-    'version': '2.7',
+    'version': '2.8',
     'sequence': 125,
     'summary': 'Manage and publish an eLearning platform',
     'website': 'https://www.odoo.com/app/elearning',
@@ -21,6 +21,7 @@ Featuring
 """,
     'depends': [
         'portal_rating',
+        'survey',
         'website_mail',
         'website_profile',
     ],
@@ -33,7 +34,6 @@ Featuring
         'views/res_partner_views.xml',
         'views/rating_rating_views.xml',
         'views/slide_embed_views.xml',
-        'views/slide_question_views.xml',
         'views/slide_slide_partner_views.xml',
         'views/slide_slide_views.xml',
         'views/slide_channel_partner_views.xml',

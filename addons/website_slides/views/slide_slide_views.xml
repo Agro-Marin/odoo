@@ -164,13 +164,7 @@
                                         </group>
                                     </group>
                                     <group name="questions" string="Questions">
-                                        <field name="question_ids" nolabel="1" colspan="2">
-                                            <list>
-                                                <field name="sequence" widget="handle"/>
-                                                <field name="question" string="Question"/>
-                                                <field name="answer_ids" string="Answers" widget="many2many_tags"/>
-                                            </list>
-                                        </field>
+                                        <field name="survey_id" invisible="1"/>
                                     </group>
                                 </group>
                             </page>

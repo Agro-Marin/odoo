@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="engagement_snapshot_list_view" model="ir.ui.view">
+        <field name="name">gamification.engagement.snapshot.list</field>
+        <field name="model">gamification.engagement.snapshot</field>
+        <field name="arch" type="xml">
+            <list string="Engagement Snapshots" create="0" edit="0">
+                <field name="snapshot_date"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="total_users"/>
+                <field name="active_users_7d"/>
+                <field name="active_users_30d"/>
+                <field name="goals_reached_7d"/>
+                <field name="goal_completion_rate" widget="progressbar"/>
+                <field name="badges_granted_7d"/>
+                <field name="kudos_7d"/>
+                <field name="active_streaks"/>
+                <field name="unlocks_7d"/>
+                <field name="karma_granted_7d"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="engagement_snapshot_form_view" model="ir.ui.view">
+        <field name="name">gamification.engagement.snapshot.form</field>
+        <field name="model">gamification.engagement.snapshot</field>
+        <field name="arch" type="xml">
+            <form string="Engagement Snapshot" create="0" edit="0">
+                <sheet>
+                    <group>
+                        <group string="Snapshot">
+                            <field name="snapshot_date"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Users" name="users">
+                            <group>
+                                <group>
+                                    <field name="total_users"/>
+                                    <field name="users_with_karma"/>
+                                    <field name="avg_user_karma"/>
+                                </group>
+                                <group>
+                                    <field name="active_users_7d"/>
+                                    <field name="active_users_30d"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Challenges &amp; Goals" name="goals">
+                            <group>
+                                <group>
+                                    <field name="active_challenges"/>
+                                    <field name="goals_in_progress"/>
+                                </group>
+                                <group>
+                                    <field name="goals_reached_7d"/>
+                                    <field name="goal_completion_rate" widget="progressbar"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Badges" name="badges">
+                            <group>
+                                <group>
+                                    <field name="total_badges_granted"/>
+                                    <field name="unique_badge_holders"/>
+                                </group>
+                                <group>
+                                    <field name="badges_granted_7d"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Kudos" name="kudos">
+                            <group>
+                                <group>
+                                    <field name="total_kudos"/>
+                                    <field name="kudos_7d"/>
+                                </group>
+                                <group>
+                                    <field name="unique_kudos_senders_7d"/>
+                                    <field name="unique_kudos_recipients_7d"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Streaks" name="streaks">
+                            <group>
+                                <group>
+                                    <field name="active_streaks"/>
+                                    <field name="broken_streaks"/>
+                                    <field name="avg_streak_length"/>
+                                </group>
+                                <group>
+                                    <field name="streaks_past_7d"/>
+                                    <field name="streaks_past_30d"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Achievements &amp; Karma" name="achievements_karma">
+                            <group>
+                                <group>
+                                    <field name="total_unlocks"/>
+                                    <field name="unlocks_7d"/>
+                                </group>
+                                <group>
+                                    <field name="total_karma_granted"/>
+                                    <field name="karma_granted_7d"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="engagement_snapshot_search_view" model="ir.ui.view">
+        <field name="name">gamification.engagement.snapshot.search</field>
+        <field name="model">gamification.engagement.snapshot</field>
+        <field name="arch" type="xml">
+            <search>
+                <filter string="Last 30 Days" name="last_30d"
+                        domain="[('snapshot_date', '&gt;=', (context_today() - datetime.timedelta(days=30)).strftime('%%Y-%%m-%%d'))]"/>
+                <filter string="Last 90 Days" name="last_90d"
+                        domain="[('snapshot_date', '&gt;=', (context_today() - datetime.timedelta(days=90)).strftime('%%Y-%%m-%%d'))]"/>
+                <group>
+                    <filter string="Month" name="group_month" context="{'group_by': 'snapshot_date:month'}"/>
+                    <filter string="Company" name="group_company" context="{'group_by': 'company_id'}"
+                            groups="base.group_multi_company"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="engagement_snapshot_list_action" model="ir.actions.act_window">
+        <field name="name">Engagement Analytics</field>
+        <field name="res_model">gamification.engagement.snapshot</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_last_30d': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No engagement snapshots yet
+            </p>
+            <p>
+                Snapshots are recorded daily by a scheduled action.
+                Run the "Gamification: Daily Engagement Snapshot" cron to generate one now.
+            </p>
+        </field>
+    </record>
+
+</odoo>

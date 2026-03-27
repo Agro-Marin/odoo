@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===== Actions ===== -->
+
+    <record id="achievement_list_action" model="ir.actions.act_window">
+        <field name="name">Achievements</field>
+        <field name="res_model">gamification.achievement</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first achievement
+            </p>
+            <p>
+                Achievements are hidden milestones that users discover through
+                their normal work. Configure a trigger domain and reward to
+                surprise and delight your team.
+            </p>
+        </field>
+    </record>
+
+    <record id="achievement_unlock_list_action" model="ir.actions.act_window">
+        <field name="name">Achievement Unlocks</field>
+        <field name="res_model">gamification.achievement.unlock</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- ===== Achievement Views ===== -->
+
+    <record id="achievement_list_view" model="ir.ui.view">
+        <field name="name">gamification.achievement.list</field>
+        <field name="model">gamification.achievement</field>
+        <field name="arch" type="xml">
+            <list string="Achievements"
+                  decoration-muted="not active"
+                  decoration-bf="rarity in ['epic', 'legendary']">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="rarity" widget="badge"
+                       decoration-info="rarity == 'common'"
+                       decoration-warning="rarity == 'rare'"
+                       decoration-danger="rarity == 'epic'"
+                       decoration-success="rarity == 'legendary'"/>
+                <field name="hidden" widget="boolean_toggle"/>
+                <field name="model_id"/>
+                <field name="trigger_count"/>
+                <field name="karma_reward"/>
+                <field name="badge_id"/>
+                <field name="unlock_count"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="achievement_form_view" model="ir.ui.view">
+        <field name="name">gamification.achievement.form</field>
+        <field name="model">gamification.achievement</field>
+        <field name="arch" type="xml">
+            <form string="Achievement">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(achievement_unlock_list_action)d" type="action"
+                                class="oe_stat_button" icon="fa-trophy"
+                                context="{'search_default_achievement_id': id}">
+                            <field name="unlock_count" widget="statinfo" string="Unlocks"/>
+                        </button>
+                    </div>
+                    <field name="icon" widget="image" class="oe_avatar"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Speed Demon"/></h1>
+                    </div>
+                    <group>
+                        <group string="Trigger">
+                            <field name="model_id"/>
+                            <field name="trigger_domain" widget="domain"
+                                   options="{'model': 'model_id.model'}"/>
+                            <field name="trigger_count"/>
+                        </group>
+                        <group string="Rewards">
+                            <field name="rarity"/>
+                            <field name="hidden" widget="boolean_toggle"/>
+                            <field name="karma_reward"/>
+                            <field name="badge_id"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Description" name="description">
+                            <field name="description"
+                                   placeholder="Shown after unlock. Describe the achievement..."/>
+                        </page>
+                        <page string="Hint" name="hint">
+                            <field name="hint"
+                                   placeholder="Optional hint shown before unlock. Leave empty for full mystery."/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="achievement_search_view" model="ir.ui.view">
+        <field name="name">gamification.achievement.search</field>
+        <field name="model">gamification.achievement</field>
+        <field name="arch" type="xml">
+            <search string="Achievements">
+                <field name="name"/>
+                <field name="model_id"/>
+                <filter string="Hidden" name="hidden" domain="[('hidden', '=', True)]"/>
+                <filter string="Visible" name="visible" domain="[('hidden', '=', False)]"/>
+                <separator/>
+                <group>
+                    <filter string="Rarity" name="group_rarity" context="{'group_by': 'rarity'}"/>
+                    <filter string="Model" name="group_model" context="{'group_by': 'model_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ===== Achievement Unlock Views ===== -->
+
+    <record id="achievement_unlock_list_view" model="ir.ui.view">
+        <field name="name">gamification.achievement.unlock.list</field>
+        <field name="model">gamification.achievement.unlock</field>
+        <field name="arch" type="xml">
+            <list string="Achievement Unlocks" create="0" edit="0">
+                <field name="unlock_date"/>
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="achievement_name"/>
+                <field name="rarity" widget="badge"
+                       decoration-info="rarity == 'common'"
+                       decoration-warning="rarity == 'rare'"
+                       decoration-danger="rarity == 'epic'"
+                       decoration-success="rarity == 'legendary'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="achievement_unlock_search_view" model="ir.ui.view">
+        <field name="name">gamification.achievement.unlock.search</field>
+        <field name="model">gamification.achievement.unlock</field>
+        <field name="arch" type="xml">
+            <search string="Unlocks">
+                <field name="user_id"/>
+                <field name="achievement_id"/>
+                <filter string="My Unlocks" name="my_unlocks"
+                        domain="[('user_id', '=', uid)]"/>
+                <group>
+                    <filter string="User" name="group_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="Achievement" name="group_achievement" context="{'group_by': 'achievement_id'}"/>
+                    <filter string="Rarity" name="group_rarity" context="{'group_by': 'rarity'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

@@ -1,34 +1,29 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-from odoo import api, fields, models, _, exceptions
+from odoo import _, exceptions, fields, models
 
 
 class GamificationBadgeUserWizard(models.TransientModel):
-    """ Wizard allowing to grant a badge to a user"""
-    _name = 'gamification.badge.user.wizard'
-    _description = 'Gamification User Badge Wizard'
+    """Wizard for granting a badge to a user."""
 
-    user_id = fields.Many2one("res.users", string='User', required=True)
-    badge_id = fields.Many2one("gamification.badge", string='Badge', required=True)
-    comment = fields.Text('Comment')
+    _name = "gamification.badge.user.wizard"
+    _description = "Gamification User Badge Wizard"
 
-    def action_grant_badge(self):
-        """Wizard action for sending a badge to a chosen user"""
+    user_id = fields.Many2one("res.users", string="User", required=True)
+    badge_id = fields.Many2one("gamification.badge", string="Badge", required=True)
+    comment = fields.Text("Comment")
 
-        BadgeUser = self.env['gamification.badge.user']
-
+    def action_grant_badge(self) -> bool:
+        """Grant a badge to the selected user and send a notification."""
+        BadgeUser = self.env["gamification.badge.user"]
         uid = self.env.uid
         for wiz in self:
             if uid == wiz.user_id.id:
-                raise exceptions.UserError(_('You can not grant a badge to yourself.'))
-
-            #create the badge
-            BadgeUser.create({
-                'user_id': wiz.user_id.id,
-                'sender_id': uid,
-                'badge_id': wiz.badge_id.id,
-                'comment': wiz.comment,
-            })._send_badge()
-
+                raise exceptions.UserError(_("You can not grant a badge to yourself."))
+            BadgeUser.create(
+                {
+                    "user_id": wiz.user_id.id,
+                    "sender_id": uid,
+                    "badge_id": wiz.badge_id.id,
+                    "comment": wiz.comment,
+                }
+            )._send_badge()
         return True

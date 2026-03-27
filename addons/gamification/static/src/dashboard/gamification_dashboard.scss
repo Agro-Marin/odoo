@@ -1,0 +1,21 @@
+.o_gamification_dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+
+    .progress {
+        border-radius: 4px;
+    }
+
+    .card-header h5 {
+        font-size: 1rem;
+    }
+
+    .list-group-item {
+        border-left: 0;
+        border-right: 0;
+
+        &:first-child {
+            border-top: 0;
+        }
+    }
+}
