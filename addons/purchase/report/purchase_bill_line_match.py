@@ -214,15 +214,39 @@ class PurchaseBillLineMatch(models.Model):
         residual_account_move_lines = self.aml_id
 
         # Match all matchable POL-AML lines and remove them from the residual group
-        for product, po_line in pol_by_product.items():
-            po_line = po_line[
-                0
-            ]  # in case of multiple POL with same product, only match the first one
+        for product, po_lines in pol_by_product.items():
             matching_bill_lines = aml_by_product.get(product)
-            if matching_bill_lines:
+            if not matching_bill_lines:
+                continue
+
+            if len(po_lines) <= 1:
+                # Single PO line for this product: link all matching bill lines to it
+                po_line = po_lines[0]
                 matching_bill_lines.purchase_line_ids = [Command.link(po_line.id)]
                 residual_purchase_order_lines -= po_line
                 residual_account_move_lines -= matching_bill_lines
+            else:
+                # Multiple PO lines for the same product: match 1:1 by price,
+                # then by order, to avoid merging lines with different prices.
+                remaining_po = list(po_lines)
+                remaining_aml = list(matching_bill_lines)
+
+                # Pass 1: exact match on price_unit
+                for pol in list(remaining_po):
+                    for aml in list(remaining_aml):
+                        if aml.price_unit == pol.price_unit:
+                            aml.purchase_line_ids = [Command.link(pol.id)]
+                            residual_purchase_order_lines -= pol
+                            residual_account_move_lines -= aml
+                            remaining_po.remove(pol)
+                            remaining_aml.remove(aml)
+                            break
+
+                # Pass 2: match remaining lines by order
+                for pol, aml in zip(list(remaining_po), list(remaining_aml)):
+                    aml.purchase_line_ids = [Command.link(pol.id)]
+                    residual_purchase_order_lines -= pol
+                    residual_account_move_lines -= aml
 
         if len(residual_bill := self.aml_id.move_id) == 1:
             # Delete all unmatched selected AML
@@ -359,9 +383,10 @@ class PurchaseBillLineMatch(models.Model):
             (
                 po.state = 'done'
                 AND (
-                    -- Lines with pending qty to invoice (includes partially invoiced)
+                    -- Lines with pending qty to invoice (includes partially invoiced
+                    -- and delivery-policy lines before receipt)
                     (
-                        pol.qty_to_invoice > 0
+                        (pol.product_qty > pol.qty_invoiced OR pol.qty_to_invoice > 0)
                         AND NOT EXISTS (
                             SELECT 1 FROM account_move_line_purchase_order_line_rel rel
                             JOIN account_move_line aml ON rel.move_line_id = aml.id
