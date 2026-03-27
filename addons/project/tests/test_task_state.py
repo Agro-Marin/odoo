@@ -52,7 +52,7 @@ class TestTaskState(TestProjectCommon):
         )
         self.assertEqual(
             self.task_1.state,
-            "waiting",
+            "blocked",
             "The task_1 should be in waiting_normal after depending on another open task",
         )
 
@@ -77,7 +77,7 @@ class TestTaskState(TestProjectCommon):
         )
         self.assertEqual(
             self.task_1.state,
-            "waiting",
+            "blocked",
             "task_1 state should automatically switch back to waiting_normal because of the task2 dependency",
         )
 
@@ -165,14 +165,14 @@ class TestTaskState(TestProjectCommon):
         )
         self.assertEqual(
             self.task_1.state,
-            "waiting",
+            "blocked",
             "The task_1 should be in waiting_normal after depending on another open task",
         )
 
         self.task_1_copy = self.task_1.copy()
         self.assertEqual(
             self.task_1.state,
-            "waiting",
+            "blocked",
             "The task_1_copy should keep his dependence and stay in waiting_normal",
         )
 
@@ -195,12 +195,12 @@ class TestTaskState(TestProjectCommon):
         )
         self.assertEqual(
             self.task_1.state,
-            "waiting",
+            "blocked",
             "The task_1 should have both tasks as dependencies and so should stay in waiting when one of the two is completed",
         )
         self.assertEqual(
             self.task_1_copy.state,
-            "waiting",
+            "blocked",
             "The task_1_copy should have both tasks as dependencies and so should stay in waiting when one of the two is completed",
         )
 
@@ -251,8 +251,8 @@ class TestTaskState(TestProjectCommon):
 
         task_1_copy = self.task_1.copy()
 
-        self.assertEqual(self.task_1.state, "waiting")
-        self.assertEqual(task_1_copy.state, "waiting")
+        self.assertEqual(self.task_1.state, "blocked")
+        self.assertEqual(task_1_copy.state, "blocked")
 
     def test_task_created_in_waiting_stage_gets_in_progress_state(self) -> None:
         """Test that when a new task is created in the "Waiting" state (by grouping by state in Kanban view), it gets the state "In Progress" by default."""
@@ -261,7 +261,7 @@ class TestTaskState(TestProjectCommon):
             self.env["project.task"]
             .with_context(
                 {
-                    "default_state": "waiting",
+                    "default_state": "blocked",
                 }
             )
             .create(
@@ -275,11 +275,11 @@ class TestTaskState(TestProjectCommon):
         self.assertEqual(task.state, "in_progress", "The task should be in progress")
 
     def test_changing_parent_do_not_reset_task_state(self) -> None:
-        self.task_2.state = "waiting"
+        self.task_2.state = "blocked"
         self.task_2.parent_id = self.task_1
         self.assertEqual(
             self.task_2.state,
-            "waiting",
+            "blocked",
             "Changing the task's parent should not reset the task's state.",
         )
 
@@ -325,11 +325,11 @@ class TestTaskState(TestProjectCommon):
             self.env.user.has_group("project.group_project_task_dependencies")
         )
         self.task_1.predecessor_ids = self.task_2
-        self.assertEqual(self.task_1.state, "waiting")
+        self.assertEqual(self.task_1.state, "blocked")
         self.project_goats.allow_dependencies = False
         self.assertEqual(self.task_1.state, "in_progress")
         self.project_goats.allow_dependencies = True
-        self.assertEqual(self.task_1.state, "waiting")
+        self.assertEqual(self.task_1.state, "blocked")
         self.task_2.state = "done"
         self.assertEqual(self.task_1.state, "in_progress")
         self.task_1.state = "approved"

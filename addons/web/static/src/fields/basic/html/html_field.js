@@ -23,7 +23,4 @@ export const htmlField = {
     component: HtmlField,
 };
 
-const fieldsRegistry = registry.category("fields");
-if (!fieldsRegistry.contains("html")) {
-    fieldsRegistry.add("html", htmlField);
-}
+registry.category("fields").add("html", htmlField, { force: true });

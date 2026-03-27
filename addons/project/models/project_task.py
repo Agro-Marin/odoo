@@ -65,6 +65,8 @@ PROJECT_TASK_READABLE_FIELDS = {
     "has_template_ancestor",
     "has_project_template",
     "step_color",
+    "deadline_met",
+    "cd3_score",
     "access_token",
     "access_url",
 }
@@ -355,11 +357,26 @@ class ProjectTask(models.Model):
     tag_ids = fields.Many2many("project.tags", string="Tags")
 
     allocated_hours = fields.Float("Allocated Time", tracking=True)
+    allocated_percentage = fields.Float(
+        "Allocation %",
+        default=100.0,
+        help="Percentage of each assignee's work capacity allocated to this task.",
+    )
     subtask_allocated_hours = fields.Float(
         "Sub-tasks Allocated Time",
         compute="_compute_subtask_allocated_hours",
         export_string_translation=False,
         help="Sum of the hours allocated for all the sub-tasks (and their own sub-tasks) linked to this task. Usually less than or equal to the allocated hours of this task.",
+    )
+    # ---- Resource reservations ----
+    reservation_ids = fields.One2many(
+        "resource.reservation",
+        compute="_compute_reservation_ids",
+        string="Reservations",
+    )
+    schedule_conflict_count = fields.Integer(
+        "Scheduling Conflicts",
+        compute="_compute_schedule_conflict_count",
     )
     # User names displayed in project sharing views
     portal_user_names = fields.Char(
@@ -491,32 +508,165 @@ class ProjectTask(models.Model):
         compute="_compute_successor_count",
         export_string_translation=False,
     )
-    # Computed field about working time elapsed between record creation and assignation/closing.
-    working_hours_open = fields.Float(
+    # Typed dependencies (FS/SS/FF/SF) — enriches the M2M above
+    dependency_ids = fields.One2many(
+        "project.task.dependency",
+        "task_id",
+        string="Dependency Details",
+        help="Typed dependencies with FS/SS/FF/SF and lag.",
+        export_string_translation=False,
+    )
+    dependent_on_me_ids = fields.One2many(
+        "project.task.dependency",
+        "depends_on_id",
+        string="Tasks Depending on Me",
+        export_string_translation=False,
+    )
+
+    # Critical path fields — computed on demand via project action
+    earliest_start = fields.Datetime(
+        "Earliest Start",
+        copy=False,
+        help="Computed by critical path analysis (forward pass).",
+        export_string_translation=False,
+    )
+    latest_start = fields.Datetime(
+        "Latest Start",
+        copy=False,
+        help="Computed by critical path analysis (backward pass).",
+        export_string_translation=False,
+    )
+    total_float = fields.Float(
+        "Total Float (hours)",
+        copy=False,
+        help="Latest Start - Earliest Start. Zero = critical path.",
+        export_string_translation=False,
+    )
+    is_critical_path = fields.Boolean(
+        "On Critical Path",
+        copy=False,
+        help="True when total_float is zero (no scheduling slack).",
+        export_string_translation=False,
+    )
+    planned_date_start = fields.Datetime(
+        "Planned Start",
+        copy=False,
+        help="Calendar-aware start date computed by CPM. Distinct from date_deadline (user-entered).",
+        export_string_translation=False,
+    )
+    planned_date_end = fields.Datetime(
+        "Planned End",
+        copy=False,
+        help="Calendar-aware end date computed by CPM. Distinct from date_end (actual completion).",
+        export_string_translation=False,
+    )
+
+    # Resource overallocation warning
+    is_overallocated = fields.Boolean(
+        "Overallocated Assignee",
+        compute="_compute_is_overallocated",
+        help="True when any assignee has > 40h allocated across all open tasks.",
+        export_string_translation=False,
+    )
+
+    # ── Elapsed time metrics (calendar-adjusted) ──────────────────
+    # Queue time: create → assign (how long before someone picks it up)
+    queue_time_hours = fields.Float(
+        "Queue Time (hours)",
         compute="_compute_elapsed",
-        string="Working Hours to Assign",
         digits=(16, 2),
         store=True,
         aggregator="avg",
+        help="Working hours from task creation to first assignment.",
     )
-    working_hours_close = fields.Float(
+    queue_time_days = fields.Float(
+        "Queue Time (days)",
         compute="_compute_elapsed",
-        string="Working Hours to Close",
+        store=True,
+        aggregator="avg",
+        help="Working days from task creation to first assignment.",
+    )
+    # Lead time: create → end (total request-to-delivery)
+    lead_time_hours = fields.Float(
+        "Lead Time (hours)",
+        compute="_compute_elapsed",
         digits=(16, 2),
         store=True,
         aggregator="avg",
+        help="Working hours from task creation to closure. Includes queue wait.",
     )
-    working_days_open = fields.Float(
+    lead_time_days = fields.Float(
+        "Lead Time (days)",
         compute="_compute_elapsed",
-        string="Working Days to Assign",
         store=True,
         aggregator="avg",
+        help="Working days from task creation to closure. Includes queue wait.",
     )
-    working_days_close = fields.Float(
+    # Cycle time: assign → end (active work only, excludes queue)
+    cycle_time_hours = fields.Float(
+        "Cycle Time (hours)",
         compute="_compute_elapsed",
-        string="Working Days to Close",
+        digits=(16, 2),
         store=True,
         aggregator="avg",
+        help="Working hours from first assignment to closure. Excludes queue wait.",
+    )
+    cycle_time_days = fields.Float(
+        "Cycle Time (days)",
+        compute="_compute_elapsed",
+        store=True,
+        aggregator="avg",
+        help="Working days from first assignment to closure. Excludes queue wait.",
+    )
+
+    # Deadline compliance — foundation for estimation improvement
+    deadline_met = fields.Boolean(
+        "Deadline Met",
+        compute="_compute_deadline_met",
+        store=True,
+        help=(
+            "Whether this task was closed before or on its deadline. "
+            "Null if no deadline set or task not yet closed."
+        ),
+        export_string_translation=False,
+    )
+
+    # Economic prioritization — Reinertsen: cost of delay / duration
+    cost_of_delay = fields.Float(
+        "Cost of Delay",
+        tracking=True,
+        help=(
+            "Estimated weekly cost of not completing this task (in currency). "
+            "Used to compute CD3 score for value-based prioritization."
+        ),
+    )
+    cd3_score = fields.Float(
+        "CD3 Score",
+        compute="_compute_cd3_score",
+        store=True,
+        help=(
+            "Cost of Delay Divided by Duration (CD3). Higher = do first. "
+            "Computed as cost_of_delay / allocated_hours when both are set."
+        ),
+        export_string_translation=False,
+    )
+
+    # Sprint fields — feature-flagged via use_sprints on project
+    sprint_id = fields.Many2one(
+        "project.sprint",
+        string="Sprint",
+        index="btree_not_null",
+        domain="[('project_id', '=', project_id)]",
+        tracking=True,
+        copy=False,
+    )
+    use_sprints = fields.Boolean(
+        related="project_id.use_sprints",
+        export_string_translation=False,
+    )
+    story_points = fields.Float(
+        "Story Points",
+        help="Relative effort estimate. Used for sprint velocity tracking.",
     )
 
     # recurrence fields
@@ -760,16 +910,29 @@ class ProjectTask(models.Model):
     def _is_rotting_feature_enabled(self):
         """Override: project.task uses date_last_status_change instead of date_last_stage_update."""
         return (
-            'rotting_threshold_days' in self[self._track_duration_field]
-            and 'date_last_status_change' in self
-            and (not self or any(stage.rotting_threshold_days for stage in self[self._track_duration_field]))
+            "rotting_threshold_days" in self[self._track_duration_field]
+            and "date_last_status_change" in self
+            and (
+                not self
+                or any(
+                    stage.rotting_threshold_days
+                    for stage in self[self._track_duration_field]
+                )
+            )
         )
 
     def _get_rotting_depends_fields(self) -> list[str]:
         """Override: use date_last_status_change instead of date_last_stage_update."""
-        if hasattr(self, '_track_duration_field') and 'rotting_threshold_days' in self[self._track_duration_field]:
-            return ['date_last_status_change', f'{self._track_duration_field}.rotting_threshold_days', 'is_closed']
-        return ['is_closed']
+        if (
+            hasattr(self, "_track_duration_field")
+            and "rotting_threshold_days" in self[self._track_duration_field]
+        ):
+            return [
+                "date_last_status_change",
+                f"{self._track_duration_field}.rotting_threshold_days",
+                "is_closed",
+            ]
+        return ["is_closed"]
 
     def _compute_rotting(self):
         """Override: use date_last_status_change instead of date_last_stage_update."""
@@ -781,35 +944,58 @@ class ProjectTask(models.Model):
         rot_enabled = self.filtered_domain(self._get_rotting_domain())
         others = self - rot_enabled
         for stage, records in rot_enabled.grouped(self._track_duration_field).items():
-            rotting = records.filtered(lambda record:
-                (record.date_last_status_change or record.create_date or fields.Datetime.now())
-                + timedelta(days=stage.rotting_threshold_days) < now
+            rotting = records.filtered(
+                lambda record: (
+                    record.date_last_status_change
+                    or record.create_date
+                    or fields.Datetime.now()
+                )
+                + timedelta(days=stage.rotting_threshold_days)
+                < now
             )
             for record in rotting:
                 record.is_rotting = True
-                record.rotting_days = (now - (record.date_last_status_change or record.create_date)).days
+                record.rotting_days = (
+                    now - (record.date_last_status_change or record.create_date)
+                ).days
             others += records - rotting
         others.is_rotting = False
         others.rotting_days = 0
 
     def _search_is_rotting(self, operator, value):
         """Override: use date_last_status_change instead of date_last_stage_update."""
-        if operator not in ['in', 'not in']:
-            raise ValueError(self.env._('For performance reasons, use "=" operators on rotting fields.'))
+        if operator not in ["in", "not in"]:
+            raise ValueError(
+                self.env._(
+                    'For performance reasons, use "=" operators on rotting fields.'
+                )
+            )
         if not self._is_rotting_feature_enabled():
-            raise UserError(self.env._('Model configuration does not support the rotting feature'))
-        model_depends = [fname for fname in self._get_rotting_depends_fields() if '.' not in fname]
+            raise UserError(
+                self.env._("Model configuration does not support the rotting feature")
+            )
+        model_depends = [
+            fname for fname in self._get_rotting_depends_fields() if "." not in fname
+        ]
         self.flush_model(model_depends)
-        self.env[self[self._track_duration_field]._name].flush_model(['rotting_threshold_days'])
+        self.env[self[self._track_duration_field]._name].flush_model(
+            ["rotting_threshold_days"]
+        )
         base_query = self._search(self._get_rotting_domain())
-        stage_table_alias_name = base_query.make_alias(self._table, self._track_duration_field)
-        from_add_join = ''
+        stage_table_alias_name = base_query.make_alias(
+            self._table, self._track_duration_field
+        )
+        from_add_join = ""
         if not base_query._joins or stage_table_alias_name not in base_query._joins:
             from_add_join = """
                 INNER JOIN %(stage_table)s AS %(stage_table_alias_name)s
                     ON %(stage_table_alias_name)s.id = %(table)s.%(stage_field)s
             """
-        max_rotting_months = int(self.env['ir.config_parameter'].sudo().get_param('crm.lead.rot.max.months', default=12))
+        max_rotting_months = int(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("crm.lead.rot.max.months", default=12)
+        )
         query = f"""
             WITH perishables AS (
                 SELECT  %(table)s.id AS id,
@@ -826,18 +1012,21 @@ class ProjectTask(models.Model):
             FROM perishables
             WHERE %(today)s >= date_rot
         """
-        self.env.cr.execute(SQL(query,
-            table=SQL.identifier(self._table),
-            stage_table=SQL.identifier(self[self._track_duration_field]._table),
-            stage_table_alias_name=SQL.identifier(stage_table_alias_name),
-            stage_field=SQL.identifier(self._track_duration_field),
-            today=self.env.cr.now(),
-            where_clause=base_query.where_clause,
-            from_clause=base_query.from_clause,
-            max_rotting_months=max_rotting_months,
-        ))
+        self.env.cr.execute(
+            SQL(
+                query,
+                table=SQL.identifier(self._table),
+                stage_table=SQL.identifier(self[self._track_duration_field]._table),
+                stage_table_alias_name=SQL.identifier(stage_table_alias_name),
+                stage_field=SQL.identifier(self._track_duration_field),
+                today=self.env.cr.now(),
+                where_clause=base_query.where_clause,
+                from_clause=base_query.from_clause,
+                max_rotting_months=max_rotting_months,
+            )
+        )
         rows = self.env.cr.dictfetchall()
-        return [('id', operator, [r['id'] for r in rows])]
+        return [("id", operator, [r["id"] for r in rows])]
 
     def _get_rotting_domain(self) -> list:
         return super()._get_rotting_domain() & Domain("is_closed", "=", False)
@@ -946,38 +1135,61 @@ class ProjectTask(models.Model):
         ]
 
     def _populate_missing_triages(self) -> None:
-        """Assign the default triage bucket for task-user pairs that are missing one."""
-        triages_without_bucket = (
-            self.env["project.task.triage"]
-            .sudo()
-            .search([("task_id", "in", self.ids), ("triage_id", "=", False)])
+        """Ensure every (task, assignee) pair has a triage junction row with a default bucket.
+
+        Two-phase process:
+        1. Create missing ``project.task.triage`` junction rows for all
+           (task, user) pairs that don't have one yet.
+        2. Assign the first triage bucket to any junction row that still has
+           ``triage_id = False``.
+        """
+        if not self:
+            return
+
+        TaskTriage = self.env["project.task.triage"].sudo()
+
+        # --- Phase 1: create missing junction rows ---
+        existing = TaskTriage.search([("task_id", "in", self.ids)])
+        existing_pairs = {(r.task_id.id, r.user_id.id) for r in existing}
+        to_create = [
+            {"task_id": task.id, "user_id": user.id}
+            for task in self.sudo()
+            for user in task.user_ids
+            if (task.id, user.id) not in existing_pairs
+        ]
+        if to_create:
+            TaskTriage.create(to_create)
+
+        # --- Phase 2: fill in missing triage buckets ---
+        triages_without_bucket = TaskTriage.search(
+            [("task_id", "in", self.ids), ("triage_id", "=", False)]
         )
-        if triages_without_bucket:
-            user_ids = triages_without_bucket.user_id
-            triage_by_user = defaultdict(
-                lambda: self.env["project.task.triage"]
+        if not triages_without_bucket:
+            return
+
+        triage_by_user = defaultdict(lambda: self.env["project.task.triage"])
+        for task_triage in triages_without_bucket:
+            triage_by_user[task_triage.user_id] |= task_triage
+
+        for user_id, user_triages in triage_by_user.items():
+            bucket = (
+                self.env["project.triage"]
+                .sudo()
+                .search([("user_id", "=", user_id.id)], limit=1)
             )
-            for task_triage in triages_without_bucket:
-                triage_by_user[task_triage.user_id] |= task_triage
-            for user_id in user_ids:
-                bucket = (
+            if not bucket:
+                buckets = (
                     self.env["project.triage"]
                     .sudo()
-                    .search([("user_id", "=", user_id.id)], limit=1)
-                )
-                if not bucket:
-                    buckets = (
-                        self.env["project.triage"]
-                        .sudo()
-                        .with_context(lang=user_id.partner_id.lang)
-                        .create(
-                            self.with_context(
-                                lang=user_id.partner_id.lang
-                            )._get_default_triage_vals(user_id.id)
-                        )
+                    .with_context(lang=user_id.partner_id.lang)
+                    .create(
+                        self.with_context(
+                            lang=user_id.partner_id.lang
+                        )._get_default_triage_vals(user_id.id)
                     )
-                    bucket = buckets[0]
-                triage_by_user[user_id].sudo().write({"triage_id": bucket.id})
+                )
+                bucket = buckets[0]
+            user_triages.sudo().write({"triage_id": bucket.id})
 
     def message_subscribe(self, partner_ids=None, subtype_ids=None) -> bool:
         # Set task notification based on project notification preference if user follow the project
@@ -1129,58 +1341,121 @@ class ProjectTask(models.Model):
 
     @api.depends("create_date", "date_end", "date_assign")
     def _compute_elapsed(self) -> None:
+        """Compute queue time, lead time, and cycle time (calendar-adjusted)."""
         task_linked_to_calendar = self.filtered(
             lambda task: task.project_id.resource_calendar_id and task.create_date
         )
         for task in task_linked_to_calendar:
-            dt_create_date = fields.Datetime.from_string(task.create_date)
-            domain = [
+            dt_create = fields.Datetime.from_string(task.create_date)
+            calendar = task.project_id.resource_calendar_id
+            leave_domain = [
                 ("company_id", "in", task.project_id.company_id.ids),
                 ("time_type", "=", "leave"),
             ]
-            if task.date_assign:
-                dt_date_assign = fields.Datetime.from_string(task.date_assign)
-                duration_data = (
-                    task.project_id.resource_calendar_id.get_work_duration_data(
-                        dt_create_date,
-                        dt_date_assign,
-                        compute_leaves=True,
-                        domain=domain,
-                    )
-                )
-                task.working_hours_open = duration_data["hours"]
-                task.working_days_open = duration_data["days"]
-            else:
-                task.working_hours_open = 0.0
-                task.working_days_open = 0.0
 
-            if task.date_end:
-                dt_date_end = fields.Datetime.from_string(task.date_end)
-                duration_data = (
-                    task.project_id.resource_calendar_id.get_work_duration_data(
-                        dt_create_date,
-                        dt_date_end,
-                        compute_leaves=True,
-                        domain=domain,
-                    )
+            # Queue time: create → assign
+            if task.date_assign:
+                dt_assign = fields.Datetime.from_string(task.date_assign)
+                data = calendar.get_work_duration_data(
+                    dt_create, dt_assign,
+                    compute_leaves=True, domain=leave_domain,
                 )
-                task.working_hours_close = duration_data["hours"]
-                task.working_days_close = duration_data["days"]
+                task.queue_time_hours = data["hours"]
+                task.queue_time_days = data["days"]
             else:
-                task.working_hours_close = 0.0
-                task.working_days_close = 0.0
+                task.queue_time_hours = 0.0
+                task.queue_time_days = 0.0
+
+            # Lead time: create → end
+            if task.date_end:
+                dt_end = fields.Datetime.from_string(task.date_end)
+                data = calendar.get_work_duration_data(
+                    dt_create, dt_end,
+                    compute_leaves=True, domain=leave_domain,
+                )
+                task.lead_time_hours = data["hours"]
+                task.lead_time_days = data["days"]
+            else:
+                task.lead_time_hours = 0.0
+                task.lead_time_days = 0.0
+
+            # Cycle time: assign → end (requires both dates)
+            if task.date_assign and task.date_end:
+                dt_assign = fields.Datetime.from_string(task.date_assign)
+                dt_end = fields.Datetime.from_string(task.date_end)
+                data = calendar.get_work_duration_data(
+                    dt_assign, dt_end,
+                    compute_leaves=True, domain=leave_domain,
+                )
+                task.cycle_time_hours = data["hours"]
+                task.cycle_time_days = data["days"]
+            else:
+                task.cycle_time_hours = 0.0
+                task.cycle_time_days = 0.0
 
         (self - task_linked_to_calendar).update(
             dict.fromkeys(
                 [
-                    "working_hours_open",
-                    "working_hours_close",
-                    "working_days_open",
-                    "working_days_close",
+                    "queue_time_hours",
+                    "queue_time_days",
+                    "lead_time_hours",
+                    "lead_time_days",
+                    "cycle_time_hours",
+                    "cycle_time_days",
                 ],
                 0.0,
             )
         )
+
+    @api.depends("date_end", "date_deadline", "state")
+    def _compute_deadline_met(self) -> None:
+        """Determine whether a closed task met its deadline."""
+        for task in self:
+            if not task.date_deadline or task.state not in CLOSED_STATES:
+                task.deadline_met = None
+            else:
+                task.deadline_met = bool(
+                    task.date_end and task.date_end <= task.date_deadline
+                )
+
+    @api.depends("cost_of_delay", "allocated_hours")
+    def _compute_cd3_score(self) -> None:
+        """Compute Cost of Delay Divided by Duration for value-based prioritization."""
+        for task in self:
+            if task.cost_of_delay and task.allocated_hours:
+                task.cd3_score = task.cost_of_delay / task.allocated_hours
+            else:
+                task.cd3_score = 0.0
+
+    @api.depends("user_ids")
+    def _compute_is_overallocated(self) -> None:
+        """Check if any assignee has > 40h allocated across all open tasks."""
+        all_user_ids = set()
+        for task in self:
+            all_user_ids.update(task.user_ids.ids)
+        if not all_user_ids:
+            self.is_overallocated = False
+            return
+
+        # Single query: total allocated hours per user across open tasks
+        self.env.cr.execute(
+            SQL(
+                """
+            SELECT rel.user_id, SUM(t.allocated_hours)
+            FROM project_task t
+            JOIN project_task_user_rel rel ON rel.task_id = t.id
+            WHERE rel.user_id IN %(user_ids)s
+              AND t.state NOT IN ('done', 'canceled')
+              AND t.is_template = FALSE
+            GROUP BY rel.user_id
+            HAVING SUM(t.allocated_hours) > 40
+            """,
+                user_ids=tuple(all_user_ids),
+            )
+        )
+        overallocated_users = {row[0] for row in self.env.cr.fetchall()}
+        for task in self:
+            task.is_overallocated = bool(overallocated_users & set(task.user_ids.ids))
 
     def _compute_access_url(self) -> None:
         super()._compute_access_url()
@@ -1608,7 +1883,9 @@ class ProjectTask(models.Model):
         search_domain += list(domain)
         # perform search, return the first found
         return (
-            self.env["project.workflow.step"].search(search_domain, order=order, limit=1).id
+            self.env["project.workflow.step"]
+            .search(search_domain, order=order, limit=1)
+            .id
         )
 
     # ------------------------------------------------
@@ -1745,9 +2022,7 @@ class ProjectTask(models.Model):
         additional_vals_list = [{} for _ in vals_list]
 
         new_context = dict(self.env.context)
-        default_triage = new_context.pop(
-            "default_triage_ids", False
-        )
+        default_triage = new_context.pop("default_triage_ids", False)
         default_project_id = new_context.pop("default_project_id", False)
         if not default_project_id:
             parent_task = self.browse(
@@ -2035,6 +2310,13 @@ class ProjectTask(models.Model):
             super(ProjectTask, self.sudo()).write(additional_vals)
         result = super().write(vals)
 
+        # Sync resource reservations when scheduling fields change
+        start_field, end_field = self._get_reservation_date_fields()
+        if start_field:
+            reservation_triggers = {start_field, end_field, "user_ids", "allocated_percentage"}
+            if reservation_triggers & vals.keys():
+                self._sync_reservations()
+
         if "user_ids" in vals:
             self._populate_missing_triages()
 
@@ -2049,8 +2331,7 @@ class ProjectTask(models.Model):
         # rating on stage
         if "step_id" in vals and vals.get("step_id"):
             self.sudo().filtered(
-                lambda x: x.step_id.rating_active
-                and x.step_id.rating_status == "stage"
+                lambda x: x.step_id.rating_active and x.step_id.rating_status == "stage"
             )._send_task_rating_mail(force_send=True)
 
         if "state" in vals:
@@ -2065,9 +2346,7 @@ class ProjectTask(models.Model):
                         task.state = "blocked"
                 task.date_last_status_change = now
         elif "project_id" in vals:
-            self.filtered(lambda t: t.state != "blocked").state = (
-                "in_progress"
-            )
+            self.filtered(lambda t: t.state != "blocked").state = "in_progress"
 
         # Do not recompute the state when changing the parent (to avoid resetting the state)
         if "parent_id" in vals:
@@ -2109,11 +2388,146 @@ class ProjectTask(models.Model):
                 task.recurrence_id.unlink()
         return super().unlink()
 
+    @api.ondelete(at_uninstall=False)
+    def _unlink_reservations(self):
+        """Clean up resource reservations when tasks are deleted."""
+        self.env["resource.reservation"].sudo().search([
+            ("res_model", "=", "project.task"),
+            ("res_id", "in", self.ids),
+        ]).unlink()
+
     def update_date_end(self, step_id: int) -> None:
         step = self.env["project.workflow.step"].browse(step_id)
         if step.fold:
             return {"date_end": fields.Datetime.now()}
         return {"date_end": False}
+
+    # ------------------------------------------------------------------
+    # Resource reservation integration
+    # ------------------------------------------------------------------
+
+    def _compute_reservation_ids(self):
+        """Virtual reverse One2many via res_model/res_id."""
+        Reservation = self.env["resource.reservation"].sudo()
+        all_reservations = Reservation.search([
+            ("res_model", "=", "project.task"),
+            ("res_id", "in", self.ids),
+        ])
+        grouped = {}
+        for res in all_reservations:
+            grouped.setdefault(res.res_id, self.env["resource.reservation"])
+            grouped[res.res_id] |= res
+        for task in self:
+            task.reservation_ids = grouped.get(task.id, self.env["resource.reservation"])
+
+    def _compute_schedule_conflict_count(self):
+        """Sum overlap counts from linked reservations."""
+        Reservation = self.env["resource.reservation"].sudo()
+        all_reservations = Reservation.search([
+            ("res_model", "=", "project.task"),
+            ("res_id", "in", self.ids),
+        ])
+        conflict_map = {}
+        for res in all_reservations:
+            conflict_map.setdefault(res.res_id, 0)
+            conflict_map[res.res_id] += res.schedule_overlap_count
+        for task in self:
+            task.schedule_conflict_count = conflict_map.get(task.id, 0)
+
+    def _get_reservation_date_fields(self):
+        """Return (start_field, end_field) names for reservation sync.
+
+        Core returns (None, None) because planned_date_begin only exists in
+        the enterprise layer.  project_enterprise overrides this.
+        """
+        return (None, None)
+
+    def _sync_reservations(self):
+        """Create/update/delete resource.reservation records for scheduled tasks.
+
+        Creates one reservation per assignee (user with a linked resource).
+        Called from enterprise write()/create() when scheduling fields change.
+        """
+        start_field, end_field = self._get_reservation_date_fields()
+        if not start_field:
+            return
+
+        Reservation = self.env["resource.reservation"].sudo()
+        all_existing = Reservation.search([
+            ("res_model", "=", "project.task"),
+            ("res_id", "in", self.ids),
+        ])
+        existing_map = {}
+        for res in all_existing:
+            existing_map.setdefault(res.res_id, self.env["resource.reservation"])
+            existing_map[res.res_id] |= res
+
+        to_create = []
+        to_delete = self.env["resource.reservation"]
+
+        for task in self:
+            existing = existing_map.get(task.id, self.env["resource.reservation"])
+            date_start = task[start_field]
+            date_end = task[end_field]
+
+            if not date_start or not date_end:
+                to_delete |= existing
+                continue
+
+            # One reservation per assignee with a resolvable resource
+            target_resources = {}
+            for user in task.user_ids:
+                resource = user._get_project_task_resource()
+                if resource:
+                    target_resources[resource.id] = resource
+            if not target_resources:
+                to_delete |= existing
+                continue
+
+            # Reconcile by resource_id
+            existing_by_resource = {r.resource_id.id: r for r in existing}
+            for res_id, resource in target_resources.items():
+                vals = {
+                    "name": task.display_name,
+                    "date_start": date_start,
+                    "date_end": date_end,
+                    "resource_id": resource.id,
+                    "allocated_percentage": task.allocated_percentage or 100.0,
+                    "enforcement_mode": "soft",
+                    "res_model": "project.task",
+                    "res_id": task.id,
+                }
+                if res_id in existing_by_resource:
+                    existing_by_resource.pop(res_id).write(vals)
+                else:
+                    to_create.append(vals)
+
+            # Stale reservations for resources no longer assigned
+            to_delete |= self.env["resource.reservation"].browse(
+                [r.id for r in existing_by_resource.values()]
+            )
+
+        if to_create:
+            Reservation.create(to_create)
+        if to_delete:
+            to_delete.unlink()
+
+    def action_view_schedule(self):
+        """Open the reservation calendar filtered to this task's assignees."""
+        self.ensure_one()
+        resource_ids = []
+        for user in self.user_ids:
+            resource = user._get_project_task_resource()
+            if resource:
+                resource_ids.append(resource.id)
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.env._("Schedule: %s", self.display_name),
+            "res_model": "resource.reservation",
+            "view_mode": "calendar,list,form",
+            "domain": [("resource_id", "in", resource_ids)] if resource_ids else [],
+            "context": {"search_default_my_schedule": 0},
+        }
 
     def _search_on_comodel(
         self,
@@ -3155,17 +3569,10 @@ class ProjectTask(models.Model):
             # limitation: problem when both triage_id and triage_ids
             # appear in read_group, but this has no functional utility
             groupby = [
-                (
-                    "triage_ids"
-                    if fname == "triage_id"
-                    else fname
-                )
-                for fname in groupby
+                ("triage_ids" if fname == "triage_id" else fname) for fname in groupby
             ]
             if order:
-                order = order.replace(
-                    "triage_id", "triage_ids"
-                )
+                order = order.replace("triage_id", "triage_ids")
         return super()._read_group(
             domain, groupby, aggregates, having, offset, limit, order
         )

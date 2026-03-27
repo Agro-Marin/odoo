@@ -220,7 +220,9 @@ class TestProjectBase(TestProjectCommon):
                 for stage in self.project_goats.workflow_step_ids
             ]
         )
-        self.assertEqual(self.project_pigs.workflow_step_ids, self.project_goats.workflow_step_ids)
+        self.assertEqual(
+            self.project_pigs.workflow_step_ids, self.project_goats.workflow_step_ids
+        )
 
     def test_filter_visibility_unread_messages(self) -> None:
         """Tests the visibility of the "Unread messages" filter in the project task search view

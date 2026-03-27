@@ -1694,8 +1694,8 @@ class MrpProduction(models.Model):
             return
 
         self.with_context(force_date=True).write({
-            'date_start': min((workorder.leave_id.date_from for workorder in workorders if workorder.leave_id), default=None),
-            'date_finished': max((workorder.leave_id.date_to for workorder in workorders if workorder.leave_id), default=None),
+            'date_start': min((wo.reservation_id.date_start for wo in workorders if wo.reservation_id), default=None),
+            'date_finished': max((wo.reservation_id.date_end for wo in workorders if wo.reservation_id), default=None),
         })
 
     def button_unplan(self):
@@ -1706,7 +1706,7 @@ class MrpProduction(models.Model):
             raise UserError(_("Some work orders have already started, so you cannot unplan this manufacturing order.\n\n"
                 "It’d be a shame to waste all that progress, right?"))
 
-        self.workorder_ids.leave_id.unlink()
+        self.workorder_ids.reservation_id.unlink()
         self.workorder_ids.write({
             'date_start': False,
             'date_finished': False,

@@ -37,6 +37,12 @@
                 action="action_view_all_task"
                 sequence="2"
             />
+            <menuitem
+                name="Backlog"
+                id="menu_project_backlog"
+                action="action_view_backlog"
+                sequence="3"
+            />
         </menuitem>
         <menuitem
             name="Reporting"
@@ -44,16 +50,64 @@
             sequence="99"
         >
             <menuitem
+                name="Cumulative Flow"
+                id="menu_project_cfd"
+                action="action_project_cfd_report"
+                sequence="7"
+            />
+            <menuitem
                 name="Tasks Analysis"
                 id="menu_project_report_task_analysis"
                 action="project.action_project_task_user_tree"
                 sequence="10"
             />
             <menuitem
+                name="Portfolio Dashboard"
+                id="menu_project_portfolio"
+                action="action_project_portfolio"
+                sequence="5"
+            />
+            <menuitem
+                name="Resource Utilization"
+                id="menu_project_resource_utilization"
+                action="action_project_resource_report"
+                sequence="15"
+            />
+            <menuitem
+                name="Sprints"
+                id="menu_project_sprints"
+                action="action_project_sprint"
+                sequence="25"
+            />
+            <menuitem
+                name="Project History"
+                id="menu_project_history"
+                action="action_project_history"
+                sequence="40"
+            />
+            <menuitem
                 name="Customer Ratings"
                 id="menu_project_customer_ratings"
                 action="rating_rating_action_project_report"
                 sequence="51"
+            />
+            <menuitem
+                name="Risk Register"
+                id="menu_project_risk_register"
+                action="action_project_risk"
+                sequence="20"
+            />
+            <menuitem
+                name="Retrospectives"
+                id="menu_project_retrospectives"
+                action="action_project_retrospective"
+                sequence="30"
+            />
+            <menuitem
+                name="Retro Actions"
+                id="menu_project_retro_actions"
+                action="action_project_retrospective_actions"
+                sequence="31"
             />
 
         </menuitem>

@@ -110,7 +110,7 @@ class ResourceSchedulingMixin(models.AbstractModel):
                 resource=record.resource_id,
                 calendar=record.resource_calendar_id,
             )
-            pct = record.allocated_percentage or 100.0
+            pct = record.allocated_percentage
             record.allocated_hours = round(work_hours * pct / 100.0, 2)
 
     @api.depends("date_start", "date_end", "resource_id", "allocated_percentage")
@@ -122,11 +122,13 @@ class ResourceSchedulingMixin(models.AbstractModel):
         Records without an id (unsaved) or without a resource are skipped.
         """
         stored = self.filtered(
-            lambda r: r.id
-            and isinstance(r.id, int)
-            and r.resource_id
-            and r.date_start
-            and r.date_end
+            lambda r: (
+                r.id
+                and isinstance(r.id, int)
+                and r.resource_id
+                and r.date_start
+                and r.date_end
+            )
         )
         (self - stored).schedule_overlap_count = 0
         if not stored:
@@ -192,17 +194,13 @@ class ResourceSchedulingMixin(models.AbstractModel):
             # No resource — use calendar if available, else raw timedelta
             cal = calendar or self._scheduling_resolve_calendar()
             if cal:
-                return cal.get_work_hours_count(
-                    start_utc, end_utc, compute_leaves=True
-                )
+                return cal.get_work_hours_count(start_utc, end_utc, compute_leaves=True)
             return (end_utc - start_utc).total_seconds() / 3600.0
 
         # Resource assigned — delegate to resource's interval methods
         if resource._is_flexible():
             work_intervals, hours_per_day, hours_per_week = (
-                resource._get_flexible_resource_valid_work_intervals(
-                    start_utc, end_utc
-                )
+                resource._get_flexible_resource_valid_work_intervals(start_utc, end_utc)
             )
             return resource._get_flexible_resource_work_hours(
                 work_intervals[resource.id],
@@ -249,9 +247,7 @@ class ResourceSchedulingMixin(models.AbstractModel):
         snapped_end = items[-1][1].astimezone(utc).replace(tzinfo=None)
         return snapped_start, snapped_end
 
-    def _scheduling_plan_hours(
-        self, hours, date_start, resource=None, calendar=None
-    ):
+    def _scheduling_plan_hours(self, hours, date_start, resource=None, calendar=None):
         """Compute end datetime by planning forward N working hours from start.
 
         Inverse of ``_scheduling_get_work_hours``.  Uses the calendar's

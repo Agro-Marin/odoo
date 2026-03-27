@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from odoo.fields import Domain
 
 # Default hour per day value. The one should
@@ -6,7 +8,11 @@ from odoo.fields import Domain
 HOURS_PER_DAY = 8
 
 
-def filter_domain_leaf(domain, field_check, field_name_mapping=None):
+def filter_domain_leaf(
+    domain: Domain | list,
+    field_check: Callable[[str], bool],
+    field_name_mapping: dict[str, str] | None = None,
+) -> Domain:
     """
     filter_domain_lead only keep the leaves of a domain that verify a given check. Logical operators that involves
     a leaf that is undetermined (because it does not pass the check) are ignored.
@@ -36,15 +42,20 @@ def filter_domain_leaf(domain, field_check, field_name_mapping=None):
         return Domain(field_name, condition.operator, condition.value)
 
     def adapt_domain(domain: Domain, ignored) -> Domain:
-        if hasattr(domain, 'OPERATOR'):
-            if domain.OPERATOR in ('&', '|'):
-                domain = domain.apply(adapt_domain(d, domain.ZERO) for d in domain.children)
-            elif domain.OPERATOR == '!':
+        if hasattr(domain, "OPERATOR"):
+            if domain.OPERATOR in ("&", "|"):
+                domain = domain.apply(
+                    adapt_domain(d, domain.ZERO) for d in domain.children
+                )
+            elif domain.OPERATOR == "!":
                 domain = ~adapt_domain(~domain, ~ignored)
             else:
-                assert False, "domain.OPERATOR = {domain.OPEATOR!r} unhandled"
+                msg = f"domain.OPERATOR = {domain.OPERATOR!r} unhandled"
+                raise AssertionError(msg)
         else:
-            domain = domain.map_conditions(lambda condition: adapt_condition(condition, ignored))
+            domain = domain.map_conditions(
+                lambda condition: adapt_condition(condition, ignored)
+            )
         return ignored if domain.is_true() or domain.is_false() else domain
 
     domain = Domain(domain)

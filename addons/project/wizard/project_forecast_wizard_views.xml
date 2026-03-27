@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="project_forecast_wizard_form" model="ir.ui.view">
+        <field name="name">project.forecast.wizard.form</field>
+        <field name="model">project.forecast.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Monte Carlo Forecast">
+                <group>
+                    <group string="Input">
+                        <field name="project_id" readonly="1"/>
+                        <field name="remaining_items"/>
+                        <field name="simulation_count"/>
+                        <field name="weeks_of_history"/>
+                    </group>
+                    <group string="Results" invisible="not result_text">
+                        <field name="p50_weeks" string="50% likely"/>
+                        <field name="p85_weeks" string="85% likely"/>
+                        <field name="p95_weeks" string="95% likely"/>
+                    </group>
+                </group>
+                <field name="result_text" invisible="not result_text" readonly="1"
+                    widget="text" class="font-monospace"/>
+                <footer>
+                    <button string="Run Forecast" name="action_run_forecast"
+                        type="object" class="oe_highlight"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_project_forecast_wizard" model="ir.actions.act_window">
+        <field name="name">Monte Carlo Forecast</field>
+        <field name="res_model">project.forecast.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="project.model_project_project"/>
+        <field name="binding_view_types">form</field>
+    </record>
+
+</odoo>

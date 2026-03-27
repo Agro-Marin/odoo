@@ -144,11 +144,18 @@ class RatingRating(models.Model):
         return super().unlink()
 
     def _find_parent_data(self, values):
-        """ Determine the parent res_model/res_id, based on the values to create or write """
+        """Determine the parent res_model/res_id, based on the values to create or write.
+
+        Returns ``parent_res_model_id``, ``parent_res_model`` (the stored char),
+        and ``parent_res_id``.  The char value is included explicitly because
+        ``parent_res_model`` is a stored related field with ``readonly=False``
+        — the ORM does not always recompute it when only the M2o source changes.
+        """
         current_model_name = self.env['ir.model'].sudo().browse(values['res_model_id']).model
         current_record = self.env[current_model_name].browse(values['res_id'])
         data = {
             'parent_res_model_id': False,
+            'parent_res_model': False,
             'parent_res_id': False,
         }
         if hasattr(current_record, '_rating_get_parent_field_name'):
@@ -156,6 +163,7 @@ class RatingRating(models.Model):
             if current_record_parent:
                 parent_res_model = getattr(current_record, current_record_parent)
                 data['parent_res_model_id'] = self.env['ir.model']._get(parent_res_model._name).id
+                data['parent_res_model'] = parent_res_model._name
                 data['parent_res_id'] = parent_res_model.id
         return data
 

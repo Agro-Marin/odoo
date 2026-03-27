@@ -116,7 +116,7 @@ export class GraphModel extends Model {
         metaData.measure = context.graph_measure || metaData.measure;
         metaData.mode = context.graph_mode || metaData.mode;
         metaData.groupBy = groupBy.length ? groupBy : this.initialGroupBy;
-        if (metaData.mode !== "pie") {
+        if (metaData.mode !== "pie" && metaData.mode !== "scatter") {
             metaData.order =
                 "graph_order" in context ? context.graph_order : metaData.order;
             if ("graph_stacked" in context) {
@@ -297,7 +297,7 @@ export class GraphModel extends Model {
         let processedDataPoints;
         /** @type {any[]} */
         const dataPoints = /** @type {any} */ (this).dataPoints;
-        if (mode === "line") {
+        if (mode === "line" || mode === "scatter") {
             processedDataPoints = dataPoints.filter(
                 (dataPoint) =>
                     dataPoint.labels[0] !== this._getDefaultFilterLabel(groupBy[0]),

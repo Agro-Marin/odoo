@@ -86,6 +86,11 @@ export class ImageCrop extends Component {
         if (!this.isCropperActive && !this.forceClose) {
             return;
         }
+        // Deactivate before calling onClose to prevent re-entry: removing
+        // the registry key triggers OWL to destroy this component, which
+        // fires onWillDestroy → closeCropper again.
+        this.isCropperActive = false;
+        this.forceClose = false;
         this.cropper?.destroy?.();
         this.media.setAttribute("src", this.initialSrc);
         if (
@@ -95,7 +100,6 @@ export class ImageCrop extends Component {
             this.media.classList.add("o_modified_image_to_save");
         }
         this.props?.onClose?.();
-        this.isCropperActive = false;
     }
 
     /**

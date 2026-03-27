@@ -67,7 +67,7 @@ export class GraphController extends Component {
             graph_mode: mode,
             graph_groupbys: groupBy.map((gb) => gb.spec),
         };
-        if (mode !== "pie") {
+        if (mode !== "pie" && mode !== "scatter") {
             context.graph_order = this.model.metaData.order;
             context.graph_stacked = this.model.metaData.stacked;
             if (mode === "line") {

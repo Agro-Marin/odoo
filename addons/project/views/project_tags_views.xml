@@ -19,6 +19,7 @@
                         <group>
                             <field name="name"/>
                             <field name="color" widget="color_picker"/>
+                            <field name="is_strategic"/>
                         </group>
                     </sheet>
                 </form>
@@ -32,6 +33,7 @@
                 <list string="Tags" editable="top" sample="1" multi_edit="1" default_order="name">
                     <field name="name"/>
                     <field name="color" widget="color_picker" optional="show"/>
+                    <field name="is_strategic"/>
                 </list>
             </field>
         </record>
