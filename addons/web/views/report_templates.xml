@@ -303,7 +303,7 @@
              PDF uses CSS Grid (.o_report_footer_grid from report_pdf_layout.css)
              for predictable layout without Bootstrap responsive breakpoints.
              HTML preview falls back to Bootstrap flex utilities. -->
-        <div t-att-class="{'footer': True, f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'mt-auto': report_type != 'pdf'}" name="report_footer">
+        <div t-attf-class="footer o_company_#{company.id}_layout o_report_layout {{report_type != 'pdf' and 'mt-auto' or ''}}" name="report_footer">
             <div t-attf-class="o_footer_content {{report_type == 'pdf' and 'o_report_footer_grid' or 'd-flex border-top pt-2'}}" name="footer_content">
                 <div t-attf-class="{{report_type != 'pdf' and 'flex-grow-1 text-start me-2' or ''}}" name="footer_text">
                     <span t-field="company.report_footer" />
@@ -318,7 +318,7 @@
     </template>
 
     <template id="external_layout_striped">
-        <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True}" name="report_header">
+        <div t-attf-class="header o_company_#{company.id}_layout o_report_layout" name="report_header">
             <div class="d-flex">
                 <div class="mw-50">
                     <img t-if="company.logo" class="o_company_logo_big" name="company_logo" t-att-src="image_data_uri(company.logo)" alt="Logo" />
@@ -330,7 +330,7 @@
             </div>
         </div>
 
-        <div t-att-class="{                  f'o_company_{company.id}_layout': True,                  'o_report_layout': True,                  'article': True,                  'o_report_layout_striped': True,                  'o_table_striped': True,                  'o_snail_mail': True,                  'o_report_layout_background': company.layout_background != 'Blank',              }" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
+        <div t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_striped o_table_striped o_snail_mail {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
             <t t-call="web.address_layout" />
             <h2 t-out="layout_document_title" name="document_title" />
             <t t-out="0" />
@@ -341,7 +341,7 @@
     </template>
 
     <template id="external_layout_boxed">
-        <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True}" name="report_header">
+        <div t-attf-class="header o_company_#{company.id}_layout o_report_layout" name="report_header">
             <div t-attf-class="{{report_type == 'pdf' and 'o_report_header_boxed' or 'row'}} mb8">
                 <div t-att-class="report_type != 'pdf' and 'col-4'">
                     <img t-if="company.logo" class="o_company_logo_big" name="company_logo" t-att-src="image_data_uri(company.logo)" alt="Logo" />
@@ -354,7 +354,7 @@
             </div>
         </div>
 
-        <div t-att-class="{                  f'o_company_{company.id}_layout': True,                  'o_report_layout': True,                  'article': True,                  'o_report_layout_boxed': True,                  'o_table_boxed': True,                  'o_snail_mail': True,                  'o_report_layout_background': company.layout_background != 'Blank',              }" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
+        <div t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_boxed o_table_boxed o_snail_mail {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
             <t t-call="web.address_layout" />
             <h2 t-out="layout_document_title" name="document_title" />
             <t t-out="0" />
@@ -365,7 +365,7 @@
     </template>
 
     <template id="external_layout_bold">
-        <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True}" name="report_header" t-att-style="report_header_style">
+        <div t-attf-class="header o_company_#{company.id}_layout o_report_layout" name="report_header" t-att-style="report_header_style">
             <div t-attf-class="{{report_type == 'pdf' and 'o_report_header_bold' or 'row'}}">
                 <div t-att-class="report_type != 'pdf' and 'col-6'">
                     <img t-if="company.logo" class="o_company_logo_big" name="company_logo" t-att-src="image_data_uri(company.logo)" alt="Logo" />
@@ -376,7 +376,7 @@
             </div>
         </div>
 
-        <div t-att-class="{                  f'o_company_{company.id}_layout': True,                  'o_report_layout': True,                  'article': True,                  'o_report_layout_bold': True,                  'o_table_bold': True,                  'o_snail_mail': True,                  'o_report_layout_background': company.layout_background != 'Blank',              }" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
+        <div t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_bold o_table_bold o_snail_mail {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
             <t t-call="web.address_layout" />
             <h2 t-out="layout_document_title" name="document_title" />
             <t t-out="0" />
@@ -387,7 +387,7 @@
     </template>
 
     <template id="external_layout_standard">
-        <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True}" name="report_header">
+        <div t-attf-class="header o_company_#{company.id}_layout o_report_layout" name="report_header">
             <div t-attf-class="{{report_type == 'pdf' and 'o_report_header_standard' or 'd-flex justify-content-between align-items-center'}} mb-2">
                 <img t-if="company.logo" class="o_company_logo_small" name="company_logo" t-att-src="image_data_uri(company.logo)" alt="Logo" />
                 <div t-if="company.report_header" t-field="company.report_header" name="company_tagline" class="o_company_tagline mw-50 fw-bold">Company tagline</div>
@@ -397,7 +397,7 @@
             </div>
         </div>
 
-        <div t-att-class="{                  f'o_company_{company.id}_layout': True,                  'o_report_layout': True,                  'article': True,                  'o_report_layout_standard': True,                  'o_table_standard': True,                  'o_snail_mail': True,                  'o_report_layout_background': company.layout_background != 'Blank',              }" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
+        <div t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_standard o_table_standard o_snail_mail {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
             <t t-call="web.address_layout" />
             <h2 t-out="layout_document_title" name="document_title" />
             <t t-out="0" />
@@ -410,7 +410,7 @@
     <template id="external_layout_folder">
         <t t-set="header_shape_height" t-value="'174'" />
 
-        <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True, 'h-0': report_type != 'pdf'}" name="report_header">
+        <div t-attf-class="header o_company_#{company.id}_layout o_report_layout {{report_type != 'pdf' and 'h-0' or ''}}" name="report_header">
             <div class="o_folder_header_container position-absolute start-0 top-0 z-n1 w-100">
                 <svg xmlns="http://www.w3.org/2000/svg" width="100%" t-att-height="header_shape_height" fill="none" preserveAspectRatio="none">
                     <rect width="100%" t-att-height="header_shape_height" />
@@ -439,7 +439,7 @@
         </div>
 
         <!-- BODY -->
-        <div t-att-class="{                  f'o_company_{company.id}_layout': True,                  'o_report_layout': True,                  'article': True,                  'o_report_layout_folder': True,                  'o_table_striped': True,                  'o_report_layout_background': company.layout_background != 'Blank',              }" name="report_body" t-attf-style="{{f'margin-top: {header_shape_height}px;' if report_type != 'pdf' else ''}}                 {{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
+        <div t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_folder o_table_striped {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}" name="report_body" t-attf-style="{{f'margin-top: {header_shape_height}px;' if report_type != 'pdf' else ''}}                 {{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
             <div class="pt-2" t-attf-style="{{report_type != 'pdf' and 'margin-top:' + str(env['ir.actions.report'].get_paperformat().margin_top) + 'pt;'}}">
                 <t t-set="custom_layout_address" t-value="true" />
                 <t t-call="web.address_layout" />
@@ -456,7 +456,7 @@
     <template id="external_layout_wave">
         <!-- HEADER -->
         <t t-set="header_shape_height" t-value="'230'" />
-        <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True, 'h-0': report_type != 'pdf'}" name="report_header">
+        <div t-attf-class="header o_company_#{company.id}_layout o_report_layout {{report_type != 'pdf' and 'h-0' or ''}}" name="report_header">
             <svg xmlns="http://www.w3.org/2000/svg" t-attf-class="{{report_type == 'pdf' and 'position-fixed' or 'position-absolute'}} start-0 top-0 w-100 z-n1" preserveAspectRatio="none" t-att-height="header_shape_height" viewBox="0 0 1000 240" fill="none">
                 <path d="M1000 230.734C937.384 240.621 803.83 250.266 562.185 220.602C311.343 189.809 104.626 201.375 0 211.598V0.5H1000V230.734Z" t-att-fill="company.primary_color" fill-opacity=".1" />
             </svg>
@@ -473,7 +473,7 @@
         </div>
 
         <!-- BODY -->
-        <div t-att-class="{                  f'o_company_{company.id}_layout': True,                  'o_report_layout': True,                  'article': True,                  'o_report_layout_wave': True,                  'o_table_striped': True,                  'o_report_layout_background': company.layout_background != 'Blank',              }" name="report_body" t-attf-style="{{f'margin-top: {header_shape_height}px;' if report_type != 'pdf' else ''}}                 {{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
+        <div t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_wave o_table_striped {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}" name="report_body" t-attf-style="{{f'margin-top: {header_shape_height}px;' if report_type != 'pdf' else ''}}                 {{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
             <t t-set="custom_layout_address" t-value="true" />
             <t t-call="web.address_layout" />
             <h2 t-out="layout_document_title" name="document_title" />
@@ -481,7 +481,7 @@
         </div>
 
         <!-- Footer -->
-        <div t-att-class="{'footer': True, f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'position-relative': report_type != 'pdf', 'mt-auto': report_type != 'pdf', 'mx-n5': report_type != 'pdf'}" name="report_footer">
+        <div t-attf-class="footer o_company_#{company.id}_layout o_report_layout {{report_type != 'pdf' and 'position-relative mt-auto mx-n5' or ''}}" name="report_footer">
             <svg xmlns="http://www.w3.org/2000/svg" t-attf-class="{{report_type == 'pdf' and 'position-fixed start-0'}} w-100" preserveAspectRatio="none" t-att-height="report_type == 'pdf' and '180'" viewBox="0 0 1000 180" fill="none">
                 <path d="M427.731 19.757C686.904 51.3469 898.971 38.039 1000 27.6922V180H0V8.20934C66.363 -0.991089 198.347 -8.20218 427.731 19.757Z" t-att-fill="company.secondary_color" fill-opacity=".1" />
             </svg>
@@ -495,7 +495,7 @@
 
     <template id="external_layout_bubble">
         <!-- HEADER -->
-        <div t-att-class="{f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'header': True, 'pt-5': report_type == 'pdf'}" name="report_header">
+        <div t-attf-class="header o_company_#{company.id}_layout o_report_layout {{report_type == 'pdf' and 'pt-5' or ''}}" name="report_header">
             <svg xmlns="http://www.w3.org/2000/svg" t-attf-class="o_shape_bubble_1 z-n1 {{report_type == 'pdf' and 'position-fixed' or 'position-absolute'}}" width="1100" height="1100">
                  <circle cx="550" cy="550" r="550" t-att-fill="company.primary_color" fill-opacity=".1" />
             </svg>
@@ -519,7 +519,7 @@
         </div>
 
         <!-- BODY -->
-        <div t-att-class="{                  f'o_company_{company.id}_layout': True,                  'o_report_layout': True,                  'article': True,                  'o_report_layout_bubble': True,                  'o_table_boxed-rounded': True,                  'o_report_layout_background': company.layout_background != 'Blank',              }" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
+        <div t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_bubble o_table_boxed-rounded {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}" name="report_body" t-attf-style="{{f'background-image: url({layout_background_url});' if layout_background_url else ''}}" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
             <table class="o_ignore_layout_styling table table-borderless mb-0">
                 <tbody>
                     <tr>
@@ -541,7 +541,7 @@
         </div>
 
         <!-- Footer: keep border-top on t-field div for l10n_ph XPath compatibility -->
-        <div t-att-class="{'footer': True, f'o_company_{company.id}_layout': True, 'o_report_layout': True, 'position-relative': report_type != 'pdf', 'mt-auto': report_type != 'pdf', 'mx-n5': report_type != 'pdf'}" name="report_footer">
+        <div t-attf-class="footer o_company_#{company.id}_layout o_report_layout {{report_type != 'pdf' and 'position-relative mt-auto mx-n5' or ''}}" name="report_footer">
             <svg xmlns="http://www.w3.org/2000/svg" t-attf-class="{{report_type == 'pdf' and 'position-fixed start-0'}}" width="500" height="228" viewBox="0 0 500 228" fill="none">
                 <path d="M500 228H0V6.52743C26.3323 2.23278 53.3561 0 80.9008 0C256.522 0 410.969 90.7656 500 228Z" t-att-fill="company.secondary_color" fill-opacity=".1" />
             </svg>
