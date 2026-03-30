@@ -683,3 +683,20 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
             'company_id': other_company.id
         })
         self.assertFalse(invoice.invoice_payment_term_id)
+
+    def test_is_immediate_true(self):
+        """A single line with 100% and 0 days is an immediate payment term."""
+        self.assertTrue(self.pay_term_today.is_immediate)
+
+    def test_is_immediate_false_nb_days(self):
+        """A single line with 100% but 30 days is not immediate."""
+        self.assertFalse(self.pay_term_net_30_days.is_immediate)
+
+    def test_is_immediate_false_multi_line(self):
+        """A multi-line payment term is never immediate."""
+        self.assertFalse(self.pay_term_60_days.is_immediate)
+
+    def test_is_immediate_existing_data(self):
+        """The XML data record 'Immediate Payment' is correctly flagged."""
+        immediate = self.env.ref('account.account_payment_term_immediate')
+        self.assertTrue(immediate.is_immediate)
