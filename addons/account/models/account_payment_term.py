@@ -44,6 +44,12 @@ class AccountPaymentTerm(models.Model):
         ('mixed', 'Always (upon invoice)'),
     ], string='Cash Discount Tax Reduction', readonly=False, store=True, compute='_compute_discount_computation')
     early_discount = fields.Boolean(string='Early Discount')
+    is_immediate = fields.Boolean(
+        string="Immediate Payment Term",
+        compute="_compute_is_immediate",
+        store=True,
+        help="True when the payment term has a single line requiring 100% payment with 0 days due.",
+    )
 
     @api.depends('company_id')
     @api.depends_context('allowed_company_ids')
@@ -93,6 +99,17 @@ class AccountPaymentTerm(models.Model):
     def _compute_example_invalid(self):
         for payment_term in self:
             payment_term.example_invalid = not payment_term.line_ids
+
+    @api.depends('line_ids.nb_days', 'line_ids.value_amount', 'line_ids.value')
+    def _compute_is_immediate(self):
+        for term in self:
+            lines = term.line_ids
+            term.is_immediate = (
+                len(lines) == 1
+                and lines[0].value == 'percent'
+                and float_round(lines[0].value_amount, precision_digits=2) == 100.0
+                and lines[0].nb_days == 0
+            )
 
     @api.depends('currency_id', 'example_amount', 'example_date', 'line_ids.value', 'line_ids.value_amount', 'line_ids.nb_days', 'early_discount', 'discount_percentage', 'discount_days')
     def _compute_example_preview(self):
