@@ -163,7 +163,7 @@ export class KanbanCompiler extends ViewCompiler {
             compiled.setAttribute("attrs", `{${attrsParts.join(",")}}`);
         }
 
-        for (const attr in attrs) {
+        for (const attr of Object.keys(attrs)) {
             if (attr.startsWith("t-") && !attr.startsWith("t-att")) {
                 compiled.setAttribute(attr, attrs[attr]);
             }

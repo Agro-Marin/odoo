@@ -91,7 +91,7 @@ export function useDropdownNesting(state) {
     const uiService = useService("ui");
     useEffect(
         () => {
-            Promise.resolve().then(() => {
+            queueMicrotask(() => {
                 current.activeEl = uiService.activeElement;
             });
         },

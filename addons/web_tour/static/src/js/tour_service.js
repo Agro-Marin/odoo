@@ -182,10 +182,16 @@ export const tourService = {
                 if (!odoo.loader.modules.get("@web_tour/js/tour_automatic/tour_automatic")) {
                     await loadBundle("web_tour.automatic", { css: false });
                 }
-                const { TourAutomatic } = odoo.loader.modules.get(
+                const tourAutoModule = odoo.loader.modules.get(
                     "@web_tour/js/tour_automatic/tour_automatic"
                 );
-                new TourAutomatic(tour).start();
+                if (!tourAutoModule) {
+                    throw new Error(
+                        `Failed to load tour module "@web_tour/js/tour_automatic/tour_automatic" ` +
+                        `from bundle "web_tour.automatic". Check asset compilation logs.`
+                    );
+                }
+                new tourAutoModule.TourAutomatic(tour).start();
             } else {
                 await loadBundle("web_tour.interactive");
                 const { TourPointer } = odoo.loader.modules.get(

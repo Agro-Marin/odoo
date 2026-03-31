@@ -4927,7 +4927,7 @@ test("discard changes on relational data on existing record", async () => {
     Partner._onChanges = {
         bar(record) {
             // when bar changes, push another record in product_ids.
-            record.product_ids = [[4, 41]];
+            record.product_ids = [[4, 41, false]];
         },
     };
     await mountView({
@@ -4966,7 +4966,7 @@ test("discard changes on relational data on new record (1)", async () => {
         bar(record) {
             if (record.bar) {
                 // when bar changes, push another record in product_ids.
-                record.product_ids = [[4, 41]];
+                record.product_ids = [[4, 41, false]];
             }
         },
     };
@@ -5004,12 +5004,12 @@ test("discard changes on relational data on new record (2)", async () => {
     // After discarding, product_ids should contain the inital record pushed by the inital onChange
     Partner._onChanges = {
         product_ids(record) {
-            record.product_ids = [[4, 41]];
+            record.product_ids = [[4, 41, false]];
         },
         bar(record) {
             if (record.bar) {
                 // when bar changes, push another record in product_ids.
-                record.product_ids = [[4, 37]];
+                record.product_ids = [[4, 37, false]];
             }
         },
     };
@@ -6490,7 +6490,7 @@ test(`update many2many value in one2many after onchange`, async () => {
     Partner._records[1].child_ids = [4];
     Partner._onChanges = {
         foo(record) {
-            record.child_ids = [[5], [1, 4, { name: "gold", type_ids: [[5]] }]];
+            record.child_ids = [[5, false, false], [1, 4, { name: "gold", type_ids: [[5, false, false]] }]];
         },
     };
 
@@ -6544,8 +6544,8 @@ test(`properly apply onchange on many2many fields`, async () => {
     Partner._onChanges = {
         foo(record) {
             record.type_ids = [
-                [4, 12],
-                [4, 14],
+                [4, 12, false],
+                [4, 14, false],
             ];
         },
     };
@@ -6553,8 +6553,8 @@ test(`properly apply onchange on many2many fields`, async () => {
     onRpc(({ method }) => expect.step(method));
     onRpc("web_save", ({ args }) => {
         expect(args[1].type_ids).toEqual([
-            [4, 12],
-            [4, 14],
+            [4, 12, false],
+            [4, 14, false],
         ]);
     });
     await mountView({
@@ -7448,7 +7448,7 @@ test(`many2manys inside one2manys are saved correctly`, async () => {
     onRpc("web_save", ({ args }) => {
         expect.step("web_save");
         const command = args[1].child_ids;
-        expect(command).toEqual([[0, command[0][1], { type_ids: [[4, 12]] }]]);
+        expect(command).toEqual([[0, command[0][1], { type_ids: [[4, 12, false]] }]]);
     });
 
     await mountView({
@@ -7654,7 +7654,7 @@ test(`readonly sub fields fields with force_save attribute`, async () => {
 test(`readonly set by modifier do not break many2many_tags`, async () => {
     Partner._onChanges = {
         bar(record) {
-            record.type_ids = [[4, 12]];
+            record.type_ids = [[4, 12, false]];
         },
     };
 
@@ -12659,7 +12659,7 @@ test(`x2many field in form dialog view is correctly saved when using a view butt
     });
     onRpc("res.users", "web_save", ({ args }) => {
         expect.step("web_save_user");
-        expect(args[1]).toEqual({ partner_ids: [[4, 6]] });
+        expect(args[1]).toEqual({ partner_ids: [[4, 6, false]] });
     });
 
     await mountWithCleanup(WebClient);

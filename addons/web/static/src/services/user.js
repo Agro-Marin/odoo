@@ -96,14 +96,10 @@ export function _makeUser(session) {
      * @param {{id: number} | undefined} defaultCompany
      */
     function updateActiveCompanies(cids, allowedCompanies, defaultCompany) {
-        activeCompanies = [];
-        cids.forEach((cid) => {
-            activeCompanies.push(allowedCompanies.find((c) => c.id === cid));
-        });
-        if (
-            activeCompanies.length === 0 ||
-            activeCompanies.length !== activeCompanies.filter(Boolean).length
-        ) {
+        activeCompanies = cids
+            .map((cid) => allowedCompanies.find((c) => c.id === cid))
+            .filter(Boolean);
+        if (!activeCompanies.length) {
             // Fall back to the default company, or the first allowed company if
             // the default is undefined (e.g. session current_company not found
             // in the allowed list). Guard against both being absent so the
@@ -115,7 +111,7 @@ export function _makeUser(session) {
         // the others doesn't matter, and we want to reduce the entropy of the `allowed_company_ids`
         // key in the context. This is important for the caches, as the stringified context is
         // always present in the rpc cache keys.
-        if (activeCompanies.length > 0) {
+        if (activeCompanies.length) {
             activeCompanies = [
                 activeCompanies[0],
                 ...sortBy(activeCompanies.slice(1), (c) => c.id),
@@ -341,8 +337,17 @@ const LAST_CONNECTED_USER_KEY = "web.lastConnectedUser";
 
 /** @returns {any[]} */
 export const getLastConnectedUsers = () => {
-    const lastConnectedUsers = browser.localStorage.getItem(LAST_CONNECTED_USER_KEY);
-    return lastConnectedUsers ? JSON.parse(lastConnectedUsers) : [];
+    const raw = browser.localStorage.getItem(LAST_CONNECTED_USER_KEY);
+    if (!raw) {
+        return [];
+    }
+    try {
+        return JSON.parse(raw);
+    } catch {
+        // Corrupted entry — discard it.
+        browser.localStorage.removeItem(LAST_CONNECTED_USER_KEY);
+        return [];
+    }
 };
 
 /** @param {any[]} users */

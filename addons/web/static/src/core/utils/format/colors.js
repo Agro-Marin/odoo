@@ -32,15 +32,15 @@ export function applyOpacityToGradient(gradient, opacity = 100) {
 export function convertRgbToHsl(r, g, b) {
     if (
         typeof r !== "number" ||
-        isNaN(r) ||
+        Number.isNaN(r) ||
         r < 0 ||
         r > 255 ||
         typeof g !== "number" ||
-        isNaN(g) ||
+        Number.isNaN(g) ||
         g < 0 ||
         g > 255 ||
         typeof b !== "number" ||
-        isNaN(b) ||
+        Number.isNaN(b) ||
         b < 0 ||
         b > 255
     ) {
@@ -92,15 +92,15 @@ export function convertRgbToHsl(r, g, b) {
 export function convertHslToRgb(h, s, l) {
     if (
         typeof h !== "number" ||
-        isNaN(h) ||
+        Number.isNaN(h) ||
         h < 0 ||
         h > 360 ||
         typeof s !== "number" ||
-        isNaN(s) ||
+        Number.isNaN(s) ||
         s < 0 ||
         s > 100 ||
         typeof l !== "number" ||
-        isNaN(l) ||
+        Number.isNaN(l) ||
         l < 0 ||
         l > 100
     ) {
@@ -176,15 +176,15 @@ export function convertHslToRgb(h, s, l) {
 export function convertRgbaToCSSColor(r, g, b, a) {
     if (
         typeof r !== "number" ||
-        isNaN(r) ||
+        Number.isNaN(r) ||
         r < 0 ||
         r > 255 ||
         typeof g !== "number" ||
-        isNaN(g) ||
+        Number.isNaN(g) ||
         g < 0 ||
         g > 255 ||
         typeof b !== "number" ||
-        isNaN(b) ||
+        Number.isNaN(b) ||
         b < 0 ||
         b > 255
     ) {
@@ -195,7 +195,7 @@ export function convertRgbaToCSSColor(r, g, b, a) {
     const bb = b.toString(16).padStart(2, "0");
     if (
         typeof a !== "number" ||
-        isNaN(a) ||
+        Number.isNaN(a) ||
         a < 0 ||
         a > 100 ||
         Math.abs(a - 100) < Number.EPSILON
@@ -226,11 +226,11 @@ export function convertCSSColorToRgba(cssColor = "") {
         /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*(\d*(?:\.\d+)?))?\)$/,
     );
     if (rgba) {
-        const alpha = rgba[4] !== undefined ? parseFloat(rgba[4]) : 1;
+        const alpha = rgba[4] !== undefined ? Number.parseFloat(rgba[4]) : 1;
         return {
-            red: parseInt(rgba[1]),
-            green: parseInt(rgba[2]),
-            blue: parseInt(rgba[3]),
+            red: Number.parseInt(rgba[1], 10),
+            green: Number.parseInt(rgba[2], 10),
+            blue: Number.parseInt(rgba[3], 10),
             opacity: Math.round(alpha * 100),
         };
     }
@@ -239,20 +239,20 @@ export function convertCSSColorToRgba(cssColor = "") {
     // first check if it's in its compact form (e.g. #FFF)
     if (/^#([0-9a-f]{3})$/i.test(cssColor)) {
         return {
-            red: parseInt(cssColor[1] + cssColor[1], 16),
-            green: parseInt(cssColor[2] + cssColor[2], 16),
-            blue: parseInt(cssColor[3] + cssColor[3], 16),
+            red: Number.parseInt(cssColor[1] + cssColor[1], 16),
+            green: Number.parseInt(cssColor[2] + cssColor[2], 16),
+            blue: Number.parseInt(cssColor[3] + cssColor[3], 16),
             opacity: 100,
         };
     }
 
     if (/^#([0-9A-F]{6}|[0-9A-F]{8})$/i.test(cssColor)) {
         return {
-            red: parseInt(cssColor.slice(1, 3), 16),
-            green: parseInt(cssColor.slice(3, 5), 16),
-            blue: parseInt(cssColor.slice(5, 7), 16),
+            red: Number.parseInt(cssColor.slice(1, 3), 16),
+            green: Number.parseInt(cssColor.slice(3, 5), 16),
+            blue: Number.parseInt(cssColor.slice(5, 7), 16),
             opacity:
-                (cssColor.length === 9 ? parseInt(cssColor.slice(7, 9), 16) / 255 : 1) *
+                (cssColor.length === 9 ? Number.parseInt(cssColor.slice(7, 9), 16) / 255 : 1) *
                 100,
         };
     }
@@ -377,7 +377,7 @@ export function rgbToHex(rgb = "", node = null) {
         return rgb;
     } else if (rgb.startsWith("rgba")) {
         const values = rgb.match(RGBA_REGEX) || [];
-        const alpha = parseFloat(values.pop());
+        const alpha = Number.parseFloat(values.pop());
         // Retrieve the background color.
         let bgRgbValues = [];
         if (node) {
@@ -388,13 +388,13 @@ export function rgbToHex(rgb = "", node = null) {
                 // parent.
                 bgColor = rgbToHex(bgColor, node.parentElement);
             }
-            if (bgColor && bgColor.startsWith("#")) {
+            if (bgColor?.startsWith("#")) {
                 bgRgbValues = (bgColor.match(/[\da-f]{2}/gi) || []).map((val) =>
-                    parseInt(val, 16),
+                    Number.parseInt(val, 16),
                 );
-            } else if (bgColor && bgColor.startsWith("rgb")) {
+            } else if (bgColor?.startsWith("rgb")) {
                 bgRgbValues = (bgColor.match(RGBA_REGEX) || []).map((val) =>
-                    parseInt(val),
+                    Number.parseInt(val, 10),
                 );
             }
         }
@@ -405,7 +405,7 @@ export function rgbToHex(rgb = "", node = null) {
             values
                 .map((value, index) => {
                     const converted = Math.floor(
-                        alpha * parseInt(value) + (1 - alpha) * bgRgbValues[index],
+                        alpha * Number.parseInt(value, 10) + (1 - alpha) * bgRgbValues[index],
                     );
                     return converted.toString(16).padStart(2, "0");
                 })
@@ -415,7 +415,7 @@ export function rgbToHex(rgb = "", node = null) {
         return (
             "#" +
             (rgb.match(/\d{1,3}/g) || [])
-                .map((x) => parseInt(x).toString(16).padStart(2, "0"))
+                .map((x) => Number.parseInt(x, 10).toString(16).padStart(2, "0"))
                 .join("")
         );
     }
@@ -437,10 +437,10 @@ export function rgbaToHex(rgba = "") {
         const values = rgba.match(RGBA_REGEX) || [];
         return /** @type {string} */ (
             convertRgbaToCSSColor(
-                parseInt(values[0]),
-                parseInt(values[1]),
-                parseInt(values[2]),
-                parseFloat(values[3]) * 100,
+                Number.parseInt(values[0], 10),
+                Number.parseInt(values[1], 10),
+                Number.parseInt(values[2], 10),
+                Number.parseFloat(values[3]) * 100,
             )
         );
     } else {
@@ -474,24 +474,24 @@ export function blendColors(color, node) {
         }
         if (bgColor.startsWith("#")) {
             bgRgbValues = (bgColor.match(/[\da-f]{2}/gi) || []).map((val) =>
-                parseInt(val, 16),
+                Number.parseInt(val, 16),
             );
         } else if (bgColor.startsWith("rgb")) {
             bgRgbValues = (bgColor.match(/[\d.]{1,5}/g) || []).map((val) =>
-                parseInt(val),
+                Number.parseInt(val, 10),
             );
         }
     }
 
     const values = color.match(/[\d.]{1,5}/g) || [];
-    const alpha = values.length === 4 ? parseFloat(values.pop()) : 1;
+    const alpha = values.length === 4 ? Number.parseFloat(values.pop()) : 1;
 
     return (
         "#" +
         values
             .map((value, index) => {
                 const converted = Math.round(
-                    alpha * parseInt(value) + (1 - alpha) * bgRgbValues[index],
+                    alpha * Number.parseInt(value, 10) + (1 - alpha) * bgRgbValues[index],
                 );
                 return converted.toString(16).padStart(2, "0");
             })

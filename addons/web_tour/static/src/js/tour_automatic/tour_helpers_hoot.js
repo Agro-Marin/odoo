@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import * as hoot from "@odoo/hoot-dom";
+import hoot from "@odoo/hoot-dom";
 import { patch } from "@web/core/utils/patch";
 import { TourHelpers } from "./tour_helpers.js";
 

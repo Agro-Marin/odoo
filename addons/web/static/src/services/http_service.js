@@ -10,7 +10,8 @@
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 function checkResponseStatus(response) {
-    if (response.status === 502) {
+    if (response.status >= 502 && response.status <= 504) {
+        // 502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout
         throw new Error("Failed to fetch");
     }
     if (response.status === 413) {
@@ -39,8 +40,7 @@ export async function post(route, params = {}, readMethod = "json") {
     let formData = params;
     if (!(formData instanceof FormData)) {
         formData = new FormData();
-        for (const key in params) {
-            const value = params[key];
+        for (const [key, value] of Object.entries(params)) {
             if (Array.isArray(value) && value.length) {
                 for (const val of value) {
                     formData.append(key, val);

@@ -30,7 +30,7 @@ import {
 } from "./calendar_date_range.js";
 import { normalizeCalendarRecord } from "./calendar_record.js";
 
-const { DateTime } = luxon;
+const { DateTime } = globalThis.luxon ?? {};
 
 /**
  * Data model for the calendar view.
@@ -333,7 +333,7 @@ export class CalendarModel extends Model {
             this.keepLast.add(Promise.resolve());
             section.filters = section.filters.filter((f) => f.recordId !== recordId);
         }
-        if (info && info.writeResModel) {
+        if (info?.writeResModel) {
             await this.orm.unlink(info.writeResModel, [recordId]);
             await this.debouncedLoad();
         }
@@ -587,7 +587,7 @@ export class CalendarModel extends Model {
         });
         const aggregates = {};
         const [aggregateField, aggregator] = this.aggregate.split(":");
-        for (const group in groups) {
+        for (const group of Object.keys(groups)) {
             const values = groups[group].map(
                 ({ rawRecord }) => rawRecord[aggregateField],
             );
@@ -838,7 +838,7 @@ export class CalendarModel extends Model {
 
         const relatedIds = rawFilters.map((f) => f.id).filter((id) => id);
         let rawColors = [];
-        if (relatedIds.length > 0 && field.relation) {
+        if (relatedIds.length && field.relation) {
             const fieldsToFetch = [];
             const { colorFieldName } = filterInfo;
             const shouldFetchColor =
@@ -852,7 +852,7 @@ export class CalendarModel extends Model {
             if (isX2Many) {
                 fieldsToFetch.push("display_name");
             }
-            if (fieldsToFetch.length > 0) {
+            if (fieldsToFetch.length) {
                 const records = await this.orm.searchRead(
                     field.relation,
                     [["id", "in", relatedIds]],

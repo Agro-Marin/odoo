@@ -161,7 +161,7 @@ export class ColorPicker extends Component {
         this.root = useRef("root");
 
         this.DEFAULT_COLORS = DEFAULT_COLORS;
-        this.grayscales = Object.assign({}, DEFAULT_GRAYSCALES, this.props.grayscales);
+        this.grayscales = { ...DEFAULT_GRAYSCALES, ...this.props.grayscales };
         this.DEFAULT_THEME_COLOR_VARS = DEFAULT_THEME_COLOR_VARS;
         this.defaultColorSet = this.getDefaultColorSet();
         this.defaultColor = this.props.state.selectedColor;

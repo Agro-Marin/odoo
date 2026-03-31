@@ -190,7 +190,10 @@ export class SearchArchParser {
         if (node.hasAttribute("name")) {
             const name = node.getAttribute("name");
             if (!this.fields[name]) {
-                throw Error(`Unknown field ${name}`);
+                // Field not available (e.g. group-restricted or removed by
+                // a module override). Skip gracefully instead of crashing
+                // the entire search view.
+                return;
             }
             const fieldType = this.fields[name].type;
             preField.fieldName = name;
@@ -230,16 +233,13 @@ export class SearchArchParser {
                     }
                     preField.defaultAutocompleteValue.label = option[1];
                 } else if (fieldType === "many2one") {
-                    this.labels.push((orm) =>
-                        orm
-                            .call(relation, "read", [value, ["display_name"]], {
-                                context,
-                            })
-                            .then((results) => {
-                                preField.defaultAutocompleteValue.label =
-                                    results[0]["display_name"];
-                            }),
-                    );
+                    this.labels.push(async (orm) => {
+                        const results = await orm.call(
+                            relation, "read", [value, ["display_name"]], { context },
+                        );
+                        preField.defaultAutocompleteValue.label =
+                            results[0]["display_name"];
+                    });
                 } else if (
                     ["many2many", "one2many"].includes(fieldType) &&
                     Array.isArray(val) &&
@@ -247,17 +247,14 @@ export class SearchArchParser {
                 ) {
                     preField.defaultAutocompleteValue.operator = "in";
                     preField.defaultAutocompleteValue.value = val;
-                    this.labels.push((orm) =>
-                        orm
-                            .call(relation, "read", [val, ["display_name"]], {
-                                context,
-                            })
-                            .then((results) => {
-                                preField.defaultAutocompleteValue.label = `${results
-                                    .map((r) => r["display_name"])
-                                    .join(" or ")}`;
-                            }),
-                    );
+                    this.labels.push(async (orm) => {
+                        const results = await orm.call(
+                            relation, "read", [val, ["display_name"]], { context },
+                        );
+                        preField.defaultAutocompleteValue.label = results
+                            .map((r) => r["display_name"])
+                            .join(" or ");
+                    });
                 }
             }
         } else {
@@ -265,7 +262,7 @@ export class SearchArchParser {
         }
         if (node.hasAttribute("string")) {
             preField.description = node.getAttribute("string");
-        } else if (preField.fieldName) {
+        } else if (preField.fieldName && this.fields[preField.fieldName]) {
             preField.description = this.fields[preField.fieldName].string;
         } else {
             preField.description = "Ω";
@@ -304,9 +301,14 @@ export class SearchArchParser {
         if (preSearchItem.type === "filter") {
             if (node.hasAttribute("date")) {
                 const fieldName = node.getAttribute("date");
+                const dateField = this.fields[fieldName];
+                if (!dateField) {
+                    // Field not available (e.g. group-restricted) — skip this filter.
+                    return;
+                }
                 preSearchItem.type = "dateFilter";
                 preSearchItem.fieldName = fieldName;
-                preSearchItem.fieldType = this.fields[fieldName].type;
+                preSearchItem.fieldType = dateField.type;
                 const optionsParams = {
                     startYear: Number(node.getAttribute("start_year") || -2),
                     endYear: Number(node.getAttribute("end_year") || 0),
@@ -367,7 +369,7 @@ export class SearchArchParser {
         }
         if (node.hasAttribute("string")) {
             preSearchItem.description = node.getAttribute("string");
-        } else if (preSearchItem.fieldName) {
+        } else if (preSearchItem.fieldName && this.fields[preSearchItem.fieldName]) {
             preSearchItem.description = this.fields[preSearchItem.fieldName].string;
         } else if (node.hasAttribute("help")) {
             preSearchItem.description = node.getAttribute("help");
@@ -457,7 +459,7 @@ export class SearchArchParser {
             const type = attrs.select === "multi" ? "filter" : "category";
             const section = {
                 color: attrs.color || null,
-                description: attrs.string || this.fields[attrs.name].string,
+                description: attrs.string || this.fields[attrs.name]?.string || attrs.name,
                 enableCounters: evaluateBooleanExpr(attrs.enable_counters),
                 expand: evaluateBooleanExpr(attrs.expand),
                 fieldName: attrs.name,
@@ -471,7 +473,7 @@ export class SearchArchParser {
                 section.activeValueId = this.searchPanelDefaults[attrs.name];
                 section.icon = section.icon || "fa-solid fa-folder";
                 section.hierarchize = evaluateBooleanExpr(attrs.hierarchize || "1");
-                section.depth = attrs.depth ? parseInt(attrs.depth) : 0;
+                section.depth = attrs.depth ? Number.parseInt(attrs.depth, 10) : 0;
                 section.values.set(false, {
                     childrenIds: [],
                     display_name: ALL.toString(),

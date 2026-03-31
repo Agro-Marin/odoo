@@ -701,20 +701,20 @@ export class CustomColorPicker extends Component {
                 return;
             case "hsl":
                 this._updateHsl(
-                    parseInt(
+                    Number.parseInt(
                         /** @type {HTMLInputElement} */ (
                             this.el.querySelector(".o_hue_input")
-                        ).value,
+                        ).value, 10,
                     ),
-                    parseInt(
+                    Number.parseInt(
                         /** @type {HTMLInputElement} */ (
                             this.el.querySelector(".o_saturation_input")
-                        ).value,
+                        ).value, 10,
                     ),
-                    parseInt(
+                    Number.parseInt(
                         /** @type {HTMLInputElement} */ (
                             this.el.querySelector(".o_lightness_input")
-                        ).value,
+                        ).value, 10,
                     ),
                 );
                 break;

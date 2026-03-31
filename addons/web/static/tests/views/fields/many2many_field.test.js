@@ -873,9 +873,9 @@ test("fieldmany2many list comodel not writable", async () => {
     };
     onRpc("partner", "web_save", ({ args }) => {
         if (args[0].length === 0) {
-            expect(args[1]).toEqual({ timmy: [[4, 1]] });
+            expect(args[1]).toEqual({ timmy: [[4, 1, false]] });
         } else {
-            expect(args[1]).toEqual({ timmy: [[3, 1]] });
+            expect(args[1]).toEqual({ timmy: [[3, 1, false]] });
         }
     });
     await mountView({
@@ -1155,8 +1155,8 @@ test("many2many list: list of id as default value", async () => {
         relation: "turtle",
         relation_field: "turtle_trululu",
         default: [
-            [4, 2],
-            [4, 3],
+            [4, 2, false],
+            [4, 3, false],
         ],
     });
 
@@ -1184,8 +1184,8 @@ test("context and domain dependent on an x2m must contain the list of current id
         relation: "turtle",
         relation_field: "turtle_trululu",
         default: [
-            [4, 2],
-            [4, 3],
+            [4, 2, false],
+            [4, 3, false],
         ],
     });
     Turtle._views = {
@@ -1314,7 +1314,7 @@ test("many2many list (editable): edition concurrence", async () => {
         expect.step(args.method);
         if (args.method === "web_save") {
             expect(args.args[1]).toEqual({
-                timmy: [[3, 1]],
+                timmy: [[3, 1, false]],
             });
         }
     });
@@ -1563,7 +1563,7 @@ test("onchange with 40+ commands for a many2many", async () => {
     onRpc((args) => {
         expect.step(args.method);
         if (args.method === "web_save") {
-            expect(args.args[1].timmy).toEqual(commands.map((c) => [c[0], c[1]]));
+            expect(args.args[1].timmy).toEqual(commands);
         }
     });
 

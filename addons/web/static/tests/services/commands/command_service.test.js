@@ -564,7 +564,9 @@ test("footer displays the right tips", async () => {
         provide: () => [],
     });
 
-    commandSetupRegistry.remove("/");
+    if (commandSetupRegistry.contains("/")) {
+        commandSetupRegistry.remove("/");
+    }
     commandSetupRegistry.add("default", {}, { force: true });
     commandSetupRegistry.add("@", {
         name: "FirstName",

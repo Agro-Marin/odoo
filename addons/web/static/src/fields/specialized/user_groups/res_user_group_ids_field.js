@@ -170,7 +170,7 @@ class ResUserGroupIdsField extends Component {
             }
 
             // Remove lower level groups from selection fields where a higher level group is implied
-            for (const fieldName in this.fields) {
+            for (const fieldName of Object.keys(this.fields)) {
                 if (this.fields[fieldName].type === "selection") {
                     const options = this._fields[fieldName].selection;
                     this.fields[fieldName].selection = options;

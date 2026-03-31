@@ -87,7 +87,7 @@ describe("serializeCommands", () => {
             getRecordChanges: () => ({}),
         });
         const result = serializeCommands(commands, params);
-        expect(result).toEqual([[LINK, 42]]);
+        expect(result).toEqual([[LINK, 42, false]]);
     });
 
     test("serializes UPDATE command with record changes", () => {

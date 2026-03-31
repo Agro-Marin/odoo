@@ -91,7 +91,7 @@ export function omit(object, ...properties) {
     /** @type {any} */
     const result = {};
     const propertiesSet = new Set(properties);
-    for (const key in object) {
+    for (const key of Object.keys(object)) {
         if (!propertiesSet.has(/** @type {any} */ (key))) {
             result[key] = object[key];
         }
@@ -142,7 +142,8 @@ export function deepMerge(target, extension) {
     }
 
     target = target || {};
-    const output = { ...target };
+    // Use Object.assign to preserve Symbol-keyed properties (spread only copies string keys).
+    const output = Object.assign({}, target);
     if (isObject(extension)) {
         for (const key of Reflect.ownKeys(extension)) {
             if (key in target && isObject(extension[key])) {

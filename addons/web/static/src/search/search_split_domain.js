@@ -50,7 +50,7 @@ export async function splitAndAddDomain(searchModel, domain, groupId) {
         !tree.negate &&
         tree.type === "connector" &&
         tree.value === "&" &&
-        tree.children.length > 0
+        tree.children.length
             ? tree.children
             : [tree];
     const promises = trees.map(async (tree) => {

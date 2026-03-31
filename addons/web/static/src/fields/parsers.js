@@ -112,12 +112,12 @@ export function parseFloat(value, { allowOperation = false } = {}) {
         thousandsSep: thousandsSepRegex,
         decimalPoint: decimalPointRegex,
     });
-    if (isNaN(parsed)) {
+    if (Number.isNaN(parsed)) {
         parsed = parseNumber(value, {
             thousandsSep: ",",
             decimalPoint: ".",
         });
-        if (isNaN(parsed)) {
+        if (Number.isNaN(parsed)) {
             throw new InvalidNumberError(`"${value}" is not a correct number`);
         }
     }

@@ -93,9 +93,6 @@ export function resizeBlobImg(blob, params = {}) {
                 canvas.height = height;
                 const ctx = canvas.getContext("2d");
                 ctx.imageSmoothingQuality = "high";
-                /** @type {any} */ (ctx).mozImageSmoothingEnabled = true;
-                /** @type {any} */ (ctx).webkitImageSmoothingEnabled = true;
-                /** @type {any} */ (ctx).msImageSmoothingEnabled = true;
                 ctx.imageSmoothingEnabled = true;
 
                 // Keep src image's aspect ratio

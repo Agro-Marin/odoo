@@ -148,7 +148,7 @@ export class TimePicker extends Component {
      * @param {TimePickerProps} props
      */
     onPropsUpdated(props) {
-        if (this.suggestions.length === 0) {
+        if (!this.suggestions.length) {
             this.suggestions = this.getSuggestions(props);
         }
 

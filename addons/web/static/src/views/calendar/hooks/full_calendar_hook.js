@@ -29,7 +29,7 @@ export function useFullCalendar(refName, params) {
 
     function boundParams() {
         const newParams = {};
-        for (const key in params) {
+        for (const key of Object.keys(params)) {
             const value = params[key];
             newParams[key] =
                 typeof value === "function" ? value.bind(component) : value;

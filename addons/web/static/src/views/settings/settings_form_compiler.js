@@ -129,7 +129,7 @@ export class SettingsFormCompiler extends FormCompiler {
 
     compileButton(el, params) {
         const res = super.compileButton(el, params);
-        if (res.hasAttribute("string") && res.children.length === 0) {
+        if (res.hasAttribute("string") && !res.children.length) {
             const contentSlot = createElement("t");
             contentSlot.setAttribute("t-set-slot", "contents");
             const content = createElement("HighlightText", {

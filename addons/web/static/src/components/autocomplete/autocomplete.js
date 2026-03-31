@@ -335,7 +335,7 @@ export class AutoComplete extends Component {
                     sourceIndex += step;
                     source = this.sources[sourceIndex];
 
-                    while (source && source.isLoading) {
+                    while (source?.isLoading) {
                         sourceIndex += step;
                         source = this.sources[sourceIndex];
                     }
@@ -470,7 +470,7 @@ export class AutoComplete extends Component {
                 if (
                     this.props.autoSelect &&
                     this.state.activeSourceOption &&
-                    (this.state.navigationRev > 0 || this.inputRef.el.value.length > 0)
+                    (this.state.navigationRev > 0 || this.inputRef.el.value.length)
                 ) {
                     this.selectOption(this.activeOption);
                 }

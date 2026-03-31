@@ -128,7 +128,7 @@ export const FileModelMixin = (T) =>
                 filename: this.name,
                 unique: this.checksum,
             };
-            for (const prop in params) {
+            for (const prop of Object.keys(params)) {
                 if (!params[prop]) {
                     delete params[prop];
                 }

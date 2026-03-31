@@ -74,7 +74,7 @@ export async function loadSubViews(
         }
         // filter out *_view_ref keys from general context
         const refinedContext = {};
-        for (const key in context) {
+        for (const key of Object.keys(context)) {
             if (!key.includes("_view_ref")) {
                 refinedContext[key] = context[key];
             }

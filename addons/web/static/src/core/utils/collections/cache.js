@@ -19,7 +19,7 @@ export class Cache {
      */
     constructor(getValue, getKey) {
         /** @type {Record<string, any>} */
-        this.cache = {};
+        this.cache = Object.create(null);
         this.getKey = getKey;
         this.getValue = getValue;
     }
@@ -35,7 +35,7 @@ export class Cache {
             key = this.getKey(...path);
         } else {
             for (let i = 0; i < path.length - 1; i++) {
-                cache = cache[path[i]] = cache[path[i]] || {};
+                cache = cache[path[i]] = cache[path[i]] || Object.create(null);
             }
             key = path.at(-1);
         }
@@ -54,7 +54,7 @@ export class Cache {
 
     /** Flush the entire cache. */
     invalidate() {
-        this.cache = {};
+        this.cache = Object.create(null);
     }
 
     /**

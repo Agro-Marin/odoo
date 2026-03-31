@@ -40,8 +40,11 @@ export function extractData(record) {
  */
 export function computeM2OProps(fieldProps) {
     const computeLinkCssClass = () => {
+        if (!fieldProps.decorations) {
+            return "";
+        }
         const evalContext = fieldProps.record.evalContextWithVirtualIds;
-        for (const decorationName in fieldProps.decorations) {
+        for (const decorationName of Object.keys(fieldProps.decorations)) {
             if (
                 evaluateBooleanExpr(fieldProps.decorations[decorationName], evalContext)
             ) {

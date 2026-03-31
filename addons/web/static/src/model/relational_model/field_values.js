@@ -52,8 +52,7 @@ export function parseServerValue(field, value) {
         case "selection": {
             if (value === false) {
                 // process selection: convert false to 0, if 0 is a valid key
-                const hasKey0 = field.selection.find((option) => option[0] === 0);
-                return hasKey0 ? 0 : value;
+                return field.selection.some((opt) => opt[0] === 0) ? 0 : value;
             }
             return value;
         }
@@ -91,6 +90,8 @@ export function parseServerValue(field, value) {
         case "properties": {
             return value
                 ? value.map((property) => {
+                      // Shallow-clone to avoid mutating the server response object
+                      property = { ...property };
                       if (property.value !== undefined) {
                           property.value = parseServerValue(
                               property,
@@ -276,9 +277,9 @@ export function fromUnityToServerValues(
     activeFields,
     { withReadonly, context } = {},
 ) {
-    const { CREATE, UPDATE } = x2ManyCommands;
+    const { CREATE, UPDATE, LINK } = x2ManyCommands;
     const serverValues = {};
-    for (const fieldName in values) {
+    for (const fieldName of Object.keys(values)) {
         /** @type {any} */
         let value = values[fieldName];
         const field = fields[fieldName];
@@ -311,7 +312,14 @@ export function fromUnityToServerValues(
                             }),
                         ];
                     }
-                    return [c[0], c[1]];
+                    // Strip server-enriched record data from LINK commands.
+                    // Onchange responses include cached data as the third element
+                    // (e.g. [4, id, {display_name: ...}]) to avoid extra reads,
+                    // but this must not be sent back on save.
+                    if (c[0] === LINK && c[2] && typeof c[2] === "object") {
+                        return [LINK, c[1], false];
+                    }
+                    return c;
                 });
                 break;
             case "many2one":

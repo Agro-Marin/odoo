@@ -8,6 +8,82 @@ import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_d
 export class EvaluationError extends Error {}
 
 /**
+ * Python-compatible round() with half-to-even (banker's rounding).
+ *
+ * Unlike a naive multiply→round→divide approach, this examines the IEEE-754
+ * decimal representation of the original value. This matches CPython's dtoa-based
+ * round(), which operates on the stored double — not the decimal literal.
+ *
+ * Example: 2.675 is stored as 2.6749999999999998 (below halfway) → rounds to 2.67,
+ * while 0.45 is stored as 0.45000000000000001 (above halfway) → rounds to 0.5.
+ *
+ * @param {number} value
+ * @param {number} ndigits
+ * @returns {number}
+ */
+function _pythonRound(value, ndigits) {
+    if (!Number.isFinite(value) || value === 0) {
+        return value;
+    }
+    if (ndigits < 0) {
+        // Negative ndigits: round to nearest 10^|ndigits|.
+        // Integer powers of 10 are exact, so divide→round→multiply is safe.
+        const factor = 10 ** -ndigits;
+        return _pythonRound(value / factor, 0) * factor;
+    }
+
+    const sign = Math.sign(value);
+    const abs = Math.abs(value);
+
+    // 17 significant digits uniquely identify any IEEE-754 double, matching
+    // CPython's dtoa shortest-representation behaviour.
+    const repr = abs.toPrecision(17);
+    if (repr.includes("e")) {
+        // Extreme magnitudes (>10^17 or <10^-17): sub-ulp precision is
+        // irrelevant, fall back to simple multiply approach.
+        const factor = 10 ** ndigits;
+        return Math.round(value * factor) / factor;
+    }
+
+    const dotIdx = repr.indexOf(".");
+    const intPart = dotIdx === -1 ? repr : repr.slice(0, dotIdx);
+    const decPart = dotIdx === -1 ? "" : repr.slice(dotIdx + 1);
+
+    if (ndigits >= decPart.length) {
+        return value; // fewer stored digits than requested precision
+    }
+
+    const roundDigit = Number.parseInt(decPart[ndigits]);
+    const truncStr = ndigits === 0 ? intPart : `${intPart}.${decPart.slice(0, ndigits)}`;
+    const truncated = Number.parseFloat(truncStr);
+    const increment = 10 ** -ndigits;
+
+    if (roundDigit < 5) {
+        return sign * truncated;
+    }
+    if (roundDigit > 5) {
+        return sign * (truncated + increment);
+    }
+
+    // roundDigit === 5: check remaining digits to determine if above/below/at halfway.
+    const remaining = decPart.slice(ndigits + 1);
+    if (/[1-9]/.test(remaining)) {
+        // Digits after the '5' push the value above the halfway point → round away from zero.
+        return sign * (truncated + increment);
+    }
+
+    // Exactly at halfway — banker's round (round to nearest even).
+    const lastKeptDigit =
+        ndigits === 0
+            ? Number.parseInt(intPart[intPart.length - 1])
+            : Number.parseInt(decPart[ndigits - 1]);
+    if (lastKeptDigit % 2 === 0) {
+        return sign * truncated;
+    }
+    return sign * (truncated + increment);
+}
+
+/**
  * @param {any} iterable
  * @param {Function} func
  */
@@ -75,18 +151,20 @@ export const BUILTINS = {
 
     max(...args) {
         const values = args.slice(0, -1); // remove kwargs
-        if (values.length === 1 && Array.isArray(values[0])) {
-            return Math.max(...values[0]);
+        const items = values.length === 1 && Array.isArray(values[0]) ? values[0] : values;
+        if (items.length === 0) {
+            throw new EvaluationError("max() arg is an empty sequence");
         }
-        return Math.max(...values);
+        return Math.max(...items);
     },
 
     min(...args) {
         const values = args.slice(0, -1); // remove kwargs
-        if (values.length === 1 && Array.isArray(values[0])) {
-            return Math.min(...values[0]);
+        const items = values.length === 1 && Array.isArray(values[0]) ? values[0] : values;
+        if (items.length === 0) {
+            throw new EvaluationError("min() arg is an empty sequence");
         }
-        return Math.min(...values);
+        return Math.min(...items);
     },
 
     time: {
@@ -111,9 +189,9 @@ export const BUILTINS = {
 
     /** Return the absolute value of a number or timedelta. */
     abs(value) {
-        if (value instanceof Object && value.negate && value.isTrue) {
-            // PyTimeDelta/PyRelativeDelta: negate once if negative
-            return value.isTrue() ? value : value.negate();
+        if (value instanceof Object && value.negate && value.total_seconds) {
+            // PyTimeDelta: negate if total duration is negative
+            return value.total_seconds() >= 0 ? value : value.negate();
         }
         return Math.abs(value);
     },
@@ -128,7 +206,7 @@ export const BUILTINS = {
             if (!trimmed || !/^[+-]?\d+$/.test(trimmed)) {
                 throw new EvaluationError(`invalid literal for int() with base 10: '${value}'`);
             }
-            return parseInt(trimmed, 10);
+            return Number.parseInt(trimmed, 10);
         }
         return Math.trunc(Number(value));
     },
@@ -142,7 +220,7 @@ export const BUILTINS = {
             throw new EvaluationError(`could not convert string to float: '${value}'`);
         }
         const n = Number(value);
-        if (isNaN(n)) {
+        if (Number.isNaN(n)) {
             throw new EvaluationError(`could not convert string to float: '${value}'`);
         }
         return n;
@@ -159,15 +237,11 @@ export const BUILTINS = {
         return String(value);
     },
 
-    /** Round a number to a given number of decimal places. */
+    /** Round a number to a given number of decimal places (banker's rounding). */
     round(value, ...rest) {
         // rest includes kwargs as last element
         const ndigits = rest.length > 1 ? rest[0] : 0;
-        if (ndigits === 0) {
-            return Math.round(value);
-        }
-        const factor = 10 ** ndigits;
-        return Math.round(value * factor) / factor;
+        return _pythonRound(value, ndigits);
     },
 
     context_today() {

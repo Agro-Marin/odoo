@@ -20,11 +20,11 @@ import { shallowEqual as _shallowEqual } from "./objects.js";
  * @returns {T[][]}
  */
 function _cartesian(...args) {
-    if (args.length === 0) {
+    if (!args.length) {
         return [undefined];
     }
     const firstArray = args.shift().map((elem) => [elem]);
-    if (args.length === 0) {
+    if (!args.length) {
         return firstArray;
     }
     const result = [];
@@ -185,7 +185,7 @@ export function symmetricalDifference(iter1, iter2) {
  * @returns {T[] | T[][]}
  */
 export function cartesian(...args) {
-    if (args.length === 0) {
+    if (!args.length) {
         return [undefined];
     } else if (args.length === 1) {
         return args[0];
@@ -281,5 +281,7 @@ export function rotate(i, arr, inc = 1) {
     if (!arr.length) {
         throw new Error("Cannot rotate on an empty array");
     }
-    return (arr.length + i + inc) % arr.length;
+    // JS % preserves sign of dividend — double-mod ensures non-negative result
+    // even when (i + inc) is more negative than arr.length.
+    return ((i + inc) % arr.length + arr.length) % arr.length;
 }

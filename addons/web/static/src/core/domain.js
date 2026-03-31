@@ -25,25 +25,6 @@ import { toPyValue } from "./py_js/py_utils.js";
 export class InvalidDomainError extends Error {}
 
 /**
- * Recursively serialize non-primitive values in a domain list (e.g. PyDate,
- * PyDateTime) to their JSON representation. The Python expression evaluator
- * returns rich objects for dates; domains sent to the server must contain
- * plain strings.
- *
- * @param {any} value
- * @returns {any}
- */
-function normalizeDomainValues(value) {
-    if (Array.isArray(value)) {
-        return value.map(normalizeDomainValues);
-    }
-    if (value !== null && typeof value === "object" && typeof value.toJSON === "function") {
-        return value.toJSON();
-    }
-    return value;
-}
-
-/**
  * Javascript representation of an Odoo domain
  */
 export class Domain {
@@ -57,8 +38,8 @@ export class Domain {
         // Normalize all inputs to Domain instances and filter out empty ones
         const nonEmpty = domains
             .map((d) => (d instanceof Domain ? d : new Domain(d)))
-            .filter((d) => d.ast.value.length > 0);
-        if (nonEmpty.length === 0) {
+            .filter((d) => d.ast.value.length);
+        if (!nonEmpty.length) {
             return new Domain([]);
         }
         if (nonEmpty.length === 1) {
@@ -120,21 +101,66 @@ export class Domain {
      * @return {Domain}
      */
     static removeDomainLeaves(domain, keysToRemove) {
+        /** Return how many AST elements the subtree rooted at ``idx`` spans. */
+        function subtreeSize(elements, idx) {
+            const node = elements[idx];
+            if (node.type === 10 /* Tuple */) {
+                return 1;
+            }
+            if (node.type === 1 /* String */) {
+                if (node.value === "!") {
+                    return 1 + subtreeSize(elements, idx + 1);
+                }
+                if (node.value === "&" || node.value === "|") {
+                    const firstSize = subtreeSize(elements, idx + 1);
+                    return 1 + firstSize + subtreeSize(elements, idx + 1 + firstSize);
+                }
+            }
+            return 0;
+        }
+
+        /** True if every leaf in the subtree at ``idx`` is in keysToRemove. */
+        function isFullyRemoved(elements, idx) {
+            const node = elements[idx];
+            if (node.type === 10 /* Tuple */) {
+                return keysToRemove.includes(node.value[0].value);
+            }
+            if (node.type === 1 /* String */) {
+                if (node.value === "!") {
+                    return isFullyRemoved(elements, idx + 1);
+                }
+                if (node.value === "&" || node.value === "|") {
+                    const firstSize = subtreeSize(elements, idx + 1);
+                    return (
+                        isFullyRemoved(elements, idx + 1) &&
+                        isFullyRemoved(elements, idx + 1 + firstSize)
+                    );
+                }
+            }
+            return false;
+        }
+
+        /** Push the neutral identity value for the given operator context. */
+        function pushNeutral(operatorCtx, newDomain) {
+            if (operatorCtx === "&") {
+                newDomain.ast.value.push(...Domain.TRUE.ast.value);
+            } else if (operatorCtx === "|") {
+                newDomain.ast.value.push(...Domain.FALSE.ast.value);
+            }
+        }
+
         function processLeaf(elements, idx, operatorCtx, newDomain) {
             const leaf = elements[idx];
-            if (leaf.type === 10) {
+            if (leaf.type === 10 /* Tuple */) {
                 if (keysToRemove.includes(leaf.value[0].value)) {
-                    if (operatorCtx === "&") {
-                        newDomain.ast.value.push(...Domain.TRUE.ast.value);
-                    } else if (operatorCtx === "|") {
-                        newDomain.ast.value.push(...Domain.FALSE.ast.value);
-                    }
+                    pushNeutral(operatorCtx, newDomain);
                 } else {
                     newDomain.ast.value.push(leaf);
                 }
                 return 1;
-            } else if (leaf.type === 1) {
-                // Special case to avoid OR ('|') that can never resolve to true
+            } else if (leaf.type === 1 /* String */) {
+                // Special case: both children of OR are removed leaves —
+                // replace the whole OR+children with a single neutral value.
                 if (
                     leaf.value === "|" &&
                     elements[idx + 1].type === 10 &&
@@ -142,13 +168,23 @@ export class Domain {
                     keysToRemove.includes(elements[idx + 1].value[0].value) &&
                     keysToRemove.includes(elements[idx + 2].value[0].value)
                 ) {
-                    newDomain.ast.value.push(...Domain.TRUE.ast.value);
+                    pushNeutral(operatorCtx, newDomain);
                     return 3;
                 }
-                newDomain.ast.value.push(leaf);
                 if (leaf.value === "!") {
+                    const childSize = subtreeSize(elements, idx + 1);
+                    if (isFullyRemoved(elements, idx + 1)) {
+                        // The entire negated subtree is removed. Replace
+                        // "!" + subtree with a neutral value. Without this,
+                        // we'd emit ["!", TRUE_LEAF] = NOT(TRUE) = FALSE,
+                        // which silently filters out all records.
+                        pushNeutral(operatorCtx, newDomain);
+                        return 1 + childSize;
+                    }
+                    newDomain.ast.value.push(leaf);
                     return 1 + processLeaf(elements, idx + 1, "&", newDomain);
                 }
+                newDomain.ast.value.push(leaf);
                 const firstLeafSkip = processLeaf(
                     elements,
                     idx + 1,
@@ -167,7 +203,7 @@ export class Domain {
         }
 
         domain = new Domain(domain);
-        if (domain.ast.value.length === 0) {
+        if (!domain.ast.value.length) {
             return domain;
         }
         const newDomain = new Domain([]);
@@ -222,8 +258,7 @@ export class Domain {
      */
     toList(context) {
         try {
-            const result = evaluate(this.ast, context);
-            return normalizeDomainValues(result);
+            return evaluate(this.ast, context);
         } catch (error) {
             if (error instanceof EvaluationError) {
                 throw new InvalidDomainError(error.message, { cause: error });
@@ -315,7 +350,7 @@ function normalizeDomainAST(domain, op = "&") {
             throw new InvalidDomainError("Invalid domain AST");
         }
     }
-    if (domain.value.length === 0) {
+    if (!domain.value.length) {
         return domain;
     }
     let expected = 1;
@@ -366,24 +401,15 @@ function matchCondition(record, condition) {
     if (typeof field === "string") {
         const names = field.split(".");
         if (names.length >= 2) {
-            return matchCondition(record[names[0]], [
-                names.slice(1).join("."),
-                operator,
-                value,
-            ]);
+            const parent = record[names[0]];
+            const restField = names.slice(1).join(".");
+            if (!parent || typeof parent !== "object") {
+                // Falsy or primitive — can't traverse deeper. Resolve to false,
+                // matching Odoo server behavior for empty relational fields.
+                return matchCondition({ [restField]: false }, [restField, operator, value]);
+            }
+            return matchCondition(parent, [restField, operator, value]);
         }
-    }
-    let likeRegexp;
-    if (["like", "not like"].includes(operator)) {
-        likeRegexp = new RegExp(
-            `(.*)${escapeRegExp(value).replaceAll("%", "(.*)")}(.*)`,
-            "g",
-        );
-    } else if (["ilike", "not ilike"].includes(operator)) {
-        likeRegexp = new RegExp(
-            `(.*)${escapeRegExp(value).replaceAll("%", "(.*)")}(.*)`,
-            "gi",
-        );
     }
     const fieldValue = typeof field === "number" ? field : record[field];
     const isNot = operator.startsWith("not ");
@@ -419,29 +445,31 @@ function matchCondition(record, condition) {
             return Boolean(fieldVal.some((fv) => val.includes(fv))) !== isNot;
         }
         case "like":
-        case "not like":
+        case "not like": {
             if (fieldValue === false) {
                 return isNot;
             }
-            return Boolean(fieldValue.match(likeRegexp)) !== isNot;
+            const pattern = escapeRegExp(value).replaceAll("%", ".*");
+            return new RegExp(pattern).test(fieldValue) !== isNot;
+        }
         case "=like":
         case "not =like":
             if (fieldValue === false) {
                 return isNot;
             }
             return (
-                Boolean(
-                    new RegExp(
-                        "^" + escapeRegExp(value).replaceAll("%", ".*") + "$",
-                    ).test(fieldValue),
-                ) !== isNot
+                new RegExp(
+                    "^" + escapeRegExp(value).replaceAll("%", ".*") + "$",
+                ).test(fieldValue) !== isNot
             );
         case "ilike":
-        case "not ilike":
+        case "not ilike": {
             if (fieldValue === false) {
                 return isNot;
             }
-            return Boolean(fieldValue.match(likeRegexp)) !== isNot;
+            const pattern = escapeRegExp(value).replaceAll("%", ".*");
+            return new RegExp(pattern, "i").test(fieldValue) !== isNot;
+        }
         case "=ilike":
         case "not =ilike":
             if (fieldValue === false) {
@@ -492,7 +520,7 @@ function makeOperators(record) {
  * @returns {boolean}
  */
 function matchDomain(record, domain) {
-    if (domain.length === 0) {
+    if (!domain.length) {
         return true;
     }
     const operators = makeOperators(record);

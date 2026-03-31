@@ -87,7 +87,7 @@ export function addFieldDependencies(activeFields, fields, fieldDependencies = [
 
 function completeActiveField(activeField, extra) {
     if (extra.related) {
-        for (const fieldName in extra.related.activeFields) {
+        for (const fieldName of Object.keys(extra.related.activeFields)) {
             if (fieldName in activeField.related.activeFields) {
                 completeActiveField(
                     activeField.related.activeFields[fieldName],
@@ -104,7 +104,7 @@ function completeActiveField(activeField, extra) {
 }
 
 export function completeActiveFields(activeFields, extraActiveFields) {
-    for (const fieldName in extraActiveFields) {
+    for (const fieldName of Object.keys(extraActiveFields)) {
         const extraActiveField = {
             ...extraActiveFields[fieldName],
             invisible: "True",
@@ -183,7 +183,7 @@ export function patchActiveFields(activeField, patch) {
     // x2manys
     if (patch.related) {
         const related = activeField.related;
-        for (const fieldName in patch.related.activeFields) {
+        for (const fieldName of Object.keys(patch.related.activeFields)) {
             if (fieldName in related.activeFields) {
                 patchActiveFields(
                     related.activeFields[fieldName],
@@ -257,7 +257,7 @@ export function extractFieldsFromArchInfo({ fieldNodes, widgetNodes }, fields) {
                             fieldNode.views.default,
                             fieldNode.views.default.fields,
                         );
-                        for (const fieldName in defaultArchInfo.activeFields) {
+                        for (const fieldName of Object.keys(defaultArchInfo.activeFields)) {
                             if (fieldName in activeField.related.activeFields) {
                                 patchActiveFields(
                                     activeField.related.activeFields[fieldName],

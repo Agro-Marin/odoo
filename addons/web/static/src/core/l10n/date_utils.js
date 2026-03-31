@@ -6,7 +6,7 @@
 import { localization } from "@web/core/l10n/localization";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 
-const { DateTime } = /** @type {any} */ (luxon);
+const { DateTime } = globalThis.luxon ?? {};
 
 /**
  * Checks whether 2 given dates or date ranges are equal. Both values are allowed

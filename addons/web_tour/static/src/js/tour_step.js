@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { session } from "@web/session";
 import { utils } from "@web/ui/block/ui_service";
-import * as hoot from "@odoo/hoot-dom";
+import hoot from "@odoo/hoot-dom";
 import { pick } from "@web/core/utils/collections/objects";
 
 /**

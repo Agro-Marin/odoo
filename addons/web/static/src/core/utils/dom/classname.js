@@ -16,7 +16,7 @@
 export function addClassesToElement(el, ...classes) {
     for (const classDefinition of classes) {
         const classObj = toClassObj(classDefinition);
-        for (const className in classObj) {
+        for (const className of Object.keys(classObj)) {
             if (classObj[className]) {
                 el.classList.add(className.trim());
             }

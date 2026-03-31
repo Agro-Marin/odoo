@@ -39,13 +39,13 @@ export const nameService = {
      */
     start(env, { orm }) {
         /** @type {Record<string, Record<string, import("@web/core/utils/concurrency").Deferred>>} */
-        let cache = {};
+        let cache = Object.create(null);
         /** @type {Record<string, number[]>} */
-        const batches = {};
+        const batches = Object.create(null);
 
         /** Invalidate the entire display name cache (called on action manager updates). */
         function clearCache() {
-            cache = {};
+            cache = Object.create(null);
         }
 
         env.bus.addEventListener("ACTION_MANAGER:UPDATE", clearCache);
@@ -57,7 +57,7 @@ export const nameService = {
          */
         function getMapping(resModel) {
             if (!cache[resModel]) {
-                cache[resModel] = {};
+                cache[resModel] = Object.create(null);
             }
             return cache[resModel];
         }
@@ -68,7 +68,7 @@ export const nameService = {
          */
         function addDisplayNames(resModel, displayNames) {
             const mapping = getMapping(resModel);
-            for (const resId in displayNames) {
+            for (const resId of Object.keys(displayNames)) {
                 mapping[resId] = new Deferred();
                 mapping[resId].resolve(displayNames[resId]);
             }

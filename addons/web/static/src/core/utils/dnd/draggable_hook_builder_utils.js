@@ -135,7 +135,8 @@ export function toFunction(value) {
 /**
  * Cache containing the elements in which an attribute has been modified by a hook.
  * It is global since multiple draggable hooks can interact with the same elements.
- * @type {Record<string, Set<HTMLElement>>}
+ * Uses WeakSet so that elements removed from the DOM can be garbage-collected.
+ * @type {Record<string, WeakSet<HTMLElement>>}
  */
 const elCache = {};
 
@@ -158,7 +159,7 @@ export function saveAttribute(el, attribute) {
     };
 
     if (!(attribute in elCache)) {
-        elCache[attribute] = new Set();
+        elCache[attribute] = new WeakSet();
     }
     const cache = elCache[attribute];
 
@@ -269,7 +270,7 @@ export function makeDOMHelpers(cleanup) {
             return;
         }
         cleanup.add(saveAttribute(el, "style"));
-        for (const key in style) {
+        for (const key of Object.keys(style)) {
             const [value, priority] = String(style[key]).split(/\s*!\s*/);
             el.style.setProperty(camelToKebab(key), value, priority);
         }

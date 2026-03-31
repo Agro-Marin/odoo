@@ -215,7 +215,7 @@ function getWidthSpecs(columns) {
         let minWidth;
         let maxWidth;
         if (column.attrs && column.attrs.width) {
-            minWidth = maxWidth = parseInt(column.attrs.width.split("px")[0]);
+            minWidth = maxWidth = Number.parseInt(column.attrs.width.split("px", 10)[0]);
         } else {
             let width;
             if (column.type === "field") {
@@ -253,7 +253,7 @@ function getWidthSpecs(columns) {
  */
 function getHorizontalPadding(el) {
     const { paddingLeft, paddingRight } = getComputedStyle(el);
-    return parseFloat(paddingLeft) + parseFloat(paddingRight);
+    return Number.parseFloat(paddingLeft) + Number.parseFloat(paddingRight);
 }
 
 export function useMagicColumnWidths(tableRef, getState) {

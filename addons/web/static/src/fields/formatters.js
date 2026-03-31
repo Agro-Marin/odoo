@@ -88,7 +88,7 @@ export function formatBoolean(value) {
  * @returns {string}
  */
 export function formatChar(value, options) {
-    if (options && options.isPassword) {
+    if (options?.isPassword) {
         return "*".repeat(value ? value.length : 0);
     }
     return value || "";
@@ -286,7 +286,7 @@ export function formatMany2one(value, options) {
         result =
             displayName == null || displayName === false ? _t("Unnamed") : displayName;
     }
-    if (options && options.escape) {
+    if (options?.escape) {
         result = encodeURIComponent(result);
     }
     return result;

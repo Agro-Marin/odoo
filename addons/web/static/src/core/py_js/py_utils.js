@@ -47,6 +47,8 @@ export function toPyValue(value) {
             } else {
                 /** @type {Record<string, any>} */
                 const content = {};
+                // for...in intentional: evaluation contexts use Object.create(parentScope)
+                // and inherited keys must be flattened into the Python dict.
                 for (const key in value) {
                     content[key] = toPyValue(value[key]);
                 }
@@ -86,7 +88,7 @@ export function formatAST(ast, lbp = 0) {
         }
         case 11 /* Dictionary */: {
             const pairs = [];
-            for (const k in ast.value) {
+            for (const k of Object.keys(ast.value || {})) {
                 pairs.push(`"${k}": ${formatAST(ast.value[k])}`);
             }
             return `{` + pairs.join(", ") + `}`;
@@ -112,7 +114,7 @@ export function formatAST(ast, lbp = 0) {
         case 8 /* FunctionCall */: {
             const args = ast.args.map(formatAST);
             const kwargs = [];
-            for (const kwarg in ast.kwargs) {
+            for (const kwarg of Object.keys(ast.kwargs || {})) {
                 kwargs.push(`${kwarg} = ${formatAST(ast.kwargs[kwarg])}`);
             }
             const argStr = [...args, ...kwargs].join(", ");

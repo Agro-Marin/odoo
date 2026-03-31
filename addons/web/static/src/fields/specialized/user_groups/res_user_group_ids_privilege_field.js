@@ -54,7 +54,7 @@ class ResUserGroupIdsPrivilegeField extends Component {
     get impliedGroup() {
         const groups = this.groups;
         return (
-            groups[this.findGroupId((gid) => groups[gid].impliedByIds.length > 0)] ||
+            groups[this.findGroupId((gid) => groups[gid].impliedByIds.length)] ||
             false
         );
     }

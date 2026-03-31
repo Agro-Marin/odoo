@@ -32,7 +32,7 @@ export function getFieldsSpec(
 ) {
     const fieldsSpec = {};
     const properties = [];
-    for (const fieldName in activeFields) {
+    for (const fieldName of Object.keys(activeFields)) {
         if (fields[fieldName].relatedPropertyField) {
             continue;
         }

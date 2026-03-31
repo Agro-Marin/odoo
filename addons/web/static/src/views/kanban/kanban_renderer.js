@@ -393,7 +393,7 @@ export class KanbanRenderer extends Component {
             if (this.canCreateGroup() && !this.state.columnQuickCreateIsFolded) {
                 return false;
             }
-            if (groups.length === 0) {
+            if (!groups.length) {
                 return groupByField.type !== "many2one";
             }
         }
@@ -524,7 +524,7 @@ export class KanbanRenderer extends Component {
 
     async deleteGroup(group) {
         await this.props.list.deleteGroups([group]);
-        if (this.props.list.groups.length === 0) {
+        if (!this.props.list.groups.length) {
             this.state.columnQuickCreateIsFolded = false;
         }
     }

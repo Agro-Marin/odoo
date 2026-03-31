@@ -136,8 +136,8 @@ export class Pager extends Component {
      */
     async parse(value) {
         const [minStr, maxStr] = value.trim().split(/\s*[-\s,;]\s*/);
-        const minimum = parseInt(minStr, 10);
-        const maximum = maxStr ? parseInt(maxStr, 10) : minimum;
+        const minimum = Number.parseInt(minStr, 10);
+        const maximum = maxStr ? Number.parseInt(maxStr, 10) : minimum;
         if (this.props.updateTotal) {
             // we don't know the real total, so we can't clamp
             return { minimum: minimum - 1, maximum };
@@ -153,7 +153,7 @@ export class Pager extends Component {
     async setValue(value) {
         const { minimum, maximum } = await this.parse(value);
 
-        if (!isNaN(minimum) && !isNaN(maximum) && minimum < maximum) {
+        if (!Number.isNaN(minimum) && !Number.isNaN(maximum) && minimum < maximum) {
             this.update(minimum, maximum - minimum);
         }
     }

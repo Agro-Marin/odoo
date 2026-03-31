@@ -27,7 +27,7 @@ import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { CalendarMobileFilterPanel } from "./mobile_filter_panel/calendar_mobile_filter_panel.js";
 import { CalendarQuickCreate } from "./quick_create/calendar_quick_create.js";
 
-const { DateTime } = luxon;
+const { DateTime } = globalThis.luxon ?? {};
 
 export const SCALE_LABELS = {
     day: _t("Day"),
@@ -420,7 +420,7 @@ export class CalendarController extends Component {
     getDates(selectedCells) {
         const dates = [];
         for (const element of selectedCells) {
-            const date = luxon.DateTime.fromISO(element.dataset.date);
+            const date = globalThis.luxon.DateTime.fromISO(element.dataset.date);
             if (!(/** @type {any} */ (date).invalid)) {
                 dates.push(date);
             }
@@ -437,7 +437,7 @@ export class CalendarController extends Component {
         const ids = [];
         for (const element of selectedCells) {
             for (const event of [...element.querySelectorAll(".fc-event")]) {
-                ids.push(parseInt(event.dataset.eventId, 10));
+                ids.push(Number.parseInt(event.dataset.eventId, 10));
             }
         }
         return ids;
@@ -463,7 +463,7 @@ export class CalendarController extends Component {
                 date = this.model.date.minus({ [`${this.model.scale}s`]: 1 });
                 break;
             case "today":
-                date = luxon.DateTime.local().startOf("day");
+                date = globalThis.luxon.DateTime.local().startOf("day");
                 if (/** @type {any} */ (date).ts === this.date.startOf("day").ts) {
                     this.model.bus.trigger("SCROLL_TO_CURRENT_HOUR", false);
                 }

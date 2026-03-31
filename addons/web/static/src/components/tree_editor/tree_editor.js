@@ -217,14 +217,14 @@ export class TreeEditor extends Component {
      * @param {Tree} node
      */
     _delete(ancestors, node) {
-        if (ancestors.length === 0) {
+        if (!ancestors.length) {
             return;
         }
         const parent = ancestors.at(-1);
         const index = parent.children.indexOf(node);
         parent.children.splice(index, 1);
         ancestors = ancestors.slice(0, -1);
-        if (parent.children.length === 0) {
+        if (!parent.children.length) {
             this._delete(ancestors, parent);
         }
     }

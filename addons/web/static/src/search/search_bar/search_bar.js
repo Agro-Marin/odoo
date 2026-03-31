@@ -553,7 +553,7 @@ export class SearchBar extends Component {
                         const facets = this.env.searchModel.facets;
                         if (isFacet(navigator.activeItem.el)) {
                             this.removeFacet(facets[navigator.activeItemIndex]);
-                        } else if (facets.length > 0) {
+                        } else if (facets.length) {
                             this.removeFacet(facets.at(-1));
                         }
                     },
@@ -623,7 +623,7 @@ export class SearchBar extends Component {
                     navigator.contains(target)),
             onUpdated: (navigator) => (this.navigator = navigator),
             onItemActivated: (itemEl) =>
-                (this.lastActiveItemId = parseInt(itemEl.id, 10)),
+                (this.lastActiveItemId = Number.parseInt(itemEl.id, 10)),
             hotkeys: {
                 escape: {
                     callback: () => {

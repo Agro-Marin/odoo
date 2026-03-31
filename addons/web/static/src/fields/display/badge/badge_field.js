@@ -37,7 +37,7 @@ export class BadgeField extends Component {
             return `o_badge_color_${this.props.record.data[this.props.colorField]}`;
         }
         const evalContext = this.props.record.evalContextWithVirtualIds;
-        for (const decorationName in this.props.decorations) {
+        for (const decorationName of Object.keys(this.props.decorations)) {
             if (
                 evaluateBooleanExpr(this.props.decorations[decorationName], evalContext)
             ) {

@@ -111,27 +111,26 @@ export function fuzzyTest(pattern, string) {
  * @returns {string[]} The list of the words that matches within a defined number of errors.
  */
 export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
-    // Limit the maximum number of errors depending on the pattern length
-    // to avoid "overcorrections" into unrelated words. Always allow at
-    // least 1 correction so that a short fuzzy query still finds near-matches.
-    const maxNbrCorrection = Math.max(1, Math.round(pattern.length / errorRatio));
-    const results = [];
+    // maxNbrCorrection scales with pattern length: longer patterns tolerate
+    // more edits.  No minimum — errorRatio=100 on a short pattern yields 0,
+    // restricting results to exact substrings only.
+    const maxNbrCorrection = Math.round(pattern.length / errorRatio);
+    pattern = normalize(pattern);
+    const scored = [];
     for (const candidate of list) {
-        if (candidate.includes(pattern)) {
-            // Exact substring — always a match.
-            results.push(candidate);
-        } else if (candidate.length > pattern.length) {
-            // Only attempt Levenshtein on longer candidates: a candidate
-            // shorter or equal in length cannot meaningfully contain the
-            // pattern as a fuzzy substring, so it would produce false
-            // positives (e.g. "ape" for pattern "app").
-            const score = getLevenshteinScore(pattern, candidate);
-            if (score >= 0 && score <= maxNbrCorrection) {
-                results.push(candidate);
+        const norm = normalize(candidate);
+        if (norm.includes(pattern)) {
+            scored.push({ candidate, score: 0 });
+        } else {
+            const score = getLevenshteinScore(pattern, norm);
+            if (score <= maxNbrCorrection) {
+                scored.push({ candidate, score });
             }
         }
     }
-    return results;
+    // Best matches first; stable sort preserves input order within ties.
+    scored.sort((a, b) => a.score - b.score);
+    return scored.map((r) => r.candidate);
 }
 
 /**

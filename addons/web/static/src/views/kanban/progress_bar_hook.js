@@ -242,10 +242,9 @@ class ProgressBarState {
         if (bar.value && this.activeBars[group.serverValue]?.value !== bar.value) {
             nextActiveBar.value = bar.value;
         } else {
-            group.applyFilter(undefined).then(() => {
-                delete this.activeBars[group.serverValue];
-                group.model.notify();
-            });
+            await group.applyFilter(undefined);
+            delete this.activeBars[group.serverValue];
+            group.model.notify();
             return;
         }
         const { bars } = progressBar;
@@ -256,7 +255,7 @@ class ProgressBarState {
         );
         const proms = [];
         proms.push(
-            group.applyFilter(filterDomain).then((res) => {
+            group.applyFilter(filterDomain).then(() => {
                 const groupInfo = this.getGroupInfo(group);
                 nextActiveBar.count = groupInfo.bars.find(
                     (x) => x.value === nextActiveBar.value,
@@ -278,7 +277,7 @@ class ProgressBarState {
      * @param {Object} activeBar - The active bar selection with `value` and `aggregates`.
      * @returns {Promise<void>}
      */
-    _updateAggregateGroup(group, bars, activeBar) {
+    async _updateAggregateGroup(group, bars, activeBar) {
         const filterDomain = _createFilterDomain(
             this.progressAttributes.fieldName,
             bars,
@@ -290,24 +289,23 @@ class ProgressBarState {
         const domain = filterDomain
             ? Domain.and([group.groupDomain, filterDomain]).toList()
             : group.groupDomain;
-        return this.model.orm
-            .formattedReadGroup(resModel, domain, groupBy, aggregateSpecs, kwargs)
-            .then((groups) => {
-                if (groups.length) {
-                    const groupByField = group.groupByField;
-                    const aggrValues = _groupsToAggregateValues(
-                        groups,
-                        groupBy,
-                        fields,
-                        domain,
-                    );
-                    activeBar.aggregates = _findGroup(
-                        aggrValues,
-                        groupByField,
-                        group.serverValue,
-                    );
-                }
-            });
+        const groups = await this.model.orm.formattedReadGroup(
+            resModel, domain, groupBy, aggregateSpecs, kwargs,
+        );
+        if (groups.length) {
+            const groupByField = group.groupByField;
+            const aggrValues = _groupsToAggregateValues(
+                groups,
+                groupBy,
+                fields,
+                domain,
+            );
+            activeBar.aggregates = _findGroup(
+                aggrValues,
+                groupByField,
+                group.serverValue,
+            );
+        }
     }
 
     /**

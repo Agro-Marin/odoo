@@ -491,7 +491,7 @@ export class PivotModel extends Model {
         }
         function omitKeys(object) {
             const newObject = {};
-            for (const key in object) {
+            for (const key of Object.keys(object)) {
                 if (keep(key)) {
                     newObject[key] = object[key];
                 }

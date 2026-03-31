@@ -63,7 +63,7 @@ export function useActionLinks({ resModel, reload }) {
             keepLast.add(doAction(target.getAttribute("name"), options));
         } else {
             let views;
-            const parsedId = data.resid ? parseInt(data.resid, 10) : null;
+            const parsedId = data.resid ? Number.parseInt(data.resid, 10) : null;
             const resId = Number.isNaN(parsedId) ? null : parsedId;
             if (data.views) {
                 views = evaluateExpr(data.views);
@@ -158,7 +158,7 @@ export function useExportRecords(env, context, getDefaultExportList) {
     const _getExportedFields = async (isCompatible, parentParams) => {
         const root = model.root;
         let domain = parentParams ? [] : root.domain;
-        if (!root.isDomainSelected && root.selection.length > 0) {
+        if (!root.isDomainSelected && root.selection.length) {
             const ids = root.selection.map((e) => e.resId);
             domain = [["id", "in", ids]];
         }
@@ -193,7 +193,7 @@ export function useExportRecords(env, context, getDefaultExportList) {
                     fields: exportedFields,
                     groupby: root.groupBy,
                     ids:
-                        !root.isDomainSelected && root.selection.length > 0
+                        !root.isDomainSelected && root.selection.length
                             ? root.selection.map((e) => e.resId)
                             : false,
                     model: root.resModel,

@@ -144,7 +144,7 @@ export function buildIrFilterDescription({
 }) {
     const context = makeContext([getContext(), localContext]);
     const userContext = user.context;
-    for (const key in context) {
+    for (const key of Object.keys(context)) {
         if (key in userContext || /^search(panel)?_default_/.test(key)) {
             delete context[key];
         }

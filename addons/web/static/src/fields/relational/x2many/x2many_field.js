@@ -151,7 +151,7 @@ export class X2ManyField extends Component {
         return (
             this.props.viewMode === "kanban" &&
             this.canCreate &&
-            this.controls.length > 0
+            this.controls.length
         );
     }
 
@@ -235,7 +235,7 @@ export class X2ManyField extends Component {
                 }
                 return this.list.delete(record);
             };
-            if (this.canCreate && this.controls.length === 0) {
+            if (this.canCreate && !this.controls.length) {
                 props.addLabel = this.props.addLabel || _t("Add %s", this.field.string);
                 props.onAdd = this.onAdd.bind(this);
             }

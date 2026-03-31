@@ -104,18 +104,33 @@ function decodeStringLiteral(str, unicode) {
                         ].join(""),
                     );
                 }
-                code = parseInt(uni, 16);
-                out.push(String.fromCharCode(code));
+                code = Number.parseInt(uni, 16);
+                out.push(String.fromCodePoint(code));
                 // escape + 4 hex digits
                 i += 5;
                 continue;
             }
-            case "U":
+            case "U": {
                 if (!unicode) {
                     break;
                 }
-                // TODO: String.fromCodePoint
-                throw new TokenizerError("SyntaxError: \\U escape not implemented");
+                // \UXXXXXXXX — 8-digit Unicode code point escape
+                const codePointHex = str.slice(i + 2, i + 10);
+                if (!/[0-9a-f]{8}/i.test(codePointHex)) {
+                    throw new TokenizerError(
+                        `SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position ${i}-${i + 10}: truncated \\UXXXXXXXX escape`,
+                    );
+                }
+                const codePoint = Number.parseInt(codePointHex, 16);
+                if (codePoint > 0x10ffff) {
+                    throw new TokenizerError(
+                        `SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position ${i}-${i + 10}: illegal Unicode character`,
+                    );
+                }
+                out.push(String.fromCodePoint(codePoint));
+                i += 9; // escape + 8 hex digits
+                continue;
+            }
             case "x": {
                 // get 2 hex digits
                 const hex = str.slice(i + 2, i + 4);
@@ -134,7 +149,7 @@ function decodeStringLiteral(str, unicode) {
                         ].join(""),
                     );
                 }
-                code = parseInt(hex, 16);
+                code = Number.parseInt(hex, 16);
                 out.push(String.fromCharCode(code));
                 // skip escape + 2 hex digits
                 i += 3;
@@ -149,7 +164,7 @@ function decodeStringLiteral(str, unicode) {
                 r.lastIndex = i + 1;
                 const m = r.exec(str);
                 const oct = m[0];
-                code = parseInt(oct, 8);
+                code = Number.parseInt(oct, 8);
                 out.push(String.fromCharCode(code));
                 // skip matchlength
                 i += oct.length;
@@ -222,7 +237,7 @@ const PointFloat = group(`\\d+\\.\\d*(${Exponent})?`, `\\.\\d+(${Exponent})?`);
 // Exponent not optional when no decimal point
 const FloatNumber = group(PointFloat, `\\d+${Exponent}`);
 
-const Number = group(FloatNumber, IntNumber);
+const NumberToken = group(FloatNumber, IntNumber);
 const Operator = group(
     "\\*\\*=?",
     ">>=?",
@@ -240,10 +255,10 @@ const ContStr = group(
     "([uU])?'([^\n'\\\\]*(?:\\\\.[^\n'\\\\]*)*)'",
     '([uU])?"([^\n"\\\\]*(?:\\\\.[^\n"\\\\]*)*)"',
 );
-const PseudoToken = Whitespace + group(Number, Funny, ContStr, Name);
+const PseudoToken = Whitespace + group(NumberToken, Funny, ContStr, Name);
 /** Module-level regex — reused across tokenize() calls, reset via lastIndex. */
 const pseudoprog = new RegExp(PseudoToken, "g");
-const NumberPattern = new RegExp("^" + Number + "$");
+const NumberPattern = new RegExp("^" + NumberToken + "$");
 const StringPattern = new RegExp("^" + ContStr + "$");
 const NamePattern = new RegExp("^" + Name + "$");
 const strip = new RegExp("^" + Whitespace);
@@ -292,7 +307,7 @@ export function tokenize(str) {
         if (NumberPattern.test(token)) {
             tokens.push({
                 type: 0 /* Number */,
-                value: parseFloat(token),
+                value: Number.parseFloat(token),
             });
         } else if (StringPattern.test(token)) {
             const m = StringPattern.exec(token);

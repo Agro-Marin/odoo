@@ -176,8 +176,8 @@ export class Race {
         if (!this.currentProm) {
             this._generation++;
             const gen = this._generation;
-            const { promise, resolve, reject } = Promise.withResolvers();
-            this.currentProm = promise;
+            const { promise: raceProm, resolve, reject } = Promise.withResolvers();
+            this.currentProm = raceProm;
             this.currentPromResolver = (value) => {
                 if (this._generation !== gen) {
                     return; // stale callback from a previous race — ignore

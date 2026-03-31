@@ -302,13 +302,13 @@ export class ListArchParser {
                     : null;
 
                 const limitAttr = node.getAttribute("limit");
-                treeAttr.limit = limitAttr && parseInt(limitAttr, 10);
+                treeAttr.limit = limitAttr && Number.parseInt(limitAttr, 10);
 
                 const countLimitAttr = node.getAttribute("count_limit");
-                treeAttr.countLimit = countLimitAttr && parseInt(countLimitAttr, 10);
+                treeAttr.countLimit = countLimitAttr && Number.parseInt(countLimitAttr, 10);
 
                 const groupsLimitAttr = node.getAttribute("groups_limit");
-                treeAttr.groupsLimit = groupsLimitAttr && parseInt(groupsLimitAttr, 10);
+                treeAttr.groupsLimit = groupsLimitAttr && Number.parseInt(groupsLimitAttr, 10);
 
                 treeAttr.noOpen = exprToBoolean(node.getAttribute("no_open") || "");
                 treeAttr.rawExpand = xmlDoc.getAttribute("expand");

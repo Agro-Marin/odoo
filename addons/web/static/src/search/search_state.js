@@ -39,10 +39,10 @@ export function hasValues(section) {
     }
     switch (type) {
         case "category": {
-            return values && values.size > 1; // false item ignored
+            return values?.size > 1; // false item ignored
         }
         case "filter": {
-            return values && values.size > 0;
+            return values?.size > 0;
         }
     }
 }
@@ -131,7 +131,7 @@ export function execute(op, source, target) {
 export function extractSearchDefaults(globalContext) {
     const searchDefaults = {};
     const searchPanelDefaults = {};
-    for (const key in globalContext) {
+    for (const key of Object.keys(globalContext)) {
         const defaultValue = globalContext[key];
         const searchDefaultMatch = /^search_default_(.*)$/.exec(key);
         if (searchDefaultMatch) {

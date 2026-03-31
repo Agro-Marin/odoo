@@ -19,7 +19,7 @@ export function getFieldContext(
     rawContext = record.activeFields[fieldName].context,
 ) {
     const context = {};
-    for (const key in record.context) {
+    for (const key of Object.keys(record.context)) {
         if (
             !key.startsWith("default_") &&
             !key.startsWith("search_default_") &&

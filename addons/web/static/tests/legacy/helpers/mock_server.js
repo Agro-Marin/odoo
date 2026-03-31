@@ -733,7 +733,7 @@ export class MockServer {
             if (kwargs.context && key in kwargs.context) {
                 if (field.type === "one2many" || field.type === "many2many") {
                     const ids = kwargs.context[key] || [];
-                    result[fieldName] = ids.map((id) => [4, id]);
+                    result[fieldName] = ids.map((id) => [4, id, false]);
                 } else {
                     result[fieldName] = kwargs.context[key];
                 }
@@ -2314,7 +2314,7 @@ export class MockServer {
                     }
                 } else if (value === false) {
                     // delete all command
-                    value = [[5]];
+                    value = [[5, false, false]];
                 }
                 // interpret commands
                 for (const command of value || []) {

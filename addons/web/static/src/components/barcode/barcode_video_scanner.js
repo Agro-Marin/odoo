@@ -121,14 +121,14 @@ export class BarcodeVideoScanner extends Component {
                     divHeight / settings.height,
                 );
             }
-            this.detectorTimeout = setTimeout(this.detectCode.bind(this), 100);
+            this.detectorTimeout = browser.setTimeout(this.detectCode.bind(this), 100);
         });
 
         onWillUnmount(() => this.cleanStreamAndTimeout());
     }
 
     cleanStreamAndTimeout() {
-        clearTimeout(this.detectorTimeout);
+        browser.clearTimeout(this.detectorTimeout);
         this.detectorTimeout = null;
         if (this.stream) {
             this.stream.getTracks().forEach((track) => track.stop());
@@ -207,16 +207,16 @@ export class BarcodeVideoScanner extends Component {
             break;
         }
         if (this.stream && (!barcodeDetected || !this.props.delayBetweenScan)) {
-            this.detectorTimeout = setTimeout(this.detectCode.bind(this), 100);
+            this.detectorTimeout = browser.setTimeout(this.detectCode.bind(this), 100);
         }
     }
 
     barcodeDetected(barcode) {
         if (this.props.delayBetweenScan && !this.scanPaused) {
             this.scanPaused = true;
-            this.detectorTimeout = setTimeout(() => {
+            this.detectorTimeout = browser.setTimeout(() => {
                 this.scanPaused = false;
-                this.detectorTimeout = setTimeout(this.detectCode.bind(this), 100);
+                this.detectorTimeout = browser.setTimeout(this.detectCode.bind(this), 100);
             }, this.props.delayBetweenScan);
         }
         this.props.onResult(barcode);

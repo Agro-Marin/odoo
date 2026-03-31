@@ -116,7 +116,7 @@ export function getDefaultValues(fieldNames, fields) {
  */
 export function getTextValues(values, activeFields, fields) {
     const textValues = {};
-    for (const fieldName in values) {
+    for (const fieldName of Object.keys(values)) {
         if (!activeFields[fieldName]) {
             continue;
         }
@@ -145,7 +145,7 @@ export function computeDataContext(data, fields, textValues, resId) {
         withVirtualIds: {},
         withoutVirtualIds: {},
     };
-    for (const fieldName in data) {
+    for (const fieldName of Object.keys(data)) {
         const value = data[fieldName];
         const field = fields[fieldName];
         if (field.relatedPropertyField) {
@@ -165,7 +165,7 @@ export function computeDataContext(data, fields, textValues, resId) {
         } else if (value && field.type === "many2one") {
             dataContext[fieldName] = value.id;
         } else if (value && field.type === "many2one_reference") {
-            dataContext[fieldName] = value ? value.resId : false;
+            dataContext[fieldName] = value.resId;
         } else if (value && field.type === "reference") {
             dataContext[fieldName] = `${value.resModel},${value.resId}`;
         } else if (field.type === "properties") {

@@ -20,7 +20,7 @@ export function createFileViewer() {
         if (!file.isViewable) {
             return;
         }
-        if (files.length > 0) {
+        if (files.length) {
             const viewableFiles = files.filter((file) => file.isViewable);
             const index = viewableFiles.indexOf(file);
             registry.category("main_components").add(
@@ -34,7 +34,10 @@ export function createFileViewer() {
     }
 
     function close() {
-        registry.category("main_components").remove(fileViewerId);
+        const mainComponents = registry.category("main_components");
+        if (mainComponents.contains(fileViewerId)) {
+            mainComponents.remove(fileViewerId);
+        }
     }
     return { open, close };
 }

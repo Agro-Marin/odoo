@@ -53,7 +53,7 @@ export function url(route, queryParams, options = {}) {
     }
 
     let queryString = objectToUrlEncodedString(queryParams || {});
-    queryString = queryString.length > 0 ? `?${queryString}` : queryString;
+    queryString = queryString.length ? `?${queryString}` : queryString;
 
     // Compare the wanted url against the current origin
     const isAbsolute = ["http://", "https://", "//"].some((el) => route.startsWith(el));
@@ -96,16 +96,18 @@ export function imageUrl(
         urlParams.crop = crop;
     }
     if (unique) {
-        const { DateTime } = /** @type {any} */ (luxon);
-        if (unique instanceof DateTime) {
+        const { DateTime } = /** @type {any} */ (globalThis.luxon ?? {});
+        if (DateTime && unique instanceof DateTime) {
             urlParams.unique = unique.ts;
-        } else {
+        } else if (DateTime) {
             const dateTimeFromUnique = DateTime.fromSQL(unique);
             if (dateTimeFromUnique.isValid) {
                 urlParams.unique = dateTimeFromUnique.ts;
-            } else if (typeof unique === "string" && unique.length > 0) {
+            } else if (typeof unique === "string" && unique.length) {
                 urlParams.unique = unique;
             }
+        } else if (typeof unique === "string" && unique.length) {
+            urlParams.unique = unique;
         }
     }
     return url(route, urlParams);
@@ -165,13 +167,15 @@ export function redirect(url) {
 export function compareUrls(_url1, _url2) {
     const url1 = new URL(_url1);
     const url2 = new URL(_url2);
+    // Sort search params to compare order-independently. Using the serialized
+    // sorted string preserves duplicate keys (e.g. ?a=1&a=2) which would be
+    // collapsed by Object.fromEntries.
+    url1.searchParams.sort();
+    url2.searchParams.sort();
     return (
         url1.origin === url2.origin &&
         url1.pathname === url2.pathname &&
-        shallowEqual(
-            Object.fromEntries(url1.searchParams),
-            Object.fromEntries(url2.searchParams),
-        ) &&
+        url1.searchParams.toString() === url2.searchParams.toString() &&
         url1.hash === url2.hash
     );
 }

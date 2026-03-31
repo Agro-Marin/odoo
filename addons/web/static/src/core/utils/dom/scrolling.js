@@ -27,13 +27,13 @@ export function couldBeScrollableX(el) {
  * @returns {HTMLElement | null}
  */
 export function closestScrollableX(el) {
-    if (!el) {
-        return null;
+    while (el) {
+        if (isScrollableX(el)) {
+            return el;
+        }
+        el = el.parentElement;
     }
-    if (isScrollableX(el)) {
-        return el;
-    }
-    return closestScrollableX(el.parentElement);
+    return null;
 }
 
 export function isScrollableY(el) {
@@ -60,13 +60,13 @@ export function couldBeScrollableY(el) {
  * @returns {HTMLElement | null}
  */
 export function closestScrollableY(el) {
-    if (!el) {
-        return null;
+    while (el) {
+        if (isScrollableY(el)) {
+            return el;
+        }
+        el = el.parentElement;
     }
-    if (isScrollableY(el)) {
-        return el;
-    }
-    return closestScrollableY(el.parentElement);
+    return null;
 }
 
 /**
@@ -91,39 +91,43 @@ export function scrollTo(element, options = {}) {
 
     const scrollPromises = [];
 
+    /** Wait for scrollend, but resolve immediately if no actual scrolling occurs. */
+    function awaitScroll(targetTop) {
+        const prevTop = scrollable.scrollTop;
+        scrollable.scrollTo({ top: targetTop, behavior });
+        if (scrollable.scrollTop === prevTop) {
+            // No scroll happened (already at target) — resolve immediately.
+            // For smooth scrolling the browser may not have updated scrollTop
+            // synchronously, but if it truly was a no-op, scrollend won't fire
+            // and we'd hang. Resolve now; if a smooth scroll does start, the
+            // caller's Promise.all simply won't wait for its end — acceptable.
+            return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+            scrollable.addEventListener("scrollend", () => resolve(), {
+                once: true,
+            });
+        });
+    }
+
     if (elementRect.bottom > scrollRect.bottom && !isAnchor) {
         // The scroll place the element at the bottom border of the scrollable
         scrollPromises.push(
-            new Promise((resolve) => {
-                scrollable.addEventListener("scrollend", () => resolve(), {
-                    once: true,
-                });
-            }),
-        );
-
-        scrollable.scrollTo({
-            top:
+            awaitScroll(
                 scrollable.scrollTop +
-                elementRect.top -
-                scrollRect.bottom +
-                Math.ceil(elementRect.height) +
-                offset,
-            behavior,
-        });
+                    elementRect.top -
+                    scrollRect.bottom +
+                    Math.ceil(elementRect.height) +
+                    offset,
+            ),
+        );
     } else if (elementRect.top < scrollRect.top || isAnchor) {
         // The scroll place the element at the top of the scrollable
         scrollPromises.push(
-            new Promise((resolve) => {
-                scrollable.addEventListener("scrollend", () => resolve(), {
-                    once: true,
-                });
-            }),
+            awaitScroll(
+                scrollable.scrollTop - scrollRect.top + elementRect.top + offset,
+            ),
         );
-
-        scrollable.scrollTo({
-            top: scrollable.scrollTop - scrollRect.top + elementRect.top + offset,
-            behavior,
-        });
 
         if (options.isAnchor) {
             // If the scrollable is within a scrollable, another scroll should be done
@@ -168,15 +172,11 @@ export function compensateScrollbar(
     const style = window.getComputedStyle(el);
     // Round up to the nearest integer to be as close as possible to
     // the correct value in case of browser zoom.
-    const borderLeftWidth = Math.ceil(
-        parseFloat(style.borderLeftWidth.replace("px", "")),
-    );
-    const borderRightWidth = Math.ceil(
-        parseFloat(style.borderRightWidth.replace("px", "")),
-    );
+    const borderLeftWidth = Math.ceil(Number.parseFloat(style.borderLeftWidth));
+    const borderRightWidth = Math.ceil(Number.parseFloat(style.borderRightWidth));
     const bordersWidth = borderLeftWidth + borderRightWidth;
     const newValue =
-        parseInt(style[cssProperty]) +
+        Number.parseInt(style[cssProperty], 10) +
         scrollableEl.offsetWidth -
         scrollableEl.clientWidth -
         bordersWidth;
@@ -188,7 +188,7 @@ export function getScrollingElement(document = window.document) {
     if (isScrollableY(baseScrollingElement)) {
         return baseScrollingElement;
     }
-    const bodyHeight = parseFloat(window.getComputedStyle(document.body).height);
+    const bodyHeight = Number.parseFloat(window.getComputedStyle(document.body).height);
     for (const el of document.body.children) {
         // Search for a body child which is at least as tall as the body
         // and which has the ability to scroll if enough content in it. If

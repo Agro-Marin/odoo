@@ -36,7 +36,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         reload = true;
     }
     // before saving, abandon new invalid, untouched records in x2manys
-    for (const fieldName in record.activeFields) {
+    for (const fieldName of Object.keys(record.activeFields)) {
         const field = record.fields[fieldName];
         if (
             ["one2many", "many2many"].includes(field.type) &&
@@ -184,7 +184,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         if ("id" in record.activeFields) {
             record._values.id = records[0].id;
         }
-        for (const fieldName in record.activeFields) {
+        for (const fieldName of Object.keys(record.activeFields)) {
             const field = record.fields[fieldName];
             if (
                 ["one2many", "many2many"].includes(field.type) &&

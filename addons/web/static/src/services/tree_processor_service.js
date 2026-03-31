@@ -123,7 +123,7 @@ function simplifyTree(tree) {
             childrenByPath[child.path].elems.push(child);
         }
     }
-    for (const path in childrenByPath) {
+    for (const path of Object.keys(childrenByPath)) {
         if (childrenByPath[path].elems.length === 1) {
             continue;
         }
@@ -187,7 +187,7 @@ function _extractIdsRecursive(tree, getFieldDef, idsByModel) {
 function extractIdsFromTree(tree, getFieldDef) {
     const idsByModel = _extractIdsRecursive(tree, getFieldDef, {});
 
-    for (const resModel in idsByModel) {
+    for (const resModel of Object.keys(idsByModel)) {
         idsByModel[resModel] = unique(idsByModel[resModel]);
     }
 
@@ -390,7 +390,7 @@ export const treeProcessorService = {
                     break;
                 case "in":
                 case "not in":
-                    addParenthesis = values.length === 0;
+                    addParenthesis = !values.length;
                 // falls through
                 default:
                     join = _t("or");
@@ -421,7 +421,7 @@ export const treeProcessorService = {
             if (tree.type === "connector") {
                 // we assume that the domain tree is normalized (--> there is at least two children)
                 const childDescriptions = tree.children.map((node) =>
-                    getDomainTreeDescription(resModel, node, true),
+                    getDomainTreeDescription(resModel, node, true, limit, pathLimit),
                 );
                 const separator = tree.value === "&" ? _t("and") : _t("or");
                 const descriptions = await Promise.all(childDescriptions);

@@ -41,6 +41,8 @@ export class MainComponentsContainer extends Component {
         this.Components.entries.splice(this.Components.entries.indexOf(C), 1);
         this.render();
         // Re-throw after a microtask so Owl can finish its render cycle first.
+        // Uses Promise.resolve().then() (not queueMicrotask) so the error routes
+        // through the unhandledrejection handler → UncaughtPromiseError dialog.
         Promise.resolve().then(() => {
             throw error;
         });

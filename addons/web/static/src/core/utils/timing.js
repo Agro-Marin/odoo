@@ -15,12 +15,14 @@ import { browser } from "@web/core/browser/browser";
  */
 export function batched(callback, synchronize = () => Promise.resolve()) {
     let scheduled = false;
+    let lastArgs;
     return async (...args) => {
+        lastArgs = args;
         if (!scheduled) {
             scheduled = true;
             await synchronize();
             scheduled = false;
-            callback(...args);
+            callback(...lastArgs);
         }
     };
 }

@@ -168,9 +168,9 @@ export async function executeActionButton(
     //  - wrong default_* and search_default_* values won't give the expected result
     //  - wrong group_by values will fail and forbid rendering of the destination view
     const currentCtx = {};
-    for (const key in params.context) {
+    for (const [key, value] of Object.entries(params.context)) {
         if (key.match(CTX_KEY_REGEX) === null) {
-            currentCtx[key] = params.context[key];
+            currentCtx[key] = value;
         }
     }
     const activeCtx = { active_model: params.resModel };

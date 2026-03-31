@@ -233,13 +233,11 @@ export function getPropertyFieldInfo(propertyField) {
         attrs: {},
         relatedPropertyField,
 
-        // ??? We don t use it ? But it s in the fieldInfo of the field
         context: "{}",
         help: undefined,
         onChange: false,
         forceSave: false,
         decorations: {},
-        // ???
     };
 
     if (type === "many2one" || type === "many2many") {
@@ -479,9 +477,9 @@ export class Field extends Component {
         // generate field decorations classNames (only if field-specific decorations
         // have been defined in an attribute, e.g. decoration-danger="other_field = 5")
         // only handle the text-decoration.
-        if (fieldInfo && fieldInfo.decorations) {
+        if (fieldInfo?.decorations) {
             const { decorations } = fieldInfo;
-            for (const decoName in decorations) {
+            for (const decoName of Object.keys(decorations)) {
                 const value = evaluateBooleanExpr(
                     decorations[decoName],
                     record.evalContextWithVirtualIds,

@@ -36,7 +36,7 @@ export function findUnsetRequiredFields(
     { isInvisible, isRequired, isChildListValid },
 ) {
     const unsetRequiredFields = new Set();
-    for (const fieldName in activeFields) {
+    for (const fieldName of Object.keys(activeFields)) {
         const fieldType = fields[fieldName].type;
         if (isInvisible(fieldName) || fields[fieldName].relatedPropertyField) {
             continue;

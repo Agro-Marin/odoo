@@ -33,7 +33,7 @@ export async function resequence({
     getResId = (record) => record.id,
     context,
 }) {
-    // Find indices
+    // Find indices — movedId/targetId are datapoint IDs (d.id), not database IDs (getResId)
     const fromIndex = records.findIndex((d) => d.id === movedId);
     let toIndex = 0;
     if (targetId !== null) {

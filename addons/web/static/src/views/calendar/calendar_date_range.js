@@ -97,10 +97,10 @@ export function computeFiltersDomain(filterSections, filtersInfo) {
     }
 
     const domain = [];
-    for (const field in authorizedValues) {
+    for (const field of Object.keys(authorizedValues)) {
         domain.push([field, "in", authorizedValues[field]]);
     }
-    for (const field in avoidValues) {
+    for (const field of Object.keys(avoidValues)) {
         if (avoidValues[field].length > 0) {
             domain.push([field, "not in", avoidValues[field]]);
         }

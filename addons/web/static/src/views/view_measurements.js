@@ -52,7 +52,7 @@ export const computeReportMeasures = (
         }
     }
 
-    for (const fieldName in fieldAttrs) {
+    for (const fieldName of Object.keys(fieldAttrs)) {
         if (fieldAttrs[fieldName].string && fieldName in measures) {
             measures[fieldName].string = fieldAttrs[fieldName].string;
         }

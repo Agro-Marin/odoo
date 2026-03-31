@@ -170,8 +170,12 @@ test("should keep list item font-size on toggling list twice", async () => {
         stepFunction: (editor) => {
             toggleOrderedList(editor);
             toggleOrderedList(editor);
+            // Strip padding-inline-start from the OL — its exact value
+            // depends on font rendering and varies across environments.
+            editor.editable.querySelector("ol")?.style.removeProperty("padding-inline-start");
         },
-        contentAfter: `<ol style="padding-inline-start: 34px;"><li style="font-size: 18px;">[abc</li><li style="font-size: 32px;">def]</li></ol>`,
+        contentAfter:
+            '<ol><li style="font-size: 18px;">[abc</li><li style="font-size: 32px;">def]</li></ol>',
     });
 });
 

@@ -417,7 +417,7 @@ export class KanbanRecord extends Component {
         const renderingContext = {
             context: this.props.record.context,
             JSON,
-            luxon,
+            luxon: globalThis.luxon,
             record: this.dataState.record,
             selection_mode: this.props.forceGlobalClick,
             widget: this.dataState.widget,

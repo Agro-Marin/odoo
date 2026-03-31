@@ -88,7 +88,7 @@ export function createFilterTree(filter, result) {
                 });
                 // restore former checked state
                 const oldGroup = filter.groups && filter.groups.get(groupId);
-                groups.get(groupId).state = (oldGroup && oldGroup.state) || false;
+                groups.get(groupId).state = oldGroup?.state || false;
             }
             groups.get(groupId).values.set(value.id, value);
         }

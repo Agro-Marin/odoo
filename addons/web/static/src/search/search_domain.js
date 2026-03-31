@@ -279,5 +279,10 @@ export function computeDomain({
         domains.push(getSearchPanelDomain());
     }
     const domain = Domain.and(domains);
-    return raw ? domain : domain.toList(domainEvalContext);
+    if (raw) {
+        return domain;
+    }
+    // JSON round-trip serializes PyDate/PyDateTime via toJSON() so the
+    // returned domain contains plain strings instead of class instances.
+    return JSON.parse(JSON.stringify(domain.toList(domainEvalContext)));
 }

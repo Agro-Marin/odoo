@@ -378,7 +378,7 @@ export class Many2XAutocomplete extends Component {
     addCreateEditSuggestion({ records, request }) {
         return (
             (this.activeActions.createEdit ?? this.activeActions.create) &&
-            (request.length > 0 || records?.length === 0)
+            (request.length || records?.length === 0)
         );
     }
 
@@ -404,7 +404,7 @@ export class Many2XAutocomplete extends Component {
      */
     addStartTypingSuggestion({ request, records }) {
         return records !== null
-            ? request.length === 0 && !this.activeActions.createEdit
+            ? !request.length && !this.activeActions.createEdit
             : !this.props.value;
     }
 
@@ -435,7 +435,7 @@ export class Many2XAutocomplete extends Component {
         return {
             cssClass: "o_m2o_dropdown_option o_m2o_dropdown_option_create_edit",
             data: { slotName: "createEditItem" },
-            label: request.length > 0 ? _t("Create and edit...") : _t("Create..."),
+            label: request.length ? _t("Create and edit...") : _t("Create..."),
             onSelect: () => this.slowCreate(request),
         };
     }

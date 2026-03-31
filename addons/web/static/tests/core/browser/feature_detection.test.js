@@ -320,8 +320,8 @@ describe("maxTouchPoints", () => {
         expect(maxTouchPoints()).toBe(5);
     });
 
-    test("defaults to 1 when not available", () => {
+    test("returns 0 when not available", () => {
         patchWithCleanup(browser, { navigator: { ...browser.navigator, maxTouchPoints: 0 } });
-        expect(maxTouchPoints()).toBe(1);
+        expect(maxTouchPoints()).toBe(0);
     });
 });

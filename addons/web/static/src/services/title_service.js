@@ -33,8 +33,7 @@ export const titleService = {
          * @param {Record<string, number>} counters
          */
         function setCounters(counters) {
-            for (const key in counters) {
-                const val = counters[key];
+            for (const [key, val] of Object.entries(counters)) {
                 if (!val) {
                     delete titleCounters[key];
                 } else {
@@ -48,8 +47,7 @@ export const titleService = {
          * @param {Record<string, string | null>} parts
          */
         function setParts(parts) {
-            for (const key in parts) {
-                const val = parts[key];
+            for (const [key, val] of Object.entries(parts)) {
                 if (!val) {
                     delete titleParts[key];
                 } else {

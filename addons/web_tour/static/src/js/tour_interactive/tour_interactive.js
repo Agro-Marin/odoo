@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { tourState } from "@web_tour/js/tour_state";
 import { debounce } from "@web/core/utils/timing";
-import * as hoot from "@odoo/hoot-dom";
+import hoot from "@odoo/hoot-dom";
 import { utils } from "@web/ui/block/ui_service";
 import { TourStep } from "@web_tour/js/tour_step";
 import { MacroMutationObserver } from "@web/core/utils/macro";

@@ -485,7 +485,7 @@ export function evaluate(ast, context = {}) {
                 return ast.value.map(_evaluate);
             case 11 /* Dictionary */: {
                 const dict = {};
-                for (const key in ast.value) {
+                for (const key of Object.keys(ast.value || {})) {
                     dict[key] = _evaluate(ast.value[key]);
                 }
                 dicts.add(dict);
@@ -495,7 +495,7 @@ export function evaluate(ast, context = {}) {
                 const fnValue = _evaluate(ast.fn);
                 const args = ast.args.map(_evaluate);
                 const kwargs = {};
-                for (const kwarg in ast.kwargs) {
+                for (const kwarg of Object.keys(ast.kwargs || {})) {
                     kwargs[kwarg] = _evaluate(ast.kwargs[kwarg]);
                 }
                 if (

@@ -153,10 +153,10 @@ export function useListKeyboardNavigation(tableRef, options) {
             const gridState = getGridState?.();
             const row = cell.parentElement;
             if (gridState && row.dataset.rowIndex !== undefined) {
-                const rowIndex = parseInt(row.dataset.rowIndex, 10);
+                const rowIndex = Number.parseInt(row.dataset.rowIndex, 10);
                 const colIndex =
                     cell.dataset.colIndex !== undefined
-                        ? parseInt(cell.dataset.colIndex, 10)
+                        ? Number.parseInt(cell.dataset.colIndex, 10)
                         : [...row.children].indexOf(cell);
                 const next = gridState.moveFocus(rowIndex, colIndex, direction);
                 if (next) {

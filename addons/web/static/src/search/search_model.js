@@ -56,7 +56,7 @@ import { getIntervalOptions } from "./utils/dates.js";
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
 
-const { DateTime } = luxon;
+const { DateTime } = globalThis.luxon ?? {};
 
 /**
  * @typedef {Object} Section
@@ -276,10 +276,8 @@ export class SearchModel extends EventBus {
             this.searchDomain = /** @type {DomainListRepr} */ (
                 this._getDomain({ withSearchPanel: false })
             );
-            this.sectionsPromise = this._fetchSections(
-                this.categories,
-                this.filters,
-            ).then(() => {
+            this.sectionsPromise = (async () => {
+                await this._fetchSections(this.categories, this.filters);
                 for (const { fieldName, values } of this.filters) {
                     const filterDefaults = searchPanelDefaults[fieldName] || [];
                     for (const valueId of filterDefaults) {
@@ -289,7 +287,7 @@ export class SearchModel extends EventBus {
                         }
                     }
                 }
-            });
+            })();
             if (
                 Object.keys(searchPanelDefaults).length ||
                 this._shouldWaitForData(false)

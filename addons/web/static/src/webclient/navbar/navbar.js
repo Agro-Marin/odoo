@@ -94,6 +94,8 @@ export class NavBar extends Component {
     handleItemError(error, item) {
         // remove the faulty component
         item.isDisplayed = () => false;
+        // Uses Promise.resolve().then() (not queueMicrotask) so the error routes
+        // through the unhandledrejection handler → UncaughtPromiseError dialog.
         Promise.resolve().then(() => {
             throw error;
         });
@@ -165,7 +167,7 @@ export class NavBar extends Component {
         const initialAppSectionsExtra = this.currentAppSectionsExtra;
         const firstInitialAppSectionExtra = [...initialAppSectionsExtra].shift();
         const initialAppId =
-            firstInitialAppSectionExtra && firstInitialAppSectionExtra.appID;
+            firstInitialAppSectionExtra?.appID;
 
         // Restore (needed to get offset widths)
         const sections = [
@@ -194,7 +196,7 @@ export class NavBar extends Component {
                     const overflowingSections = sections.slice(
                         sections.indexOf(section),
                     );
-                    overflowingSections.forEach((s) => {
+                    for (const s of overflowingSections) {
                         // Hide from normal menu
                         s.classList.add("d-none");
                         // Show inside "more" menu
@@ -207,7 +209,7 @@ export class NavBar extends Component {
                             (appSection) => appSection.id.toString() === sectionId,
                         );
                         this.currentAppSectionsExtra.push(currentAppSection);
-                    });
+                    }
                     break;
                 }
                 width += section.offsetWidth;
@@ -217,7 +219,7 @@ export class NavBar extends Component {
         // ------- Final rendering -------
         const firstCurrentAppSectionExtra = [...this.currentAppSectionsExtra].shift();
         const currentAppId =
-            firstCurrentAppSectionExtra && firstCurrentAppSectionExtra.appID;
+            firstCurrentAppSectionExtra?.appID;
         if (
             initialAppSectionsExtra.length === this.currentAppSectionsExtra.length &&
             initialAppId === currentAppId

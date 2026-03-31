@@ -110,8 +110,8 @@ class EmbeddedActionsConfigHandler {
 
     /** @param {Object} newSettings - settings map to merge into local cache */
     updateEmbeddedActionsConfig(newSettings) {
-        for (const key in newSettings) {
-            this.embeddedActionsConfig[key] = newSettings[key];
+        for (const [key, value] of Object.entries(newSettings)) {
+            this.embeddedActionsConfig[key] = value;
         }
     }
 }
@@ -261,7 +261,7 @@ export class ControlPanel extends Component {
         // We use a timer to delay the display of that dropdown menu to avoid flicker issues
         useEffect(
             (el, showEmbedded) => {
-                const timer = setTimeout(() => {
+                const timer = browser.setTimeout(() => {
                     if (
                         showEmbedded &&
                         this.state.embeddedInfos.visibleEmbeddedActions.length === 1
@@ -269,7 +269,7 @@ export class ControlPanel extends Component {
                         el.querySelector(".btn[name='openEmbeddedActions']")?.click();
                     }
                 }, 100);
-                return () => clearTimeout(timer);
+                return () => browser.clearTimeout(timer);
             },
             () => [this.root.el, this.state.embeddedInfos.showEmbedded],
         );

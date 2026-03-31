@@ -2486,7 +2486,7 @@ test("quick create record in grouped on m2m (field in the form view)", async () 
     stepAllNetworkCalls();
     onRpc("web_save", ({ method, args, kwargs }) => {
         expect(args[1]).toEqual({
-            category_ids: [[4, 6]],
+            category_ids: [[4, 6, false]],
             foo: "new partner",
         });
         expect(kwargs.context.default_category_ids).toEqual([6]);

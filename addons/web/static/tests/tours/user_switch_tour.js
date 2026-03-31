@@ -69,7 +69,7 @@ registry.category("web_tour.tours").add("test_user_switch", {
         },
         {
             content: "Display the login form",
-            trigger: ".o_user_switch .fa-user-circle-o",
+            trigger: ".o_user_switch .fa-circle-user",
             run: "click",
         },
         {
@@ -144,7 +144,7 @@ registry.category("web_tour.tours").add("test_user_switch", {
         },
         {
             content: "Display the login form",
-            trigger: ".o_user_switch .fa-user-circle-o",
+            trigger: ".o_user_switch .fa-circle-user",
             run: "click",
         },
         {

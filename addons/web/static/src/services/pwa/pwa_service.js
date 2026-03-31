@@ -109,7 +109,7 @@ export const pwaService = {
         /** Remove the persisted installation state for the current scope. */
         function _removeInstallationState() {
             const ls = JSON.parse(
-                browser.localStorage.getItem("pwaService.installationState"),
+                browser.localStorage.getItem("pwaService.installationState") || "{}",
             );
             delete ls[state.startUrl];
             browser.localStorage.setItem(
@@ -189,7 +189,7 @@ export const pwaService = {
         async function getManifest() {
             if (!_manifest) {
                 const manifest = await get(
-                    document.querySelector("link[rel=manifest")?.getAttribute("href"),
+                    document.querySelector("link[rel=manifest]")?.getAttribute("href"),
                     "text",
                 );
                 _manifest = JSON.parse(manifest);

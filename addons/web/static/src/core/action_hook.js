@@ -8,6 +8,11 @@ import { onMounted, useComponent, useEffect, useExternalListener } from "@odoo/o
 /** Symbol key used to store scroll position in local action state. */
 export const scrollSymbol = Symbol("scroll");
 
+/** CSS selector for the scrollable content area within a view (with or without search panel). */
+const CONTENT_SELECTOR =
+    ".o_component_with_search_panel > .o_renderer_with_searchpanel," +
+    ".o_component_with_search_panel > .o_renderer";
+
 /**
  * Registry that holds owner-keyed callbacks.
  *
@@ -97,6 +102,8 @@ export function useSetupAction(params = {}) {
         beforeLeave,
         getGlobalState,
         getLocalState,
+        getContext,
+        getOrderBy,
         rootRef,
     } = params;
 
@@ -129,10 +136,8 @@ export function useSetupAction(params = {}) {
                 rootRef.el.scrollLeft = (scrolling.root && scrolling.root.left) || 0;
             } else if (scrolling.content) {
                 const contentEl =
-                    rootRef.el.querySelector(
-                        ".o_component_with_search_panel > .o_renderer_with_searchpanel," +
-                            ".o_component_with_search_panel > .o_renderer",
-                    ) || rootRef.el.querySelector(".o_content");
+                    rootRef.el.querySelector(CONTENT_SELECTOR) ||
+                    rootRef.el.querySelector(".o_content");
                 if (contentEl) {
                     contentEl.scrollTop = scrolling.content.top || 0;
                     contentEl.scrollLeft = scrolling.content.left || 0;
@@ -156,10 +161,8 @@ export function useSetupAction(params = {}) {
                     };
                 } else {
                     const contentEl =
-                        rootRef.el.querySelector(
-                            ".o_component_with_search_panel > .o_renderer_with_searchpanel," +
-                                ".o_component_with_search_panel > .o_renderer",
-                        ) || rootRef.el.querySelector(".o_content");
+                        rootRef.el.querySelector(CONTENT_SELECTOR) ||
+                        rootRef.el.querySelector(".o_content");
                     if (contentEl) {
                         state[scrollSymbol] = {
                             content: {
@@ -177,11 +180,11 @@ export function useSetupAction(params = {}) {
             onMounted(() => setScrollFromState());
         }
     }
-    if (__getContext__ && params.getContext) {
-        useCallbackRecorder(__getContext__, params.getContext);
+    if (__getContext__ && getContext) {
+        useCallbackRecorder(__getContext__, getContext);
     }
-    if (__getOrderBy__ && params.getOrderBy) {
-        useCallbackRecorder(__getOrderBy__, params.getOrderBy);
+    if (__getOrderBy__ && getOrderBy) {
+        useCallbackRecorder(__getOrderBy__, getOrderBy);
     }
 
     return {

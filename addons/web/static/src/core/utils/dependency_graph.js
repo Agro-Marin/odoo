@@ -54,8 +54,8 @@ export function findDependencyCycle(graph) {
         state.set(startNode, IN_STACK);
         parent.set(startNode, null);
 
-        while (stack.length > 0) {
-            const frame = stack[stack.length - 1];
+        while (stack.length) {
+            const frame = stack.at(-1);
             const node = frame[0];
             const deps = graph.get(node) || [];
 

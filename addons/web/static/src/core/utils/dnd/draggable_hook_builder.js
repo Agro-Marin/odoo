@@ -135,7 +135,7 @@ export function makeDraggableHook(hookParams) {
      */
     const computeParams = (params) => {
         const computedParams = { enable: () => true };
-        for (const prop in allAcceptedParams) {
+        for (const prop of Object.keys(allAcceptedParams)) {
             if (prop in params) {
                 if (prop === "enable") {
                     computedParams[prop] = toFunction(params[prop]);
@@ -699,7 +699,7 @@ export function makeDraggableHook(hookParams) {
             });
 
             // Basic error handling asserting that the parameters are valid.
-            for (const prop in allAcceptedParams) {
+            for (const prop of Object.keys(allAcceptedParams)) {
                 const type = typeof params[prop];
                 const acceptedTypes = allAcceptedParams[prop].map((t) =>
                     t.name.toLowerCase(),

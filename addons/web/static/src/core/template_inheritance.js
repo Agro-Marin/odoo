@@ -13,6 +13,10 @@ const TCTX = "t-translation-context";
  * @param {Node} node
  */
 function getTranslationContext(node) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+        // Reached the root without finding a translation context.
+        return translationContext ?? "";
+    }
     const el = /** @type {Element} */ (node);
     if (el.hasAttribute(TCTX)) {
         return el.getAttribute(TCTX);
@@ -77,7 +81,7 @@ export function deepClone(node) {
  */
 function addBefore(target, operation) {
     const nodes = getNodes(target, operation);
-    if (nodes.length === 0) {
+    if (!nodes.length) {
         return;
     }
     const { previousSibling } = target;
@@ -339,9 +343,7 @@ function replace(root, target, operation) {
             break;
         }
         case "inner":
-            while (target.firstChild) {
-                target.removeChild(target.lastChild);
-            }
+            target.replaceChildren();
             for (const node of [...operation.childNodes]) {
                 setTranslationContext(node);
                 target.append(node);

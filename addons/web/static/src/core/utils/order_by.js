@@ -27,7 +27,7 @@ export function stringToOrderBy(string) {
         return [];
     }
     return string.split(",").map((order) => {
-        const splitOrder = order.trim().split(" ");
+        const splitOrder = order.trim().split(/\s+/);
         if (splitOrder.length === 2) {
             return {
                 name: splitOrder[0],

@@ -39,7 +39,7 @@ export function getRandomBool() {
 /** @returns {any} Luxon DateTime near today (±60 days) */
 export function getRandomDate() {
     const delta = Math.floor((Math.random() - Math.random()) * DATE_DELTA);
-    return luxon.DateTime.local().plus({ hours: delta });
+    return globalThis.luxon.DateTime.local().plus({ hours: delta });
 }
 
 /**
@@ -63,7 +63,7 @@ export function getRandomInt(max) {
  * @returns {string | number | false}
  */
 export function getRandomSelectionValue(field) {
-    if (field.selection.length > 0) {
+    if (field.selection.length) {
         return getRandomArrayEl(field.selection)[0];
     }
     return false;

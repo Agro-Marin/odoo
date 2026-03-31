@@ -63,7 +63,12 @@ export const errorService = {
                 );
             }
             let originalError = uncaughtError;
+            const seen = new Set();
             while (originalError instanceof Error && "cause" in originalError) {
+                if (seen.has(originalError)) {
+                    break; // circular cause chain
+                }
+                seen.add(originalError);
                 originalError = originalError.cause;
             }
             for (const [name, handler] of registry
@@ -96,7 +101,7 @@ export const errorService = {
             const { colno, error, filename, lineno, message } = ev;
             // We never want to display the following ResizeObserver error to the end-user. It
             // simply indicates that the browser delayed notifications to the next frame to prevent
-            // infinite loop, which is how he's supposed to behave. However, it would be interesting
+            // infinite loop, which is how it's supposed to behave. However, it would be interesting
             // to track places from where this error could be thrown, and try to fix them.
             // https://trackjs.com/javascript-errors/resizeobserver-loop-completed-with-undelivered-notifications/
             const resizeObserverError =
@@ -106,11 +111,16 @@ export const errorService = {
                 return;
             }
             const isRedactedError = !filename && !lineno && !colno;
-            const isThirdPartyScriptError =
-                isRedactedError ||
-                // Firefox doesn't hide details of errors occuring in third-party scripts, check origin explicitly
-                (isBrowserFirefox() &&
-                    new URL(filename).origin !== window.location.origin);
+            let isThirdPartyScriptError = isRedactedError;
+            if (!isRedactedError && isBrowserFirefox() && filename) {
+                // Firefox doesn't hide details of errors occurring in third-party scripts, check origin explicitly.
+                try {
+                    isThirdPartyScriptError =
+                        new URL(filename).origin !== window.location.origin;
+                } catch {
+                    // filename is not a valid URL (inline script, eval, etc.) — not third-party
+                }
+            }
             // Don't display error dialogs for third party script errors unless we are in debug mode
             if (isThirdPartyScriptError && !odoo.debug) {
                 return;

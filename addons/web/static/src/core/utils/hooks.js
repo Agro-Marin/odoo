@@ -61,7 +61,7 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
     }
     function isFocusable(el) {
         if (!el) {
-            return;
+            return false;
         }
         if (!uiService.activeElement || uiService.activeElement.contains(el)) {
             return true;
@@ -213,13 +213,15 @@ export function useService(serviceName) {
  * @returns {void}
  */
 export function useSpellCheck({ refName } = {}) {
-    const elements = [];
     const ref = useRef(refName || "spellcheck");
     function toggleSpellcheck(ev) {
         ev.target.spellcheck = document.activeElement === ev.target;
     }
     useEffect(
         (el) => {
+            // Collect managed elements per effect run to avoid leaking stale
+            // DOM references across re-runs.
+            const elements = [];
             if (el) {
                 const inputs =
                     ["INPUT", "TEXTAREA"].includes(el.nodeName) || el.isContentEditable
@@ -297,14 +299,20 @@ export function useForwardRefToParent(refName) {
  */
 export function useOwnedDialogs() {
     const dialogService = useService("dialog");
-    const cbs = [];
+    const closers = new Set();
     onWillUnmount(() => {
-        cbs.forEach((cb) => cb());
+        closers.forEach((close) => close());
+        closers.clear();
     });
     const addDialog = (...args) => {
-        const close = /** @type {any} */ (dialogService).add(...args);
-        cbs.push(close);
-        return close;
+        const originalClose = /** @type {any} */ (dialogService).add(...args);
+        // Wrap so we can auto-remove from the set when the dialog closes naturally.
+        const wrappedClose = () => {
+            closers.delete(wrappedClose);
+            originalClose();
+        };
+        closers.add(wrappedClose);
+        return wrappedClose;
     };
     return addDialog;
 }

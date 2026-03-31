@@ -588,7 +588,7 @@ export class RelationalModel extends Model {
                             groupBy: nextLevelGroupBy,
                             groups: {},
                             limit:
-                                nextLevelGroupBy.length === 0
+                                !nextLevelGroupBy.length
                                     ? this.initialLimit
                                     : this.initialGroupsLimit ||
                                       this.Class.DEFAULT_GROUP_LIMIT,
@@ -657,15 +657,14 @@ export class RelationalModel extends Model {
         ]);
         if (config.currentGroups && config.currentGroups.params === params) {
             const currentGroups = config.currentGroups.groups;
+            const newGroupValues = new Set(groups.map((g) => JSON.stringify(g.value)));
             currentGroups.forEach((group, index) => {
                 if (
                     config.groups[group.value] &&
-                    !groups.some(
-                        (g) => JSON.stringify(g.value) === JSON.stringify(group.value),
-                    )
+                    !newGroupValues.has(JSON.stringify(group.value))
                 ) {
                     const aggregates = { ...group.aggregates };
-                    for (const key in aggregates) {
+                    for (const key of Object.keys(aggregates)) {
                         // the `array_agg_distinct` aggregator's value is an array
                         aggregates[key] = Array.isArray(aggregates[key]) ? [] : 0;
                     }

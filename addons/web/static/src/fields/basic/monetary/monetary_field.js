@@ -58,7 +58,7 @@ export class MonetaryField extends Component {
             this.props.record.fields[this.props.name].currency_field ||
             "currency_id";
         const currency = this.props.record.data[currencyField];
-        return currency && currency.id;
+        return currency?.id;
     }
     /** @returns {import("@web/services").Currency | null} */
     get currency() {

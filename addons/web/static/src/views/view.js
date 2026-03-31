@@ -428,7 +428,7 @@ export class View extends Component {
             viewProps.useSampleModel = evaluateBooleanExpr(sample);
         }
 
-        for (const key in props) {
+        for (const key of Object.keys(props)) {
             if (!STANDARD_PROPS.includes(key)) {
                 viewProps[key] = props[key];
             }
@@ -483,7 +483,7 @@ export class View extends Component {
             // would have unwanted effects.
             const viewDisplay = deepCopy(descr.display);
             const display = { ...this.withSearchProps.display };
-            for (const key in viewDisplay) {
+            for (const key of Object.keys(viewDisplay)) {
                 if (typeof display[key] === "object") {
                     Object.assign(display[key], viewDisplay[key]);
                 } else if (!(key in display) || display[key]) {
@@ -493,11 +493,11 @@ export class View extends Component {
             this.withSearchProps.display = display;
         }
 
-        if (defaultGroupBy && defaultGroupBy.length) {
+        if (defaultGroupBy?.length) {
             this.withSearchProps.defaultGroupBy = defaultGroupBy;
         }
 
-        for (const key in this.withSearchProps) {
+        for (const key of Object.keys(this.withSearchProps)) {
             if (!(key in WithSearch.props)) {
                 delete this.withSearchProps[key];
             }

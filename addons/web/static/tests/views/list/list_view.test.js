@@ -191,11 +191,12 @@ class Currency extends models.Model {
         ],
     });
     inverse_rate = fields.Float();
+    date = fields.Date();
     rate_date = fields.Date();
 
     _records = [
-        { id: 1, name: "USD", symbol: "$", position: "before", inverse_rate: 1, rate_date: "2025-06-13" },
-        { id: 2, name: "EUR", symbol: "€", position: "after", inverse_rate: 0.5, rate_date: "2025-06-13" },
+        { id: 1, name: "USD", symbol: "$", position: "before", inverse_rate: 1, date: "2025-06-13", rate_date: "2025-06-13" },
+        { id: 2, name: "EUR", symbol: "€", position: "after", inverse_rate: 0.5, date: "2025-06-13", rate_date: "2025-06-13" },
     ];
 }
 
@@ -5645,7 +5646,7 @@ test.tags("desktop");
 test(`editable list: updating list state while invisible`, async () => {
     Foo._onChanges = {
         bar(record) {
-            record.o2m = [[5], [0, null, { display_name: "Whatever" }]];
+            record.o2m = [[5, false, false], [0, null, { display_name: "Whatever" }]];
         },
     };
 
@@ -12118,7 +12119,7 @@ test(`multi edition: many2many field required field`, async () => {
         expect.step("web_save");
         // can't write on record 4 as it would make it invalid
         expect(args[0]).toEqual([1, 2, 3]);
-        expect(args[1]).toEqual({ m2m: [[3, 1]] });
+        expect(args[1]).toEqual({ m2m: [[3, 1, false]] });
     });
     await mountView({
         resModel: "foo",
@@ -12194,7 +12195,7 @@ test(`multi edition: many2many field required field (edited field is invalid)`, 
         expect.step("web_save");
         // can't write on record 4 as it would make it invalid
         expect(args[0]).toEqual([1, 2, 3]);
-        expect(args[1]).toEqual({ m2m: [[3, 1]] });
+        expect(args[1]).toEqual({ m2m: [[3, 1, false]] });
     });
     await mountView({
         resModel: "foo",

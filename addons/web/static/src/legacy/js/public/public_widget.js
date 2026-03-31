@@ -256,7 +256,7 @@ const EventDispatcherMixin = Object.assign({}, ParentedMixin, {
         if (Object.keys(this.custom_events || {}).length === 0) {
             return;
         }
-        for (const key in this.custom_events) {
+        for (const key of Object.keys(this.custom_events)) {
             if (!Object.hasOwn(this.custom_events, key)) {
                 continue;
             }

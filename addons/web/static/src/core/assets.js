@@ -4,6 +4,7 @@
 /** @module @web/core/assets - Lazy-loads CSS/JS asset bundles into documents with caching */
 
 import { Component, onWillStart, whenReady, xml } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
 
 import { registry } from "./registry.js";
@@ -169,41 +170,41 @@ export const assets = {
         for (const [key, value] of Object.entries(session.bundle_params || {})) {
             url.searchParams.set(key, value);
         }
-        const promise = fetch(url)
-            .then(async (response) => {
-                const cssLibs = [];
-                const jsLibs = [];
-                let esmSpecifiers = null;
-                if (!response.bodyUsed) {
-                    const result = await response.json();
-                    if (result.is_esm) {
-                        // ESM bundle: specifiers resolved via import map
-                        esmSpecifiers = result.specifiers || [];
-                        for (const { src, type } of Object.values(result.files || {})) {
-                            if (type === "link" && src) {
-                                cssLibs.push(src);
-                            } else if (type === "script" && src) {
-                                jsLibs.push(src);
-                            }
+        // The promise is stored in the cache synchronously (before it resolves)
+        // so concurrent calls for the same bundle share a single fetch.
+        const promise = (async () => {
+            const response = await fetch(url);
+            const cssLibs = [];
+            const jsLibs = [];
+            let esmSpecifiers = null;
+            if (!response.bodyUsed) {
+                const result = await response.json();
+                if (result.is_esm) {
+                    esmSpecifiers = result.specifiers || [];
+                    for (const { src, type } of Object.values(result.files || {})) {
+                        if (type === "link" && src) {
+                            cssLibs.push(src);
+                        } else if (type === "script" && src) {
+                            jsLibs.push(src);
                         }
-                    } else {
-                        for (const { src, type } of Object.values(result)) {
-                            if (type === "link" && src) {
-                                cssLibs.push(src);
-                            } else if (type === "script" && src) {
-                                jsLibs.push(src);
-                            }
+                    }
+                } else {
+                    for (const { src, type } of Object.values(result)) {
+                        if (type === "link" && src) {
+                            cssLibs.push(src);
+                        } else if (type === "script" && src) {
+                            jsLibs.push(src);
                         }
                     }
                 }
-                return { cssLibs, jsLibs, esmSpecifiers };
-            })
-            .catch((reason) => {
-                cacheMap.delete(bundleName);
-                throw new AssetsLoadingError(`The loading of ${url} failed`, {
-                    cause: reason,
-                });
+            }
+            return { cssLibs, jsLibs, esmSpecifiers };
+        })().catch((reason) => {
+            cacheMap.delete(bundleName);
+            throw new AssetsLoadingError(`The loading of ${url} failed`, {
+                cause: reason,
             });
+        });
         cacheMap.set(bundleName, promise);
         return promise;
     },
@@ -219,7 +220,7 @@ export const assets = {
      * @param {Boolean} [options.js=true] apply bundle js on targetDoc
      * @returns {Promise<void[]>}
      */
-    loadBundle(bundleName, { targetDoc = document, css = true, js = true } = {}) {
+    async loadBundle(bundleName, { targetDoc = document, css = true, js = true } = {}) {
         if (typeof bundleName !== "string") {
             throw new Error(
                 `loadBundle(bundleName:string) accepts only bundleName argument as a string ! Not ${JSON.stringify(
@@ -227,27 +228,26 @@ export const assets = {
                 )} as ${typeof bundleName}`,
             );
         }
-        return getBundle(bundleName).then(({ cssLibs, jsLibs, esmSpecifiers }) => {
-            const promises = [];
-            if (css && cssLibs) {
-                promises.push(
-                    ...cssLibs.map((url) => assets.loadCSS(url, { targetDoc })),
-                );
-            }
-            if (js && esmSpecifiers) {
-                // ESM bundle: use dynamic import() which respects the
-                // page's import map for specifier resolution.
-                promises.push(assets.loadESMBundle(esmSpecifiers));
-            }
-            // Also load non-ESM files (XML template bundles, legacy JS)
-            // via the classic path — these are still needed alongside ESM.
-            if (js && jsLibs && jsLibs.length) {
-                promises.push(
-                    ...jsLibs.map((url) => assets.loadJS(url, { targetDoc })),
-                );
-            }
-            return Promise.all(promises);
-        });
+        const { cssLibs, jsLibs, esmSpecifiers } = await getBundle(bundleName);
+        const promises = [];
+        if (css && cssLibs) {
+            promises.push(
+                ...cssLibs.map((url) => assets.loadCSS(url, { targetDoc })),
+            );
+        }
+        if (js && esmSpecifiers) {
+            // ESM bundle: use dynamic import() which respects the
+            // page's import map for specifier resolution.
+            promises.push(assets.loadESMBundle(esmSpecifiers));
+        }
+        // Also load non-ESM files (XML template bundles, legacy JS)
+        // via the classic path — these are still needed alongside ESM.
+        if (js && jsLibs && jsLibs.length) {
+            promises.push(
+                ...jsLibs.map((url) => assets.loadJS(url, { targetDoc })),
+            );
+        }
+        return Promise.all(promises);
     },
 
     /**
@@ -294,7 +294,7 @@ export const assets = {
                 if (retryCount < assets.retries.count) {
                     const delay =
                         assets.retries.delay + assets.retries.extraDelay * retryCount;
-                    await new Promise((res) => setTimeout(res, delay));
+                    await new Promise((res) => browser.setTimeout(res, delay));
                     linkEl.remove();
                     loadCSS(url, { retryCount: retryCount + 1, targetDoc })
                         .then(resolve)
