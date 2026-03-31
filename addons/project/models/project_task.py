@@ -2459,14 +2459,14 @@ class ProjectTask(models.Model):
         ])
         existing_map = {}
         for res in all_existing:
-            existing_map.setdefault(res.res_id, self.env["resource.reservation"])
+            existing_map.setdefault(res.res_id, Reservation.browse())
             existing_map[res.res_id] |= res
 
         to_create = []
-        to_delete = self.env["resource.reservation"]
+        to_delete = Reservation.browse()
 
         for task in self:
-            existing = existing_map.get(task.id, self.env["resource.reservation"])
+            existing = existing_map.get(task.id, Reservation.browse())
             date_start = task[start_field]
             date_end = task[end_field]
 
@@ -2503,7 +2503,7 @@ class ProjectTask(models.Model):
                     to_create.append(vals)
 
             # Stale reservations for resources no longer assigned
-            to_delete |= self.env["resource.reservation"].browse(
+            to_delete |= Reservation.browse(
                 [r.id for r in existing_by_resource.values()]
             )
 

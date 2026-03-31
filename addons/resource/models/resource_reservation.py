@@ -187,7 +187,7 @@ class ResourceReservation(models.Model):
         )
 
         if not reservation_vals_list:
-            existing.unlink()
+            existing.sudo().unlink()
             return self.browse()
 
         # Reconcile by resource_id
@@ -205,7 +205,7 @@ class ResourceReservation(models.Model):
                 "res_id": record.id,
             }
             if res_id in existing_by_resource:
-                existing_by_resource[res_id].write(base_vals)
+                existing_by_resource[res_id].sudo().write(base_vals)
             else:
                 to_create.append(base_vals)
 
@@ -216,7 +216,7 @@ class ResourceReservation(models.Model):
 
         created = self.sudo().create(to_create) if to_create else self.browse()
         if to_delete:
-            to_delete.unlink()
+            to_delete.sudo().unlink()
 
         return (existing - to_delete) | created
 
