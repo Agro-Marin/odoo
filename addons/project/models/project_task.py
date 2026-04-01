@@ -2459,14 +2459,14 @@ class ProjectTask(models.Model):
         ])
         existing_map = {}
         for res in all_existing:
-            existing_map.setdefault(res.res_id, Reservation.browse())
+            existing_map.setdefault(res.res_id, self.env["resource.reservation"])
             existing_map[res.res_id] |= res
 
         to_create = []
-        to_delete = Reservation.browse()
+        to_delete = self.env["resource.reservation"]
 
         for task in self:
-            existing = existing_map.get(task.id, Reservation.browse())
+            existing = existing_map.get(task.id, self.env["resource.reservation"])
             date_start = task[start_field]
             date_end = task[end_field]
 
@@ -2503,14 +2503,14 @@ class ProjectTask(models.Model):
                     to_create.append(vals)
 
             # Stale reservations for resources no longer assigned
-            to_delete |= Reservation.browse(
+            to_delete |= self.env["resource.reservation"].browse(
                 [r.id for r in existing_by_resource.values()]
             )
 
         if to_create:
             Reservation.create(to_create)
         if to_delete:
-            to_delete.unlink()
+            to_delete.sudo().unlink()
 
     def action_view_schedule(self):
         """Open the reservation calendar filtered to this task's assignees."""
