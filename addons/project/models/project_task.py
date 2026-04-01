@@ -2408,8 +2408,8 @@ class ProjectTask(models.Model):
 
     def _compute_reservation_ids(self):
         """Virtual reverse One2many via res_model/res_id."""
-        Reservation = self.env["resource.reservation"].sudo()
-        all_reservations = Reservation.search([
+        reservation_sudo = self.env["resource.reservation"].sudo()
+        all_reservations = reservation_sudo.search([
             ("res_model", "=", "project.task"),
             ("res_id", "in", self.ids),
         ])
@@ -2422,8 +2422,8 @@ class ProjectTask(models.Model):
 
     def _compute_schedule_conflict_count(self):
         """Sum overlap counts from linked reservations."""
-        Reservation = self.env["resource.reservation"].sudo()
-        all_reservations = Reservation.search([
+        reservation_sudo = self.env["resource.reservation"].sudo()
+        all_reservations = reservation_sudo.search([
             ("res_model", "=", "project.task"),
             ("res_id", "in", self.ids),
         ])
@@ -2452,8 +2452,8 @@ class ProjectTask(models.Model):
         if not start_field:
             return
 
-        Reservation = self.env["resource.reservation"].sudo()
-        all_existing = Reservation.search([
+        reservation_sudo = self.env["resource.reservation"].sudo()
+        all_existing = reservation_sudo.search([
             ("res_model", "=", "project.task"),
             ("res_id", "in", self.ids),
         ])
@@ -2508,7 +2508,7 @@ class ProjectTask(models.Model):
             )
 
         if to_create:
-            Reservation.create(to_create)
+            reservation_sudo.create(to_create)
         if to_delete:
             to_delete.sudo().unlink()
 
