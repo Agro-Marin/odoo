@@ -1,3 +1,5 @@
+# Part of Odoo. See LICENSE file for full copyright and licensing details.
+
 import contextlib
 import re
 import uuid
@@ -46,15 +48,6 @@ SVG_DUR_TIMECOUNT_VAL_REGEX = (
 CSS_ANIMATION_RATIO_REGEX = (
     r"(--animation_ratio: (?P<ratio>\d*(\.\d+)?));"
 )
-
-
-def _get_shape_svg(self, module, *segments):
-    shape_path = opj(module, 'static', *segments)
-    try:
-        with file_open(shape_path, 'r', filter_ext=('.svg',)) as file:
-            return file.read()
-    except FileNotFoundError:
-        raise werkzeug.exceptions.NotFound()
 
 
 def get_existing_attachment(IrAttachment, vals):
@@ -106,13 +99,13 @@ class HTML_Editor(http.Controller):
             if colorMatch:
                 css_color_value = value
                 # Check that color is hex or rgb(a) to prevent arbitrary injection
-                if not re.match(r'(?i)^%s$|^%s$' % (regex_hex, regex_rgba), css_color_value.replace(' ', '')):
+                if not re.match(rf'(?i)^{regex_hex}$|^{regex_rgba}$', css_color_value.replace(' ', '')):
                     if re.match('^o-color-([1-5])$', css_color_value):
                         if not bundle_css:
                             bundle = 'web.assets_frontend'
                             asset = request.env["ir.qweb"]._get_asset_bundle(bundle)
                             bundle_css = asset.css().index_content
-                        color_search = re.search(r'(?i)--%s:\s+(%s|%s)' % (css_color_value, regex_hex, regex_rgba), bundle_css)
+                        color_search = re.search(rf'(?i)--{css_color_value}:\s+({regex_hex}|{regex_rgba})', bundle_css)
                         if not color_search:
                             raise werkzeug.exceptions.BadRequest()
                         css_color_value = color_search.group(1)
@@ -124,7 +117,7 @@ class HTML_Editor(http.Controller):
 
         color_mapping = {default_palette[palette_number]: color for color, palette_number in user_colors}
         # create a case-insensitive regex to match all the colors to replace, eg: '(?i)(#3AADAA)|(#7C6576)'
-        regex = '(?i)%s' % '|'.join('(%s)' % color for color in color_mapping.keys())
+        regex = '(?i)' + '|'.join(f'({color})' for color in color_mapping)
 
         def subber(match):
             key = match.group().upper()
@@ -231,8 +224,8 @@ class HTML_Editor(http.Controller):
             url = tools.html_escape(attachment.local_url)
             views = Views.search([
                 "|",
-                ('arch_db', 'like', '"%s"' % url),
-                ('arch_db', 'like', "'%s'" % url)
+                ('arch_db', 'like', f'"{url}"'),
+                ('arch_db', 'like', f"'{url}'")
             ])
 
             if views:
@@ -333,7 +326,7 @@ class HTML_Editor(http.Controller):
             # Find attachment by url. There can be multiple matches because of default
             # snippet images referencing the same image in /static/, so we limit to 1
             attachment = request.env['ir.attachment'].search([
-                '|', ('url', '=like', src), ('url', '=like', '%s?%%' % src),
+                '|', ('url', '=like', src), ('url', '=like', f'{src}?%'),
                 ('mimetype', 'in', list(SUPPORTED_IMAGE_MIMETYPES.keys())),
             ], limit=1)
         if not attachment:
@@ -368,11 +361,7 @@ class HTML_Editor(http.Controller):
                 if mimetype not in SUPPORTED_IMAGE_MIMETYPES:
                     return {'error': format_error_msg}
                 if not name:
-                    name = '%s-%s%s' % (
-                        datetime.now().strftime('%Y%m%d%H%M%S'),
-                        str(uuid.uuid4())[:6],
-                        SUPPORTED_IMAGE_MIMETYPES[mimetype],
-                    )
+                    name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}{SUPPORTED_IMAGE_MIMETYPES[mimetype]}"
                 data = image_process(data, size=(width, height), quality=quality, verify_resolution=True)
             except (ValueError, UserError) as e:
                 # When UserError thrown, browser considers file input an
@@ -443,7 +432,7 @@ class HTML_Editor(http.Controller):
                 if 'image/webp' in per_type:
                     resized = attachment.create_unique([{
                         'name': attachment.name,
-                        'description': 'resize: %s' % size,
+                        'description': f'resize: {size}',
                         'datas': per_type['image/webp'],
                         'res_id': reference_id,
                         'res_model': 'ir.attachment',
@@ -477,7 +466,7 @@ class HTML_Editor(http.Controller):
             return attachment.image_src
 
         attachment.generate_access_token()
-        return '%s?access_token=%s' % (attachment.image_src, attachment.access_token)
+        return f'{attachment.image_src}?access_token={attachment.access_token}'
 
     @http.route(['/web_editor/save_library_media', '/html_editor/save_library_media'], type='jsonrpc', auth='user', methods=['POST'])
     def save_library_media(self, media):
@@ -501,14 +490,14 @@ class HTML_Editor(http.Controller):
             'dbuuid': ICP.get_param('database.uuid'),
             'media_ids': media_ids,
         }
-        response = requests.post('%s/media-library/1/download_urls' % library_endpoint, data=params)
+        response = requests.post(f'{library_endpoint}/media-library/1/download_urls', data=params)
         if response.status_code != requests.codes.ok:
-            raise Exception(_("ERROR: couldn't get download urls from media library."))
+            raise UserError(_("Could not get download URLs from the media library."))
 
         slug = request.env['ir.http']._slug
-        for id, url in response.json().items():
+        for media_id, url in response.json().items():
             req = requests.get(url)
-            name = '_'.join([media[id]['query'], url.split('/')[-1]])
+            name = '_'.join([media[media_id]['query'], url.split('/')[-1]])
             IrAttachment = request.env['ir.attachment']
             attachment_data = {
                 'name': name,
@@ -523,9 +512,9 @@ class HTML_Editor(http.Controller):
             # ok because svgs come from whitelisted origin
             if not attachment:
                 attachment = IrAttachment.with_user(SUPERUSER_ID).create(attachment_data)
-            if media[id]['is_dynamic_svg']:
-                colorParams = urlencode(media[id]['dynamic_colors'])
-                attachment['url'] = '/html_editor/shape/illustration/%s?%s' % (slug(attachment), colorParams)
+            if media[media_id]['is_dynamic_svg']:
+                colorParams = urlencode(media[media_id]['dynamic_colors'])
+                attachment['url'] = f'/html_editor/shape/illustration/{slug(attachment)}?{colorParams}'
             attachments.append(attachment._get_media_info())
 
         return attachments
@@ -576,7 +565,7 @@ class HTML_Editor(http.Controller):
             )
         return request.make_response(svg, [
             ('Content-type', 'image/svg+xml'),
-            ('Cache-control', 'max-age=%s' % http.STATIC_CACHE_LONG),
+            ('Cache-control', f'max-age={http.STATIC_CACHE_LONG}'),
         ])
 
     @http.route(['/web_editor/image_shape/<string:img_key>/<module>/<path:filename>', '/html_editor/image_shape/<string:img_key>/<module>/<path:filename>'], type='http', auth="public", website=True)
@@ -612,11 +601,11 @@ class HTML_Editor(http.Controller):
         svg, _ = self._update_svg_colors(kwargs, etree.tostring(root, pretty_print=True).decode('utf-8'))
         # Add image in base64 inside the shape.
         uri = image_data_uri(b64encode(image))
-        svg = svg.replace('<image xlink:href="', '<image xlink:href="%s' % uri)
+        svg = svg.replace('<image xlink:href="', f'<image xlink:href="{uri}')
 
         return request.make_response(svg, [
             ('Content-type', 'image/svg+xml'),
-            ('Cache-control', 'max-age=%s' % http.STATIC_CACHE_LONG),
+            ('Cache-control', f'max-age={http.STATIC_CACHE_LONG}'),
         ])
 
     @http.route(["/web_editor/generate_text", "/html_editor/generate_text"], type="jsonrpc", auth="user")
@@ -647,7 +636,12 @@ class HTML_Editor(http.Controller):
 
     @http.route(["/web_editor/bus_broadcast", "/html_editor/bus_broadcast"], type="jsonrpc", auth="user")
     def bus_broadcast(self, model_name, field_name, res_id, bus_data):
+        if model_name not in request.env:
+            raise werkzeug.exceptions.BadRequest()
+
         document = request.env[model_name].browse([res_id])
+        if not document.exists():
+            raise werkzeug.exceptions.NotFound()
 
         document.check_access('read')
         document.check_access('write')
@@ -692,9 +686,9 @@ class HTML_Editor(http.Controller):
 
             record_id = int(words.pop())
             action_name = words.pop()
-            if (action_name.startswith('m-') or '.' in action_name) and action_name in request.env and not request.env[action_name]._abstract:
-                # if path format is `odoo/<model>/<record_id>` so we use `action_name` as model name
-                model_name = action_name.removeprefix('m-')
+            model_name = action_name.removeprefix('m-')
+            if (action_name.startswith('m-') or '.' in action_name) and model_name in request.env and not request.env[model_name]._abstract:
+                # path format is `odoo/<model>/<record_id>` — use as model name
                 model = request.env[model_name].with_context(context)
             else:
                 action = Actions.sudo().search([('path', '=', action_name)])
@@ -719,7 +713,7 @@ class HTML_Editor(http.Controller):
                 result['display_name'] = record.display_name
 
             return result
-        except (MissingError) as e:
+        except MissingError as e:
             return {'error_msg': _("Link preview is not available because %s, please check if your url is correct", str(e))}
         # catch all other exceptions and return the error message to display in the console but not blocking the flow
         except Exception as e:  # noqa: BLE001
@@ -730,7 +724,7 @@ class HTML_Editor(http.Controller):
         ICP = request.env['ir.config_parameter'].sudo()
         endpoint = ICP.get_param('html_editor.media_library_endpoint', DEFAULT_LIBRARY_ENDPOINT)
         params['dbuuid'] = ICP.get_param('database.uuid')
-        response = requests.post('%s/media-library/1/search' % endpoint, data=params, timeout=5)
+        response = requests.post(f'{endpoint}/media-library/1/search', data=params, timeout=5)
         if response.status_code == requests.codes.ok and response.headers['content-type'] == 'application/json':
             return response.json()
         else:

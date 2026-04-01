@@ -26,12 +26,13 @@ class IrAttachment(models.Model):
     image_height = fields.Integer(compute='_compute_image_size')
     original_id = fields.Many2one('ir.attachment', string="Original (unoptimized, unresized) attachment", index='btree_not_null')
 
+    @api.depends('url', 'checksum')
     def _compute_local_url(self):
         for attachment in self:
             if attachment.url:
                 attachment.local_url = attachment.url
             else:
-                attachment.local_url = '/web/image/%s?unique=%s' % (attachment.id, attachment.checksum)
+                attachment.local_url = f'/web/image/{attachment.id}?unique={attachment.checksum}'
 
     @api.depends('mimetype', 'url', 'name')
     def _compute_image_src(self):
@@ -47,7 +48,7 @@ class IrAttachment(models.Model):
                     attachment.image_src = attachment.url
                 else:
                     name = quote(attachment.name)
-                    attachment.image_src = '/web/image/%s-redirect/%s' % (attachment.id, name)
+                    attachment.image_src = f'/web/image/{attachment.id}-redirect/{name}'
             else:
                 # Adding unique in URLs for cache-control
                 unique = attachment.checksum[:8]
@@ -55,10 +56,10 @@ class IrAttachment(models.Model):
                     # For attachments-by-url, unique is used as a cachebuster. They
                     # currently do not leverage max-age headers.
                     separator = '&' if '?' in attachment.url else '?'
-                    attachment.image_src = '%s%sunique=%s' % (attachment.url, separator, unique)
+                    attachment.image_src = f'{attachment.url}{separator}unique={unique}'
                 else:
                     name = quote(attachment.name)
-                    attachment.image_src = '/web/image/%s-%s/%s' % (attachment.id, unique, name)
+                    attachment.image_src = f'/web/image/{attachment.id}-{unique}/{name}'
 
     @api.depends('datas')
     def _compute_image_size(self):
