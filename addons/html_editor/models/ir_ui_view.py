@@ -94,7 +94,7 @@ class IrUiView(models.Model):
             return False
 
         arch = etree.Element('data')
-        xpath = etree.Element('xpath', expr="//*[hasclass('oe_structure')][@id='{}']".format(el.get('id')), position="replace")
+        xpath = etree.Element('xpath', expr=f"//*[hasclass('oe_structure')][@id='{el.get('id')}']", position="replace")
         arch.append(xpath)
         attributes = self._get_cleaned_non_editing_attributes(el.attrib.items())
         structure = etree.Element(el.tag, attrib=attributes)
@@ -105,9 +105,9 @@ class IrUiView(models.Model):
 
         vals = {
             'inherit_id': self.id,
-            'name': '%s (%s)' % (self.name, el.get('id')),
+            'name': f"{self.name} ({el.get('id')})",
             'arch': etree.tostring(arch, encoding='unicode'),
-            'key': '%s_%s' % (self.key, el.get('id')),
+            'key': f"{self.key}_{el.get('id')}",
             'type': 'qweb',
             'mode': 'extension',
         }
@@ -155,13 +155,12 @@ class IrUiView(models.Model):
         field_to = record_to._fields[name_field_to]
         record_to._check_field_access(field_to, 'write')
 
-        error_callable_msg = "'translate' property of field %r is not callable"
         if not callable(field_from.translate):
-            raise TypeError(error_callable_msg % field_from)
+            raise TypeError(f"'translate' property of field {field_from!r} is not callable")
         if not callable(field_to.translate):
-            raise TypeError(error_callable_msg % field_to)
+            raise TypeError(f"'translate' property of field {field_to!r} is not callable")
         if not field_to.store:
-            raise ValueError("Field %r is not stored" % field_to)
+            raise ValueError(f"Field {field_to!r} is not stored")
 
         # This will also implicitly check for `read` access rights
         if not record_to[name_field_to] or not any(records_from.mapped(name_field_from)):
@@ -224,7 +223,7 @@ class IrUiView(models.Model):
             return False
         if len(arch1) != len(arch2):
             return False
-        return all(self._are_archs_equal(arch1, arch2) for arch1, arch2 in zip(arch1, arch2))
+        return all(self._are_archs_equal(child1, child2) for child1, child2 in zip(arch1, arch2))
 
     @api.model
     def _get_allowed_root_attrs(self):
@@ -314,16 +313,11 @@ class IrUiView(models.Model):
                 else:
                     el.getparent().replace(el, empty)
 
-        # TODO: in master, remove this.
-        # This bit of code patches a view. Patching of this view is necessary
-        # for some xpath in the following views if the view
-        # `website.footer_copyright_company_name` has been COW after:
-        #   - `website.template_footer_mega`
-        #   - `website.template_footer_mega_columns`
-        #   - `website.template_footer_mega_links`
-        # The patch consists of adding the class `col-md` to the divs with
-        # `col-sm` in the footer of the view `web.frontend_layout`, which is
-        # the grand-parent of `website.layout`
+        # Workaround: ensure `col-md` is present on footer copyright divs.
+        # The base templates now include `col-md` via XPath (see
+        # website.footer_copyright_company_name), but COW'd copies from
+        # pre-fix databases may still have only `col-sm`. This patches the
+        # ancestor view at save time so layout doesn't break.
         if self.key in {
             'website.footer_copyright_company_name',
             'website.template_footer_mega',
@@ -433,7 +427,7 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_snippet_addition_view_key(self, template_key, key):
-        return '%s.%s' % (template_key, key)
+        return f'{template_key}.{key}'
 
     @api.model
     def _snippet_save_view_values_hook(self):
@@ -463,13 +457,13 @@ class IrUiView(models.Model):
             the snippet to save
         """
         app_name = template_key.split('.')[0]
-        snippet_key = '%s_%s' % (snippet_key, uuid.uuid4().hex)
-        full_snippet_key = '%s.%s' % (app_name, snippet_key)
+        snippet_key = f'{snippet_key}_{uuid.uuid4().hex}'
+        full_snippet_key = f'{app_name}.{snippet_key}'
 
         # find available name
         current_website = self.env['website'].browse(self.env.context.get('website_id'))
         website_domain = Domain(current_website.website_domain())
-        used_names = self.search(Domain('name', '=like', '%s%%' % name) & website_domain).mapped('name')
+        used_names = self.search(Domain('name', '=like', f'{name}%') & website_domain).mapped('name')
         name = self._find_available_name(name, used_names)
 
         # html to xml to add '/' at the end of self closing tags like br, ...
@@ -513,13 +507,13 @@ class IrUiView(models.Model):
             'key': self._get_snippet_addition_view_key(template_key, snippet_key),
             'inherit_id': custom_section.id,
             'type': 'qweb',
-            'arch': """
-                <data inherit_id="%s">
+            'arch': f"""
+                <data inherit_id="{template_key}">
                     <xpath expr="//snippets[@id='snippet_custom']" position="inside">
-                        <t t-snippet="%s" t-thumbnail="%s"/>
+                        <t t-snippet="{full_snippet_key}" t-thumbnail="{thumbnail_url}"/>
                     </xpath>
                 </data>
-            """ % (template_key, full_snippet_key, thumbnail_url),
+            """,
         }
         snippet_addition_view_values.update(self._snippet_save_view_values_hook())
         self.create(snippet_addition_view_values)

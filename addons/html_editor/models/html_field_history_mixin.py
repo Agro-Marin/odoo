@@ -55,7 +55,7 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
         if not vals_contain_versioned_fields:
             return write_result
 
-        # allow mutlti record write
+        # allow multi record write
         for rec in self:
             new_revisions = False
             fields_data = self.env[rec._name]._fields

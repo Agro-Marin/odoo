@@ -47,55 +47,55 @@ class TestController(HttpCase):
         self.assertEqual(200, response.status_code, 'Expect response')
         self.assertEqual(b'Hello world', response.content, 'Expect raw content')
 
-        def test_02_illustration_shape(self):
-            self.authenticate('admin', 'admin')
-            # SVG with all replaceable colors.
-            svg = b"""
-    <svg viewBox="0 0 400 400">
-      <rect width="300" height="300" style="fill:#3AADAA;" />
-      <rect x="20" y="20" width="300" height="300" style="fill:#7C6576;" />
-      <rect x="40" y="40" width="300" height="300" style="fill:#F6F6F6;" />
-      <rect x="60" y="60" width="300" height="300" style="fill:#FFFFFF;" />
-      <rect x="80" y="80" width="300" height="300" style="fill:#383E45;" />
-    </svg>
-            """
-            attachment = self.env['ir.attachment'].create({
-                'name': 'test.svg',
-                'mimetype': 'image/svg+xml',
-                'datas': binascii.b2a_base64(svg, newline=False),
-                'public': True,
-                'res_model': 'ir.ui.view',
-                'res_id': 0,
-            })
-            # Shape illustration with slug.
-            slug = self.env['ir.http']._slug
-            url = '/html_editor/shape/illustration/%s' % slug(attachment)
-            palette = 'c1=%233AADAA&c2=%237C6576&&c3=%23F6F6F6&&c4=%23FFFFFF&&c5=%23383E45'
-            attachment['url'] = '%s?%s' % (url, palette)
+    def test_02_illustration_shape(self):
+        self.authenticate('admin', 'admin')
+        # SVG with all replaceable colors.
+        svg = b"""
+<svg viewBox="0 0 400 400">
+  <rect width="300" height="300" style="fill:#3AADAA;" />
+  <rect x="20" y="20" width="300" height="300" style="fill:#7C6576;" />
+  <rect x="40" y="40" width="300" height="300" style="fill:#F6F6F6;" />
+  <rect x="60" y="60" width="300" height="300" style="fill:#FFFFFF;" />
+  <rect x="80" y="80" width="300" height="300" style="fill:#383E45;" />
+</svg>
+        """
+        attachment = self.env['ir.attachment'].create({
+            'name': 'test.svg',
+            'mimetype': 'image/svg+xml',
+            'datas': binascii.b2a_base64(svg, newline=False),
+            'public': True,
+            'res_model': 'ir.ui.view',
+            'res_id': 0,
+        })
+        # Shape illustration with slug.
+        slug = self.env['ir.http']._slug
+        url = '/html_editor/shape/illustration/%s' % slug(attachment)
+        palette = 'c1=%233AADAA&c2=%237C6576&&c3=%23F6F6F6&&c4=%23FFFFFF&&c5=%23383E45'
+        attachment['url'] = '%s?%s' % (url, palette)
 
-            response = self.url_open(url)
-            self.assertEqual(200, response.status_code, 'Expect response')
-            self.assertEqual(svg, response.content, 'Expect unchanged SVG')
+        response = self.url_open(url)
+        self.assertEqual(200, response.status_code, 'Expect response')
+        self.assertEqual(svg, response.content, 'Expect unchanged SVG')
 
-            response = self.url_open(url + '?c1=%23ABCDEF')
-            self.assertEqual(200, response.status_code, 'Expect response')
-            self.assertEqual(len(svg), len(response.content), 'Expect same length as original')
-            self.assertTrue('ABCDEF' in str(response.content), 'Expect patched c1')
-            self.assertTrue('3AADAA' not in str(response.content), 'Old c1 should not be there anymore')
+        response = self.url_open(url + '?c1=%23ABCDEF')
+        self.assertEqual(200, response.status_code, 'Expect response')
+        self.assertEqual(len(svg), len(response.content), 'Expect same length as original')
+        self.assertTrue('ABCDEF' in str(response.content), 'Expect patched c1')
+        self.assertTrue('3AADAA' not in str(response.content), 'Old c1 should not be there anymore')
 
-            # Shape illustration without slug.
-            url = '/html_editor/shape/illustration/noslug'
-            attachment['url'] = url
+        # Shape illustration without slug.
+        url = '/html_editor/shape/illustration/noslug'
+        attachment['url'] = url
 
-            response = self.url_open(url)
-            self.assertEqual(200, response.status_code, 'Expect response')
-            self.assertEqual(svg, response.content, 'Expect unchanged SVG')
+        response = self.url_open(url)
+        self.assertEqual(200, response.status_code, 'Expect response')
+        self.assertEqual(svg, response.content, 'Expect unchanged SVG')
 
-            response = self.url_open(url + '?c1=%23ABCDEF')
-            self.assertEqual(200, response.status_code, 'Expect response')
-            self.assertEqual(len(svg), len(response.content), 'Expect same length as original')
-            self.assertTrue('ABCDEF' in str(response.content), 'Expect patched c1')
-            self.assertTrue('3AADAA' not in str(response.content), 'Old c1 should not be there anymore')
+        response = self.url_open(url + '?c1=%23ABCDEF')
+        self.assertEqual(200, response.status_code, 'Expect response')
+        self.assertEqual(len(svg), len(response.content), 'Expect same length as original')
+        self.assertTrue('ABCDEF' in str(response.content), 'Expect patched c1')
+        self.assertTrue('3AADAA' not in str(response.content), 'Old c1 should not be there anymore')
 
     def test_03_get_image_info(self):
         gif_base64 = "R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs="
@@ -214,7 +214,8 @@ class TestController(HttpCase):
                 headers=self.headers
             )
             self.assertEqual(200, response_page_with_desc.status_code)
-            self.assertTrue('"description": "Mocked page description"' in response_page_with_desc.text)
+            result = response_page_with_desc.json()['result']
+            self.assertEqual(result.get('description'), 'Mocked page description')
 
             # Check metadata for a URL that points to a valid frontend page with
             # no page description set
@@ -228,7 +229,7 @@ class TestController(HttpCase):
                 headers=self.headers
             )
             self.assertEqual(200, response_page_without_desc.status_code)
-            self.assertTrue('"result": {}' in response_page_without_desc.text)
+            self.assertEqual(response_page_without_desc.json()['result'], {})
 
             response_page_without_desc = self.url_open(
                 '/html_editor/link_preview_internal',
@@ -240,8 +241,9 @@ class TestController(HttpCase):
                 headers=self.headers
             )
             self.assertEqual(200, response_page_without_desc.status_code)
-            self.assertTrue('"result": {}' in response_page_without_desc.text)
-            self.assertFalse('error_msg' in response_page_without_desc.text)
+            result = response_page_without_desc.json()['result']
+            self.assertEqual(result, {})
+            self.assertNotIn('error_msg', result)
 
             # Check metadata for a URL that points to an invalid/unknown page
             invalid_page = self.url_open(
@@ -254,7 +256,7 @@ class TestController(HttpCase):
                 headers=self.headers
             )
             self.assertEqual(200, invalid_page.status_code)
-            self.assertTrue('"result": {}' in invalid_page.text)
+            self.assertEqual(invalid_page.json()['result'], {})
 
         # Attempt to retrieve metadata for path format `odoo/<model>/<record_id>`
         response_model_record = self.url_open(

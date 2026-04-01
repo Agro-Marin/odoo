@@ -31,7 +31,7 @@ from odoo.tools.misc import file_open, get_lang, babel_locale_parse
 
 REMOTE_CONNECTION_TIMEOUT = 2.5
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 class IrQweb(models.AbstractModel):
@@ -261,7 +261,7 @@ class IrQwebFieldMany2one(models.AbstractModel):
     @api.model
     def from_html(self, model, field, element):
         Model = self.env[element.get('data-oe-model')]
-        id = int(element.get('data-oe-id'))
+        record_id = int(element.get('data-oe-id'))
         M2O = self.env[field.comodel_name]
         field_name = element.get('data-oe-field')
         many2one_id = int(element.get('data-oe-many2one-id'))
@@ -269,13 +269,13 @@ class IrQwebFieldMany2one(models.AbstractModel):
         allow_reset = element.get('data-oe-many2one-allowreset')
         if allow_reset and not many2one_id:
             # Reset the id of the many2one
-            Model.browse(id).write({field_name: False})
+            Model.browse(record_id).write({field_name: False})
             return None
 
         record = many2one_id and M2O.browse(many2one_id)
         if record and record.exists():
             # save the new id of the many2one
-            Model.browse(id).write({field_name: many2one_id})
+            Model.browse(record_id).write({field_name: many2one_id})
 
         return None
 
@@ -350,7 +350,7 @@ class IrQwebFieldDatetime(models.AbstractModel):
 
             lg = get_lang(self.env, self.env.user.lang)
             locale = babel_locale_parse(lg.code)
-            babel_format = value_format = posix_to_ldml('%s %s' % (lg.date_format, lg.time_format), locale=locale)
+            babel_format = value_format = posix_to_ldml(f'{lg.date_format} {lg.time_format}', locale=locale)
             tz = record.env.context.get('tz') or self.env.user.tz
 
             if isinstance(value, str):
@@ -390,7 +390,7 @@ class IrQwebFieldDatetime(models.AbstractModel):
 
                 dt = user_tz.localize(dt).astimezone(utc)
             except Exception:  # noqa: BLE001
-                logger.warning(
+                _logger.warning(
                     "Failed to convert the value for a field of the model"
                     " %s back from the user's timezone (%s) to UTC",
                     model, tz_name,
@@ -423,8 +423,7 @@ class IrQwebFieldSelection(models.AbstractModel):
             if value == v:
                 return k
 
-        raise ValueError("No value found for label %s in selection %s" % (
-                         value, selection))
+        raise ValueError(f"No value found for label {value} in selection {selection}")
 
 
 class IrQwebFieldHtml(models.AbstractModel):
@@ -481,7 +480,7 @@ class IrQwebFieldImage(models.AbstractModel):
     _description = 'Qweb Field Image'
     _inherit = ['ir.qweb.field.image']
 
-    local_url_re = re.compile(r'^/(?P<module>[^]]+)/static/(?P<rest>.+)$')
+    local_url_re = re.compile(r'^/(?P<module>[^/]+)/static/(?P<rest>.+)$')
     redirect_url_re = re.compile(r'\/web\/image\/\d+-redirect\/')
 
     @api.model
@@ -529,12 +528,12 @@ class IrQwebFieldImage(models.AbstractModel):
                 f.seek(0)
                 return base64.b64encode(f.read())
         except Exception:  # noqa: BLE001
-            logger.exception("Failed to load local image %r", url)
+            _logger.exception("Failed to load local image %r", url)
             return None
 
     def load_remote_url(self, url):
         if url.startswith('data:'):
-            logger.debug("Cannot load binary data url %r", url)
+            _logger.debug("Cannot load binary data url %r", url)
             return None
         try:
             # should probably remove remote URLs entirely:
@@ -552,7 +551,7 @@ class IrQwebFieldImage(models.AbstractModel):
         # We're catching all exceptions because Pillow's exceptions are
         # directly inheriting from Exception.
         except Exception:  # noqa: BLE001
-            logger.warning("Failed to load remote image %r", url, exc_info=True)
+            _logger.warning("Failed to load remote image %r", url, exc_info=True)
             return None
 
         # don't use original data in case weird stuff was smuggled in, with
@@ -690,7 +689,7 @@ def _wrap(element, output, wrapper=''):
     """ Recursively extracts text from ``element`` (via _element_to_text), and
     wraps it all in ``wrapper``. Extracted text is added to ``output``
 
-    :type wrapper: basestring | int
+    :type wrapper: str | int
     """
     output.append(wrapper)
     if element.text:

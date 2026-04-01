@@ -6,6 +6,8 @@ from odoo.exceptions import AccessDenied, AccessError
 
 
 class IrWebsocket(models.AbstractModel):
+    """Extend websocket to handle editor collaboration channels."""
+
     _inherit = 'ir.websocket'
 
     def _build_bus_channel_list(self, channels):
