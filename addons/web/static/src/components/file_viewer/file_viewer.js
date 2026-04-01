@@ -264,7 +264,7 @@ export class FileViewer extends Component {
                     <head>
                         <script>
                             function onloadImage() {
-                                setTimeout('printImage()', 10);
+                                setTimeout(printImage, 10);
                             }
                             function printImage() {
                                 window.print();

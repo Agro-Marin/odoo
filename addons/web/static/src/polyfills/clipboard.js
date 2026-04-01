@@ -100,7 +100,7 @@ async function write(items) {
     selection.addRange(range);
 
     const onCopy = (ev) => {
-        for (const type in strItem) {
+        for (const type of Object.keys(strItem)) {
             ev.clipboardData.setData(type, strItem[type]);
         }
         ev.preventDefault();

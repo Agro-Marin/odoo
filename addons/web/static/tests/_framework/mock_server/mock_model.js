@@ -146,23 +146,33 @@ function convertToOnChange(model, values, specification) {
             )[0];
         } else if (isX2MField(field)) {
             const coModel = getRelation(field);
-            for (const cmd of val) {
+            // Clone commands to avoid mutating caller's original arrays
+            values[fname] = val.map((cmd) => {
                 switch (cmd[0]) {
                     case 0: // CREATE
                     case 1: // UPDATE
-                        cmd[2] = convertToOnChange(
-                            coModel,
-                            cmd[2],
-                            specification[fname].fields || {},
-                        );
-                        break;
-                    case 4: // LINK_TO
-                        cmd[2] = coModel.web_read(
+                        return [
+                            cmd[0],
                             cmd[1],
-                            specification[fname].fields || {},
-                        )[0];
+                            convertToOnChange(
+                                coModel,
+                                { ...cmd[2] },
+                                specification[fname].fields || {},
+                            ),
+                        ];
+                    case 4: // LINK_TO
+                        return [
+                            cmd[0],
+                            cmd[1],
+                            coModel.web_read(
+                                cmd[1],
+                                specification[fname].fields || {},
+                            )[0],
+                        ];
+                    default:
+                        return [...cmd];
                 }
-            }
+            });
         } else if (field.type === "reference" && val) {
             const [modelName, id] = getReferenceValue(val);
             const result = model.env[modelName].web_read(
@@ -545,7 +555,7 @@ function isValidCommand(command) {
     if (command.length > 1 && !(id === false || Number.isInteger(id))) {
         return false;
     }
-    if (command.length > 2 && typeof data !== "object") {
+    if (command.length > 2 && data !== false && typeof data !== "object") {
         return false;
     }
     return command.length <= 3;
@@ -3875,7 +3885,7 @@ export class Model extends Array {
                     }
                 } else if (value === false) {
                     // delete all command
-                    value = [[5]];
+                    value = [[5, false, false]];
                 }
                 // interpret commands
                 for (const command of value || []) {
@@ -4068,7 +4078,7 @@ export class ServerModel extends Model {
 }
 
 export const Command = {
-    clear: () => [5],
+    clear: () => [5, false, false],
     /**
      * @param {Partial<ModelRecord>} values
      */
@@ -4076,19 +4086,19 @@ export const Command = {
     /**
      * @param {number} id
      */
-    delete: (id) => [2, id],
+    delete: (id) => [2, id, false],
     /**
      * @param {number} id
      */
-    link: (id) => [4, id],
+    link: (id) => [4, id, false],
     /**
      * @param {number[]} ids
      */
-    set: (ids) => [6, 0, ids],
+    set: (ids) => [6, false, ids],
     /**
      * @param {number} id
      */
-    unlink: (id) => [3, id],
+    unlink: (id) => [3, id, false],
     /**
      *
      * @param {number} id

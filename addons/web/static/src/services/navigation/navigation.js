@@ -242,7 +242,7 @@ export class Navigator {
 
         if (didUpdate) {
             const activeItemIndex =
-                oldActiveItem && oldActiveItem.el.isConnected
+                oldActiveItem?.el.isConnected
                     ? this.items.findIndex((item) => item.el === oldActiveItem.el)
                     : -1;
             const focusedElementIndex = this.items.findIndex(
@@ -276,7 +276,7 @@ export class Navigator {
     }
 
     registerHotkeys() {
-        if (this._hotkeyRemoves.length > 0) {
+        if (this._hotkeyRemoves.length) {
             return;
         }
 

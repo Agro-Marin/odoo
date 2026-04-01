@@ -5,7 +5,7 @@
 
 import { localization } from "@web/core/l10n/localization";
 
-const { DateTime } = luxon;
+const { DateTime } = globalThis.luxon ?? {};
 
 const NUMERAL_MAPS = [
     "٠١٢٣٤٥٦٧٨٩", // Arabic
@@ -188,10 +188,10 @@ export function parseTime(value, parseSeconds) {
     let second = 0;
 
     const parse = (str) => {
-        if (str.length === 0) {
+        if (!str.length) {
             return 0;
         } else if (/^[\d]+$/.test(str)) {
-            return parseInt(str, 10);
+            return Number.parseInt(str, 10);
         } else {
             return NaN;
         }

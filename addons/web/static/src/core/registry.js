@@ -128,7 +128,7 @@ export class Registry extends EventBus {
             const elem = this.content[key];
             previousSequence = elem && elem[0];
         }
-        sequence = sequence === undefined ? previousSequence || 50 : sequence;
+        sequence = sequence ?? previousSequence ?? 50;
         this.content[key] = [sequence, value];
         const payload = { operation: "add", key, value };
         this.trigger("UPDATE", payload);
@@ -206,12 +206,16 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Remove an item from the registry
+     * Remove an item from the registry.
+     * No-op if the key does not exist.
      *
      * @param {string} key
      */
     remove(key) {
-        const value = this.content[key];
+        if (!(key in this.content)) {
+            return;
+        }
+        const value = this.content[key][1];
         delete this.content[key];
         const payload = { operation: "delete", key, value };
         this.trigger("UPDATE", payload);
@@ -259,6 +263,13 @@ export const registry = new Registry();
  * OWL hook that provides a reactive view of a registry's entries.
  * Re-renders the component when entries are added or removed.
  *
+ * The returned ``entries`` array is a mutable reactive copy — callers like
+ * {@link MainComponentsContainer.handleComponentError} may splice it directly
+ * to remove faulty entries without touching the underlying registry.
+ *
+ * Uses incremental updates (not full replacement) so that entries removed
+ * locally by error handlers are not restored by subsequent registry changes.
+ *
  * @template T
  * @param {Registry<T>} registry
  * @returns {{ entries: [string, GetRegistryItemShape<T>][] }}
@@ -267,26 +278,17 @@ export function useRegistry(registry) {
     const state = useState({ entries: [...registry.getEntries()] });
     const listener = ({ detail }) => {
         const index = state.entries.findIndex(([k]) => k === detail.key);
-        if (detail.operation === "add" && index === -1) {
-            // New key: insert at the correct sorted position.
+        if (detail.operation === "add") {
             const newEntries = registry.getEntries();
             const newIndex = newEntries.findIndex(([k]) => k === detail.key);
-            if (newIndex === newEntries.length - 1) {
-                state.entries.push(newEntries[newIndex]);
-            } else {
-                state.entries.splice(newIndex, 0, newEntries[newIndex]);
+            if (newIndex === -1) {
+                return;
             }
-        } else if (detail.operation === "add" && index !== -1) {
-            // Force-replace: update value and reposition if sequence changed.
-            // After removing the stale entry at `index`, the remaining entries
-            // match newEntries minus the replaced key, so inserting at newIndex
-            // always produces the correct sorted result.
-            const newEntries = registry.getEntries();
-            const newIndex = newEntries.findIndex(([k]) => k === detail.key);
-            if (newIndex !== -1) {
+            if (index !== -1) {
+                // Force-replace: remove old, insert at new position.
                 state.entries.splice(index, 1);
-                state.entries.splice(newIndex, 0, newEntries[newIndex]);
             }
+            state.entries.splice(newIndex, 0, newEntries[newIndex]);
         } else if (detail.operation === "delete" && index >= 0) {
             state.entries.splice(index, 1);
         }

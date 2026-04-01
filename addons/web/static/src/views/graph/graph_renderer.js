@@ -109,10 +109,10 @@ export class GraphRenderer extends Component {
         const { measure, measures, disableLinking, mode } = metaData;
         this.containerRef.el.style.cursor = "";
         this.removeTooltips();
-        if (tooltipModel.opacity === 0 || tooltipModel.dataPoints.length === 0) {
+        if (tooltipModel.opacity === 0 || !tooltipModel.dataPoints.length) {
             return;
         }
-        if (!disableLinking && mode !== "line") {
+        if (!disableLinking && mode !== "line" && mode !== "scatter") {
             this.containerRef.el.style.cursor = "pointer";
         }
         const chartAreaTop = this.chart.chartArea.top;
@@ -319,6 +319,10 @@ export class GraphRenderer extends Component {
             tooltipOptions.xAlign = "center";
             tooltipOptions.yAlign = "center";
         }
+        if (mode === "scatter") {
+            tooltipOptions.mode = "nearest";
+            tooltipOptions.intersect = true;
+        }
         return tooltipOptions;
     }
 
@@ -328,7 +332,7 @@ export class GraphRenderer extends Component {
      */
     onGraphClicked(ev, isMiddleClick) {
         const { disableLinking, mode } = this.model.metaData;
-        if (disableLinking || mode === "line") {
+        if (disableLinking || mode === "line" || mode === "scatter") {
             return;
         }
         const [activeElement] = this.chart.getElementsAtEventForMode(

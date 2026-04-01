@@ -2279,15 +2279,15 @@ test("list in form: default_get with x2many create and onchange", async () => {
         relation: "turtle",
         relation_field: "turtle_trululu",
         default: [
-            [4, 2],
-            [4, 3],
+            [4, 2, false],
+            [4, 3, false],
         ],
     });
 
     onRpc("web_save", ({ args }) => {
         expect(args[1].turtles).toEqual([
-            [4, 2],
-            [4, 3],
+            [4, 2, false],
+            [4, 3, false],
         ]);
     });
 

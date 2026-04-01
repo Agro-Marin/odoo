@@ -37,7 +37,7 @@ defineModels([Partner, PartnerType]);
 
 test("Many2ManyCheckBoxesField", async () => {
     Partner._records[0].timmy = [12];
-    const commands = [[[4, 14]], [[3, 12]]];
+    const commands = [[[4, 14, false]], [[3, 12, false]]];
     onRpc("web_save", (args) => {
         expect.step("web_save");
         expect(args.args[1].timmy).toEqual(commands.shift());
@@ -232,7 +232,7 @@ test("Many2ManyCheckBoxesField with 40+ values", async () => {
     Partner._records[0].timmy = records.map((r) => r.id);
 
     onRpc("web_save", ({ args }) => {
-        expect(args[1].timmy).toEqual([[3, records[records.length - 1].id]]);
+        expect(args[1].timmy).toEqual([[3, records[records.length - 1].id, false]]);
     });
     await mountView({
         type: "form",
@@ -276,7 +276,7 @@ test("Many2ManyCheckBoxesField with 100+ values", async () => {
     PartnerType._records = records;
     Partner._records[0].timmy = records.map((r) => r.id);
     onRpc("web_save", ({ args }) => {
-        expect(args[1].timmy).toEqual([[3, records[0].id]]);
+        expect(args[1].timmy).toEqual([[3, records[0].id, false]]);
         expect.step("web_save");
     });
     onRpc("name_search", () => {
@@ -321,8 +321,8 @@ test("Many2ManyCheckBoxesField in a one2many", async () => {
                     1,
                     {
                         timmy: [
-                            [4, 12],
-                            [3, 14],
+                            [4, 12, false],
+                            [3, 14, false],
                         ],
                     },
                 ],
@@ -363,12 +363,12 @@ test("Many2ManyCheckBoxesField with default values", async () => {
     Partner._fields.timmy = fields.Many2many({
         string: "pokemon",
         relation: "partner.type",
-        default: [[4, 3]],
+        default: [[4, 3, false]],
     });
     PartnerType._records.push({ id: 3, name: "bronze" });
 
     onRpc("web_save", ({ args }) => {
-        expect(args[1].timmy).toEqual([[4, 12]], {
+        expect(args[1].timmy).toEqual([[4, 12, false]], {
             message: "correct values should have been sent to create",
         });
     });

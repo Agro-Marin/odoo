@@ -97,7 +97,7 @@ export class PropertiesField extends Component {
                 const isInEditMode = canChangeDefinition && !this.props.readonly;
                 this.state.canChangeDefinition = !!canChangeDefinition;
                 this.state.isInEditMode = isInEditMode;
-                if (isInEditMode && this.propertiesList.length === 0) {
+                if (isInEditMode && !this.propertiesList.length) {
                     this.onPropertyCreate();
                 }
             });
@@ -107,12 +107,11 @@ export class PropertiesField extends Component {
             if (this.props.readonly || !this.props.editMode) {
                 return;
             }
-            this.checkDefinitionWriteAccess().then((canChangeDefinition) => {
-                if (canChangeDefinition) {
-                    this.state.canChangeDefinition = true;
-                    this.state.isInEditMode = !this.props.readonly;
-                }
-            });
+            const canChangeDefinition = await this.checkDefinitionWriteAccess();
+            if (canChangeDefinition) {
+                this.state.canChangeDefinition = true;
+                this.state.isInEditMode = !this.props.readonly;
+            }
         });
 
         useEffect(
@@ -662,7 +661,7 @@ export class PropertiesField extends Component {
             ]);
             // remove all other keys in place, since propertyDefinition instance
             // will be used as a PropertyDefinition component state value.
-            for (const key in propertyDefinition) {
+            for (const key of Object.keys(propertyDefinition)) {
                 if (!separatorKeys.has(key)) {
                     delete propertyDefinition[key];
                 }
@@ -1090,7 +1089,7 @@ export const propertiesField = {
     extractProps({ attrs }, dynamicInfo) {
         return {
             context: dynamicInfo.context,
-            columns: parseInt(attrs.columns || "1"),
+            columns: Number.parseInt(attrs.columns || "1", 10),
             editMode: exprToBoolean(attrs.editMode),
         };
     },

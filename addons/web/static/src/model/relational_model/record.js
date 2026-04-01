@@ -276,7 +276,7 @@ export class RelationalRecord extends DataPoint {
     }
 
     load() {
-        if (arguments.length > 0) {
+        if (arguments.length) {
             throw new Error("Record.load() does not accept arguments");
         }
         return this.model.mutex.exec(() => this._load());
@@ -356,7 +356,7 @@ export class RelationalRecord extends DataPoint {
             textValues: { ...this._textValues },
             changes: { ...this._changes },
         });
-        for (const fieldName in this._changes) {
+        for (const fieldName of Object.keys(this._changes)) {
             if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
                 this._changes[fieldName]._addSavePoint();
             }
@@ -380,7 +380,7 @@ export class RelationalRecord extends DataPoint {
         };
 
         // Apply changes
-        for (const fieldName in changes) {
+        for (const fieldName of Object.keys(changes)) {
             let change = changes[fieldName];
             if (change instanceof Operation) {
                 change = change.compute(this.data[fieldName]);
@@ -399,7 +399,7 @@ export class RelationalRecord extends DataPoint {
         const parsedChanges = this._parseServerValues(serverChanges, {
             currentValues: this.data,
         });
-        for (const fieldName in parsedChanges) {
+        for (const fieldName of Object.keys(parsedChanges)) {
             this._changes[fieldName] = parsedChanges[fieldName];
             this.data[fieldName] = parsedChanges[fieldName];
         }
@@ -432,7 +432,7 @@ export class RelationalRecord extends DataPoint {
     _applyValues(values) {
         const newValues = this._parseServerValues(values);
         Object.assign(this._values, newValues);
-        for (const fieldName in newValues) {
+        for (const fieldName of Object.keys(newValues)) {
             if (fieldName in this._changes) {
                 if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
                     this._changes[fieldName] = newValues[fieldName];
@@ -521,11 +521,11 @@ export class RelationalRecord extends DataPoint {
      */
     _createStaticListDatapoint(data, fieldName, { orderBys } = {}) {
         const { related, limit, defaultOrderBy } = this.activeFields[fieldName];
-        const relatedActiveFields = (related && related.activeFields) || {};
+        const relatedActiveFields = related?.activeFields || {};
         const config = {
             resModel: this.fields[fieldName].relation,
             activeFields: relatedActiveFields,
-            fields: (related && related.fields) || {},
+            fields: related?.fields || {},
             relationField: this.fields[fieldName].relation_field || false,
             offset: 0,
             resIds: data.map((r) => r.id),
@@ -550,7 +550,7 @@ export class RelationalRecord extends DataPoint {
     }
 
     _discard() {
-        for (const fieldName in this._changes) {
+        for (const fieldName of Object.keys(this._changes)) {
             if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
                 this._changes[fieldName]._discard();
             }
@@ -765,7 +765,7 @@ export class RelationalRecord extends DataPoint {
         if (!serverValues) {
             return parsedValues;
         }
-        for (const fieldName in serverValues) {
+        for (const fieldName of Object.keys(serverValues)) {
             const value = serverValues[fieldName];
             if (!this.activeFields[fieldName]) {
                 continue;
@@ -779,10 +779,10 @@ export class RelationalRecord extends DataPoint {
                 const listValue = /** @type {any[]} */ (value);
                 // value can be a list of records or a list of commands (new record)
                 const valueIsCommandList =
-                    listValue.length > 0 && Array.isArray(listValue[0]);
+                    listValue.length && Array.isArray(listValue[0]);
                 if (!staticList) {
                     let data = valueIsCommandList ? [] : listValue;
-                    if (data.length > 0 && typeof data[0] === "number") {
+                    if (data.length && typeof data[0] === "number") {
                         data = data.map((resId) => ({ id: resId }));
                     }
                     staticList = this._createStaticListDatapoint(
@@ -943,7 +943,7 @@ export class RelationalRecord extends DataPoint {
      * @returns {Promise<Record<string, any>>}
      */
     async _getOnchangeValues(changes) {
-        for (const fieldName in changes) {
+        for (const fieldName of Object.keys(changes)) {
             if (changes[fieldName] instanceof Operation) {
                 changes[fieldName] = changes[fieldName].compute(this.data[fieldName]);
             }
@@ -1012,7 +1012,7 @@ export class RelationalRecord extends DataPoint {
         // changes inside the record set as value for a many2one field must trigger the onchange,
         // but can't be considered as changes on the parent record, so here we detect if many2one
         // fields really changed, and if not, we delete them from changes
-        for (const fieldName in changes) {
+        for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type === "many2one") {
                 const curVal = toRaw(this.data[fieldName]);
                 const nextVal = changes[fieldName];

@@ -112,7 +112,7 @@ export class SampleServer {
             records: [],
         };
         // Generate relational fields' co models
-        for (const fieldName in fields) {
+        for (const fieldName of Object.keys(fields)) {
             const field = fields[fieldName];
             if (["many2one", "one2many", "many2many"].includes(field.type)) {
                 this.data[field.relation] = this.data[field.relation] || {
@@ -419,7 +419,7 @@ export class SampleServer {
         }
 
         let result = [];
-        for (const id in groups) {
+        for (const id of Object.keys(groups)) {
             const records = groups[id];
             const group = { __extra_domain: [] };
             const firstElem = records[0];
@@ -435,7 +435,7 @@ export class SampleServer {
             Object.assign(group, this._aggregateFields(measures, records));
             result.push(group);
         }
-        if (normalizedGroupBys.length > 0) {
+        if (normalizedGroupBys.length) {
             const { alias, type } = normalizedGroupBys[0];
             result = arraySortBy(result, (group) => {
                 const val = group[alias];
@@ -491,7 +491,7 @@ export class SampleServer {
             }
             if (!(groupByValue in data)) {
                 data[groupByValue] = {};
-                for (const key in progressBar.colors) {
+                for (const key of Object.keys(progressBar.colors)) {
                     data[groupByValue][key] = 0;
                 }
             }
@@ -521,7 +521,7 @@ export class SampleServer {
             args: [rawRecords.map((r) => r.id), fields],
         });
         const result = { records, length: records.length };
-        for (const fieldName in params.specification) {
+        for (const fieldName of Object.keys(params.specification)) {
             const field = this.data[params.model].fields[fieldName];
             if (field.type === "many2one") {
                 for (const record of result.records) {
@@ -538,7 +538,7 @@ export class SampleServer {
                     params.specification[fieldName].fields || {},
                 );
                 if (relFields.length) {
-                    const relIds = result.records.map((r) => r[fieldName]).flat();
+                    const relIds = result.records.flatMap((r) => r[fieldName]);
                     const relRecords = {};
                     const _relRecords = this._mockRead({
                         model: field.relation,
@@ -636,7 +636,7 @@ export class SampleServer {
      */
     _populateModels() {
         if (!this.populated) {
-            for (const modelName in this.data) {
+            for (const modelName of Object.keys(this.data)) {
                 const model = this.data[modelName];
                 const fieldNames = Object.keys(model.fields).filter((f) => f !== "id");
                 const size =

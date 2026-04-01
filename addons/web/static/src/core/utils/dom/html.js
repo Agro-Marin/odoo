@@ -25,7 +25,7 @@ const Markup = markup("").constructor;
  * @param {string | Markup} content
  */
 export function createDocumentFragmentFromContent(content) {
-    return new document.defaultView.DOMParser().parseFromString(
+    return new DOMParser().parseFromString(
         /** @type {string} */ (htmlEscape(content)),
         "text/html",
     );

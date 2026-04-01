@@ -13,7 +13,7 @@ import { formatDate } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
 
-const { DateTime } = luxon;
+const { DateTime } = globalThis.luxon ?? {};
 
 export class RemainingDaysField extends Component {
     static components = { DateTimeField };
@@ -83,7 +83,7 @@ export class RemainingDaysField extends Component {
             days: this.diffDays,
             record: this.props.record.evalContext,
         };
-        for (const decoration in this.props.classes) {
+        for (const decoration of Object.keys(this.props.classes)) {
             const value = evaluateExpr(this.props.classes[decoration], evalContext);
             classNames[getClassNameFromDecoration(decoration)] = value;
         }

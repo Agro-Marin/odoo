@@ -761,7 +761,7 @@ test("Many2ManyTagsField keeps focus when being edited", async () => {
     Partner._fields.foo = fields.Char({
         default: "My little Foo Value",
         onChange: (obj) => {
-            obj.timmy = [[3, 12]];
+            obj.timmy = [[3, 12, false]];
         },
     });
 
@@ -2103,5 +2103,5 @@ test("Many2ManyTagsField: press backspace multiple times to remove tag", async (
     def.resolve();
     await animationFrame();
     expect(".o_field_many2many_tags .badge").toHaveCount(1);
-    expect.verifySteps(["onchange [[3,14]]"]);
+    expect.verifySteps(["onchange [[3,14,false]]"]);
 });

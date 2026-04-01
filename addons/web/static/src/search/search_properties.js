@@ -208,7 +208,7 @@ export async function fetchPropertiesDefinition(searchModel, resModel, fieldName
         (definition) => definition.record_id,
     );
     return Object.entries(result).map(([recordId, definitions]) => ({
-        definitionRecordId: parseInt(recordId),
+        definitionRecordId: Number.parseInt(recordId, 10),
         definitionRecordName: definitions[0]?.record_name,
         definitions,
     }));

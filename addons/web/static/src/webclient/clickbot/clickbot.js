@@ -105,7 +105,7 @@ function cleanup() {
  */
 async function waitForNextAnimationFrame() {
     await new Promise(/** @type {any} */ (browser.setTimeout));
-    await new Promise((r) => requestAnimationFrame(r));
+    await new Promise((r) => browser.requestAnimationFrame(r));
 }
 
 /**
@@ -186,7 +186,7 @@ async function waitForCondition(stopCondition) {
                     scheduleTasks += `${task.node.name},`;
                 }
             }
-            if (scheduleTasks.length > 0) {
+            if (scheduleTasks.length) {
                 msg += ` * ${scheduleTasks} scheduled tasks\n`;
             }
             if (!stopCondition()) {
@@ -194,7 +194,7 @@ async function waitForCondition(stopCondition) {
             }
             throw new Error(msg);
         }
-        await new Promise((resolve) => setTimeout(resolve, interval));
+        await new Promise((resolve) => browser.setTimeout(resolve, interval));
         timeLimit -= interval;
     }
 }

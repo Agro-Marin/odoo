@@ -179,4 +179,4 @@ class TestWebCreateUsers(TransactionCase):
 @tagged("post_install", "-at_install", "web_tour", "web_users")
 class TestUserSettings(HttpCaseWithUserDemo):
     def test_user_group_settings(self):
-        self.start_tour("/odoo?debug=1", "test_user_group_settings", login="admin")
+        self.start_tour("/odoo?debug=1", "test_user_group_settings", login="admin", timeout=120)

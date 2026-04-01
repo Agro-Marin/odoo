@@ -4,6 +4,7 @@
 /** @module @web/ui/notification/notification - Individual notification toast with auto-close progress bar and action buttons */
 
 import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 
 const AUTOCLOSE_DELAY = 4000;
 
@@ -64,7 +65,7 @@ export class Notification extends Component {
     freeze() {
         this.startedTimestamp = false;
         if (this._rafHandle) {
-            cancelAnimationFrame(this._rafHandle);
+            browser.cancelAnimationFrame(this._rafHandle);
             this._rafHandle = null;
         }
         if (this.autocloseProgress.el) {
@@ -85,13 +86,12 @@ export class Notification extends Component {
         if (this.props.sticky) {
             return;
         }
-        this.startedTimestamp = luxon.DateTime.now().toMillis();
+        this.startedTimestamp = Date.now();
 
         const cb = () => {
             if (this.startedTimestamp) {
                 const currentProgress =
-                    (luxon.DateTime.now().toMillis() -
-                        /** @type {number} */ (this.startedTimestamp)) /
+                    (Date.now() - /** @type {number} */ (this.startedTimestamp)) /
                     this.props.autocloseDelay;
                 if (currentProgress > 1) {
                     this.close();
@@ -100,7 +100,7 @@ export class Notification extends Component {
                 if (this.autocloseProgress.el) {
                     this.autocloseProgress.el.style.width = `${(1 - currentProgress) * 100}%`;
                 }
-                this._rafHandle = requestAnimationFrame(cb);
+                this._rafHandle = browser.requestAnimationFrame(cb);
             }
         };
         cb();
@@ -109,7 +109,7 @@ export class Notification extends Component {
     stopNotificationTimer() {
         this.startedTimestamp = null;
         if (this._rafHandle) {
-            cancelAnimationFrame(this._rafHandle);
+            browser.cancelAnimationFrame(this._rafHandle);
             this._rafHandle = null;
         }
     }

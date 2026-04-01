@@ -148,13 +148,19 @@ rpc._rpc = function (url, params, settings) {
         params,
     };
     const request = settings.xhr || new XHR();
+    // Avoid mutating the caller's headers object.
+    const requestHeaders = { ...settings.headers, "Content-Type": "application/json" };
     let aborted = false;
     const { promise, resolve, reject } = Promise.withResolvers();
     rpcBus.trigger(RpcEvent.REQUEST, { data, url, settings });
-    // handle success
+    // handle success (skip if already aborted — abort fires its own RPC:RESPONSE)
     request.addEventListener("load", () => {
-        if (request.status === 502) {
-            // If Odoo is behind another server (eg.: nginx)
+        if (aborted) {
+            return;
+        }
+        if (request.status >= 502 && request.status <= 504) {
+            // 502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout
+            // — common when Odoo is behind a reverse proxy (nginx, etc.)
             const error = new ConnectionLostError(url);
             rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
             reject(error);
@@ -195,9 +201,7 @@ rpc._rpc = function (url, params, settings) {
     });
     // configure and send request
     request.open("POST", url);
-    const headers = settings.headers || {};
-    headers["Content-Type"] = "application/json";
-    for (const [header, value] of Object.entries(headers)) {
+    for (const [header, value] of Object.entries(requestHeaders)) {
         request.setRequestHeader(header, value);
     }
     request.send(JSON.stringify(data));

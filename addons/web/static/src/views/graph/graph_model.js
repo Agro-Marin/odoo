@@ -312,7 +312,7 @@ export class GraphModel extends Model {
             );
         }
 
-        if (order !== null && mode !== "pie" && groupBy.length > 0) {
+        if (order !== null && mode !== "pie" && groupBy.length) {
             // group data by their x-axis value, and then sort datapoints
             // based on the sum of values by group in ascending/descending order
             const groupedDataPoints = Object.groupBy(

@@ -76,7 +76,7 @@ export function serializeCommands(commands, params) {
             if (command[0] === CREATE && record?.resId) {
                 // Record was created in x2many dialog and already saved to DB.
                 // Replace CREATE with LINK to avoid re-creating.
-                result.push([LINK, record.resId]);
+                result.push([LINK, record.resId, false]);
             } else {
                 const values = getRecordChanges(record, withReadonly);
                 // For UPDATE, skip if no actual changes

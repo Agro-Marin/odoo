@@ -273,7 +273,7 @@ export class Colibri {
             if (typeof value !== "object") {
                 throw new Error("t-att-class directive expects an object");
             }
-            for (const cl in value) {
+            for (const cl of Object.keys(value)) {
                 let toApply = value[cl];
                 for (const c of cl.trim().split(" ")) {
                     if (toApply === INITIAL_VALUE) {
@@ -286,7 +286,7 @@ export class Colibri {
             if (typeof value !== "object") {
                 throw new Error("t-att-style directive expects an object");
             }
-            for (const prop in value) {
+            for (const prop of Object.keys(value)) {
                 let style = value[prop];
                 if (style === INITIAL_VALUE) {
                     style = initialValue[prop];
@@ -347,7 +347,7 @@ export class Colibri {
      * @returns {void}
      */
     processContent(content) {
-        for (const sel in content) {
+        for (const sel of Object.keys(content)) {
             if (sel.startsWith("t-")) {
                 throw new Error(
                     `Selector missing for key ${sel} in dynamicContent (interaction '${this.interaction.constructor.name}').`,
@@ -361,7 +361,7 @@ export class Colibri {
                 this.dynamicNodes.set(sel, nodes);
             }
             const descr = content[sel];
-            for (const directive in descr) {
+            for (const directive of Object.keys(descr)) {
                 const value = descr[directive];
                 if (directive.startsWith("t-on-")) {
                     const ev = directive.slice(5);

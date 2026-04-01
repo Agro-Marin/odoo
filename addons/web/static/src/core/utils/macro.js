@@ -4,6 +4,7 @@
 /** @module @web/core/utils/macro - Step-based macro engine for automated UI interaction sequences */
 
 import { validate } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { delay } from "@web/core/utils/concurrency";
 import { isVisible } from "@web/core/utils/dom/ui";
 
@@ -93,11 +94,11 @@ export async function waitUntil(predicate) {
             if (result) {
                 resolve(result);
             }
-            handle = requestAnimationFrame(runCheck);
+            handle = browser.requestAnimationFrame(runCheck);
         };
-        handle = requestAnimationFrame(runCheck);
+        handle = browser.requestAnimationFrame(runCheck);
     }).finally(() => {
-        cancelAnimationFrame(handle);
+        browser.cancelAnimationFrame(handle);
     });
 }
 
@@ -250,24 +251,18 @@ export class MacroMutationObserver {
         });
     }
     observeIframe(iframeEl, observer, callback) {
-        const observerOptions = {
-            attributes: true,
-            childList: true,
-            subtree: true,
-            characterData: true,
-        };
         const observeIframeContent = () => {
             if (iframeEl.contentDocument) {
                 iframeEl.contentDocument.addEventListener("load", (event) => {
                     callback();
-                    observer.observe(event.target, observerOptions);
+                    observer.observe(event.target, this.observerOptions);
                 });
                 if (
                     !iframeEl.src ||
                     iframeEl.contentDocument.readyState === "complete"
                 ) {
                     callback();
-                    observer.observe(iframeEl.contentDocument, observerOptions);
+                    observer.observe(iframeEl.contentDocument, this.observerOptions);
                 }
             }
         };

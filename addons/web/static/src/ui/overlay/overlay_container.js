@@ -108,6 +108,8 @@ export class OverlayContainer extends Component {
      */
     handleError(overlay, error) {
         overlay.remove();
+        // Uses Promise.resolve().then() (not queueMicrotask) so the error routes
+        // through the unhandledrejection handler → UncaughtPromiseError dialog.
         Promise.resolve().then(() => {
             throw error;
         });

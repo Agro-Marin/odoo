@@ -41,15 +41,11 @@ export const cookie = {
      * @param {number} [ttl] - Time-to-live in seconds (defaults to 1 year).
      */
     set(key, value, ttl = COOKIE_TTL) {
-        let fullCookie = [];
-        if (value !== undefined) {
-            fullCookie.push(`${key}=${value}`);
-        }
-        fullCookie = [...fullCookie, "path=/", `max-age=${Math.floor(ttl)}`];
-        this._cookieMonster = fullCookie.join("; ");
+        const parts = [value !== undefined ? `${key}=${value}` : key, "path=/", `max-age=${Math.floor(ttl)}`];
+        this._cookieMonster = parts.join("; ");
     },
     /** @param {string} key - Cookie name to remove. */
     delete(key) {
-        this.set(key, "kill", 0);
+        this.set(key, "", 0);
     },
 };

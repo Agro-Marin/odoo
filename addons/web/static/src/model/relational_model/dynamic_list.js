@@ -196,7 +196,7 @@ export class DynamicList extends DataPoint {
                 await editedRecord.discard();
                 this._recordToDiscard = null;
                 editedRecord = this.editedRecord;
-                if (editedRecord && editedRecord.isNew) {
+                if (editedRecord?.isNew) {
                     this._removeRecords([editedRecord.id]);
                 }
             } else {
@@ -274,7 +274,7 @@ export class DynamicList extends DataPoint {
     }
 
     toggleArchiveWithConfirmation(archive, dialogProps = {}) {
-        const isSelected = this.isDomainSelected || this.selection.length > 0;
+        const isSelected = this.isDomainSelected || this.selection.length;
         if (archive) {
             this.model.hooks.onConfirmArchive(
                 isSelected,
@@ -368,7 +368,7 @@ export class DynamicList extends DataPoint {
 
         // special treatment for x2manys: apply commands on all selected record's static lists
         const proms = [];
-        for (const fieldName in changes) {
+        for (const fieldName of Object.keys(changes)) {
             if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
                 const list = editedRecord.data[fieldName];
                 const commands = list._getCommands();
@@ -394,7 +394,7 @@ export class DynamicList extends DataPoint {
         // apply changes on all selected records (for x2manys, the change is the static list itself)
         selectedRecords.forEach((record) => {
             const _changes = { ...changes };
-            for (const fieldName in _changes) {
+            for (const fieldName of Object.keys(_changes)) {
                 if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
                     _changes[fieldName] = record.data[fieldName];
                 }
@@ -421,7 +421,7 @@ export class DynamicList extends DataPoint {
         const discardInvalidRecords = () =>
             invalidRecords.forEach((record) => record._discard());
 
-        if (validRecords.length === 0) {
+        if (!validRecords.length) {
             editedRecord._displayInvalidFieldNotification();
             discardInvalidRecords();
             return false;
@@ -455,7 +455,7 @@ export class DynamicList extends DataPoint {
         }
 
         const _changes = { ...changes };
-        for (const fieldName in changes) {
+        for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type === "many2many") {
                 const list = changes[fieldName];
                 _changes[fieldName] = {

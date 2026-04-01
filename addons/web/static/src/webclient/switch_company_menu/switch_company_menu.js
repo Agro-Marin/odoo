@@ -194,11 +194,11 @@ class CompanySelector {
 
         // If some children or sub-children of the root company
         // are not active, we are in multi-company mode.
-        if (rootCompany && rootCompany.child_ids) {
+        if (rootCompany?.child_ids) {
             const queue = [...rootCompany.child_ids];
-            while (queue.length > 0) {
+            while (queue.length) {
                 const company = getActiveCompany(queue.pop());
-                if (company && company.child_ids) {
+                if (company?.child_ids) {
                     queue.push(...company.child_ids);
                 } else if (!company) {
                     return false;
@@ -267,7 +267,7 @@ export class SwitchCompanyMenu extends Component {
                         return;
                     }
                     if (navItem.el.classList.contains("o_switch_company_item")) {
-                        const companyId = parseInt(navItem.el.dataset.companyId);
+                        const companyId = Number.parseInt(navItem.el.dataset.companyId, 10);
                         this.companySelector.switchCompany("toggle", companyId);
                     }
                 },
@@ -277,7 +277,7 @@ export class SwitchCompanyMenu extends Component {
                         return;
                     }
                     if (navItem.el.classList.contains("o_switch_company_item")) {
-                        const companyId = parseInt(navItem.el.dataset.companyId);
+                        const companyId = Number.parseInt(navItem.el.dataset.companyId, 10);
                         this.companySelector.switchCompany("loginto", companyId);
                         this.dropdown.close();
                     } else {

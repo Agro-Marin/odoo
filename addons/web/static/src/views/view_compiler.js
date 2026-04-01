@@ -472,7 +472,7 @@ export function useViewCompiler(ViewCompiler, templates, params) {
     /** @type {Record<string, string>} */
     const compiledTemplates = {};
     let compiler;
-    for (const tname in templates) {
+    for (const tname of Object.keys(templates)) {
         // Collapse newlines to spaces so the key is always a single-line string.
         // Owl embeds the template name in a // JS comment during code generation;
         // a multi-line name would break the comment and cause "Unexpected token '<'".

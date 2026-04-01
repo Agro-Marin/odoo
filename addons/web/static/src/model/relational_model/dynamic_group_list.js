@@ -69,8 +69,7 @@ export class DynamicGroupList extends DynamicList {
     get records() {
         return this.groups
             .filter((group) => !group.isFolded)
-            .map((group) => group.records)
-            .flat();
+            .flatMap((group) => group.records);
     }
 
     /**

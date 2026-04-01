@@ -95,8 +95,8 @@ export class BlockUI extends Component {
     /** Reset state and clear all pending timers. */
     unblock() {
         this.state.blockState = this.BLOCK_STATES.UNBLOCKED;
-        clearTimeout(this.showBlockedUITimer);
-        clearTimeout(this.msgTimer);
+        browser.clearTimeout(this.showBlockedUITimer);
+        browser.clearTimeout(this.msgTimer);
         this.state.line1 = "";
         this.state.line2 = "";
     }

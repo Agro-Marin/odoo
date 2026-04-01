@@ -575,6 +575,19 @@ describe("builtins — abs", () => {
     test("abs of float", () => {
         expect(evaluateExpr("abs(-3.14)")).toBeCloseTo(3.14);
     });
+    test("abs of negative timedelta", () => {
+        const result = evaluateExpr("abs(datetime.timedelta(days=-5))");
+        expect(result.days).toBe(5);
+        expect(result.seconds).toBe(0);
+    });
+    test("abs of positive timedelta is unchanged", () => {
+        const result = evaluateExpr("abs(datetime.timedelta(days=3))");
+        expect(result.days).toBe(3);
+    });
+    test("abs of zero timedelta", () => {
+        const result = evaluateExpr("abs(datetime.timedelta(days=0))");
+        expect(result.days).toBe(0);
+    });
 });
 
 describe("builtins — int", () => {
@@ -640,6 +653,37 @@ describe("builtins — round", () => {
     test("round with ndigits", () => {
         expect(evaluateExpr("round(3.14159, 2)")).toBeCloseTo(3.14);
         expect(evaluateExpr("round(1234.5, -2)")).toBe(1200);
+    });
+    test("round uses banker's rounding (half-to-even)", () => {
+        // Python: round(0.5) → 0, round(1.5) → 2, round(2.5) → 2
+        expect(evaluateExpr("round(0.5)")).toBe(0);
+        expect(evaluateExpr("round(1.5)")).toBe(2);
+        expect(evaluateExpr("round(2.5)")).toBe(2);
+        expect(evaluateExpr("round(3.5)")).toBe(4);
+    });
+    test("round negative half-to-even", () => {
+        // Python: round(-0.5) → 0, round(-1.5) → -2
+        expect(evaluateExpr("round(-0.5)")).toBe(0);
+        expect(evaluateExpr("round(-1.5)")).toBe(-2);
+        expect(evaluateExpr("round(-2.5)")).toBe(-2);
+    });
+    test("round matches Python IEEE-754 behaviour for ndigits > 0", () => {
+        // These depend on the actual IEEE-754 stored value, NOT the decimal literal.
+        // 2.675 is stored as 2.6749... (below halfway) → rounds DOWN
+        expect(evaluateExpr("round(2.675, 2)")).toBeCloseTo(2.67);
+        // 0.45 is stored as 0.4500...001 (above halfway) → rounds UP
+        expect(evaluateExpr("round(0.45, 1)")).toBeCloseTo(0.5);
+        // 0.35 is stored as 0.3499... (below halfway) → rounds DOWN
+        expect(evaluateExpr("round(0.35, 1)")).toBeCloseTo(0.3);
+        // 0.25 is stored as 0.25 exactly (halfway) → banker's → 0.2 (even)
+        expect(evaluateExpr("round(0.25, 1)")).toBeCloseTo(0.2);
+        // 0.15 is stored as 0.1499... (below halfway) → rounds DOWN
+        expect(evaluateExpr("round(0.15, 1)")).toBeCloseTo(0.1);
+    });
+    test("round with negative ndigits", () => {
+        // Python: round(150, -2) → 200, round(250, -2) → 200
+        expect(evaluateExpr("round(150, -2)")).toBe(200);
+        expect(evaluateExpr("round(250, -2)")).toBe(200);
     });
 });
 

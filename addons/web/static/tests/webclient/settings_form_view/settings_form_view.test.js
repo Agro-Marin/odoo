@@ -1442,7 +1442,7 @@ test("clicking a button with dirty settings -- discard", async () => {
     await click(".modal .btn-secondary:eq(1)");
     await animationFrame();
     expect.verifySteps([
-        'web_save - {"product_ids":[[4,37],[4,41],[1,41,{"color":3}]],"bar":true,"foo":false}',
+        'web_save - {"product_ids":[[4,37,false],[4,41,false],[1,41,{"color":3}]],"bar":true,"foo":false}',
         'action executed {"context":{"lang":"en","tz":"taht","uid":7,"allowed_company_ids":[1]},"type":"object","name":"mymethod","resModel":"res.config.settings","resId":1,"resIds":[1],"buttonContext":{}}',
     ]);
     // We came back to the same initial state.

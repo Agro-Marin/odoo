@@ -29,7 +29,7 @@ export function toBase64Length(maxBytes) {
 export function humanSize(size) {
     const units = _t("Bytes|Kb|Mb|Gb|Tb|Pb|Eb|Zb|Yb").split("|");
     let i = 0;
-    while (size >= 1024) {
+    while (size >= 1024 && i < units.length - 1) {
         size /= 1024;
         ++i;
     }

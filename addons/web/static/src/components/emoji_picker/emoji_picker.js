@@ -145,7 +145,7 @@ export class EmojiPicker extends Component {
                 : this.categories[0].sortId;
         });
         onMounted(() => {
-            if (this.emojis.length === 0) {
+            if (!this.emojis.length) {
                 return;
             }
             this.navbarResizeObserver = new ResizeObserver(() => this.adaptNavbar());
@@ -158,7 +158,7 @@ export class EmojiPicker extends Component {
             this.state.hoveredEmoji = this.activeEmoji;
         });
         onPatched(() => {
-            if (this.emojis.length === 0) {
+            if (!this.emojis.length) {
                 return;
             }
             if (this.shouldScrollElem) {
@@ -237,14 +237,14 @@ export class EmojiPicker extends Component {
         const computedStyle = getComputedStyle(this.navbarRef.el);
         const availableWidth =
             this.navbarRef.el.getBoundingClientRect().width -
-            parseInt(computedStyle.paddingLeft) -
-            parseInt(computedStyle.marginLeft) -
-            parseInt(computedStyle.paddingRight) -
-            parseInt(computedStyle.marginRight);
+            Number.parseInt(computedStyle.paddingLeft, 10) -
+            Number.parseInt(computedStyle.marginLeft, 10) -
+            Number.parseInt(computedStyle.paddingRight, 10) -
+            Number.parseInt(computedStyle.marginRight, 10);
         const itemWidth = this.navbarRef.el
             .querySelector(".o-Emoji")
             .getBoundingClientRect().width;
-        const gapWidth = parseInt(computedStyle.gap);
+        const gapWidth = Number.parseInt(computedStyle.gap, 10);
         const maxAvailableNavbarItemAmountAtOnce = Math.floor(
             availableWidth / (itemWidth + gapWidth),
         );
@@ -263,8 +263,8 @@ export class EmojiPicker extends Component {
             }
             panel.push(category.sortId);
         }
-        if (panel.length > 0) {
-            if (repr.length > 0) {
+        if (panel.length) {
+            if (repr.length) {
                 panel.push(
                     ...[
                         ...Array(maxAvailableNavbarItemAmountAtOnce - panel.length),
@@ -308,7 +308,7 @@ export class EmojiPicker extends Component {
         const recent = Object.entries(this.frequentEmojiService.all)
             .sort(([, usage_1], [, usage_2]) => usage_2 - usage_1)
             .map(([codepoints]) => this.emojiByCodepoints[codepoints]);
-        if (this.searchTerm && recent.length > 0) {
+        if (this.searchTerm && recent.length) {
             return fuzzyLookup(this.searchTerm, recent, (emoji) => [
                 emoji.name,
                 ...emoji.keywords,
@@ -355,7 +355,7 @@ export class EmojiPicker extends Component {
      * navigation of the emoji picker.
      */
     updateEmojiPickerRepr() {
-        if (this.emojis.length === 0) {
+        if (!this.emojis.length) {
             return;
         }
         const emojiEls = Array.from(this.gridRef.el.querySelectorAll(".o-Emoji"));
@@ -363,10 +363,10 @@ export class EmojiPicker extends Component {
         this.emojiMatrix = [];
         for (const [index, pos] of emojiRects.entries()) {
             const emojiIndex = emojiEls[index].dataset.index;
-            if (this.emojiMatrix.length === 0 || pos.top > emojiRects[index - 1].top) {
+            if (!this.emojiMatrix.length || pos.top > emojiRects[index - 1].top) {
                 this.emojiMatrix.push([]);
             }
-            this.emojiMatrix.at(-1).push(parseInt(emojiIndex));
+            this.emojiMatrix.at(-1).push(Number.parseInt(emojiIndex, 10));
         }
     }
 
@@ -464,7 +464,7 @@ export class EmojiPicker extends Component {
 
     getAllCategories() {
         const res = [...this.categories];
-        if (this.recentEmojis.length > 0) {
+        if (this.recentEmojis.length) {
             res.unshift(this.recentCategory);
         }
         return res;
@@ -473,12 +473,12 @@ export class EmojiPicker extends Component {
     getEmojis() {
         let emojisToDisplay = [...this.emojis];
         const recentEmojis = this.recentEmojis;
-        if (recentEmojis.length > 0 && this.searchTerm) {
+        if (recentEmojis.length && this.searchTerm) {
             emojisToDisplay = emojisToDisplay.filter(
                 (emoji) => !recentEmojis.includes(emoji),
             );
         }
-        if (this.searchTerm.length > 0) {
+        if (this.searchTerm.length) {
             return fuzzyLookup(this.searchTerm, emojisToDisplay, (emoji) => [
                 emoji.name,
                 ...emoji.keywords,
@@ -523,8 +523,8 @@ export class EmojiPicker extends Component {
         if (!res) {
             return;
         }
-        this.state.categoryId = parseInt(
-            /** @type {HTMLElement} */ (res).dataset.category,
+        this.state.categoryId = Number.parseInt(
+            /** @type {HTMLElement} */ (res).dataset.category, 10,
         );
     }
 }

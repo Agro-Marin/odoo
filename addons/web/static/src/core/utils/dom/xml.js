@@ -115,7 +115,7 @@ export function createElement(tagName, ...args) {
             el.append(...arg);
         } else if (typeof arg === "object") {
             // Attributes
-            for (const name in arg) {
+            for (const name of Object.keys(arg)) {
                 el.setAttribute(name, arg[name]);
             }
         }

@@ -80,28 +80,28 @@ function computeOptimalDateWidths() {
         numericDatetime: [],
     };
     for (let month = 1; month <= 12; month++) {
-        values.date.push(toLocaleDateString(luxon.DateTime.local(2017, month, 20)));
+        values.date.push(toLocaleDateString(globalThis.luxon.DateTime.local(2017, month, 20)));
         values.datetime.push(
-            toLocaleDateTimeString(luxon.DateTime.local(2017, month, 25, 10, 0, 0), {
+            toLocaleDateTimeString(globalThis.luxon.DateTime.local(2017, month, 25, 10, 0, 0), {
                 showSeconds: true,
             }),
         );
         if (timeFormat === "hh:mm:ss a") {
             values.datetime.push(
                 toLocaleDateTimeString(
-                    luxon.DateTime.local(2017, month, 25, 22, 0, 0),
+                    globalThis.luxon.DateTime.local(2017, month, 25, 22, 0, 0),
                     { showSeconds: true },
                 ),
             );
         }
     }
-    values.numericDate.push(formatDate(luxon.DateTime.local(2017, 1, 1)));
+    values.numericDate.push(formatDate(globalThis.luxon.DateTime.local(2017, 1, 1)));
     values.numericDatetime.push(
-        formatDateTime(luxon.DateTime.local(2017, 1, 1, 10, 0, 0)),
+        formatDateTime(globalThis.luxon.DateTime.local(2017, 1, 1, 10, 0, 0)),
     );
     if (timeFormat === "hh:mm:ss a") {
         values.numericDatetime.push(
-            formatDateTime(luxon.DateTime.local(2017, 1, 1, 22, 0, 0)),
+            formatDateTime(globalThis.luxon.DateTime.local(2017, 1, 1, 22, 0, 0)),
         );
     }
 
@@ -116,7 +116,7 @@ function computeOptimalDateWidths() {
     const div = renderToElement(template, { values });
     document.body.append(div);
     _dateWidths = {};
-    for (const key in values) {
+    for (const key of Object.keys(values)) {
         const spans = div.querySelectorAll(`.${key} span`);
         const widths = [...spans].map((span) => span.getBoundingClientRect().width);
         _dateWidths[key] = Math.ceil(Math.max(...widths) * 1.05);

@@ -231,7 +231,7 @@ export function parse(string) {
  * @private
  */
 function pdecode(str, hex) {
-    return String.fromCharCode(parseInt(hex, 16));
+    return String.fromCharCode(Number.parseInt(hex, 16));
 }
 
 /**

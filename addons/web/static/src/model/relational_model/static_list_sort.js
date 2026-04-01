@@ -65,7 +65,7 @@ export async function resequence(list, movedId, targetId) {
         toIndex = fromIndex > targetIndex ? targetIndex + 1 : targetIndex;
     }
 
-    const getSequence = (rec) => rec && rec.data[list.handleField];
+    const getSequence = (rec) => rec?.data[list.handleField];
 
     // Determine what records need to be modified
     const firstIndex = Math.min(fromIndex, toIndex);

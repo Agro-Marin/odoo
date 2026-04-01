@@ -106,7 +106,7 @@ export class WebClient extends Component {
                     (m) => m.actionID === firstAction || m.actionPath === firstAction,
                 );
 
-            if (matchingMenus.length > 0) {
+            if (matchingMenus.length) {
                 // Use sessionStorage context to determine the correct menu
                 menuId = matchingMenus.find((m) => m.appID === storedMenuId)?.appID;
                 if (!menuId) {
@@ -201,37 +201,37 @@ export class WebClient extends Component {
     }
 
     /** Register the Odoo service worker for /odoo scope and resolve when activated. */
-    registerServiceWorker() {
+    async registerServiceWorker() {
         if (navigator.serviceWorker) {
-            navigator.serviceWorker
-                .register("/web/service-worker.js", { scope: "/odoo" })
-                .then((registration) => {
-                    if (
-                        registration.active &&
-                        registration.active.state === "activated"
-                    ) {
-                        this.serviceWorkerActivatedDeferred.resolve();
-                    } else {
-                        const sw =
-                            registration.installing ||
-                            registration.waiting ||
-                            registration.active;
-                        sw.addEventListener("statechange", (e) => {
-                            if (/** @type {any} */ (e.target).state === "activated") {
-                                this.serviceWorkerActivatedDeferred.resolve();
-                            }
-                        });
-                    }
-                    navigator.serviceWorker.ready.then(() => {
-                        if (!navigator.serviceWorker.controller) {
-                            // https://stackoverflow.com/questions/51597231/register-service-worker-after-hard-refresh
-                            rpcBus.trigger("CLEAR-CACHES");
+            try {
+                const registration = await navigator.serviceWorker.register(
+                    "/web/service-worker.js",
+                    { scope: "/odoo" },
+                );
+                if (
+                    registration.active &&
+                    registration.active.state === "activated"
+                ) {
+                    this.serviceWorkerActivatedDeferred.resolve();
+                } else {
+                    const sw =
+                        registration.installing ||
+                        registration.waiting ||
+                        registration.active;
+                    sw.addEventListener("statechange", (e) => {
+                        if (/** @type {any} */ (e.target).state === "activated") {
+                            this.serviceWorkerActivatedDeferred.resolve();
                         }
                     });
-                })
-                .catch((error) => {
-                    console.error("Service worker registration failed, error:", error);
-                });
+                }
+                await navigator.serviceWorker.ready;
+                if (!navigator.serviceWorker.controller) {
+                    // https://stackoverflow.com/questions/51597231/register-service-worker-after-hard-refresh
+                    rpcBus.trigger("CLEAR-CACHES");
+                }
+            } catch (error) {
+                console.error("Service worker registration failed, error:", error);
+            }
         }
     }
 }

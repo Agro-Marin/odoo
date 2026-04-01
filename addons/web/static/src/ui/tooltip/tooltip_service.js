@@ -171,7 +171,7 @@ export const tooltipService = {
                     }
                 }
                 if (dataset.tooltipDelay) {
-                    params.delay = parseInt(dataset.tooltipDelay, 10);
+                    params.delay = Number.parseInt(dataset.tooltipDelay, 10);
                 }
                 openTooltip(element, /** @type {any} */ (params));
             }

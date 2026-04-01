@@ -355,7 +355,7 @@ export class FormController extends Component {
     async onRecordSaved(record, changes) {
         if (this.duplicateId === record.id) {
             const translationChanges = {};
-            for (const fieldName in changes) {
+            for (const fieldName of Object.keys(changes)) {
                 if (record.fields[fieldName].translate) {
                     translationChanges[fieldName] = changes[fieldName];
                 }
@@ -632,7 +632,7 @@ export class FormController extends Component {
         const dirty = await this.model.root.isDirty();
         const onError = (error, options) => this.onSaveError(error, options, true);
         const canProceed = !dirty || (await this.model.root.save({ onError }));
-        // FIXME: disable/enable not done in onPagerUpdate
+        // TODO: UI should be blocked during pager navigation (disable/enable not done in onPagerUpdate)
         if (canProceed) {
             await executeButtonCallback(this.ui.activeElement, () =>
                 this.model.load({ resId: false }),

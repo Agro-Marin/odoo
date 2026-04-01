@@ -93,7 +93,7 @@ export function formatCurrency(amount, currencyId, options = {}) {
     const currency = getCurrency(currencyId);
 
     const digits =
-        options.digits !== undefined ? options.digits : currency && currency.digits;
+        options.digits !== undefined ? options.digits : currency?.digits;
 
     let formattedAmount;
     if (options.humanReadable) {

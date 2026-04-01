@@ -93,7 +93,7 @@ Object.defineProperty(browser, "innerWidth", {
  */
 export function makeRAMLocalStorage() {
     /** @type {{[key: string]: string}} */
-    let store = {};
+    let store = Object.create(null);
     return {
         setItem(key, value) {
             const newValue = String(value);
@@ -104,7 +104,7 @@ export function makeRAMLocalStorage() {
             return store[key] ?? null;
         },
         clear() {
-            store = {};
+            store = Object.create(null);
         },
         removeItem(key) {
             delete store[key];

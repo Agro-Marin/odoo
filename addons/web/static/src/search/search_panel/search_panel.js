@@ -385,7 +385,7 @@ export class SearchPanel extends Component {
 
     /** Sync component state with the SearchModel's current section values. */
     updateActiveValues() {
-        if (this.sections.length === 0) {
+        if (!this.sections.length) {
             this.state.sidebarExpanded = false;
         }
         for (const section of this.sections) {
@@ -400,7 +400,7 @@ export class SearchPanel extends Component {
                         }
                     }
                 }
-                if (section && section.values) {
+                if (section?.values) {
                     for (const value of section.values.values()) {
                         this.state.active[section.id][value.id] = value.checked;
                     }

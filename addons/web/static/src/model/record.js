@@ -88,7 +88,7 @@ class _Record extends Component {
         const prepareLoadWithValues = async (values) => {
             values = pick(values, ...Object.keys(modelParams.config.activeFields));
             const proms = [];
-            for (const fieldName in values) {
+            for (const fieldName of Object.keys(values)) {
                 if (
                     ["one2many", "many2many"].includes(
                         this.props.fields[fieldName].type,

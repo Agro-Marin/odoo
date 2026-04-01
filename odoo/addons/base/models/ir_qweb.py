@@ -3471,12 +3471,14 @@ class IrQweb(models.AbstractModel):
             )
             has_native = bool(pre_nodes)
 
-        # When native modules are present, the legacy bundle must be deferred
-        # so that all deferred/module scripts execute in document order:
-        # pre-nodes (OWL, import map, preloads) → bundle (defer) → bridge (module)
+        # Classic scripts (Bootstrap, Luxon, etc.) must NOT be deferred when
+        # native ESM modules are present — they set UMD globals that native
+        # modules access at module scope.  Non-deferred scripts execute during
+        # parsing, BEFORE any <script type="module"> scripts, guaranteeing
+        # that globals like `luxon`, `Tooltip`, `Dropdown` are available.
         nodes = self._links_to_nodes(
             links,
-            defer_load=defer_load or has_native,
+            defer_load=defer_load,
             lazy_load=lazy_load,
             media=media,
         )
@@ -3805,15 +3807,24 @@ class IrQweb(models.AbstractModel):
                     + ");"
                 )
                 pre.append(("script", {"text": names_js}))
-                # Bundled bridge module — save as ir.attachment for caching
-                esm_url = self._save_esm_attachment(
-                    bundle, esbuild_code, asset_bundle,
-                )
-                post.append(("script", {
-                    "type": "module",
-                    "src": esm_url,
-                    "data-bridge": bundle,
-                }))
+                # Bundled bridge module — save as ir.attachment for caching.
+                # In read-only transactions (e.g. test mode), inline the code
+                # instead of attempting an INSERT that would fail.
+                if self.env.cr.readonly:
+                    post.append(("script", {
+                        "type": "module",
+                        "text": esbuild_code,
+                        "data-bridge": bundle,
+                    }))
+                else:
+                    esm_url = self._save_esm_attachment(
+                        bundle, esbuild_code, asset_bundle,
+                    )
+                    post.append(("script", {
+                        "type": "module",
+                        "src": esm_url,
+                        "data-bridge": bundle,
+                    }))
                 return pre, post
 
         # ── Debug mode: individual files + import map ──

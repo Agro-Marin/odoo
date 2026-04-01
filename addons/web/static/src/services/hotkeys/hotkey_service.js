@@ -188,7 +188,7 @@ export const hotkeyService = {
 
             // First candidate
             let winner = candidates.shift();
-            if (winner && winner.area) {
+            if (winner?.area) {
                 // If there is an area, find the closest one
                 for (const candidate of candidates.filter((c) => Boolean(c.area))) {
                     if (candidate.area() && winner.area().contains(candidate.area())) {
@@ -306,6 +306,8 @@ export const hotkeyService = {
                 }
 
                 if (overlayParent.style.position !== "absolute") {
+                    overlayParent.dataset.hotkeyOrigPosition =
+                        overlayParent.style.position;
                     overlayParent.style.position = "relative";
                 }
                 overlayParent.appendChild(overlay);
@@ -318,7 +320,12 @@ export const hotkeyService = {
          */
         function removeHotkeyOverlays() {
             for (const overlay of document.querySelectorAll(".o_web_hotkey_overlay")) {
+                const parent = overlay.parentElement;
                 overlay.remove();
+                if (parent && "hotkeyOrigPosition" in parent.dataset) {
+                    parent.style.position = parent.dataset.hotkeyOrigPosition;
+                    delete parent.dataset.hotkeyOrigPosition;
+                }
             }
             overlaysVisible = false;
         }
@@ -333,7 +340,7 @@ export const hotkeyService = {
          */
         function registerHotkey(hotkey, callback, options = {}) {
             // Validate some informations
-            if (!hotkey || hotkey.length === 0) {
+            if (!hotkey || !hotkey.length) {
                 throw new Error(
                     "You must specify an hotkey when registering a registration.",
                 );
@@ -374,17 +381,17 @@ export const hotkeyService = {
                 hotkey: hotkey.toLowerCase(),
                 callback,
                 activeElement: null,
-                allowRepeat: options && options.allowRepeat,
-                bypassEditableProtection: options && options.bypassEditableProtection,
-                global: options && options.global,
-                area: options && options.area,
-                isAvailable: options && options.isAvailable,
-                withOverlay: options && options.withOverlay,
+                allowRepeat: options?.allowRepeat,
+                bypassEditableProtection: options?.bypassEditableProtection,
+                global: options?.global,
+                area: options?.area,
+                isAvailable: options?.isAvailable,
+                withOverlay: options?.withOverlay,
             };
 
             // Due to the way elements are mounted in the DOM by Owl (bottom-to-top),
             // we need to wait the next micro task tick to set the context owner of the registration.
-            Promise.resolve().then(() => {
+            queueMicrotask(() => {
                 registration.activeElement = ui.activeElement;
             });
 

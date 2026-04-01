@@ -192,7 +192,7 @@ export class ProfilingQwebView extends Component {
                 while (
                     (previous = /** @type {any} */ (previous.previousElementSibling))
                 ) {
-                    if (previous && previous.classList.contains("ace_tag-name")) {
+                    if (previous?.classList.contains("ace_tag-name")) {
                         break;
                     }
                 }

@@ -198,7 +198,7 @@ export class ListController extends MultiRecordController {
             this.props.fields,
         );
         const groupByInfo = {};
-        for (const fieldName in this.archInfo.groupBy.fields) {
+        for (const fieldName of Object.keys(this.archInfo.groupBy.fields)) {
             const fieldNodes = this.archInfo.groupBy.fields[fieldName].fieldNodes;
             const fields = this.archInfo.groupBy.fields[fieldName].fields;
             groupByInfo[fieldName] = extractFieldsFromArchInfo(
@@ -489,7 +489,7 @@ export class ListController extends MultiRecordController {
      * @returns {Promise<boolean> | boolean}
      */
     onAskMultiSaveConfirmation(changes, validSelectedRecords) {
-        if (this.model.root.selection.length > 1 && validSelectedRecords.length > 0) {
+        if (this.model.root.selection.length > 1 && validSelectedRecords.length) {
             const record = validSelectedRecords[0];
             const { isDomainSelected, selection } = this.model.root;
             return new Promise((resolve) => {

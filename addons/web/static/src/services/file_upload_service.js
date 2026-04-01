@@ -4,6 +4,7 @@
 /** @module @web/services/file_upload_service - XHR-based file upload service with progress tracking and event bus */
 
 import { EventBus, reactive } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 /**
@@ -20,7 +21,7 @@ export const fileUploadService = {
      * @returns {XMLHttpRequest}
      */
     createXhr() {
-        return new window.XMLHttpRequest();
+        return new browser.XMLHttpRequest();
     },
 
     /**
@@ -68,7 +69,7 @@ export const fileUploadService = {
             uploads[upload.id] = upload;
             // Progress listener
             xhr.upload.addEventListener("progress", async (ev) => {
-                upload.progress = ev.loaded / ev.total;
+                upload.progress = ev.total > 0 ? ev.loaded / ev.total : 0;
                 upload.loaded = ev.loaded;
                 upload.total = ev.total;
                 upload.state = "loading";
@@ -144,7 +145,7 @@ export const fileUploadService = {
              * @param {Error} [error]
              */
             function onError(error) {
-                const defaultErrorMessage = _t("An error occured while uploading.");
+                const defaultErrorMessage = _t("An error occurred while uploading.");
                 delete uploads[upload.id];
                 upload.state = "error";
                 const displayError = params.displayErrorNotification ?? true;

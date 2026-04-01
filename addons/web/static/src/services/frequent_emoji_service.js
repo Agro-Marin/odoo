@@ -19,7 +19,13 @@ export const frequentEmojiService = {
     start() {
         const state = reactive({
             /** @type {Record<string, number>} */
-            all: JSON.parse(browser.localStorage.getItem("web.emoji.frequent") || "{}"),
+            all: (() => {
+                try {
+                    return JSON.parse(browser.localStorage.getItem("web.emoji.frequent") || "{}");
+                } catch {
+                    return {};
+                }
+            })(),
             /**
              * Increment usage count for the given emoji codepoints.
              * @param {string} codepoints - the emoji codepoints identifier
@@ -46,7 +52,11 @@ export const frequentEmojiService = {
         });
         browser.addEventListener("storage", (ev) => {
             if (ev.key === "web.emoji.frequent") {
-                state.all = ev.newValue ? JSON.parse(ev.newValue) : {};
+                try {
+                    state.all = ev.newValue ? JSON.parse(ev.newValue) : {};
+                } catch {
+                    state.all = {};
+                }
             } else if (ev.key === null) {
                 state.all = {};
             }

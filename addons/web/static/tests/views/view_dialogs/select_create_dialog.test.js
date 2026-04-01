@@ -349,7 +349,7 @@ test("SelectCreateDialog cascade x2many in create mode on desktop", async () => 
     onRpc(["partner", "instrument"], "get_formview_id", () => false);
     onRpc("instrument", "web_save", ({ args }) => {
         expect(args[1]).toEqual(
-            { badassery: [[4, 1]], name: "ABC" },
+            { badassery: [[4, 1, false]], name: "ABC" },
             {
                 message:
                     "The method create should have been called with the right arguments",
@@ -430,7 +430,7 @@ test("SelectCreateDialog cascade x2many in create mode on mobile", async () => {
     onRpc(["partner", "instrument"], "get_formview_id", () => false);
     onRpc("instrument", "web_save", ({ args }) => {
         expect(args[1]).toEqual(
-            { badassery: [[4, 1]], name: "ABC" },
+            { badassery: [[4, 1, false]], name: "ABC" },
             {
                 message:
                     "The method create should have been called with the right arguments",

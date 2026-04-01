@@ -43,7 +43,7 @@ export class SearchableSetting extends Setting {
             }
             if (browser.location.hash.slice(1) === this.props.id) {
                 this.state.highlightClass = { o_setting_highlight: true };
-                setTimeout(() => (this.state.highlightClass = {}), 5000);
+                browser.setTimeout(() => (this.state.highlightClass = {}), 5000);
             }
         });
     }

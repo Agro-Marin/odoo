@@ -264,7 +264,7 @@ export function stylePieChartData(data) {
         dataset.hoverOffset = 60;
     }
     let addNoDataToLegend = false;
-    if (data.datasets.length === 0) {
+    if (!data.datasets.length) {
         const fakeData = new Array(data.labels.length + 1);
         fakeData[data.labels.length] = 1;
         const fakeTrueLabels = new Array(data.labels.length + 1);
@@ -305,6 +305,7 @@ export function styleScatterChartData(data) {
         dataset.borderWidth = 2;
         dataset.pointRadius = 5;
         dataset.pointHoverRadius = 8;
+        dataset.pointHitRadius = 10;
         dataset.pointBackgroundColor = itemColor;
         dataset.pointBorderColor = getCustomColor(
             colorScheme,
@@ -470,9 +471,10 @@ export function buildTooltipItems(data, metaData, tooltipModel, lineOverlayDatas
             if (groupBy.length > 1) {
                 label = `${label} / ${dataset.label}`;
             }
-            boxColor = mode === "bar"
-                ? dataset.backgroundColor
-                : dataset.borderColor;
+            boxColor =
+                mode === "bar" || mode === "scatter"
+                    ? dataset.backgroundColor
+                    : dataset.borderColor;
         }
         items.push({ label, value, boxColor, percentage });
     }

@@ -13,7 +13,7 @@ import { Dialog } from "@web/ui/dialog/dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { Tooltip } from "@web/ui/tooltip/tooltip";
 
-const { DateTime } = luxon;
+const { DateTime } = globalThis.luxon ?? {};
 
 // This props are added by the error handler
 /**

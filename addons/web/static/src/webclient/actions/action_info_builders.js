@@ -129,7 +129,7 @@ export function buildViewInfo(view, action, views, props = {}, callbacks) {
             viewProps.readonly = false;
             if (!viewProps.onSave) {
                 viewProps.onSave = (record, params) => {
-                    if (params && params.closable) {
+                    if (params?.closable) {
                         doAction({ type: "ir.actions.act_window_close" });
                     }
                 };

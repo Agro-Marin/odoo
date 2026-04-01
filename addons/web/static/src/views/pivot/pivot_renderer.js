@@ -139,7 +139,7 @@ export class PivotRenderer extends Component {
                 ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
                 !searchItem.custom,
         );
-        if (items.length === 0) {
+        if (!items.length) {
             items = this.fields;
         }
 

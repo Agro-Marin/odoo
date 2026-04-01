@@ -116,7 +116,7 @@ export class ReferenceField extends Component {
         }
 
         const value = this.getValue();
-        if (value && value.resModel) {
+        if (value?.resModel) {
             return value.resModel;
         } else {
             return /** @type {any} */ (this.state).currentRelation;
@@ -179,7 +179,7 @@ export class ReferenceField extends Component {
             return false;
         }
         const [resModel, _resId] = recordData.split(",");
-        const resId = parseInt(_resId, 10);
+        const resId = Number.parseInt(_resId, 10);
         if (resModel && resId) {
             const { specialDataCaches, orm } = props.record.model;
             const key = `__reference__name_get-${recordData}`;

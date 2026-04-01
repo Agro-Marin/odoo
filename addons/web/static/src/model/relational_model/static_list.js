@@ -174,7 +174,7 @@ export class StaticList extends DataPoint {
     delete(record) {
         return this.model.mutex.exec(async () => {
             await this._applyCommands([
-                [x2ManyCommands.DELETE, record.resId || record._virtualId],
+                x2ManyCommands.delete(record.resId || record._virtualId),
             ]);
             // All records of last page are deleted => reload the new last page
             if (this.count === this.offset) {
@@ -230,7 +230,7 @@ export class StaticList extends DataPoint {
             completeActiveFields(this.config.activeFields, params.activeFields);
             Object.assign(this.fields, params.fields);
             const activeFields = { ...params.activeFields };
-            for (const fieldName in this.activeFields) {
+            for (const fieldName of Object.keys(this.activeFields)) {
                 if (fieldName in activeFields) {
                     patchActiveFields(
                         activeFields[fieldName],
@@ -288,7 +288,7 @@ export class StaticList extends DataPoint {
                     reload: false,
                 });
                 record._applyDefaultValues();
-                for (const fieldName in record.activeFields) {
+                for (const fieldName of Object.keys(record.activeFields)) {
                     if (
                         ["one2many", "many2many"].includes(
                             record.fields[fieldName].type,
@@ -337,7 +337,7 @@ export class StaticList extends DataPoint {
 
     forget(record) {
         return this.model.mutex.exec(async () => {
-            await this._applyCommands([[x2ManyCommands.UNLINK, record.resId]]);
+            await this._applyCommands([x2ManyCommands.unlink(record.resId)]);
             await this._onUpdate();
         });
     }
@@ -415,8 +415,8 @@ export class StaticList extends DataPoint {
     async addAndRemove({ add, remove } = {}) {
         return this.model.mutex.exec(async () => {
             const commands = [
-                ...(add || []).map((id) => [x2ManyCommands.LINK, id]),
-                ...(remove || []).map((id) => [x2ManyCommands.UNLINK, id]),
+                ...(add || []).map((id) => x2ManyCommands.link(id)),
+                ...(remove || []).map((id) => x2ManyCommands.unlink(id)),
             ];
             await this._applyCommands(commands, { canAddOverLimit: true });
             await this._onUpdate();
@@ -548,7 +548,7 @@ export class StaticList extends DataPoint {
     }
 
     _addSavePoint() {
-        for (const id in this._cache) {
+        for (const id of Object.keys(this._cache)) {
             this._cache[id]._addSavePoint();
         }
         this._savePoint = markRaw({
@@ -631,7 +631,7 @@ export class StaticList extends DataPoint {
         /** @type {any} */
         const config = {
             context: this.context,
-            activeFields: Object.assign({}, params.activeFields || this.activeFields),
+            activeFields: { ...(params.activeFields || this.activeFields) },
             resModel: this.resModel,
             fields: params.fields || this.fields,
             relationField: this.config.relationField,
@@ -698,7 +698,7 @@ export class StaticList extends DataPoint {
      */
     _pruneCache() {
         const activeIds = new Set(this._currentIds);
-        for (const id in this._cache) {
+        for (const id of Object.keys(this._cache)) {
             if (!activeIds.has(id) && !activeIds.has(Number(id))) {
                 delete this._cache[id];
             }
@@ -707,7 +707,7 @@ export class StaticList extends DataPoint {
     }
 
     _discard() {
-        for (const id in this._cache) {
+        for (const id of Object.keys(this._cache)) {
             this._cache[id]._discard();
         }
         if (this._savePoint) {
@@ -803,6 +803,8 @@ export class StaticList extends DataPoint {
     }
 
     _getResIdsToLoad(resIds, fieldNames = this.fieldNames) {
+        // Filter "id" once — not inside the per-record callback
+        const relevantFields = fieldNames.filter((f) => f !== "id");
         return resIds.filter((resId) => {
             if (typeof resId === "string") {
                 // this is a virtual id, we don't want to read it
@@ -814,9 +816,9 @@ export class StaticList extends DataPoint {
                 return true;
             }
             // record has already been loaded -> check if we already read all orderBy fields
-            fieldNames = fieldNames.filter((fieldName) => fieldName !== "id");
             return (
-                intersection(fieldNames, record.fieldNames).length !== fieldNames.length
+                intersection(relevantFields, record.fieldNames).length !==
+                relevantFields.length
             );
         });
     }

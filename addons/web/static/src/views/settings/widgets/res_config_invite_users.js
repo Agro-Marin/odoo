@@ -94,9 +94,7 @@ class ResConfigInviteUsers extends Component {
     }
 
     onClickUser(ev, user) {
-        const action = Object.assign({}, this.state.invite.action_pending_users, {
-            res_id: user[0],
-        });
+        const action = { ...this.state.invite.action_pending_users, res_id: user[0] };
         this.action.doAction(action);
     }
 

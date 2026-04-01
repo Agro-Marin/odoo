@@ -290,7 +290,7 @@ export class KanbanController extends MultiRecordController {
     get progressBarAggregateFields() {
         const res = [];
         const { progressAttributes } = this.props.archInfo;
-        if (progressAttributes && progressAttributes.sumField) {
+        if (progressAttributes?.sumField) {
             res.push(progressAttributes.sumField);
         }
         return res;
@@ -318,7 +318,7 @@ export class KanbanController extends MultiRecordController {
             this.model.isReady &&
             list.isGrouped &&
             list.groupByField.type === "many2one" &&
-            list.groups.length === 0 &&
+            !list.groups.length &&
             createGroup
         );
     }
@@ -404,7 +404,7 @@ export class KanbanController extends MultiRecordController {
                     if (!noReload) {
                         await root.load();
                         this.model.useSampleModel = false;
-                        this.render(true); // FIXME WOWL reactivity
+                        this.render(true); // Force re-render: model.useSampleModel change is not reactive
                     }
                 },
             };

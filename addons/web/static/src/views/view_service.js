@@ -78,7 +78,7 @@ export const viewService = {
                 toolbar:
                     (!context?.disable_toolbar && options.loadActionMenus) || false,
             };
-            for (const key in options) {
+            for (const key of Object.keys(options)) {
                 if (
                     ![
                         "actionId",
@@ -116,7 +116,7 @@ export const viewService = {
                 relatedModels: result.models,
                 views: {},
             };
-            for (const viewType in result.views) {
+            for (const viewType of Object.keys(result.views)) {
                 const { arch, toolbar, id, filters, custom_view_id } =
                     result.views[viewType];
                 const viewDescription = { arch, id, custom_view_id };

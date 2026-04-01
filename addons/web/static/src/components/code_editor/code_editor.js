@@ -13,6 +13,7 @@ import {
     useState,
 } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
+import { browser } from "@web/core/browser/browser";
 /**
  * Ace-based code editor OWL component with syntax highlighting, themes,
  * multiple sessions, and read-only support.
@@ -191,7 +192,7 @@ export class CodeEditor extends Component {
         if (initialCursorPosition) {
             onMounted(() => {
                 // Wait for ace to be fully operational
-                window.requestAnimationFrame(() => {
+                browser.requestAnimationFrame(() => {
                     if (status(this) !== "destroyed" && this.aceEditor) {
                         this.aceEditor.focus();
                         const { row, column } = initialCursorPosition;

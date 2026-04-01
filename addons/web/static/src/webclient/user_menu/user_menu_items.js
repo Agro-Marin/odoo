@@ -104,14 +104,13 @@ export function odooAccountItem(env) {
         type: "item",
         id: "account",
         description: _t("My Odoo.com Account"),
-        callback: () => {
-            rpc("/web/session/account")
-                .then((url) => {
-                    browser.open(url, "_blank");
-                })
-                .catch(() => {
-                    browser.open("https://accounts.odoo.com/account", "_blank");
-                });
+        callback: async () => {
+            try {
+                const url = await rpc("/web/session/account");
+                browser.open(url, "_blank");
+            } catch {
+                browser.open("https://accounts.odoo.com/account", "_blank");
+            }
         },
         sequence: 60,
     };

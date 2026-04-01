@@ -170,7 +170,7 @@ export class SelectMenu extends Component {
             virtualFocus: this.props.searchable,
             hotkeys: {
                 enter: {
-                    isAvailable: ({ navigator }) => navigator.items.length > 0,
+                    isAvailable: ({ navigator }) => navigator.items.length,
                     callback: (navigator) => {
                         if (navigator.activeItem) {
                             return navigator.activeItem.select();
@@ -185,7 +185,7 @@ export class SelectMenu extends Component {
                 },
             },
             onItemActivated: (element) => {
-                const index = parseInt(element.dataset.choiceIndex);
+                const index = Number.parseInt(element.dataset.choiceIndex, 10);
                 if (index >= 0 && this.state.displayedOptions[index]) {
                     this.props.onNavigated(this.state.displayedOptions[index]);
                 } else {
@@ -407,7 +407,7 @@ export class SelectMenu extends Component {
                 }
             }
 
-            if (filteredOptions.length === 0) {
+            if (!filteredOptions.length) {
                 continue;
             }
             if (group.section) {

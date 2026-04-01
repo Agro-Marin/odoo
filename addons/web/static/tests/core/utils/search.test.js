@@ -35,8 +35,9 @@ test("fuzzyLookup", () => {
 test("fuzzyLevenshteinLookup", () => {
     const words = ["apple", "apply", "ape", "maple", "application", "banana"];
 
-    // Exact substring match returns score 0 (best), then fuzzy matches.
-    // "ape" is 1 edit from "app" (p→e), within maxNbrCorrection = round(3/3) = 1.
+    // Exact substrings (score 0) first, then fuzzy matches sorted by edit
+    // distance.  "ape" is 1 edit from "app" (p→e) — equal-length candidates
+    // are NOT excluded; the Levenshtein threshold handles false positives.
     expect(fuzzyLevenshteinLookup("app", words)).toEqual([
         "apple",
         "apply",
@@ -45,19 +46,18 @@ test("fuzzyLevenshteinLookup", () => {
     ]);
 
     // "maple" contains "aple" as substring (score 0), "apple" and "ape" are
-    // 1 edit away (score 1), within maxNbrCorrection = round(4/3) = 1.
+    // 1 edit away (score 1).  Best matches first.
     expect(fuzzyLevenshteinLookup("aple", words)).toEqual(["maple", "apple", "ape"]);
 
     // No match within error ratio
     expect(fuzzyLevenshteinLookup("xyz", words)).toEqual([]);
 
-    // Empty pattern matches everything (all are substrings of themselves)
+    // Empty pattern — every candidate contains "" as substring
     expect(fuzzyLevenshteinLookup("", words)).toEqual(words);
 
-    // Single character — error ratio limits corrections
+    // Single character — maxNbrCorrection = round(1/3) = 0: only exact substrings
     expect(fuzzyLevenshteinLookup("b", words)).toEqual(["banana"]);
 
-    // Custom error ratio: stricter matching
     // errorRatio=5 → maxNbrCorrection = round(4/5) = 1: same as default for "aple"
     expect(fuzzyLevenshteinLookup("aple", words, 5)).toEqual(["maple", "apple", "ape"]);
     // errorRatio=100 → maxNbrCorrection = round(4/100) = 0: only exact substrings

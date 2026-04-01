@@ -133,7 +133,7 @@ export class CalendarFilterSection extends Component {
             });
         }
 
-        if (records.length === 0) {
+        if (!records.length) {
             options.push({
                 cssClass: "o_m2o_no_result",
                 label: _t("No records"),

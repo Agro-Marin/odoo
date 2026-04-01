@@ -20,10 +20,10 @@ function getClone(template) {
 }
 
 /**
- * @param {Iterable<unknown>} args
+ * @param {unknown[]} args
  */
 function getKey(args) {
-    return JSON.stringify([...args]);
+    return JSON.stringify(args);
 }
 
 /**
@@ -36,6 +36,9 @@ function getParsedTemplate(templateString) {
     }
     return /** @type {Element} */ (doc.firstChild);
 }
+
+/** @type {Set<string>} */
+const _inheritanceChain = new Set();
 
 /**
  * @param {string} name
@@ -58,7 +61,18 @@ function _getTemplate(name, blockId = null) {
 
     const inheritFrom = processedTemplate.getAttribute("t-inherit");
     if (inheritFrom) {
-        const parentTemplate = _getTemplate(inheritFrom, blockId || info[name].blockId);
+        if (_inheritanceChain.has(name)) {
+            throw new Error(
+                `Circular template inheritance detected: ${[..._inheritanceChain, name].join(" → ")}`,
+            );
+        }
+        _inheritanceChain.add(name);
+        let parentTemplate;
+        try {
+            parentTemplate = _getTemplate(inheritFrom, blockId || info[name].blockId);
+        } finally {
+            _inheritanceChain.delete(name);
+        }
         if (!parentTemplate) {
             throw new Error(
                 `Constructing template ${name}: template parent ${inheritFrom} not found`,
@@ -83,7 +97,7 @@ function _getTemplate(name, blockId = null) {
     }
 
     let cloned = false;
-    for (const otherBlockId in templateExtensions[name] || {}) {
+    for (const otherBlockId of Object.keys(templateExtensions[name] || {})) {
         if (blockId && Number(otherBlockId) > blockId) {
             break;
         }
@@ -160,7 +174,7 @@ export function getTemplate(name) {
  * @param {string} templateString
  */
 export function registerTemplate(name, url, templateString) {
-    const key = getKey(arguments);
+    const key = getKey([name, url, templateString]);
     if (registered.has(key)) {
         return;
     }
@@ -194,7 +208,7 @@ export function registerTemplate(name, url, templateString) {
  * @param {string} templateString
  */
 export function registerTemplateExtension(inheritFrom, url, templateString) {
-    const key = getKey(arguments);
+    const key = getKey([inheritFrom, url, templateString]);
     if (registered.has(key)) {
         return;
     }

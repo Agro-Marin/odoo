@@ -16,7 +16,7 @@ import { localization } from "@web/core/l10n/localization";
 import { Time } from "@web/core/l10n/time";
 import { _t } from "@web/core/l10n/translation";
 import { ensureArray } from "@web/core/utils/collections/arrays";
-const { DateTime, Info } = luxon;
+const { DateTime, Info } = globalThis.luxon ?? {};
 
 /**
  * @typedef DateItem
@@ -32,7 +32,7 @@ const { DateTime, Info } = luxon;
  *
  * @typedef {[DateTime, DateTime]} DateRange
  *
- * @typedef {luxon["DateTime"]["prototype"]} DateTime
+ * @typedef {globalThis.luxon["DateTime"]["prototype"]} DateTime
  *
  * @typedef DateTimePickerProps
  * @property {number} [focusedDateIndex=0]

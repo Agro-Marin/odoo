@@ -21,7 +21,7 @@ export const currencyService = {
         /** Reload currencies from the server, replacing the in-memory cache. */
         async function reloadCurrencies() {
             const result = await orm.call("res.currency", "get_all_currencies");
-            for (const k in currencies) {
+            for (const k of Object.keys(currencies)) {
                 delete currencies[k];
             }
             Object.assign(currencies, result);

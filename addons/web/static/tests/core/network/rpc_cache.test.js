@@ -932,6 +932,7 @@ test("DiskCache: multiple consecutive calls, fallback fails", async () => {
     // The fallback fails.
     // Each call receives as value the disk value, callbacks aren't executed.
     // Background refresh failure is logged as warning (not error) since cached data was already served.
+    patchWithCleanup(console, { warn: () => {} });
     const rpcCache = new RPCCache(
         "mockRpc",
         1,

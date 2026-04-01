@@ -4,6 +4,7 @@
 /** @module @web/fields/hooks/record_observer - OWL hook for observing record value changes in field components */
 
 import { onWillDestroy, onWillStart, onWillUpdateProps, useComponent } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
 import { effect } from "@web/core/utils/reactive";
@@ -48,7 +49,7 @@ export function useRecordObserver(callback) {
                         },
                         () =>
                             new Promise((resolve) =>
-                                window.requestAnimationFrame(() => resolve()),
+                                browser.requestAnimationFrame(() => resolve()),
                             ),
                     )(record);
                 }

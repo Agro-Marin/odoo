@@ -26,7 +26,7 @@ export {
     today,
 } from "./date_utils.js";
 
-const { DateTime, Settings } = /** @type {any} */ (luxon);
+const { DateTime, Settings } = /** @type {any} */ (globalThis.luxon ?? {});
 
 /**
  * @typedef ConversionOptions
@@ -122,7 +122,7 @@ function isValidDate(date) {
 function parseSmartDateInput(value) {
     const terms = value.split(/\s+/);
     if (!terms.length) {
-        return false;
+        return null;
     }
     let now = DateTime.local().startOf("second");
     if (terms[0] === "today") {
@@ -138,7 +138,7 @@ function parseSmartDateInput(value) {
         const term = terms[i];
         const operator = term[0];
         if (term.length < 3 || !["+", "-", "="].includes(operator)) {
-            return false;
+            return null;
         }
 
         const dayname = term.slice(1);
@@ -164,9 +164,9 @@ function parseSmartDateInput(value) {
 
         try {
             const field_name = smartDateUnits[term.at(-1)];
-            const number = parseInt(term.slice(1, -1), 10);
-            if (!field_name || isNaN(number)) {
-                return false;
+            const number = Number.parseInt(term.slice(1, -1), 10);
+            if (!field_name || Number.isNaN(number)) {
+                return null;
             }
             if (operator === "+") {
                 now = now.plus({ [field_name]: number });
@@ -180,14 +180,14 @@ function parseSmartDateInput(value) {
                 ) {
                     now = now.startOf(field_name);
                 } else if (field_name === "weeks") {
-                    return false;
+                    return null;
                 } else {
                     now = now.startOf("day");
                 }
                 now = now.set({ [field_name]: number });
             }
         } catch {
-            return false;
+            return null;
         }
     }
 
@@ -324,7 +324,7 @@ export function formatDuration(seconds, showFullDuration) {
     }
     seconds -= seconds % 60;
 
-    let duration = /** @type {any} */ (luxon).Duration.fromObject({
+    let duration = /** @type {any} */ (globalThis.luxon).Duration.fromObject({
         seconds: seconds,
     }).shiftTo(...durationKeys);
     duration = duration.shiftTo(...durationKeys.filter((key) => duration.get(key)));
@@ -353,7 +353,7 @@ export function parseDate(value, options = {}) {
         ...options,
         format: options.format || localization.dateFormat,
     });
-    return parsed && parsed.startOf("day");
+    return parsed ? parsed.startOf("day") : null;
 }
 
 /**
@@ -366,7 +366,7 @@ export function parseDate(value, options = {}) {
  */
 export function parseDateTime(value, options = {}) {
     if (!value) {
-        return false;
+        return null;
     }
 
     const fmt = options.format || localization.dateTimeFormat;

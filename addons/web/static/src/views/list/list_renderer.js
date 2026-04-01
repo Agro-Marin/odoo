@@ -329,8 +329,8 @@ export class ListRenderer extends Component {
         }));
 
         onPatched(async () => {
-            // HACK: we need to wait for the next tick to be sure that the Field components are patched.
-            // OWL don't wait the patch for the children components if the children trigger a patch by himself.
+            // Wait one microtask so child Field components finish their own patch cycle.
+            // OWL does not wait for children that trigger a self-patch.
             await Promise.resolve();
             if (status(this) === "destroyed") {
                 return;
@@ -836,7 +836,7 @@ export class ListRenderer extends Component {
                 const decorations = /** @type {Record<string, string>} */ (
                     column.decorations
                 );
-                for (const decoName in decorations) {
+                for (const decoName of Object.keys(decorations)) {
                     if (evaluateBooleanExpr(decorations[decoName], evalCtx)) {
                         result += ` ${getClassNameFromDecoration(decoName)}`;
                     }

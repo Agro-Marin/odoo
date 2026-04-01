@@ -15,7 +15,7 @@ import { addChild, connector, toValue } from "./condition_tree.js";
  * @param {AST[]} ASTs
  * @param {boolean} [distributeNot=false]
  * @param {boolean} [negate=false]
- * @returns {{ tree: Tree, remaimingASTs: AST[] }}
+ * @returns {{ tree: Tree, remainingASTs: AST[] }}
  */
 function _constructTree(ASTs, distributeNot = false, negate = false) {
     const [firstAST, ...tailASTs] = ASTs;
@@ -52,19 +52,19 @@ function _constructTree(ASTs, distributeNot = false, negate = false) {
             }
         }
     }
-    let remaimingASTs = tailASTs;
+    let remainingASTs = tailASTs;
     if (tree.type === "connector") {
         for (let i = 0; i < 2; i++) {
-            const { tree: child, remaimingASTs: otherASTs } = _constructTree(
-                remaimingASTs,
+            const { tree: child, remainingASTs: otherASTs } = _constructTree(
+                remainingASTs,
                 distributeNot,
                 distributeNot && negate,
             );
-            remaimingASTs = otherASTs;
+            remainingASTs = otherASTs;
             addChild(tree, child);
         }
     }
-    return { tree, remaimingASTs };
+    return { tree, remainingASTs };
 }
 
 /**

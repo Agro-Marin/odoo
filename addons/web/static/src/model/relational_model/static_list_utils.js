@@ -133,11 +133,10 @@ export function copyRecordData(record, copyFields = []) {
             case "many2many": {
                 const list = record.data[name];
                 data[name] = list.currentIds.map((id) => {
-                    let data;
-                    if (list._cache[id]) {
-                        data = copyRecordData(list._cache[id]);
-                    }
-                    return [x2ManyCommands.LINK, id, data];
+                    const cached = list._cache[id]
+                        ? copyRecordData(list._cache[id])
+                        : false;
+                    return [x2ManyCommands.LINK, id, cached];
                 });
                 break;
             }

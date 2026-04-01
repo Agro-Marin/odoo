@@ -75,7 +75,7 @@ export class RecordAutocomplete extends Component {
                 onSelect: this.onSearchMore.bind(this, name),
             });
         }
-        if (options.length === 0) {
+        if (!options.length) {
             options.push({ label: _t("(no result)") });
         }
         return options;

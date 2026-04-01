@@ -21,7 +21,7 @@ import { user } from "@web/services/user";
  * @param {any} value
  */
 function validateModel(value) {
-    if (typeof value !== "string" || value.length === 0) {
+    if (typeof value !== "string" || !value.length) {
         throw new Error(`Invalid model name: ${value}`);
     }
 }
@@ -149,24 +149,23 @@ export class ORM {
      * @param {any} [kwargs={}]
      * @returns {Promise<any[]>}
      */
-    formattedReadGroup(model, domain, groupby, aggregates, kwargs = {}) {
+    async formattedReadGroup(model, domain, groupby, aggregates, kwargs = {}) {
         validateArray("domain", domain);
         validatePrimitiveList("groupby", "string", groupby);
         validatePrimitiveList("aggregates", "string", aggregates);
-        return this.call(model, "formatted_read_group", [], {
+        const res = await this.call(model, "formatted_read_group", [], {
             domain,
             groupby,
             aggregates,
             ...kwargs,
-        }).then((res) => {
-            for (const group of res) {
-                group["__domain"] = Domain.and([
-                    domain,
-                    group["__extra_domain"],
-                ]).toList();
-            }
-            return res;
         });
+        for (const group of res) {
+            group["__domain"] = Domain.and([
+                domain,
+                group["__extra_domain"],
+            ]).toList();
+        }
+        return res;
     }
 
     /**
@@ -177,26 +176,25 @@ export class ORM {
      * @param {any} [kwargs={}]
      * @returns {Promise<any[]>}
      */
-    formattedReadGroupingSets(model, domain, grouping_sets, aggregates, kwargs = {}) {
+    async formattedReadGroupingSets(model, domain, grouping_sets, aggregates, kwargs = {}) {
         validateArray("domain", domain);
-        validateArray("groupby", grouping_sets);
+        validateArray("grouping_sets", grouping_sets);
         validatePrimitiveList("aggregates", "string", aggregates);
-        return this.call(model, "formatted_read_grouping_sets", [], {
+        const res = await this.call(model, "formatted_read_grouping_sets", [], {
             domain,
             grouping_sets,
             aggregates,
             ...kwargs,
-        }).then((res) => {
-            for (const groups of res) {
-                for (const group of groups) {
-                    group["__domain"] = Domain.and([
-                        domain,
-                        group["__extra_domain"],
-                    ]).toList();
-                }
-            }
-            return res;
         });
+        for (const groups of res) {
+            for (const group of groups) {
+                group["__domain"] = Domain.and([
+                    domain,
+                    group["__extra_domain"],
+                ]).toList();
+            }
+        }
+        return res;
     }
 
     /**
@@ -352,7 +350,7 @@ export class ORM {
      * @param {Object} [kwargs.context]
      * @returns {Promise<any[]>}
      */
-    async webSaveMulti(model, ids, data, kwargs = {}) {
+    webSaveMulti(model, ids, data, kwargs = {}) {
         validatePrimitiveList("ids", "number", ids);
         validateArray("data", data);
         data.forEach((d) => {

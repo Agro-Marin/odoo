@@ -145,7 +145,7 @@ export function startUrl() {
  */
 function stateToUrl(state) {
     let path = "";
-    const pathKeysToOmit = [..._hiddenKeysFromUrl];
+    const keysToOmit = new Set(_hiddenKeysFromUrl);
     const actionStack = (state.actionStack || [state]).map((a) => ({ ...a }));
     if (actionStack.at(-1)?.action !== "menu") {
         for (const [prevAct, currentAct] of slidingWindow(actionStack, 2).reverse()) {
@@ -176,18 +176,12 @@ function stateToUrl(state) {
         }
     }
     if (state.active_id && typeof state.active_id !== "number") {
-        const idx = pathKeysToOmit.indexOf("active_id");
-        if (idx !== -1) {
-            pathKeysToOmit.splice(idx, 1);
-        }
+        keysToOmit.delete("active_id");
     }
     if (state.resId && typeof state.resId !== "number" && state.resId !== "new") {
-        const idx = pathKeysToOmit.indexOf("resId");
-        if (idx !== -1) {
-            pathKeysToOmit.splice(idx, 1);
-        }
+        keysToOmit.delete("resId");
     }
-    const search = objectToUrlEncodedString(omit(state, ...pathKeysToOmit));
+    const search = objectToUrlEncodedString(omit(state, ...keysToOmit));
     const start_url = startUrl();
     return `/${start_url}${path}${search ? `?${search}` : ""}`;
 }
@@ -229,19 +223,19 @@ function urlToState(urlObj) {
             const action = {};
             const [left, right] = [splitPath[i - 1], splitPath[i + 1]];
             if (isNumeric(left)) {
-                action.active_id = parseInt(left);
+                action.active_id = Number.parseInt(left, 10);
             }
 
             if (right === "new") {
                 action.resId = "new";
             } else if (isNumeric(right)) {
-                action.resId = parseInt(right);
+                action.resId = Number.parseInt(right, 10);
             }
 
             if (part.startsWith("action-")) {
                 // numeric id or xml_id
                 const actionId = part.slice(7);
-                action.action = isNumeric(actionId) ? parseInt(actionId) : actionId;
+                action.action = isNumeric(actionId) ? Number.parseInt(actionId, 10) : actionId;
             } else if (part.startsWith("m-")) {
                 action.model = part.slice(2);
             } else if (part.includes(".")) {
@@ -340,7 +334,7 @@ browser.addEventListener("pageshow", (ev) => {
 
 /**
  * When clicking internal links, do a loadState instead of a full page reload.
- * This also alows the mobile app to not open an in-app browser for them.
+ * This also allows the mobile app to not open an in-app browser for them.
  */
 browser.addEventListener("click", (ev) => {
     if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) {
@@ -365,14 +359,15 @@ browser.addEventListener("click", (ev) => {
             browser.location.pathname.startsWith("/odoo") &&
             (["/web", "/odoo"].includes(url.pathname) ||
                 url.pathname.startsWith("/odoo/")) &&
-            a.target !== "_blank"
+            a.target !== "_blank" &&
+            !a.hasAttribute("download")
         ) {
             ev.preventDefault();
             state = router.urlToState(url);
             if (url.pathname.startsWith("/odoo") && url.hash) {
                 browser.history.pushState({ nextState: state }, "", url.href);
             }
-            setTimeout(() => routerBus.trigger(RouterEvent.ROUTE_CHANGE), 0);
+            browser.setTimeout(() => routerBus.trigger(RouterEvent.ROUTE_CHANGE), 0);
         }
     }
 });

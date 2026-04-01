@@ -84,10 +84,10 @@ const COLORS_XL = [
     "#5752D1", // Purple #2
     "#3A3580", // Purple #3
     "#26235F", // Purple #4
-    "#A4A8B6", // Grey #1
-    "#7E8290", // Grey #2
-    "#545B70", // Grey #3
-    "#3F4250", // Grey #4
+    "#A4A8B6", // Gray #1
+    "#7E8290", // Gray #2
+    "#545B70", // Gray #3
+    "#3F4250", // Gray #4
     "#FFD86D", // Yellow #1
     "#FFBC2C", // Yellow #2
     "#C08A16", // Yellow #3
@@ -115,9 +115,12 @@ export function getColors(colorScheme, paletteName) {
 }
 
 /**
- * @param {number} index
- * @param {string} colorScheme
- * @returns {string}
+ * Return a single color from the appropriate palette.
+ * @param {number} index - Color index (wraps around if > palette length)
+ * @param {string} colorScheme - "dark" or "light"
+ * @param {number | "odoo" | "sm" | "md" | "lg" | "xl"} paletteSizeOrName
+ *   Either a dataset size (auto-selects sm/md/lg/xl) or an explicit palette name.
+ * @returns {string} Hex color
  */
 export function getColor(index, colorScheme, paletteSizeOrName) {
     let paletteName;
@@ -133,7 +136,7 @@ export function getColor(index, colorScheme, paletteSizeOrName) {
         paletteName = "xl";
     }
     const colors = getColors(colorScheme, paletteName);
-    return colors[index % colors.length];
+    return colors[((index % colors.length) + colors.length) % colors.length];
 }
 
 export const DEFAULT_BG = "#d3d3d3";
@@ -142,82 +145,103 @@ export function getBorderWhite(colorScheme) {
     return colorScheme === "dark" ? "rgba(38, 42, 54, .2)" : "rgba(249,250,251, .2)";
 }
 
-const RGB_REGEX = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i;
+const HEX6_REGEX = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i;
+const HEX3_REGEX = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
 
 /**
+ * Parse a 3- or 6-digit hex color string into its RGB components.
+ * @param {string} hex - Color string like "#ff00aa", "ff00aa", "#f0a", or "f0a"
+ * @returns {[number, number, number] | null} RGB tuple or null if invalid
+ */
+function parseHex(hex) {
+    let m = HEX6_REGEX.exec(hex);
+    if (m) {
+        return [Number.parseInt(m[1], 16), Number.parseInt(m[2], 16), Number.parseInt(m[3], 16)];
+    }
+    m = HEX3_REGEX.exec(hex);
+    if (m) {
+        return [Number.parseInt(m[1] + m[1], 16), Number.parseInt(m[2] + m[2], 16), Number.parseInt(m[3] + m[3], 16)];
+    }
+    return null;
+}
+
+/**
+ * Format RGB components back to a hex color string.
+ * @param {number} r
+ * @param {number} g
+ * @param {number} b
+ * @returns {string}
+ */
+function rgbToHex(r, g, b) {
+    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+/**
+ * Linearly interpolate each RGB channel toward a target value.
+ * Used internally by {@link lightenColor} (target=255) and {@link darkenColor} (target=0).
+ * @param {string} hex - Hex color string
+ * @param {number} factor - Interpolation factor (0 = no change, 1 = full target)
+ * @param {number} target - Target value per channel (0–255)
+ * @returns {string} Adjusted hex color
+ */
+function adjustColor(hex, factor, target) {
+    factor = clamp(factor, 0, 1);
+    const rgb = parseHex(hex);
+    if (!rgb) {
+        return hex;
+    }
+    return rgbToHex(
+        Math.round(rgb[0] + (target - rgb[0]) * factor),
+        Math.round(rgb[1] + (target - rgb[1]) * factor),
+        Math.round(rgb[2] + (target - rgb[2]) * factor),
+    );
+}
+
+/**
+ * Convert a hex color to an rgba() CSS string.
+ * Falls back to transparent black if ``hex`` is not a valid 6-digit hex color.
  * @param {string} hex
- * @param {number} opacity
+ * @param {number} opacity - Alpha value (0–1)
  * @returns {string}
  */
 export function hexToRGBA(hex, opacity) {
-    const match = RGB_REGEX.exec(hex);
-    if (!match) {
+    const rgb = parseHex(hex);
+    if (!rgb) {
         return `rgba(0,0,0,${opacity})`;
     }
-    const rgb = match.slice(1, 4).map((n) => parseInt(n, 16)).join(",");
-    return `rgba(${rgb},${opacity})`;
+    return `rgba(${rgb.join(",")},${opacity})`;
 }
 
 /**
- * Used to return custom colors depending on the color scheme
- * @param {string} colorScheme
+ * Return a color based on the active color scheme.
+ * @param {string} colorScheme - "dark" or "light"
  * @param {string} brightModeColor
- * @param {string} darkModeColor
- * @returns {string|Number|Boolean}
+ * @param {string} [darkModeColor] - If omitted, ``brightModeColor`` is used for both schemes
+ * @returns {string}
  */
-
 export function getCustomColor(colorScheme, brightModeColor, darkModeColor) {
     if (darkModeColor === undefined) {
         return brightModeColor;
-    } else {
-        return colorScheme === "dark" ? darkModeColor : brightModeColor;
     }
+    return colorScheme === "dark" ? darkModeColor : brightModeColor;
 }
 
 /**
- * Used to lighten a color
- * @param {string} color
- * @param {number} factor
+ * Lighten a hex color by interpolating each channel toward white (255).
+ * @param {string} color - Hex color string
+ * @param {number} factor - 0 = no change, 1 = pure white
  * @returns {string}
  */
 export function lightenColor(color, factor) {
-    factor = clamp(factor, 0, 1);
-
-    let r = parseInt(color.slice(1, 3), 16);
-    let g = parseInt(color.slice(3, 5), 16);
-    let b = parseInt(color.slice(5, 7), 16);
-
-    r = Math.round(r + (255 - r) * factor);
-    g = Math.round(g + (255 - g) * factor);
-    b = Math.round(b + (255 - b) * factor);
-
-    const rHex = r.toString(16).padStart(2, "0");
-    const gHex = g.toString(16).padStart(2, "0");
-    const bHex = b.toString(16).padStart(2, "0");
-
-    return `#${rHex}${gHex}${bHex}`;
+    return adjustColor(color, factor, 255);
 }
 
 /**
- * Used to darken a color
- * @param {string} color
- * @param {number} factor
+ * Darken a hex color by interpolating each channel toward black (0).
+ * @param {string} color - Hex color string
+ * @param {number} factor - 0 = no change, 1 = pure black
  * @returns {string}
  */
 export function darkenColor(color, factor) {
-    factor = clamp(factor, 0, 1);
-
-    let r = parseInt(color.slice(1, 3), 16);
-    let g = parseInt(color.slice(3, 5), 16);
-    let b = parseInt(color.slice(5, 7), 16);
-
-    r = Math.round(r * (1 - factor));
-    g = Math.round(g * (1 - factor));
-    b = Math.round(b * (1 - factor));
-
-    const rHex = r.toString(16).padStart(2, "0");
-    const gHex = g.toString(16).padStart(2, "0");
-    const bHex = b.toString(16).padStart(2, "0");
-
-    return `#${rHex}${gHex}${bHex}`;
+    return adjustColor(color, factor, 0);
 }

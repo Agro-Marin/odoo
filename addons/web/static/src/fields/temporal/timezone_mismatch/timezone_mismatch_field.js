@@ -11,7 +11,7 @@ import {
     selectionField,
 } from "@web/fields/selection/selection/selection_field";
 
-const { DateTime } = luxon;
+const { DateTime } = globalThis.luxon ?? {};
 
 export class TimezoneMismatchField extends SelectionField {
     static template = "web.TimezoneMismatchField";
@@ -66,7 +66,7 @@ export class TimezoneMismatchField extends SelectionField {
                 );
                 const sign = offset[1] === "-" ? -1 : 1;
                 const userOffset =
-                    sign * (parseInt(offset[2]) * 60 + parseInt(offset[3]));
+                    sign * (Number.parseInt(offset[2], 10) * 60 + Number.parseInt(offset[3], 10));
                 const browserOffset = -new Date().getTimezoneOffset();
                 // UTC time of the user's selected timezone.
                 // E.g.

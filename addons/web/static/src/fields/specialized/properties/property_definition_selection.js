@@ -78,6 +78,8 @@ export class PropertyDefinitionSelection extends Component {
      * @returns {array}
      */
     get options() {
+        // JSON round-trip instead of structuredClone because props may be
+        // Owl reactive proxies, which structuredClone cannot handle.
         return JSON.parse(JSON.stringify(this.props.options || []));
     }
 

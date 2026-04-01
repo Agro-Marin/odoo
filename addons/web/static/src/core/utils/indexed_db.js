@@ -11,7 +11,7 @@ const VERSION_KEY = "__version__";
 export class IDBQuotaExceededError extends Error {}
 
 function formatStorageSize(size) {
-    const units = ["b", "Kb", "Mb", "Gb"];
+    const units = ["B", "KB", "MB", "GB"];
     let i = 0;
     while (size >= 1000 && i < units.length - 1) {
         size /= 1000;
@@ -121,31 +121,26 @@ export class IndexedDB {
     }
 
     async _checkVersion(version) {
-        return new Promise((resolve) => {
-            this._execute((db) => {
+        const currentVersion = await this._execute((db) => {
+            if (db) {
+                return this._read(db, VERSION_TABLE, VERSION_KEY);
+            }
+        });
+        if (!currentVersion) {
+            await this._execute((db) => {
                 if (db) {
-                    return this._read(db, VERSION_TABLE, VERSION_KEY);
-                }
-            }).then((currentVersion) => {
-                if (!currentVersion) {
-                    this._execute((db) => {
-                        if (db) {
-                            return this._write(db, VERSION_TABLE, VERSION_KEY, version);
-                        }
-                    }).then(resolve);
-                } else if (currentVersion !== version) {
-                    this._deleteDatabase(() => {
-                        return this._execute((db) => {
-                            if (db) {
-                                return this._write(db, VERSION_TABLE, VERSION_KEY, version);
-                            }
-                        });
-                    }).then(resolve);
-                } else {
-                    resolve();
+                    return this._write(db, VERSION_TABLE, VERSION_KEY, version);
                 }
             });
-        });
+        } else if (currentVersion !== version) {
+            await this._deleteDatabase(() =>
+                this._execute((db) => {
+                    if (db) {
+                        return this._write(db, VERSION_TABLE, VERSION_KEY, version);
+                    }
+                }),
+            );
+        }
     }
 
     async _execute(callback, idbVersion) {
@@ -221,7 +216,7 @@ export class IndexedDB {
                 ? objectStoreNames.filter((t) => tables.includes(t))
                 : objectStoreNames;
 
-            if (tables.length === 0) {
+            if (!tables.length) {
                 return resolve();
             }
             // Relaxed durability improves the write performances

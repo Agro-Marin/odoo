@@ -535,7 +535,7 @@ test("should keep the focus when being edited in x2many lists", async () => {
     Partner._fields.currency_id.default = 1;
     Partner._fields.m2m = fields.Many2many({
         relation: "partner",
-        default: [[4, 2]],
+        default: [[4, 2, false]],
     });
     Partner._views = {
         list: `

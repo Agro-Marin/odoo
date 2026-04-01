@@ -172,7 +172,7 @@ export function hasTouch() {
  * @returns {number}
  */
 export function maxTouchPoints() {
-    return browser.navigator.maxTouchPoints || 1;
+    return browser.navigator.maxTouchPoints || 0;
 }
 
 /**

@@ -4,210 +4,68 @@
 /** @module @web/core/network/download - File download via RPC with content-disposition filename extraction */
 
 import { browser } from "@web/core/browser/browser";
-import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError, makeErrorFromResponse } from "@web/core/network/rpc";
 
 import { parse } from "./content_disposition.js";
 
-/* eslint-disable */
-/**
- * The following section is from the download.js library. It has been slightly
- * modified to allow patching during tests, but should not be linted, so that
- * we can keep a minimal diff that is easy to reapply when upgrading.
- */
 // -----------------------------------------------------------------------------
-// download.js library
+// _download — trigger a browser file download from a Blob, data URL, or URL
 // -----------------------------------------------------------------------------
 
-/*
-MIT License
-Copyright (c) 2016 dandavis
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
- */
-
 /**
- * download.js v4.2, by dandavis; 2008-2018. [MIT] see http://danml.com/download.html for tests/usage
- * v1 landed a FF+Chrome compat way of downloading strings to local un-named files, upgraded to use a hidden frame and optional mime
- * v2 added named files via a[download], msSaveBlob, IE (10+) support, and window.URL support for larger+faster saves than dataURLs
- * v3 added dataURL and Blob Input, bind-toggle arity, and legacy dataURL fallback was improved with force-download mime and base64 support. 3.1 improved safari handling.
- * v4 adds AMD/UMD, commonJS, and plain browser support
- * v4.1 adds url download capability via solo URL argument (same domain/CORS only)
- * v4.2 adds semantic variable names, long (over 2MB) dataURL support, and hidden by default temp anchors
+ * Trigger a browser file download.
  *
- * Slightly modified for export and lint compliance
+ * Accepts three call patterns:
+ *  1. _download(blob, filename)       — download a Blob/File with the given name
+ *  2. _download(blob, filename, mime) — same, explicit MIME (used by configureBlobDownloadXHR)
+ *  3. _download(url)                  — fetch a same-origin URL as a blob and download it
  *
  * @param {Blob | File | string} data
  * @param {string} [filename]
  * @param {string} [mimetype]
  */
 function _download(data, filename, mimetype) {
-    let self = window, // this script is only for browsers anyway...
-        defaultMime = "application/octet-stream", // this default mime also triggers iframe downloads
-        mimeType = mimetype || defaultMime,
-        /** @type {any} */
-        payload = data,
-        url = !filename && !mimetype && payload,
-        anchor = document.createElement("a"),
-        toString = function (a) {
-            return String(a);
-        },
-        /** @type {any} */
-        myBlob = self.Blob || self.MozBlob || self.WebKitBlob || toString,
-        fileName = filename || "download",
-        blob,
-        reader;
-    myBlob = myBlob.call ? myBlob.bind(self) : Blob;
-
-    if (String(this) === "true") {
-        //reverse arguments, allowing download.bind(true, "text/xml", "export.xml") to act as a callback
-        payload = [payload, mimeType];
-        mimeType = payload[0];
-        payload = payload[1];
-    }
-
-    if (url && url.length < 2048) {
-        // if no filename and no mime, assume a url was passed as the only argument
-        fileName = url.split("/").pop().split("?")[0];
-        anchor.href = url; // assign href prop to temp anchor
-        if (anchor.href.includes(url)) {
-            // if the browser determines that it's a potentially valid url path:
-            return new Promise((resolve, reject) => {
-                let xhr = new browser.XMLHttpRequest();
-                xhr.open("GET", url, true);
-                configureBlobDownloadXHR(xhr, {
-                    onSuccess: resolve,
-                    onFailure: reject,
-                    url
-                });
-                xhr.send();
-            });
-        }
-    }
-
-    //go ahead and download dataURLs right away
-    if (/^data:[\w+\-]+\/[\w+\-]+[,;]/.test(payload)) {
-        if (payload.length > 1024 * 1024 * 1.999 && myBlob !== toString) {
-            payload = dataUrlToBlob(payload);
-            mimeType = payload.type || defaultMime;
-        } else {
-            return /** @type {any} */ (navigator).msSaveBlob // IE10 can't do a[download], only Blobs:
-                ? /** @type {any} */ (navigator).msSaveBlob(dataUrlToBlob(payload), fileName)
-                : saver(payload); // everyone else can save dataURLs un-processed
-        }
-    }
-
-    blob = payload instanceof myBlob ? payload : new myBlob([payload], { type: mimeType });
-
-    function dataUrlToBlob(strUrl) {
-        let parts = strUrl.split(/[:;,]/),
-            type = parts[1],
-            decoder = parts[2] === "base64" ? atob : decodeURIComponent,
-            binData = decoder(parts.pop()),
-            mx = binData.length,
-            i = 0,
-            uiArr = new Uint8Array(mx);
-
-        for (i; i < mx; ++i) {
-            uiArr[i] = binData.charCodeAt(i);
-        }
-
-        return new myBlob([uiArr], { type });
-    }
-
-    function saver(url, winMode) {
-        if ("download" in anchor) {
-            //html5 A[download]
-            anchor.href = url;
-            anchor.setAttribute("download", fileName);
-            anchor.className = "download-js-link";
-            anchor.innerText = _t("downloading...");
+    // Pattern 3: single URL argument — fetch via XHR and hand off to configureBlobDownloadXHR
+    if (!filename && !mimetype && typeof data === "string") {
+        // Data URLs can be downloaded directly via an anchor click.
+        if (/^data:/i.test(data)) {
+            const anchor = document.createElement("a");
+            anchor.href = data;
+            anchor.download = "download";
             anchor.style.display = "none";
-            anchor.target = "_blank";
             document.body.appendChild(anchor);
-            setTimeout(() => {
-                anchor.click();
-                document.body.removeChild(anchor);
-                if (winMode === true) {
-                    setTimeout(() => {
-                        self.URL.revokeObjectURL(anchor.href);
-                    }, 250);
-                }
-            }, 66);
+            anchor.click();
+            document.body.removeChild(anchor);
             return true;
         }
-
-        // handle non-a[download] safari as best we can:
-        if (/(Version)\/(\d+)\.(\d+)(?:\.(\d+))?.*Safari\//.test(navigator.userAgent)) {
-            url = url.replace(/^data:([\w\/\-+]+)/, defaultMime);
-            if (!window.open(url)) {
-                // popup blocked, offer direct download:
-                if (
-                    confirm(
-                        "Displaying New Document\n\nUse Save As... to download, then click back to return to this page."
-                    )
-                ) {
-                    location.href = url;
-                }
-            }
-            return true;
-        }
-
-        //do iframe dataURL download (old ch+FF):
-        let f = document.createElement("iframe");
-        document.body.appendChild(f);
-
-        if (!winMode) {
-            // force a mime that will download:
-            url = `data:${url.replace(/^data:([\w\/\-+]+)/, defaultMime)}`;
-        }
-        f.src = url;
-        setTimeout(() => {
-            document.body.removeChild(f);
-        }, 333);
+        const url = data;
+        return new Promise((resolve, reject) => {
+            const xhr = new browser.XMLHttpRequest();
+            xhr.open("GET", url, true);
+            configureBlobDownloadXHR(xhr, {
+                onSuccess: resolve,
+                onFailure: reject,
+                url,
+            });
+            xhr.send();
+        });
     }
 
-    if (/** @type {any} */ (navigator).msSaveBlob) {
-        // IE10+ : (has Blob, but not a[download] or URL)
-        return /** @type {any} */ (navigator).msSaveBlob(blob, fileName);
-    }
-
-    if (self.URL) {
-        // simple fast and modern way using Blob and URL:
-        saver(self.URL.createObjectURL(blob), true);
-    } else {
-        // handle non-Blob()+non-URL browsers:
-        if (typeof blob === "string" || blob.constructor === toString) {
-            try {
-                return saver(`data:${mimeType};base64,${self.btoa(blob)}`);
-            } catch {
-                return saver(`data:${mimeType},${encodeURIComponent(blob)}`);
-            }
-        }
-
-        // Blob but not URL support:
-        reader = new FileReader();
-        reader.onload = function () {
-            saver(/** @type {string} */ (this.result));
-        };
-        reader.readAsDataURL(blob);
-    }
+    // Pattern 1 & 2: Blob/File download via <a download> click
+    const blob =
+        data instanceof Blob ? data : new Blob([data], { type: mimetype || "application/octet-stream" });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename || "download";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    // Delay revocation so the browser has time to start the download.
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 250);
     return true;
 }
-/* eslint-enable */
 
 // -----------------------------------------------------------------------------
 // Exported download functions
@@ -255,10 +113,9 @@ download._download = (options) =>
         } else {
             xhr.open("POST", options.url);
             data = new FormData();
-            Object.entries(options.data || {}).forEach((entry) => {
-                const [key, value] = entry;
+            for (const [key, value] of Object.entries(options.data || {})) {
                 data.append(key, value);
-            });
+            }
         }
         data.append("token", "dummy-because-api-expects-one");
         if (odoo.csrf_token) {
@@ -295,7 +152,14 @@ function configureBlobDownloadXHR(
             "",
         );
         // replace because apparently we send some C-D headers with a trailing ";"
-        const filename = header ? parse(header).parameters.filename : null;
+        let filename = null;
+        if (header) {
+            try {
+                filename = parse(header).parameters.filename;
+            } catch {
+                // Malformed Content-Disposition — fall back to no filename.
+            }
+        }
         // In Odoo, the default mimetype, including for JSON errors is text/html (ref: http.py:Root.get_response )
         // in that case, in order to also be able to download html files, we check if we get a proper filename to be able to download
         if (xhr.status === 200 && (mimetype !== "text/html" || filename)) {
@@ -315,7 +179,7 @@ function configureBlobDownloadXHR(
                 const contents = /** @type {string} */ (decoder.result);
                 const doc = new DOMParser().parseFromString(contents, "text/html");
                 const nodes =
-                    doc.body.children.length === 0 ? [doc.body] : doc.body.children;
+                    !doc.body.children.length ? [doc.body] : doc.body.children;
 
                 let error;
                 try {
@@ -329,7 +193,7 @@ function configureBlobDownloadXHR(
                             debug:
                                 `${xhr.status}` +
                                 `\n` +
-                                `${nodes.length > 0 ? nodes[0].textContent : ""}
+                                `${nodes.length ? nodes[0].textContent : ""}
                                 ${nodes.length > 1 ? nodes[1].textContent : ""}`,
                         },
                     };

@@ -182,6 +182,23 @@ test("can override element with sequence 2 ", () => {
     ]);
 });
 
+test("force-replacing preserves sequence 0", () => {
+    const registry = new Registry();
+
+    registry
+        .add("first", "a", { sequence: 0 })
+        .add("second", "b", { sequence: 1 });
+
+    // Force-replace without specifying sequence — should keep sequence 0
+    registry.add("first", "a2", { force: true });
+
+    // "first" should still sort before "second" (sequence 0 < 1)
+    expect(registry.getEntries()).toEqual([
+        ["first", "a2"],
+        ["second", "b"],
+    ]);
+});
+
 test("contains is not fooled by Object.prototype keys", () => {
     const registry = new Registry();
 

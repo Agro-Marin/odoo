@@ -1195,7 +1195,7 @@ test("onchange for embedded one2many in a one2many", async () => {
                     1,
                     1,
                     {
-                        partner_ids: [[4, 2]],
+                        partner_ids: [[4, 2, false]],
                     },
                 ],
             ];
@@ -1203,7 +1203,7 @@ test("onchange for embedded one2many in a one2many", async () => {
     };
     onRpc("web_save", (args) => {
         expect(args.args[1].turtles).toEqual([
-            [1, 1, { turtle_foo: "hop", partner_ids: [[4, 2]] }],
+            [1, 1, { turtle_foo: "hop", partner_ids: [[4, 2, false]] }],
         ]);
     });
 
@@ -1250,7 +1250,7 @@ test("onchange for embedded one2many in a one2many with a second page", async ()
                     1,
                     1,
                     {
-                        partner_ids: [[4, 2]],
+                        partner_ids: [[4, 2, false]],
                     },
                 ],
                 [
@@ -1258,7 +1258,7 @@ test("onchange for embedded one2many in a one2many with a second page", async ()
                     2,
                     {
                         turtle_foo: "blip",
-                        partner_ids: [[4, 1]],
+                        partner_ids: [[4, 1, false]],
                     },
                 ],
             ];
@@ -1266,12 +1266,12 @@ test("onchange for embedded one2many in a one2many with a second page", async ()
     };
     onRpc("web_save", (args) => {
         expect(args.args[1].turtles).toEqual([
-            [1, 1, { turtle_foo: "hop", partner_ids: [[4, 2]] }],
+            [1, 1, { turtle_foo: "hop", partner_ids: [[4, 2, false]] }],
             [
                 1,
                 2,
                 {
-                    partner_ids: [[4, 1]],
+                    partner_ids: [[4, 1, false]],
                     turtle_foo: "blip",
                 },
             ],
@@ -1320,7 +1320,7 @@ test("onchange for embedded one2many in a one2many updated by server", async () 
                     1,
                     2,
                     {
-                        partner_ids: [[4, 4]],
+                        partner_ids: [[4, 4, false]],
                     },
                 ],
             ];
@@ -1333,7 +1333,7 @@ test("onchange for embedded one2many in a one2many updated by server", async () 
                     1,
                     2,
                     {
-                        partner_ids: [[4, 4]],
+                        partner_ids: [[4, 4, false]],
                         turtle_foo: "hop",
                     },
                 ],
@@ -1787,8 +1787,8 @@ test("onchange returning a commands 4 for an x2many", async () => {
     Partner._onChanges = {
         foo(obj) {
             obj.turtles = [
-                [4, 1],
-                [4, 3],
+                [4, 1, false],
+                [4, 3, false],
             ];
         },
     };
@@ -1822,10 +1822,10 @@ test("x2many fields inside x2manys are fetched after an onchange", async () => {
     Partner._onChanges = {
         foo: function (obj) {
             obj.turtles = [
-                [3, 2],
-                [4, 1],
-                [4, 2],
-                [4, 3],
+                [3, 2, false],
+                [4, 1, false],
+                [4, 2, false],
+                [4, 3, false],
             ];
         },
     };
@@ -1892,8 +1892,8 @@ test("reference fields inside x2manys are fetched after an onchange", async () =
     Partner._onChanges = {
         foo: function (obj) {
             obj.turtles = [
-                [4, 1],
-                [4, 3],
+                [4, 1, false],
+                [4, 3, false],
             ];
         },
     };
@@ -2593,13 +2593,13 @@ test("edition of one2many field with pager", async () => {
                 expect(commands).toEqual([[0, commands[0][1], { name: "new record" }]]);
                 break;
             case 2:
-                expect(commands).toEqual([[2, 10]]);
+                expect(commands).toEqual([[2, 10, false]]);
                 break;
             case 3:
                 expect(commands).toEqual([
                     [0, commands[0][1], { name: "new record page 1" }],
-                    [2, 11],
-                    [2, 52],
+                    [2, 11, false],
+                    [2, 52, false],
                     [0, commands[3][1], { name: "new record page 2" }],
                 ]);
                 break;
@@ -2749,13 +2749,13 @@ test("edition of one2many field with pager on desktop", async () => {
                 expect(commands).toEqual([[0, commands[0][1], { name: "new record" }]]);
                 break;
             case 2:
-                expect(commands).toEqual([[2, 10]]);
+                expect(commands).toEqual([[2, 10, false]]);
                 break;
             case 3:
                 expect(commands).toEqual([
                     [0, commands[0][1], { name: "new record page 1" }],
-                    [2, 11],
-                    [2, 52],
+                    [2, 11, false],
+                    [2, 52, false],
                     [0, commands[3][1], { name: "new record page 2" }],
                 ]);
                 break;
@@ -3522,7 +3522,7 @@ test("many2many list: unlink two records", async () => {
             </form>`,
     };
     onRpc("web_save", (args) => {
-        expect(args.args[1].p).toEqual([[3, 1]], {
+        expect(args.args[1].p).toEqual([[3, 1, false]], {
             message: "should send a command 3 (unlink)",
         });
     });
@@ -3561,7 +3561,7 @@ test("one2many list: deleting one records", async () => {
             </form>`,
     };
     onRpc("web_save", (args) => {
-        expect(args.args[1].p).toEqual([[2, 1]]);
+        expect(args.args[1].p).toEqual([[2, 1, false]]);
     });
     await mountView({
         type: "form",
@@ -3605,7 +3605,7 @@ test("one2many kanban: edition", async () => {
                     foo: "My little Foo Value",
                 },
             ],
-            [2, 2],
+            [2, 2, false],
         ]);
     });
     await mountView({
@@ -3895,7 +3895,7 @@ test("one2many list (non editable): edition", async () => {
         expect(args.args[1]).toEqual({
             p: [
                 [1, 2, { name: "new name" }],
-                [2, 4],
+                [2, 4, false],
             ],
         });
     });
@@ -5685,7 +5685,7 @@ test("one2many with many2many widget: create", async () => {
     await contains(".modal .o_data_row .o_list_record_selector input").click();
     await animationFrame(); // additional render due to the change of selection (done in owl, not pure js)
     await contains(".modal .o_select_button").click();
-    expectedCommand = [[4, 1]];
+    expectedCommand = [[4, 1, false]];
     await clickSave();
 
     await contains(".o_field_x2many_list_row_add a").click();
@@ -5714,7 +5714,7 @@ test("one2many with many2many widget: create", async () => {
         },
     );
 
-    expectedCommand = [[4, 4]];
+    expectedCommand = [[4, 4, false]];
     await clickSave();
 });
 
@@ -5958,7 +5958,7 @@ test("parent data is properly sent on an onchange rpc, new record", async () => 
 test("id in one2many obtained in onchange is properly set", async () => {
     Partner._onChanges.turtles = function (obj) {
         obj.turtles = [
-            [4, 3],
+            [4, 3, false],
             [1, 3, { turtle_foo: "kawa" }],
         ];
     };
@@ -6146,8 +6146,8 @@ test("many2one and many2many in one2many", async () => {
                     2,
                     {
                         partner_ids: [
-                            [3, 4],
-                            [4, 1],
+                            [3, 4, false],
+                            [4, 1, false],
                         ],
                         product_id: 41,
                     },
@@ -6261,9 +6261,9 @@ test("onchange many2many in one2many list editable", async () => {
     Turtle._onChanges = {
         product_id: function (rec) {
             if (rec.product_id === 41) {
-                rec.partner_ids = [[4, 1]];
+                rec.partner_ids = [[4, 1, false]];
             } else if (rec.product_id === 37) {
-                rec.partner_ids = [[4, 2]];
+                rec.partner_ids = [[4, 2, false]];
             }
         },
     };
@@ -6279,7 +6279,7 @@ test("onchange many2many in one2many list editable", async () => {
                 {
                     name: "new line",
                     product_id: [37, "xphone"],
-                    partner_ids: [[4, 1]],
+                    partner_ids: [[4, 1, false]],
                 },
             ],
             [
@@ -6289,10 +6289,10 @@ test("onchange many2many in one2many list editable", async () => {
                     product_id: [1, "xenomorphe"],
                     partner_ids: rec.turtles[0][2].partner_ids.length
                         ? [
-                              [3, 1],
-                              [4, 2],
+                              [3, 1, false],
+                              [4, 2, false],
                           ]
-                        : [[4, 2]],
+                        : [[4, 2, false]],
                 },
             ],
         ];
@@ -6495,7 +6495,7 @@ test("one2many with x2many in form view (but not in list view)", async () => {
                 1,
                 2,
                 {
-                    partner_ids: [[4, 1]],
+                    partner_ids: [[4, 1, false]],
                 },
             ],
         ]);
@@ -6545,7 +6545,7 @@ test("many2many list in a one2many opened by a many2one", async () => {
     };
     onRpc("partner", "get_formview_id", () => false);
     onRpc("web_save", (args) => {
-        expect(args.args[1].timmy).toEqual([[4, 12]], {
+        expect(args.args[1].timmy).toEqual([[4, 12, false]], {
             message: "should properly add id",
         });
     });
@@ -6586,8 +6586,8 @@ test("nested x2many default values", async () => {
         relation: "turtle",
         relation_field: "turtle_trululu",
         default: [
-            [0, 0, { partner_ids: [[4, 4]] }],
-            [0, 0, { partner_ids: [[4, 1]] }],
+            [0, 0, { partner_ids: [[4, 4, false]] }],
+            [0, 0, { partner_ids: [[4, 1, false]] }],
         ],
     });
 
@@ -7630,7 +7630,7 @@ test("contexts of nested x2manys are correctly sent (add line)", async () => {
     Partner._fields.timmy = fields.Many2many({
         relation: "partner.type",
         string: "pokemon",
-        default: [[4, 12]],
+        default: [[4, 12, false]],
     });
     serverState.userContext = { someKey: "some value" };
     onRpc("onchange", (args) => {
@@ -7731,7 +7731,7 @@ test("nested x2manys with context referencing parent record", async () => {
 test("resetting invisible one2manys", async () => {
     Partner._records[0].turtles = [];
     Partner._onChanges.foo = function (obj) {
-        obj.turtles = [[5], [4, 1]];
+        obj.turtles = [[5, false, false], [4, 1, false]];
     };
     onRpc((args) => {
         expect.step(args.method);
@@ -7754,7 +7754,7 @@ test("one2many: onchange that returns unknown field in list, but not in form", a
     expect.assertions(6);
     Partner._onChanges = {
         name: function (obj) {
-            obj.p = [[0, 0, { name: "new", timmy: [[4, 12]] }]];
+            obj.p = [[0, 0, { name: "new", timmy: [[4, 12, false]] }]];
         },
     };
     onRpc("onchange", (args) => {
@@ -8259,8 +8259,8 @@ test("default value for nested one2manys (coming from onchange)", async () => {
 
     Partner._onChanges.p = function (obj) {
         obj.p = [
-            [5],
-            [0, 0, { turtles: [[5], [4, 1, false]] }], // link record 1 by default
+            [5, false, false],
+            [0, 0, { turtles: [[5, false, false], [4, 1, false]] }], // link record 1 by default
         ];
     };
     onRpc("web_save", (args) => {
@@ -8268,7 +8268,7 @@ test("default value for nested one2manys (coming from onchange)", async () => {
             message: "should send a command 0 (CREATE) for p",
         });
         expect(args.args[1].p[0][2]).toEqual(
-            { turtles: [[4, 1]] },
+            { turtles: [[4, 1, false]] },
             { message: "should send the correct values" },
         );
     });
@@ -8501,8 +8501,8 @@ test("one2many with multiple pages and sequence field", async () => {
     onRpc("onchange", () => ({
         value: {
             turtles: [
-                [2, 2],
-                [2, 3],
+                [2, 2, false],
+                [2, 3, false],
                 [4, 1, { id: 1, turtle_int: 0, turtle_foo: "yop", partner_ids: [] }],
                 [1, 1, { turtle_foo: "from onchange" }],
             ],
@@ -8533,7 +8533,7 @@ test("one2many with multiple pages and sequence field, part2", async () => {
     onRpc("onchange", () => ({
         value: {
             turtles: [
-                [2, 2],
+                [2, 2, false],
                 [4, 1, { id: 1, turtle_int: 0, turtle_foo: "yop", partner_ids: [] }],
                 [1, 1, { turtle_foo: "from onchange id2" }],
                 [1, 3, { turtle_foo: "from onchange id3" }],
@@ -10266,14 +10266,14 @@ test("many2manys inside a one2many are fetched in batch after onchange", async (
     Partner._onChanges = {
         turtles: function (obj) {
             obj.turtles = [
-                [4, 1],
-                [4, 2],
+                [4, 1, false],
+                [4, 2, false],
                 [
                     1,
                     1,
                     {
                         turtle_foo: "leonardo",
-                        partner_ids: [[4, 2]],
+                        partner_ids: [[4, 2, false]],
                     },
                 ],
             ];
@@ -10666,7 +10666,7 @@ test("nested one2many, onchange, no command value", async () => {
             if (step === 3) {
                 const virtualId = args.args[1].o2m[0][1];
                 return {
-                    value: { o2m: [[2, virtualId]] },
+                    value: { o2m: [[2, virtualId, false]] },
                 };
             }
         }
@@ -11010,7 +11010,7 @@ test("delete a record while adding another one in a multipage", async () => {
 test("one2many, onchange, edition and multipage...", async () => {
     Partner._onChanges = {
         turtles: function (obj) {
-            obj.turtles = [[5]].concat(obj.turtles);
+            obj.turtles = [[5, false, false]].concat(obj.turtles);
         },
     };
 
@@ -11945,10 +11945,10 @@ test("Check onchange with two consecutive one2one", async () => {
     });
     Turtle._onChanges = {
         turtle_trululu: function (record) {
-            record.product_ids = [[4, 37]];
+            record.product_ids = [[4, 37, false]];
             record.user_ids = [
-                [4, 17],
-                [4, 19],
+                [4, 17, false],
+                [4, 19, false],
             ];
         },
     };
@@ -12147,7 +12147,10 @@ test("open a one2many record with optional open record displayed", async () => {
     });
 
     await contains(`td.o_list_record_open_form_view`).click();
-    expect.verifySteps(["partner.get_views"]);
+    expect.verifySteps([
+        ["getItem", localStorageKey, "true"],
+        "partner.get_views",
+    ]);
 });
 
 test("if there are less than 4 lines in a one2many, empty lines must be displayed to cover the difference.", async () => {
@@ -12476,9 +12479,9 @@ test("nested one2manys, multi page, onchange", async () => {
 
     Partner._onChanges.int_field = function (obj) {
         expect.step("onchange");
-        obj.p = [[5]];
-        obj.p.push([1, 2, { turtles: [[5], [1, 1, { turtle_int: obj.int_field }]] }]);
-        obj.p.push([1, 4, { turtles: [[5], [1, 2, { turtle_int: obj.int_field }]] }]);
+        obj.p = [[5, false, false]];
+        obj.p.push([1, 2, { turtles: [[5, false, false], [1, 1, { turtle_int: obj.int_field }]] }]);
+        obj.p.push([1, 4, { turtles: [[5, false, false], [1, 2, { turtle_int: obj.int_field }]] }]);
     };
 
     await mountView({
@@ -12518,7 +12521,7 @@ test("multi page, command forget for record of second page", async () => {
     Partner._records[0].p = [1, 2, 4];
     Partner._onChanges = {
         int_field: function (obj) {
-            obj.p = [[3, 4]];
+            obj.p = [[3, 4, false]];
         },
     };
     await mountView({
@@ -12554,7 +12557,7 @@ test("multi page, command forget for record of second page on desktop", async ()
     Partner._records[0].p = [1, 2, 4];
     Partner._onChanges = {
         int_field: function (obj) {
-            obj.p = [[3, 4]];
+            obj.p = [[3, 4, false]];
         },
     };
     await mountView({
@@ -13312,7 +13315,7 @@ test("forget command for nested x2manys in form, not in list", async () => {
                                 2,
                                 {
                                     turtle_foo: "new turtle foo value (1)",
-                                    partner_ids: [[3, 4]],
+                                    partner_ids: [[3, 4, false]],
                                 },
                             ],
                         ],
@@ -13329,7 +13332,7 @@ test("forget command for nested x2manys in form, not in list", async () => {
                                 2,
                                 {
                                     turtle_foo: "new turtle foo value (2)",
-                                    partner_ids: [[3, 2]],
+                                    partner_ids: [[3, 2, false]],
                                 },
                             ],
                         ],
@@ -13353,7 +13356,7 @@ test("forget command for nested x2manys in form, not in list", async () => {
                                 2,
                                 {
                                     turtle_foo: "new turtle foo value (1)",
-                                    partner_ids: [[3, 4]],
+                                    partner_ids: [[3, 4, false]],
                                 },
                             ],
                         ],
@@ -13370,7 +13373,7 @@ test("forget command for nested x2manys in form, not in list", async () => {
                                 2,
                                 {
                                     turtle_foo: "new turtle foo value (2)",
-                                    partner_ids: [[3, 2]],
+                                    partner_ids: [[3, 2, false]],
                                 },
                             ],
                         ],

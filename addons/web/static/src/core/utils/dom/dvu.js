@@ -90,8 +90,8 @@ if (typeof window !== "undefined") {
  */
 export function getViewportDimensions() {
     return {
-        width: browser.visualViewport?.width || browser.innerWidth,
-        height: browser.visualViewport?.height || browser.innerHeight,
+        width: browser.visualViewport?.width ?? browser.innerWidth,
+        height: browser.visualViewport?.height ?? browser.innerHeight,
     };
 }
 

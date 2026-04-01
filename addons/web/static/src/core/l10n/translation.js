@@ -129,14 +129,13 @@ export function appTranslateFn(source, moduleName, ...substitutions) {
  * @param {import("services").ServiceFactories["orm"]} orm
  */
 export async function loadLanguages(orm) {
-    // @ts-expect-error — property on function (valid JS, not modelable in TS)
     if (!loadLanguages.installedLanguages) {
-        // @ts-expect-error — property on function
         loadLanguages.installedLanguages = await orm.call("res.lang", "get_installed");
     }
-    // @ts-expect-error — property on function
     return loadLanguages.installedLanguages;
 }
+/** @type {any[] | null} Cached result — patchable by test helpers. */
+loadLanguages.installedLanguages = null;
 
 export class TranslatedString extends String {
     /** @type {string} */

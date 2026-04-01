@@ -24,20 +24,18 @@ class SettingRecord extends formView.Model.Record {
         ) {
             dirty = this.dirty;
             if (this.dirty) {
-                /** @type {any} */ (this.model)
-                    ._onChangeHeaderFields()
-                    .then(async (isDiscard) => {
-                        if (isDiscard) {
-                            await /** @type {any} */ (super._update)(changes);
-                            this.dirty = false;
-                        } else {
-                            // We need to apply and then undo the changes
-                            // to force the field component to be render
-                            // and restore the previous value (like RadioField))
-                            const undoChanges = this._applyChanges(changes);
-                            undoChanges();
-                        }
-                    });
+                (async () => {
+                    const isDiscard = await /** @type {any} */ (this.model)._onChangeHeaderFields();
+                    if (isDiscard) {
+                        await /** @type {any} */ (super._update)(changes);
+                        this.dirty = false;
+                    } else {
+                        // Apply and then undo changes to force field components
+                        // to re-render and restore previous values (e.g. RadioField).
+                        const undoChanges = this._applyChanges(changes);
+                        undoChanges();
+                    }
+                })();
                 return;
             }
         }

@@ -12,7 +12,7 @@ import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { FileUploader } from "@web/fields/file_handler";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-const { DateTime } = luxon;
+const { DateTime } = globalThis.luxon ?? {};
 
 export const fileTypeMagicWordMap = {
     "/": "jpg",

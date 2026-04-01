@@ -188,7 +188,7 @@ export const commandService = {
                     const sameFullName = commandsArray.find(
                         (com) =>
                             com.name ===
-                            registration.name + `(${registration.identifier})`,
+                            registration.name + ` (${registration.identifier})`,
                     );
                     if (sameFullName) {
                         registration.name += ` (${registration.identifier})`;
@@ -231,7 +231,7 @@ export const commandService = {
                 // Due to the way elements are mounted in the DOM by Owl (bottom-to-top),
                 // we need to wait the next micro task tick to set the context activate
                 // element of the subscription.
-                Promise.resolve().then(() => {
+                queueMicrotask(() => {
                     registration.activeElement = ui.activeElement;
                 });
             }
@@ -246,7 +246,7 @@ export const commandService = {
          */
         function unregisterCommand(token) {
             const cmd = registeredCommands.get(token);
-            if (cmd && cmd.removeHotkey) {
+            if (cmd?.removeHotkey) {
                 cmd.removeHotkey();
             }
             registeredCommands.delete(token);

@@ -20,10 +20,10 @@ import { FIELD_WIDTHS } from "@web/fields/field_widths";
 import { formatDate, formatDateTime } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-const { DateTime } = luxon;
+const { DateTime } = globalThis.luxon ?? {};
 
 function getFormattedPlaceholder(value, type, options) {
-    if (value instanceof luxon.DateTime) {
+    if (value instanceof globalThis.luxon.DateTime) {
         return type === "date"
             ? formatDate(value, options)
             : formatDateTime(value, options);
@@ -205,7 +205,7 @@ export class DateTimeField extends Component {
                 }
 
                 // If startDateField or endDateField are not set, delete unchanged fields
-                for (const fieldName in toUpdate) {
+                for (const fieldName of Object.keys(toUpdate)) {
                     if (
                         areDatesEqual(
                             toUpdate[fieldName],
@@ -525,7 +525,7 @@ export const dateField = {
                 numeric: options.numeric,
             }),
             required: dynamicInfo.required,
-            rounding: options.rounding && parseInt(options.rounding, 10),
+            rounding: options.rounding && Number.parseInt(options.rounding, 10),
             startDateField: options[START_DATE_FIELD_OPTION],
             numeric: options.numeric,
             warnFuture: exprToBoolean(options.warn_future),

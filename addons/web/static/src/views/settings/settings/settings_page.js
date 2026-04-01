@@ -68,14 +68,14 @@ export class SettingsPage extends Component {
     hasRightSwipe() {
         return (
             this.env.isSmall &&
-            this.state.search.value.length === 0 &&
+            !this.state.search.value.length &&
             this.getCurrentIndex() !== 0
         );
     }
     hasLeftSwipe() {
         return (
             this.env.isSmall &&
-            this.state.search.value.length === 0 &&
+            !this.state.search.value.length &&
             this.getCurrentIndex() !== this.props.modules.length - 1
         );
     }

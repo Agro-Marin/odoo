@@ -19,7 +19,7 @@ import { objectToUrlEncodedString } from "@web/core/utils/urls";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
 
-const { Settings } = luxon;
+const { Settings } = globalThis.luxon ?? {};
 
 /** @type {[RegExp, string][]} */
 const NUMBERING_SYSTEMS = [
@@ -57,7 +57,7 @@ export const localizationService = {
          */
         const fetchTranslations = async (hash) => {
             let queryString = objectToUrlEncodedString({ hash, lang });
-            queryString = queryString.length > 0 ? `?${queryString}` : queryString;
+            queryString = queryString.length ? `?${queryString}` : queryString;
             const response = await browser.fetch(`${translationURL}${queryString}`, {
                 cache: "no-store",
             });

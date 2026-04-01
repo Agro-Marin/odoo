@@ -109,7 +109,7 @@ export function applyCommands(
                     list._unknownRecordCommands[command[1]].push(command);
                 } else {
                     const changes = {};
-                    for (const fieldName in command[2]) {
+                    for (const fieldName of Object.keys(command[2])) {
                         if (
                             ["one2many", "many2many"].includes(
                                 list.fields[fieldName].type,
@@ -152,11 +152,11 @@ export function applyCommands(
                 const ownCommands = getOwnCommands(command[1]);
                 if (command[0] === DELETE) {
                     if (shouldEmitDelete(ownCommands)) {
-                        addOwnCommand([DELETE, command[1]]);
+                        addOwnCommand([DELETE, command[1], false]);
                     }
                 } else {
                     if (shouldEmitUnlink(ownCommands)) {
-                        addOwnCommand([UNLINK, command[1]]);
+                        addOwnCommand([UNLINK, command[1], false]);
                     }
                 }
                 removedIds[command[1]] = true;
@@ -198,7 +198,7 @@ export function applyCommands(
                     }
                 }
                 list._currentIds.push(record.resId);
-                addOwnCommand([command[0], command[1]]);
+                addOwnCommand([command[0], command[1], false]);
                 list.count++;
                 break;
             }

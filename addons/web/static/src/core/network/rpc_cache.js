@@ -38,7 +38,7 @@ class Crypto {
         this._ready = window.crypto.subtle
             .importKey(
                 "raw",
-                new Uint8Array(secret.match(/../g).map((h) => parseInt(h, 16))).buffer,
+                new Uint8Array(secret.match(/../g).map((h) => Number.parseInt(h, 16))).buffer,
                 CRYPTO_ALGO,
                 false,
                 ["encrypt", "decrypt"],
@@ -79,12 +79,12 @@ class Crypto {
 
 class RamCache {
     constructor() {
-        this.ram = {};
+        this.ram = Object.create(null);
     }
 
     write(table, key, value) {
         if (!(table in this.ram)) {
-            this.ram[table] = {};
+            this.ram[table] = Object.create(null);
         }
         this.ram[table][key] = value;
     }
@@ -102,11 +102,11 @@ class RamCache {
             tables = typeof tables === "string" ? [tables] : tables;
             for (const table of tables) {
                 if (table in this.ram) {
-                    this.ram[table] = {};
+                    this.ram[table] = Object.create(null);
                 }
             }
         } else {
-            this.ram = {};
+            this.ram = Object.create(null);
         }
     }
 
@@ -242,8 +242,9 @@ export class RPCCache {
                         // Promise was already fulfilled with cached value — the
                         // caller already got its data, so don't reject.  But if
                         // the failure is a ConnectionLostError we must still
-                        // surface it so the global handler can show the "Connection
-                        // lost" notification to the user.
+                        // surface it so the global error service (which listens on
+                        // "unhandledrejection") can show the connection-lost
+                        // notification to the user.
                         if (error instanceof ConnectionLostError) {
                             Promise.reject(error);
                         } else {
@@ -299,7 +300,7 @@ export class RPCCache {
         this.indexedDB.invalidate(tables);
         this.ramCache.invalidate(tables);
         // flag the pending requests as invalidated s.t. we don't write their results in caches
-        for (const key in this.pendingRequests) {
+        for (const key of Object.keys(this.pendingRequests)) {
             this.pendingRequests[key].invalidated = true;
         }
         this.pendingRequests = {};

@@ -85,10 +85,10 @@ export class BottomSheet extends Component {
         // Handle mobile "back" gesture and "back" navigation button.
         // Push a history state when the BottomSheet opens, intercept the browser's
         // history events, prevents navigation by pushing another state and closes the sheet.
-        window.history.pushState({ bottomSheet: true }, "");
+        browser.history.pushState({ bottomSheet: true }, "");
         this.handlePopState = () => {
             if (this.state.isPositionedReady && !this.state.isDismissing) {
-                window.history.pushState({ bottomSheet: true }, "");
+                browser.history.pushState({ bottomSheet: true }, "");
                 this.slideOut();
             }
         };
