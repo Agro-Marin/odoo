@@ -1,48 +1,25 @@
 # Odoo 19.0 Core Framework Fork
 
+> Commit format, branch naming, workflow, environment setup, and dev commands are defined upstream:
+> - `~/.claude/CLAUDE.md` (identity, commit/PR format)
+> - `~/Odoo/CLAUDE.md` (orchestrator: environment, commands, skills, MCP restrictions)
+>
+> This file covers **core fork-specific** standards only.
+
 ## Overview
 
-Odoo 19.0 addons repository for Agromarin ERP: 40+ custom modules for accounting, HR, inventory, manufacturing, and Mexican localization (CFDI, EDI, payroll).
-
-## Business Context
-
-- **CFDI/EDI**: Mexican tax receipt generation and compliance
-- **Payroll**: Mexican tax calculations and payroll processing
-- **Agricultural**: Crop management, harvest tracking, GPS integration, seasonal planning
+Odoo 19.0 core framework fork for Agromarin ERP.
 
 ## Branch Context
 
-**Development Branch (19.0-marin):** Active development, refactoring allowed, no backward compatibility constraints
-**Production Branch (19.0):** Backward compatibility REQUIRED, only bug fixes, migration scripts for data model changes
+**Development Branch (19.0-marin):** Active development, refactoring allowed, no backward compatibility constraints.
 
-## Standard Workflow
-
-1. Think through problem → read relevant files
-2. Plan using **TodoWrite tool** (session tracking) + **todo.md** (persistence)
-3. Check in for plan verification
-4. Work on todos, marking complete in both places
-5. High-level explanations at each step
-6. **Simplicity first**: minimal code changes, avoid massive complex changes
-7. Add review section to todo.md
-
-## Development Commands
-
-```bash
-./odoo-bin -u module_name -d db_name                    # Install/update
-./odoo-bin -u all -d db_name --addons-path=/path        # Update all
-./odoo-bin scaffold module_name /path/to/addons         # Create scaffold
-./odoo-bin -u module_name -d db_name --test-enable      # Run tests
-./odoo-bin -u module_name -d db_name --test-enable --log-level=test  # Tests with coverage
-./odoo-bin -d db_name --dev=all                         # Debug mode
-./odoo-bin shell -d db_name                             # Shell access
-./odoo-bin -u module_name -d db_name --stop-after-init  # Migrate data
-```
+**Production Branch (19.0):** Backward compatibility REQUIRED, only bug fixes, migration scripts for data model changes.
 
 ## Initial Setup: Rust Extension (odoo_rust)
 
 Odoo 19.0 includes a Rust-compiled Python extension (`odoo_rust`) used by `web/controllers/export.py`
-for CSV export. The compiled binaries are **not tracked in git** (platform-specific — tied to OS,
-CPU architecture, and Python version). Each developer must compile and install it once.
+for CSV export. The compiled binaries are **not tracked in git** (platform-specific).
 
 **Requirements:** Rust toolchain (`cargo`) and `maturin`.
 
@@ -56,15 +33,18 @@ source <YOUR_VENV>/bin/activate
 pip install maturin
 
 # 3. Build and install the wheel
-# Navigate to the crates directory relative to the repo root (path varies by environment)
 cd <ODOO_CORE_ROOT>/crates/odoo_rust
 maturin build --release
 pip install target/wheels/odoo_rust-*.whl
 ```
 
-**When to redo this:** After pulling changes to `crates/odoo_rust/src/`, rebuild and reinstall.
+**When to redo:** After pulling changes to `crates/odoo_rust/src/`.
 
-**Symptom if missing:** `ModuleNotFoundError: No module named 'odoo_rust'` on Odoo startup.
+**Symptom if missing:** `ModuleNotFoundError: No module named 'odoo_rust'` on startup.
+
+## Pre-Work Check
+
+Some modules contain a `machine_doc_v<N>/` directory (e.g. `machine_doc_v1/`) with structured, machine-consumable maps of routes, models, architecture, conventions, and test tags. **When working on any module, check for `machine_doc_v*/` first and read it before doing anything else.** This eliminates redundant codebase exploration and provides immediate context.
 
 ## Rules Reference
 
