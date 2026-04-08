@@ -1,10 +1,10 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
-import { Test } from "../core/test";
-import { HootCopyButton } from "./hoot_copy_button";
-import { HootLink } from "./hoot_link";
-import { HootTagButton } from "./hoot_tag_button";
+import { Test } from "../core/test.js";
+import { HootCopyButton } from "./hoot_copy_button.js";
+import { HootLink } from "./hoot_link.js";
+import { HootTagButton } from "./hoot_tag_button.js";
 
 /**
  * @typedef {{

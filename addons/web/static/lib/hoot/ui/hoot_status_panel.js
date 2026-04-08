@@ -1,12 +1,12 @@
 /** @odoo-module */
 
 import { Component, onWillRender, useEffect, useRef, useState, xml } from "@odoo/owl";
-import { getColorHex } from "../../hoot-dom/hoot_dom_utils";
-import { Test } from "../core/test";
-import { formatTime } from "../hoot_utils";
-import { getTitle, setTitle } from "../mock/window";
-import { onColorSchemeChange } from "./hoot_colors";
-import { HootTestPath } from "./hoot_test_path";
+import { getColorHex } from "../../hoot-dom/hoot_dom_utils.js";
+import { Test } from "../core/test.js";
+import { formatTime } from "../hoot_utils.js";
+import { getTitle, setTitle } from "../mock/window.js";
+import { onColorSchemeChange } from "./hoot_colors.js";
+import { HootTestPath } from "./hoot_test_path.js";
 
 /**
  * @typedef {import("../core/runner").Runner} Runner

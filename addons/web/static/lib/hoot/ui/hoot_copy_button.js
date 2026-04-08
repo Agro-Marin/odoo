@@ -1,7 +1,7 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
-import { copy, hasClipboard } from "../hoot_utils";
+import { copy, hasClipboard } from "../hoot_utils.js";
 
 /**
  * @typedef {{

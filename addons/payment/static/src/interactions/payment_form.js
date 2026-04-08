@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { browser } from '@web/core/browser/browser';
+import { Tooltip } from "@web/libs/bootstrap";
 import { ConfirmationDialog } from '@web/ui/dialog/confirmation_dialog';
 import { _t } from '@web/core/l10n/translation';
 import { rpc, RPCError } from '@web/core/network/rpc';
@@ -29,7 +30,7 @@ export class PaymentForm extends Interaction {
 
         // Enable tooltips.
         this.el.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
-            const tooltip = window.Tooltip.getOrCreateInstance(el);
+            const tooltip = Tooltip.getOrCreateInstance(el);
             this.registerCleanup(() => tooltip.dispose());
         });
     }

@@ -31,14 +31,7 @@ that have no counterpart in the general financial accounts.
             'analytic/static/src/components/**/*',
             'analytic/static/src/services/**/*',
             'analytic/static/src/views/**/*',
-            ('remove', 'analytic/static/src/views/graph/**'),
-            ('remove', 'analytic/static/src/views/pivot/**'),
-        ],
-        'web.assets_backend_lazy': [
-            'analytic/static/src/views/graph/**',
-            'analytic/static/src/views/pivot/**',
-        ],
-        'web.assets_unit_tests': [
+        ],        'web.assets_unit_tests': [
             'analytic/static/tests/**/*',
         ],
     },

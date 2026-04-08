@@ -5,8 +5,8 @@ import {
     mockedCancelAnimationFrame,
     mockedRequestAnimationFrame,
 } from "@web/../lib/hoot-dom/helpers/time";
-import { isInstanceOf } from "../../hoot-dom/hoot_dom_utils";
-import { makeNetworkLogger } from "../core/logger";
+import { isInstanceOf } from "../../hoot-dom/hoot_dom_utils.js";
+import { makeNetworkLogger } from "../core/logger.js";
 import {
     ensureArray,
     getSyncValue,
@@ -14,8 +14,8 @@ import {
     MIME_TYPE,
     MockEventTarget,
     setSyncValue,
-} from "../hoot_utils";
-import { ensureTest } from "../main_runner";
+} from "../hoot_utils.js";
+import { ensureTest } from "../main_runner.js";
 
 /**
  * @typedef {ResponseInit & {

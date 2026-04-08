@@ -5,10 +5,10 @@
 import { SERVICES_METADATA } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
 import { makeEnv, startServices } from "@web/env";
-import { registerCleanup } from "./cleanup";
-import { makeMockServer } from "./mock_server";
-import { mocks } from "./mock_services";
-import { patchWithCleanup } from "./utils";
+import { registerCleanup } from "./cleanup.js";
+import { makeMockServer } from "./mock_server.js";
+import { mocks } from "./mock_services.js";
+import { patchWithCleanup } from "./utils.js";
 import { Component } from "@odoo/owl";
 import { startRouter } from "@web/core/browser/router";
 

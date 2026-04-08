@@ -30,7 +30,6 @@
             'bus/static/tests/**/*',
         ],
         'bus.websocket_worker_assets': [
-            'web/static/src/module_loader.js',
             'bus/static/src/workers/*',
         ],
     },

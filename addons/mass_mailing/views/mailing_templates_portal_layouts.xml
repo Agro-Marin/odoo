@@ -17,7 +17,7 @@
                 </main>
             </body>
             <xpath expr="//head/t[@t-call-assets][last()]" position="after">
-                <t t-call-assets="mass_mailing.mailing_assets" lazy_load="True"/>
+                <t t-call-assets="mass_mailing.mailing_assets" defer_load="True"/>
             </xpath>
             <xpath expr="//header" position="before">
                 <t t-set="no_header" t-value="True"/>

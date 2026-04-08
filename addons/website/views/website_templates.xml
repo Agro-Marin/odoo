@@ -2867,13 +2867,7 @@
     <!--    no request.crsf_token, no theme style, no assets, ... cursor can be broken during rendering !      -->
     <!--    see test_05_reset_specific_view_controller_broken_request                                          -->
     <!-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! -->
-    <xpath expr="//script[last()]" position="before">
-        <script type="text/javascript" src="/web/static/lib/bootstrap/js/dist/util/component-functions.js"/>
-        <script type="text/javascript" src="/web/static/lib/bootstrap/js/dist/util/backdrop.js"/>
-        <script type="text/javascript" src="/web/static/lib/bootstrap/js/dist/util/focustrap.js"/>
-        <script type="text/javascript" src="/web/static/lib/bootstrap/js/dist/util/scrollbar.js"/>
-        <script type="text/javascript" src="/web/static/lib/bootstrap/js/dist/modal.js"/>
-    </xpath>
+    <!-- Bootstrap ESM bundle (loaded in parent template) already includes all components -->
     <xpath expr="//style" position="after">
         <t t-if='view'>
             <script>

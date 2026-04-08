@@ -147,16 +147,9 @@ class WebClient(http.Controller):
             )
 
         debug = bundle_params.get("debug", request.session.debug)
-        debug_assets = debug and "assets" in debug
 
-        # Lazy ESM bundles are only ESM in debug=assets mode.
-        # In debug=0, they use transpiled odoo.define() (legacy path).
         from odoo.addons.base.models.assetsbundle import AssetsBundle
-        is_lazy_esm = any(
-            bundle_name in lazies
-            for lazies in AssetsBundle.ESM_LAZY_BUNDLES.values()
-        )
-        use_esm = is_lazy_esm and debug_assets
+        use_esm = bundle_name in AssetsBundle._DYNAMIC_BUNDLE_NAMES
 
         files = request.env["ir.qweb"]._get_asset_nodes(
             bundle_name, debug=debug, js=True, css=True
@@ -170,7 +163,7 @@ class WebClient(http.Controller):
         ]
 
         if use_esm:
-            # ESM lazy bundle in debug mode: return specifiers for import()
+            # ESM dynamic bundle: return specifiers for import()
             assets_params = request.env["ir.asset"]._get_asset_params()
             asset_bundle = request.env["ir.qweb"]._get_asset_bundle(
                 bundle_name, js=True, css=False, debug_assets=True,
@@ -178,10 +171,22 @@ class WebClient(http.Controller):
             )
             native_data = asset_bundle.get_native_module_data()
             specifiers = sorted(native_data["import_map"])
+
+            # Generate ESM template bundle and save as attachment.
+            # The template module self-registers via registerTemplate()
+            # when imported, so it just needs to be in the specifiers.
+            esm_tpl = asset_bundle.generate_esm_template_bundle(use_import=False)
+            tpl_url = None
+            if esm_tpl:
+                tpl_url = request.env["ir.qweb"]._save_esm_attachment(
+                    f"{bundle_name}.templates", esm_tpl, asset_bundle,
+                )
+
             data = {
                 "is_esm": True,
                 "specifiers": specifiers,
                 "files": data,
+                "template_url": tpl_url,
             }
 
         return request.make_json_response(data)

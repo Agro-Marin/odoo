@@ -1,7 +1,7 @@
 /** @odoo-module */
 
-import { DEFAULT_EVENT_TYPES } from "../hoot_utils";
-import { generateSeed } from "../mock/math";
+import { DEFAULT_EVENT_TYPES } from "../hoot_utils.js";
+import { generateSeed } from "../mock/math.js";
 
 /**
  * @typedef {keyof typeof FILTER_SCHEMA} SearchFilter

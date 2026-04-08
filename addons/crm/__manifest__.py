@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-
 {
     'name': 'CRM',
     'version': '1.9',
@@ -72,14 +71,7 @@
     'assets': {
         'web.assets_backend': [
             'crm/static/src/**',
-            ('remove', 'crm/static/src/views/forecast_graph/**'),
-            ('remove', 'crm/static/src/views/forecast_pivot/**'),
-        ],
-        'web.assets_backend_lazy': [
-            'crm/static/src/views/forecast_graph/**',
-            'crm/static/src/views/forecast_pivot/**',
-        ],
-        'web.assets_tests': [
+        ],        'web.assets_tests': [
             'crm/static/tests/tours/**/*',
         ],
         'web.assets_unit_tests': [

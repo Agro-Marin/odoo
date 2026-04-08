@@ -3,7 +3,7 @@ import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { _t } from "@web/core/l10n/translation";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 import { formatCurrency } from "@web/services/currency";
-import { Base } from "../related_models.js";
+import { Base } from "../related_models/index.js";
 
 export class ProductTemplateAccounting extends Base {
     static pythonModel = "product.template";

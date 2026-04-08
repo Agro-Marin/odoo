@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
+import { Tooltip } from "@web/libs/bootstrap";
 import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network/rpc";
 import { Interaction } from "@web/public/interaction";
@@ -34,7 +35,7 @@ class WebsiteLinksCodeEditor extends Interaction {
 
     onCopyToClipboardClick(event) {
         const copyButtonEl = event.currentTarget;
-        const tooltip = window.Tooltip.getOrCreateInstance(copyButtonEl, {
+        const tooltip = Tooltip.getOrCreateInstance(copyButtonEl, {
             title: _t("Link Copied!"),
             trigger: "manual",
             placement: "right",

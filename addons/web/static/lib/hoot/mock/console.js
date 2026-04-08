@@ -1,7 +1,7 @@
 /** @odoo-module */
 
-import { MockEventTarget } from "../hoot_utils";
-import { logger } from "../core/logger";
+import { MockEventTarget } from "../hoot_utils.js";
+import { logger } from "../core/logger.js";
 
 //-----------------------------------------------------------------------------
 // Global

@@ -58,8 +58,8 @@ export async function loadEmoji() {
     const res = { categories: [], emojis: [] };
     try {
         await loader.loadEmoji();
-        const { getCategories, getEmojis } = odoo.loader.modules.get(
-            "@web/components/emoji_picker/emoji_data",
+        const { getCategories, getEmojis } = await import(
+            "@web/components/emoji_picker/emoji_data"
         );
         res.categories = getCategories();
         res.emojis = getEmojis();

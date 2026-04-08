@@ -2,7 +2,7 @@
 
 /** @odoo-module alias=@web/../tests/legacy_tests/helpers/test_utils_tests default=false */
 
-import testUtils from "./test_utils";
+import testUtils from "./test_utils.js";
 const { DateTime } = luxon;
 
 QUnit.module('web', {}, function () {

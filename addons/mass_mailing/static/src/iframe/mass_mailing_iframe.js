@@ -12,6 +12,7 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { LazyComponent, loadBundle } from "@web/core/assets";
+import { DesignTab } from "@mass_mailing/builder/tabs/design_tab";
 import { Deferred } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useForwardRefToParent } from "@web/core/utils/hooks";
@@ -370,8 +371,7 @@ export class MassMailingIframe extends Component {
                 this.editor = editor;
                 this.props.onEditorLoad(editor);
             },
-            getThemeTab: () =>
-                odoo.loader.modules.get("@mass_mailing/builder/tabs/design_tab").DesignTab,
+            getThemeTab: () => DesignTab,
             themeTabDisplayName: _t("Design"),
         };
     }

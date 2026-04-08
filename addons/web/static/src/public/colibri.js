@@ -5,8 +5,7 @@
 
 /** @import { Interaction } from "@web/public/interaction" */
 
-let owl = null;
-let Markup = null;
+import { Component, markup } from "@odoo/owl";
 
 export const INITIAL_VALUE = Symbol("initial value");
 // Return this from event handlers to skip updateContent.
@@ -386,7 +385,6 @@ export class Colibri {
                         initialValue: null,
                     });
                 } else if (directive === "t-component") {
-                    const { Component } = odoo.loader.modules.get("@odoo/owl");
                     if (Object.prototype.isPrototypeOf.call(Component, value)) {
                         for (const node of nodes) {
                             this.mountComponent(node, value);
@@ -493,11 +491,8 @@ export class Colibri {
             }
             for (const node of nodes) {
                 if (!initialValue || !initialValue.has(node)) {
-                    if (!owl) {
-                        owl = odoo.loader.modules.get("@odoo/owl");
-                    }
                     const value = node.children.length
-                        ? owl.markup(node.innerHTML)
+                        ? markup(node.innerHTML)
                         : node.textContent;
                     initialValue.set(node, value);
                 }

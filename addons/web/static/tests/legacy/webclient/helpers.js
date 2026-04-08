@@ -13,16 +13,16 @@ import { effectService } from "@web/ui/effects/effect_service";
 import { hotkeyService } from "@web/services/hotkeys/hotkey_service";
 import { menuService } from "@web/webclient/menus/menu_service";
 import { WebClient } from "@web/webclient/webclient";
-import { registerCleanup } from "../helpers/cleanup";
-import { makeTestEnv } from "../helpers/mock_env";
+import { registerCleanup } from "../helpers/cleanup.js";
+import { makeTestEnv } from "../helpers/mock_env.js";
 import {
     fakeTitleService,
     makeFakePwaService,
     makeFakeLocalizationService,
     makeFakeHTTPService,
     makeFakeBarcodeService,
-} from "../helpers/mock_services";
-import { getFixture, mount, nextTick } from "../helpers/utils";
+} from "../helpers/mock_services.js";
+import { getFixture, mount, nextTick } from "../helpers/utils.js";
 import { uiService } from "@web/ui/block/ui_service";
 import { commandService } from "@web/services/commands/command_service";
 import { CustomFavoriteItem } from "@web/search/custom_favorite_item/custom_favorite_item";

@@ -12,8 +12,6 @@ import {
     toRaw,
     useSubEnv,
 } from "@odoo/owl";
-import { loadBundle } from "@web/core/assets";
-import { cookie } from "@web/core/browser/cookie";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { deepCopy, pick } from "@web/core/utils/collections/objects";
@@ -371,13 +369,6 @@ export class View extends Component {
         const jsClass = archXmlDoc.hasAttribute("js_class")
             ? archXmlDoc.getAttribute("js_class")
             : props.jsClass || type;
-        if (!viewRegistry.contains(jsClass)) {
-            await loadBundle(
-                cookie.get("color_scheme") === "dark"
-                    ? "web.assets_backend_lazy_dark"
-                    : "web.assets_backend_lazy",
-            );
-        }
         const descr = /** @type {any} */ (viewRegistry.get(jsClass));
 
         const sample = archXmlDoc.getAttribute("sample");

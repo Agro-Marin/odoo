@@ -70,9 +70,9 @@ export class PublicReadonlySpreadsheet extends Component {
             this.data.revisions || []
         );
         if (this.env.debug) {
-            // eslint-disable-next-line no-import-assign
-            spreadsheet.__DEBUG__ = spreadsheet.__DEBUG__ || {};
-            spreadsheet.__DEBUG__.model = this.model;
+            const debugObj = spreadsheet.__DEBUG__ || {};
+            debugObj.model = this.model;
+            globalThis.__SPREADSHEET_DEBUG__ = debugObj;
         }
     }
 

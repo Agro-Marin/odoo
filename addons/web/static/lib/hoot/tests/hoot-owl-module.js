@@ -1,38 +1,38 @@
-const _owl = window.owl;
-delete window.owl;
-
-export const App = _owl.App;
-export const Component = _owl.Component;
-export const EventBus = _owl.EventBus;
-export const OwlError = _owl.OwlError;
-export const __info__ = _owl.__info__;
-export const blockDom = _owl.blockDom;
-export const loadFile = _owl.loadFile;
-export const markRaw = _owl.markRaw;
-export const markup = _owl.markup;
-export const mount = _owl.mount;
-export const onError = _owl.onError;
-export const onMounted = _owl.onMounted;
-export const onPatched = _owl.onPatched;
-export const onRendered = _owl.onRendered;
-export const onWillDestroy = _owl.onWillDestroy;
-export const onWillPatch = _owl.onWillPatch;
-export const onWillRender = _owl.onWillRender;
-export const onWillStart = _owl.onWillStart;
-export const onWillUnmount = _owl.onWillUnmount;
-export const onWillUpdateProps = _owl.onWillUpdateProps;
-export const reactive = _owl.reactive;
-export const status = _owl.status;
-export const toRaw = _owl.toRaw;
-export const useChildSubEnv = _owl.useChildSubEnv;
-export const useComponent = _owl.useComponent;
-export const useEffect = _owl.useEffect;
-export const useEnv = _owl.useEnv;
-export const useExternalListener = _owl.useExternalListener;
-export const useRef = _owl.useRef;
-export const useState = _owl.useState;
-export const useSubEnv = _owl.useSubEnv;
-export const validate = _owl.validate;
-export const validateType = _owl.validateType;
-export const whenReady = _owl.whenReady;
-export const xml = _owl.xml;
+/** @odoo-module native */
+export {
+    App,
+    Component,
+    EventBus,
+    OwlError,
+    __info__,
+    blockDom,
+    loadFile,
+    markRaw,
+    markup,
+    mount,
+    onError,
+    onMounted,
+    onPatched,
+    onRendered,
+    onWillDestroy,
+    onWillPatch,
+    onWillRender,
+    onWillStart,
+    onWillUnmount,
+    onWillUpdateProps,
+    reactive,
+    status,
+    toRaw,
+    useChildSubEnv,
+    useComponent,
+    useEffect,
+    useEnv,
+    useExternalListener,
+    useRef,
+    useState,
+    useSubEnv,
+    validate,
+    validateType,
+    whenReady,
+    xml,
+} from "@odoo/owl";

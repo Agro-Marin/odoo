@@ -9,7 +9,7 @@ import { ormService } from "@web/services/orm_service";
 import { overlayService } from "@web/ui/overlay/overlay_service";
 import { uiService } from "@web/ui/block/ui_service";
 import { user } from "@web/services/user";
-import { patchWithCleanup } from "./utils";
+import { patchWithCleanup } from "./utils.js";
 
 // -----------------------------------------------------------------------------
 // Mock Services

@@ -44,10 +44,10 @@ import {
     S_ANY,
     S_NONE,
     strictEqual,
-} from "../hoot_utils";
-import { mockFetch } from "../mock/network";
-import { logger } from "./logger";
-import { Test } from "./test";
+} from "../hoot_utils.js";
+import { mockFetch } from "../mock/network.js";
+import { logger } from "./logger.js";
+import { Test } from "./test.js";
 
 /**
  * @typedef {{

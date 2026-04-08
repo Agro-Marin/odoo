@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { renderToElement } from "@web/core/utils/render";
+import { Popover } from "@web/libs/bootstrap";
 import publicWidget from '@web/legacy/js/public/public_widget';
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
@@ -105,7 +106,7 @@ var CourseJoinWidget = publicWidget.Widget.extend({
      * @param {String} message
      */
     _popoverAlert: function (el, message) {
-        const popover = new window.Popover(el, {
+        const popover = new Popover(el, {
             trigger: 'focus',
             delay: { hide: 300 },
             placement: 'bottom',

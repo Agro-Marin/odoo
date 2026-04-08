@@ -1,16 +1,16 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
-import { createUrl, refresh } from "../core/url";
-import { callHootKey, useHootKey, useWindowListener } from "../hoot_utils";
-import { HootButtons } from "./hoot_buttons";
-import { HootConfigMenu } from "./hoot_config_menu";
-import { HootDebugToolBar } from "./hoot_debug_toolbar";
-import { HootDropdown } from "./hoot_dropdown";
-import { HootReporting } from "./hoot_reporting";
-import { HootSearch } from "./hoot_search";
-import { HootSideBar } from "./hoot_side_bar";
-import { HootStatusPanel } from "./hoot_status_panel";
+import { createUrl, refresh } from "../core/url.js";
+import { callHootKey, useHootKey, useWindowListener } from "../hoot_utils.js";
+import { HootButtons } from "./hoot_buttons.js";
+import { HootConfigMenu } from "./hoot_config_menu.js";
+import { HootDebugToolBar } from "./hoot_debug_toolbar.js";
+import { HootDropdown } from "./hoot_dropdown.js";
+import { HootReporting } from "./hoot_reporting.js";
+import { HootSearch } from "./hoot_search.js";
+import { HootSideBar } from "./hoot_side_bar.js";
+import { HootStatusPanel } from "./hoot_status_panel.js";
 
 /**
  * @typedef {{

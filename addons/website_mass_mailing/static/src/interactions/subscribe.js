@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
+import { Modal } from "@web/libs/bootstrap";
 import { registry } from '@web/core/registry';
 import { rpc } from '@web/core/network/rpc';
 import { session } from '@web/session';
@@ -15,15 +16,15 @@ export class Subscribe extends Interaction {
     setup() {
         this._recaptcha = new ReCaptcha();
         this.notification = this.services['notification'];
-        if (session.turnstile_site_key) {
-            const { TurnStile } = odoo.loader.modules.get(
-                "@website_cf_turnstile/interactions/turnstile"
-            );
-            this._turnstile = new TurnStile("website_mass_mailing_subscribe");
-        }
     }
 
     async willStart() {
+        if (session.turnstile_site_key) {
+            const mod = await import("@website_cf_turnstile/interactions/turnstile").catch(() => null);
+            if (mod) {
+                this._turnstile = new mod.TurnStile("website_mass_mailing_subscribe");
+            }
+        }
         const inputName = this.el.querySelector('input').name;
         const data = await this.waitFor(rpc(
             '/website_mass_mailing/is_subscriber',
@@ -127,7 +128,7 @@ export class Subscribe extends Interaction {
             this._updateSubscribeControlsStatus(true);
             const modalEl = this.el.closest('.o_newsletter_modal');
             if (modalEl) {
-                window.Modal.getOrCreateInstance(modalEl).hide();
+                Modal.getOrCreateInstance(modalEl).hide();
             }
         }
         this.notification.add(result.toast_content, {

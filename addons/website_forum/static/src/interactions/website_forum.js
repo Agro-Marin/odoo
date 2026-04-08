@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { scrollTo, closestScrollable } from "@html_builder/utils/scrolling";
+import { Tooltip, Popover } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 import { markup } from "@odoo/owl";
@@ -79,12 +80,12 @@ export class WebsiteForum extends Interaction {
 
         // Initialize forum's tooltips
         this.el.querySelectorAll("[data-bs-toggle='tooltip']").forEach((el) => {
-            const bsTooltip = window.Tooltip.getOrCreateInstance(el);
+            const bsTooltip = Tooltip.getOrCreateInstance(el);
             this.registerCleanup(() => bsTooltip.dispose());
         });
 
         this.el.querySelectorAll("[data-bs-toggle='popover']").forEach((el) => {
-            const bsPopover = window.Popover.getOrCreateInstance(el);
+            const bsPopover = Popover.getOrCreateInstance(el);
             this.registerCleanup(() => bsPopover.dispose());
         });
 
@@ -130,7 +131,7 @@ export class WebsiteForum extends Interaction {
         });
 
         this.el.querySelectorAll(".o_wforum_bio_popover").forEach((authorBox) => {
-            const bsPopover = window.Popover.getOrCreateInstance(authorBox, {
+            const bsPopover = Popover.getOrCreateInstance(authorBox, {
                 trigger: "hover",
                 offset: "10",
                 animation: false,

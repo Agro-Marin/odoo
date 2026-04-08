@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Deferred } from "@bus/workers/bus_worker_utils";
+import { Deferred } from "./bus_worker_utils.js";
 
 export class ElectionWorker {
     MAIN_TAB_TIMEOUT_PERIOD = 3000;

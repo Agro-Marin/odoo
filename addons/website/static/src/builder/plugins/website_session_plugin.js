@@ -12,7 +12,7 @@ export class WebsiteSessionPlugin extends Plugin {
     static shared = ["getSession"];
 
     getSession() {
-        return this.window.odoo.loader.modules.get("@web/session").session;
+        return this.window.odoo.__session_info__;
     }
 }
 

@@ -1,7 +1,7 @@
 /** @odoo-module */
 
 import { describe, expect, mockSendBeacon, mockTouch, mockVibrate, test } from "@odoo/hoot";
-import { parseUrl } from "../local_helpers";
+import { parseUrl } from "../local_helpers.js";
 
 /**
  * @param {Promise<any>} promise

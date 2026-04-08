@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
+import { Modal } from "@web/libs/bootstrap";
 import { patch } from "@web/core/utils/patch";
 import { patchDynamicContent } from "@web/public/utils";
 import { PortalComposer } from "@portal/interactions/portal_composer";
@@ -141,7 +142,7 @@ patch(PortalComposer.prototype, {
         this.addListener(modalEl, "hidden.bs.modal.noUpdate", () => {
             this.options.reloadRatingPopupComposer(result);
         });
-        window.Modal.getOrCreateInstance(modalEl).hide();
+        Modal.getOrCreateInstance(modalEl).hide();
     },
 
     /**

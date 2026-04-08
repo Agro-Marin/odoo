@@ -3697,9 +3697,19 @@ class IrQweb(models.AbstractModel):
         )
         return asset_bundle.get_links()
 
-    # URL of the OWL library for pre-loading before native ESM modules
-    _OWL_LIB_URL = "/web/static/lib/owl/owl.js"
-    _OWL_ESM_URL = "/web/static/lib/owl/owl_esm.js"
+    # URL of the OWL ESM library — real ESM build, loaded via import map
+    _OWL_ESM_URL = "/web/static/lib/owl/owl.es.js"
+    # URLs for @odoo/* libraries externalized by esbuild — must be in the
+    # import map so runtime import() can resolve them.
+    # @odoo/* libraries externalized by esbuild that need import map
+    # entries for runtime resolution.  @odoo/hoot-dom is aliased in
+    # esbuild (bundled inline) so it does NOT need an import map entry.
+    _ODOO_EXTERNAL_LIBS = {
+        "@odoo/owl": "/web/static/lib/owl/owl.es.js",
+        "@odoo/hoot": "/web/static/lib/hoot/hoot.js",
+        "@odoo/hoot-dom": "/web/static/lib/hoot-dom/hoot-dom.js",
+        "@odoo/hoot-mock": "/web/static/lib/hoot/hoot-mock.js",
+    }
 
     @tools.conditional(
         "xml" not in tools.config["dev_mode"],
@@ -3724,6 +3734,77 @@ class IrQweb(models.AbstractModel):
             assets_params=assets_params,
         )
         return asset_bundle.get_native_module_data()
+
+    @staticmethod
+    def _build_loader_shim_js() -> str:
+        """Return a self-executing JS snippet that bootstraps ``odoo.loader``.
+
+        The loader MUST be a class instance (not a plain object) because
+        Hoot's ``ModuleSetLoader`` does ``extends loader.constructor`` and
+        calls parent methods (``startModule``, ``addJob``) via the prototype
+        chain.  A plain-object shim would make the subclass extend
+        ``Object``, breaking the entire Hoot test runner.
+        """
+        return (
+            "(function(){"
+            "const o=globalThis.odoo??={};"
+            "const m=o.loader?.modules??new Map();"
+            "if(!o.loader){"
+            "class L{"
+            "bus=new EventTarget();"
+            "factories=new Map();"
+            "failed=new Set();"
+            "jobs=new Set();"
+            "modules=m;"
+            "_pendingDeps=new Map();"
+            "_dependents=new Map();"
+            "_readyQueue=[];"
+            "addJob(n){this._enqueue(n);this.startModules()}"
+            "define(n,d,f,lazy){"
+            "if(this.factories.has(n)||this.modules.has(n))return;"
+            "this.factories.set(n,{deps:d||[],fn:f});"
+            "if(!lazy)this.addJob(n)}"
+            "_enqueue(n){"
+            "if(this.modules.has(n)||this._pendingDeps.has(n))return;"
+            "const f=this.factories.get(n);if(!f)return;"
+            "this.jobs.add(n);let p=0;"
+            "for(const d of f.deps){"
+            "if(!this.modules.has(d)){"
+            "let w=this._dependents.get(d);"
+            "if(!w){w=new Set();this._dependents.set(d,w)}"
+            "if(!w.has(n)){w.add(n);p++}}}"
+            "this._pendingDeps.set(n,p);"
+            "if(p===0)this._readyQueue.push(n)}"
+            "startModules(){"
+            "while(this._readyQueue.length)"
+            "this.startModule(this._readyQueue.shift())}"
+            "startModule(n){"
+            "const req=d=>this.modules.get(d);"
+            "this.jobs.delete(n);this._pendingDeps.delete(n);"
+            "const f=this.factories.get(n);"
+            "if(!f)return this.modules.get(n);"
+            "let mod;try{mod=f.fn(req)}"
+            "catch(e){this.failed.add(n);throw e}"
+            "this.modules.set(n,mod);"
+            "this._propagateLoaded(n);return mod}"
+            "_propagateLoaded(n){"
+            "const ws=this._dependents.get(n);if(!ws)return;"
+            "for(const w of ws){"
+            "const r=this._pendingDeps.get(w);"
+            "if(r!==undefined){const c=r-1;"
+            "this._pendingDeps.set(w,c);"
+            "if(c===0)this._readyQueue.push(w)}}"
+            "this._dependents.delete(n)}"
+            "findErrors(){return{}}"
+            "reportErrors(){}"
+            "registerNativeModules(obj){"
+            "for(const[k,v]of Object.entries(obj)){"
+            "this.modules.set(k,v);this.jobs.delete(k);"
+            "this._propagateLoaded(k)}"
+            "this.startModules()}}"
+            "o.loader=new L()}"
+            "})();"
+        )
 
     def _get_native_module_nodes(
         self,
@@ -3771,7 +3852,9 @@ class IrQweb(models.AbstractModel):
         if not native_data["import_map"]:
             return [], []
 
-        bridge_specifiers = sorted(native_data["import_map"])
+        bridge_specifiers = sorted(
+            set(native_data["import_map"]) | set(self._ODOO_EXTERNAL_LIBS)
+        )
 
         # ── Production: esbuild bundling ──
         # Single minified <script type="module"> replaces 600+ individual
@@ -3789,25 +3872,83 @@ class IrQweb(models.AbstractModel):
             if esbuild_code:
                 pre = []
                 post = []
-                # OWL pre-load (esbuild externalizes @odoo/owl)
-                pre.append(("script", {"src": self._OWL_LIB_URL}))
-                # Minimal import map: only @odoo/owl
+                # Import map: @odoo/* externals + dynamic bundle specifiers
+                # so runtime import() can resolve them.
+                prod_import_map = dict(self._ODOO_EXTERNAL_LIBS)
+                from odoo.addons.base.models.assetsbundle import AssetsBundle
+                import re as re_mod
+
+                # Collect dynamic ESM bundles and build bridges for
+                # their @web/... dependencies (data: URI shims reading
+                # from odoo.loader.modules — same instance, no dups).
+                dynamic_bundles = []
+                for lazy_name in AssetsBundle.DYNAMIC_ESM_BUNDLES.get(bundle, []):
+                    is_dynamic = lazy_name in AssetsBundle._DYNAMIC_BUNDLE_NAMES
+                    lazy_ab = self._get_asset_bundle(
+                        lazy_name, js=True, css=False,
+                        debug_assets=is_dynamic,
+                        assets_params=assets_params,
+                    )
+                    lazy_data = lazy_ab.get_native_module_data()
+                    prod_import_map.update(lazy_data["import_map"])
+                    if is_dynamic:
+                        dynamic_bundles.append(lazy_ab)
+
+                # Build instance-sharing bridges for dynamic bundles.
+                # Combine ALL dynamic bundles' native_modules so that
+                # bridges export the union of all needed names (e.g.
+                # spreadsheet needs `groupBy` from arrays, website
+                # needs `shallowEqual` — both must be in one bridge).
+                if dynamic_bundles:
+                    combined_modules = []
+                    for dyn_ab in dynamic_bundles:
+                        combined_modules.extend(dyn_ab.native_modules)
+                    # Use first bundle as host, temporarily swap modules
+                    host = dynamic_bundles[0]
+                    orig = host.native_modules
+                    host.native_modules = combined_modules
+                    bridge_map = host._build_native_to_legacy_bridge(
+                        set(prod_import_map), re_mod,
+                    )
+                    host.native_modules = orig
+                    prod_import_map.update(bridge_map)
+
+                # Include import map entries from associated bundles
+                # (e.g. test bundles that skip esbuild and rely on the
+                # parent's import map for bare-specifier resolution).
+                for include_name in AssetsBundle.IMPORT_MAP_INCLUDES.get(bundle, []):
+                    include_ab = self._get_asset_bundle(
+                        include_name, js=True, css=False,
+                        debug_assets=False,
+                        assets_params=assets_params,
+                    )
+                    include_data = include_ab.get_native_module_data()
+                    prod_import_map.update(include_data["import_map"])
+                    prod_import_map.update(
+                        include_data.get("bridge_import_map", {}),
+                    )
+
                 pre.append(("script", {
                     "type": "importmap",
                     "data-bundle": bundle,
                     "text": json_mod.dumps(
-                        {"imports": {"@odoo/owl": self._OWL_ESM_URL}},
+                        {"imports": prod_import_map},
                     ),
                 }))
-                # Native module names (suppress "missing dep" errors)
-                names_js = (
-                    "((globalThis.odoo ??= {}).__native_module_names__ ??= [])"
-                    ".push("
-                    + ",".join(json_mod.dumps(s) for s in bridge_specifiers)
-                    + ");"
-                )
-                pre.append(("script", {"text": names_js}))
-                # Bundled bridge module — save as ir.attachment for caching.
+                # Mark that an import map has been rendered so that
+                # subsequent ESM bundles on the same page (e.g. the
+                # test bundle) skip generating a duplicate one.
+                from odoo.http import request as _http_request
+                if _http_request:
+                    _http_request._esm_import_map_rendered = True
+                # Bootstrap odoo.loader — must be a class instance (not
+                # a plain object) because Hoot's ModuleSetLoader does
+                # ``extends loader.constructor`` and calls parent methods
+                # like startModule/addJob via the prototype chain.
+                shim_js = self._build_loader_shim_js()
+                pre.append(("script", {"text": shim_js}))
+                # Bundled bridge module — FIRST, so registerNativeModules
+                # runs before the template module accesses it.
                 # In read-only transactions (e.g. test mode), inline the code
                 # instead of attempting an INSERT that would fail.
                 if self.env.cr.readonly:
@@ -3825,6 +3966,29 @@ class IrQweb(models.AbstractModel):
                         "src": esm_url,
                         "data-bridge": bundle,
                     }))
+                # Template module — AFTER the esbuild bundle.  Uses
+                # odoo.loader.modules.get() (not import) to access the
+                # SAME @web/core/templates instance from the esbuild
+                # bundle (registered via registerNativeModules above).
+                esm_tpl = asset_bundle.generate_esm_template_bundle(
+                    use_import=False,
+                )
+                if esm_tpl:
+                    if self.env.cr.readonly:
+                        post.append(("script", {
+                            "type": "module",
+                            "text": esm_tpl,
+                            "data-templates": bundle,
+                        }))
+                    else:
+                        tpl_url = self._save_esm_attachment(
+                            f"{bundle}.templates", esm_tpl, asset_bundle,
+                        )
+                        post.append(("script", {
+                            "type": "module",
+                            "src": tpl_url,
+                            "data-templates": bundle,
+                        }))
                 return pre, post
 
         # ── Debug mode: individual files + import map ──
@@ -3832,21 +3996,17 @@ class IrQweb(models.AbstractModel):
         post_nodes = []
         import_map = dict(native_data["import_map"])
 
-        # Add @odoo/owl ESM shim to the import map so native modules can
-        # `import { Component } from "@odoo/owl"`.  The shim reads from
-        # globalThis.owl which is set by the OWL UMD pre-load below.
-        import_map["@odoo/owl"] = self._OWL_ESM_URL
+        # Add @odoo/* externals to the import map so native modules
+        # can resolve bare specifiers externalized by esbuild.
+        import_map.update(self._ODOO_EXTERNAL_LIBS)
 
-        # Pre-register lazy ESM bundle specifiers in the import map so
-        # that dynamic import() can resolve them at runtime without
-        # needing a second import map.  Only URLs are added — the modules
-        # are NOT eagerly loaded (that happens via loadBundle).
-        # Note: this code only runs in debug=assets mode (production
-        # returns early via the esbuild path above).
+        # Pre-register dynamic ESM bundle specifiers in the import map
+        # so that runtime import() (after loadBundle) can resolve them.
+        # Only URLs are added — modules are NOT eagerly loaded.
         import re as re_mod
         from odoo.addons.base.models.assetsbundle import AssetsBundle
         lazy_bundles = []
-        for lazy_name in AssetsBundle.ESM_LAZY_BUNDLES.get(bundle, []):
+        for lazy_name in AssetsBundle.DYNAMIC_ESM_BUNDLES.get(bundle, []):
             lazy_ab = self._get_asset_bundle(
                 lazy_name, js=True, css=False, debug_assets=True,
                 assets_params=assets_params,
@@ -3855,12 +4015,24 @@ class IrQweb(models.AbstractModel):
             import_map.update(lazy_data["import_map"])
             lazy_bundles.append(lazy_ab)
 
-        # Native → Legacy bridge: data: URI shims that re-export from
-        # ``odoo.loader.modules``.  Each shim uses ``await __legacyReady``
-        # to ensure all define() calls have run.
-        # When lazy bundles exist, rebuild the bridge with COMBINED native
-        # modules (main + lazy) so all needed exports are included in a
-        # single shim per specifier — avoids overwrites.
+        # Include import map entries from associated bundles (e.g. test
+        # bundles that skip esbuild and rely on the parent's import map).
+        for include_name in AssetsBundle.IMPORT_MAP_INCLUDES.get(bundle, []):
+            include_ab = self._get_asset_bundle(
+                include_name, js=True, css=False,
+                debug_assets=debug_assets,
+                assets_params=assets_params,
+            )
+            include_data = include_ab.get_native_module_data()
+            import_map.update(include_data["import_map"])
+            import_map.update(include_data.get("bridge_import_map", {}))
+
+        # Instance-sharing bridge: data: URI shims that re-export from
+        # ``odoo.loader.modules`` so dynamic bundles share the parent
+        # bundle's singleton instances (e.g. same registry).
+        # When dynamic bundles exist, rebuild the bridge with COMBINED
+        # native modules (main + dynamic) so all needed exports are
+        # included in a single shim per specifier.
         all_native_specifiers = set(native_data["import_map"])
         combined_native_modules = list(asset_bundle.native_modules)
         for lazy_ab in lazy_bundles:
@@ -3878,20 +4050,24 @@ class IrQweb(models.AbstractModel):
         asset_bundle.native_modules = orig_modules
         import_map.update(bridge_map)
 
-        # 1. OWL pre-load: non-deferred script that runs immediately and
-        #    sets globalThis.owl BEFORE any module scripts are fetched.
-        #    The UMD is idempotent, so it's harmless that the legacy bundle
-        #    also contains owl.js (it just re-assigns the same properties).
-        pre_nodes.append(("script", {
-            "src": self._OWL_LIB_URL,
-        }))
+        # Check if a previous ESM bundle on this page already rendered
+        # an import map (e.g. the setup bundle on the test page).
+        # Only ONE import map per document is allowed by the spec.
+        from odoo.http import request as _http_request
+        _req = _http_request if _http_request else None
+        _already_has_esm = _req and getattr(
+            _req, '_esm_import_map_rendered', False,
+        )
 
-        # 2. Import map — MUST come before any <script type="module">
-        pre_nodes.append(("script", {
-            "type": "importmap",
-            "data-bundle": bundle,
-            "text": json_mod.dumps({"imports": import_map}, indent=2),
-        }))
+        # 1. Import map — MUST come before any <script type="module">
+        if not _already_has_esm:
+            pre_nodes.append(("script", {
+                "type": "importmap",
+                "data-bundle": bundle,
+                "text": json_mod.dumps({"imports": import_map}, indent=2),
+            }))
+            if _req:
+                _req._esm_import_map_rendered = True
 
         # 3. Modulepreload hints for faster loading (skip in debug mode
         #    to reduce noise and allow individual file debugging)
@@ -3904,28 +4080,87 @@ class IrQweb(models.AbstractModel):
         # Register ALL native modules in the legacy loader so that
         # require() works for both same-bundle legacy modules and
         # dynamically-loaded lazy bundles (e.g. web_tour.automatic).
-        bridge_specifiers = sorted(native_data["import_map"])
-        if bridge_specifiers:
-            names_js = (
-                "((globalThis.odoo ??= {}).__native_module_names__ ??= [])"
-                ".push(" + ",".join(json_mod.dumps(s) for s in bridge_specifiers) + ");"
-            )
-            pre_nodes.append(("script", {"text": names_js}))
+        # Include @odoo/owl explicitly so legacy odoo.define() code
+        # (e.g. spreadsheet) can require() it — OWL is loaded via
+        # import map, not as a native module in the bundle.
+        bridge_specifiers = sorted(
+            set(native_data["import_map"]) | set(self._ODOO_EXTERNAL_LIBS)
+        )
+        if bridge_specifiers and not _already_has_esm:
+            shim_js = self._build_loader_shim_js()
+            pre_nodes.append(("script", {"text": shim_js}))
 
-            import_lines = []
-            register_entries = []
-            for i, specifier in enumerate(bridge_specifiers):
-                var = f"__m{i}"
-                import_lines.append(f'import * as {var} from "{specifier}";')
-                register_entries.append(f'  {json_mod.dumps(specifier)}: {var}')
-            bridge_code = "\n".join(import_lines) + "\n"
-            bridge_code += "odoo.loader.registerNativeModules({\n"
-            bridge_code += ",\n".join(register_entries)
-            bridge_code += "\n});"
+        # Bridge code is ALWAYS generated (even when the import map and
+        # shim were already rendered by a previous bundle on this page).
+        # This registers native modules and test factories for Hoot.
+        if bridge_specifiers:
+            bridge_code = ""
+
+            if not _already_has_esm:
+                # Primary bundle: eagerly import and register non-test
+                # native modules.  Test files are excluded — Hoot wraps
+                # each inside a describe() suite, so eager import would
+                # bypass that wrapper.
+                import_lines = []
+                register_entries = []
+                for i, specifier in enumerate(bridge_specifiers):
+                    if "/../tests/" in specifier or ".test" in specifier or "/tests/" in specifier:
+                        continue
+                    var = f"__m{i}"
+                    import_lines.append(f'import * as {var} from "{specifier}";')
+                    register_entries.append(f'  {json_mod.dumps(specifier)}: {var}')
+                bridge_code = "\n".join(import_lines) + "\n"
+                bridge_code += "odoo.loader.registerNativeModules({\n"
+                bridge_code += ",\n".join(register_entries)
+                bridge_code += "\n});\n"
+            # else: secondary bundle — skip eager imports.  Source
+            # modules are already loaded by the primary bundle's
+            # esbuild output.  Only test factories are needed.
+
+            # ESM native test loading: import all test files eagerly
+            # via start.hoot's loadAndStart(), following Hoot's canonical
+            # pattern (import all → start()).  No factories needed.
+            test_specifiers = sorted(
+                s for s in bridge_specifiers
+                if "/../tests/" in s or ".test" in s or "/tests/" in s
+            )
+            start_hoot = [
+                s for s in test_specifiers
+                if s.endswith("/start.hoot")
+            ]
+            other_tests = [
+                s for s in test_specifiers
+                if s not in start_hoot
+            ]
+            if start_hoot and other_tests:
+                specifier_list = ",\n".join(
+                    f"  {json_mod.dumps(s)}" for s in other_tests
+                )
+                bridge_code += (
+                    f"const {{loadAndStart}} = await import({json_mod.dumps(start_hoot[0])});\n"
+                    f"loadAndStart([\n{specifier_list}\n]);\n"
+                )
+
+            if bridge_code.strip():
+                post_nodes.append(("script", {
+                    "type": "module",
+                    "data-bridge": bundle,
+                    "text": bridge_code,
+                }))
+
+        # ESM template module — inline in debug mode.
+        # Secondary bundles use use_import=False so that templates
+        # access @web/core/templates via odoo.loader.modules.get()
+        # instead of import — the data: URI bridge may not export all
+        # names (e.g. checkPrimaryTemplateParents).
+        esm_tpl = asset_bundle.generate_esm_template_bundle(
+            use_import=not _already_has_esm,
+        )
+        if esm_tpl:
             post_nodes.append(("script", {
                 "type": "module",
-                "data-bridge": bundle,
-                "text": bridge_code,
+                "data-templates": bundle,
+                "text": esm_tpl,
             }))
 
         return pre_nodes, post_nodes

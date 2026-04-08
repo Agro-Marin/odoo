@@ -12,7 +12,7 @@ import {
     tick,
     waitUntil,
 } from "@odoo/hoot";
-import { parseUrl } from "../local_helpers";
+import { parseUrl } from "../local_helpers.js";
 
 // timeout of 1 second to ensure all timeouts are actually mocked
 describe.timeout(1_000);

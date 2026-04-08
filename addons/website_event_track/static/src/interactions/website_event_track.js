@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+import { Popover } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 
 export class WebsiteEventTrack extends Interaction {
@@ -28,7 +29,7 @@ export class WebsiteEventTrack extends Interaction {
 
     setup() {
         this.el.querySelectorAll("[data-bs-toggle='popover']").forEach((el) => {
-            const bsPopover = window.Popover.getOrCreateInstance(el);
+            const bsPopover = Popover.getOrCreateInstance(el);
             this.registerCleanup(() => bsPopover.dispose());
         });
 

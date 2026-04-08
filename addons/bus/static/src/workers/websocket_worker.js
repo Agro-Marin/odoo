@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { debounce, Deferred, Logger } from "@bus/workers/bus_worker_utils";
+import { debounce, Deferred, Logger } from "./bus_worker_utils.js";
 
 /**
  * Type of events that can be sent from the worker to its clients.

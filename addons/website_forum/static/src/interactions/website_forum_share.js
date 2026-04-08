@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
+import { Modal } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 
 export class WebsiteForumShare extends Interaction {
@@ -18,7 +19,7 @@ export class WebsiteForumShare extends Interaction {
                 }, document.body, "beforeend", (els) => {
                     this.addListener(els[0], "hidden.bs.modal", () => els[0].remove());
                 });
-                const bsModal = window.Modal.getOrCreateInstance(document.querySelector("#oe_social_share_modal"));
+                const bsModal = Modal.getOrCreateInstance(document.querySelector("#oe_social_share_modal"));
                 bsModal.show();
                 this.registerCleanup(() => bsModal.dispose());
             }

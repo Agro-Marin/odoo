@@ -925,7 +925,7 @@ export class Rtc extends Record {
     async _loadSfu() {
         const load = async () => {
             await loadSfuAssets();
-            const sfuModule = odoo.loader.modules.get("@mail/../lib/odoo_sfu/odoo_sfu");
+            const sfuModule = await import("@mail/../lib/odoo_sfu/odoo_sfu");
             this.SFU_CLIENT_STATE = sfuModule.SFU_CLIENT_STATE;
             this.sfuClient = new sfuModule.SfuClient();
         };

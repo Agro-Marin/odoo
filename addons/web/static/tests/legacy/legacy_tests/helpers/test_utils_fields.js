@@ -11,7 +11,7 @@
      * testUtils file.
      */
 
-    import testUtilsDom from "./test_utils_dom";
+    import testUtilsDom from "./test_utils_dom.js";
 
     //-------------------------------------------------------------------------
     // Public functions

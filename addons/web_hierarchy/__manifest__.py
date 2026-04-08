@@ -14,11 +14,11 @@ an organization such as an Organization Chart for employees for instance.
         """,
     'depends': ['web'],
     'assets': {
-        'web.assets_backend_lazy': [
+        'web.assets_backend': [
             'web_hierarchy/static/src/**/*',
             ('remove', 'web_hierarchy/static/src/hierarchy.variables.dark.scss'),
         ],
-        'web.assets_backend_lazy_dark': [
+        "web.assets_backend_dark": [
             ('before', 'web_hierarchy/static/src/hierarchy.variables.scss', 'web_hierarchy/static/src/hierarchy.variables.dark.scss'),
         ],
         'web.assets_unit_tests': [

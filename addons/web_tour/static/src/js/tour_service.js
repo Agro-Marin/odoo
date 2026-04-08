@@ -179,22 +179,14 @@ export const tourService = {
             tour.steps.forEach((step) => validateStep(step));
 
             if (tourConfig.mode === "auto") {
-                if (!odoo.loader.modules.get("@web_tour/js/tour_automatic/tour_automatic")) {
-                    await loadBundle("web_tour.automatic", { css: false });
-                }
-                const tourAutoModule = odoo.loader.modules.get(
+                await loadBundle("web_tour.automatic", { css: false });
+                const { TourAutomatic } = await import(
                     "@web_tour/js/tour_automatic/tour_automatic"
                 );
-                if (!tourAutoModule) {
-                    throw new Error(
-                        `Failed to load tour module "@web_tour/js/tour_automatic/tour_automatic" ` +
-                        `from bundle "web_tour.automatic". Check asset compilation logs.`
-                    );
-                }
-                new tourAutoModule.TourAutomatic(tour).start();
+                new TourAutomatic(tour).start();
             } else {
                 await loadBundle("web_tour.interactive");
-                const { TourPointer } = odoo.loader.modules.get(
+                const { TourPointer } = await import(
                     "@web_tour/js/tour_pointer/tour_pointer"
                 );
                 pointer.stop = overlay.add(
@@ -207,7 +199,7 @@ export const tourService = {
                         sequence: 1100, // sequence based on bootstrap z-index values.
                     }
                 );
-                const { TourInteractive } = odoo.loader.modules.get(
+                const { TourInteractive } = await import(
                     "@web_tour/js/tour_interactive/tour_interactive"
                 );
                 new TourInteractive(tour).start(env, pointer, async () => {
@@ -237,7 +229,7 @@ export const tourService = {
 
         async function tourRecorder() {
             await loadBundle("web_tour.recorder");
-            const { TourRecorder } = odoo.loader.modules.get(
+            const { TourRecorder } = await import(
                 "@web_tour/js/tour_recorder/tour_recorder"
             );
             const remove = overlay.add(

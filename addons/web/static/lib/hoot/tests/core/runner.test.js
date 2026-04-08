@@ -1,11 +1,11 @@
 /** @odoo-module */
 
 import { after, defineTags, describe, expect, test } from "@odoo/hoot";
-import { parseUrl } from "../local_helpers";
+import { parseUrl } from "../local_helpers.js";
 
-import { Runner } from "../../core/runner";
-import { Suite } from "../../core/suite";
-import { undefineTags } from "../../core/tag";
+import { Runner } from "../../core/runner.js";
+import { Suite } from "../../core/suite.js";
+import { undefineTags } from "../../core/tag.js";
 
 const makeTestRunner = () => {
     const runner = new Runner();

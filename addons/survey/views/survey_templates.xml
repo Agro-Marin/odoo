@@ -25,7 +25,7 @@
                        separator=" "/>
         </xpath>
         <xpath expr="//head/t[@t-call-assets][last()]" position="after">
-            <t t-call-assets="survey.survey_assets" lazy_load="True"/>
+            <t t-call-assets="survey.survey_assets" defer_load="True"/>
             <!-- Theme customization via CSS variables -->
             <t t-if="survey and survey.theme_color and survey.theme_color != '#714B67'">
                 <style t-out="':root { --survey-primary: %s; } .btn-primary { background-color: var(--survey-primary) !important; border-color: var(--survey-primary) !important; } .text-primary { color: var(--survey-primary) !important; } .o_survey_choice_btn.o_survey_selected { border-color: var(--survey-primary); }' % survey.theme_color"/>

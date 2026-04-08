@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { intersection } from "@web/core/utils/collections/arrays";
+import { Modal } from "@web/libs/bootstrap";
 import { _t, appTranslateFn } from "@web/core/l10n/translation";
 import { renderToElement } from "@web/core/utils/render";
 import { App, Component } from "@odoo/owl";
@@ -187,7 +188,7 @@ function prompt(options, _qweb) {
             if (fill) {
                 field.fillWith(fill);
             }
-            const bsModal = window.Modal.getOrCreateInstance(dialog);
+            const bsModal = Modal.getOrCreateInstance(dialog);
             bsModal.show();
             field.focus();
             dialog.addEventListener("click", function (e) {

@@ -10,7 +10,7 @@ import {
     R_WHITE_SPACE,
     toSelector,
 } from "@web/../lib/hoot-dom/hoot_dom_utils";
-import { getRunner } from "./main_runner";
+import { getRunner } from "./main_runner.js";
 
 /**
  * @typedef {ArgumentPrimitive | `${ArgumentPrimitive}[]` | null} ArgumentType
@@ -1325,6 +1325,14 @@ export function makeRuntimeHook(name) {
             if (last && typeof last === "object") {
                 callbacks.pop();
                 valid ||= Boolean(last.global);
+            }
+            // During module initialization (before the runner starts),
+            // hooks called outside a suite are treated as global.
+            // This supports framework helpers that register global
+            // before/after/beforeEach/afterEach at module top-level
+            // (e.g. registry cleanup, mock server routes).
+            if (!valid && runner.state?.status !== "running") {
+                valid = true;
             }
             if (!valid) {
                 throw new HootError(`cannot call "${name}" callback outside of a suite`, {

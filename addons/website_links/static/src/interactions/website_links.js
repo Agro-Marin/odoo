@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
+import { Tooltip } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
@@ -65,7 +66,7 @@ class WebsiteLinks extends Interaction {
 
     onCopyShortURL(event) {
         const copyBtnEl = event.currentTarget;
-        const tooltip = window.Tooltip.getOrCreateInstance(copyBtnEl, {
+        const tooltip = Tooltip.getOrCreateInstance(copyBtnEl, {
             title: _t("Link Copied!"),
             trigger: "manual",
             placement: "top",

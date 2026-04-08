@@ -11,7 +11,7 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
 import { isVisible } from "@web/core/utils/dom/ui";
 import { _t } from "@web/core/l10n/translation";
-import { registerCleanup } from "./cleanup";
+import { registerCleanup } from "./cleanup.js";
 import { customDirectives, globalValues } from "@web/env";
 
 import {

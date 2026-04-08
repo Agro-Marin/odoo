@@ -1,9 +1,9 @@
 /** @odoo-module */
 
 import { Component, useState, xml } from "@odoo/owl";
-import { FILTER_SCHEMA } from "../core/config";
-import { createUrlFromId } from "../core/url";
-import { ensureArray, INCLUDE_LEVEL } from "../hoot_utils";
+import { FILTER_SCHEMA } from "../core/config.js";
+import { createUrlFromId } from "../core/url.js";
+import { ensureArray, INCLUDE_LEVEL } from "../hoot_utils.js";
 
 /**
  * @typedef {{

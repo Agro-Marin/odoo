@@ -1,7 +1,7 @@
 /** @odoo-module */
 
-import { MockEventTarget } from "../hoot_utils";
-import { currentPermissions } from "./navigator";
+import { MockEventTarget } from "../hoot_utils.js";
+import { currentPermissions } from "./navigator.js";
 
 //-----------------------------------------------------------------------------
 // Global

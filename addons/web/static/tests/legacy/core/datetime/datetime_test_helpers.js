@@ -5,7 +5,7 @@
 import { patchWithCleanup } from "@web/../tests/helpers/utils";
 import { localization } from "@web/core/l10n/localization";
 import { ensureArray } from "@web/core/utils/collections/arrays";
-import { click, getFixture } from "../../helpers/utils";
+import { click, getFixture } from "../../helpers/utils.js";
 
 /**
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps

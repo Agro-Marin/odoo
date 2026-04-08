@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
+import { Modal } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { renderToMarkup } from "@web/core/utils/render";
@@ -44,7 +45,7 @@ export class PortalSecurity extends Interaction {
         const modalEl = document.querySelector(".modal.show#portal_deactivate_account_modal");
         if (modalEl) {
             modalEl.classList.remove("d-block");
-            window.Modal.getOrCreateInstance(modalEl).show();
+            Modal.getOrCreateInstance(modalEl).show();
         }
     }
 

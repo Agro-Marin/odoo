@@ -1,13 +1,13 @@
 /** @odoo-module alias=@odoo/hoot-mock default=false */
 
 import * as _hootDom from "@odoo/hoot-dom";
-import * as _animation from "./mock/animation";
-import * as _date from "./mock/date";
-import * as _math from "./mock/math";
-import * as _navigator from "./mock/navigator";
-import * as _network from "./mock/network";
-import * as _notification from "./mock/notification";
-import * as _window from "./mock/window";
+import * as _animation from "./mock/animation.js";
+import * as _date from "./mock/date.js";
+import * as _math from "./mock/math.js";
+import * as _navigator from "./mock/navigator.js";
+import * as _network from "./mock/network.js";
+import * as _notification from "./mock/notification.js";
+import * as _window from "./mock/window.js";
 
 /** @deprecated use `import { advanceFrame } from "@odoo/hoot";` */
 export const advanceFrame = _hootDom.advanceFrame;

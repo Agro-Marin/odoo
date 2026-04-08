@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { patch } from '@web/core/utils/patch';
+import { Tooltip, Modal } from "@web/libs/bootstrap";
 import { patchDynamicContent } from '@web/public/utils';
 import { rpc } from '@web/core/network/rpc';
 import { Checkout } from '@website_sale/interactions/checkout';
@@ -25,7 +26,7 @@ patch(Checkout.prototype, {
         this.useDeliveryAsBillingTooltip = undefined;
         const useDeliveryAsBillingLabel = this.el.querySelector('#use_delivery_as_billing_label');
         if (useDeliveryAsBillingLabel) {
-            this.useDeliveryAsBillingTooltip = window.Tooltip
+            this.useDeliveryAsBillingTooltip = Tooltip
                 .getOrCreateInstance(useDeliveryAsBillingLabel);
             this.registerCleanup(() => this.useDeliveryAsBillingTooltip.dispose());
         }
@@ -55,7 +56,7 @@ patch(Checkout.prototype, {
                 this.mondialRelayModal.querySelector('#btn_confirm_relay').classList.toggle(
                     'disabled', !result.mondial_relay.current
                 );
-                window.Modal.getOrCreateInstance(this.mondialRelayModal).show();
+                Modal.getOrCreateInstance(this.mondialRelayModal).show();
             }
         }
         this._adaptUseDeliveryAsBillingToggle();
@@ -159,7 +160,7 @@ patch(Checkout.prototype, {
             };
             const zoneWidget = this.mondialRelayModal.querySelector('#o_zone_widget');
             window.jQuery(zoneWidget).MR_ParcelShopPicker(params);
-            window.Modal.getOrCreateInstance(this.mondialRelayModal).show();
+            Modal.getOrCreateInstance(this.mondialRelayModal).show();
             window.jQuery(zoneWidget).trigger("MR_RebindMap");
         });
     },

@@ -12,11 +12,11 @@ import { View, getDefaultConfig } from "@web/views/view";
 import {
     makeFakeLocalizationService,
     patchUserWithCleanup,
-} from "../helpers/mock_services";
+} from "../helpers/mock_services.js";
 import {
     setupControlPanelFavoriteMenuRegistry,
     setupControlPanelServiceRegistry,
-} from "../search/helpers";
+} from "../search/helpers.js";
 
 import { Component, useSubEnv, xml } from "@odoo/owl";
 
