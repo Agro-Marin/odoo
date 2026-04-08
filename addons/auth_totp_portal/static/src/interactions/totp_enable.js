@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
+import { Tooltip } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 
 import { InputConfirmationDialog } from "@portal/js/components/input_confirmation_dialog/input_confirmation_dialog";

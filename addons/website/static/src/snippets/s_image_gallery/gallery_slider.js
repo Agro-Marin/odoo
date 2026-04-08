@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
+import { Carousel } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 
 import { isVisible } from "@html_editor/utils/dom_info";
@@ -109,7 +110,7 @@ export class GallerySlider extends Interaction {
         }
         this.page += dispatchedEl.classList.contains("o_indicators_left") ? -1 : 1;
         this.page = Math.max(0, Math.min(this.nbPages - 1, this.page)); // should not be necessary
-        window.Carousel.getOrCreateInstance(this.carouselEl).to(this.page * this.realNbPerPage);
+        Carousel.getOrCreateInstance(this.carouselEl).to(this.page * this.realNbPerPage);
         // We dont use hide() before the slide animation in the editor because there is a traceback
         // TO DO: fix this traceback
         if (this.hideOnClickIndicator) {

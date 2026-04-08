@@ -1,8 +1,8 @@
 /** @odoo-module */
 
 import { getTimeOffset, isTimeFrozen, resetTimeOffset } from "@web/../lib/hoot-dom/helpers/time";
-import { createMock, HootError, isNil } from "../hoot_utils";
-import { ensureTest } from "../main_runner";
+import { createMock, HootError, isNil } from "../hoot_utils.js";
+import { ensureTest } from "../main_runner.js";
 
 /**
  * @typedef DateSpecs

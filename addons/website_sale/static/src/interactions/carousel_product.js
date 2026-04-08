@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
+import { Carousel } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 
 import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
@@ -100,7 +101,7 @@ export class CarouselProduct extends Interaction {
      * @param {MouseEvent} ev
      */
     onMouseWheel(ev) {
-        const bsCarousel = window.Carousel.getOrCreateInstance(this.el);
+        const bsCarousel = Carousel.getOrCreateInstance(this.el);
         if (ev.deltaY > 0) {
             bsCarousel.next();
         } else {

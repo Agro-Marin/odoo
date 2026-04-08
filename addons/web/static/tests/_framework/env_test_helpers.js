@@ -52,9 +52,11 @@ const registriesContent = new WeakMap();
 /** @type {OdooEnv | null} */
 let currentEnv = null;
 
-// Registers all registries for cleanup in all tests
-beforeEach(() => registerRegistryForCleanup(registry));
-afterEach(() => restoreRegistry(registry));
+// Registers all registries for cleanup in all tests.
+// { global: true } is required because this runs at module top-level
+// (outside any describe() suite) in ESM native mode.
+beforeEach(() => registerRegistryForCleanup(registry), { global: true });
+afterEach(() => restoreRegistry(registry), { global: true });
 
 //-----------------------------------------------------------------------------
 // Exports

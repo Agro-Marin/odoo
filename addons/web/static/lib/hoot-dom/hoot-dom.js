@@ -1,9 +1,9 @@
 /** @odoo-module alias=@odoo/hoot-dom default=false */
 
-import * as dom from "./helpers/dom";
-import * as events from "./helpers/events";
-import * as time from "./helpers/time";
-import { interactor } from "./hoot_dom_utils";
+import * as dom from "./helpers/dom.js";
+import * as events from "./helpers/events.js";
+import * as time from "./helpers/time.js";
+import { interactor } from "./hoot_dom_utils.js";
 
 /**
  * @typedef {import("./helpers/dom").Dimensions} Dimensions
@@ -51,8 +51,8 @@ export {
     queryRect,
     queryText,
     queryValue,
-} from "./helpers/dom";
-export { on } from "./helpers/events";
+} from "./helpers/dom.js";
+export { on } from "./helpers/events.js";
 export {
     animationFrame,
     cancelAllTimers,
@@ -64,7 +64,7 @@ export {
     setFrameRate,
     tick,
     waitUntil,
-} from "./helpers/time";
+} from "./helpers/time.js";
 
 //-----------------------------------------------------------------------------
 // Interactors
@@ -107,12 +107,12 @@ export const advanceTime = interactor("time", time.advanceTime);
 export const runAllTimers = interactor("time", time.runAllTimers);
 
 // Debug
-export { exposeHelpers } from "./hoot_dom_utils";
+export { exposeHelpers } from "./hoot_dom_utils.js";
 
 // Default export: full namespace object for consumers that use
 // `import hoot from "@odoo/hoot-dom"` (required by the native-to-legacy
 // bridge shim which can only expose a default export).
-import { exposeHelpers } from "./hoot_dom_utils";
+import { exposeHelpers } from "./hoot_dom_utils.js";
 export default { ...dom, ...events, ...time,
     // interactors (dom)
     observe, waitFor, waitForNone,

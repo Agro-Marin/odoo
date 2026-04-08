@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, onError, test } from "@odoo/hoot";
-import { _OriginalIndexedDB as IndexedDB } from "@web/core/utils/indexed_db";
+import { IndexedDB } from "@web/core/utils/indexed_db";
 
 describe.current.tags("headless");
 

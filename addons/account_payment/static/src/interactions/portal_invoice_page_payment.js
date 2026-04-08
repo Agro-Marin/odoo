@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
+import { Modal } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 
 export class PortalInvoicePagePayment extends Interaction {

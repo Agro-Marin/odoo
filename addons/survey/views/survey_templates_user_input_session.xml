@@ -16,8 +16,8 @@
             <attribute name="t-att-class" add="'o_survey_background'"/>
         </xpath>
         <xpath expr="//head/t[@t-call-assets][last()]" position="after">
-            <t t-call-assets="survey.survey_assets" lazy_load="True"/>
-            <t t-call-assets="survey.survey_user_input_session_assets" lazy_load="True"/>
+            <t t-call-assets="survey.survey_assets" defer_load="True"/>
+            <t t-call-assets="survey.survey_user_input_session_assets" defer_load="True"/>
         </xpath>
         <xpath expr="//header" position="before">
             <t t-set="no_header" t-value="True"/>

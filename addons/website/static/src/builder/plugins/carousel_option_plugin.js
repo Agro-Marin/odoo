@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
+import { Carousel } from "@web/libs/bootstrap";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { CarouselItemHeaderMiddleButtons } from "./carousel_item_header_buttons.js";
@@ -236,7 +237,7 @@ export class CarouselOptionPlugin extends Plugin {
                 { once: true }
             );
 
-            const carouselInstance = window.Carousel.getOrCreateInstance(editingElement, {
+            const carouselInstance = Carousel.getOrCreateInstance(editingElement, {
                 ride: false,
                 pause: true,
                 keyboard: false,

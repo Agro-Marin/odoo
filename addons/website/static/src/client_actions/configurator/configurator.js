@@ -27,6 +27,7 @@ import {
     useExternalListener,
 } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
+import { Dropdown } from "@web/libs/bootstrap";
 import { fuzzyLevenshteinLookup } from "@web/core/utils/search";
 import { isBrowserSafari } from "@web/core/browser/feature_detection";
 
@@ -367,7 +368,7 @@ export class DescriptionScreen extends Component {
         // outside of it
         if (isBrowserSafari() && this.safariHackFocusedOutDropdown) {
             if (ev.target.closest(".dropdown") !== this.safariHackFocusedOutDropdown) {
-                window.Dropdown.getOrCreateInstance(this.safariHackFocusedOutDropdown).hide();
+                Dropdown.getOrCreateInstance(this.safariHackFocusedOutDropdown).hide();
             }
             this.safariHackFocusedOutDropdown = null;
         }
@@ -385,7 +386,7 @@ export class DescriptionScreen extends Component {
             return;
         }
         if (ev.relatedTarget?.closest(".dropdown") !== ev.currentTarget) {
-            window.Dropdown.getOrCreateInstance(ev.currentTarget).hide();
+            Dropdown.getOrCreateInstance(ev.currentTarget).hide();
         }
     }
 

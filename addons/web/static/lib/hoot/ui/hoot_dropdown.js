@@ -1,7 +1,7 @@
 /** @odoo-module */
 
 import { Component, useRef, useState, xml } from "@odoo/owl";
-import { useAutofocus, useHootKey, useWindowListener } from "../hoot_utils";
+import { useAutofocus, useHootKey, useWindowListener } from "../hoot_utils.js";
 
 /**
  * @typedef {{

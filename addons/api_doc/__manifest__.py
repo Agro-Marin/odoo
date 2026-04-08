@@ -27,9 +27,6 @@ the methods over HTTP, with examples in various programming languages.
             'web/static/src/scss/rtl_icon_flip.scss',
 
             # Core
-            'web/static/src/module_loader.js',
-            'web/static/lib/owl/owl.js',
-            'web/static/lib/owl/odoo_module.js',
 
             # Utils
             'web/static/src/core/utils/functions.js',

@@ -2,7 +2,7 @@
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { formatCurrency } from "@web/services/currency";
 import { logPosMessage } from "../../utils/pretty_console_log.js";
-import { Base } from "../related_models.js";
+import { Base } from "../related_models/index.js";
 const CONSOLE_COLOR = "#4EFF4D";
 
 export class PosOrderAccounting extends Base {

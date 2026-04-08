@@ -1,6 +1,6 @@
 /** @odoo-module */
 
-import { isInstanceOf } from "../hoot_dom_utils";
+import { isInstanceOf } from "../hoot_dom_utils.js";
 
 /**
  * @typedef {{

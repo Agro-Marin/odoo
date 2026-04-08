@@ -1,6 +1,6 @@
 /** @odoo-module native */
-/* global Carousel */
 
+import { Carousel } from "@web/libs/bootstrap";
 import { Component, onMounted, onWillStart, onWillUnmount, useRef } from "@odoo/owl";
 import { LanguagePopup } from "@pos_self_order/app/components/language_popup/language_popup";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";

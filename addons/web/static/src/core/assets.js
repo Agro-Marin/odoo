@@ -180,11 +180,20 @@ export const assets = {
             if (!response.bodyUsed) {
                 const result = await response.json();
                 if (result.is_esm) {
+                    // ESM bundle: native modules are loaded via import().
+                    // Skip .esm.js files (esbuild output) — they have
+                    // import statements that fail as regular <script>.
+                    // Keep .min.js (UMD libs like Bootstrap).
                     esmSpecifiers = result.specifiers || [];
+                    // Include ESM template URL so templates self-register
+                    // via registerTemplate() when imported.
+                    if (result.template_url) {
+                        esmSpecifiers.push(result.template_url);
+                    }
                     for (const { src, type } of Object.values(result.files || {})) {
                         if (type === "link" && src) {
                             cssLibs.push(src);
-                        } else if (type === "script" && src) {
+                        } else if (type === "script" && src && !src.includes(".esm.")) {
                             jsLibs.push(src);
                         }
                     }
@@ -252,7 +261,7 @@ export const assets = {
 
     /**
      * Loads native ESM modules via dynamic import() and registers them
-     * in the legacy loader for require() compatibility.
+     * in odoo.loader.modules for runtime access by dynamic callers.
      *
      * @param {string[]} specifiers module specifiers to import
      * @returns {Promise<void>}
@@ -265,8 +274,6 @@ export const assets = {
             }),
         );
         const modules = Object.fromEntries(results);
-        // Register in legacy loader so require() and odoo.define()
-        // dependencies can access these lazy-loaded modules.
         if (globalThis.odoo?.loader?.registerNativeModules) {
             odoo.loader.registerNativeModules(modules);
         }

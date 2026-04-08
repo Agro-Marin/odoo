@@ -59,7 +59,7 @@ export async function generateEmojisOnHtml(
     let body = htmlBody;
     if (
         allowEmojiLoading ||
-        odoo.loader.modules.get("@web/components/emoji_picker/emoji_data")
+        loader.loaded
     ) {
         body = await _generateEmojisOnHtml(body);
     }

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
+import { Carousel } from "@web/libs/bootstrap";
 import { registry } from '@web/core/registry';
 import { hasTouch, isBrowserFirefox } from '@web/core/browser/feature_detection';
 import { redirect, url } from '@web/core/utils/urls';
@@ -258,7 +259,7 @@ export class WebsiteSale extends Interaction {
                 .setAttribute('content', shareImageSrc);
 
             if (images.id === 'o-carousel-product') {
-                window.Carousel.getOrCreateInstance(images).to(0);
+                Carousel.getOrCreateInstance(images).to(0);
             }
             this._startZoom();
         }

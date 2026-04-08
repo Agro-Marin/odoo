@@ -37,7 +37,7 @@ import {
 } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
 import { EventList } from "@web/../lib/hoot-dom/helpers/events";
-import { mountForTest, parseUrl } from "../local_helpers";
+import { mountForTest, parseUrl } from "../local_helpers.js";
 
 /**
  * @param {Event} ev

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { scrollTo } from "@html_builder/utils/scrolling";
+import { Tooltip } from "@web/libs/bootstrap";
 import {
     Component,
     onMounted,
@@ -80,7 +81,7 @@ export class BackgroundPositionOverlay extends Component {
         });
 
         useEffect(() => {
-            this.tooltip = window.Tooltip.getOrCreateInstance(this.bgDraggerRef.el, {
+            this.tooltip = Tooltip.getOrCreateInstance(this.bgDraggerRef.el, {
                 trigger: "manual",
                 container: this.backgroundOverlayRef.el,
             });

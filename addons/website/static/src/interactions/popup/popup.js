@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
+import { Modal } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 
 import { browser } from "@web/core/browser/browser";
@@ -36,7 +37,7 @@ export class Popup extends Interaction {
         this.cookieValue = true;
         this.modalEl = this.el.querySelector(".modal");
         /** @type {import("bootstrap").Modal} */
-        this.bsModal = window.Modal.getOrCreateInstance(this.modalEl);
+        this.bsModal = Modal.getOrCreateInstance(this.modalEl);
         this.registerCleanup(() => {
             this.bsModal.dispose();
         });

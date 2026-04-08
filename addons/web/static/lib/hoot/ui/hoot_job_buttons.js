@@ -1,9 +1,9 @@
 /** @odoo-module */
 
 import { Component, xml } from "@odoo/owl";
-import { Job } from "../core/job";
-import { Test } from "../core/test";
-import { HootLink } from "./hoot_link";
+import { Job } from "../core/job.js";
+import { Test } from "../core/test.js";
+import { HootLink } from "./hoot_link.js";
 
 /**
  * @typedef {{

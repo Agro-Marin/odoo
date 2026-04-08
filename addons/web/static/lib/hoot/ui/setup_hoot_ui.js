@@ -1,17 +1,17 @@
 /** @odoo-module */
 
 import { mount, reactive } from "@odoo/owl";
-import { HootFixtureElement } from "../core/fixture";
-import { waitForDocument } from "../hoot_utils";
-import { getRunner } from "../main_runner";
-import { patchWindow } from "../mock/window";
+import { HootFixtureElement } from "../core/fixture.js";
+import { waitForDocument } from "../hoot_utils.js";
+import { getRunner } from "../main_runner.js";
+import { patchWindow } from "../mock/window.js";
 import {
     generateStyleSheets,
     getColorScheme,
     onColorSchemeChange,
     setColorRoot,
-} from "./hoot_colors";
-import { HootMain } from "./hoot_main";
+} from "./hoot_colors.js";
+import { HootMain } from "./hoot_main.js";
 
 /**
  * @typedef {"failed" | "passed" | "skipped" | "todo"} StatusFilter

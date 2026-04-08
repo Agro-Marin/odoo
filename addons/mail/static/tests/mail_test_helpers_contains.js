@@ -500,7 +500,7 @@ function log(ok, message) {
 }
 
 let hasUsedContainsPositively = false;
-afterEach(() => (hasUsedContainsPositively = false));
+afterEach(() => (hasUsedContainsPositively = false), { global: true });
 /**
  * @typedef {[string, ContainsOptions]} ContainsTuple tuple representing params of the contains
  *  function, where the first element is the selector, and the second element is the options param.

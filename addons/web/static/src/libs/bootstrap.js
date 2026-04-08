@@ -2,16 +2,23 @@
 /** @odoo-module */
 
 /**
- * The bootstrap library extensions and fixes should be done here to avoid
- * patching in place.
+ * Bootstrap library extensions and fixes.
  *
- * NOTE: This file is intentionally NOT ``@odoo-module native``.  It patches
- * Bootstrap globals (Tooltip, Dropdown, Modal) which are set by Bootstrap's
- * UMD scripts.  Native ESM modules run in strict scope where bare globals
- * throw ReferenceError — and the execution order between classic ``<script>``
- * and ``<script type="module">`` is not guaranteed in all bundle paths.
- * Keeping this as a legacy module ensures it runs AFTER Bootstrap's UMD.
+ * Uses the official ESM bundle (bootstrap.esm.js) which includes all
+ * 12 components and auto-init for data-bs-* attributes.  The namespace
+ * import ensures esbuild preserves the full bundle with no tree-shaking.
  */
+
+import * as Bootstrap from "@web/../lib/bootstrap/bootstrap.esm.js";
+import {
+    compensateScrollbar,
+    getScrollingElement,
+} from "@web/core/utils/dom/scrolling";
+
+// Re-export all Bootstrap components so other modules can import them:
+//   import { Tooltip, Modal } from "@web/libs/bootstrap";
+export const { Alert, Button, Carousel, Collapse, Dropdown, Modal,
+               Offcanvas, Popover, ScrollSpy, Tab, Toast, Tooltip } = Bootstrap;
 
 /**
  * Review Bootstrap Sanitization: leave it enabled by default but extend it to
@@ -23,12 +30,6 @@
  * We cannot disable sanitization because bootstrap uses tooltip/popover
  * DOM attributes in an "unsafe" way.
  */
-
-import {
-    compensateScrollbar,
-    getScrollingElement,
-} from "@web/core/utils/dom/scrolling";
-
 const bsSanitizeAllowList = Tooltip.Default.allowList;
 
 bsSanitizeAllowList["*"].push("title", "style", /^data-[\w-]+/);

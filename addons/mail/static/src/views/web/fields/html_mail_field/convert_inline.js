@@ -3,6 +3,7 @@ import { isBlock } from "@html_editor/utils/blocks";
 import { getAdjacentPreviousSiblings } from "@html_editor/utils/dom_traversal";
 import { getImageSrc } from "@html_editor/utils/image";
 import { loadImage } from "@html_editor/utils/image_processing";
+import { fonts } from "@html_editor/utils/fonts";
 import { blendColors } from "@web/core/utils/format/colors";
 function parentsGet(node, root = undefined) {
     const parents = [];
@@ -1060,7 +1061,6 @@ function flattenBackgroundImages(element) {
  *                           converted to images
  */
 function fontToImg(element) {
-    const { fonts } = odoo.loader.modules.get("@html_editor/utils/fonts");
 
     for (const font of element.querySelectorAll(".fa, .fa-solid, .fa-regular, .fa-brands")) {
         let icon, content;

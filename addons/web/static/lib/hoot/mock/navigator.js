@@ -1,6 +1,6 @@
 /** @odoo-module */
 
-import { isInstanceOf } from "../../hoot-dom/hoot_dom_utils";
+import { isInstanceOf } from "../../hoot-dom/hoot_dom_utils.js";
 import {
     createMock,
     getSyncValue,
@@ -8,8 +8,8 @@ import {
     MIME_TYPE,
     MockEventTarget,
     setSyncValue,
-} from "../hoot_utils";
-import { ensureTest } from "../main_runner";
+} from "../hoot_utils.js";
+import { ensureTest } from "../main_runner.js";
 
 /**
  * @typedef {"android" | "ios" | "linux" | "mac" | "windows"} Platform

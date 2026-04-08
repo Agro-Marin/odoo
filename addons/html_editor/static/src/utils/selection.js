@@ -245,6 +245,8 @@ export const callbacksForCursorUpdate = {
  * @param {HTMLElement} editable
  * @returns {string | undefined}
  */
+export function ensureFocus(element) {}
+
 export function getAdjacentCharacter(selection, side, editable) {
     let { focusNode, focusOffset } = selection;
     [focusNode, focusOffset] = getDeepestPosition(focusNode, focusOffset);

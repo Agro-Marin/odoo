@@ -16,8 +16,8 @@ import {
     S_CIRCULAR,
     title,
     toExplicitString,
-} from "../hoot_utils";
-import { mountForTest, parseUrl } from "./local_helpers";
+} from "../hoot_utils.js";
+import { mountForTest, parseUrl } from "./local_helpers.js";
 
 const recursive = {};
 recursive.self = recursive;

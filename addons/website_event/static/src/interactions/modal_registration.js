@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { ReCaptcha } from "@google_recaptcha/js/recaptcha";
+import { Modal } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
 import { Interaction } from "@web/public/interaction";
@@ -16,25 +17,22 @@ export class ModalRegistration extends Interaction {
     };
 
     setup() {
-        // dynamic get rather than import as we don't depend on this module
-        if (session.turnstile_site_key) {
-            const { TurnStile } = odoo.loader.modules.get(
-                "@website_cf_turnstile/interactions/turnstile"
-            );
-            if (TurnStile) {
-                this._turnstile = new TurnStile("website_event_registration");
-                this._turnstile.turnstileEl.classList.add("float-end");
-            }
-        }
         this.recaptcha = new ReCaptcha();
     }
 
     async willStart() {
+        if (session.turnstile_site_key) {
+            const mod = await import("@website_cf_turnstile/interactions/turnstile").catch(() => null);
+            if (mod?.TurnStile) {
+                this._turnstile = new mod.TurnStile("website_event_registration");
+                this._turnstile.turnstileEl.classList.add("float-end");
+            }
+        }
         await this.recaptcha.loadLibs();
     }
 
     start() {
-        const formModal = window.Modal.getOrCreateInstance(this.el, {
+        const formModal = Modal.getOrCreateInstance(this.el, {
             backdrop: "static",
             keyboard: false,
         });

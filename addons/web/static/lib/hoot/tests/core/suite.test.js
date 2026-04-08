@@ -1,9 +1,9 @@
 /** @odoo-module */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { parseUrl } from "../local_helpers";
+import { parseUrl } from "../local_helpers.js";
 
-import { Suite } from "../../core/suite";
+import { Suite } from "../../core/suite.js";
 
 describe(parseUrl(import.meta.url), () => {
     test("should have a hashed id", () => {

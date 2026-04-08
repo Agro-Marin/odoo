@@ -1,12 +1,12 @@
 /** @odoo-module */
 
 import { Component, onWillRender, useEffect, useRef, useState, xml } from "@odoo/owl";
-import { Test } from "../core/test";
-import { refresh } from "../core/url";
-import { formatTime, throttle } from "../hoot_utils";
-import { HootConfigMenu } from "./hoot_config_menu";
-import { HootTestPath } from "./hoot_test_path";
-import { HootTestResult } from "./hoot_test_result";
+import { Test } from "../core/test.js";
+import { refresh } from "../core/url.js";
+import { formatTime, throttle } from "../hoot_utils.js";
+import { HootConfigMenu } from "./hoot_config_menu.js";
+import { HootTestPath } from "./hoot_test_path.js";
+import { HootTestResult } from "./hoot_test_result.js";
 
 const {
     HTMLElement,

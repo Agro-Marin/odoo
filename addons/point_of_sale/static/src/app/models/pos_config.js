@@ -5,7 +5,7 @@ import { imageUrl } from "@web/core/utils/urls";
 import { logPosMessage } from "../utils/pretty_console_log.js";
 import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
 import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";
-import { Base } from "./related_models.js";
+import { Base } from "./related_models/index.js";
 const CONSOLE_COLOR = "#F5B427";
 
 export class PosConfig extends Base {

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from "@web/public/interaction";
+import { Popover } from "@web/libs/bootstrap";
 import { registry } from "@web/core/registry";
 
 import { renderToElement } from "@web/core/utils/render";
@@ -8,7 +9,7 @@ export class CoursePrerequisite extends Interaction {
     static selector = ".o_wslides_js_prerequisite_course";
 
     start() {
-        const bsPopover = window.Popover.getOrCreateInstance(this.el, {
+        const bsPopover = Popover.getOrCreateInstance(this.el, {
             trigger: 'focus',
             placement: 'bottom',
             container: 'body',

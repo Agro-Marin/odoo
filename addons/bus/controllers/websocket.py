@@ -65,17 +65,7 @@ class WebsocketController(Controller):
         and is merged via ``extend`` in ``post_dispatch`` — it cannot be
         overridden from within a controller, hence the manual approach here.
         """
-        bundle_name = 'bus.websocket_worker_assets'
-        bundle = request.env["ir.qweb"]._get_asset_bundle(bundle_name, debug_assets="assets" in request.session.debug)
-        stream = request.env['ir.binary']._get_stream_from(bundle.js())
-        response = stream.get_response(content_security_policy=None)
-        origin = request.httprequest.headers.get('Origin')
-        if origin:
-            # Credentials are present: wildcard is forbidden, echo the origin.
-            # Vary: Origin is required so caches keep per-origin copies.
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Vary'] = 'Origin'
-        else:
-            response.headers['Access-Control-Allow-Origin'] = '*'
-        return response
+        # Serve the worker entry point directly as an ES module.
+        # The browser resolves relative imports (./base_worker.js etc.)
+        # from the static file path.
+        return request.redirect('/bus/static/src/workers/bus_worker_script.js')

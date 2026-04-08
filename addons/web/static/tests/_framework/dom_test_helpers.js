@@ -132,6 +132,8 @@ let cancelCurrentDragSequence = null;
 /** @type {Target[]} */
 const unconsumedContains = [];
 
+// { global: true } required: this runs at module top-level
+// (outside any describe() suite) when loaded by ModuleSetLoader.
 afterEach(async () => {
     if (cancelCurrentDragSequence) {
         await cancelCurrentDragSequence();
@@ -143,7 +145,7 @@ afterEach(async () => {
             `called 'contains' on "${targets}" without any action: use 'waitFor' if no interaction is intended`,
         );
     }
-});
+}, { global: true });
 
 //-----------------------------------------------------------------------------
 // Exports

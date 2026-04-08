@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { preloadBackground } from "@survey/js/survey_preload_image_mixin";
+import { Tooltip, Popover } from "@web/libs/bootstrap";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { browser } from "@web/core/browser/browser";
@@ -106,7 +107,7 @@ export class SurveySessionManage extends Interaction {
         // Background Management
         this.refreshBackground = this.el.dataset.refreshBackground;
         // Prepare the copy link tooltip
-        this.copyBtnTooltip = window.Tooltip.getOrCreateInstance(
+        this.copyBtnTooltip = Tooltip.getOrCreateInstance(
             this.el.querySelector(".o_survey_session_copy"),
             {
                 title: _t("Click to copy link"),
@@ -176,7 +177,7 @@ export class SurveySessionManage extends Interaction {
         const copyBtnTooltipHideDelay = 800;
         this.copyBtnTooltip?.dispose();
         delete this.copyBtnTooltip;
-        this.copyBtnPopover = window.Popover.getOrCreateInstance(ev.currentTarget, {
+        this.copyBtnPopover = Popover.getOrCreateInstance(ev.currentTarget, {
             content: _t("Copied!"),
             trigger: "manual",
             placement: "right",

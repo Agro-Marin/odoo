@@ -3,6 +3,7 @@
 
 /** @module @web/public/interaction_service - Core service that discovers, mounts, and manages Interaction instances on DOM elements */
 
+import { App } from "@odoo/owl";
 import { appTranslateFn } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
@@ -73,7 +74,6 @@ class InteractionService {
      */
     prepareRoot(el, C, props, position = "beforeend") {
         if (!this.owlApp) {
-            const { App } = odoo.loader.modules.get("@odoo/owl");
             const appConfig = {
                 name: "Odoo Website",
                 getTemplate,

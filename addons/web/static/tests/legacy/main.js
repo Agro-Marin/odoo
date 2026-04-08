@@ -2,8 +2,8 @@
 
 /** @odoo-module alias=@web/../tests/main default=false */
 
-import { setupQUnit } from "./qunit";
-import { setupTests } from "./setup";
+import { setupQUnit } from "./qunit.js";
+import { setupTests } from "./setup.js";
 
 (async () => {
     setupQUnit();

@@ -56,6 +56,7 @@ export class WorkerService {
             name: this.isUsingSharedWorker
                 ? "odoo:bus_shared_worker"
                 : "odoo:bus_worker",
+            type: "module",
         });
         this.worker.onerror = (e) => this.onInitError(e);
         this._registerHandler((ev) => {

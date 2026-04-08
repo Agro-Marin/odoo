@@ -15,10 +15,10 @@ import {
 import { registry } from "@web/core/registry";
 import { intersection, unique } from "@web/core/utils/collections/arrays";
 import { deepCopy, pick } from "@web/core/utils/collections/objects";
-import { patchRPCWithCleanup, makeMockFetch } from "./mock_services";
-import { patchWithCleanup } from "./utils";
+import { patchRPCWithCleanup, makeMockFetch } from "./mock_services.js";
+import { patchWithCleanup } from "./utils.js";
 import { makeErrorFromResponse } from "@web/core/network/rpc";
-import { registerCleanup } from "./cleanup";
+import { registerCleanup } from "./cleanup.js";
 
 const domParser = new DOMParser();
 const xmlSerializer = new XMLSerializer();

@@ -2,7 +2,7 @@
 import { toRaw } from "@odoo/owl";
 
 import { WithLazyGetterTrap } from "../../lazy_getter.js";
-import { Base } from "../models/related_models.js";
+import { Base } from "../models/related_models/index.js";
 import { RAW_SYMBOL } from "../models/related_models/utils.js";
 
 // https://www.mattzeunert.com/2016/02/19/custom-chrome-devtools-object-formatters.html
