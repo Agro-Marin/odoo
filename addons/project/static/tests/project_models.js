@@ -119,8 +119,8 @@ export class ProjectTask extends models.Model {
         ],
     });
     partner_id = fields.Many2one({ string: "Partner", relation: "res.partner" });
-    planned_date_begin = fields.Datetime({ string: "Start Date" });
-    date_deadline = fields.Datetime({ string: "Stop Date" });
+    date_start = fields.Datetime({ string: "Start Date" });
+    date_end = fields.Datetime({ string: "Stop Date" });
     predecessor_ids = fields.Many2many({ relation: "project.task" });
     closed_predecessor_count = fields.Integer();
     is_closed = fields.Boolean();

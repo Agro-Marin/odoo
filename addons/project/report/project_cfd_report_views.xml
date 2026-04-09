@@ -18,7 +18,7 @@
                 <separator/>
                 <filter name="filter_date" date="date" string="Date" default_period="year,year-1"/>
                 <filter name="filter_last_stage_update" date="date_last_status_change"/>
-                <filter name="filter_date_deadline" date="date_deadline"/>
+                <filter name="filter_date_end" date="date_end"/>
                 <separator/>
                 <group>
                     <filter string="Date" name="date" context="{'group_by': 'date:week'}"/>

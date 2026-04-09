@@ -163,7 +163,7 @@ Cycle Time (``cycle_time_hours``, ``cycle_time_days``)
     Working hours/days from first assignment to closure (calendar-adjusted).
     Active work time only, excluding queue wait.
     Aggregated as ``avg_cycle_time`` on project (90-day rolling window).
-    Requires both ``date_assign`` and ``date_end`` to compute.
+    Requires both ``date_assign`` and ``date_closed`` to compute.
 
 Throughput
     Tasks closed per week. Aggregated as ``throughput_week`` on project
@@ -181,7 +181,7 @@ Critical Path
 
 Planned Start / Planned End (``planned_date_start``, ``planned_date_end``)
     Calendar-aware start and end dates computed by CPM. Distinct from
-    ``date_deadline`` (user-entered target) and ``date_end`` (actual
+    ``date_end`` (user-entered target) and ``date_closed`` (actual
     completion). Accounts for the project's resource calendar (working
     hours, weekends, holidays).
 

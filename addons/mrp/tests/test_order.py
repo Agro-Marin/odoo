@@ -194,7 +194,7 @@ class TestMrpOrder(TestMrpCommon):
         mo, bom_id, _p_final, _p1, _p2 = self.generate_mo(qty_base_1=10, qty_final=1, qty_base_2=1)
         bom_id.produce_delay = 5
         mo.button_mark_done()
-        self.assertEqual(mo.date_finished.day, 28)
+        self.assertEqual(mo.date_end.day, 28)
 
     def test_over_consumption(self):
         """ Consume more component quantity than the initial demand. No split on moves.
@@ -374,7 +374,7 @@ class TestMrpOrder(TestMrpCommon):
         production_form.product_uom_id = self.product_6.uom_id
         production = production_form.save()
         self.assertEqual(production.workorder_ids.duration_expected, 90)
-        self.assertEqual([production.date_finished], production.move_finished_ids.mapped('date'))
+        self.assertEqual([production.date_end], production.move_finished_ids.mapped('date'))
         mo_form = Form(production)
         mo_form.product_qty = 3
         production = mo_form.save()
@@ -1585,7 +1585,7 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(move.propagate_cancel, mo.propagate_cancel)
         self.assertFalse(move.raw_material_production_id)
         self.assertEqual(move.location_id, mo.production_location_id)
-        self.assertEqual(move.date, mo.date_finished)
+        self.assertEqual(move.date, mo.date_end)
         self.assertEqual(move.date_deadline, mo.date_deadline)
 
         mo.move_raw_ids |= move
@@ -2349,10 +2349,10 @@ class TestMrpOrder(TestMrpCommon):
         # So, in Bangkok, the first workorder uses the entire Monday afternoon slot 13:00 - 17:00 UTC+7 (i.e., 06:00 - 10:00 UTC)
         # The second job uses the beginning of the Tuesday morning slot: 08:00 - 09:00 UTC+7 (i.e., 01:00 - 02:00 UTC)
         self.assertEqual(mo.workorder_ids[0].date_start, date_start)
-        self.assertEqual(mo.workorder_ids[0].date_finished, date_start + timedelta(hours=4))
+        self.assertEqual(mo.workorder_ids[0].date_end, date_start + timedelta(hours=4))
         tuesday = date_start + timedelta(days=1)
         self.assertEqual(mo.workorder_ids[1].date_start, tuesday.replace(hour=1))
-        self.assertEqual(mo.workorder_ids[1].date_finished, tuesday.replace(hour=2))
+        self.assertEqual(mo.workorder_ids[1].date_end, tuesday.replace(hour=2))
 
     def test_backorder_with_overconsumption(self):
         """ Check that the components of the backorder have the correct quantities
@@ -3271,7 +3271,7 @@ class TestMrpOrder(TestMrpCommon):
 
         self.assertFalse(wo_01.show_json_popover)
         self.assertFalse(wo_02.show_json_popover)
-        self.assertEqual(wo_01.date_finished, wo_02.date_start)
+        self.assertEqual(wo_01.date_end, wo_02.date_start)
 
     @freeze_time('2022-06-28 08:00')
     def test_replan_workorders02(self):
@@ -3305,7 +3305,7 @@ class TestMrpOrder(TestMrpCommon):
 
         self.assertFalse(wo_01.show_json_popover)
         self.assertFalse(wo_02.show_json_popover)
-        self.assertEqual(wo_01.date_finished, wo_02.date_start)
+        self.assertEqual(wo_01.date_end, wo_02.date_start)
 
     @freeze_time('2022-10-05 12:00')
     def test_replan_mo_without_bom(self):
@@ -3363,7 +3363,7 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(op_1.date_start, datetime(2022, 10, 18, 12))
         # no auto replan
         self.assertEqual(op_2.date_start, datetime(2022, 10, 23, 12))
-        self.assertNotEqual(op_1.date_finished, op_2.date_start)
+        self.assertNotEqual(op_1.date_end, op_2.date_start)
 
         #Second MO
         with Form(mo_02) as mo_02_form:
@@ -4260,8 +4260,8 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(wos[0].date_start, dt)
         self.assertEqual(wos[1].date_start, dt)
 
-        self.assertEqual(wos[0].date_finished, dt + timedelta(hours=1, minutes=1))
-        self.assertEqual(wos[1].date_finished, dt + timedelta(hours=1, minutes=2))
+        self.assertEqual(wos[0].date_end, dt + timedelta(hours=1, minutes=1))
+        self.assertEqual(wos[1].date_end, dt + timedelta(hours=1, minutes=2))
 
     @users('hilda')
     def test_update_mo_with_mrp_user(self):
@@ -4450,11 +4450,11 @@ class TestMrpOrder(TestMrpCommon):
             }
         ])
         self.assertEqual(wo.date_start, dt)
-        self.assertEqual(wo.date_finished, dt + timedelta(hours=0, minutes=30))
+        self.assertEqual(wo.date_end, dt + timedelta(hours=0, minutes=30))
 
         # We change the date finished and make sure the duration expected is adapted
         wo.write({
-            'date_finished': dt + timedelta(hours=1),
+            'date_end': dt + timedelta(hours=1),
         })
         self.assertEqual(wo.duration_expected, 60.0)
 
@@ -4465,7 +4465,7 @@ class TestMrpOrder(TestMrpCommon):
         })
         self.assertEqual(wo.duration_expected, 30.0)
         self.assertEqual(wo.date_start, dt)
-        self.assertEqual(wo.date_finished, dt + timedelta(hours=0, minutes=30))
+        self.assertEqual(wo.date_end, dt + timedelta(hours=0, minutes=30))
 
     def test_update_qty_producing_done_MO_with_lot(self):
         """
@@ -4874,19 +4874,19 @@ class TestMrpOrder(TestMrpCommon):
         production.button_plan()
 
         self.assertEqual(fields.Datetime.now(), production.workorder_ids.date_start)
-        self.assertEqual(fields.Datetime.now() + timedelta(hours=7), production.workorder_ids.date_finished, "The time difference should be 7 hours: 6 for the shift and 1 for the lunch pause")
+        self.assertEqual(fields.Datetime.now() + timedelta(hours=7), production.workorder_ids.date_end, "The time difference should be 7 hours: 6 for the shift and 1 for the lunch pause")
 
         production.workorder_ids.workcenter_id = workcenter_5
         self.assertEqual(fields.Datetime.now(), production.workorder_ids.date_start)
-        self.assertEqual(fields.Datetime.now() + timedelta(hours=6), production.workorder_ids.date_finished, "The time difference should be 6 hours: 6 for the shift and 0 for the lunch pause")
+        self.assertEqual(fields.Datetime.now() + timedelta(hours=6), production.workorder_ids.date_end, "The time difference should be 6 hours: 6 for the shift and 0 for the lunch pause")
 
         production.workorder_ids.workcenter_id = self.workcenter_2.id
         workcenter_5.time_efficiency = 50
-        self.assertEqual(production.workorder_ids.date_finished, fields.Datetime.now() + timedelta(hours=7), "The time difference should be 7 hours: 6 for the shift and 1 for the lunch pause")
+        self.assertEqual(production.workorder_ids.date_end, fields.Datetime.now() + timedelta(hours=7), "The time difference should be 7 hours: 6 for the shift and 1 for the lunch pause")
         production.workorder_ids.workcenter_id = workcenter_5
-        self.assertEqual(production.workorder_ids.date_finished, fields.Datetime.now() + timedelta(hours=12), "The time difference should be 12 hours: 6 / 0.5 for the shift and 0 for the lunch pause")
+        self.assertEqual(production.workorder_ids.date_end, fields.Datetime.now() + timedelta(hours=12), "The time difference should be 12 hours: 6 / 0.5 for the shift and 0 for the lunch pause")
         production.workorder_ids.workcenter_id = self.workcenter_2.id
-        self.assertEqual(production.workorder_ids.date_finished, fields.Datetime.now() + timedelta(hours=7), "The time difference should be 7 hours: 6 for the shift and 1 for the lunch pause")
+        self.assertEqual(production.workorder_ids.date_end, fields.Datetime.now() + timedelta(hours=7), "The time difference should be 7 hours: 6 for the shift and 1 for the lunch pause")
 
     def test_compute_tracked_time_3(self):
         """
@@ -4928,7 +4928,7 @@ class TestMrpOrder(TestMrpCommon):
         dt_finished = datetime(2024, 12, 13, 8, 30)
 
         mo.workorder_ids[0].date_start = dt_start
-        mo.workorder_ids[0].date_finished = dt_finished
+        mo.workorder_ids[0].date_end = dt_finished
         mo.action_confirm()
         mo.button_mark_done()
 
@@ -5018,10 +5018,10 @@ class TestMrpOrder(TestMrpCommon):
         not_done_picking = mo.picking_ids.filtered(lambda picking: picking.state != "done")
         self.assertEqual(not_done_picking.move_ids.product_uom_qty, 3.0)
 
-    def test_wo_date_finished_on_done_unplanned_mo(self):
+    def test_wo_date_end_on_done_unplanned_mo(self):
         """
-        Checks that the work order's date_finished and reservation date_end fields are equal to
-        the date_finished field on a done manufacturing order that was not planned.
+        Checks that the work order's date_end and reservation date_end fields are equal to
+        the date_end field on a done manufacturing order that was not planned.
         """
         production_form = Form(self.env['mrp.production'])
         production_form.bom_id = self.bom_4
@@ -5029,13 +5029,13 @@ class TestMrpOrder(TestMrpCommon):
 
         production.action_confirm()
 
-        self.assertFalse(production.workorder_ids[0].date_finished)
+        self.assertFalse(production.workorder_ids[0].date_end)
         self.assertFalse(production.workorder_ids[0].reservation_id)
 
         production.button_mark_done()
 
-        self.assertAlmostEqual(production.workorder_ids[0].date_finished, production.date_finished, delta=timedelta(seconds=2))
-        self.assertAlmostEqual(production.workorder_ids[0].reservation_id.date_end, production.date_finished, delta=timedelta(seconds=2))
+        self.assertAlmostEqual(production.workorder_ids[0].date_end, production.date_end, delta=timedelta(seconds=2))
+        self.assertAlmostEqual(production.workorder_ids[0].reservation_id.date_end, production.date_end, delta=timedelta(seconds=2))
 
     def test_child_mo_after_qty_parent_mo_update(self):
         """
@@ -5161,9 +5161,9 @@ class TestMrpOrder(TestMrpCommon):
         mo = self.env['mrp.production'].create({'bom_id': bom.id})
         mo.action_confirm()
         date_start = fields.Date.today()
-        date_finished = fields.Date.today() + timedelta(days=5)
+        date_end = fields.Date.today() + timedelta(days=5)
         wos_to_set = mo.workorder_ids - mo.workorder_ids[1]
-        wos_to_set.write({ 'date_start': date_start, 'date_finished': date_finished })
+        wos_to_set.write({ 'date_start': date_start, 'date_end': date_end })
         self.assertTrue(mo.workorder_ids[-1].show_json_popover)
 
     def test_final_product_as_component(self):

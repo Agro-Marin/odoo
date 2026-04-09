@@ -8,7 +8,7 @@ import { ProjectTaskModelMixin } from "../project_task_model_mixin.js";
 export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarModel) {
     get tasksToPlanDomain() {
         const projectId = this.meta.context.default_project_id;
-        const domain = [['date_deadline', '=', false]];
+        const domain = [['date_end', '=', false]];
         if (projectId) {
             domain.push(['project_id', '=', projectId]);
         }
@@ -73,7 +73,7 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
             return [];
         }
         const { date_start, date_stop } = this.meta.fieldMapping;
-        const fieldsToRemove = [...new Set([date_start, date_stop, 'planned_date_begin', 'date_deadline'])]
+        const fieldsToRemove = [...new Set([date_start, date_stop, 'date_start', 'date_end'])]
         let domain = Domain.removeDomainLeaves(
             Domain.and([
                 this.meta.domain,
@@ -94,7 +94,7 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
 
     _getPlanTaskVals(taskToPlan, date, timeSlotSelected = false) {
         const [, end] = this.getAllDayDates(date, date);
-        return { date_deadline: serializeDateTime(end) };
+        return { date_end: serializeDateTime(end) };
     }
 
     _getPlanTaskContext(taskToPlan, timeSlotSelected) {

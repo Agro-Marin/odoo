@@ -10,14 +10,17 @@ from odoo.tools.date_utils import localized, sum_intervals
 class ResourceSchedulingMixin(models.AbstractModel):
     """Mixin providing standardized scheduling fields and calendar-aware methods.
 
-    Consolidates duplicated scheduling logic from planning, project_enterprise,
-    and mrp into a single canonical interface. Provides:
-
+    Provides:
     - Date/time range (date_start, date_end)
     - Resource & calendar assignment with automatic calendar resolution
     - Work-hour computation respecting calendars, leaves, and flexible resources
     - Overlap/conflict detection via SQL
-    - Utility methods usable even without adopting the standardized field names
+    - Utility methods (``_scheduling_get_work_hours``, ``_scheduling_plan_hours``,
+      ``_scheduling_snap_to_calendar``) usable even when field names differ
+
+    Models that store canonical scheduling data (resource.reservation) inherit
+    this directly.  Consumer models (project.task, mrp.workorder) also inherit
+    it for the utility methods; they may override individual fields as needed.
     """
 
     _name = "resource.scheduling.mixin"
@@ -162,42 +165,48 @@ class ResourceSchedulingMixin(models.AbstractModel):
             record.schedule_overlap_count = counts.get(record.id, 0)
 
     # ------------------------------------------------------------------
-    # Utility methods (usable by modules with custom field names)
+    # Utility methods
     # ------------------------------------------------------------------
 
     def _scheduling_get_work_hours(
-        self, date_start, date_end, resource=None, calendar=None
+        self,
+        date_start,
+        date_end,
+        resource=None,
+        calendar=None,
+        compute_leaves=True,
+        leave_domain=None,
     ):
         """Compute working hours between two datetimes using the resource calendar.
 
-        Consolidated logic handling:
-        - Timezone conversion (naive → UTC)
-        - Flexible resources (use ``_get_flexible_resource_valid_work_intervals``)
-        - Regular resources (calendar work intervals via ``_get_valid_work_intervals``)
-        - No-resource fallback (raw timedelta)
+        Handles timezone conversion, flexible resources, regular resources,
+        and no-resource fallback (raw timedelta).
 
         :param date_start: datetime (naive = UTC assumed, or timezone-aware)
         :param date_end: datetime
         :param resource: optional ``resource.resource`` singleton
         :param calendar: optional ``resource.calendar`` (overrides resource's)
+        :param compute_leaves: whether to subtract leaves (default True)
+        :param leave_domain: optional domain for leave filtering
         :return: float (hours)
         """
         self.ensure_one()
         if not date_start or not date_end or date_end <= date_start:
             return 0.0
 
-        # Ensure timezone-aware datetimes (naive → UTC)
         start_utc = localized(date_start)
         end_utc = localized(date_end)
 
         if not resource:
-            # No resource — use calendar if available, else raw timedelta
             cal = calendar or self._scheduling_resolve_calendar()
             if cal:
-                return cal.get_work_hours_count(start_utc, end_utc, compute_leaves=True)
+                return cal.get_work_hours_count(
+                    start_utc, end_utc,
+                    compute_leaves=compute_leaves,
+                    domain=leave_domain,
+                )
             return (end_utc - start_utc).total_seconds() / 3600.0
 
-        # Resource assigned — delegate to resource's interval methods
         if resource._is_flexible():
             work_intervals, hours_per_day, hours_per_week = (
                 resource._get_flexible_resource_valid_work_intervals(start_utc, end_utc)
@@ -208,7 +217,6 @@ class ResourceSchedulingMixin(models.AbstractModel):
                 hours_per_week[resource.id],
             )
 
-        # Regular (fixed-schedule) resource
         work_intervals, _calendar_intervals = resource._get_valid_work_intervals(
             start_utc,
             end_utc,
@@ -219,15 +227,10 @@ class ResourceSchedulingMixin(models.AbstractModel):
     def _scheduling_snap_to_calendar(self, date_start, date_end, calendar=None):
         """Snap start/end to the nearest work interval boundaries.
 
-        Useful for Gantt drag-and-drop: midnight → 9:00 AM,
-        Sunday → Monday 9:00 AM.  Uses ``_work_intervals_batch`` to find
-        first/last work intervals in the range.
-
         :param date_start: datetime
         :param date_end: datetime
         :param calendar: optional ``resource.calendar`` override
-        :return: tuple ``(snapped_start, snapped_end)`` as naive UTC datetimes,
-                 or the original pair if no work intervals are found.
+        :return: tuple ``(snapped_start, snapped_end)`` as naive UTC datetimes
         """
         self.ensure_one()
         cal = calendar or self._scheduling_resolve_calendar()
@@ -237,7 +240,6 @@ class ResourceSchedulingMixin(models.AbstractModel):
         start_utc = localized(date_start)
         end_utc = localized(date_end)
 
-        # [False] = calendar-only intervals (no specific resource)
         intervals = cal._work_intervals_batch(start_utc, end_utc)[False]
         if not intervals:
             return date_start, date_end
@@ -247,33 +249,43 @@ class ResourceSchedulingMixin(models.AbstractModel):
         snapped_end = items[-1][1].astimezone(utc).replace(tzinfo=None)
         return snapped_start, snapped_end
 
-    def _scheduling_plan_hours(self, hours, date_start, resource=None, calendar=None):
+    def _scheduling_plan_hours(
+        self,
+        hours,
+        date_start,
+        resource=None,
+        calendar=None,
+        leave_domain=None,
+    ):
         """Compute end datetime by planning forward N working hours from start.
 
-        Inverse of ``_scheduling_get_work_hours``.  Uses the calendar's
-        ``plan_hours()`` with proper timezone and leave handling.
+        Inverse of ``_scheduling_get_work_hours``.
 
-        :param hours: float — working hours to plan
+        :param hours: float — working hours to plan (0 returns date_start)
         :param date_start: datetime — start point
         :param resource: optional ``resource.resource`` singleton
         :param calendar: optional ``resource.calendar`` override
+        :param leave_domain: optional domain for leave filtering
         :return: datetime (end, naive UTC) or ``False`` if hours can't be planned
         """
         self.ensure_one()
-        if not hours or not date_start:
+        if hours is None or not date_start:
             return False
+        if not hours:
+            return date_start
 
         cal = calendar or self._scheduling_resolve_calendar(resource=resource)
         if not cal:
             return date_start + timedelta(hours=hours)
 
         start_utc = localized(date_start)
-        result = cal.plan_hours(
-            hours,
-            start_utc,
-            compute_leaves=True,
-            resource=resource,
-        )
+        plan_kwargs = {
+            "compute_leaves": True,
+            "resource": resource,
+        }
+        if leave_domain is not None:
+            plan_kwargs["domain"] = leave_domain
+        result = cal.plan_hours(hours, start_utc, **plan_kwargs)
         if result:
             return result.astimezone(utc).replace(tzinfo=None)
         return False
@@ -287,14 +299,14 @@ class ResourceSchedulingMixin(models.AbstractModel):
 
         Resolution order:
         1. resource's calendar (if resource provided)
-        2. record's resource_calendar_id field
+        2. record's resource_calendar_id field (if present on model)
         3. record's company_id calendar (if company_id field exists)
         4. current company's calendar
         """
         self.ensure_one()
         if resource and resource.calendar_id:
             return resource.calendar_id
-        if self.resource_calendar_id:
+        if "resource_calendar_id" in self._fields and self.resource_calendar_id:
             return self.resource_calendar_id
         if "company_id" in self._fields and self.company_id:
             return self.company_id.resource_calendar_id

@@ -7,6 +7,8 @@ the shared-stage half of the legacy ``project.task.type`` god-model.
 
 from datetime import timedelta
 
+from typing import Any
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -162,6 +164,38 @@ class ProjectWorkflowStep(models.Model):
                         )
                     )
         return super().write(vals)
+
+    def unlink_wizard(self, stage_view: bool = False) -> dict[str, Any]:
+        """Open the delete/archive confirmation wizard for these workflow steps.
+
+        Called from the Kanban group config menu and from the server action
+        bound to the model.  Creates a transient wizard pre-populated with the
+        steps to delete and the projects they belong to.
+        """
+        wizard = self.env["project.workflow.step.delete.wizard"].create(
+            {
+                "project_ids": self.project_ids.ids,
+                "step_ids": self.ids,
+            }
+        )
+        context = dict(self.env.context, stage_view=stage_view)
+        return {
+            "name": _("Delete Workflow Step"),
+            "view_mode": "form",
+            "res_model": "project.workflow.step.delete.wizard",
+            "views": [
+                (
+                    self.env.ref(
+                        "project.view_project_workflow_step_delete_wizard"
+                    ).id,
+                    "form",
+                )
+            ],
+            "type": "ir.actions.act_window",
+            "res_id": wizard.id,
+            "target": "new",
+            "context": context,
+        }
 
     def copy_data(self, default: dict | None = None) -> list[dict]:
         """Append '(copy)' to the name when duplicating a workflow step."""

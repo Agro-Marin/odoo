@@ -978,15 +978,15 @@ class ProjectProject(models.Model):
                 CASE
                     WHEN COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
-                          AND t.date_deadline IS NOT NULL
+                          AND t.date_end IS NOT NULL
                     ) = 0 THEN 100.0
                     ELSE 100.0 * COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
-                          AND t.date_deadline IS NOT NULL
-                          AND t.date_deadline >= NOW()
+                          AND t.date_end IS NOT NULL
+                          AND t.date_end >= NOW()
                     ) / NULLIF(COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
-                          AND t.date_deadline IS NOT NULL
+                          AND t.date_end IS NOT NULL
                     ), 0)
                 END AS schedule_score,
                 -- Staleness: pct of open tasks not rotting
@@ -1113,36 +1113,36 @@ class ProjectProject(models.Model):
                 COUNT(*) FILTER (
                     WHERE state NOT IN ('done', 'canceled', 'blocked')
                 ) AS wip_count,
-                -- Avg lead time: create→end (last 90 days)
+                -- Avg lead time: create→close (last 90 days)
                 AVG(lead_time_hours) FILTER (
                     WHERE state IN ('done', 'canceled')
-                      AND date_end >= NOW() - INTERVAL '90 days'
+                      AND date_closed >= NOW() - INTERVAL '90 days'
                       AND lead_time_hours > 0
                 ) AS avg_lead_time,
-                -- Avg cycle time: assign→end (last 90 days)
+                -- Avg cycle time: assign→close (last 90 days)
                 AVG(cycle_time_hours) FILTER (
                     WHERE state IN ('done', 'canceled')
-                      AND date_end >= NOW() - INTERVAL '90 days'
+                      AND date_closed >= NOW() - INTERVAL '90 days'
                       AND cycle_time_hours > 0
                 ) AS avg_cycle_time,
                 -- Throughput: tasks closed in last 28 days / 4
                 COUNT(*) FILTER (
                     WHERE state IN ('done', 'canceled')
-                      AND date_end >= NOW() - INTERVAL '28 days'
+                      AND date_closed >= NOW() - INTERVAL '28 days'
                 ) / 4.0 AS throughput_week,
                 -- Deadline compliance: pct of deadline-having closed tasks that met it
                 CASE
                     WHEN COUNT(*) FILTER (
                         WHERE state IN ('done', 'canceled')
-                          AND date_deadline IS NOT NULL
+                          AND date_end IS NOT NULL
                     ) = 0 THEN 0.0
                     ELSE 100.0 * COUNT(*) FILTER (
                         WHERE state IN ('done', 'canceled')
-                          AND date_deadline IS NOT NULL
-                          AND date_end <= date_deadline
+                          AND date_end IS NOT NULL
+                          AND date_closed <= date_end
                     ) / COUNT(*) FILTER (
                         WHERE state IN ('done', 'canceled')
-                          AND date_deadline IS NOT NULL
+                          AND date_end IS NOT NULL
                     )
                 END AS deadline_compliance_pct
             FROM project_task

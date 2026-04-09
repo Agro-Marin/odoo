@@ -809,7 +809,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             if some_unavailable:
                 return self._format_receipt_date('unavailable')
             if all_available:
-                return self._format_receipt_date('expected', doc_in.date_finished)
+                return self._format_receipt_date('expected', doc_in.date_end)
 
             new_date = max_date_start + timedelta(days=doc_in.bom_id.produce_delay)
             receipt_state = 'estimated' if some_estimated else 'expected'

@@ -107,15 +107,15 @@ class ProjectForecastWizard(models.TransientModel):
         self.env.cr.execute(SQL(
             """
             SELECT
-                DATE_TRUNC('week', date_end) AS week,
+                DATE_TRUNC('week', date_closed) AS week,
                 COUNT(*) AS closed_count
             FROM project_task
             WHERE project_id = %(project_id)s
               AND state IN ('done', 'canceled')
-              AND date_end >= NOW() - INTERVAL %(weeks)s
-              AND date_end IS NOT NULL
+              AND date_closed >= NOW() - INTERVAL %(weeks)s
+              AND date_closed IS NOT NULL
               AND is_template = FALSE
-            GROUP BY DATE_TRUNC('week', date_end)
+            GROUP BY DATE_TRUNC('week', date_closed)
             ORDER BY week
             """,
             project_id=self.project_id.id,

@@ -60,18 +60,18 @@ class MrpProduction(models.Model):
     @api.model
     def _get_default_date_start(self):
         if self.env.context.get('default_date_deadline'):
-            date_finished = fields.Datetime.to_datetime(self.env.context.get('default_date_deadline'))
-            date_start = date_finished - relativedelta(hours=1)
+            date_end = fields.Datetime.to_datetime(self.env.context.get('default_date_deadline'))
+            date_start = date_end - relativedelta(hours=1)
             return date_start
         return fields.Datetime.now()
 
     @api.model
-    def _get_default_date_finished(self):
+    def _get_default_date_end(self):
         if self.env.context.get('default_date_deadline'):
             return fields.Datetime.to_datetime(self.env.context.get('default_date_deadline'))
         date_start = fields.Datetime.now()
-        date_finished = date_start + relativedelta(hours=1)
-        return date_finished
+        date_end = date_start + relativedelta(hours=1)
+        return date_end
 
     @api.model
     def _get_default_is_locked(self):
@@ -150,9 +150,9 @@ class MrpProduction(models.Model):
         'Start', copy=False, default=_get_default_date_start,
         help="Date you plan to start production or date you actually started production.",
         index=True, required=True)
-    date_finished = fields.Datetime(
-        'End', copy=False, default=_get_default_date_finished,
-        compute='_compute_date_finished', store=True,
+    date_end = fields.Datetime(
+        'End', copy=False, default=_get_default_date_end,
+        compute='_compute_date_end', store=True,
         help="Date you expect to finish production or actual date you finished production.")
     duration_expected = fields.Float("Expected Duration", help="Total expected duration (in minutes)", compute='_compute_duration_expected')
     duration = fields.Float("Real Duration", help="Total real duration (in minutes)", compute='_compute_duration')
@@ -486,11 +486,11 @@ class MrpProduction(models.Model):
         for production in self:
             production.duration = sum(production.workorder_ids.mapped('duration'))
 
-    @api.depends("workorder_ids.date_start", "workorder_ids.date_finished", "date_start")
+    @api.depends("workorder_ids.date_start", "workorder_ids.date_end", "date_start")
     def _compute_is_planned(self):
         for production in self:
             if production.workorder_ids:
-                production.is_planned = any(wo.date_start and wo.date_finished for wo in production.workorder_ids)
+                production.is_planned = any(wo.date_start and wo.date_end for wo in production.workorder_ids)
             else:
                 production.is_planned = False
 
@@ -782,16 +782,16 @@ class MrpProduction(models.Model):
         return ['|', ('move_raw_ids', 'in', late_stock_moves.ids), ('move_finished_ids', 'in', late_stock_moves.ids)]
 
     @api.depends('company_id', 'date_start', 'is_planned', 'product_id', 'workorder_ids.duration_expected')
-    def _compute_date_finished(self):
+    def _compute_date_end(self):
         for production in self:
             if not production.date_start or production.is_planned or production.state == 'done':
                 continue
             days_delay = production.bom_id.produce_delay
-            date_finished = production.date_start + relativedelta(days=days_delay)
-            if production._should_postpone_date_finished(date_finished):
+            date_end = production.date_start + relativedelta(days=days_delay)
+            if production._should_postpone_date_end(date_end):
                 workorder_expected_duration = sum(production.workorder_ids.mapped('duration_expected'))
-                date_finished = date_finished + relativedelta(minutes=workorder_expected_duration or 60)
-            production.date_finished = date_finished
+                date_end = date_end + relativedelta(minutes=workorder_expected_duration or 60)
+            production.date_end = date_end
 
     @api.depends('company_id', 'bom_id', 'product_id', 'product_qty', 'product_uom_id', 'location_src_id', 'never_product_template_attribute_value_ids')
     def _compute_move_raw_ids(self):
@@ -819,7 +819,7 @@ class MrpProduction(models.Model):
             else:
                 production.move_raw_ids = [Command.delete(move.id) for move in production.move_raw_ids.filtered(lambda m: m.bom_line_id)]
 
-    @api.depends('product_id', 'bom_id', 'product_qty', 'product_uom_id', 'location_dest_id', 'date_finished', 'move_dest_ids', 'never_product_template_attribute_value_ids')
+    @api.depends('product_id', 'bom_id', 'product_qty', 'product_uom_id', 'location_dest_id', 'date_end', 'move_dest_ids', 'never_product_template_attribute_value_ids')
     def _compute_move_finished_ids(self):
         production_with_move_finished_ids_to_unlink_ids = OrderedSet()
         ignored_mo_ids = self.env.context.get('ignore_mo_ids', [])
@@ -828,8 +828,8 @@ class MrpProduction(models.Model):
                 continue
             if production.state != 'draft':
                 updated_values = {}
-                if production.date_finished:
-                    updated_values['date'] = production.date_finished
+                if production.date_end:
+                    updated_values['date'] = production.date_end
                 if production.date_deadline:
                     updated_values['date_deadline'] = production.date_deadline
                 if 'date' in updated_values or 'date_deadline' in updated_values:
@@ -886,7 +886,7 @@ class MrpProduction(models.Model):
                     to_sql=lambda model, alias, query: SQL(
                         "%s < %s",
                         SQL.identifier(alias, 'date_deadline'),
-                        SQL.identifier(alias, 'date_finished'),
+                        SQL.identifier(alias, 'date_end'),
                     )
                 )
                 | Domain('date_deadline', '<', fields.Datetime.now())
@@ -894,12 +894,12 @@ class MrpProduction(models.Model):
         )
         return [('id', operator, delayed_productions)]
 
-    @api.depends('date_delay_alert', 'state', 'date_deadline', 'date_finished')
+    @api.depends('date_delay_alert', 'state', 'date_deadline', 'date_end')
     def _compute_is_delayed(self):
         for record in self:
             record.is_delayed = bool(
                 record.state in ['confirmed', 'progress', 'to_close'] and (
-                    record.date_deadline and (record.date_deadline < datetime.datetime.now() or record.date_deadline < record.date_finished))
+                    record.date_deadline and (record.date_deadline < datetime.datetime.now() or record.date_deadline < record.date_end))
             )
 
     def _search_date_category(self, operator, value):
@@ -1023,8 +1023,8 @@ class MrpProduction(models.Model):
                     production.button_unplan()
             if vals.get('date_start'):
                 production.move_raw_ids.write({'date': production.date_start, 'date_deadline': production.date_start})
-            if vals.get('date_finished'):
-                production.move_finished_ids.write({'date': production.date_finished})
+            if vals.get('date_end'):
+                production.move_finished_ids.write({'date': production.date_end})
             if any(field in ['move_raw_ids', 'move_finished_ids', 'workorder_ids'] for field in vals) and production.state != 'draft':
                 production.with_context(no_procurement=True)._autoconfirm_production()
                 if production in production_to_replan:
@@ -1033,10 +1033,10 @@ class MrpProduction(models.Model):
                 finished_move = production.move_finished_ids.filtered(
                     lambda move: move.product_id == production.product_id and move.state == 'done')
                 finished_move.quantity = vals.get('qty_producing')
-            if self._has_workorders() and not production.workorder_ids.operation_id and vals.get('date_start') and not vals.get('date_finished'):
+            if self._has_workorders() and not production.workorder_ids.operation_id and vals.get('date_start') and not vals.get('date_end'):
                 new_date_start = fields.Datetime.to_datetime(vals.get('date_start'))
-                if not production.date_finished or new_date_start >= production.date_finished:
-                    production.date_finished = new_date_start + datetime.timedelta(hours=1)
+                if not production.date_end or new_date_start >= production.date_end:
+                    production.date_end = new_date_start + datetime.timedelta(hours=1)
         if moves_to_reassign:
             moves_to_reassign._do_unreserve()
             moves_to_reassign = moves_to_reassign.filtered(
@@ -1085,15 +1085,15 @@ class MrpProduction(models.Model):
                 })
             if (rec.move_finished_ids
                 and rec.move_finished_ids[0].date
-                and vals.get('date_finished')
-                and rec.move_finished_ids[0].date != vals['date_finished']):
-                rec.move_finished_ids.write({'date': vals['date_finished']})
+                and vals.get('date_end')
+                and rec.move_finished_ids[0].date != vals['date_end']):
+                rec.move_finished_ids.write({'date': vals['date_end']})
             elif (rec.move_finished_ids
-                  and rec.date_finished
-                  and rec.move_finished_ids[0].date != rec.date_finished
-                  and not vals.get('date_finished')):
+                  and rec.date_end
+                  and rec.move_finished_ids[0].date != rec.date_end
+                  and not vals.get('date_end')):
                 # if no value is specified, do take the workorder duration (etc) into account
-                rec.move_finished_ids.write({'date': rec.date_finished})
+                rec.move_finished_ids.write({'date': rec.date_end})
         if reference_vals_list:
             self.env['stock.reference'].create(reference_vals_list)
         return res
@@ -1249,7 +1249,7 @@ class MrpProduction(models.Model):
             'product_uom': product_uom,
             'operation_id': operation_id,
             'byproduct_id': byproduct_id,
-            'date': self.date_finished,
+            'date': self.date_end,
             'date_deadline': self.date_deadline,
             'picking_type_id': self.picking_type_id.id,
             'location_id': self.product_id.with_company(self.company_id).property_stock_production.id,
@@ -1398,9 +1398,9 @@ class MrpProduction(models.Model):
                     and (move.raw_material_production_id or move.product_id.tracking != 'serial'):
                 move.picked = True
 
-    def _should_postpone_date_finished(self, date_finished):
+    def _should_postpone_date_end(self, date_end):
         self.ensure_one()
-        return date_finished == self.date_start
+        return date_end == self.date_start
 
     def _update_raw_moves(self, factor):
         self.ensure_one()
@@ -1695,7 +1695,7 @@ class MrpProduction(models.Model):
 
         self.with_context(force_date=True).write({
             'date_start': min((wo.reservation_id.date_start for wo in workorders if wo.reservation_id), default=None),
-            'date_finished': max((wo.reservation_id.date_end for wo in workorders if wo.reservation_id), default=None),
+            'date_end': max((wo.reservation_id.date_end for wo in workorders if wo.reservation_id), default=None),
         })
 
     def button_unplan(self):
@@ -1709,7 +1709,7 @@ class MrpProduction(models.Model):
         self.workorder_ids.reservation_id.unlink()
         self.workorder_ids.write({
             'date_start': False,
-            'date_finished': False,
+            'date_end': False,
         })
         self.is_planned = False
 
@@ -2200,7 +2200,7 @@ class MrpProduction(models.Model):
         })
         for production in self:
             production.write({
-                'date_finished': fields.Datetime.now(),
+                'date_end': fields.Datetime.now(),
                 'priority': '0',
                 'is_locked': True,
                 'state': 'done',

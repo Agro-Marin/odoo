@@ -15,6 +15,7 @@ from odoo.libs.intervals import Intervals
 class MrpWorkorder(models.Model):
     _name = 'mrp.workorder'
     _description = 'Work Order'
+    _inherit = ['resource.scheduling.mixin']
     _order = 'sequence, reservation_id, date_start, id'
 
     def _default_sequence(self):
@@ -84,11 +85,19 @@ class MrpWorkorder(models.Model):
         compute='_compute_dates',
         inverse='_set_dates',
         store=True, copy=False)
-    date_finished = fields.Datetime(
+    date_end = fields.Datetime(
         'End',
         compute='_compute_dates',
         inverse='_set_dates',
         store=True, copy=False)
+    # Override mixin's calendar-based allocated_hours with MRP's duration-based version
+    allocated_hours = fields.Float(
+        "Allocated Hours",
+        compute="_compute_allocated_hours",
+        store=True,
+        readonly=False,
+        help="Duration in hours, converted from duration_expected (minutes).",
+    )
     duration_expected = fields.Float(
         'Expected Duration', digits=(16, 2), compute='_compute_duration_expected',
         readonly=False, store=True) # in minutes
@@ -189,20 +198,20 @@ class MrpWorkorder(models.Model):
         for workorder in self:
             workorder.production_date = workorder.date_start or workorder.production_id.date_start
 
-    @api.depends('production_state', 'date_start', 'date_finished')
+    @api.depends('production_state', 'date_start', 'date_end')
     def _compute_json_popover(self):
         if self.ids:
             conflicted_dict = self._get_conflicted_workorder_ids()
         for wo in self:
             infos = []
-            if not wo.date_start or not wo.date_finished or not wo.ids:
+            if not wo.date_start or not wo.date_end or not wo.ids:
                 wo.show_json_popover = False
                 wo.json_popover = False
                 continue
             if wo.state in ('blocked', 'ready'):
                 previous_wos = wo.blocked_by_workorder_ids
                 previous_starts = previous_wos.filtered('date_start').mapped('date_start')
-                previous_finished = previous_wos.filtered('date_finished').mapped('date_finished')
+                previous_finished = previous_wos.filtered('date_end').mapped('date_end')
                 prev_start = min(previous_starts) if previous_starts else False
                 prev_finished = max(previous_finished) if previous_finished else False
                 if wo.state == 'blocked' and prev_start and not (prev_start > wo.date_start):
@@ -212,7 +221,7 @@ class MrpWorkorder(models.Model):
                             start=format_datetime(self.env, prev_start, dt_format=False),
                             end=format_datetime(self.env, prev_finished, dt_format=False))
                     })
-                if wo.date_finished < fields.Datetime.now():
+                if wo.date_end < fields.Datetime.now():
                     infos.append({
                         'color': 'text-warning',
                         'msg': _("The work order should have already been processed.")
@@ -272,26 +281,26 @@ class MrpWorkorder(models.Model):
     def _compute_dates(self):
         for workorder in self:
             workorder.date_start = workorder.reservation_id.date_start
-            workorder.date_finished = workorder.reservation_id.date_end
+            workorder.date_end = workorder.reservation_id.date_end
 
     def _set_dates(self):
         for wo in self.sudo():
             if wo.reservation_id:
-                if not wo.date_start or not wo.date_finished:
+                if not wo.date_start or not wo.date_end:
                     raise UserError(_("It is not possible to unplan one single Work Order. "
                               "You should unplan the Manufacturing Order instead in order to unplan all the linked operations."))
                 wo.reservation_id.write({
                     'date_start': wo.date_start,
-                    'date_end': wo.date_finished,
+                    'date_end': wo.date_end,
                 })
             elif wo.date_start:
-                if not wo.date_finished:
-                    wo.date_finished = wo._calculate_date_finished()
+                if not wo.date_end:
+                    wo.date_end = wo._calculate_date_end()
                 wo.reservation_id = wo.env['resource.reservation'].create({
                     'name': wo.display_name,
                     'resource_id': wo.workcenter_id.resource_id.id,
                     'date_start': wo.date_start,
-                    'date_end': wo.date_finished,
+                    'date_end': wo.date_end,
                     'allocated_percentage': 100.0,
                     'enforcement_mode': 'soft',
                     'res_model': 'mrp.workorder',
@@ -346,6 +355,12 @@ class MrpWorkorder(models.Model):
             if workorder.state not in ['done', 'cancel'] and (workorder.qty_producing != workorder.qty_production
                 or (workorder._origin != workorder and workorder._origin.qty_producing and workorder.qty_producing != workorder._origin.qty_producing)):
                 workorder.duration_expected = workorder._get_duration_expected()
+
+    @api.depends('duration_expected')
+    def _compute_allocated_hours(self):
+        """Convert duration_expected (minutes) to hours for mixin compatibility."""
+        for wo in self:
+            wo.allocated_hours = wo.duration_expected / 60.0 if wo.duration_expected else 0.0
 
     @api.depends('time_ids.duration', 'qty_produced')
     def _compute_duration(self):
@@ -446,34 +461,50 @@ class MrpWorkorder(models.Model):
     @api.onchange('date_start', 'duration_expected', 'workcenter_id')
     def _onchange_date_start(self):
         if self.date_start and self.workcenter_id:
-            self.date_finished = self._calculate_date_finished()
+            self.date_end = self._calculate_date_end()
 
-    def _calculate_date_finished(self, date_start=False, new_workcenter=False):
+    def _calculate_date_end(self, date_start=False, new_workcenter=False):
+        """Compute work order end date by planning duration forward from start.
+
+        Uses ``_scheduling_plan_hours`` from ``resource.scheduling.utils`` to
+        respect the workcenter calendar, leaves, and efficiency.
+        Falls back to raw timedelta when the workcenter has no calendar.
+        """
         workcenter = new_workcenter or self.workcenter_id
         if not workcenter.resource_calendar_id:
-            duration_in_seconds = self.duration_expected * 60
-            return (date_start or self.date_start) + timedelta(seconds=duration_in_seconds)
-        return workcenter.resource_calendar_id.plan_hours(
-            self.duration_expected / 60.0, date_start or self.date_start,
-            compute_leaves=True, domain=[('time_type', 'in', ['leave', 'other'])]
+            return (date_start or self.date_start) + timedelta(seconds=self.duration_expected * 60)
+        return self._scheduling_plan_hours(
+            self.duration_expected / 60.0,
+            date_start or self.date_start,
+            calendar=workcenter.resource_calendar_id,
+            leave_domain=[('time_type', 'in', ['leave', 'other'])],
         )
 
-    @api.onchange('date_finished')
-    def _onchange_date_finished(self):
-        if self.date_start and self.date_finished and self.workcenter_id:
+    @api.onchange('date_end')
+    def _onchange_date_end(self):
+        if self.date_start and self.date_end and self.workcenter_id:
             self.duration_expected = self._calculate_duration_expected()
-        if not self.date_finished and self.date_start:
+        if not self.date_end and self.date_start:
             raise UserError(_("It is not possible to unplan one single Work Order. "
                               "You should unplan the Manufacturing Order instead in order to unplan all the linked operations."))
 
-    def _calculate_duration_expected(self, date_start=False, date_finished=False):
+    def _calculate_duration_expected(self, date_start=False, date_end=False):
+        """Compute expected duration in minutes from a date range.
+
+        Uses ``_scheduling_get_work_hours`` from ``resource.scheduling.utils``
+        to respect the workcenter calendar and leaves.
+        Falls back to raw timedelta when the workcenter has no calendar.
+        """
+        start = date_start or self.date_start
+        end = date_end or self.date_end
         if not self.workcenter_id.resource_calendar_id:
-            return ((date_finished or self.date_finished) - (date_start or self.date_start)).total_seconds() / 60
-        interval = self.workcenter_id.resource_calendar_id.get_work_duration_data(
-            date_start or self.date_start, date_finished or self.date_finished,
-            domain=[('time_type', 'in', ['leave', 'other'])]
+            return (end - start).total_seconds() / 60
+        hours = self._scheduling_get_work_hours(
+            start, end,
+            calendar=self.workcenter_id.resource_calendar_id,
+            leave_domain=[('time_type', 'in', ['leave', 'other'])],
         )
-        return interval['hours'] * 60
+        return hours * 60  # hours → minutes
 
     @api.onchange('finished_lot_ids')
     def _onchange_finished_lot_ids(self):
@@ -505,18 +536,18 @@ class MrpWorkorder(models.Model):
                     if workorder.state == 'progress':
                         continue
                     workorders_with_new_wc |= workorder
-        if 'date_start' in values or 'date_finished' in values:
+        if 'date_start' in values or 'date_end' in values:
             for workorder in self:
                 date_start = fields.Datetime.to_datetime(values.get('date_start', workorder.date_start))
-                date_finished = fields.Datetime.to_datetime(values.get('date_finished', workorder.date_finished))
-                if date_start and date_finished and date_start > date_finished:
+                date_end = fields.Datetime.to_datetime(values.get('date_end', workorder.date_end))
+                if date_start and date_end and date_start > date_end:
                     raise UserError(_('The planned end date of the work order cannot be prior to the planned start date, please correct this to save the work order.'))
                 if 'duration_expected' not in values and not self.env.context.get('bypass_duration_calculation'):
-                    if values.get('date_start') and values.get('date_finished'):
-                        computed_finished_time = workorder._calculate_date_finished(date_start=date_start, new_workcenter=new_workcenter)
-                        values['date_finished'] = computed_finished_time
-                    elif date_start and date_finished:
-                        computed_duration = workorder._calculate_duration_expected(date_start=date_start, date_finished=date_finished)
+                    if values.get('date_start') and values.get('date_end'):
+                        computed_finished_time = workorder._calculate_date_end(date_start=date_start, new_workcenter=new_workcenter)
+                        values['date_end'] = computed_finished_time
+                    elif date_start and date_end:
+                        computed_duration = workorder._calculate_duration_expected(date_start=date_start, date_end=date_end)
                         values['duration_expected'] = computed_duration
                 # Update MO dates if the start date of the first WO or the
                 # finished date of the last WO is update.
@@ -525,10 +556,10 @@ class MrpWorkorder(models.Model):
                         workorder.production_id.with_context(force_date=True).write({
                             'date_start': fields.Datetime.to_datetime(values['date_start'])
                         })
-                if workorder == workorder.production_id.workorder_ids[-1] and 'date_finished' in values:
-                    if values['date_finished']:
+                if workorder == workorder.production_id.workorder_ids[-1] and 'date_end' in values:
+                    if values['date_end']:
                         workorder.production_id.with_context(force_date=True).write({
-                            'date_finished': fields.Datetime.to_datetime(values['date_finished'])
+                            'date_end': fields.Datetime.to_datetime(values['date_end'])
                         })
 
         res = super().write(values)
@@ -544,7 +575,7 @@ class MrpWorkorder(models.Model):
         for workorder in workorders_with_new_wc:
             workorder.duration_expected = workorder._get_duration_expected()
             if workorder.date_start:
-                workorder.date_finished = workorder._calculate_date_finished(new_workcenter=new_workcenter)
+                workorder.date_end = workorder._calculate_date_end(new_workcenter=new_workcenter)
 
         return res
 
@@ -580,8 +611,8 @@ class MrpWorkorder(models.Model):
         date_start = max(self.production_id.date_start, datetime.now())
         for workorder in self.blocked_by_workorder_ids:
             workorder._plan_workorder(replan)
-            if workorder.date_finished and workorder.date_finished > date_start:
-                date_start = workorder.date_finished
+            if workorder.date_end and workorder.date_end > date_start:
+                date_start = workorder.date_end
         # Plan only suitable workorders
         if self.state not in ['blocked', 'ready']:
             return
@@ -592,7 +623,7 @@ class MrpWorkorder(models.Model):
                 return
         # Consider workcenter and alternatives
         workcenters = self.workcenter_id | self.workcenter_id.alternative_workcenter_ids
-        best_date_finished = datetime.max
+        best_date_end = datetime.max
         vals = {}
         for workcenter in workcenters:
             if not workcenter.resource_calendar_id:
@@ -607,23 +638,23 @@ class MrpWorkorder(models.Model):
             if not from_date:
                 continue
             # Check if this workcenter is better than the previous ones
-            if to_date and to_date < best_date_finished:
+            if to_date and to_date < best_date_end:
                 best_date_start = from_date
-                best_date_finished = to_date
+                best_date_end = to_date
                 best_workcenter = workcenter
                 vals = {
                     'workcenter_id': workcenter.id,
                     'duration_expected': duration_expected,
                 }
         # If none of the workcenter are available, raise
-        if best_date_finished == datetime.max:
+        if best_date_end == datetime.max:
             raise UserError(_('Impossible to plan the workorder. Please check the workcenter availabilities.'))
         # Create reservation on chosen workcenter resource
         reservation = self.env['resource.reservation'].create({
             'name': self.display_name,
             'resource_id': best_workcenter.resource_id.id,
             'date_start': best_date_start,
-            'date_end': best_date_finished,
+            'date_end': best_date_end,
             'allocated_percentage': 100.0,
             'enforcement_mode': 'hard',
             'res_model': 'mrp.workorder',
@@ -691,18 +722,18 @@ class MrpWorkorder(models.Model):
                     'res_model': 'mrp.workorder',
                     'res_id': wo.id,
                 })
-                vals['date_finished'] = reservation.date_end
+                vals['date_end'] = reservation.date_end
                 vals['reservation_id'] = reservation.id
                 wo.write(vals)
             else:
                 if not wo.date_start or wo.date_start > date_start:
-                    vals['date_finished'] = wo._calculate_date_finished(date_start)
-                if wo.date_finished and wo.date_finished < date_start:
-                    vals['date_finished'] = date_start
+                    vals['date_end'] = wo._calculate_date_end(date_start)
+                if wo.date_end and wo.date_end < date_start:
+                    vals['date_end'] = date_start
                 wo.with_context(bypass_duration_calculation=True).write(vals)
 
     def button_finish(self):
-        date_finished = fields.Datetime.now()
+        date_end = fields.Datetime.now()
         all_vals_dict = defaultdict(lambda: self.env['mrp.workorder'])
         workorders_to_end = self.filtered(lambda workorder: workorder.state not in ('done', 'cancel'))
         operations = workorders_to_end.operation_id
@@ -724,11 +755,11 @@ class MrpWorkorder(models.Model):
             vals = {
                 'qty_produced': workorder.qty_produced or workorder.qty_producing or workorder.qty_production,
                 'state': 'done',
-                'date_finished': date_finished,
+                'date_end': date_end,
                 'costs_hour': workorder.workcenter_id.costs_hour
             }
-            if not workorder.date_start or date_finished < workorder.date_start:
-                vals['date_start'] = date_finished
+            if not workorder.date_start or date_end < workorder.date_start:
+                vals['date_start'] = date_end
             all_vals_dict[frozenset(vals.items())] |= workorder
         for frozen_vals, workorders in all_vals_dict.items():
             workorders.with_context(bypass_duration_calculation=True).write(dict(frozen_vals))
@@ -847,7 +878,7 @@ class MrpWorkorder(models.Model):
 
         :return: defaultdict with key as workorder id of self and value as related conflicted workorder
         """
-        self.flush_model(['state', 'date_start', 'date_finished', 'workcenter_id'])
+        self.flush_model(['state', 'date_start', 'date_end', 'workcenter_id'])
         sql = """
             SELECT wo1.id, wo2.id
             FROM mrp_workorder wo1, mrp_workorder wo2
@@ -857,8 +888,8 @@ class MrpWorkorder(models.Model):
                 AND wo2.state IN ('blocked', 'ready')
                 AND wo1.id != wo2.id
                 AND wo1.workcenter_id = wo2.workcenter_id
-                AND (DATE_TRUNC('second', wo2.date_start), DATE_TRUNC('second', wo2.date_finished))
-                    OVERLAPS (DATE_TRUNC('second', wo1.date_start), DATE_TRUNC('second', wo1.date_finished))
+                AND (DATE_TRUNC('second', wo2.date_start), DATE_TRUNC('second', wo2.date_end))
+                    OVERLAPS (DATE_TRUNC('second', wo1.date_start), DATE_TRUNC('second', wo1.date_end))
         """
         self.env.cr.execute(sql, [list(self.ids)])
         res = defaultdict(list)

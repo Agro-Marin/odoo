@@ -66,7 +66,7 @@ class StockMove(models.Model):
                     continue
                 move.move_orig_ids.production_id.with_context(from_subcontract=True).filtered(lambda p: p.state not in ('done', 'cancel')).write({
                     'date_start': move.date,
-                    'date_finished': move.date,
+                    'date_end': move.date,
                 })
         return res
 

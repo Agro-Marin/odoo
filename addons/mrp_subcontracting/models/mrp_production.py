@@ -100,8 +100,9 @@ class MrpProduction(models.Model):
             return super(MrpProduction, self.with_context(skip_consumption=True)).pre_button_mark_done()
         return super().pre_button_mark_done()
 
-    def _should_postpone_date_finished(self, date_finished):
-        return super()._should_postpone_date_finished(date_finished) and not self._get_subcontract_move()
+    def _should_postpone_date_end(self, date_end):
+        """Subcontracted productions should not postpone date_end."""
+        return super()._should_postpone_date_end(date_end) and not self._get_subcontract_move()
 
     def _has_workorders(self):
         if self.subcontractor_id:

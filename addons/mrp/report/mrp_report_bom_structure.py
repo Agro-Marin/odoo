@@ -470,8 +470,8 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             bom_cost = self.env.company.currency_id.round(op.cost)
             if planning := operations_planning.get(operation, None):
                 availability_state = 'estimated'
-                availability_delay = (planning['date_finished'].date() - date_today).days
-                availability_display = _('Estimated %s', format_date(self.env, planning['date_finished'])) + (" [" + planning['workcenter'].name + "]" if planning['workcenter'] != operation.workcenter_id else "")
+                availability_delay = (planning['date_end'].date() - date_today).days
+                availability_display = _('Estimated %s', format_date(self.env, planning['date_end'])) + (" [" + planning['workcenter'].name + "]" if planning['workcenter'] != operation.workcenter_id else "")
             else:
                 availability_state = 'available'
                 availability_delay = 0
@@ -804,7 +804,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 if operation._skip_operation_line(product):
                     continue
                 self._simulate_operation_planning(operation, product, start_date, quantity, planning_per_operation, simulated_leaves_per_workcenter)
-                start_date = planning_per_operation[operation]['date_finished']
+                start_date = planning_per_operation[operation]['date_end']
         return planning_per_operation
 
     def _simulate_operation_planning(self, operation, product, start_date, quantity, planning_per_operation=False, simulated_leaves_per_workcenter=False):
@@ -823,10 +823,10 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 continue
             if op not in planning_per_operation:
                 self._simulate_operation_planning(op, product, start_date, quantity, planning_per_operation, simulated_leaves_per_workcenter)
-            date_start = max(date_start, planning_per_operation[op]['date_finished'])
+            date_start = max(date_start, planning_per_operation[op]['date_end'])
         # Consider workcenter and alternatives
         workcenters = operation.workcenter_id | operation.workcenter_id.alternative_workcenter_ids
-        best_date_finished = datetime.max
+        best_date_end = datetime.max
         best_date_start = best_workcenter = best_duration_expected = None
         for workcenter in workcenters:
             if not workcenter.resource_calendar_id:
@@ -839,19 +839,19 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             if not from_date:
                 continue
             # Check if this workcenter is better than the previous ones
-            if to_date and to_date < best_date_finished:
+            if to_date and to_date < best_date_end:
                 best_date_start = from_date
-                best_date_finished = to_date
+                best_date_end = to_date
                 best_workcenter = workcenter
                 best_duration_expected = duration_expected
         # If none of the workcenter are available, raise
-        if best_date_finished == datetime.max:
+        if best_date_end == datetime.max:
             raise UserError(_('Impossible to plan. Please check the workcenter availabilities.'))
         planning_per_operation[operation] = {
             'date_start': best_date_start,
-            'date_finished': best_date_finished,
+            'date_end': best_date_end,
             'workcenter': best_workcenter,
             'duration_expected': best_duration_expected,
         }
-        simulated_leaves_per_workcenter[best_workcenter].append((best_date_start, best_date_finished))
+        simulated_leaves_per_workcenter[best_workcenter].append((best_date_start, best_date_end))
         return planning_per_operation

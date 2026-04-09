@@ -7,6 +7,7 @@ import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_fo
 
 import { ProjectTaskCalendarSidePanel } from "./side_panel/project_task_calendar_side_panel.js";
 import { useCalendarTaskToPlanDraggable } from "./hooks/project_task_calendar_task_to_plan_draggable.js";
+import * as luxon from "luxon";
 
 export class ProjectTaskCalendarController extends CalendarController {
     static components = {

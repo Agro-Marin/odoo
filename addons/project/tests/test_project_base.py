@@ -910,7 +910,7 @@ class TestProjectBase(TestProjectCommon):
             {
                 "name": "Task",
                 "project_id": project.id,
-                "date_deadline": "2021-09-26",
+                "date_end": "2021-09-26",
             }
         )
         project_copy = project.copy()
@@ -923,10 +923,10 @@ class TestProjectBase(TestProjectCommon):
             "The project's date fields shouldn't be copied on project duplication",
         )
         self.assertFalse(
-            project_copy.task_ids.date_deadline,
+            project_copy.task_ids.date_end,
             "The task's date fields shouldn't be copied on project duplication",
         )
         self.assertFalse(
-            task.copy().date_deadline,
+            task.copy().date_end,
             "The task's date fields shouldn't be copied on task duplication",
         )

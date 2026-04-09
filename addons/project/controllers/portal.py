@@ -542,9 +542,9 @@ class ProjectCustomerPortal(CustomerPortal):
                 "order": "priority desc",
                 "sequence": 80,
             },
-            "date_deadline asc": {
+            "date_end asc": {
                 "label": _("Deadline"),
-                "order": "date_deadline asc",
+                "order": "date_end asc",
                 "sequence": 90,
             },
             "date_last_status_change desc": {

@@ -10,7 +10,7 @@ from odoo.tests.common import TransactionCase
 class TestTaskReservation(TransactionCase):
     """Test reservation fields, sync, and cleanup on project.task.
 
-    Core module does not have planned_date_begin, so _get_reservation_date_fields
+    Core module does not have date_start, so _get_reservation_date_fields
     returns (None, None) and _sync_reservations is a no-op.  These tests verify
     the field declarations, the cleanup hook, and the manual reservation scenario.
     """
@@ -60,8 +60,8 @@ class TestTaskReservation(TransactionCase):
         task.invalidate_recordset(["reservation_ids"])
         self.assertEqual(len(task.reservation_ids), 1)
 
-    def test_schedule_conflict_count(self):
-        """schedule_conflict_count reflects overlapping reservations."""
+    def test_schedule_overlap_count(self):
+        """schedule_overlap_count reflects overlapping reservations."""
         task = self.env["project.task"].create(
             {"name": "Conflicted", "project_id": self.project.id}
         )
@@ -85,8 +85,8 @@ class TestTaskReservation(TransactionCase):
                 "res_id": task.id,
             }
         )
-        task.invalidate_recordset(["schedule_conflict_count"])
-        self.assertGreater(task.schedule_conflict_count, 0)
+        task.invalidate_recordset(["schedule_overlap_count"])
+        self.assertGreater(task.schedule_overlap_count, 0)
 
     def test_unlink_cleans_reservations(self):
         """Deleting a task removes its reservations."""

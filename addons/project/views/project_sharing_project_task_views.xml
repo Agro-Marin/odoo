@@ -30,7 +30,7 @@
                 import="0"
                 groups_draggable="0"
                 group_edit="0"
-                default_order="priority desc, sequence, state, date_deadline asc, id desc"
+                default_order="priority desc, sequence, state, date_end asc, id desc"
             >
                 <field name="state"/>
                 <field name="allow_milestones" />
@@ -51,7 +51,7 @@
                         <field t-if="record.partner_id.value" name="partner_id" class="text-truncate text-muted d-block"/>
                     </div>
                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" context="{'project_id': project_id}"/>
-                    <field t-if="record.date_deadline.raw_value" name="date_deadline" invisible="state in ['done', 'canceled']" widget="remaining_days"/>
+                    <field t-if="record.date_end.raw_value" name="date_end" invisible="state in ['done', 'canceled']" widget="remaining_days"/>
                     <field t-if="record.displayed_image_id.value" groups="base.group_user" name="displayed_image_id" widget="attachment_image"/>
                     <footer t-if="!selection_mode">
                         <field name="priority" class="pt-1" widget="priority"/>
@@ -187,7 +187,7 @@
                             <field name="current_user_same_company_partner" invisible="1"/>
                             <field name="tag_ids" context="{'project_id': project_id}" widget="many2many_tags" options="{'color_field': 'color', 'no_create': True, 'no_edit': True, 'no_edit_color': True}"/>
                             <field name="partner_id" readonly="not current_user_same_company_partner" options="{'no_open': True, 'no_create': True, 'no_edit': True}" invisible="not project_id"/>
-                            <field name="date_deadline" decoration-danger="date_deadline &lt; current_date and state not in ['done', 'canceled']"/>
+                            <field name="date_end" decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']"/>
                             <field name="recurring_task" invisible="not allow_recurring_tasks or not active or parent_id" groups="project.group_project_recurring_tasks"/>
                             <label for="repeat_interval" invisible="not recurring_task or not allow_recurring_tasks" groups="project.group_project_recurring_tasks"/>
                             <div invisible="not recurring_task or not allow_recurring_tasks" class="d-flex" groups="project.group_project_recurring_tasks" name="repeat_intervals">
@@ -233,7 +233,7 @@
                                     <field name="partner_id" options="{'no_open': True, 'no_create': True, 'no_edit': True}" optional="hide"/>
                                     <field name="user_ids" column_invisible="True" />
                                     <field name="portal_user_names" string="Assignees" optional="show"/>
-                                    <field name="date_deadline" decoration-danger="date_deadline &lt; current_date and state not in ['done', 'canceled']" optional="show"/>
+                                    <field name="date_end" decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']" optional="show"/>
                                     <field name="priority" widget="priority" optional="show" nolabel="1" width="20px"/>
                                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                                     <field name="step_id" domain="[('project_ids', 'in', [project_id])]"/>
@@ -268,7 +268,7 @@
                                     <field name="company_id" column_invisible="True"/>
                                     <field name="partner_id" options="{'no_open': True, 'no_create': True, 'no_edit': True}" optional="hide" invisible="not project_id"/>
                                     <field name="portal_user_names" string="Assignees" optional="show"/>
-                                    <field name="date_deadline" decoration-danger="date_deadline &lt; current_date and state not in ['done', 'canceled']" optional="show"/>
+                                    <field name="date_end" decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']" optional="show"/>
                                     <field name="priority" widget="priority" optional="show" nolabel="1" width="20px" readonly="1"/>
                                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="hide"/>
                                     <field name="step_id" optional="show"/>
@@ -296,21 +296,21 @@
         <field name="priority">999</field>
         <field name="arch" type="xml">
             <filter name="creation_date_filter" position="after">
-                <filter string="Deadline" name="date_deadline" date="date_deadline">
-                    <filter name="deadline_future" string="Future" domain="[('date_deadline', '&gt;=', 'today +1d')]"/>
+                <filter string="Deadline" name="date_end" date="date_end">
+                    <filter name="deadline_future" string="Future" domain="[('date_end', '&gt;=', 'today +1d')]"/>
                     <filter name="deadline_this_week" string="This Week" domain="[
-                        ('date_deadline', '&gt;=', '=week_start'),
-                        ('date_deadline', '&lt;', '=week_start +1w'),
+                        ('date_end', '&gt;=', '=week_start'),
+                        ('date_end', '&lt;', '=week_start +1w'),
                     ]"/>
                     <filter name="deadline_today" string="Today" domain="[
-                        ('date_deadline', '&gt;=', 'today'),
-                        ('date_deadline', '&lt;', 'today +1d'),
+                        ('date_end', '&gt;=', 'today'),
+                        ('date_end', '&lt;', 'today +1d'),
                     ]"/>
-                    <filter name="deadline_past_due" string="Overdue" domain="[('date_deadline', '&lt;', 'today')]"/>
+                    <filter name="deadline_past_due" string="Overdue" domain="[('date_end', '&lt;', 'today')]"/>
                 </filter>
             </filter>
             <filter name="create_date" position="after">
-                <filter string="Deadline" name="deadline" context="{'group_by': 'date_deadline'}"/>
+                <filter string="Deadline" name="deadline" context="{'group_by': 'date_end'}"/>
             </filter>
         </field>
     </record>

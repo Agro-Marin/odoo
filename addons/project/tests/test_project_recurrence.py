@@ -110,7 +110,7 @@ class TestProjectRecurrence(TransactionCase):
             form.priority = "1"
             form.step_id = self.stage_b
             form.tag_ids.add(self.env["project.tags"].search([], limit=1))
-            form.date_deadline = self.date_01_01 + relativedelta(weeks=1)
+            form.date_end = self.date_01_01 + relativedelta(weeks=1)
             form.user_ids = self.user
 
             form.recurring_task = True
@@ -124,8 +124,8 @@ class TestProjectRecurrence(TransactionCase):
         other_task = task.recurrence_id.task_ids - task
 
         self.assertEqual(
-            other_task.date_deadline,
-            task.date_deadline + relativedelta(months=2),
+            other_task.date_end,
+            task.date_end + relativedelta(months=2),
             "Next occurrence should have previous deadline + interval * unit",
         )
         for copied_field in [
@@ -158,7 +158,7 @@ class TestProjectRecurrence(TransactionCase):
             form.repeat_unit = "month"
             form.repeat_type = "until"
             form.repeat_until = self.date_01_01 + relativedelta(months=1, days=1)
-            form.date_deadline = self.date_01_01
+            form.date_end = self.date_01_01
             task = form.save()
 
         with freeze_time(self.date_01_01 + relativedelta(days=30)):
@@ -472,19 +472,19 @@ class TestProjectRecurrence(TransactionCase):
                         "recurring_task": True,
                         "repeat_unit": "week",
                         "repeat_type": "forever",
-                        "date_deadline": "2023-01-01 00:00:00",
+                        "date_end": "2023-01-01 00:00:00",
                         "child_ids": [
                             Command.create(
                                 {
                                     "name": "R1 Sub Task 1",
                                     "project_id": self.project_recurring.id,
-                                    "date_deadline": "2023-01-02 00:00:00",
+                                    "date_end": "2023-01-02 00:00:00",
                                     "child_ids": [
                                         Command.create(
                                             {
                                                 "name": "R1 Sub Task 2",
                                                 "project_id": self.project_recurring.id,
-                                                "date_deadline": "2023-01-03 00:00:00",
+                                                "date_end": "2023-01-03 00:00:00",
                                             }
                                         )
                                     ],
@@ -498,13 +498,13 @@ class TestProjectRecurrence(TransactionCase):
                         "recurring_task": True,
                         "repeat_unit": "week",
                         "repeat_type": "forever",
-                        "date_deadline": "2023-01-04 00:00:00",
+                        "date_end": "2023-01-04 00:00:00",
                         "child_ids": [
                             Command.create(
                                 {
                                     "name": "R2 Sub Task",
                                     "project_id": self.project_recurring.id,
-                                    "date_deadline": "2023-01-05 00:00:00",
+                                    "date_end": "2023-01-05 00:00:00",
                                 }
                             ),
                         ],
@@ -514,17 +514,17 @@ class TestProjectRecurrence(TransactionCase):
         )
         tasks_copy = self.env["project.task.recurrence"]._create_next_occurrences(tasks)
         # Every date should be 1 week later
-        self.assertEqual(datetime(2023, 1, 8, 0, 0), tasks_copy[0].date_deadline)
+        self.assertEqual(datetime(2023, 1, 8, 0, 0), tasks_copy[0].date_end)
         self.assertEqual(
-            datetime(2023, 1, 9, 0, 0), tasks_copy[0].child_ids.date_deadline
+            datetime(2023, 1, 9, 0, 0), tasks_copy[0].child_ids.date_end
         )
         self.assertEqual(
             datetime(2023, 1, 10, 0, 0),
-            tasks_copy[0].child_ids.child_ids.date_deadline,
+            tasks_copy[0].child_ids.child_ids.date_end,
         )
-        self.assertEqual(datetime(2023, 1, 11, 0, 0), tasks_copy[1].date_deadline)
+        self.assertEqual(datetime(2023, 1, 11, 0, 0), tasks_copy[1].date_end)
         self.assertEqual(
-            datetime(2023, 1, 12, 0, 0), tasks_copy[1].child_ids.date_deadline
+            datetime(2023, 1, 12, 0, 0), tasks_copy[1].child_ids.date_end
         )
 
     def test_recurrent_tasks_without_archive_user(self) -> None:

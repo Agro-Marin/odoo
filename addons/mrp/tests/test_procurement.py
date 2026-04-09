@@ -263,7 +263,7 @@ class TestProcurement(TestMrpCommon):
         mo.date_start = new_date_start
 
         self.assertAlmostEqual(mo.move_raw_ids.date, mo.date_start, delta=timedelta(seconds=1))
-        self.assertAlmostEqual(mo.move_finished_ids.date, mo.date_finished, delta=timedelta(seconds=1))
+        self.assertAlmostEqual(mo.move_finished_ids.date, mo.date_end, delta=timedelta(seconds=1))
 
     def test_finished_move_cancellation(self):
         """Check state of finished move on cancellation of raw moves. """
@@ -1053,7 +1053,7 @@ class TestProcurement(TestMrpCommon):
             picking.action_confirm()
             mo = self.env['mrp.production'].search([('product_id', '=', product_1.id)])
             self.assertEqual(len(mo), i, 'One mo per picking')
-            self.assertEqual(delta_hours(mo[i - 1].date_finished - mo[i - 1].date_start), 15)
+            self.assertEqual(delta_hours(mo[i - 1].date_end - mo[i - 1].date_start), 15)
 
     def test_mo_split_with_batch_size_mto(self):
         """ Check the MO is split with the correct product_qty when we apply a batch size in BoM

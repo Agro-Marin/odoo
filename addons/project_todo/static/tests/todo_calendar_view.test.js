@@ -17,7 +17,7 @@ test("test creation of todo from the calendar view", async () => {
         form: `
             <form>
                 <field name="name"/>
-                <field name="date_deadline"/>
+                <field name="date_end"/>
             </form>
         `,
     };
@@ -26,7 +26,7 @@ test("test creation of todo from the calendar view", async () => {
         resModel: "project.task",
         type: "calendar",
         arch: `
-            <calendar date_start="date_deadline" mode="month"
+            <calendar date_start="date_end" mode="month"
                         js_class="project_task_calendar">
                 <field name="name"/>
                 <field name="priority" widget="priority"/>
@@ -35,7 +35,7 @@ test("test creation of todo from the calendar view", async () => {
         `,
     });
     expect(".fc-daygrid-event").toHaveCount(2, {
-        message: "The calendar view should have 2 todos with date_deadline set",
+        message: "The calendar view should have 2 todos with date_end set",
     });
 
     // click on today's cell to create a new todo
@@ -49,6 +49,6 @@ test("test creation of todo from the calendar view", async () => {
     await animationFrame();
 
     expect(".fc-daygrid-event").toHaveCount(3, {
-        message: "The calendar view should now have 3 todos with date_deadline set",
+        message: "The calendar view should now have 3 todos with date_end set",
     });
 });

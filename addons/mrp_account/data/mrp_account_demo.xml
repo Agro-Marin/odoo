@@ -64,10 +64,10 @@
     <!-- Rewrite history so they finished in the past so it looks more interesting in graphs -->
     <function model="mrp.production" name="write">
         <value eval="[ref('mrp_account.mrp_production_drawer_2')]"/>
-        <value eval="{'date_finished': (datetime.now() - relativedelta(weeks=2)).strftime('%Y-%m-%d %H:%M:%S')}"/>
+        <value eval="{'date_end': (datetime.now() - relativedelta(weeks=2)).strftime('%Y-%m-%d %H:%M:%S')}"/>
     </function>
     <function model="mrp.production" name="write">
         <value eval="[ref('mrp_account.mrp_production_drawer_3')]"/>
-        <value eval="{'date_finished': (datetime.now() - relativedelta(weeks=1)).strftime('%Y-%m-%d %H:%M:%S')}"/>
+        <value eval="{'date_end': (datetime.now() - relativedelta(weeks=1)).strftime('%Y-%m-%d %H:%M:%S')}"/>
     </function>
 </odoo>
