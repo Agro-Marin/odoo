@@ -63,8 +63,7 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
  * @property { FormOptionPlugin['fetchModels'] } fetchModels
  */
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class WebsiteFormSubmitOption extends BaseOptionComponent {
     static template = "website.s_website_form_submit_option";
     static selector = ".s_website_form_submit";

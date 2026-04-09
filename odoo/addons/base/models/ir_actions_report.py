@@ -48,13 +48,6 @@ from odoo.tools.safe_eval import safe_eval, time
 # media. These warnings are harmless — the properties are simply ignored — but
 # they pollute logs and slow rendering. We suppress them here.
 logging.getLogger("weasyprint").setLevel(logging.ERROR)
-# fontTools is used by WeasyPrint as a fallback font subsetter (when
-# libharfbuzz-subset is not installed).  WeasyPrint's capture_logs()
-# temporarily sets fontTools to DEBUG during subsetting, which causes
-# hundreds of DEBUG/INFO messages to propagate to the root logger.
-# Disabling propagation prevents this without affecting WeasyPrint's
-# internal warning capture via its CallbackHandler.
-logging.getLogger("fontTools").propagate = False
 
 # ---------------------------------------------------------------------------
 # Module-level WeasyPrint singletons — survive across requests within a
@@ -1801,9 +1794,9 @@ class IrActionsReport(models.Model):
 
         if res_ids:
             _logger.info(
-                '"%s" (%s) generated for %s %s.',
-                report_sudo.name, report_sudo.report_name,
-                report_sudo.model, res_ids,
+                "The PDF report has been generated for model: %s, records %s.",
+                report_sudo.model,
+                res_ids,
             )
 
         return pdf_content, "pdf"

@@ -10,7 +10,7 @@ precedence.
 
 Based on the
 `official Odoo coding guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
-and extended where noted. Improvements belong in ``core/`` first; ``addons_custom/`` is
+and extended where noted. Improvements belong in ``core/`` first; ``agromarin/`` is
 reserved for business-specific AgroMarin needs that don't belong in a general-purpose
 framework.
 

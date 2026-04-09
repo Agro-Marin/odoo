@@ -20,8 +20,7 @@ import {
 } from "@web/core/l10n/dates";
 import wUtils from "@website/js/utils";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class Form extends Interaction {
     static selector = ".s_website_form form, form.s_website_form"; // !compatibility
     dynamicSelectors = {

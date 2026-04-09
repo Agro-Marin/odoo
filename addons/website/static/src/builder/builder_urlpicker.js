@@ -1,48 +1,73 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
-import wUtils from "@website/js/utils";
-import { Plugin } from "@html_editor/plugin";
-import { registry } from "@web/core/registry";
+import {
+    textInputBasePassthroughProps,
+} from "@html_builder/core/building_blocks/builder_text_input_base";
 import { BuilderUrlPicker } from "@html_builder/core/building_blocks/builder_urlpicker";
+import {
+    basicContainerBuilderComponentProps,
+    useActionInfo,
+} from "@html_builder/core/utils";
+import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { _t } from "@web/core/l10n/translation";
+import { useChildRef } from "@web/core/utils/hooks";
+import { patch } from "@web/core/utils/patch";
+import wUtils from "@website/js/utils";
 
-export class WebsiteUrlPicker extends BuilderUrlPicker {
-    setup() {
-        super.setup();
+/**
+ * AutoComplete subclass for use within the BuilderUrlPicker.
+ *
+ * Overrides the root CSS class so that the autocomplete dropdown
+ * renders correctly inside the builder sidebar.
+ */
+export class AutoCompleteBuilderUrlPicker extends AutoComplete {
+    static template = "website.AutoCompleteBuilderUrlPicker";
+    static props = {
+        ...AutoComplete.props,
+    };
 
-        useEffect(
-            (inputEl) => {
-                if (!inputEl) {
-                    return;
-                }
-                const unmountAutocompleteWithPages = wUtils.autocompleteWithPages(
-                    inputEl,
-                    {
-                        classes: {
-                            "ui-autocomplete": "o_website_ui_autocomplete",
-                        },
-                        body: this.env.getEditingElement().ownerDocument.body,
-                        urlChosen: () => {
-                            this.commit(this.inputRef.el.value);
-                        },
-                    },
-                    this.env
-                );
-                return () => unmountAutocompleteWithPages();
-            },
-            () => [this.inputRef.el]
-        );
+    get autoCompleteRootClass() {
+        return `${super.autoCompleteRootClass} w-100`;
     }
 }
 
-class UrlPickerPlugin extends Plugin {
-    static id = "urlPickerPlugin";
+patch(BuilderUrlPicker, {
+    components: { ...BuilderUrlPicker.components, AutoCompleteBuilderUrlPicker },
+});
 
-    /** @type {import("plugins").WebsiteResources} */
-    resources = {
-        builder_components: {
-            WebsiteUrlPicker,
-        },
-    };
-}
+patch(BuilderUrlPicker.prototype, {
+    setup() {
+        super.setup();
+        this.autocompleteRef = useChildRef();
+        const actionInfo = useActionInfo();
+        this.body = actionInfo.editingDocument.body;
+    },
 
-registry.category("website-plugins").add(UrlPickerPlugin.id, UrlPickerPlugin);
+    get sources() {
+        return [
+            {
+                placeholder: _t("Loading..."),
+                options: (term) =>
+                    wUtils.loadOptionsSource(term, this.body, this.onSelect.bind(this)),
+                optionSlot: "urlOption",
+            },
+        ];
+    },
+
+    onSelect(value) {
+        this.autocompleteRef.el.querySelector("input").value = value;
+        this.commit(value);
+    },
+
+    onChange({ inputValue, isOptionSelected }) {
+        if (!isOptionSelected) {
+            this.commit(inputValue);
+        }
+    },
+
+    openPreviewUrl() {
+        const input = this.autocompleteRef.el?.querySelector("input");
+        if (input?.value) {
+            window.open(input.value, "_blank");
+        }
+    },
+});

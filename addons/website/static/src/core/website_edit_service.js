@@ -300,7 +300,11 @@ export const websiteEditService = {
 
         // Transfer the iframe website_edit service to the EditInteractionPlugin
         const handlePluginLoaded = (ev) => {
-            ev.currentTarget.dispatchEvent(
+            // Use window.parent.document directly — ev.currentTarget is
+            // null when called outside an event dispatch (e.g. from the
+            // stored-event fallback for late-starting services).
+            const target = ev.currentTarget || window.parent.document;
+            target.dispatchEvent(
                 new CustomEvent("transfer_website_edit_service", {
                     detail: {
                         websiteEditService,
@@ -317,6 +321,15 @@ export const websiteEditService = {
             "edit_interaction_plugin_loaded",
             handlePluginLoaded
         );
+
+        // The plugin may have fired before this service started (race
+        // condition: parent esbuild bundle executes before iframe OWL
+        // services start).  Check for the stored event and handle it.
+        const pending = window.parent.document.__editInteractionPluginEvent;
+        if (pending) {
+            delete window.parent.document.__editInteractionPluginEvent;
+            handlePluginLoaded(pending);
+        }
 
         // Clean up parent document listeners when iframe unloads to prevent
         // stale handlers from serving an outdated service to new plugins.

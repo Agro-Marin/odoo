@@ -57,19 +57,21 @@ publicWidget.Widget.include({
 
 var registry = publicWidget.registry;
 
-// TODO Let's keep this here for now: will have to move an edit mode related
-// location.
 // FIXME temporary hack: during edit mode, the carousel crashes sometimes when
-// we hover option during a carousel cycle. This patches Bootstrap to prevent
-// the crash.
-const baseSelectorEngineFind = window.SelectorEngine.find;
-window.SelectorEngine.find = function (...args) {
-    try {
-        return baseSelectorEngineFind.call(this, ...args);
-    } catch {
-        return [document.createElement("div")];
-    }
-};
+// we hover options during a carousel cycle. This patches Bootstrap to prevent
+// the crash.  Guarded because SelectorEngine is an internal Bootstrap class
+// only available as a window global when individual Bootstrap files are loaded
+// (UMD path).  In ESM bundles, bootstrap.bundle.js does not export it.
+if (window.SelectorEngine) {
+    const baseSelectorEngineFind = window.SelectorEngine.find;
+    window.SelectorEngine.find = function (...args) {
+        try {
+            return baseSelectorEngineFind.call(this, ...args);
+        } catch {
+            return [document.createElement("div")];
+        }
+    };
+}
 
 export default {
     Widget: publicWidget.Widget,

@@ -148,11 +148,15 @@ export class WebsiteBuilderClientAction extends Component {
                 this.onEditPage();
             }
             if (!this.ui.isSmall) {
-                // preload builder and snippets so clicking on "edit" is faster
+                // Preload builder and snippets so clicking on "edit" is
+                // faster.  The snippets service starts asynchronously after
+                // the bundle loads, so it may not be in env.services yet
+                // when this callback fires — optional chaining keeps this
+                // best-effort (the edit flow has its own proper await).
                 loadBundle("website.website_builder_assets").then(() => {
                     this.env.services["html_builder.snippets"]
-                        .getSnippetModel(this.snippetsTemplate)
-                        .reload({
+                        ?.getSnippetModel(this.snippetsTemplate)
+                        ?.reload({
                             lang: this.websiteService.currentWebsite?.default_lang_id.code,
                             website_id: this.websiteService.currentWebsite?.id,
                         });

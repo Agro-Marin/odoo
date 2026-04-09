@@ -371,6 +371,7 @@ import time
 import token
 import tokenize
 import traceback
+import json as json_stdlib
 import urllib.parse
 import warnings
 from collections import defaultdict
@@ -422,6 +423,11 @@ from odoo.tools.urls import keep_query
 from odoo.addons.base.models.assetsbundle import AssetsBundle
 
 _logger = logging.getLogger(__name__)
+
+# Process-level cache of ESM bundle URLs already persisted as ir.attachment.
+# The URL embeds the content hash, so once confirmed it never goes stale
+# within the same process.  Cleared on worker restart / registry reload.
+_esm_attachment_urls: set[str] = set()
 
 
 # QWeb token usefull for generate expression used in `_compile_expr_tokens` method
@@ -3467,7 +3473,7 @@ class IrQweb(models.AbstractModel):
         has_native = False
         if js:
             pre_nodes, post_nodes = self._get_native_module_nodes(
-                bundle, debug=debug,
+                bundle, debug=debug, lazy_load=lazy_load,
             )
             has_native = bool(pre_nodes)
 
@@ -3701,6 +3707,20 @@ class IrQweb(models.AbstractModel):
     _OWL_LIB_URL = "/web/static/lib/owl/owl.js"
     _OWL_ESM_URL = "/web/static/lib/owl/owl_esm.js"
 
+    # Bootstrap pre-load: bundled UMD (includes Popper) + globals shim.
+    # Loaded as non-deferred <script> before the legacy bundle (like OWL).
+    _BOOTSTRAP_URLS = (
+        "/web/static/lib/bootstrap/bootstrap.bundle.js",
+        "/web/static/lib/bootstrap/bootstrap_globals.js",
+    )
+
+    # External ESM libraries resolved via import map (bare specifiers).
+    _ESM_LIB_MAP = {
+        "luxon": "/web/static/lib/luxon/luxon.mjs",
+        "dompurify": "/web/static/lib/dompurify/purify.es.mjs",
+        "bootstrap": "/web/static/lib/bootstrap/bootstrap_esm.js",
+    }
+
     @tools.conditional(
         "xml" not in tools.config["dev_mode"],
         tools.ormcache(
@@ -3730,6 +3750,7 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         debug: str | bool = False,
         assets_params: dict[str, Any] | None = None,
+        lazy_load: bool = False,
     ) -> tuple[
         list[tuple[str, dict[str, Any]]],
         list[tuple[str, dict[str, Any]]],
@@ -3750,8 +3771,6 @@ class IrQweb(models.AbstractModel):
              both ``defer`` and ``type="module"`` share the same deferred
              execution queue in document order.
         """
-        import json as json_mod
-
         debug_assets = debug and "assets" in debug
         if assets_params is None:
             assets_params = self.env["ir.asset"]._get_asset_params()
@@ -3784,47 +3803,138 @@ class IrQweb(models.AbstractModel):
             try:
                 esbuild_code = asset_bundle.esbuild_native_bundle()
             except Exception as e:
-                _logger.warning("esbuild bundling failed, falling back to individual files: %s", e)
+                if asset_bundle._lazy_parent_bundle:
+                    # Lazy bundles cannot fall back to individual files
+                    # because the /web/bundle/ endpoint strips import maps,
+                    # leaving bare specifiers unresolvable in the browser.
+                    _logger.error(
+                        "esbuild bundling failed for lazy bundle %s: %s. "
+                        "Install Node.js or set NVM_DIR to fix this.",
+                        bundle, e,
+                    )
+                    return [], []
+                _logger.warning(
+                    "esbuild bundling failed for %s, falling back to "
+                    "individual files: %s", bundle, e,
+                )
                 esbuild_code = ""
             if esbuild_code:
                 pre = []
                 post = []
                 # OWL pre-load (esbuild externalizes @odoo/owl)
                 pre.append(("script", {"src": self._OWL_LIB_URL}))
-                # Minimal import map: only @odoo/owl
+                # Bootstrap pre-load (sets globalThis.bootstrap + globals)
+                for bs_url in self._BOOTSTRAP_URLS:
+                    pre.append(("script", {"src": bs_url}))
+                # Import map: @odoo/owl + external ESM libraries +
+                # bridge shims for parent modules used by lazy bundles.
+                esm_imports = {"@odoo/owl": self._OWL_ESM_URL}
+                esm_imports.update(self._ESM_LIB_MAP)
+
+                # Collect ALL lazy bundle native modules and build a
+                # single unified bridge.  Per-bundle bridges + setdefault
+                # lose exports when multiple lazy bundles import different
+                # names from the same parent specifier (e.g. automatic
+                # imports serializeChanges from tour_utils, interactive
+                # imports getScrollParent — only the first would survive).
+                all_lazy_native_specifiers: set[str] = set()
+                combined_lazy_modules: list = []
+                has_lazy_templates = False
+                for lazy_name in AssetsBundle.ESM_LAZY_BUNDLES.get(bundle, []):
+                    lazy_ab = self._get_asset_bundle(
+                        lazy_name, js=True, css=False, debug_assets=False,
+                        assets_params=assets_params,
+                    )
+                    if not lazy_ab.native_modules:
+                        continue
+                    all_lazy_native_specifiers.update(
+                        a.module_path for a in lazy_ab.native_modules
+                    )
+                    combined_lazy_modules.extend(lazy_ab.native_modules)
+                    if lazy_ab.templates:
+                        has_lazy_templates = True
+
+                if combined_lazy_modules:
+                    # Build bridge with combined modules so all imported
+                    # names from each specifier are included in one shim.
+                    orig = asset_bundle.native_modules
+                    asset_bundle.native_modules = combined_lazy_modules
+                    bridge = asset_bundle._build_native_to_legacy_bridge(
+                        all_lazy_native_specifiers,
+                    )
+                    asset_bundle.native_modules = orig
+
+                    if has_lazy_templates and "@web/core/templates" not in bridge:
+                        shim = (
+                            'await odoo.__legacyReady;'
+                            'const _m = odoo.loader.modules.get("@web/core/templates");'
+                            'export const registerTemplate = _m.registerTemplate;'
+                            'export const registerTemplateExtension = _m.registerTemplateExtension;'
+                            'export const checkPrimaryTemplateParents = _m.checkPrimaryTemplateParents;'
+                        )
+                        bridge["@web/core/templates"] = f"data:text/javascript,{urllib.parse.quote(shim)}"
+                    esm_imports.update(bridge)
                 pre.append(("script", {
                     "type": "importmap",
                     "data-bundle": bundle,
-                    "text": json_mod.dumps(
-                        {"imports": {"@odoo/owl": self._OWL_ESM_URL}},
+                    "text": json_stdlib.dumps(
+                        {"imports": esm_imports},
                     ),
                 }))
-                # Native module names (suppress "missing dep" errors)
+                # Native module names (suppress "missing dep" errors).
+                # Include external ESM library specifiers so the legacy
+                # loader knows they will be provided by the bridge.
+                all_specifiers = list(bridge_specifiers) + list(self._ESM_LIB_MAP)
                 names_js = (
                     "((globalThis.odoo ??= {}).__native_module_names__ ??= [])"
                     ".push("
-                    + ",".join(json_mod.dumps(s) for s in bridge_specifiers)
+                    + ",".join(json_stdlib.dumps(s) for s in all_specifiers)
                     + ");"
                 )
                 pre.append(("script", {"text": names_js}))
                 # Bundled bridge module — save as ir.attachment for caching.
-                # In read-only transactions (e.g. test mode), inline the code
-                # instead of attempting an INSERT that would fail.
-                if self.env.cr.readonly:
+                # In read-only transactions or test mode, inline the code.
+                # Test transactions roll back, so saved attachments vanish
+                # and the browser gets 404s for the referenced URLs.
+                if self.env.cr.readonly or config["test_enable"]:
                     post.append(("script", {
-                        "type": "module",
+                        "type": "module" if not lazy_load else "text/plain",
                         "text": esbuild_code,
                         "data-bridge": bundle,
+                        **({"data-lazy-esm": "1"} if lazy_load else {}),
                     }))
                 else:
                     esm_url = self._save_esm_attachment(
                         bundle, esbuild_code, asset_bundle,
                     )
-                    post.append(("script", {
-                        "type": "module",
-                        "src": esm_url,
-                        "data-bridge": bundle,
-                    }))
+                    if lazy_load:
+                        # Defer ESM bridge activation until the lazyloader
+                        # has finished loading legacy scripts (which contain
+                        # QWeb templates).  The lazyloader activates scripts
+                        # with data-lazy-esm-src after all data-src scripts.
+                        # Preload hint lets the browser fetch the JS early
+                        # (in parallel with other resources) while deferring
+                        # execution until the lazyloader is ready.
+                        pre.append(("link", {
+                            "rel": "preload",
+                            "href": esm_url,
+                            "as": "script",
+                            "crossorigin": "",
+                        }))
+                        post.append(("script", {
+                            "type": "text/plain",
+                            "data-lazy-esm-src": esm_url,
+                            "data-bridge": bundle,
+                        }))
+                    else:
+                        post.append(("script", {
+                            "type": "module",
+                            "src": esm_url,
+                            "data-bridge": bundle,
+                        }))
+                # External ESM libraries (e.g. luxon) are included in the
+                # esbuild entry point's registerNativeModules() call, so
+                # no separate bridge script is needed here.
                 return pre, post
 
         # ── Debug mode: individual files + import map ──
@@ -3837,14 +3947,15 @@ class IrQweb(models.AbstractModel):
         # globalThis.owl which is set by the OWL UMD pre-load below.
         import_map["@odoo/owl"] = self._OWL_ESM_URL
 
+        # External ESM libraries (e.g. luxon) — resolved via import map
+        import_map.update(self._ESM_LIB_MAP)
+
         # Pre-register lazy ESM bundle specifiers in the import map so
         # that dynamic import() can resolve them at runtime without
         # needing a second import map.  Only URLs are added — the modules
         # are NOT eagerly loaded (that happens via loadBundle).
         # Note: this code only runs in debug=assets mode (production
         # returns early via the esbuild path above).
-        import re as re_mod
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
         lazy_bundles = []
         for lazy_name in AssetsBundle.ESM_LAZY_BUNDLES.get(bundle, []):
             lazy_ab = self._get_asset_bundle(
@@ -3873,24 +3984,24 @@ class IrQweb(models.AbstractModel):
         orig_modules = asset_bundle.native_modules
         asset_bundle.native_modules = combined_native_modules
         bridge_map = asset_bundle._build_native_to_legacy_bridge(
-            all_native_specifiers, re_mod,
+            all_native_specifiers,
         )
         asset_bundle.native_modules = orig_modules
         import_map.update(bridge_map)
 
-        # 1. OWL pre-load: non-deferred script that runs immediately and
-        #    sets globalThis.owl BEFORE any module scripts are fetched.
-        #    The UMD is idempotent, so it's harmless that the legacy bundle
-        #    also contains owl.js (it just re-assigns the same properties).
+        # 1. OWL + Bootstrap pre-load: non-deferred scripts that run
+        #    immediately before any module scripts are fetched.
         pre_nodes.append(("script", {
             "src": self._OWL_LIB_URL,
         }))
+        for bs_url in self._BOOTSTRAP_URLS:
+            pre_nodes.append(("script", {"src": bs_url}))
 
         # 2. Import map — MUST come before any <script type="module">
         pre_nodes.append(("script", {
             "type": "importmap",
             "data-bundle": bundle,
-            "text": json_mod.dumps({"imports": import_map}, indent=2),
+            "text": json_stdlib.dumps({"imports": import_map}, indent=2),
         }))
 
         # 3. Modulepreload hints for faster loading (skip in debug mode
@@ -3904,29 +4015,39 @@ class IrQweb(models.AbstractModel):
         # Register ALL native modules in the legacy loader so that
         # require() works for both same-bundle legacy modules and
         # dynamically-loaded lazy bundles (e.g. web_tour.automatic).
-        bridge_specifiers = sorted(native_data["import_map"])
-        if bridge_specifiers:
+        # Include external ESM library specifiers alongside native ones
+        all_specifiers = sorted(native_data["import_map"])
+        all_specifiers.extend(sorted(self._ESM_LIB_MAP))
+        if all_specifiers:
             names_js = (
                 "((globalThis.odoo ??= {}).__native_module_names__ ??= [])"
-                ".push(" + ",".join(json_mod.dumps(s) for s in bridge_specifiers) + ");"
+                ".push(" + ",".join(json_stdlib.dumps(s) for s in all_specifiers) + ");"
             )
             pre_nodes.append(("script", {"text": names_js}))
 
             import_lines = []
             register_entries = []
-            for i, specifier in enumerate(bridge_specifiers):
+            for i, specifier in enumerate(all_specifiers):
                 var = f"__m{i}"
                 import_lines.append(f'import * as {var} from "{specifier}";')
-                register_entries.append(f'  {json_mod.dumps(specifier)}: {var}')
+                register_entries.append(f'  {json_stdlib.dumps(specifier)}: {var}')
             bridge_code = "\n".join(import_lines) + "\n"
             bridge_code += "odoo.loader.registerNativeModules({\n"
             bridge_code += ",\n".join(register_entries)
             bridge_code += "\n});"
-            post_nodes.append(("script", {
-                "type": "module",
-                "data-bridge": bundle,
-                "text": bridge_code,
-            }))
+            if lazy_load:
+                post_nodes.append(("script", {
+                    "type": "text/plain",
+                    "data-lazy-esm": "1",
+                    "data-bridge": bundle,
+                    "text": bridge_code,
+                }))
+            else:
+                post_nodes.append(("script", {
+                    "type": "module",
+                    "data-bridge": bundle,
+                    "text": bridge_code,
+                }))
 
         return pre_nodes, post_nodes
 
@@ -3945,11 +4066,16 @@ class IrQweb(models.AbstractModel):
         version = asset_bundle.get_version("js")
         url = f"/web/assets/{version}/{bundle}.esm.js"
 
-        # Check if attachment already exists
+        # Fast path: already confirmed in this process (no SQL needed)
+        if url in _esm_attachment_urls:
+            return url
+
+        # Check if attachment already exists in DB
         existing = IrAttachment.sudo().search(
             [("url", "=", url), ("public", "=", True)], limit=1,
         )
         if existing:
+            _esm_attachment_urls.add(url)
             return url
 
         IrAttachment.with_user(SUPERUSER_ID).create({
@@ -3971,6 +4097,7 @@ class IrQweb(models.AbstractModel):
         if stale:
             stale.unlink()
             _logger.info("Deleted %d stale esm.js attachments", len(stale))
+        _esm_attachment_urls.add(url)
         _logger.info("Saved esbuild attachment %s", url)
         return url
 
@@ -3979,15 +4106,7 @@ class IrQweb(models.AbstractModel):
         return [node[1]["href"] for node in asset_nodes if node[0] == "link"]
 
     def _pregenerate_assets_bundles(self) -> list[str]:
-        """
-        Pregenerates all assets that may be used in web pages to speedup first loading.
-        This may is mainly usefull for tests.
-
-        The current version is looking for all t-call-assets in view to generate the minimal
-        set of bundles to generate.
-
-        Current version only generate assets without extra, not taking care of rtl.
-        """
+        """Pregenerates all assets that may be used in web pages to speedup first loading."""
         _logger.runbot("Pregenerating assets bundles")
 
         js_bundles, css_bundles = self._get_bundles_to_pregenarate()

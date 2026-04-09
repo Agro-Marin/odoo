@@ -44,11 +44,19 @@ export class EditInteractionPlugin extends Plugin {
         );
         const event = new CustomEvent("edit_interaction_plugin_loaded");
         event.shared = this.__editor.shared;
+        // Store on the document so late-starting services can find it
+        // (the iframe's OWL services may not have started yet).
+        window.parent.document.__editInteractionPluginEvent = event;
         window.parent.document.dispatchEvent(event);
     }
     destroy() {
+        delete window.parent.document.__editInteractionPluginEvent;
         this.websiteEditService?.uninstallPatches?.();
-        this.stopInteractions();
+        // Guard: editor may be destroyed before the cross-frame service
+        // transfer completed (e.g. rapid open/close of the editor).
+        if (this.websiteEditService) {
+            this.stopInteractions();
+        }
     }
 
     updateEditInteraction({ detail: { websiteEditService } }) {
@@ -58,25 +66,28 @@ export class EditInteractionPlugin extends Plugin {
 
     restartInteractions(element) {
         if (!this.websiteEditService) {
-            throw new Error("website edit service not loaded");
+            return;
         }
         this.websiteEditService.update(element, "edit");
     }
 
     refreshInteractions(element) {
+        if (!this.websiteEditService) {
+            return;
+        }
         this.websiteEditService.refresh(element);
     }
 
     stopInteractions(element) {
         if (!this.websiteEditService) {
-            throw new Error("website edit service not loaded");
+            return;
         }
         this.websiteEditService.stop(element);
     }
 
     stopInteraction(name) {
         if (!this.websiteEditService) {
-            throw new Error("website edit service not loaded");
+            return;
         }
         this.websiteEditService.stopInteraction(name);
     }

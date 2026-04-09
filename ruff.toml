@@ -268,8 +268,8 @@ ignore = [
     "ERA001",     # commented-out code: tests use code-example comments and TODO-disabled cases
 ]
 
-# __manifest__.py: Standalone dict expression is the whole file
-"**/__manifest__.py" = ["B018"]
+# __manifest__.py: Standalone dict expression — no docstrings allowed (ast.literal_eval)
+"**/__manifest__.py" = ["B018", "D100"]
 
 # Migrations: Raw SQL, minimal structure, legacy code
 "**/migrations/**" = [

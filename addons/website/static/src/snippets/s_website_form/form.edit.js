@@ -5,8 +5,7 @@ import { Form } from "./form.js";
 import { patch } from "@web/core/utils/patch";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class FormEdit extends Interaction {
     static selector = ".s_website_form form, form.s_website_form"; // !compatibility
     start() {

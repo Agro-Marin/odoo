@@ -11,7 +11,7 @@ patch(SnippetViewer.prototype, {
         if (this.props.snippetModel.snippetsName === "website.snippets") {
             this.websiteService = useService("website");
             this.innerWebsiteEditService =
-                this.websiteService.websiteRootInstance?.bindService("website_edit");
+                this.websiteService.websiteRootInstance?.env.services["website_edit"];
             this.previousSearch = "";
 
             const updatePreview = () => {

@@ -13,8 +13,7 @@ import {
 } from "./utils.js";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class FormFieldOption extends BaseOptionComponent {
     static template = "website.s_website_form_field_option";
     static dependencies = ["websiteFormOption"];

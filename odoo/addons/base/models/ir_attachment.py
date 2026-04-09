@@ -925,6 +925,10 @@ class IrAttachment(models.Model):
             ]
         ).unlink()
         self.env.registry.clear_cache("assets")
+        # Clear the process-level ESM attachment URL cache so new
+        # bundles are saved fresh after asset regeneration.
+        from odoo.addons.base.models.ir_qweb import _esm_attachment_urls
+        _esm_attachment_urls.clear()
 
     def _from_request_file(self, file: Any, *, mimetype: str, **vals: Any) -> Self:
         """

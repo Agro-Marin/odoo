@@ -3,7 +3,6 @@ import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
-import { loadBundle } from "@web/core/assets";
 
 export class Chart extends Interaction {
     static selector = ".s_chart";
@@ -15,7 +14,8 @@ export class Chart extends Interaction {
     }
 
     async willStart() {
-        await loadBundle("web.chartjs_lib");
+        const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+        this.Chart = Chart;
     }
 
     start() {
@@ -102,8 +102,8 @@ export class Chart extends Interaction {
         }
 
         const canvasEl = this.el.querySelector("canvas");
-        window.Chart.Tooltip.positioners.custom = (_, eventPosition) => eventPosition;
-        this.chart = new window.Chart(canvasEl, chartData);
+        this.Chart.Tooltip.positioners.custom = (_, eventPosition) => eventPosition;
+        this.chart = new this.Chart(canvasEl, chartData);
         this.registerCleanup(() => {
             this.chart.destroy();
             this.el.querySelectorAll(".chartjs-size-monitor").forEach((el) => el.remove());

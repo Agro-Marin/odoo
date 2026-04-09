@@ -5,8 +5,7 @@ import { deserializeDate } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { uniqueId } from "@web/core/utils/functions";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class Sidebar extends Interaction {
 
     setup() {

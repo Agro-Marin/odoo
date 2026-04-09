@@ -78,10 +78,10 @@ from ...primitives import (
     SUPERUSER_ID,
     UPDATE_BATCH_SIZE,
     Command,
+    ValuesType,  # noqa: TC003 — runtime import required (PEP 649)
 )
 
 if typing.TYPE_CHECKING:
-    from ..._typing import ValuesType
     from ...fields.base import Field
 
 

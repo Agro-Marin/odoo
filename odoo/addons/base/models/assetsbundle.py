@@ -9,12 +9,14 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
+import time
 import uuid
 from contextlib import suppress
 from datetime import UTC
 from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import Any
+from urllib.parse import quote as url_quote
 
 from lxml import etree
 from rjsmin import jsmin as rjsmin
@@ -59,6 +61,48 @@ except ImportError:
         """Placeholder when sass_embedded is unavailable."""
 
 
+def _find_node() -> str | None:
+    """Find Node.js binary, searching PATH and common NVM locations.
+
+    When Odoo runs as a systemd service, NVM's bin directory is typically
+    not in PATH.  This helper checks standard NVM paths as a fallback.
+    """
+    node = shutil.which("node")
+    if node:
+        _logger.debug("Found node via PATH: %s", node)
+        return node
+
+    # NVM: check $NVM_DIR or default ~/.nvm
+    nvm_dir = os.environ.get("NVM_DIR") or Path.home() / ".nvm"
+    nvm_dir = Path(nvm_dir)
+    if nvm_dir.is_dir():
+        # Try the "current" symlink first
+        current = nvm_dir / "current" / "bin" / "node"
+        if current.is_file():
+            _logger.info("Found node via NVM current: %s", current)
+            return str(current)
+        # Otherwise find the newest installed version
+        versions_dir = nvm_dir / "versions" / "node"
+        if versions_dir.is_dir():
+            candidates = sorted(
+                versions_dir.glob("v*/bin/node"),
+                reverse=True,
+            )
+            for candidate in candidates:
+                if candidate.is_file():
+                    _logger.info("Found node via NVM versions: %s", candidate)
+                    return str(candidate)
+
+    # Common system paths (e.g. Homebrew, manual install)
+    for fallback in ("/usr/local/bin/node", "/usr/bin/node"):
+        if Path(fallback).is_file():
+            _logger.info("Found node at fallback path: %s", fallback)
+            return fallback
+
+    _logger.warning("node not found in PATH, NVM, or common locations")
+    return None
+
+
 class AssetError(Exception):
     pass
 
@@ -85,10 +129,14 @@ class AssetsBundle:
         "web.assets_web",
         "project.webclient",
         "web.assets_frontend",
-        "web.assets_tests",
+        # NOTE: web.assets_tests is excluded — its native ESM modules
+        # share @web/core/registry with the main bundle. esbuild would
+        # create a duplicate registry, so tour/patch registrations from
+        # tests wouldn't be visible to the main page's services.
         "web.report_assets_common",
         "mrp_subcontracting.webclient",
-        "point_of_sale._assets_pos",
+        "point_of_sale.assets_prod",
+        "point_of_sale.assets_prod_dark",
         "pos_self_order.assets",
         "spreadsheet.public_spreadsheet",
         "website_slides.slide_embed_assets",
@@ -129,16 +177,17 @@ class AssetsBundle:
         "html_editor.assets_prism",
         "html_editor.assets_readonly",
         "html_builder.assets",
-        "html_builder.assets_inside_builder_iframe",
+        # NOTE: *_inside_builder_iframe bundles are excluded from ESM_BUNDLES
+        # because loadBundle({targetDoc: iframe}) loads ESM via import() which
+        # executes in the PARENT frame, not the iframe.  Non-ESM bundles use
+        # loadJS(url, {targetDoc}) which correctly runs in the iframe context.
         "mass_mailing.assets_builder",
-        "mass_mailing.assets_inside_builder_iframe",
         "mass_mailing.assets_mail_themes",
         "mass_mailing.mailing_assets",
         "pos_order_tracking_display.assets",
         "pos_preparation_display.assets",
         "website.assets_all_wysiwyg",
         "website.assets_editor",
-        "website.assets_inside_builder_iframe",
         "website.assets_wysiwyg",
         "website.website_builder_assets",
         "website_knowledge.assets_knowledge_print",
@@ -151,8 +200,10 @@ class AssetsBundle:
         "web.assets_backend_lazy_dark",
         "html_editor.assets_prism_dark",
         "web.assets_backend_lazy",
-        "web.assets_inside_builder_iframe",
-        "web.tests_assets",
+        # NOTE: web.tests_assets excluded — same registry duplication issue
+        # as web.assets_tests (see note above).
+        # Frontend lazy bundle — enables esbuild bundling for public pages
+        "web.assets_frontend_lazy",
     })
 
     # Maps parent bundles to lazy ESM bundles whose specifiers must be
@@ -164,6 +215,8 @@ class AssetsBundle:
             "web.assets_backend_lazy_dark",
             "web_tour.automatic",
             "web_tour.interactive",
+            "website.website_builder_assets",
+            "mass_mailing.assets_builder",
         ],
     }
 
@@ -190,17 +243,15 @@ class AssetsBundle:
         self.env = request.env if env is None else env
         self.javascripts = []
         self.native_modules = []
-        # Lazy ESM bundles are only treated as ESM in debug=assets mode.
-        # In production (debug=0), they use transpiled odoo.define() to
-        # avoid singleton duplication from esbuild inline bundling.
-        is_lazy_esm = any(
-            name in lazies
-            for lazies in self.ESM_LAZY_BUNDLES.values()
-        )
-        if is_lazy_esm and not debug_assets:
-            self._is_esm_bundle = False
-        else:
-            self._is_esm_bundle = name in self.ESM_BUNDLES
+        self._is_esm_bundle = name in self.ESM_BUNDLES
+        # Identify lazy ESM bundles — their parent bundle name is needed
+        # to externalize parent modules during esbuild bundling.
+        self._lazy_parent_bundle: str | None = None
+        for parent, lazies in self.ESM_LAZY_BUNDLES.items():
+            if name in lazies:
+                self._lazy_parent_bundle = parent
+                self._is_esm_bundle = True
+                break
         self.templates = []
         self.stylesheets = []
         self.css_errors = []
@@ -254,6 +305,22 @@ class AssetsBundle:
                         asset = JavascriptAsset(self, **params)
                         if asset.is_native and self._is_esm_bundle:
                             self.native_modules.append(asset)
+                        elif (
+                            self._is_esm_bundle
+                            and asset.url
+                            and (
+                                asset.url.endswith("/owl/owl.js")
+                                or asset.url.endswith("/bootstrap.bundle.js")
+                                or asset.url.endswith("/bootstrap_globals.js")
+                                or "/bootstrap/js/dist/" in asset.url
+                                or asset.url.endswith("/popper/popper.js")
+                            )
+                        ):
+                            # ESM bundles load OWL and Bootstrap via
+                            # pre-node <script> tags before the legacy
+                            # bundle.  Skip them from the concatenated
+                            # legacy output to avoid duplicate bytes.
+                            pass
                         else:
                             self.javascripts.append(asset)
                     case "xml":
@@ -309,9 +376,8 @@ class AssetsBundle:
             preload_urls.append(asset.url)
             native_specifiers.add(spec)
 
-        import re as re_mod
         bridge_import_map = self._build_native_to_legacy_bridge(
-            native_specifiers, re_mod,
+            native_specifiers,
         )
 
         return {
@@ -355,11 +421,40 @@ class AssetsBundle:
             entry_lines.append(f'import * as __m{i} from "./{path}";')
             register_entries.append(f"  {json.dumps(spec)}: __m{i}")
 
+        # Import externalized ESM libraries (e.g. luxon) so they are
+        # included in registerNativeModules alongside native modules.
+        # esbuild externalizes these (--external:luxon) so the browser
+        # resolves them via the import map at runtime.
+        _esm_libs = {
+            "luxon": "/web/static/lib/luxon/luxon.mjs",
+            "dompurify": "/web/static/lib/dompurify/purify.es.mjs",
+            "bootstrap": "/web/static/lib/bootstrap/bootstrap_esm.js",
+        }
+        for j, spec in enumerate(sorted(_esm_libs)):
+            var = f"__lib{j}"
+            entry_lines.append(f'import * as {var} from {json.dumps(spec)};')
+            register_entries.append(f"  {json.dumps(spec)}: {var}")
+
         entry_lines.append("odoo.loader.registerNativeModules({")
         entry_lines.append(",\n".join(register_entries))
         entry_lines.append("});")
 
         root = odoo_root
+        # Generate ESM template registration as a side-effect import
+        # that esbuild inlines into the bundle.
+        templates_path = None
+        if self.templates:
+            esm_templates = self.generate_xml_bundle(esm=True)
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".templates.js", dir=root, delete=False,
+            ) as tmpl_tmp:
+                tmpl_tmp.write(esm_templates)
+                templates_path = tmpl_tmp.name
+            # Insert BEFORE registerNativeModules so templates are
+            # populated when the module namespace is exported.
+            rel = os.path.relpath(templates_path, root)
+            entry_lines.insert(-3, f'import "./{rel}";')
+
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".js", dir=root, delete=False,
         ) as tmp:
@@ -397,13 +492,27 @@ class AssetsBundle:
                     f"--alias:{header['alias']}=./{alias_path}"
                 )
 
+        # For lazy ESM bundles, use a Node.js wrapper with a resolve
+        # plugin to externalize parent module specifiers BEFORE alias
+        # resolution — esbuild's CLI externalizes AFTER aliases, which
+        # means --alias takes precedence and the parent code gets inlined.
+        if self._lazy_parent_bundle:
+            try:
+                return self._esbuild_lazy_bundle(entry_path, root, alias_flags)
+            finally:
+                if templates_path:
+                    Path(templates_path).unlink(missing_ok=True)
+
         try:
             result = subprocess.run(
                 [
                     esbuild, entry_path,
                     "--bundle", "--format=esm", "--minify",
                     "--keep-names",
-                    "--external:@odoo/*", "--target=es2022",
+                    "--external:@odoo/*", "--external:luxon",
+                    "--external:dompurify", "--external:bootstrap",
+                    "--external:/web/static/lib/*",
+                    "--target=es2022",
                     "--resolve-extensions=.js,.mjs,.json",
                     *alias_flags,
                 ],
@@ -423,11 +532,79 @@ class AssetsBundle:
             raise RuntimeError("esbuild timed out after 30s")
         finally:
             Path(entry_path).unlink(missing_ok=True)
+            if templates_path:
+                Path(templates_path).unlink(missing_ok=True)
+
+    def _esbuild_lazy_bundle(
+        self,
+        entry_path: str,
+        root: Path,
+        alias_flags: list[str],
+    ) -> str:
+        """Bundle a lazy ESM bundle using a Node.js wrapper with a
+        resolve plugin that externalizes parent specifiers before alias
+        resolution.
+        """
+        parent_specifiers = sorted(self._get_parent_specifiers())
+        # Convert --alias:@web=./path flags to {specifier: path} dict.
+        aliases = {}
+        for flag in alias_flags:
+            # --alias:@addon=./rel/path
+            key_val = flag.removeprefix("--alias:")
+            k, _, v = key_val.partition("=")
+            aliases[k] = v
+
+        wrapper = root / "tools" / "esm_lazy_bundle.mjs"
+        ext_file = Path(entry_path).with_suffix(".externals.json")
+        alias_file = Path(entry_path).with_suffix(".aliases.json")
+        try:
+            ext_file.write_text(json.dumps(parent_specifiers))
+            alias_file.write_text(json.dumps(aliases))
+            node = _find_node()
+            if not node:
+                raise FileNotFoundError(
+                    "node is required for lazy ESM bundling. "
+                    "Install Node.js or ensure NVM_DIR is set."
+                )
+            result = subprocess.run(
+                [node, str(wrapper), entry_path, str(ext_file), str(alias_file)],
+                capture_output=True, text=True, timeout=30, cwd=str(root),
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"esm_lazy_bundle failed (exit {result.returncode}): "
+                    f"{result.stderr[:500]}"
+                )
+            _logger.info(
+                "esbuild bundled %d native modules (%d bytes) "
+                "[lazy, %d externals]",
+                len(self.native_modules), len(result.stdout),
+                len(parent_specifiers),
+            )
+            return result.stdout
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("esm_lazy_bundle timed out after 30s")
+        finally:
+            Path(entry_path).unlink(missing_ok=True)
+            ext_file.unlink(missing_ok=True)
+            alias_file.unlink(missing_ok=True)
+
+    def _get_parent_specifiers(self) -> set[str]:
+        """Return the set of module specifiers in the parent bundle.
+
+        Used by lazy bundles to externalize parent modules during esbuild
+        so shared singletons (registry, OWL state) are not duplicated.
+        """
+        if not self._lazy_parent_bundle:
+            return set()
+        parent_ab = self.env["ir.qweb"]._get_asset_bundle(
+            self._lazy_parent_bundle, js=True, css=False,
+        )
+        return {a.module_path for a in parent_ab.native_modules}
 
     def _build_native_to_legacy_bridge(
         self,
         native_specifiers: set[str],
-        re_mod,
     ) -> dict[str, str]:
         """Build ``data:`` URI shims so native ESM modules can import legacy ones.
 
@@ -438,18 +615,16 @@ class AssetsBundle:
 
         Returns ``{specifier: data_uri}`` for the import map.
         """
-        from urllib.parse import quote as url_quote
-
         # Match: import { name1, name2 as alias } from "@specifier"
-        _named_re = re_mod.compile(
+        _named_re = re.compile(
             r'import\s*\{([^}]+)\}\s*from\s*["\'](@[^"\']+)["\']'
         )
         # Match: import name from "@specifier" (default import)
-        _default_re = re_mod.compile(
+        _default_re = re.compile(
             r'import\s+(\w+)\s+from\s*["\'](@[^"\']+)["\']'
         )
         # Match: import * as name from "@specifier" (namespace import)
-        _star_re = re_mod.compile(
+        _star_re = re.compile(
             r'import\s*\*\s*as\s+\w+\s+from\s*["\'](@[^"\']+)["\']'
         )
 
@@ -755,8 +930,11 @@ class AssetsBundle:
         js_attachment = self.get_attachments(extension)
 
         if not js_attachment:
+            # When ESM bundling is active, templates are included in the
+            # esbuild ESM bundle (via generate_xml_bundle(esm=True)) and
+            # must NOT be duplicated in the legacy JS bundle.
             template_bundle = ""
-            if self.templates:
+            if self.templates and not self._is_esm_bundle:
                 templates = self.generate_xml_bundle()
                 template_bundle = textwrap.dedent(f"""
 
@@ -842,7 +1020,14 @@ class AssetsBundle:
 
         return js_attachment
 
-    def generate_xml_bundle(self) -> str:
+    def generate_xml_bundle(self, *, esm: bool = False) -> str:
+        """Generate JS code that registers all QWeb templates in this bundle.
+
+        Args:
+            esm: If True, output ESM with ``import`` from ``@web/core/templates``.
+                 If False (default), output bare statements that assume
+                 ``registerTemplate`` etc. are already in scope.
+        """
         content = []
         blocks = []
         try:
@@ -891,7 +1076,14 @@ class AssetsBundle:
                 f'console.error("Missing (extension) parent templates: {", ".join(missing_names_for_extension)}");'
             )
 
-        return "\n".join(content)
+        body = "\n".join(content)
+        if esm:
+            return (
+                'import { checkPrimaryTemplateParents, registerTemplate, '
+                'registerTemplateExtension } from "@web/core/templates";\n'
+                + body
+            )
+        return body
 
     def xml(self) -> list[dict[str, Any]]:
         """
