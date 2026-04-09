@@ -70,7 +70,10 @@ export function formatBinary(value) {
  */
 let booleanCheckboxId = 0;
 export function formatBoolean(value) {
-    const id = `boolean_checkbox_${booleanCheckboxId++}`;
+    // Counter wraps at 2^20 (~1M) to keep generated IDs short. Uniqueness
+    // only matters within the current DOM — old checkboxes are removed by
+    // OWL re-renders long before a collision at the same counter value.
+    const id = `boolean_checkbox_${booleanCheckboxId++ & 0xFFFFF}`;
     return markup`
         <div class="o-checkbox d-inline-block me-2">
             <input id="${id}" type="checkbox" class="form-check-input" disabled ${
@@ -147,21 +150,32 @@ export function formatFloat(value, options = {}) {
     if (value === false) {
         return "";
     }
-    if (!options.digits && options.field) {
-        options.digits = options.field.digits;
-    }
-    if (!options.minDigits && options.field) {
-        options.minDigits = options.field.min_display_digits;
+    if (options.field && (!options.digits || !options.minDigits)) {
+        // Avoid mutating the caller's options object.
+        options = {
+            ...options,
+            digits: options.digits || options.field.digits,
+            minDigits: options.minDigits || options.field.min_display_digits,
+        };
     }
     return formatFloatNumber(value, options);
 }
-formatFloat.extractOptions = ({ attrs, options }) => ({
-    decimals: options.decimals || 0,
-    digits: extractDigits({ attrs, options }),
-    minDigits: options.minDigits,
-    humanReadable: !!options.human_readable,
-    trailingZeros: !options.hide_trailing_zeros,
-});
+formatFloat.extractOptions = ({ attrs, options }) => {
+    const extracted = extractDigits({ attrs, options });
+    return {
+        decimals: options.decimals || 0,
+        // Only override digits when explicitly configured via attrs or options,
+        // so that field-level digits (from field definition) are preserved.
+        ...(extracted != null && { digits: extracted }),
+        minDigits: options.minDigits,
+        humanReadable: !!options.human_readable,
+        // Only override trailingZeros when explicitly configured, so that
+        // widget-specific defaults (e.g. percentage → false) are preserved.
+        ...(options.hide_trailing_zeros != null && {
+            trailingZeros: !options.hide_trailing_zeros,
+        }),
+    };
+};
 
 /**
  * Returns a string representing a float value, from a float converted with a
@@ -177,7 +191,7 @@ export function formatFloatFactor(value, options = {}) {
     }
     const factor = options.factor || 1;
     if (!options.digits && options.field) {
-        options.digits = options.field.digits;
+        options = { ...options, digits: options.field.digits };
     }
     return formatFloatNumber(value * factor, options);
 }
@@ -231,6 +245,7 @@ export function formatFloatTime(value, options = {}) {
 }
 formatFloatTime.extractOptions = ({ options }) => ({
     displaySeconds: options.displaySeconds,
+    unit: options.unit,
 });
 
 /**

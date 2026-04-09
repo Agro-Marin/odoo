@@ -217,5 +217,8 @@ export async function clickOnLegend(view, text) {
  */
 export function setupChartJsForTests() {
     preloadBundle("web.chartjs_lib");
-    before(() => patch(Chart.defaults, { animation: false }));
+    before(async () => {
+        const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+        patch(Chart.defaults, { animation: false });
+    });
 }

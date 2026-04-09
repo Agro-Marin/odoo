@@ -1,5 +1,5 @@
-import { describe, expect, test } from "@odoo/hoot";
 import { trackOccurrences, trackOccurrencesPair } from "@html_editor/utils/tracking";
+import { describe, expect, test } from "@odoo/hoot";
 
 describe("trackOccurrences", () => {
     test("should return true only the first occurrence of each key", () => {

@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { Plugin, isValidTargetForDomListener } from "../plugin.js";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { fillEmpty } from "@html_editor/utils/dom";
 import { leftLeafOnlyNotBlockPath } from "@html_editor/utils/dom_state";
 import { closestElement } from "@html_editor/utils/dom_traversal";
+
+import { isValidTargetForDomListener, Plugin } from "../plugin.js";
 
 /**
  * @typedef {Object} Shortcut
@@ -54,7 +55,9 @@ export class ShortCutPlugin extends Plugin {
             hotkeyService.registerIframe({ contentWindow: this.window });
         }
         for (const shortcut of this.getResource("shortcuts")) {
-            const command = this.dependencies.userCommand.getCommand(shortcut.commandId);
+            const command = this.dependencies.userCommand.getCommand(
+                shortcut.commandId,
+            );
             this.addShortcut(
                 shortcut.hotkey,
                 () => {
@@ -63,7 +66,7 @@ export class ShortCutPlugin extends Plugin {
                 {
                     isAvailable: command.isAvailable,
                     global: !!shortcut.global,
-                }
+                },
             );
         }
     }
@@ -76,9 +79,11 @@ export class ShortCutPlugin extends Plugin {
                 allowRepeat: true,
                 isAvailable: (target) =>
                     (!isAvailable ||
-                        isAvailable(this.dependencies.selection.getEditableSelection())) &&
+                        isAvailable(
+                            this.dependencies.selection.getEditableSelection(),
+                        )) &&
                     (global || isValidTargetForDomListener(target)),
-            })
+            }),
         );
     }
 
@@ -100,10 +105,12 @@ export class ShortCutPlugin extends Plugin {
         }
         const precedingText = blockEl.textContent.substring(0, spaceOffset - 1);
         const matchedShortcut = this.getResource("shorthands").find(({ pattern }) =>
-            pattern.test(precedingText)
+            pattern.test(precedingText),
         );
         if (matchedShortcut) {
-            const command = this.dependencies.userCommand.getCommand(matchedShortcut.commandId);
+            const command = this.dependencies.userCommand.getCommand(
+                matchedShortcut.commandId,
+            );
             if (command) {
                 this.dependencies.selection.setSelection({
                     anchorNode: blockEl.firstChild,
@@ -112,7 +119,7 @@ export class ShortCutPlugin extends Plugin {
                     focusOffset: selection.focusOffset,
                 });
                 this.dependencies.selection.extractContent(
-                    this.dependencies.selection.getEditableSelection()
+                    this.dependencies.selection.getEditableSelection(),
                 );
                 fillEmpty(closestElement(selection.focusNode));
                 command.run(matchedShortcut.commandParams);

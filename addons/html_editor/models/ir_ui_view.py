@@ -1,45 +1,54 @@
+"""HTML editor view extensions for editing and saving QWeb templates."""
+
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import copy
 import logging
 import uuid
+from collections.abc import Iterable
+
 from lxml import etree, html
 
-from odoo import api, models, _
-from odoo.exceptions import ValidationError, MissingError
+from odoo import _, api, models
+from odoo.exceptions import MissingError, ValidationError
 from odoo.fields import Domain
+
 from odoo.addons.base.models.ir_ui_view import MOVABLE_BRANDING
 
 _logger = logging.getLogger(__name__)
 
 EDITING_ATTRIBUTES = MOVABLE_BRANDING + [
-    'data-oe-type',
-    'data-oe-expression',
-    'data-oe-translation-id',
-    'data-note-id'
+    "data-oe-type",
+    "data-oe-expression",
+    "data-oe-translation-id",
+    "data-note-id",
 ]
 
 
 class IrUiView(models.Model):
-    _inherit = 'ir.ui.view'
+    """Extend ir.ui.view with HTML editor save and snippet management."""
 
-    def _get_cleaned_non_editing_attributes(self, attributes):
-        """
-        Returns a new mapping of attributes -> value without the parts that are
-        not meant to be saved (branding, editing classes, ...). Note that
-        classes are meant to be cleaned on the client side before saving as
-        mostly linked to the related options (so we are not supposed to know
-        which to remove here).
+    _inherit = "ir.ui.view"
+
+    def _get_cleaned_non_editing_attributes(
+        self, attributes: Iterable[tuple[str, str]]
+    ) -> dict[str, str]:
+        """Return a new mapping of attributes without editing-specific parts.
+
+        Remove branding, editing classes, and contenteditable markers that are
+        not meant to be saved. Note that classes are meant to be cleaned on the
+        client side before saving as mostly linked to the related options (so we
+        are not supposed to know which to remove here).
 
         :param attributes: a mapping of attributes -> value
         :return: a new mapping of attributes -> value
         """
         attributes = {k: v for k, v in attributes if k not in EDITING_ATTRIBUTES}
-        if 'class' in attributes:
-            classes = attributes['class'].split()
-            attributes['class'] = ' '.join([c for c in classes if c != 'o_editable'])
-        if attributes.get('contenteditable') == 'true':
-            del attributes['contenteditable']
+        if "class" in attributes:
+            classes = attributes["class"].split()
+            attributes["class"] = " ".join([c for c in classes if c != "o_editable"])
+        if attributes.get("contenteditable") == "true":
+            del attributes["contenteditable"]
         return attributes
 
     # ------------------------------------------------------
@@ -47,54 +56,69 @@ class IrUiView(models.Model):
     # ------------------------------------------------------
 
     @api.model
-    def extract_embedded_fields(self, arch):
+    def extract_embedded_fields(self, arch: etree._Element) -> list[etree._Element]:
+        """Extract elements representing embedded fields from the given arch."""
         return arch.xpath('//*[@data-oe-model != "ir.ui.view"]')
 
     @api.model
-    def extract_oe_structures(self, arch):
-        return arch.xpath('//*[hasclass("oe_structure")][contains(@id, "oe_structure")]')
+    def extract_oe_structures(self, arch: etree._Element) -> list[etree._Element]:
+        """Extract oe_structure elements from the given arch."""
+        return arch.xpath(
+            '//*[hasclass("oe_structure")][contains(@id, "oe_structure")]'
+        )
 
     @api.model
-    def get_default_lang_code(self):
+    def get_default_lang_code(self) -> bool:
+        """Return the default language code, or False if none."""
         return False
 
     @api.model
-    def save_embedded_field(self, el):
-        Model = self.env[el.get('data-oe-model')]
-        field = el.get('data-oe-field')
+    def save_embedded_field(self, el: etree._Element) -> None:
+        """Save the value of an embedded field element back to the database."""
+        Model = self.env[el.get("data-oe-model")]
+        field = el.get("data-oe-field")
 
-        model = 'ir.qweb.field.' + el.get('data-oe-type')
-        converter = self.env[model] if model in self.env else self.env['ir.qweb.field']
+        model = "ir.qweb.field." + el.get("data-oe-type")
+        converter = self.env[model] if model in self.env else self.env["ir.qweb.field"]
 
         try:
             value = converter.from_html(Model, Model._fields[field], el)
             if value is not None:
                 # TODO: batch writes?
-                record = Model.browse(int(el.get('data-oe-id')))
-                if not self.env.context.get('lang') and self.get_default_lang_code():
-                    record.with_context(lang=self.get_default_lang_code()).write({field: value})
+                record = Model.browse(int(el.get("data-oe-id")))
+                if not self.env.context.get("lang") and self.get_default_lang_code():
+                    record.with_context(lang=self.get_default_lang_code()).write(
+                        {field: value}
+                    )
                 else:
                     record.write({field: value})
 
                 if callable(Model._fields[field].translate):
                     self._copy_custom_snippet_translations(record, field)
 
-        except (ValueError, TypeError):
-            raise ValidationError(_(
-                "Invalid field value for %(field_name)s: %(value)s",
-                field_name=Model._fields[field].string,
-                value=el.text_content().strip(),
-            ))
+        except ValueError, TypeError:
+            raise ValidationError(
+                _(
+                    "Invalid field value for %(field_name)s: %(value)s",
+                    field_name=Model._fields[field].string,
+                    value=el.text_content().strip(),
+                )
+            ) from None
 
-    def save_oe_structure(self, el):
+    def save_oe_structure(self, el: etree._Element) -> bool:
+        """Save an oe_structure element as an inheriting view."""
         self.ensure_one()
 
-        if el.get('id') in self.key:
+        if el.get("id") in self.key:
             # Do not inherit if the oe_structure already has its own inheriting view
             return False
 
-        arch = etree.Element('data')
-        xpath = etree.Element('xpath', expr=f"//*[hasclass('oe_structure')][@id='{el.get('id')}']", position="replace")
+        arch = etree.Element("data")
+        xpath = etree.Element(
+            "xpath",
+            expr=f"//*[hasclass('oe_structure')][@id='{el.get('id')}']",
+            position="replace",
+        )
         arch.append(xpath)
         attributes = self._get_cleaned_non_editing_attributes(el.attrib.items())
         structure = etree.Element(el.tag, attrib=attributes)
@@ -104,22 +128,26 @@ class IrUiView(models.Model):
             structure.append(copy.deepcopy(child))
 
         vals = {
-            'inherit_id': self.id,
-            'name': f"{self.name} ({el.get('id')})",
-            'arch': etree.tostring(arch, encoding='unicode'),
-            'key': f"{self.key}_{el.get('id')}",
-            'type': 'qweb',
-            'mode': 'extension',
+            "inherit_id": self.id,
+            "name": f"{self.name} ({el.get('id')})",
+            "arch": etree.tostring(arch, encoding="unicode"),
+            "key": f"{self.key}_{el.get('id')}",
+            "type": "qweb",
+            "mode": "extension",
         }
         vals.update(self._save_oe_structure_hook())
-        oe_structure_view = self.env['ir.ui.view'].create(vals)
-        self._copy_custom_snippet_translations(oe_structure_view, 'arch_db')
+        oe_structure_view = self.env["ir.ui.view"].create(vals)
+        self._copy_custom_snippet_translations(oe_structure_view, "arch_db")
 
         return True
 
     @api.model
-    def _copy_custom_snippet_translations(self, record, html_field):
-        """ Given a ``record`` and its HTML ``field``, detect any
+    def _copy_custom_snippet_translations(
+        self, record: models.BaseModel, html_field: str
+    ) -> None:
+        """Detect custom snippet usage in a record HTML field and copy translations.
+
+        Given a ``record`` and its HTML ``field``, detect any
         usage of a custom snippet and copy its translations.
         """
         lang_value = record[html_field]
@@ -129,18 +157,30 @@ class IrUiView(models.Model):
         try:
             tree = html.fromstring(lang_value)
         except etree.ParserError as e:
-            raise ValidationError(str(e))
+            raise ValidationError(str(e)) from e
 
         for custom_snippet_el in tree.xpath('//*[hasclass("s_custom_snippet")]'):
-            custom_snippet_name = custom_snippet_el.get('data-name')
-            custom_snippet_view = self.search([('name', '=', custom_snippet_name)], limit=1)
+            custom_snippet_name = custom_snippet_el.get("data-name")
+            custom_snippet_view = self.search(
+                [("name", "=", custom_snippet_name)], limit=1
+            )
             if custom_snippet_view:
-                self._copy_field_terms_translations(custom_snippet_view, 'arch_db', record, html_field)
+                self._copy_field_terms_translations(
+                    custom_snippet_view, "arch_db", record, html_field
+                )
 
     @api.model
-    def _copy_field_terms_translations(self, records_from, name_field_from, record_to, name_field_to):
-        """ Copy model terms translations from ``records_from.name_field_from``
-        to ``record_to.name_field_to`` for all activated languages if the term
+    def _copy_field_terms_translations(
+        self,
+        records_from: models.BaseModel,
+        name_field_from: str,
+        record_to: models.BaseModel,
+        name_field_to: str,
+    ) -> None:
+        """Copy model terms translations between records for all activated languages.
+
+        Copy from ``records_from.name_field_from`` to
+        ``record_to.name_field_to`` for all activated languages if the term
         in ``record_to.name_field_to`` is untranslated (the term matches the
         one in the current language).
 
@@ -150,24 +190,30 @@ class IrUiView(models.Model):
 
         The method takes care of read and write access of both records/fields.
         """
-        record_to.check_access('write')
+        record_to.check_access("write")
         field_from = records_from._fields[name_field_from]
         field_to = record_to._fields[name_field_to]
-        record_to._check_field_access(field_to, 'write')
+        record_to._check_field_access(field_to, "write")
 
         if not callable(field_from.translate):
-            raise TypeError(f"'translate' property of field {field_from!r} is not callable")
+            raise TypeError(
+                f"'translate' property of field {field_from!r} is not callable"
+            )
         if not callable(field_to.translate):
-            raise TypeError(f"'translate' property of field {field_to!r} is not callable")
+            raise TypeError(
+                f"'translate' property of field {field_to!r} is not callable"
+            )
         if not field_to.store:
             raise ValueError(f"Field {field_to!r} is not stored")
 
         # This will also implicitly check for `read` access rights
-        if not record_to[name_field_to] or not any(records_from.mapped(name_field_from)):
+        if not record_to[name_field_to] or not any(
+            records_from.mapped(name_field_from)
+        ):
             return
 
-        lang_env = self.env.lang or 'en_US'
-        langs = {lang for lang, _ in self.env['res.lang'].get_installed()}
+        lang_env = self.env.lang or "en_US"
+        langs = {lang for lang, _ in self.env["res.lang"].get_installed()}
 
         # 1. Get translations
         records_from.flush_model([name_field_from])
@@ -175,16 +221,32 @@ class IrUiView(models.Model):
         record_to = record_to.with_context(check_translations=True)
         existing_translation_dictionary = field_to.get_translation_dictionary(
             record_to[name_field_to],
-            {lang: record_to.with_context(prefetch_langs=True, lang=lang)[name_field_to] for lang in langs if lang != lang_env}
+            {
+                lang: record_to.with_context(prefetch_langs=True, lang=lang)[
+                    name_field_to
+                ]
+                for lang in langs
+                if lang != lang_env
+            },
         )
         extra_translation_dictionary = {}
         for record_from in records_from:
-            extra_translation_dictionary.update(field_from.get_translation_dictionary(
-                record_from[name_field_from],
-                {lang: record_from.with_context(prefetch_langs=True, lang=lang)[name_field_from] for lang in langs if lang != lang_env}
-            ))
+            extra_translation_dictionary.update(
+                field_from.get_translation_dictionary(
+                    record_from[name_field_from],
+                    {
+                        lang: record_from.with_context(prefetch_langs=True, lang=lang)[
+                            name_field_from
+                        ]
+                        for lang in langs
+                        if lang != lang_env
+                    },
+                )
+            )
         for term, extra_translation_values in extra_translation_dictionary.items():
-            existing_translation_values = existing_translation_dictionary.setdefault(term, {})
+            existing_translation_values = existing_translation_dictionary.setdefault(
+                term, {}
+            )
             # Update only default translation values that aren't customized by the user.
             for lang, extra_translation in extra_translation_values.items():
                 if existing_translation_values.get(lang, term) == term:
@@ -194,23 +256,32 @@ class IrUiView(models.Model):
         # The `en_US` jsonb value should always be set, even if english is not
         # installed. If we don't do this, the custom snippet `arch_db` will only
         # have a `fr_BE` key but no `en_US` key.
-        langs.add('en_US')
+        langs.add("en_US")
 
         # 2. Set translations
         new_value = {
-            lang: field_to.translate(lambda term: translation_dictionary.get(term, {}).get(lang), record_to[name_field_to])
+            lang: field_to.translate(
+                lambda term, _lang=lang: translation_dictionary.get(term, {}).get(
+                    _lang
+                ),
+                record_to[name_field_to],
+            )
             for lang in langs
         }
         record_to.env.cache.update_raw(record_to, field_to, [new_value], dirty=True)
         # Call `write` to trigger compute etc (`modified()`)
-        record_to.with_context(check_translations=False)[name_field_to] = new_value[lang_env]
+        record_to.with_context(check_translations=False)[name_field_to] = new_value[
+            lang_env
+        ]
 
     @api.model
-    def _save_oe_structure_hook(self):
+    def _save_oe_structure_hook(self) -> dict:
+        """Return extra values to include when saving an oe_structure view."""
         return {}
 
     @api.model
-    def _are_archs_equal(self, arch1, arch2):
+    def _are_archs_equal(self, arch1: etree._Element, arch2: etree._Element) -> bool:
+        """Return whether two arch element trees are structurally equal."""
         # Note that comparing the strings would not be ok as attributes order
         # must not be relevant
         if arch1.tag != arch2.tag:
@@ -223,17 +294,33 @@ class IrUiView(models.Model):
             return False
         if len(arch1) != len(arch2):
             return False
-        return all(self._are_archs_equal(child1, child2) for child1, child2 in zip(arch1, arch2))
+        return all(
+            self._are_archs_equal(child1, child2)
+            for child1, child2 in zip(arch1, arch2, strict=False)
+        )
 
     @api.model
-    def _get_allowed_root_attrs(self):
-        return ['style', 'class', 'target', 'href']
+    def _get_allowed_root_attrs(self) -> list[str]:
+        """Return the list of attributes allowed on the root element."""
+        return ["style", "class", "target", "href"]
 
-    def replace_arch_section(self, section_xpath, replacement, replace_tail=False):
-        # the root of the arch section shouldn't actually be replaced as it's
-        # not really editable itself, only the content truly is editable.
+    def replace_arch_section(
+        self,
+        section_xpath: str | None,
+        replacement: etree._Element,
+        replace_tail: bool = False,
+    ) -> etree._Element:
+        """Replace a section of the view arch with the given replacement element.
+
+        The root of the arch section is not actually replaced as it is not
+        really editable itself, only the content truly is editable.
+
+        :param section_xpath: valid xpath to the tag to replace
+        :param replacement: element to use as replacement content
+        :param replace_tail: whether to also replace the tail text
+        """
         self.ensure_one()
-        arch = etree.fromstring(self.arch.encode('utf-8'))
+        arch = etree.fromstring(self.arch.encode("utf-8"))
         # => get the replacement root
         if not section_xpath:
             root = arch
@@ -261,37 +348,41 @@ class IrUiView(models.Model):
         return arch
 
     @api.model
-    def to_field_ref(self, el):
+    def to_field_ref(self, el: etree._Element) -> etree._Element:
+        """Convert an embedded field element back to a t-field reference."""
         # filter out meta-information inserted in the document
-        attributes = {k: v for k, v in el.attrib.items()
-                           if not k.startswith('data-oe-')}
-        attributes['t-field'] = el.get('data-oe-expression')
+        attributes = {
+            k: v for k, v in el.attrib.items() if not k.startswith("data-oe-")
+        }
+        attributes["t-field"] = el.get("data-oe-expression")
 
         out = html.html_parser.makeelement(el.tag, attrib=attributes)
         out.tail = el.tail
         return out
 
     @api.model
-    def to_empty_oe_structure(self, el):
+    def to_empty_oe_structure(self, el: etree._Element) -> etree._Element:
+        """Return an empty copy of an oe_structure element."""
         out = html.html_parser.makeelement(el.tag, attrib=el.attrib)
         out.tail = el.tail
         return out
 
     @api.model
-    def _set_noupdate(self):
-        self.sudo().mapped('model_data_id').write({'noupdate': True})
+    def _set_noupdate(self) -> None:
+        """Mark the view's model data as noupdate."""
+        self.sudo().mapped("model_data_id").write({"noupdate": True})
 
-    def save(self, value, xpath=None):
-        """ Update a view section. The view section may embed fields to write
+    def save(self, value: str, xpath: str | None = None) -> None:
+        """Update a view section. The view section may embed fields to write.
 
-        Note that `self` record might not exist when saving an embed field
+        Note that `self` record might not exist when saving an embed field.
 
-        :param str xpath: valid xpath to the tag to replace
+        :param value: the html content to save
+        :param xpath: valid xpath to the tag to replace
         """
         self.ensure_one()
 
-        arch_section = html.fromstring(
-            value, parser=html.HTMLParser(encoding='utf-8'))
+        arch_section = html.fromstring(value, parser=html.HTMLParser(encoding="utf-8"))
 
         if xpath is None:
             # value is an embedded field on its own, not a view section
@@ -319,47 +410,72 @@ class IrUiView(models.Model):
         # pre-fix databases may still have only `col-sm`. This patches the
         # ancestor view at save time so layout doesn't break.
         if self.key in {
-            'website.footer_copyright_company_name',
-            'website.template_footer_mega',
-            'website.template_footer_mega_columns',
-            'website.template_footer_mega_links',
+            "website.footer_copyright_company_name",
+            "website.template_footer_mega",
+            "website.template_footer_mega_columns",
+            "website.template_footer_mega_links",
         }:
             ancestor = self.inherit_id.inherit_id.inherit_id
-            arch = etree.fromstring(ancestor.arch.encode('utf-8'))
+            arch = etree.fromstring(ancestor.arch.encode("utf-8"))
             has_change = False
-            for node in arch.xpath("//div[hasclass('o_footer_copyright')]//div[hasclass('col-sm')]"):
-                if 'col-md' not in node.get('class'):
-                    node.set('class', node.get('class') + ' col-md')
+            for node in arch.xpath(
+                "//div[hasclass('o_footer_copyright')]//div[hasclass('col-sm')]"
+            ):
+                if "col-md" not in node.get("class"):
+                    node.set("class", node.get("class") + " col-md")
                     has_change = True
             if has_change:
-                ancestor.with_context(no_cow=True).write({'arch': etree.tostring(arch, encoding='unicode')})
+                ancestor.with_context(no_cow=True).write(
+                    {"arch": etree.tostring(arch, encoding="unicode")}
+                )
 
         new_arch = self.replace_arch_section(xpath, arch_section)
-        old_arch = etree.fromstring(self.arch.encode('utf-8'))
+        old_arch = etree.fromstring(self.arch.encode("utf-8"))
         if not self._are_archs_equal(old_arch, new_arch):
             self._set_noupdate()
-            self.write({'arch': etree.tostring(new_arch, encoding='unicode')})
-            self._copy_custom_snippet_translations(self, 'arch_db')
+            self.write({"arch": etree.tostring(new_arch, encoding="unicode")})
+            self._copy_custom_snippet_translations(self, "arch_db")
 
     @api.model
-    def _view_get_inherited_children(self, view):
-        if self.env.context.get('no_primary_children', False):
-            original_hierarchy = self.env.context.get('__views_get_original_hierarchy', [])
-            return view.inherit_children_ids.filtered(lambda extension: extension.mode != 'primary' or extension.id in original_hierarchy)
+    def _view_get_inherited_children(self, view: IrUiView) -> IrUiView:
+        """Return the inherited children of the given view, respecting context filters."""
+        if self.env.context.get("no_primary_children", False):
+            original_hierarchy = self.env.context.get(
+                "__views_get_original_hierarchy", []
+            )
+            return view.inherit_children_ids.filtered(
+                lambda extension: (
+                    extension.mode != "primary" or extension.id in original_hierarchy
+                )
+            )
         return view.inherit_children_ids
 
     # Returns all views (called and inherited) related to a view
     # Used by translation mechanism, SEO and optional templates
 
     @api.model
-    def _views_get(self, view_id, get_children=True, bundles=False, root=True, visited=None):
-        """ For a given view ``view_id``, should return:
-                * the view itself (starting from its top most parent)
-                * all views inheriting from it, enabled or not
-                  - but not the optional children of a non-enabled child
-                * all views called from it (via t-call)
+    def _views_get(
+        self,
+        view_id: str | int | models.BaseModel,
+        get_children: bool = True,
+        bundles: bool = False,
+        root: bool = True,
+        visited: list[int] | None = None,
+    ) -> IrUiView:
+        """Return all views related to ``view_id`` (itself, inherited, and called).
 
-            :returns: recordset of ir.ui.view
+        For a given view ``view_id``, return:
+            * the view itself (starting from its top most parent)
+            * all views inheriting from it, enabled or not
+              - but not the optional children of a non-enabled child
+            * all views called from it (via t-call).
+
+        :param view_id: view identifier (xmlid, id, or record)
+        :param get_children: whether to include inherited children
+        :param bundles: whether to include asset bundles
+        :param root: whether to traverse up to the root view
+        :param visited: list of already-visited view ids
+        :returns: recordset of ir.ui.view
         """
         try:
             if isinstance(view_id, models.BaseModel):
@@ -368,11 +484,11 @@ class IrUiView(models.Model):
                 view = self._get_template_view(view_id)
         except MissingError:
             _logger.warning("Could not find view object with view_id '%s'", view_id)
-            return self.env['ir.ui.view']
+            return self.env["ir.ui.view"]
 
         if visited is None:
             visited = []
-        original_hierarchy = self.env.context.get('__views_get_original_hierarchy', [])
+        original_hierarchy = self.env.context.get("__views_get_original_hierarchy", [])
         while root and view.inherit_id:
             original_hierarchy.append(view.id)
             view = view.inherit_id
@@ -385,11 +501,22 @@ class IrUiView(models.Model):
             xpath += "| //t[@t-call-assets]"
         for child in node.xpath(xpath):
             try:
-                called_view = self._get_template_view(child.get('t-call', child.get('t-call-assets')))
+                called_view = self._get_template_view(
+                    child.get("t-call", child.get("t-call-assets"))
+                )
             except MissingError:
                 continue
-            if called_view and called_view not in views_to_return and called_view.id not in visited:
-                views_to_return += self._views_get(called_view, get_children=get_children, bundles=bundles, visited=visited + views_to_return.ids)
+            if (
+                called_view
+                and called_view not in views_to_return
+                and called_view.id not in visited
+            ):
+                views_to_return += self._views_get(
+                    called_view,
+                    get_children=get_children,
+                    bundles=bundles,
+                    visited=visited + views_to_return.ids,
+                )
 
         if not get_children:
             return views_to_return
@@ -400,40 +527,51 @@ class IrUiView(models.Model):
         for extension in extensions.sorted(key=lambda v: v.id):
             # only return optional grandchildren if this child is enabled
             if extension.id not in visited:
-                for ext_view in self._views_get(extension, get_children=extension.active, root=False, visited=visited + views_to_return.ids):
+                for ext_view in self._views_get(
+                    extension,
+                    get_children=extension.active,
+                    root=False,
+                    visited=visited + views_to_return.ids,
+                ):
                     if ext_view not in views_to_return:
                         views_to_return += ext_view
         return views_to_return
 
     @api.model
-    def get_related_views(self, key, bundles=False):
-        """ Get inherit view's informations of the template ``key``.
-            returns templates info (which can be active or not)
-            ``bundles=True`` returns also the asset bundles
+    def get_related_views(self, key: str, bundles: bool = False) -> IrUiView:
+        """Return inherit views of the template ``key``.
+
+        Return template info (which can be active or not).
+        ``bundles=True`` returns also the asset bundles.
         """
         user_groups = set(self.env.user.group_ids)
         new_context = {
             **self.env.context,
-            'active_test': False,
+            "active_test": False,
         }
-        new_context.pop('lang', None)
+        new_context.pop("lang", None)
         View = self.with_context(new_context)
         views = View._views_get(key, bundles=bundles)
-        return views.filtered(lambda v: not v.group_ids or len(user_groups.intersection(v.group_ids)))
+        return views.filtered(
+            lambda v: not v.group_ids or len(user_groups.intersection(v.group_ids))
+        )
 
     # --------------------------------------------------------------------------
     # Snippet saving
     # --------------------------------------------------------------------------
 
     @api.model
-    def _get_snippet_addition_view_key(self, template_key, key):
-        return f'{template_key}.{key}'
+    def _get_snippet_addition_view_key(self, template_key: str, key: str) -> str:
+        """Return the view key for a snippet addition."""
+        return f"{template_key}.{key}"
 
     @api.model
-    def _snippet_save_view_values_hook(self):
+    def _snippet_save_view_values_hook(self) -> dict:
+        """Return extra values to include when saving a snippet view."""
         return {}
 
-    def _find_available_name(self, name, used_names):
+    def _find_available_name(self, name: str, used_names: Iterable[str]) -> str:
+        """Return the first available name by appending a counter if needed."""
         attempt = 1
         candidate_name = name
         while candidate_name in used_names:
@@ -442,10 +580,17 @@ class IrUiView(models.Model):
         return candidate_name
 
     @api.model
-    def save_snippet(self, name, arch, template_key, snippet_key, thumbnail_url):
-        """
-        Saves a new snippet arch so that it appears with the given name when
-        using the given snippets template.
+    def save_snippet(
+        self,
+        name: str,
+        arch: str,
+        template_key: str,
+        snippet_key: str,
+        thumbnail_url: str,
+    ) -> str:
+        """Save a new snippet arch so that it appears with the given name.
+
+        The snippet is added to the given snippets template.
 
         :param name: the name of the snippet to save
         :param arch: the html structure of the snippet to save
@@ -456,14 +601,16 @@ class IrUiView(models.Model):
         :param thumbnail_url: the url of the thumbnail to use when displaying
             the snippet to save
         """
-        app_name = template_key.split('.')[0]
-        snippet_key = f'{snippet_key}_{uuid.uuid4().hex}'
-        full_snippet_key = f'{app_name}.{snippet_key}'
+        app_name = template_key.split(".", maxsplit=1)[0]
+        snippet_key = f"{snippet_key}_{uuid.uuid4().hex}"
+        full_snippet_key = f"{app_name}.{snippet_key}"
 
         # find available name
-        current_website = self.env['website'].browse(self.env.context.get('website_id'))
+        current_website = self.env["website"].browse(self.env.context.get("website_id"))
         website_domain = Domain(current_website.website_domain())
-        used_names = self.search(Domain('name', '=like', f'{name}%') & website_domain).mapped('name')
+        used_names = self.search(
+            Domain("name", "=like", f"{name}%") & website_domain
+        ).mapped("name")
         name = self._find_available_name(name, used_names)
 
         # html to xml to add '/' at the end of self closing tags like br, ...
@@ -474,40 +621,40 @@ class IrUiView(models.Model):
                 arch_tree.attrib[attr] = attributes[attr]
             else:
                 del arch_tree.attrib[attr]
-        xml_arch = etree.tostring(arch_tree, encoding='utf-8')
+        xml_arch = etree.tostring(arch_tree, encoding="utf-8")
         new_snippet_view_values = {
-            'name': name,
-            'key': full_snippet_key,
-            'type': 'qweb',
-            'arch': xml_arch,
+            "name": name,
+            "key": full_snippet_key,
+            "type": "qweb",
+            "arch": xml_arch,
         }
         new_snippet_view_values.update(self._snippet_save_view_values_hook())
         custom_snippet_view = self.create(new_snippet_view_values)
-        model = self.env.context.get('model')
-        field = self.env.context.get('field')
-        if field == 'arch':
+        model = self.env.context.get("model")
+        field = self.env.context.get("field")
+        if field == "arch":
             # Special case for `arch` which is a kind of related (through a
             # compute) to `arch_db` but which is hosting XML/HTML content while
             # being a char field.. Which is then messing around with the
             # `get_translation_dictionary` call, returning XML instead of
             # strings
-            field = 'arch_db'
-        res_id = self.env.context.get('resId')
+            field = "arch_db"
+        res_id = self.env.context.get("resId")
         if model and field and res_id:
             self._copy_field_terms_translations(
                 self.env[model].browse(int(res_id)),
                 field,
                 custom_snippet_view,
-                'arch_db',
+                "arch_db",
             )
 
-        custom_section = self.search([('key', '=', template_key)])
+        custom_section = self.search([("key", "=", template_key)])
         snippet_addition_view_values = {
-            'name': name + ' Block',
-            'key': self._get_snippet_addition_view_key(template_key, snippet_key),
-            'inherit_id': custom_section.id,
-            'type': 'qweb',
-            'arch': f"""
+            "name": name + " Block",
+            "key": self._get_snippet_addition_view_key(template_key, snippet_key),
+            "inherit_id": custom_section.id,
+            "type": "qweb",
+            "arch": f"""
                 <data inherit_id="{template_key}">
                     <xpath expr="//snippets[@id='snippet_custom']" position="inside">
                         <t t-snippet="{full_snippet_key}" t-thumbnail="{thumbnail_url}"/>
@@ -520,19 +667,21 @@ class IrUiView(models.Model):
         return name
 
     @api.model
-    def rename_snippet(self, name, view_id, template_key):
+    def rename_snippet(self, name: str, view_id: int, template_key: str) -> None:
+        """Rename a custom snippet and its addition view."""
         snippet_view = self.browse(view_id)
-        key = snippet_view.key.split('.')[1]
+        key = snippet_view.key.split(".")[1]
         custom_key = self._get_snippet_addition_view_key(template_key, key)
-        snippet_addition_view = self.search([('key', '=', custom_key)])
+        snippet_addition_view = self.search([("key", "=", custom_key)])
         if snippet_addition_view:
-            snippet_addition_view.name = name + ' Block'
+            snippet_addition_view.name = name + " Block"
         snippet_view.name = name
 
     @api.model
-    def delete_snippet(self, view_id, template_key):
+    def delete_snippet(self, view_id: int, template_key: str) -> None:
+        """Delete a custom snippet and its addition view."""
         snippet_view = self.browse(view_id)
-        key = snippet_view.key.split('.')[1]
+        key = snippet_view.key.split(".")[1]
         custom_key = self._get_snippet_addition_view_key(template_key, key)
-        snippet_addition_view = self.search([('key', '=', custom_key)])
+        snippet_addition_view = self.search([("key", "=", custom_key)])
         (snippet_addition_view | snippet_view).unlink()

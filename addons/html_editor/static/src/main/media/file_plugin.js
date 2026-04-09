@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import {
     DocumentSelector,
     renderStaticFileBox,
@@ -6,7 +7,6 @@ import {
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 export class FilePlugin extends Plugin {
     static id = "file";
@@ -23,7 +23,8 @@ export class FilePlugin extends Plugin {
             icon: "fa-upload",
             run: this.uploadAndInsertFiles.bind(this),
             isAvailable: (selection) =>
-                this.isUploadCommandAvailable(selection) && isHtmlContentSupported(selection),
+                this.isUploadCommandAvailable(selection) &&
+                isHtmlContentSupported(selection),
         },
         powerbox_items: {
             categoryId: "media",
@@ -68,10 +69,13 @@ export class FilePlugin extends Plugin {
 
     async uploadAndInsertFiles() {
         // Upload
-        const attachments = await this.services.uploadLocalFiles.upload(this.recordInfo, {
-            multiple: true,
-            accessToken: true,
-        });
+        const attachments = await this.services.uploadLocalFiles.upload(
+            this.recordInfo,
+            {
+                multiple: true,
+                accessToken: true,
+            },
+        );
         if (!attachments.length) {
             // No files selected or error during upload
             this.editable.focus();

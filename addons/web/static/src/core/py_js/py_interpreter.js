@@ -71,7 +71,17 @@ function pytypeIndex(val) {
  * @returns {boolean}
  */
 function isConstructor(obj) {
-    return !!obj.prototype && !!obj.prototype.constructor.name;
+    if (!obj.prototype) {
+        return false; // arrow functions and methods have no prototype
+    }
+    try {
+        // ES6 class constructors throw TypeError when called without `new`.
+        // Reflect.construct checks [[IsClassConstructor]] without side effects.
+        Reflect.construct(String, [], obj);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -132,7 +142,9 @@ function isEqual(left, right) {
  */
 function isIn(left, right) {
     if (Array.isArray(right)) {
-        return right.includes(left);
+        // Use isEqual for value-based comparison (matches Python __eq__
+        // semantics for objects like PyDate/PyDateTime).
+        return right.some((item) => isEqual(left, item));
     }
     if (typeof right === "string" && typeof left === "string") {
         return right.includes(left);
@@ -407,7 +419,9 @@ export function evaluate(ast, context = {}) {
                     return left.divide(right);
                 }
                 if (right === 0) {
-                    throw new EvaluationError("ZeroDivisionError: floor division by zero");
+                    throw new EvaluationError(
+                        "ZeroDivisionError: floor division by zero",
+                    );
                 }
                 return Math.floor(left / right);
             case "**":
@@ -452,108 +466,110 @@ export function evaluate(ast, context = {}) {
             throw new EvaluationError("Maximum expression depth exceeded");
         }
         try {
-        switch (ast.type) {
-            case 0 /* Number */:
-            case 1 /* String */:
-                return ast.value;
-            case 5 /* Name */:
-                if (ast.value in evalContext) {
-                    return evalContext[ast.value];
-                } else if (ast.value in BUILTINS) {
-                    return BUILTINS[ast.value];
-                } else {
-                    throw new EvaluationError(`Name '${ast.value}' is not defined`);
-                }
-            case 3 /* None */:
-                return null;
-            case 2 /* Boolean */:
-                return ast.value;
-            case 6 /* UnaryOperator */:
-                return _applyUnaryOp(ast);
-            case 7 /* BinaryOperator */:
-                return _applyBinaryOp(ast);
-            case 14 /* BooleanOperator */: {
-                const left = _evaluate(ast.left);
-                if (ast.op === "and") {
-                    return isTrue(left) ? _evaluate(ast.right) : left;
-                } else {
-                    return isTrue(left) ? left : _evaluate(ast.right);
-                }
-            }
-            case 4 /* List */:
-            case 10 /* Tuple */:
-                return ast.value.map(_evaluate);
-            case 11 /* Dictionary */: {
-                const dict = {};
-                for (const key of Object.keys(ast.value || {})) {
-                    dict[key] = _evaluate(ast.value[key]);
-                }
-                dicts.add(dict);
-                return dict;
-            }
-            case 8 /* FunctionCall */: {
-                const fnValue = _evaluate(ast.fn);
-                const args = ast.args.map(_evaluate);
-                const kwargs = {};
-                for (const kwarg of Object.keys(ast.kwargs || {})) {
-                    kwargs[kwarg] = _evaluate(ast.kwargs[kwarg]);
-                }
-                if (
-                    fnValue === PyDate ||
-                    fnValue === PyDateTime ||
-                    fnValue === PyTime ||
-                    fnValue === PyRelativeDelta ||
-                    fnValue === PyTimeDelta
-                ) {
-                    return fnValue.create(...args, kwargs);
-                }
-                return fnValue(...args, kwargs);
-            }
-            case 12 /* Lookup */: {
-                const dict = _evaluate(ast.target);
-                const key = _evaluate(ast.key);
-                if (BLOCKED_PROPERTIES.has(key)) {
-                    throw new EvaluationError(`Access to '${key}' is forbidden`);
-                }
-                return dict[key];
-            }
-            case 13 /* If */: {
-                if (isTrue(_evaluate(ast.condition))) {
-                    return _evaluate(ast.ifTrue);
-                } else {
-                    return _evaluate(ast.ifFalse);
-                }
-            }
-            case 15 /* ObjLookup */: {
-                let left = _evaluate(ast.obj);
-                let result;
-                if (dicts.has(left) || Object.isPrototypeOf.call(PY_DICT, left)) {
-                    // this is a dictionary => need to apply dict methods
-                    result = DICT[ast.key];
-                } else if (typeof left === "string") {
-                    result = STRING[ast.key];
-                } else if (left instanceof Set) {
-                    result = SET[ast.key];
-                } else if (ast.key === "get" && typeof left === "object") {
-                    result = DICT[ast.key];
-                    left = toPyDict(left);
-                } else {
-                    if (BLOCKED_PROPERTIES.has(ast.key)) {
-                        throw new EvaluationError(`Access to '${ast.key}' is forbidden`);
+            switch (ast.type) {
+                case 0 /* Number */:
+                case 1 /* String */:
+                    return ast.value;
+                case 5 /* Name */:
+                    if (ast.value in evalContext) {
+                        return evalContext[ast.value];
+                    } else if (ast.value in BUILTINS) {
+                        return BUILTINS[ast.value];
+                    } else {
+                        throw new EvaluationError(`Name '${ast.value}' is not defined`);
                     }
-                    result = left[ast.key];
-                }
-                if (typeof result === "function") {
-                    if (!isConstructor(result)) {
-                        const bound = result.bind(left);
-                        bound[unboundFn] = result;
-                        return bound;
+                case 3 /* None */:
+                    return null;
+                case 2 /* Boolean */:
+                    return ast.value;
+                case 6 /* UnaryOperator */:
+                    return _applyUnaryOp(ast);
+                case 7 /* BinaryOperator */:
+                    return _applyBinaryOp(ast);
+                case 14 /* BooleanOperator */: {
+                    const left = _evaluate(ast.left);
+                    if (ast.op === "and") {
+                        return isTrue(left) ? _evaluate(ast.right) : left;
+                    } else {
+                        return isTrue(left) ? left : _evaluate(ast.right);
                     }
                 }
-                return result;
+                case 4 /* List */:
+                case 10 /* Tuple */:
+                    return ast.value.map(_evaluate);
+                case 11 /* Dictionary */: {
+                    const dict = {};
+                    for (const key of Object.keys(ast.value || {})) {
+                        dict[key] = _evaluate(ast.value[key]);
+                    }
+                    dicts.add(dict);
+                    return dict;
+                }
+                case 8 /* FunctionCall */: {
+                    const fnValue = _evaluate(ast.fn);
+                    const args = ast.args.map(_evaluate);
+                    const kwargs = {};
+                    for (const kwarg of Object.keys(ast.kwargs || {})) {
+                        kwargs[kwarg] = _evaluate(ast.kwargs[kwarg]);
+                    }
+                    if (
+                        fnValue === PyDate ||
+                        fnValue === PyDateTime ||
+                        fnValue === PyTime ||
+                        fnValue === PyRelativeDelta ||
+                        fnValue === PyTimeDelta
+                    ) {
+                        return fnValue.create(...args, kwargs);
+                    }
+                    return fnValue(...args, kwargs);
+                }
+                case 12 /* Lookup */: {
+                    const dict = _evaluate(ast.target);
+                    const key = _evaluate(ast.key);
+                    if (BLOCKED_PROPERTIES.has(key)) {
+                        throw new EvaluationError(`Access to '${key}' is forbidden`);
+                    }
+                    return dict[key];
+                }
+                case 13 /* If */: {
+                    if (isTrue(_evaluate(ast.condition))) {
+                        return _evaluate(ast.ifTrue);
+                    } else {
+                        return _evaluate(ast.ifFalse);
+                    }
+                }
+                case 15 /* ObjLookup */: {
+                    let left = _evaluate(ast.obj);
+                    let result;
+                    if (dicts.has(left) || Object.isPrototypeOf.call(PY_DICT, left)) {
+                        // this is a dictionary => need to apply dict methods
+                        result = DICT[ast.key];
+                    } else if (typeof left === "string") {
+                        result = STRING[ast.key];
+                    } else if (left instanceof Set) {
+                        result = SET[ast.key];
+                    } else if (ast.key === "get" && typeof left === "object") {
+                        result = DICT[ast.key];
+                        left = toPyDict(left);
+                    } else {
+                        if (BLOCKED_PROPERTIES.has(ast.key)) {
+                            throw new EvaluationError(
+                                `Access to '${ast.key}' is forbidden`,
+                            );
+                        }
+                        result = left[ast.key];
+                    }
+                    if (typeof result === "function") {
+                        if (!isConstructor(result)) {
+                            const bound = result.bind(left);
+                            bound[unboundFn] = result;
+                            return bound;
+                        }
+                    }
+                    return result;
+                }
             }
-        }
-        throw new EvaluationError(`AST of type ${ast.type} cannot be evaluated`);
+            throw new EvaluationError(`AST of type ${ast.type} cannot be evaluated`);
         } finally {
             evalDepth--;
         }

@@ -3,12 +3,12 @@
 
 /** @module @web/views/settings/widgets/res_config_edition - About section settings widget showing Odoo version, expiration date, and copyrights */
 
+import { DateTime } from "luxon";
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
 import { Setting } from "@web/views/form/setting/setting";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-const { DateTime } = globalThis.luxon ?? {};
 
 /**
  * Widget in the settings that handles a part of the "About" section.

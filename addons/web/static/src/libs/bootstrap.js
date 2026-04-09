@@ -1,16 +1,12 @@
 // @ts-check
-/** @odoo-module */
+/** @odoo-module native */
 
 /**
- * The bootstrap library extensions and fixes should be done here to avoid
- * patching in place.
+ * Bootstrap library extensions and fixes — avoids patching vendor code.
  *
- * NOTE: This file is intentionally NOT ``@odoo-module native``.  It patches
- * Bootstrap globals (Tooltip, Dropdown, Modal) which are set by Bootstrap's
- * UMD scripts.  Native ESM modules run in strict scope where bare globals
- * throw ReferenceError — and the execution order between classic ``<script>``
- * and ``<script type="module">`` is not guaranteed in all bundle paths.
- * Keeping this as a legacy module ensures it runs AFTER Bootstrap's UMD.
+ * Accesses Bootstrap globals (Tooltip, Dropdown, Modal) set by the UMD
+ * pre-node script.  ESM modules run after all blocking <script> tags,
+ * so the globals are guaranteed to be available.
  */
 
 /**

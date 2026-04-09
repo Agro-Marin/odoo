@@ -2,8 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { reactive, toRaw } from "@odoo/owl";
-
-const {
+import {
     DateTime,
     Duration,
     FixedOffsetZone,
@@ -14,7 +13,7 @@ const {
     Settings,
     SystemZone,
     Zone,
-} = luxon;
+} from "luxon";
 
 describe.current.tags("headless");
 

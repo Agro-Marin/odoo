@@ -1,7 +1,8 @@
 import { describe, test } from "@odoo/hoot";
+
 import { testEditor } from "../_helpers/editor.js";
-import { deleteBackward, deleteForward } from "../_helpers/user_actions.js";
 import { unformat } from "../_helpers/format.js";
+import { deleteBackward, deleteForward } from "../_helpers/user_actions.js";
 
 describe("backward", () => {
     describe("selection collapsed", () => {
@@ -452,9 +453,11 @@ describe("list", () => {
         test("should not outdent while nested within a list item if the list is unbreakable (1)", async () => {
             // Only one LI.
             await testEditor({
-                contentBefore: '<p>abc</p><ol class="oe_unbreakable"><li>[]def</li></ol>',
+                contentBefore:
+                    '<p>abc</p><ol class="oe_unbreakable"><li>[]def</li></ol>',
                 stepFunction: deleteBackward,
-                contentAfter: '<p>abc</p><ol class="oe_unbreakable"><li>[]def</li></ol>',
+                contentAfter:
+                    '<p>abc</p><ol class="oe_unbreakable"><li>[]def</li></ol>',
             });
         });
         test("should not outdent while nested within a list item if the list is unbreakable (2)", async () => {

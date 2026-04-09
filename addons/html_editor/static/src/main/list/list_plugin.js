@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
+import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { closestBlock, isBlock } from "@html_editor/utils/blocks";
+import { getTextColorOrClass, TEXT_CLASSES_REGEX } from "@html_editor/utils/color";
 import {
     removeClass,
     removeStyle,
@@ -22,30 +25,28 @@ import {
     listElementSelector,
 } from "@html_editor/utils/dom_info";
 import {
-    closestElement,
-    descendants,
-    getAdjacents,
-    selectElements,
     ancestors,
     childNodes,
+    closestElement,
+    descendants,
     firstLeaf,
+    getAdjacents,
     lastLeaf,
+    selectElements,
 } from "@html_editor/utils/dom_traversal";
-import { childNodeIndex, nodeSize } from "@html_editor/utils/position";
-import { _t } from "@web/core/l10n/translation";
-import { compareListTypes, createList, insertListAfter, isListItem } from "./utils.js";
-import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
-import { withSequence } from "@html_editor/utils/resource";
 import { FONT_SIZE_CLASSES, getFontSizeOrClass } from "@html_editor/utils/formatting";
-import { getTextColorOrClass, TEXT_CLASSES_REGEX } from "@html_editor/utils/color";
-import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
-import { ListSelector } from "./list_selector.js";
-import { reactive } from "@odoo/owl";
-import { composeToolbarButton } from "../toolbar/toolbar.js";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
-import { pick } from "@web/core/utils/collections/objects";
 import { weakMemoize } from "@html_editor/utils/functions";
+import { childNodeIndex, nodeSize } from "@html_editor/utils/position";
+import { withSequence } from "@html_editor/utils/resource";
+import { callbacksForCursorUpdate } from "@html_editor/utils/selection";
+import { reactive } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
+import { pick } from "@web/core/utils/collections/objects";
 import { isColorGradient } from "@web/core/utils/format/colors";
+
+import { composeToolbarButton } from "../toolbar/toolbar.js";
+import { ListSelector } from "./list_selector.js";
+import { compareListTypes, createList, insertListAfter, isListItem } from "./utils.js";
 
 const listSelectorItems = [
     {
@@ -98,7 +99,8 @@ export class ListPlugin extends Plugin {
                 title: _t("Numbered list"),
                 description: _t("Create a list with numbering"),
                 icon: "fa-solid fa-list-ol",
-                run: ({ listStyle } = {}) => this.toggleListCommand({ mode: "OL", listStyle }),
+                run: ({ listStyle } = {}) =>
+                    this.toggleListCommand({ mode: "OL", listStyle }),
                 isAvailable: this.canToggleList.bind(this),
             },
             {
@@ -174,7 +176,9 @@ export class ListPlugin extends Plugin {
             { commandId: "toggleListCL" },
         ].map((item) => withSequence(15, item)),
 
-        hints: [{ selector: `LI, LI > ${baseContainerGlobalSelector}`, text: _t("List") }],
+        hints: [
+            { selector: `LI, LI > ${baseContainerGlobalSelector}`, text: _t("List") },
+        ],
 
         /** Handlers */
         normalize_handlers: this.normalize.bind(this),
@@ -197,7 +201,7 @@ export class ListPlugin extends Plugin {
         fully_selected_node_predicates: (node, selection, range) => {
             if (node.nodeName === "LI") {
                 const nonListChildren = childNodes(node).filter(
-                    (n) => !["UL", "OL"].includes(n.nodeName)
+                    (n) => !["UL", "OL"].includes(n.nodeName),
                 );
                 if (!nonListChildren.length) {
                     return;
@@ -218,7 +222,8 @@ export class ListPlugin extends Plugin {
         this.listSelectorButtons = this.getListSelectorButtons();
         this.canToggleListMemoized = weakMemoize(
             (selection) =>
-                isHtmlContentSupported(selection) && this.getBlocksToToggleList().length > 0
+                isHtmlContentSupported(selection) &&
+                this.getBlocksToToggleList().length > 0,
         );
     }
 
@@ -231,9 +236,11 @@ export class ListPlugin extends Plugin {
         const targetedBlocks = [...this.dependencies.selection.getTargetedBlocks()];
         return targetedBlocks.filter(
             (block) =>
-                !descendants(block).some((descendant) => targetedBlocks.includes(descendant)) &&
+                !descendants(block).some((descendant) =>
+                    targetedBlocks.includes(descendant),
+                ) &&
                 block.isContentEditable &&
-                !["OL", "UL"].includes(block.tagName)
+                !["OL", "UL"].includes(block.tagName),
         );
     }
 
@@ -384,7 +391,12 @@ export class ListPlugin extends Plugin {
      */
     baseContainerToList(baseContainer, mode) {
         const cursors = this.dependencies.selection.preserveSelection();
-        const list = insertListAfter(this.document, baseContainer, mode, childNodes(baseContainer));
+        const list = insertListAfter(
+            this.document,
+            baseContainer,
+            mode,
+            childNodes(baseContainer),
+        );
         const textAlign = baseContainer.style.getPropertyValue("text-align");
         if (textAlign) {
             // Copy text-align style from base container to li.
@@ -400,7 +412,9 @@ export class ListPlugin extends Plugin {
 
     blockContentsToList(block, mode) {
         const cursors = this.dependencies.selection.preserveSelection();
-        const list = insertListAfter(this.document, block.lastChild, mode, [...block.childNodes]);
+        const list = insertListAfter(this.document, block.lastChild, mode, [
+            ...block.childNodes,
+        ]);
         cursors.remapNode(block, list.firstChild).restore();
         return list;
     }
@@ -548,12 +562,14 @@ export class ListPlugin extends Plugin {
 
         if (
             [...element.children].some(
-                (child) => isBlock(child) && !this.dependencies.split.isUnsplittable(child)
+                (child) =>
+                    isBlock(child) && !this.dependencies.split.isUnsplittable(child),
             )
         ) {
             const cursors = this.dependencies.selection.preserveSelection();
             wrapInlinesInBlocks(element, {
-                baseContainerNodeName: this.dependencies.baseContainer.getDefaultNodeName(),
+                baseContainerNodeName:
+                    this.dependencies.baseContainer.getDefaultNodeName(),
                 cursors,
             });
             cursors.restore();
@@ -657,14 +673,18 @@ export class ListPlugin extends Plugin {
         if (isList) {
             wrapperLi.classList.add("oe-nested");
             newList.append(wrapperLi);
-            cursors.update(callbacksForCursorUpdate.after(node.parentNode.parentNode, newList));
+            cursors.update(
+                callbacksForCursorUpdate.after(node.parentNode.parentNode, newList),
+            );
             node.parentNode.parentNode.after(newList);
         } else if (isListItem(node.parentNode.parentNode)) {
             // li is nested list item
             const lip = this.document.createElement("li");
             lip.classList.add("oe-nested");
             lip.append(newList);
-            cursors.update(callbacksForCursorUpdate.after(node.parentNode.parentNode, lip));
+            cursors.update(
+                callbacksForCursorUpdate.after(node.parentNode.parentNode, lip),
+            );
             node.parentNode.parentNode.after(lip);
         } else {
             cursors.update(callbacksForCursorUpdate.after(node.parentNode, newList));
@@ -673,7 +693,9 @@ export class ListPlugin extends Plugin {
 
         const moveFrom = isList ? node.parentElement : node;
         while (moveFrom.nextSibling) {
-            cursors.update(callbacksForCursorUpdate.append(newList, moveFrom.nextSibling));
+            cursors.update(
+                callbacksForCursorUpdate.append(newList, moveFrom.nextSibling),
+            );
             newList.append(moveFrom.nextSibling);
         }
 
@@ -803,7 +825,7 @@ export class ListPlugin extends Plugin {
         const navListItems = new Set();
         const nonListItems = [];
         const blocks = [...this.dependencies.selection.getTargetedBlocks()].filter(
-            (n) => !n.querySelector("li")
+            (n) => !n.querySelector("li"),
         );
         for (const block of blocks) {
             const closestLI = block.closest("li");
@@ -817,7 +839,11 @@ export class ListPlugin extends Plugin {
                 nonListItems.push(block);
             }
         }
-        return { listItems: [...listItems], navListItems: [...navListItems], nonListItems };
+        return {
+            listItems: [...listItems],
+            navListItems: [...navListItems],
+            nonListItems,
+        };
     }
 
     // --------------------------------------------------------------------------
@@ -850,7 +876,7 @@ export class ListPlugin extends Plugin {
             const isLiContainsUnSpittable =
                 isParagraphRelatedElement(block) &&
                 ancestors(block, closestLI).find((node) =>
-                    this.dependencies.split.isUnsplittable(node)
+                    this.dependencies.split.isUnsplittable(node),
                 );
             if (isLiContainsUnSpittable) {
                 return;
@@ -861,7 +887,7 @@ export class ListPlugin extends Plugin {
             this.indentListNodes(listItems);
             this.dependencies.tabulation.indentBlocks(nonListItems);
             const listsToAdjustPadding = new Set(
-                listItems.map((li) => closestElement(li, "ul, ol")).filter(Boolean)
+                listItems.map((li) => closestElement(li, "ul, ol")).filter(Boolean),
             );
             for (const list of listsToAdjustPadding) {
                 this.adjustListPadding(list);
@@ -880,7 +906,7 @@ export class ListPlugin extends Plugin {
             const isLiContainsUnSpittable =
                 isParagraphRelatedElement(block) &&
                 ancestors(block, closestLI).find((node) =>
-                    this.dependencies.split.isUnsplittable(node)
+                    this.dependencies.split.isUnsplittable(node),
                 );
             if (isLiContainsUnSpittable) {
                 return;
@@ -901,7 +927,7 @@ export class ListPlugin extends Plugin {
         const isBlockUnsplittable =
             closestLI &&
             Array.from(closestLI.childNodes).some(
-                (node) => isBlock(node) && this.dependencies.split.isUnsplittable(node)
+                (node) => isBlock(node) && this.dependencies.split.isUnsplittable(node),
             );
         if (!closestLI || isBlockUnsplittable) {
             return;
@@ -1014,7 +1040,7 @@ export class ListPlugin extends Plugin {
                 char = "[] ";
             } else if (listMode === "OL") {
                 const children = childNodes(li.parentElement).filter(
-                    (n) => !n.classList.contains("oe-nested")
+                    (n) => !n.classList.contains("oe-nested"),
                 );
                 char = `${children.indexOf(li) + 1}. `;
             } else {
@@ -1057,7 +1083,10 @@ export class ListPlugin extends Plugin {
             // as no blur event will occur when clicking outside.
             if (!documentSelectionIsInEditable) {
                 this.editable.focus();
-                this.dependencies.selection.setSelection({ anchorNode: node, anchorOffset: 0 });
+                this.dependencies.selection.setSelection({
+                    anchorNode: node,
+                    anchorOffset: 0,
+                });
             }
             ev.preventDefault();
             this.dependencies.history.addStep();
@@ -1068,7 +1097,10 @@ export class ListPlugin extends Plugin {
         const node = ev.target;
         const isChecklistItem =
             node.tagName === "LI" && this.getListMode(node.parentElement) === "CL";
-        if (isChecklistItem && this.isPointerInsideCheckbox(node, ev.offsetX, ev.offsetY)) {
+        if (
+            isChecklistItem &&
+            this.isPointerInsideCheckbox(node, ev.offsetX, ev.offsetY)
+        ) {
             // If pointer is inside checkbox, prevent tripleclick selection.
             return true;
         }
@@ -1099,7 +1131,7 @@ export class ListPlugin extends Plugin {
         this.dependencies.split.splitSelection();
         const targetedNodes = this.dependencies.selection.getTargetedNodes();
         const listItems = new Set(
-            targetedNodes.map((n) => closestElement(n, "li")).filter(Boolean)
+            targetedNodes.map((n) => closestElement(n, "li")).filter(Boolean),
         );
         if (!listItems.size || mode !== "color" || isColorGradient(color)) {
             return;
@@ -1110,12 +1142,13 @@ export class ListPlugin extends Plugin {
                 for (const node of [
                     listItem,
                     ...descendants(listItem).filter(
-                        (n) => isElement(n) && closestElement(n, "LI") === listItem
+                        (n) => isElement(n) && closestElement(n, "LI") === listItem,
                     ),
                 ]) {
                     // Remove any color-related classes.
                     const classesToRemove = [...node.classList].filter(
-                        (cls) => cls === "o_default_color" || TEXT_CLASSES_REGEX.test(cls)
+                        (cls) =>
+                            cls === "o_default_color" || TEXT_CLASSES_REGEX.test(cls),
                     );
                     removeClass(node, ...classesToRemove);
 
@@ -1137,7 +1170,7 @@ export class ListPlugin extends Plugin {
                     [...listItem.classList].some((cls) => TEXT_CLASSES_REGEX.test(cls)))
             ) {
                 const textNodes = targetedNodes.filter(
-                    (n) => isVisibleTextNode(n) && closestElement(n, "li") === listItem
+                    (n) => isVisibleTextNode(n) && closestElement(n, "li") === listItem,
                 );
                 // Remove inline color from partial selection by
                 // wrapping in font with default color.
@@ -1161,7 +1194,7 @@ export class ListPlugin extends Plugin {
         this.dependencies.split.splitSelection();
         const targetedNodes = this.dependencies.selection.getTargetedNodes();
         const listItems = new Set(
-            targetedNodes.map((n) => closestElement(n, "li")).filter(Boolean)
+            targetedNodes.map((n) => closestElement(n, "li")).filter(Boolean),
         );
         if (!listItems.size) {
             return false;
@@ -1186,7 +1219,7 @@ export class ListPlugin extends Plugin {
                 for (const node of [
                     listItem,
                     ...descendants(listItem).filter(
-                        (n) => isElement(n) && closestElement(n, "LI") === listItem
+                        (n) => isElement(n) && closestElement(n, "LI") === listItem,
                     ),
                 ]) {
                     removeClass(node, ...FONT_SIZE_CLASSES, "o_default_font_size");
@@ -1208,7 +1241,7 @@ export class ListPlugin extends Plugin {
                 }
             } else if (!applyStyle && hasExistingFontSize) {
                 const textNodes = targetedNodes.filter(
-                    (n) => isVisibleTextNode(n) && closestElement(n, "li") === listItem
+                    (n) => isVisibleTextNode(n) && closestElement(n, "li") === listItem,
                 );
                 // Remove inline font size from partial selection by
                 // wrapping in span with default font size.
@@ -1252,16 +1285,21 @@ export class ListPlugin extends Plugin {
 
         const largestMarker = list.children[Symbol.iterator]()
             .map((li) => {
-                const markerWidth = parseFloat(this.window.getComputedStyle(li, "::marker").width);
+                const markerWidth = parseFloat(
+                    this.window.getComputedStyle(li, "::marker").width,
+                );
                 return isNaN(markerWidth) ? 0 : markerWidth;
             })
             .reduce((accumulator, currentValue) => Math.max(accumulator, currentValue));
         // For `UL` with large font size the marker width is so big that more padding is needed.
-        const largestMarkerPadding = Math.round(largestMarker) * (list.nodeName === "UL" ? 2 : 1);
+        const largestMarkerPadding =
+            Math.round(largestMarker) * (list.nodeName === "UL" ? 2 : 1);
 
         // Compare against the list's actual CSS padding (typically Bootstrap's 2rem)
         // rather than estimating from root font-size, to handle any CSS overrides.
-        const defaultPadding = parseFloat(this.window.getComputedStyle(list).paddingInlineStart);
+        const defaultPadding = parseFloat(
+            this.window.getComputedStyle(list).paddingInlineStart,
+        );
         // Align the whole list based on the item that requires the largest padding.
         // For smaller font sizes, doubling the width of the dot marker is still lower than the
         // default. The default is kept in that case.
@@ -1291,10 +1329,13 @@ export class ListPlugin extends Plugin {
 
     getListSelectorButtons() {
         return listSelectorItems
-            .filter((item) => item.commandId != "toggleListCL" || this.config.allowChecklist)
+            .filter(
+                (item) =>
+                    item.commandId != "toggleListCL" || this.config.allowChecklist,
+            )
             .map((item) => {
                 const command = this.resources.user_commands.find(
-                    (cmd) => cmd.id === item.commandId
+                    (cmd) => cmd.id === item.commandId,
                 );
                 const button = composeToolbarButton(command, item);
                 return {

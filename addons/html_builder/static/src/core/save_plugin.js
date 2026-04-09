@@ -88,12 +88,17 @@ export class SavePlugin extends Plugin {
 
     async save({ shouldSkipAfterSaveHandlers = async () => true } = {}) {
         let skipAfterSaveHandlers;
+        let beforeHandlersSucceeded = false;
         try {
             await Promise.all(this.getResource("before_save_handlers").map((handler) => handler()));
+            beforeHandlersSucceeded = true;
             await this._save();
             skipAfterSaveHandlers = await shouldSkipAfterSaveHandlers();
         } finally {
-            if (!skipAfterSaveHandlers) {
+            // Only run after_save_handlers if before_save_handlers completed
+            // successfully — otherwise handlers may depend on state that was
+            // never initialized (e.g., actionButtonEls in the builder).
+            if (beforeHandlersSucceeded && !skipAfterSaveHandlers) {
                 this.getResource("after_save_handlers").forEach((handler) => handler());
             }
         }

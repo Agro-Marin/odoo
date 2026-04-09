@@ -13,6 +13,15 @@ export function getTooltipInfo(params) {
         widgetDescription = params.fieldInfo.field.displayName;
     }
 
+    let domain = params.fieldInfo.domain || params.field.domain;
+    let context = params.fieldInfo.context;
+    if (domain && typeof domain !== "string") {
+        domain = JSON.stringify(domain);
+    }
+    if (context && typeof context !== "string") {
+        context = JSON.stringify(context);
+    }
+
     const info = {
         viewMode: params.viewMode,
         resModel: params.resModel,
@@ -24,8 +33,8 @@ export function getTooltipInfo(params) {
             type: params.field.type,
             widget: params.fieldInfo.widget,
             widgetDescription,
-            context: params.fieldInfo.context,
-            domain: params.fieldInfo.domain || params.field.domain,
+            context,
+            domain,
             invisible: params.fieldInfo.invisible,
             column_invisible: params.fieldInfo.column_invisible,
             readonly: params.fieldInfo.readonly,

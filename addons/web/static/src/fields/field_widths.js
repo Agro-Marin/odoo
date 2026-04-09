@@ -3,6 +3,7 @@
 
 /** @module @web/fields/field_widths - Default column widths per field type for list views */
 
+import { DateTime } from "luxon";
 import { xml } from "@odoo/owl";
 import {
     formatDate,
@@ -80,28 +81,28 @@ function computeOptimalDateWidths() {
         numericDatetime: [],
     };
     for (let month = 1; month <= 12; month++) {
-        values.date.push(toLocaleDateString(globalThis.luxon.DateTime.local(2017, month, 20)));
+        values.date.push(toLocaleDateString(DateTime.local(2017, month, 20)));
         values.datetime.push(
-            toLocaleDateTimeString(globalThis.luxon.DateTime.local(2017, month, 25, 10, 0, 0), {
+            toLocaleDateTimeString(DateTime.local(2017, month, 25, 10, 0, 0), {
                 showSeconds: true,
             }),
         );
         if (timeFormat === "hh:mm:ss a") {
             values.datetime.push(
                 toLocaleDateTimeString(
-                    globalThis.luxon.DateTime.local(2017, month, 25, 22, 0, 0),
+                    DateTime.local(2017, month, 25, 22, 0, 0),
                     { showSeconds: true },
                 ),
             );
         }
     }
-    values.numericDate.push(formatDate(globalThis.luxon.DateTime.local(2017, 1, 1)));
+    values.numericDate.push(formatDate(DateTime.local(2017, 1, 1)));
     values.numericDatetime.push(
-        formatDateTime(globalThis.luxon.DateTime.local(2017, 1, 1, 10, 0, 0)),
+        formatDateTime(DateTime.local(2017, 1, 1, 10, 0, 0)),
     );
     if (timeFormat === "hh:mm:ss a") {
         values.numericDatetime.push(
-            formatDateTime(globalThis.luxon.DateTime.local(2017, 1, 1, 22, 0, 0)),
+            formatDateTime(DateTime.local(2017, 1, 1, 22, 0, 0)),
         );
     }
 

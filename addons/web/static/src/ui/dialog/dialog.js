@@ -10,6 +10,7 @@ import {
     useExternalListener,
     useState,
 } from "@odoo/owl";
+import { hasTouch } from "@web/core/browser/feature_detection";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { throttleForAnimation } from "@web/core/utils/timing";
@@ -135,6 +136,7 @@ export class Dialog extends Component {
                 this.data.scrollToOrigin();
             }
         });
+        this.bodyTabIndex = hasTouch() ? "0" : undefined;
     }
 
     /** @returns {boolean} */

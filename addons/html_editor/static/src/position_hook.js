@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { ancestors } from "@html_editor/utils/dom_traversal";
-import { throttleForAnimation } from "@web/core/utils/timing";
-import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/dom/scrolling";
 import { useComponent, useEffect } from "@odoo/owl";
+import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/dom/scrolling";
+import { throttleForAnimation } from "@web/core/utils/timing";
 
 /**
  * This hook has the same job as the PositionPlugin, but for Components.
@@ -18,7 +18,9 @@ export function usePositionHook(containerRef, document, callback) {
     const cleanups = [];
     const addDomListener = (target, eventName, capture) => {
         target.addEventListener(eventName, onLayoutGeometryChange, capture);
-        cleanups.push(() => target.removeEventListener(eventName, onLayoutGeometryChange, capture));
+        cleanups.push(() =>
+            target.removeEventListener(eventName, onLayoutGeometryChange, capture),
+        );
     };
     useEffect(
         () => {
@@ -30,8 +32,11 @@ export function usePositionHook(containerRef, document, callback) {
                     addDomListener(document.defaultView, "resize");
                 }
                 addDomListener(document, "scroll");
-                const scrollableElements = [containerRef.el, ...ancestors(containerRef.el)].filter(
-                    (node) => couldBeScrollableX(node) || couldBeScrollableY(node)
+                const scrollableElements = [
+                    containerRef.el,
+                    ...ancestors(containerRef.el),
+                ].filter(
+                    (node) => couldBeScrollableX(node) || couldBeScrollableY(node),
                 );
                 for (const scrollableElement of scrollableElements) {
                     addDomListener(scrollableElement, "scroll");
@@ -46,6 +51,6 @@ export function usePositionHook(containerRef, document, callback) {
                 }
             };
         },
-        () => [containerRef.el]
+        () => [containerRef.el],
     );
 }

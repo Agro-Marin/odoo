@@ -14,9 +14,10 @@ function match(pattern, strs) {
     if (!Array.isArray(strs)) {
         strs = [strs];
     }
+    const nPattern = normalize(pattern);
     let globalScore = 0;
     for (const str of strs) {
-        globalScore = Math.max(globalScore, _match(pattern, str));
+        globalScore = Math.max(globalScore, _match(nPattern, normalize(str)));
     }
     return globalScore;
 }
@@ -36,13 +37,13 @@ function match(pattern, strs) {
  * @param {string} str
  * @returns {number}
  */
+/**
+ * Both arguments must already be normalized.
+ */
 function _match(pattern, str) {
     let totalScore = 0;
     let currentScore = 0;
     let patternIndex = 0;
-
-    pattern = normalize(pattern);
-    str = normalize(str);
 
     const len = str.length;
 
@@ -92,7 +93,7 @@ export function fuzzyLookup(pattern, list, fn) {
  * @returns {boolean}
  */
 export function fuzzyTest(pattern, string) {
-    return _match(pattern, string) !== 0;
+    return _match(normalize(pattern), normalize(string)) !== 0;
 }
 
 /**

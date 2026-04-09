@@ -9,8 +9,9 @@ import {
     previousLeaf,
 } from "@html_editor/utils/dom_info";
 import { describe, expect, test } from "@odoo/hoot";
-import { insertTestHtml } from "../_helpers/editor.js";
+
 import { isBlock } from "../../src/utils/blocks.js";
+import { insertTestHtml } from "../_helpers/editor.js";
 
 const base64Img =
     "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUA\n        AAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO\n            9TXL0Y4OHwAAAABJRU5ErkJggg==";
@@ -18,7 +19,7 @@ const base64Img =
 describe("previousLeaf", () => {
     test("should find the previous leaf of a deeply nested node", () => {
         const [div] = insertTestHtml(
-            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>"
+            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>",
         );
         const editable = div.parentElement;
         const p = div.firstChild.firstChild;
@@ -30,7 +31,7 @@ describe("previousLeaf", () => {
 
     test("should find no previous leaf and return undefined", () => {
         const [div] = insertTestHtml(
-            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>"
+            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>",
         );
         const editable = div.parentElement;
         const p = div.firstChild.firstChild;
@@ -50,7 +51,7 @@ describe("previousLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p1 = div.childNodes[1].childNodes[1];
@@ -72,7 +73,7 @@ describe("previousLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p1 = div.childNodes[1].childNodes[1];
@@ -92,7 +93,7 @@ describe("previousLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p2 = div.childNodes[1].childNodes[3];
@@ -111,7 +112,7 @@ describe("nextLeaf", () => {
     // TODO @phoenix: add nextLeaf test cases when we add it in the code base
     test("should find the next leaf of a deeply nested node", () => {
         const [div] = insertTestHtml(
-            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>"
+            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>",
         );
         const editable = div.parentElement;
         const p = div.firstChild.firstChild;
@@ -123,7 +124,7 @@ describe("nextLeaf", () => {
 
     test("should find no next leaf and return undefined", () => {
         const [div] = insertTestHtml(
-            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>"
+            "<div><div><p><b>ab<i>cd<u>ef</u>gh</i></b><span>ij</span>kl</p></div></div>",
         );
         const editable = div.parentElement;
         const p = div.firstChild.firstChild;
@@ -143,7 +144,7 @@ describe("nextLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p1 = div.childNodes[1].childNodes[1];
@@ -165,7 +166,7 @@ describe("nextLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p2 = div.childNodes[1].childNodes[3];
@@ -185,7 +186,7 @@ describe("nextLeaf", () => {
                         <span>ij</span>kl
                     </p>
                 </div>
-            </div>`
+            </div>`,
         );
         const editable = div.parentElement;
         const p2 = div.childNodes[1].childNodes[3];
@@ -349,7 +350,7 @@ describe("getDeepestPosition", () => {
         const [p] = insertTestHtml(
             `<p>
                 <i>a</i>
-            </p>`
+            </p>`,
         );
         const editable = p.parentElement;
         const a = editable.firstChild.childNodes[1].firstChild;
@@ -422,7 +423,7 @@ describe("isEmptyBlock", () => {
 
     test("should return false for a p containing media element", () => {
         const [p] = insertTestHtml(
-            '<p><a href="#" title="document" data-mimetype="application/pdf" class="o_image" contenteditable="false"></a></p>'
+            '<p><a href="#" title="document" data-mimetype="application/pdf" class="o_image" contenteditable="false"></a></p>',
         );
         const result = isEmptyBlock(p);
         expect(result).toBe(false);
@@ -451,35 +452,35 @@ describe("isShrunkBlock", () => {
 describe("areSimilarElements", () => {
     test("should consider elements with same classes and styles in different orders as similar", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first second' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue; color: red'>world</span>"
+            "<span class='first second' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue; color: red'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(true);
     });
     test("return false when the number of styles are different", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first second' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue;'>world</span>"
+            "<span class='first second' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue;'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(false);
     });
     test("return false when the number of classes are different", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue;'>world</span>"
+            "<span class='first' style='color: red; color2: blue'>hello</span><span class='second first' style='color2: blue;'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(false);
     });
     test("return false when classes are different", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first' style='color: red; color2: blue'>hello</span><span class='second' style='color2: blue;'>world</span>"
+            "<span class='first' style='color: red; color2: blue'>hello</span><span class='second' style='color2: blue;'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(false);
     });
     test("return false when styles are different", () => {
         const [span1, span2] = insertTestHtml(
-            "<span class='first second' style='color2: blue'>hello</span><span class='second first' style='color2: blue; color: red'>world</span>"
+            "<span class='first second' style='color2: blue'>hello</span><span class='second first' style='color2: blue; color: red'>world</span>",
         );
         const result = areSimilarElements(span1, span2);
         expect(result).toBe(false);

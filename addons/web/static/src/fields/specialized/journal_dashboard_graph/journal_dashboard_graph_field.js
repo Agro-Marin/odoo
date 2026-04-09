@@ -25,7 +25,10 @@ export class JournalDashboardGraphField extends Component {
         this.canvasRef = useRef("canvas");
         this.data = JSON.parse(this.props.record.data[this.props.name] || "[]");
 
-        onWillStart(async () => await loadBundle("web.chartjs_lib"));
+        onWillStart(async () => {
+            const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+            this.Chart = Chart;
+        });
 
         useEffect(() => {
             this.renderChart();
@@ -54,7 +57,7 @@ export class JournalDashboardGraphField extends Component {
         } else if (this.props.graphType === "bar") {
             config = this.getBarChartConfig();
         }
-        this.chart = new Chart(this.canvasRef.el, config);
+        this.chart = new this.Chart(this.canvasRef.el, config);
     }
     /** @returns {Object} Chart.js configuration object for a line chart */
     getLineChartConfig() {

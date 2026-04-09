@@ -95,7 +95,7 @@ export class Many2XAutocomplete extends Component {
         quickCreate: null,
         searchLimit: 7,
         searchThreshold: 0,
-        searchMoreLimit: 320,
+        searchMoreLimit: 1000,
         setInputFloats: () => {},
         specification: {},
         value: "",
@@ -421,7 +421,7 @@ export class Many2XAutocomplete extends Component {
                 try {
                     await this.props.quickCreate(request);
                 } catch (e) {
-                    this.onQuickCreateError(e, request);
+                    await this.onQuickCreateError(e, request);
                 }
             },
         };
@@ -526,7 +526,10 @@ export class Many2XAutocomplete extends Component {
             ];
         }
 
-        const title = _t("Search: %s", fieldString);
+        let title = _t("Search");
+        if (fieldString && fieldString.trim()) {
+            title = _t("Search: %s", fieldString);
+        }
         this.selectCreate({
             domain,
             context,

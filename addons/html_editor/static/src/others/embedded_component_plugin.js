@@ -32,10 +32,12 @@ export class EmbeddedComponentPlugin extends Plugin {
         restore_savepoint_handlers: () => this.handleComponents(this.editable),
         history_reset_handlers: () => this.handleComponents(this.editable),
         history_reset_from_steps_handlers: () => this.handleComponents(this.editable),
-        step_added_handlers: ({ stepCommonAncestor }) => this.handleComponents(stepCommonAncestor),
+        step_added_handlers: ({ stepCommonAncestor }) =>
+            this.handleComponents(stepCommonAncestor),
         external_step_added_handlers: () => this.handleComponents(this.editable),
 
-        serializable_descendants_processors: this.processDescendantsToSerialize.bind(this),
+        serializable_descendants_processors:
+            this.processDescendantsToSerialize.bind(this),
         attribute_change_processors: this.onChangeAttribute.bind(this),
         savable_mutation_record_predicates: this.isMutationRecordSavable.bind(this),
         move_node_whitelist_selectors: "[data-embedded]",
@@ -88,7 +90,9 @@ export class EmbeddedComponentPlugin extends Plugin {
         if (!embedding) {
             return serializableDescendants;
         }
-        return Object.values(embedding.getEditableDescendants?.(elem) || {}).map(nodeToTree);
+        return Object.values(embedding.getEditableDescendants?.(elem) || {}).map(
+            nodeToTree,
+        );
     }
 
     handleComponents(elem) {
@@ -142,7 +146,9 @@ export class EmbeddedComponentPlugin extends Plugin {
             const attrState = attributeChange.reverse
                 ? attributeChange.oldValue
                 : attributeChange.value;
-            const stateChangeManager = this.getStateChangeManager(attributeChange.target);
+            const stateChangeManager = this.getStateChangeManager(
+                attributeChange.target,
+            );
             if (stateChangeManager) {
                 // onStateChanged returns undefined if no change is needed for
                 // the attribute value
@@ -174,7 +180,7 @@ export class EmbeddedComponentPlugin extends Plugin {
 
     mountComponent(
         host,
-        { Component, getEditableDescendants, getProps, name, getStateChangeManager }
+        { Component, getEditableDescendants, getProps, name, getStateChangeManager },
     ) {
         const props = getProps?.(host) || {};
         const env = Object.create(this.env);
@@ -314,7 +320,10 @@ export class EmbeddedComponentPlugin extends Plugin {
             this.dependencies.protectedNode.setProtectingNode(host, true);
             const editableDescendants = getEditableDescendants?.(host) || {};
             for (const editableDescendant of Object.values(editableDescendants)) {
-                this.dependencies.protectedNode.setProtectingNode(editableDescendant, false);
+                this.dependencies.protectedNode.setProtectingNode(
+                    editableDescendant,
+                    false,
+                );
             }
         });
     }

@@ -9,10 +9,11 @@ export class OdooLinkSelectionPlugin extends Plugin {
         ineligible_link_for_zwnbsp_predicates: [
             (link) =>
                 [link, ...link.querySelectorAll("*")].some(
-                    (el) => el.nodeName === "IMG" || isBlock(el)
+                    (el) => el.nodeName === "IMG" || isBlock(el),
                 ),
             (link) => link.matches("a.nav-link"),
         ],
-        ineligible_link_for_selection_indication_predicates: (link) => link.matches(".btn"),
+        ineligible_link_for_selection_indication_predicates: (link) =>
+            link.matches(".btn"),
     };
 }

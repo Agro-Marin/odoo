@@ -5,12 +5,12 @@
 
 import { onWillPatch, onWillRender, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useSetupAction } from "@web/core/action_hook";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { unique } from "@web/core/utils/collections/arrays";
 import { useModelWithSampleData } from "@web/model/model";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
-import { useSetupAction } from "@web/core/action_hook";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
@@ -282,6 +282,14 @@ export class ListController extends MultiRecordController {
      * Hook called before the page unloads. Attempts an urgent save of the
      * edited record and blocks unload if validation fails.
      *
+     * Note: the browser does not await async beforeunload handlers, so
+     * ev.preventDefault() may fire too late for the native confirmation
+     * dialog. However, the async pattern is intentional: urgentSave() must
+     * await internal mutex coordination (e.g. pending onchange RPCs) before
+     * dispatching the save. The test framework also relies on awaiting this
+     * handler. The save itself uses sendBeacon/keepalive which the browser
+     * guarantees to complete after unload.
+     *
      * @param {BeforeUnloadEvent} ev
      */
     async beforeUnload(ev) {
@@ -354,7 +362,10 @@ export class ListController extends MultiRecordController {
     ) {
         const dirty = await record.isDirty();
         if (dirty) {
-            await record.save();
+            const saved = await record.save();
+            if (!saved) {
+                return;
+            }
         }
         if (this.props.allowOpenAction && this.archInfo.openAction) {
             this.actionService.doActionButton(
@@ -400,6 +411,9 @@ export class ListController extends MultiRecordController {
     /** Handle click on the "Save" button — saves the edited record and leaves edit mode. */
     async onClickSave() {
         return executeButtonCallback(this.rootRef.el, async () => {
+            if (!this.editedRecord) {
+                return;
+            }
             const saved = await this.editedRecord.save();
             if (saved) {
                 await this.model.root.leaveEditMode();
@@ -439,8 +453,9 @@ export class ListController extends MultiRecordController {
             if (this.env.isSmall) {
                 this.rootRef.el.scrollTop = 0;
             } else {
-                const renderer =
-                    this.rootRef.el.querySelector(".o_content .o_list_renderer");
+                const renderer = this.rootRef.el.querySelector(
+                    ".o_content .o_list_renderer",
+                );
                 if (renderer) {
                     renderer.scrollTop = 0;
                 }

@@ -30,7 +30,10 @@ export class MediaUrlPastePlugin extends Plugin {
             // Insert URL as text, revert it later if a command is triggered.
             this.dependencies.dom.insert(text);
             this.dependencies.history.addStep();
-            this.dependencies.powerbox.openPowerbox({ commands, onApplyCommand: restoreSavepoint });
+            this.dependencies.powerbox.openPowerbox({
+                commands,
+                onApplyCommand: restoreSavepoint,
+            });
             return true;
         }
     }

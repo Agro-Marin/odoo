@@ -127,9 +127,9 @@ class Binary(http.Controller):
         if not isinstance(assets_params, dict):
             raise request.not_found()
         debug_assets = unique == "debug"
+        stream = None
         if unique in ("any", "%"):
             unique = ANY_UNIQUE
-        attachment = None
         if unique != "debug":
             url = env["ir.asset"]._get_asset_bundle_url(filename, unique, assets_params)
             if "%" in url:
@@ -143,7 +143,9 @@ class Binary(http.Controller):
                 ("create_uid", "=", SUPERUSER_ID),
             ]
             attachment = env["ir.attachment"].sudo().search(domain, limit=1)
-        if not attachment:
+            if attachment:
+                stream = env["ir.binary"]._get_stream_from(attachment, "raw", filename)
+        if stream is None:
             # try to generate one
             if env.cr.readonly:
                 env.cr.rollback()  # reset state to detect newly generated assets
@@ -160,11 +162,26 @@ class Binary(http.Controller):
                             unique,
                         )
                         raise request.not_found()
+                    if filename.endswith(".esm.js"):
+                        # ESM bundles are created by _save_esm_attachment
+                        # during QWeb rendering, not by the asset controller.
+                        # If the attachment was not found above, it hasn't
+                        # been generated yet (page not rendered).
+                        _logger.debug(
+                            "ESM bundle %s not found — will be created on "
+                            "first page render", filename,
+                        )
+                        raise request.not_found()
                     bundle_name, rtl, asset_type, autoprefix = rw_env[
                         "ir.asset"
                     ]._parse_bundle_name(filename, debug_assets)
                     css = asset_type == "css"
                     js = asset_type == "js"
+                    _logger.debug(
+                        "[BUNDLE-TRACE] content_assets: generating %s "
+                        "for %r (debug=%s, rtl=%s)",
+                        asset_type, bundle_name, debug_assets, rtl,
+                    )
                     bundle = rw_env["ir.qweb"]._get_asset_bundle(
                         bundle_name,
                         css=css,
@@ -181,18 +198,22 @@ class Binary(http.Controller):
                         and unique != bundle.get_version(asset_type)
                     ):
                         return request.redirect(bundle.get_link(asset_type))
+                    attachment = None
                     if css and bundle.stylesheets:
-                        attachment = env["ir.attachment"].sudo().browse(bundle.css().id)
+                        attachment = bundle.css()
                     elif js and (bundle.javascripts or bundle.templates):
-                        attachment = env["ir.attachment"].sudo().browse(bundle.js().id)
+                        attachment = bundle.js()
+                    if attachment:
+                        stream = rw_env["ir.binary"]._get_stream_from(
+                            attachment, "raw", filename
+                        )
                 except ValueError as e:
                     _logger.warning(
                         "Parsing asset bundle %s has failed: %s", filename, e
                     )
                     raise request.not_found() from e
-        if not attachment:
+        if stream is None:
             raise request.not_found()
-        stream = env["ir.binary"]._get_stream_from(attachment, "raw", filename)
         send_file_kwargs = {
             "as_attachment": False,
             "content_security_policy": None,

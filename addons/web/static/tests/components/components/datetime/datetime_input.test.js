@@ -19,7 +19,7 @@ import {
     getPickerCell,
 } from "../../datetime/datetime_test_helpers.js";
 
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 
 class DateTimeInputComp extends Component {
     static components = { DateTimeInput };

@@ -1,15 +1,16 @@
 import { describe, expect, test } from "@odoo/hoot";
+
 import { setupEditor, testEditor } from "./_helpers/editor.js";
+import { expandToolbar } from "./_helpers/toolbar.js";
 import {
+    alignBottom,
     alignCenter,
-    justify,
     alignLeft,
+    alignMiddle,
     alignRight,
     alignTop,
-    alignMiddle,
-    alignBottom,
+    justify,
 } from "./_helpers/user_actions.js";
-import { expandToolbar } from "./_helpers/toolbar.js";
 
 test("should have align tool only if the block is content editable", async () => {
     for (const [contenteditable, count] of [
@@ -17,7 +18,7 @@ test("should have align tool only if the block is content editable", async () =>
         [true, 1],
     ]) {
         await setupEditor(
-            `<div contenteditable="${contenteditable}"><p><span contenteditable="true">ab[cde]fg</span></p></div>`
+            `<div contenteditable="${contenteditable}"><p><span contenteditable="true">ab[cde]fg</span></p></div>`,
         );
         await expandToolbar();
         expect(".btn[name='text_align']").toHaveCount(count);
@@ -57,7 +58,8 @@ describe("left", () => {
 
     test("should left align a node within a right-aligned node", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: right;"><p>ab</p><p>c[d]e</p></div>',
+            contentBefore:
+                '<div style="text-align: right;"><p>ab</p><p>c[d]e</p></div>',
             stepFunction: alignLeft,
             contentAfter:
                 '<div style="text-align: right;"><p>ab</p><p style="text-align: left;">c[d]e</p></div>',
@@ -66,7 +68,8 @@ describe("left", () => {
 
     test("should left align a node within a right-aligned node and a paragraph", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: right;"><p>ab</p><p>c[d</p></div><p>e]f</p>',
+            contentBefore:
+                '<div style="text-align: right;"><p>ab</p><p>c[d</p></div><p>e]f</p>',
             stepFunction: alignLeft,
             contentAfter:
                 '<div style="text-align: right;"><p>ab</p><p style="text-align: left;">c[d</p></div><p>e]f</p>',
@@ -132,7 +135,8 @@ describe("center", () => {
 
     test("should center align a node within a right-aligned node", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: right;"><p>ab</p><p>c[d]e</p></div>',
+            contentBefore:
+                '<div style="text-align: right;"><p>ab</p><p>c[d]e</p></div>',
             stepFunction: alignCenter,
             contentAfter:
                 '<div style="text-align: right;"><p>ab</p><p style="text-align: center;">c[d]e</p></div>',
@@ -141,7 +145,8 @@ describe("center", () => {
 
     test("should center align a node within a right-aligned node and a paragraph", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: right;"><p>ab</p><p>c[d</p></div><p>e]f</p>',
+            contentBefore:
+                '<div style="text-align: right;"><p>ab</p><p>c[d</p></div><p>e]f</p>',
             stepFunction: alignCenter,
             contentAfter:
                 '<div style="text-align: right;"><p>ab</p><p style="text-align: center;">c[d</p></div><p style="text-align: center;">e]f</p>',
@@ -170,9 +175,11 @@ describe("center", () => {
 
     test("should not center align a node that is already within a center-aligned node", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: center;"><p>ab</p><p>c[d]e</p></div>',
+            contentBefore:
+                '<div style="text-align: center;"><p>ab</p><p>c[d]e</p></div>',
             stepFunction: alignCenter,
-            contentAfter: '<div style="text-align: center;"><p>ab</p><p>c[d]e</p></div>',
+            contentAfter:
+                '<div style="text-align: center;"><p>ab</p><p>c[d]e</p></div>',
         });
     });
 
@@ -207,7 +214,8 @@ describe("right", () => {
 
     test("should right align a node within a center-aligned node", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: center;"><p>ab</p><p>c[d]e</p></div>',
+            contentBefore:
+                '<div style="text-align: center;"><p>ab</p><p>c[d]e</p></div>',
             stepFunction: alignRight,
             contentAfter:
                 '<div style="text-align: center;"><p>ab</p><p style="text-align: right;">c[d]e</p></div>',
@@ -216,7 +224,8 @@ describe("right", () => {
 
     test("should right align a node within a center-aligned node and a paragraph", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: center;"><p>ab</p><p>c[d</p></div><p>e]f</p>',
+            contentBefore:
+                '<div style="text-align: center;"><p>ab</p><p>c[d</p></div><p>e]f</p>',
             stepFunction: alignRight,
             contentAfter:
                 '<div style="text-align: center;"><p>ab</p><p style="text-align: right;">c[d</p></div><p style="text-align: right;">e]f</p>',
@@ -245,7 +254,8 @@ describe("right", () => {
 
     test("should not right align a node that is already within a right-aligned node", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: right;"><p>ab</p><p>c[d]e</p></div>',
+            contentBefore:
+                '<div style="text-align: right;"><p>ab</p><p>c[d]e</p></div>',
             stepFunction: alignRight,
             contentAfter: '<div style="text-align: right;"><p>ab</p><p>c[d]e</p></div>',
         });
@@ -282,7 +292,8 @@ describe("justify", () => {
 
     test("should justify align a node within a right-aligned node", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: right;"><p>ab</p><p>c[d]e</p></div>',
+            contentBefore:
+                '<div style="text-align: right;"><p>ab</p><p>c[d]e</p></div>',
             stepFunction: justify,
             contentAfter:
                 '<div style="text-align: right;"><p>ab</p><p style="text-align: justify;">c[d]e</p></div>',
@@ -291,7 +302,8 @@ describe("justify", () => {
 
     test("should justify align a node within a right-aligned node and a paragraph", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: right;"><p>ab</p><p>c[d</p></div><p>e]f</p>',
+            contentBefore:
+                '<div style="text-align: right;"><p>ab</p><p>c[d</p></div><p>e]f</p>',
             stepFunction: justify,
             contentAfter:
                 '<div style="text-align: right;"><p>ab</p><p style="text-align: justify;">c[d</p></div><p style="text-align: justify;">e]f</p>',
@@ -320,9 +332,11 @@ describe("justify", () => {
 
     test("should not justify align a node that is already within a justify-aligned node", async () => {
         await testEditor({
-            contentBefore: '<div style="text-align: justify;"><p>ab</p><p>c[d]e</p></div>',
+            contentBefore:
+                '<div style="text-align: justify;"><p>ab</p><p>c[d]e</p></div>',
             stepFunction: justify,
-            contentAfter: '<div style="text-align: justify;"><p>ab</p><p>c[d]e</p></div>',
+            contentAfter:
+                '<div style="text-align: justify;"><p>ab</p><p>c[d]e</p></div>',
         });
     });
 
@@ -349,7 +363,8 @@ describe("top", () => {
 
     test("should align top multiple selected cells", async () => {
         await testEditor({
-            contentBefore: "<table><tbody><tr><td>a[b</td><td>c]d</td></tr></tbody></table>",
+            contentBefore:
+                "<table><tbody><tr><td>a[b</td><td>c]d</td></tr></tbody></table>",
             stepFunction: alignTop,
             contentAfter:
                 '<table><tbody><tr><td style="vertical-align: top;">a[b</td><td style="vertical-align: top;">c]d</td></tr></tbody></table>',
@@ -393,7 +408,8 @@ describe("middle", () => {
 
     test("should align middle multiple selected cells", async () => {
         await testEditor({
-            contentBefore: "<table><tbody><tr><td>a[b</td><td>c]d</td></tr></tbody></table>",
+            contentBefore:
+                "<table><tbody><tr><td>a[b</td><td>c]d</td></tr></tbody></table>",
             stepFunction: alignMiddle,
             contentAfter:
                 '<table><tbody><tr><td style="vertical-align: middle;">a[b</td><td style="vertical-align: middle;">c]d</td></tr></tbody></table>',
@@ -437,7 +453,8 @@ describe("bottom", () => {
 
     test("should align bottom multiple selected cells", async () => {
         await testEditor({
-            contentBefore: "<table><tbody><tr><td>a[b</td><td>c]d</td></tr></tbody></table>",
+            contentBefore:
+                "<table><tbody><tr><td>a[b</td><td>c]d</td></tr></tbody></table>",
             stepFunction: alignBottom,
             contentAfter:
                 '<table><tbody><tr><td style="vertical-align: bottom;">a[b</td><td style="vertical-align: bottom;">c]d</td></tr></tbody></table>',

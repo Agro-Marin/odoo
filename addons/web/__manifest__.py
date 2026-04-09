@@ -96,7 +96,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/lib/bootstrap/js/dist/tab.js",
             "web/static/lib/bootstrap/js/dist/toast.js",
             "web/static/src/libs/bootstrap.js",
-            "web/static/lib/dompurify/DOMpurify.js",
             "base/static/src/css/modules.css",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
@@ -110,6 +109,10 @@ This module provides the core of the Odoo Web Client.
             (
                 "remove",
                 "web/static/src/views/pivot/**",
+            ),
+            (
+                "remove",
+                "web/static/src/views/settings/**",
             ),
             "web/static/src/webclient/**/*",
             (
@@ -151,6 +154,7 @@ This module provides the core of the Odoo Web Client.
             "web/static/lib/bootstrap/scss/_maps.scss",
             "web/static/src/views/graph/**",
             "web/static/src/views/pivot/**",
+            "web/static/src/views/settings/**",
         ],
         "web.assets_backend_lazy_dark": [
             (
@@ -187,7 +191,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/lib/bootstrap/scss/_variables.scss",
             "web/static/lib/bootstrap/scss/_variables-dark.scss",
             "web/static/lib/bootstrap/scss/_maps.scss",
-            "web/static/lib/luxon/luxon.js",
             (
                 "include",
                 "web._assets_bootstrap_frontend",
@@ -419,7 +422,6 @@ This module provides the core of the Odoo Web Client.
         ],
         "web._assets_core": [
             "web/static/src/module_loader.js",
-            "web/static/lib/luxon/luxon.js",
             "web/static/lib/owl/owl.js",
             "web/static/lib/owl/odoo_module.js",
             "web/static/src/session.js",
@@ -504,6 +506,10 @@ This module provides the core of the Odoo Web Client.
         ],
         "web.assets_unit_tests_setup": [
             "web/static/src/module_loader.js",
+            "web/static/lib/luxon/luxon.js",
+            "web/static/lib/luxon/luxon_module.js",
+            "web/static/lib/dompurify/DOMpurify.js",
+            "web/static/lib/dompurify/dompurify_module.js",
             "web/static/lib/owl/owl.js",
             "web/static/lib/owl/odoo_module.js",
             "web/static/lib/hoot/**/*",
@@ -563,8 +569,8 @@ This module provides the core of the Odoo Web Client.
                 "web.assets_backend_lazy",
             ),
             "web/static/tests/legacy/patch_translations.js",
-            "web/static/lib/qunit/qunit-2.9.1.css",
-            "web/static/lib/qunit/qunit-2.9.1.js",
+            "web/static/lib/qunit/qunit-2.25.0.css",
+            "web/static/lib/qunit/qunit-2.25.0.js",
             "web/static/tests/legacy/legacy_tests/helpers/**/*",
             (
                 "remove",
@@ -637,7 +643,7 @@ This module provides the core of the Odoo Web Client.
         ],
         "web.chartjs_lib": [
             "/web/static/lib/Chart/Chart.js",
-            "/web/static/lib/chartjs-adapter-luxon/chartjs-adapter-luxon.js",
+            "/web/static/lib/Chart/chart_module.js",
         ],
         "web.fullcalendar_lib": [
             "/web/static/lib/fullcalendar/core/index.global.js",

@@ -6,7 +6,7 @@ web module code paths.  Results are logged with the ``[WEB_BENCHMARK]``
 tag for easy extraction.
 
 Run with:
-    > ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
+    > ./odoo.log && ./core/odoo-bin -c ./infra/conf/odoo.conf -d test_db \
         --test-tags 'web_benchmark' -u web \
         --stop-after-init --workers=0
     grep "WEB_BENCHMARK" ./odoo.log

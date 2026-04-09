@@ -38,10 +38,16 @@ export const cookie = {
     /**
      * @param {string} key - Cookie name.
      * @param {string | undefined} value - Cookie value (omit to set name-only).
+     *     Values must not contain `;` or `=` — callers are responsible for
+     *     encoding if the value may contain cookie-unsafe characters.
      * @param {number} [ttl] - Time-to-live in seconds (defaults to 1 year).
      */
     set(key, value, ttl = COOKIE_TTL) {
-        const parts = [value !== undefined ? `${key}=${value}` : key, "path=/", `max-age=${Math.floor(ttl)}`];
+        const parts = [
+            value !== undefined ? `${key}=${value}` : key,
+            "path=/",
+            `max-age=${Math.floor(ttl)}`,
+        ];
         this._cookieMonster = parts.join("; ");
     },
     /** @param {string} key - Cookie name to remove. */

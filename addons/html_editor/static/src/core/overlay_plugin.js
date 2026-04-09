@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { markRaw, EventBus } from "@odoo/owl";
+import { EventBus, markRaw } from "@odoo/owl";
+
 import { Plugin } from "../plugin.js";
 import { EditorOverlay } from "./overlay.js";
 
@@ -84,13 +85,15 @@ export class Overlay {
                     close: this.close.bind(this),
                     isOverlayOpen: this.isOverlayOpen.bind(this),
                     shared: {
-                        ignoreDOMMutations: this.plugin.dependencies.history.ignoreDOMMutations,
-                        getSelectionData: this.plugin.dependencies.selection.getSelectionData,
+                        ignoreDOMMutations:
+                            this.plugin.dependencies.history.ignoreDOMMutations,
+                        getSelectionData:
+                            this.plugin.dependencies.selection.getSelectionData,
                     },
                 }),
                 {
                     ...this.options,
-                }
+                },
             );
         }
     }

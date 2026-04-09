@@ -1,5 +1,6 @@
 import logging
 from typing import Any
+from urllib.parse import quote as url_quote
 
 import odoo.tools
 from odoo import http
@@ -149,39 +150,86 @@ class WebClient(http.Controller):
         debug = bundle_params.get("debug", request.session.debug)
         debug_assets = debug and "assets" in debug
 
-        # Lazy ESM bundles are only ESM in debug=assets mode.
-        # In debug=0, they use transpiled odoo.define() (legacy path).
+        # Lazy ESM bundles use native ESM in both production and debug.
+        # In debug=assets, return individual specifiers for import().
+        # In production, _get_asset_nodes() returns the esbuild bundle.
         from odoo.addons.base.models.assetsbundle import AssetsBundle
         is_lazy_esm = any(
             bundle_name in lazies
             for lazies in AssetsBundle.ESM_LAZY_BUNDLES.values()
         )
         use_esm = is_lazy_esm and debug_assets
+        _logger.debug(
+            "[BUNDLE-TRACE] /web/bundle/%s: debug=%s, is_lazy_esm=%s, "
+            "use_esm=%s", bundle_name, debug, is_lazy_esm, use_esm,
+        )
 
         files = request.env["ir.qweb"]._get_asset_nodes(
             bundle_name, debug=debug, js=True, css=True
         )
-        data = [
-            {
-                "type": tag,
-                "src": attrs.get("src") or attrs.get("data-src") or attrs.get("href"),
-            }
-            for tag, attrs in files
-        ]
+
+        # Separate ESM module scripts from legacy scripts/CSS.
+        # _get_asset_nodes() returns <script type="module"> for ESM
+        # bundles — these must be loaded via import(), not loadJS().
+        esm_specifiers = []
+        inline_esm_code = None
+        data = []
+        for tag, attrs in files:
+            script_type = attrs.get("type", "")
+            src = (
+                attrs.get("src")
+                or attrs.get("data-src")
+                or attrs.get("href")
+            )
+            if tag == "script" and script_type == "module" and src:
+                # ESM module — must be loaded via dynamic import()
+                esm_specifiers.append(src)
+            elif tag == "script" and script_type == "module" and not src:
+                # Inline ESM (read-only transaction, e.g. test mode):
+                # the esbuild code is inlined because ir.attachment
+                # writes are unavailable.  Return it as inline_esm
+                # for the client to load via Blob URL (data: URIs
+                # don't inherit the page's import map).
+                text = attrs.get("text", "")
+                if text:
+                    inline_esm_code = text
+            elif tag == "script" and script_type in (
+                "importmap", "text/plain",
+            ):
+                # Import maps and deferred placeholders are page-level
+                # only; skip for dynamic bundle loading.
+                continue
+            elif tag == "script" and not src:
+                # Inline scripts (native module names, etc.) — skip.
+                continue
+            elif src:
+                data.append({"type": tag, "src": src})
 
         if use_esm:
-            # ESM lazy bundle in debug mode: return specifiers for import()
+            # ESM lazy bundle in debug=assets mode: return individual
+            # specifiers for import() (unminified, no esbuild).
             assets_params = request.env["ir.asset"]._get_asset_params()
             asset_bundle = request.env["ir.qweb"]._get_asset_bundle(
                 bundle_name, js=True, css=False, debug_assets=True,
                 assets_params=assets_params,
             )
             native_data = asset_bundle.get_native_module_data()
-            specifiers = sorted(native_data["import_map"])
-            data = {
+            esm_specifiers = sorted(native_data["import_map"])
+            _logger.debug(
+                "[BUNDLE-TRACE] /web/bundle/%s: ESM debug mode → "
+                "%d specifiers, %d files",
+                bundle_name, len(esm_specifiers), len(data),
+            )
+
+        if esm_specifiers or inline_esm_code:
+            response_data = {
                 "is_esm": True,
-                "specifiers": specifiers,
+                "specifiers": esm_specifiers,
                 "files": data,
             }
+            if inline_esm_code:
+                # Inline ESM code for client-side Blob URL loading.
+                response_data["inline_esm"] = inline_esm_code
+            data = response_data
 
         return request.make_json_response(data)

@@ -144,7 +144,9 @@ export class CollaborationPlugin extends Plugin {
             stepIndex++;
         }
         if (selectionData.documentSelectionIsInEditable) {
-            this.dependencies.selection.rectifySelection(selectionData.editableSelection);
+            this.dependencies.selection.rectifySelection(
+                selectionData.editableSelection,
+            );
         }
 
         this.dispatchTo("external_history_step_handlers");
@@ -228,7 +230,9 @@ export class CollaborationPlugin extends Plugin {
     historyGetMissingSteps({ fromStepId, toStepId }) {
         const steps = this.dependencies.history.getHistorySteps();
         const fromIndex = steps.findIndex((x) => x.id === fromStepId);
-        const toIndex = toStepId ? steps.findIndex((x) => x.id === toStepId) : steps.length;
+        const toIndex = toStepId
+            ? steps.findIndex((x) => x.id === toStepId)
+            : steps.length;
         if (fromIndex === -1 || toIndex === -1) {
             return -1;
         }

@@ -63,6 +63,12 @@ export async function startWebClient(Webclient) {
     if (hasTouch()) {
         classList.add("o_touch_device");
     }
+    // Dynamically update touch class when pointer capability changes
+    // (e.g., connecting/disconnecting a touchscreen).
+    const pointerQuery = window.matchMedia("(pointer: coarse)");
+    pointerQuery.addEventListener("change", (event) => {
+        document.body.classList.toggle("o_touch_device", event.matches);
+    });
     // delete odoo.debug; // FIXME: some legacy code rely on this
     /** @type {any} */ (odoo).isReady = true;
 }

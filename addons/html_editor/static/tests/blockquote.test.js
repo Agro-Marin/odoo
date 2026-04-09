@@ -1,5 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { waitFor, waitForNone, press, manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
+import {
+    manuallyDispatchProgrammaticEvent,
+    press,
+    waitFor,
+    waitForNone,
+} from "@odoo/hoot-dom";
+
 import { setupEditor, testEditor } from "./_helpers/editor.js";
 import { getContent } from "./_helpers/selection.js";
 import { insertText, splitBlock } from "./_helpers/user_actions.js";
@@ -103,12 +109,14 @@ describe("Enter Key", () => {
         expect(getContent(el)).toBe("<blockquote>a<br>[]b</blockquote>");
     });
     test("blockquote should create br on 1st Enter then create p", async () => {
-        const { el, editor } = await setupEditor("<blockquote>abc<br>def[]</blockquote>");
+        const { el, editor } = await setupEditor(
+            "<blockquote>abc<br>def[]</blockquote>",
+        );
         await simulateEnter(editor);
         expect(getContent(el)).toBe("<blockquote>abc<br>def<br>[]<br></blockquote>");
         await simulateEnter(editor);
         expect(getContent(el)).toBe(
-            '<blockquote>abc<br>def</blockquote><p o-we-hint-text=\'Type "/" for commands\' class="o-we-hint">[]<br></p>'
+            '<blockquote>abc<br>def</blockquote><p o-we-hint-text=\'Type "/" for commands\' class="o-we-hint">[]<br></p>',
         );
     });
 });

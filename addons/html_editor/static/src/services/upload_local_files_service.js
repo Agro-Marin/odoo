@@ -45,9 +45,13 @@ export const uploadLocalFileService = {
          */
         async function filesToAttachments(files, { resModel, resId }) {
             const attachments = [];
-            await uploadService.uploadFiles(files, { resModel, resId }, (attachment) => {
-                attachments.push(attachment);
-            });
+            await uploadService.uploadFiles(
+                files,
+                { resModel, resId },
+                (attachment) => {
+                    attachments.push(attachment);
+                },
+            );
             return attachments;
         }
 
@@ -63,11 +67,14 @@ export const uploadLocalFileService = {
          */
         async function upload(
             { resId, resModel },
-            { accept = "*/*", multiple = false, accessToken = false } = {}
+            { accept = "*/*", multiple = false, accessToken = false } = {},
         ) {
             try {
                 const files = await selectLocalFiles({ multiple, accept });
-                const attachments = await filesToAttachments(files, { resModel, resId });
+                const attachments = await filesToAttachments(files, {
+                    resModel,
+                    resId,
+                });
                 if (accessToken && attachments.length && !attachments[0].public) {
                     await addAccessToken(attachments);
                 }
@@ -84,9 +91,11 @@ export const uploadLocalFileService = {
          * @returns {Promise<Object[]>}
          */
         async function addAccessToken(attachments) {
-            const accessTokens = await orm.call("ir.attachment", "generate_access_token", [
-                attachments.map((a) => a.id),
-            ]);
+            const accessTokens = await orm.call(
+                "ir.attachment",
+                "generate_access_token",
+                [attachments.map((a) => a.id)],
+            );
             attachments.forEach((attachment, index) => {
                 attachment.access_token = accessTokens[index];
             });

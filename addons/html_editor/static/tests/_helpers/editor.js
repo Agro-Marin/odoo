@@ -1,13 +1,14 @@
+import { fixInvalidHTML } from "@html_editor/utils/sanitize";
 import { Wysiwyg } from "@html_editor/wysiwyg";
 import { destroy, expect, getFixture } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
+import { animationFrame, Deferred, tick } from "@odoo/hoot-mock";
 import { Component, markup, onWillDestroy, xml } from "@odoo/owl";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { getContent, getSelection, setContent } from "./selection.js";
-import { Deferred, animationFrame, tick } from "@odoo/hoot-mock";
-import { dispatchCleanForSave } from "./dispatch.js";
-import { fixInvalidHTML } from "@html_editor/utils/sanitize";
 import { toExplicitString } from "@web/../lib/hoot/hoot_utils";
+import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+
+import { dispatchCleanForSave } from "./dispatch.js";
+import { getContent, getSelection, setContent } from "./selection.js";
 
 export const Direction = {
     BACKWARD: "BACKWARD",
@@ -25,7 +26,13 @@ class TestEditor extends Component {
         </t>
         <Wysiwyg t-props="wysiwygProps" />`;
     static components = { Wysiwyg };
-    static props = ["wysiwygProps", "content", "styleContent?", "onMounted?", "onWillDestroy?"];
+    static props = [
+        "wysiwygProps",
+        "content",
+        "styleContent?",
+        "onMounted?",
+        "onWillDestroy?",
+    ];
 
     setup() {
         const props = this.props;
@@ -120,7 +127,9 @@ export async function setupEditor(content, options = {}) {
     // awaiting for mountWithCleanup is not enough when mounted in an iframe,
     // @see Wysiwyg.onMounted
     const editor = await attachedEditor;
-    const plugins = new Map(editor.plugins.map((plugin) => [plugin.constructor.id, plugin]));
+    const plugins = new Map(
+        editor.plugins.map((plugin) => [plugin.constructor.id, plugin]),
+    );
     if (plugins.get("embeddedComponents")) {
         // await an extra animation frame for embedded components mounting
         // TODO @phoenix: would be more accurate to register mounting
@@ -165,7 +174,7 @@ export async function testEditor(config) {
         compareFunction = (content, expected, phase) => {
             expect(content).toBe(expected, {
                 message: `(testEditor) ${phase} should be strictly equal to ${toExplicitString(
-                    expected
+                    expected,
                 )}`,
             });
         };
@@ -195,7 +204,7 @@ export async function testEditor(config) {
             getContent(el, config.options),
             contentBeforeEdit,
             "Editor content, before edit",
-            editor
+            editor,
         );
     }
 
@@ -208,7 +217,7 @@ export async function testEditor(config) {
             getContent(el, config.options),
             contentAfterEdit,
             "Editor content, after edit",
-            editor
+            editor,
         );
     }
     if (contentAfter) {
@@ -220,10 +229,15 @@ export async function testEditor(config) {
             getContent(el, config.options),
             contentAfter,
             "Editor content, after clean",
-            editor
+            editor,
         );
         // Test that the saved value matches the cleaned value tested above.
-        await compareFunction(content, innerHTML, "Value from editor.getContent()", editor);
+        await compareFunction(
+            content,
+            innerHTML,
+            "Value from editor.getContent()",
+            editor,
+        );
     }
     destroy(editorComponent);
     await willBeDestroyed;

@@ -10,6 +10,7 @@ import {
 import { Domain } from "@web/core/domain";
 import { localization } from "@web/core/l10n/localization";
 import { constructDateDomain } from "@web/search/utils/dates";
+import { DateTime } from "luxon";
 
 describe.current.tags("headless");
 
@@ -38,7 +39,7 @@ beforeEach(() => {
 
 test("construct simple domain based on date field (no comparisonOptionId)", () => {
     mockDate("2020-06-01T13:00:00");
-    const referenceMoment = luxon.DateTime.local();
+    const referenceMoment = DateTime.local();
 
     let domain = constructDateDomain(referenceMoment, dateSearchItem, []);
     expect(domain).toEqual({
@@ -77,7 +78,7 @@ test("construct simple domain based on date field (no comparisonOptionId)", () =
 test("construct simple domain based on date field (no comparisonOptionId) - UTC+2", () => {
     mockTimeZone(2);
     mockDate("2020-06-01T00:00:00");
-    const referenceMoment = luxon.DateTime.local();
+    const referenceMoment = DateTime.local();
 
     let domain = constructDateDomain(referenceMoment, dateSearchItem, []);
     expect(domain).toEqual({
@@ -115,7 +116,7 @@ test("construct simple domain based on date field (no comparisonOptionId) - UTC+
 
 test("construct simple domain based on datetime field (no comparisonOptionId)", () => {
     mockDate("2020-06-01T13:00:00");
-    const referenceMoment = luxon.DateTime.local();
+    const referenceMoment = DateTime.local();
 
     let domain = constructDateDomain(referenceMoment, dateTimeSearchItem, [
         "month",
@@ -151,7 +152,7 @@ test("construct simple domain based on datetime field (no comparisonOptionId)", 
 test("construct simple domain based on datetime field (no comparisonOptionId) - UTC+2", () => {
     mockTimeZone(2);
     mockDate("2020-06-01T00:00:00");
-    const referenceMoment = luxon.DateTime.local();
+    const referenceMoment = DateTime.local();
 
     let domain = constructDateDomain(referenceMoment, dateTimeSearchItem, [
         "month",
@@ -186,7 +187,7 @@ test("construct simple domain based on datetime field (no comparisonOptionId) - 
 
 test("construct domain based on date field (no comparisonOptionId)", () => {
     mockDate("2020-01-01T12:00:00");
-    const referenceMoment = luxon.DateTime.local();
+    const referenceMoment = DateTime.local();
 
     let domain = constructDateDomain(referenceMoment, dateSearchItem, [
         "month",
@@ -239,7 +240,7 @@ test("construct domain based on date field (no comparisonOptionId)", () => {
 
 test("construct domain based on datetime field (no comparisonOptionId)", () => {
     mockDate("2020-01-01T12:00:00");
-    const referenceMoment = luxon.DateTime.local();
+    const referenceMoment = DateTime.local();
 
     let domain = constructDateDomain(referenceMoment, dateTimeSearchItem, [
         "month",
@@ -292,7 +293,7 @@ test("construct domain based on datetime field (no comparisonOptionId)", () => {
 
 test("Quarter option: custom translation", async () => {
     mockDate("2020-06-01T13:00:00");
-    const referenceMoment = luxon.DateTime.local().setLocale("en");
+    const referenceMoment = DateTime.local().setLocale("en");
     patchTranslations({ web: { Q2: "Deuxième trimestre de l'an de grâce" } });
 
     const domain = constructDateDomain(referenceMoment, dateSearchItem, [
@@ -309,7 +310,7 @@ test("Quarter option: custom translation", async () => {
 
 test("Quarter option: right to left", async () => {
     mockDate("2020-06-01T13:00:00");
-    const referenceMoment = luxon.DateTime.local().setLocale("en");
+    const referenceMoment = DateTime.local().setLocale("en");
     patchWithCleanup(localization, { direction: "rtl" });
 
     const domain = constructDateDomain(referenceMoment, dateSearchItem, [
@@ -326,7 +327,7 @@ test("Quarter option: right to left", async () => {
 
 test("Quarter option: custom translation and right to left", async () => {
     mockDate("2020-06-01T13:00:00");
-    const referenceMoment = luxon.DateTime.local().setLocale("en");
+    const referenceMoment = DateTime.local().setLocale("en");
     patchWithCleanup(localization, { direction: "rtl" });
     patchTranslations({ web: { Q2: "2e Trimestre" } });
 

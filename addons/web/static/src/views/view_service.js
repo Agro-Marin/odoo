@@ -52,6 +52,9 @@ export const viewService = {
     async: ["loadViews"],
     start(env, { orm }) {
         rpcBus.addEventListener("RPC:RESPONSE", (ev) => {
+            if (ev.detail.error) {
+                return;
+            }
             const { model, method } = ev.detail.data.params;
             if (["ir.ui.view", "ir.filters"].includes(model)) {
                 if (UPDATE_METHODS.includes(method)) {

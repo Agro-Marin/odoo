@@ -1,9 +1,9 @@
 import {
     applyObjectPropertyDifference,
     getEmbeddedProps,
+    StateChangeManager,
     useEditableDescendants,
     useEmbeddedState,
-    StateChangeManager,
 } from "@html_editor/others/embedded_component_utils";
 import { Component, useRef, useState, xml } from "@odoo/owl";
 
@@ -87,7 +87,7 @@ export const offsetCounter = {
                         state.baseValue += offset;
                     },
                 },
-            })
+            }),
         ),
 };
 
@@ -144,10 +144,15 @@ export const collaborativeObject = {
             Object.assign(config, {
                 propertyUpdater: {
                     obj: (state, previous, next) => {
-                        applyObjectPropertyDifference(state, "obj", previous.obj, next.obj);
+                        applyObjectPropertyDifference(
+                            state,
+                            "obj",
+                            previous.obj,
+                            next.obj,
+                        );
                     },
                 },
-            })
+            }),
         ),
 };
 
@@ -196,7 +201,7 @@ export const namedCounter = {
                     ...getEmbeddedProps(host),
                     value: state.value,
                 }),
-            })
+            }),
         ),
 };
 
@@ -204,7 +209,7 @@ export function embedding(
     name,
     Component,
     getProps = undefined,
-    { getEditableDescendants, getStateChangeManager } = {}
+    { getEditableDescendants, getStateChangeManager } = {},
 ) {
     return {
         name,

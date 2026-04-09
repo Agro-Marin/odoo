@@ -1,9 +1,10 @@
 /** @odoo-module native */
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
-import { Plugin } from "../plugin.js";
-import { childNodes } from "@html_editor/utils/dom_traversal";
 import { isEmptyBlock } from "@html_editor/utils/dom_info";
+import { childNodes } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
+
+import { Plugin } from "../plugin.js";
 
 export class PlaceholderPlugin extends Plugin {
     static id = "placeholder";

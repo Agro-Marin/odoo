@@ -19,7 +19,7 @@
 
 **Usage example**:
 ```bash
-ODOO_ORM_PROFILE=1 ./core/odoo-bin -c ./conf/odoo.conf -d dev_db --dev=all
+ODOO_ORM_PROFILE=1 ./core/odoo-bin -c ./infra/conf/odoo.conf -d dev_db --dev=all
 # Results logged to ./odoo.log under "odoo.orm.profile" logger
 ```
 
@@ -125,7 +125,7 @@ console.log(`Δ heap: ${((after - before) / 1024).toFixed(1)} KB`);
 ### ORM Profiling (backend)
 
 ```bash
-ODOO_ORM_PROFILE=1 ./core/odoo-bin -c ./conf/odoo.conf -d dev_db
+ODOO_ORM_PROFILE=1 ./core/odoo-bin -c ./infra/conf/odoo.conf -d dev_db
 # Then navigate to the list view, search, etc.
 # tail -f ./odoo.log | grep "orm.profile"
 ```

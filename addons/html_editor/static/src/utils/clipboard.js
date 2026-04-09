@@ -30,7 +30,7 @@ export function fillHtmlTransferData(
     ev,
     transferObjectProperty,
     clonedContents,
-    { setEditorTransferData = true, textContent } = {}
+    { setEditorTransferData = true, textContent } = {},
 ) {
     const doc = ev.target.ownerDocument;
     const dataHtmlElement = doc.createElement("data");
@@ -42,6 +42,9 @@ export function fillHtmlTransferData(
     }
     ev[transferObjectProperty].setData("text/html", htmlContent);
     if (setEditorTransferData) {
-        ev[transferObjectProperty].setData("application/vnd.odoo.odoo-editor", htmlContent);
+        ev[transferObjectProperty].setData(
+            "application/vnd.odoo.odoo-editor",
+            htmlContent,
+        );
     }
 }

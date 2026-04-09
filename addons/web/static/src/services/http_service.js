@@ -41,7 +41,7 @@ export async function post(route, params = {}, readMethod = "json") {
     if (!(formData instanceof FormData)) {
         formData = new FormData();
         for (const [key, value] of Object.entries(params)) {
-            if (Array.isArray(value) && value.length) {
+            if (Array.isArray(value)) {
                 for (const val of value) {
                     formData.append(key, val);
                 }

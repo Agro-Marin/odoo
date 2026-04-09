@@ -1,8 +1,8 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { parseHTML } from "@html_editor/utils/html";
 import { _t } from "@web/core/l10n/translation";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 export class StarPlugin extends Plugin {
     static id = "star";
@@ -80,7 +80,10 @@ export class StarPlugin extends Plugin {
     }
 
     addStars({ length }) {
-        const stars = Array.from({ length }, () => '<i class="fa-regular fa-star"></i>').join("");
+        const stars = Array.from(
+            { length },
+            () => '<i class="fa-regular fa-star"></i>',
+        ).join("");
         const html = `<span contenteditable="false" class="o_stars">${stars}</span>`;
         this.dependencies.dom.insert(parseHTML(this.document, html));
         this.dependencies.history.addStep();

@@ -53,16 +53,18 @@
                 </a>
             </span>
         </t>
-        <span t-if="otherTags.length" class="o_m2m_avatar_empty rounded text-center fw-bold cursor-default" data-tooltip-template="web.TagsList.Tooltip" data-tooltip-position="right" t-att-data-tooltip-info="tooltipInfo" t-on-click.stop="">
+        <span t-if="otherTags.length" class="o_m2m_avatar_empty o_badge badge rounded-pill cursor-pointer rounded" t-on-click="onExpandClick"
+              data-tooltip-template="web.TagsList.Tooltip"
+              t-att-data-tooltip-info="otherTagsTooltipInfo">
             <span t-if="otherTags.length > 9" t-esc="'9+'" />
             <span t-else="" t-esc="'+' + otherTags.length" />
         </span>
     </t>
 
     <t t-name="web.TagsList.Tooltip">
-        <t t-foreach="tags" t-as="tag" t-key="tag.id or tag_index">
-            <div t-esc="tag.text"/>
-        </t>
+        <ul class="list-unstyled m-0">
+            <li t-foreach="props.tags" t-as="tag" t-key="tag.id or tag_index" t-esc="tag.text"/>
+        </ul>
     </t>
 
 </templates>

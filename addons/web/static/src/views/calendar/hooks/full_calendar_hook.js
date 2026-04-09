@@ -21,11 +21,11 @@ import {
  * @param {Object} params - FullCalendar configuration options (functions are bound to the component)
  * @returns {{ api: FullCalendar.Calendar, el: HTMLElement }} accessor for the calendar instance and DOM element
  */
-import { loadBundle } from "@web/core/assets";
 export function useFullCalendar(refName, params) {
     const component = useComponent();
     const ref = useRef(refName);
     let instance = null;
+    let Calendar = null;
 
     function boundParams() {
         const newParams = {};
@@ -37,11 +37,18 @@ export function useFullCalendar(refName, params) {
         return newParams;
     }
 
-    onWillStart(async () => await loadBundle("web.fullcalendar_lib"));
+    onWillStart(async () => {
+        if (globalThis.FullCalendar) {
+            // Already loaded (e.g. by preloadBundle in tests or prior import).
+            Calendar = globalThis.FullCalendar.Calendar;
+        } else {
+            ({ Calendar } = await import("/web/static/lib/fullcalendar/fullcalendar.esm.js"));
+        }
+    });
 
     onMounted(() => {
         try {
-            instance = new FullCalendar.Calendar(ref.el, boundParams());
+            instance = new Calendar(ref.el, boundParams());
             instance.render();
         } catch (e) {
             throw new Error(`Cannot instantiate FullCalendar\n${e.message}`, {

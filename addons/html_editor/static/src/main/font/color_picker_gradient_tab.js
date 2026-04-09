@@ -3,6 +3,7 @@ import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { applyOpacityToGradient, isColorGradient } from "@web/core/utils/format/colors";
+
 import { GradientPicker } from "./gradient_picker/gradient_picker.js";
 
 const DEFAULT_GRADIENT_COLORS = [
@@ -60,5 +61,5 @@ registry.category("color_picker_tabs").add(
         name: _t("Gradient"),
         component: ColorPickerGradientTab,
     },
-    { sequence: 60 }
+    { sequence: 60 },
 );

@@ -9,6 +9,7 @@ import { ormService } from "@web/services/orm_service";
 import { overlayService } from "@web/ui/overlay/overlay_service";
 import { uiService } from "@web/ui/block/ui_service";
 import { user } from "@web/services/user";
+import { Settings } from "luxon";
 import { patchWithCleanup } from "./utils";
 
 // -----------------------------------------------------------------------------
@@ -32,7 +33,7 @@ export const defaultLocalization = {
  */
 export function makeFakeLocalizationService(config = {}) {
     patchWithCleanup(localization, { ...defaultLocalization, ...config });
-    patchWithCleanup(luxon.Settings, { defaultNumberingSystem: "latn" });
+    patchWithCleanup(Settings, { defaultNumberingSystem: "latn" });
 
     return {
         name: "localization",

@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
+import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
 import { DynamicPlaceholderPopover } from "@web/fields/dynamic_placeholder_popover";
-import { withSequence } from "@html_editor/utils/resource";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 /**
  * @typedef {Object} DynamicPlaceholderShared
@@ -22,7 +22,8 @@ export class DynamicPlaceholderPlugin extends Plugin {
                 title: _t("Dynamic Placeholder"),
                 description: _t("Insert a field"),
                 icon: "fa-hashtag",
-                run: (params = {}) => this.open(params.resModel || this.defaultResModel),
+                run: (params = {}) =>
+                    this.open(params.resModel || this.defaultResModel),
                 isAvailable: isHtmlContentSupported,
             },
         ],
@@ -40,10 +41,13 @@ export class DynamicPlaceholderPlugin extends Plugin {
         this.defaultResModel = this.config.dynamicPlaceholderResModel;
 
         /** @type {import("@html_editor/core/overlay_plugin").Overlay} */
-        this.overlay = this.dependencies.overlay.createOverlay(DynamicPlaceholderPopover, {
-            hasAutofocus: true,
-            className: "popover",
-        });
+        this.overlay = this.dependencies.overlay.createOverlay(
+            DynamicPlaceholderPopover,
+            {
+                hasAutofocus: true,
+                className: "popover",
+            },
+        );
     }
 
     /**
@@ -59,8 +63,10 @@ export class DynamicPlaceholderPlugin extends Plugin {
     open(resModel) {
         if (!resModel) {
             return this.services.notification.add(
-                _t("You need to select a model before opening the dynamic placeholder selector."),
-                { type: "danger" }
+                _t(
+                    "You need to select a model before opening the dynamic placeholder selector.",
+                ),
+                { type: "danger" },
             );
         }
         this.overlay.open({
@@ -101,7 +107,7 @@ export class DynamicPlaceholderPlugin extends Plugin {
         const partnerFields = await this.services.orm.call(
             `${this.defaultResModel}`,
             "mail_get_partner_fields",
-            [[]]
+            [[]],
         );
 
         let dynamicPlaceholder = partnerFields.length

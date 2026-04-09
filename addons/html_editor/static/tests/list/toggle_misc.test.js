@@ -1,8 +1,13 @@
 import { describe, expect, test } from "@odoo/hoot";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
-import { toggleOrderedList, toggleUnorderedList, toggleCheckList } from "../_helpers/user_actions.js";
 import { expandToolbar } from "../_helpers/toolbar.js";
+import {
+    toggleCheckList,
+    toggleOrderedList,
+    toggleUnorderedList,
+} from "../_helpers/user_actions.js";
 
 describe("Mixed", () => {
     test("should turn an ordered list into an unordered list (1)", async () => {
@@ -217,7 +222,8 @@ describe("Mixed", () => {
 
     test("should turn an unordered list item, a paragraph and an ordered list into one ordered list with all three as list items", async () => {
         await testEditor({
-            contentBefore: "<ul><li>ab</li><li>c[d</li></ul><p>ef</p><ol><li>g]h</li></ol>",
+            contentBefore:
+                "<ul><li>ab</li><li>c[d</li></ul><p>ef</p><ol><li>g]h</li></ol>",
             stepFunction: toggleOrderedList,
             contentAfter: "<ol><li>ab</li><li>c[d</li><li>ef</li><li>g]h</li></ol>",
         });
@@ -225,7 +231,8 @@ describe("Mixed", () => {
 
     test("should turn an ordered list, a paragraph and an unordered list item into one ordered list with all three as list items", async () => {
         await testEditor({
-            contentBefore: "<ol><li>a[b</li></ol><p>cd</p><ul><li>e]f</li><li>gh</li></ul>",
+            contentBefore:
+                "<ol><li>a[b</li></ol><p>cd</p><ul><li>e]f</li><li>gh</li></ul>",
             stepFunction: toggleOrderedList,
             contentAfter: "<ol><li>a[b</li><li>cd</li><li>e]f</li><li>gh</li></ol>",
         });
@@ -417,7 +424,7 @@ test("should have list tool only if the block is content editable", async () => 
         [true, 1],
     ]) {
         await setupEditor(
-            `<div contenteditable="${contenteditable}"><p><span contenteditable="true">ab[cde]fg</span></p></div>`
+            `<div contenteditable="${contenteditable}"><p><span contenteditable="true">ab[cde]fg</span></p></div>`,
         );
         await expandToolbar();
         expect(".btn[name='list_selector']").toHaveCount(count);

@@ -8,7 +8,9 @@
 
 import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model/utils";
 
-const DEFAULT_GROUP_PAGER_COLSPAN = 1;
+// When no aggregates are shown, the group name cell spans all data columns
+// except the last one, which is reserved for the pager cell. This ensures
+// the group header always renders 3 <th> elements: name, pager, config menu.
 
 /**
  * Find the index of the first column that has an aggregate value.
@@ -74,8 +76,12 @@ export function getGroupNameCellColSpan(columns, fields, aggregates, { hasSelect
     let colspan;
     if (firstAggregateIndex > -1) {
         colspan = firstAggregateIndex;
+    } else if (columns.length > 1) {
+        // Reserve 1 column for the pager <th> so the header has 3 cells
+        colspan = columns.length - 1;
     } else {
-        colspan = Math.max(1, columns.length - DEFAULT_GROUP_PAGER_COLSPAN);
+        // With only 1 column, span it fully (pager cell hidden via colspan 0)
+        colspan = columns.length;
     }
     if (hasSelectors) {
         colspan++;
@@ -102,11 +108,18 @@ export function getGroupPagerCellColspan(
     let colspan;
     if (lastAggregateIndex > -1) {
         colspan = columns.length - lastAggregateIndex - 1;
+        if (hasOpenFormViewColumn) {
+            colspan++;
+        }
+    } else if (columns.length > 1) {
+        // When no aggregates and 2+ columns, reserve 1 column for the pager cell
+        colspan = 1;
+        if (hasOpenFormViewColumn) {
+            colspan++;
+        }
     } else {
-        colspan = columns.length > 1 ? DEFAULT_GROUP_PAGER_COLSPAN : 0;
-    }
-    if (hasOpenFormViewColumn) {
-        colspan++;
+        // With only 1 column and no aggregates, hide the pager cell
+        colspan = 0;
     }
     return colspan;
 }

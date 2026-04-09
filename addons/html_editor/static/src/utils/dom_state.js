@@ -3,11 +3,11 @@ import { isBlock } from "./blocks.js";
 import { CTGROUPS, CTYPES, ctypeToString } from "./content_types.js";
 import { isInPre, isVisible, isWhitespace, whitespace } from "./dom_info.js";
 import {
-    PATH_END_REASONS,
     ancestors,
     closestElement,
     closestPath,
     createDOMPathGenerator,
+    PATH_END_REASONS,
 } from "./dom_traversal.js";
 import { DIRECTIONS, leftPos, rightPos } from "./position.js";
 
@@ -41,8 +41,11 @@ const prepareUpdateLockedEditables = new Set();
 export function prepareUpdate(...args) {
     const closestRoot =
         args.length &&
-        ancestors(args[0]).find((ancestor) => ancestor.classList.contains("odoo-editor-editable"));
-    const isPrepareUpdateLocked = closestRoot && prepareUpdateLockedEditables.has(closestRoot);
+        ancestors(args[0]).find((ancestor) =>
+            ancestor.classList.contains("odoo-editor-editable"),
+        );
+    const isPrepareUpdateLocked =
+        closestRoot && prepareUpdateLockedEditables.has(closestRoot);
     const hash = (Math.random() + 1).toString(36).substring(7);
     const options = {
         allowReenter: true,
@@ -59,7 +62,7 @@ export function prepareUpdate(...args) {
                 (isPrepareUpdateLocked ? " LOCKED" : ""),
             "color: cyan;",
             "color: white;",
-            "color: red; font-weight: bold;"
+            "color: red; font-weight: bold;",
         );
     }
     if (isPrepareUpdateLocked) {
@@ -72,7 +75,7 @@ export function prepareUpdate(...args) {
                         "%c LOCKED",
                     "color: lightgreen;",
                     "color: white;",
-                    "color: red; font-weight: bold;"
+                    "color: red; font-weight: bold;",
                 );
             }
         };
@@ -95,7 +98,10 @@ export function prepareUpdate(...args) {
         if (options.debug) {
             const editable = el && closestElement(el, ".odoo-editor-editable");
             const oldEditableHTML =
-                (editable && editable.innerHTML.replaceAll(" ", "_").replaceAll("\u200B", "ZWS")) ||
+                (editable &&
+                    editable.innerHTML
+                        .replaceAll(" ", "_")
+                        .replaceAll("\u200B", "ZWS")) ||
                 "";
             left.oldEditableHTML = oldEditableHTML;
             right.oldEditableHTML = oldEditableHTML;
@@ -112,7 +118,7 @@ export function prepareUpdate(...args) {
                     options.label +
                     (options.label === hash ? "" : ` (${hash})`),
                 "color: lightgreen;",
-                "color: white;"
+                "color: white;",
             );
         }
         for (const data of restoreData) {
@@ -195,9 +201,11 @@ export function getState(el, offset, direction, leftCType) {
                     } else {
                         const rightLeaf = rightLeafOnlyNotBlockPath(node).next().value;
                         const hasContentRight =
-                            rightLeaf && !whitespaceAtStartRegex.test(rightLeaf.textContent);
+                            rightLeaf &&
+                            !whitespaceAtStartRegex.test(rightLeaf.textContent);
                         cType =
-                            !hasContentRight && whitespaceAtEndRegex.test(node.textContent)
+                            !hasContentRight &&
+                            whitespaceAtEndRegex.test(node.textContent)
                                 ? CTYPES.SPACE
                                 : CTYPES.CONTENT;
                     }
@@ -305,7 +313,11 @@ const priorityRestoreStateRules = [
     ],
     [
         // Duplicate a BR once the content afterwards disappears
-        { direction: DIRECTIONS.RIGHT, cType1: CTGROUPS.INLINE, cType2: CTGROUPS.BLOCK },
+        {
+            direction: DIRECTIONS.RIGHT,
+            cType1: CTGROUPS.INLINE,
+            cType2: CTGROUPS.BLOCK,
+        },
         { brVisibility: true },
     ],
     [
@@ -327,7 +339,10 @@ const priorityRestoreStateRules = [
             cType1: CTGROUPS.BR | CTGROUPS.BLOCK,
             cType2: CTGROUPS.INLINE,
         },
-        { brVisibility: false, extraBRRemovalCondition: (brNode) => isFakeLineBreak(brNode) },
+        {
+            brVisibility: false,
+            extraBRRemovalCondition: (brNode) => isFakeLineBreak(brNode),
+        },
     ],
 ];
 function restoreStateRuleHashCode(direction, cType1, cType2) {
@@ -436,7 +451,9 @@ export function restoreState(prevStateData, debug = false) {
                 "%c" +
                 "AFTER:  " +
                 (editable
-                    ? editable.innerHTML.replaceAll(" ", "_").replaceAll("\u200B", "ZWS")
+                    ? editable.innerHTML
+                          .replaceAll(" ", "_")
+                          .replaceAll("\u200B", "ZWS")
                     : "(unavailable)") +
                 "\n",
             "color: white; display: block; width: 100%;",
@@ -447,11 +464,12 @@ export function restoreState(prevStateData, debug = false) {
             "color: lightblue; display: block; width: 100%;",
             "color: white; display: block; width: 100%;",
             "color: white; display: block; width: 100%;",
-            rule
+            rule,
         );
     }
     if (Object.values(rule).filter((x) => x !== undefined).length) {
-        const inverseDirection = direction === DIRECTIONS.LEFT ? DIRECTIONS.RIGHT : DIRECTIONS.LEFT;
+        const inverseDirection =
+            direction === DIRECTIONS.LEFT ? DIRECTIONS.RIGHT : DIRECTIONS.LEFT;
         enforceWhitespace(el, offset, inverseDirection, rule);
     }
     return rule;
@@ -467,7 +485,10 @@ export function restoreState(prevStateData, debug = false) {
  * @returns {boolean}
  */
 export function isFakeLineBreak(brEl) {
-    return !(getState(...rightPos(brEl), DIRECTIONS.RIGHT).cType & (CTYPES.CONTENT | CTGROUPS.BR));
+    return !(
+        getState(...rightPos(brEl), DIRECTIONS.RIGHT).cType &
+        (CTYPES.CONTENT | CTGROUPS.BR)
+    );
 }
 
 /**
@@ -502,7 +523,10 @@ export function enforceWhitespace(el, offset, direction, rule) {
             if (rule.brVisibility) {
                 node.before(document.createElement("br"));
             } else {
-                if (!rule.extraBRRemovalCondition || rule.extraBRRemovalCondition(node)) {
+                if (
+                    !rule.extraBRRemovalCondition ||
+                    rule.extraBRRemovalCondition(node)
+                ) {
                     node.remove();
                 }
             }
@@ -568,7 +592,7 @@ export function enforceWhitespace(el, offset, direction, rule) {
         }
         spaceNode.nodeValue = spaceNode.nodeValue.replace(
             whitespaceAtEdgeRegex,
-            spaceVisibility ? "\u00A0" : ""
+            spaceVisibility ? "\u00A0" : "",
         );
     }
 }

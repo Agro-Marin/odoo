@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { MainComponentsContainer } from "@web/components/main_components_container";
-import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { registry, useRegistry } from "@web/core/registry";
+import { useForwardRefToParent } from "@web/core/utils/hooks";
 
 /**
  * TODO ABD: refactor to propagate a reactive object instead of using a registry with an identifier

@@ -154,6 +154,9 @@ export const tooltipService = {
             const element = /** @type {HTMLElement | null} */ (
                 el.closest("[data-tooltip], [data-tooltip-template]")
             );
+            if (element && element === target) {
+                return;
+            }
             if (elementsWithTooltips.has(el)) {
                 openTooltip(el, elementsWithTooltips.get(el));
             } else if (element) {
@@ -202,8 +205,7 @@ export const tooltipService = {
         }
 
         function cleanupTooltip(ev) {
-            const el = /** @type {HTMLElement} */ (ev.target);
-            if (target === el.closest("[data-tooltip], [data-tooltip-template]")) {
+            if (target == ev.target) {
                 cleanup();
             }
         }

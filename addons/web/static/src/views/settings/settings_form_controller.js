@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { useAutofocus } from "@web/core/utils/hooks";
+import { useDebounced } from "@web/core/utils/timing";
 import { formView } from "@web/views/form/form_view";
 
 import { SettingsConfirmationDialog } from "./settings_confirmation_dialog.js";
@@ -32,6 +33,9 @@ export class SettingsFormController extends formView.Controller {
         this.searchState = useState({ value: "" });
         this.rootRef = useRef("root");
         this.canCreate = false;
+        this.debouncedSearch = useDebounced((value) => {
+            this.searchState.value = value;
+        }, 500);
         useSubEnv({ searchState: this.searchState });
         useEffect(
             () => {

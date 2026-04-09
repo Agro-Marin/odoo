@@ -25,7 +25,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { getOrigin } from "@web/core/utils/urls";
 
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 
 const MY_IMAGE =
     "iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==";

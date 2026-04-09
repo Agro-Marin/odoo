@@ -7,7 +7,6 @@
 
 import { registry } from "@web/core/registry";
 import { unique, zip } from "@web/core/utils/collections/arrays";
-import { Deferred } from "@web/core/utils/concurrency";
 export const ERROR_INACCESSIBLE_OR_MISSING = Symbol(
     "INACCESSIBLE OR MISSING RECORD ID",
 );
@@ -51,9 +50,9 @@ export const nameService = {
         env.bus.addEventListener("ACTION_MANAGER:UPDATE", clearCache);
 
         /**
-         * Get or create the id→Deferred mapping for a model.
+         * Get or create the id→Promise mapping for a model.
          * @param {string} resModel
-         * @returns {Record<string, import("@web/core/utils/concurrency").Deferred>}
+         * @returns {Record<string, Promise>}
          */
         function getMapping(resModel) {
             if (!cache[resModel]) {
@@ -69,8 +68,9 @@ export const nameService = {
         function addDisplayNames(resModel, displayNames) {
             const mapping = getMapping(resModel);
             for (const resId of Object.keys(displayNames)) {
-                mapping[resId] = new Deferred();
-                mapping[resId].resolve(displayNames[resId]);
+                const { promise, resolve } = Promise.withResolvers();
+                resolve(displayNames[resId]);
+                mapping[resId] = promise;
             }
         }
 
@@ -79,8 +79,18 @@ export const nameService = {
          * @param {number[]} resIds valid ids
          * @returns {Promise<DisplayNames>}
          */
+        /** @type {Record<string, Record<string, { resolve: Function, reject: Function }>>} */
+        const resolvers = Object.create(null);
+        function getResolvers(resModel) {
+            if (!resolvers[resModel]) {
+                resolvers[resModel] = Object.create(null);
+            }
+            return resolvers[resModel];
+        }
+
         async function loadDisplayNames(resModel, resIds) {
             const mapping = getMapping(resModel);
+            const resModelResolvers = getResolvers(resModel);
             const proms = [];
             const resIdsToFetch = [];
             for (const resId of unique(resIds)) {
@@ -88,7 +98,9 @@ export const nameService = {
                     throw new Error(`Invalid ID: ${resId}`);
                 }
                 if (!(resId in mapping)) {
-                    mapping[resId] = new Deferred();
+                    const { promise, resolve, reject } = Promise.withResolvers();
+                    mapping[resId] = promise;
+                    resModelResolvers[resId] = { resolve, reject };
                     resIdsToFetch.push(resId);
                 }
                 proms.push(mapping[resId]);
@@ -113,17 +125,19 @@ export const nameService = {
                                 records.map((rec) => [rec.id, rec.display_name]),
                             );
                             for (const resId of idsInBatch) {
-                                mapping[resId].resolve(
+                                resModelResolvers[resId].resolve(
                                     resId in displayNames
                                         ? displayNames[resId]
                                         : ERROR_INACCESSIBLE_OR_MISSING,
                                 );
+                                delete resModelResolvers[resId];
                             }
                         })
                         .catch((error) => {
                             for (const resId of idsInBatch) {
-                                if (mapping[resId]) {
-                                    mapping[resId].reject(error);
+                                if (resModelResolvers[resId]) {
+                                    resModelResolvers[resId].reject(error);
+                                    delete resModelResolvers[resId];
                                     delete mapping[resId];
                                 }
                             }

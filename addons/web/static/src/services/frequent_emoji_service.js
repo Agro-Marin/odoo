@@ -65,4 +65,4 @@ export const frequentEmojiService = {
     },
 };
 
-registry.category("services").add("web.frequent.emoji", frequentEmojiService);
+registry.category("services").add("frequent_emoji", frequentEmojiService);

@@ -213,9 +213,13 @@ export function makeEditHandlers(nav, tableRef, options) {
          * @returns {boolean}
          */
         onCellKeydownEditMode(hotkey, cell, group, record) {
+            if (!record) {
+                return false;
+            }
+
             const { cycleOnTab, list } = getProps();
             const row = cell.parentElement;
-            const applyMultiEditBehavior = record?.selected && list.model.multiEdit;
+            const applyMultiEditBehavior = record.selected && list.model.multiEdit;
             const isDirty = record.dirty || nav.lastIsDirty;
             const topReCreate = getProps().editable === "top" && record.isNew;
 

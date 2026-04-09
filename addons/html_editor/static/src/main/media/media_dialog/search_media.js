@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { useDebounced } from "@web/core/utils/timing";
-import { useAutofocus } from "@web/core/utils/hooks";
-
 import { Component, useEffect, useState } from "@odoo/owl";
+import { useAutofocus } from "@web/core/utils/hooks";
+import { useDebounced } from "@web/core/utils/timing";
 
 export class SearchMedia extends Component {
     static template = "html_editor.SearchMedia";
@@ -24,7 +23,7 @@ export class SearchMedia extends Component {
                     this.hasRendered = true;
                 }
             },
-            () => [this.state.input]
+            () => [this.state.input],
         );
     }
 }

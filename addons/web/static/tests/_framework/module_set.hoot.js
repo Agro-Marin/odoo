@@ -17,6 +17,7 @@ import {
 
 import { mockBrowserFactory } from "./mock_browser.hoot";
 import { mockCurrencyFactory } from "./mock_currency.hoot";
+import { mockFunctionsFactory } from "./mock_functions.hoot";
 import { mockIndexedDB } from "./mock_indexed_db.hoot";
 import { mockSessionFactory } from "./mock_session.hoot";
 import { makeTemplateFactory } from "./mock_templates.hoot";
@@ -499,12 +500,10 @@ const ALLOWED_GLOBAL_KEYS = [
     "Chart", // Chart.js
     "Cropper", // Cropper.js
     "DiffMatchPatch", // Diff Match Patch
-    "DOMPurify", // DOMPurify
     "Diff2Html",
     "FullCalendar", // Full Calendar
     "L", // Leaflet
     "lamejs", // LameJS
-    "luxon", // Luxon
     "odoo", // Odoo global object
     "owl", // Owl
     "pdfjsLib", // PDF JS
@@ -532,6 +531,7 @@ const MODULE_MOCKS_BY_NAME = new Map([
     ["@web/core/template_inheritance", makeFixedFactory],
     // Other mocks
     ["@web/core/browser/browser", mockBrowserFactory],
+    ["@web/core/utils/functions", mockFunctionsFactory],
     ["@web/core/utils/indexed_db", mockIndexedDB],
     ["@web/services/currency", mockCurrencyFactory],
     ["@web/core/templates", makeTemplateFactory],

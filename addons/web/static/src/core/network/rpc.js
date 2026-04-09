@@ -7,6 +7,7 @@ import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
 import { isObject, omit } from "@web/core/utils/collections/objects";
+import { buildKey } from "@web/core/network/rpc_dedup";
 
 /**
  * @typedef {{
@@ -79,6 +80,14 @@ export class ConnectionLostError extends NetworkError {
 
 export class ConnectionAbortedError extends NetworkError {}
 
+export class RequestEntityTooLargeError extends NetworkError {
+    constructor() {
+        super(
+            "The request you sent exceeded the maximum size limit configured on the server",
+        );
+    }
+}
+
 /**
  * @param {JsonRpcError} response
  * @returns {RPCError}
@@ -135,7 +144,7 @@ rpc._rpc = function (url, params, settings) {
     if (settings.cache && rpcCache) {
         return rpcCache.read(
             params?.method || url, // table
-            JSON.stringify({ url, params }), // key
+            buildKey(url, params), // key — sorted for key-order independence
             () => rpc._rpc(url, params, omit(settings, "cache")),
             typeof settings.cache === "boolean" ? {} : settings.cache, // cache can be boolean or an object with options (or an empty object of course)
         );
@@ -158,6 +167,13 @@ rpc._rpc = function (url, params, settings) {
         if (aborted) {
             return;
         }
+        if (request.status === 413) {
+            // Request body exceeds the server/proxy limit (nginx client_max_body_size, etc.)
+            const error = new RequestEntityTooLargeError();
+            rpcBus.trigger(RpcEvent.RESPONSE, { data, settings, error });
+            reject(error);
+            return;
+        }
         if (request.status >= 502 && request.status <= 504) {
             // 502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout
             // — common when Odoo is behind a reverse proxy (nginx, etc.)
@@ -177,11 +193,11 @@ rpc._rpc = function (url, params, settings) {
             return reject(error);
         }
         const { error: responseError, result: responseResult } = response;
-        if (!response.error) {
+        if (!responseError) {
             rpcBus.trigger(RpcEvent.RESPONSE, {
                 data,
                 settings,
-                result: response.result,
+                result: responseResult,
             });
             return resolve(responseResult);
         }

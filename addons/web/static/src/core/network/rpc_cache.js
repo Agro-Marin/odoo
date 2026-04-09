@@ -245,8 +245,11 @@ export class RPCCache {
                         // surface it so the global error service (which listens on
                         // "unhandledrejection") can show the connection-lost
                         // notification to the user.
+                        // The orphaned rejection is intentional: it triggers the
+                        // global unhandledrejection handler which shows the
+                        // connection-lost notification.
                         if (error instanceof ConnectionLostError) {
-                            Promise.reject(error);
+                            Promise.reject(error); // eslint-disable-line no-new -- intentional orphaned rejection
                         } else {
                             console.warn("RPC cache: background refresh failed", error);
                         }

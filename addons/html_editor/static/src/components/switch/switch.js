@@ -31,7 +31,9 @@ export class Switch extends Component {
     `;
 
     setup() {
-        this.extraClasses = this.props.extraClasses ? ` ${this.props.extraClasses}` : "";
+        this.extraClasses = this.props.extraClasses
+            ? ` ${this.props.extraClasses}`
+            : "";
     }
     /**
      * @param {KeyboardEvent} ev

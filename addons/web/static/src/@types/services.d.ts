@@ -54,7 +54,6 @@ declare module "services" {
 
     export interface Services {
         "public.interactions": typeof publicInteractionService;
-        "web.frequent.emoji": typeof frequentEmojiService;
         action: typeof actionService;
         bottom_sheet: typeof bottomSheetService;
         command: typeof commandService;
@@ -67,6 +66,7 @@ declare module "services" {
         error: typeof errorService;
         field: typeof fieldService;
         file_upload: typeof fileUploadService;
+        frequent_emoji: typeof frequentEmojiService;
         hotkey: typeof hotkeyService;
         http: typeof httpService;
         lazy_session: typeof lazySession;

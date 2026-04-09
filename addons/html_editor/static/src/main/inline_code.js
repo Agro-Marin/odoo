@@ -1,9 +1,13 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { isBlock, closestBlock } from "@html_editor/utils/blocks";
+import { closestBlock, isBlock } from "@html_editor/utils/blocks";
 import { splitTextNode, unwrapContents } from "@html_editor/utils/dom";
 import { isElement, isTextNode, isZwnbsp } from "@html_editor/utils/dom_info";
-import { closestElement, selectElements, findFurthest } from "@html_editor/utils/dom_traversal";
+import {
+    closestElement,
+    findFurthest,
+    selectElements,
+} from "@html_editor/utils/dom_traversal";
 import { DIRECTIONS, nodeSize } from "@html_editor/utils/position";
 
 /** @typedef {((codeElement: HTMLElement) => void)[]} to_inline_code_processors */
@@ -18,7 +22,7 @@ export class InlineCodePlugin extends Plugin {
         normalize_handlers: this.normalize.bind(this),
         feff_providers: (root, cursors) =>
             [...selectElements(root, ".o_inline_code")].flatMap((code) =>
-                this.dependencies.feff.surroundWithFeffs(code, cursors)
+                this.dependencies.feff.surroundWithFeffs(code, cursors),
             ),
     };
 
@@ -42,7 +46,9 @@ export class InlineCodePlugin extends Plugin {
             return;
         }
         const targetBlocks = this.dependencies.selection.getTargetedBlocks();
-        const hasTextNode = this.dependencies.selection.getTargetedNodes().some(isTextNode);
+        const hasTextNode = this.dependencies.selection
+            .getTargetedNodes()
+            .some(isTextNode);
         if (targetBlocks.size === 1 && hasTextNode) {
             this.historySavePointRestore = this.dependencies.history.makeSavePoint();
         }
@@ -59,22 +65,32 @@ export class InlineCodePlugin extends Plugin {
                 this.dependencies.split.splitSelection();
             const blockEl = closestBlock(anchorNode);
             // Adjust if anchor/focus directly equals block element
-            const deepChild = (node, offset) => (node === blockEl ? node.childNodes[offset] : node);
+            const deepChild = (node, offset) =>
+                node === blockEl ? node.childNodes[offset] : node;
             anchorNode = deepChild(anchorNode, anchorOffset);
             focusNode = deepChild(focusNode, focusOffset);
             if (direction === DIRECTIONS.LEFT) {
                 // Swap anchorNode and focusNode
-                [anchorNode, anchorOffset, focusNode, focusOffset] = [
-                    focusNode,
-                    focusOffset,
-                    anchorNode,
-                    anchorOffset,
-                ];
+                [anchorNode, focusNode] = [focusNode, anchorNode];
             }
-            const furthestAnchorElement = findFurthest(anchorNode, blockEl, (n) => !isBlock(n));
-            let start = this.dependencies.split.splitAroundUntil(anchorNode, furthestAnchorElement);
-            const furthestFocusElement = findFurthest(focusNode, blockEl, (n) => !isBlock(n));
-            const end = this.dependencies.split.splitAroundUntil(focusNode, furthestFocusElement);
+            const furthestAnchorElement = findFurthest(
+                anchorNode,
+                blockEl,
+                (n) => !isBlock(n),
+            );
+            let start = this.dependencies.split.splitAroundUntil(
+                anchorNode,
+                furthestAnchorElement,
+            );
+            const furthestFocusElement = findFurthest(
+                focusNode,
+                blockEl,
+                (n) => !isBlock(n),
+            );
+            const end = this.dependencies.split.splitAroundUntil(
+                focusNode,
+                furthestFocusElement,
+            );
 
             let codeElement = this.document.createElement("code");
             codeElement.classList.add("o_inline_code");
@@ -148,7 +164,7 @@ export class InlineCodePlugin extends Plugin {
             const insertedBacktickIndex = offset - 1;
             const textBeforeInsertedBacktick = textNode.textContent.substring(
                 0,
-                insertedBacktickIndex
+                insertedBacktickIndex,
             );
             let startOffset, endOffset;
             const isClosingForward = textBeforeInsertedBacktick.includes("`");
@@ -158,7 +174,8 @@ export class InlineCodePlugin extends Plugin {
                 endOffset = insertedBacktickIndex;
             } else {
                 // There is a backtick after the new backtick.
-                const textAfterInsertedBacktick = textNode.textContent.substring(offset);
+                const textAfterInsertedBacktick =
+                    textNode.textContent.substring(offset);
                 startOffset = insertedBacktickIndex;
                 endOffset = offset + textAfterInsertedBacktick.indexOf("`");
             }
@@ -173,7 +190,7 @@ export class InlineCodePlugin extends Plugin {
             // Remove ticks.
             textNode.textContent = textNode.textContent.substring(
                 1,
-                textNode.textContent.length - 1
+                textNode.textContent.length - 1,
             );
             // Insert code element.
             const codeElement = this.document.createElement("code");
@@ -207,7 +224,9 @@ export class InlineCodePlugin extends Plugin {
         for (const el of selectElements(rootEl, "code.o_inline_code")) {
             if (
                 [...el.childNodes].every(
-                    (node) => node.nodeType === Node.TEXT_NODE && /^\uFEFF*$/.test(node.nodeValue)
+                    (node) =>
+                        node.nodeType === Node.TEXT_NODE &&
+                        /^\uFEFF*$/.test(node.nodeValue),
                 )
             ) {
                 el.remove();

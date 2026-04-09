@@ -1,11 +1,12 @@
-import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { unformat } from "./format.js";
-import { EmbeddedSyntaxHighlightingComponent } from "@html_editor/others/embedded_components/backend/syntax_highlighting/syntax_highlighting";
 import { LANGUAGES } from "@html_editor/others/embedded_components/backend/syntax_highlighting/code_toolbar";
+import { EmbeddedSyntaxHighlightingComponent } from "@html_editor/others/embedded_components/backend/syntax_highlighting/syntax_highlighting";
+import { DEFAULT_LANGUAGE_ID } from "@html_editor/others/embedded_components/core/syntax_highlighting/syntax_highlighting_utils";
 import { expect } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
 import { toExplicitString } from "@web/../lib/hoot/hoot_utils";
-import { DEFAULT_LANGUAGE_ID } from "@html_editor/others/embedded_components/core/syntax_highlighting/syntax_highlighting_utils";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+
+import { unformat } from "./format.js";
 
 /** @typedef {import("@html_editor/plugin").Editor} Editor */
 /**
@@ -74,7 +75,8 @@ export const testTextareaRange = (editor, { el, value, range }, message) => {
     range = Array.isArray(range) ? range : [range];
     const start = range[0];
     const end = range.length > 1 ? range[1] : start;
-    const { anchorNode, anchorOffset, focusNode, focusOffset } = editor.document.getSelection();
+    const { anchorNode, anchorOffset, focusNode, focusOffset } =
+        editor.document.getSelection();
     expect({
         activeElement: editor.document.activeElement,
         anchorTarget: anchorNode.childNodes[anchorOffset],
@@ -89,7 +91,9 @@ export const testTextareaRange = (editor, { el, value, range }, message) => {
             textareaValue: value,
             textareaRange: [start, end],
         },
-        { message: `Selection should be correct in the textarea${message ? ":\n" + message : ""}` }
+        {
+            message: `Selection should be correct in the textarea${message ? ":\n" + message : ""}`,
+        },
     );
 };
 
@@ -107,7 +111,7 @@ const TOOLBAR = (language) =>
             </button>
             <button class="text-nowrap btn"><span class="mx-1 fa-solid fa-paragraph" title="Convert to paragraph"></span></button>
         </div>
-    </div>`
+    </div>`,
     );
 
 /**
@@ -134,7 +138,7 @@ export const compareHighlightedContent = async (content, expected, phase, editor
         // Ignore dataset order
         .replaceAll(
             /"languageId":"([^"]*)","value":"(([^"]|\n)*)"/g,
-            `"value":"$2","languageId":"$1"`
+            `"value":"$2","languageId":"$1"`,
         )
         // Clean up
         .replaceAll(/([{,]),+/g, "$1")
@@ -149,10 +153,13 @@ export const compareHighlightedContent = async (content, expected, phase, editor
                     // Ignore embedded props if there's an embedded state.
                     currentSection = currentSection.replaceAll(
                         /data-embedded-props='\{[^']+\}'( )?/g,
-                        ""
+                        "",
                     );
                 } else {
-                    currentSection = currentSection.replaceAll("data-embedded-props", "data-saved");
+                    currentSection = currentSection.replaceAll(
+                        "data-embedded-props",
+                        "data-saved",
+                    );
                 }
             }
             return currentSection;
@@ -160,7 +167,7 @@ export const compareHighlightedContent = async (content, expected, phase, editor
         .join("data-embedded=");
 
     const message = `(testEditor) ${toExplicitString(
-        phase
+        phase,
     )} is strictly equal to "${toExplicitString(expected)}"`;
     await animationFrame();
     // See if `highlightedPre` included textarea range data. If so, parse it,
@@ -170,8 +177,12 @@ export const compareHighlightedContent = async (content, expected, phase, editor
     const textareaIndex = strings.findIndex((str) => str.startsWith("~~~"));
     if (textareaIndex !== -1) {
         const el = editor.editable.querySelectorAll("textarea")[textareaIndex];
-        const [range, value] = strings[textareaIndex].match(/~~~([^~]+)~~~/)[1].split("°°°");
-        const parsedRange = range.split(",").map((v) => +v.replace(/[[\]]/g, "").trim());
+        const [range, value] = strings[textareaIndex]
+            .match(/~~~([^~]+)~~~/)[1]
+            .split("°°°");
+        const parsedRange = range
+            .split(",")
+            .map((v) => +v.replace(/[[\]]/g, "").trim());
         testTextareaRange(editor, { el, range: parsedRange, value }, message);
         expected = expected.replace(/<textarea~~~[^~]+~~~/g, "<textarea");
     }
@@ -190,16 +201,16 @@ export const highlightedPre = ({
             class="o_syntax_highlighting"
             data-saved='{"value":"${value.replaceAll(
                 "\n",
-                "\\n"
+                "\\n",
             )}","languageId":"${language.toLowerCase()}"}'>
             ${TOOLBAR(LANGUAGES[language])}
             <pre>//PRE//</pre>${textareaRange === null ? "" : "[]"}
             <textarea //TEXTAREA// class="o_prism_source" contenteditable="true"  placeholder="Code"></textarea>
-        </div>`
+        </div>`,
     )
         // Do not trim spaces within the PRE and in the textarea data:
         .replace("//PRE//", highlight(preHtml || "<br>", language, true))
         .replace(
             " //TEXTAREA// ",
-            textareaRange ? "~~~" + textareaRange + "°°°" + value + "~~~ " : " "
+            textareaRange ? "~~~" + textareaRange + "°°°" + value + "~~~ " : " ",
         );

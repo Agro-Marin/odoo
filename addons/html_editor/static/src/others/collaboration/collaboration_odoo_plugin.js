@@ -1,12 +1,13 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
-import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
-import { Mutex } from "@web/core/utils/concurrency";
-import { debounce } from "@web/core/utils/timing";
-import { PeerToPeer, RequestError } from "./PeerToPeer.js";
 import { ancestors } from "@html_editor/utils/dom_traversal";
 import { childNodeIndex } from "@html_editor/utils/position";
+import { rpc } from "@web/core/network/rpc";
+import { Mutex } from "@web/core/utils/concurrency";
+import { debounce } from "@web/core/utils/timing";
+import { user } from "@web/services/user";
+
+import { PeerToPeer, RequestError } from "./PeerToPeer.js";
 
 /**
  * @typedef {Object} CollaborationSelection
@@ -56,11 +57,12 @@ export class CollaborationOdooPlugin extends Plugin {
                 this.getCurrentCollaborativeSelection(),
                 {
                     transport: "rtc",
-                }
+                },
             );
         }, 50),
         clean_for_save_handlers: ({ root }) => this.attachHistoryIds(root),
-        history_missing_parent_step_handlers: this.onHistoryMissingParentStep.bind(this),
+        history_missing_parent_step_handlers:
+            this.onHistoryMissingParentStep.bind(this),
         history_reset_handlers: this.onReset.bind(this),
         step_added_handlers: ({ step }) =>
             this.ptp?.notifyAllPeers("oe_history_step", step, { transport: "rtc" }),
@@ -156,7 +158,9 @@ export class CollaborationOdooPlugin extends Plugin {
                 if (payload.notificationName === "html_field_write") {
                     this.onServerLastIdUpdate(payload.notificationPayload.last_step_id);
                 } else if (this.ptpJoined) {
-                    this.peerToPeerLoading.then(() => this.ptp.handleNotification(payload));
+                    this.peerToPeerLoading.then(() =>
+                        this.ptp.handleNotification(payload),
+                    );
                 }
             }
         };
@@ -215,7 +219,10 @@ export class CollaborationOdooPlugin extends Plugin {
             if (!iceServers.length) {
                 iceServers = [
                     {
-                        urls: ["stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"],
+                        urls: [
+                            "stun:stun1.l.google.com:19302",
+                            "stun:stun2.l.google.com:19302",
+                        ],
                     },
                 ];
             }
@@ -248,32 +255,39 @@ export class CollaborationOdooPlugin extends Plugin {
                         field_name: fieldName,
                         res_id: resId,
                         bus_data: rpcData,
-                    })
+                    }),
                 ),
             onRequest: {
                 get_peer_metadata: this.getMetadata.bind(this),
                 get_missing_steps: (params) =>
-                    this.dependencies.collaboration.historyGetMissingSteps(params.requestPayload),
+                    this.dependencies.collaboration.historyGetMissingSteps(
+                        params.requestPayload,
+                    ),
                 get_history_from_snapshot: () => this.getHistorySnapshot(),
-                get_collaborative_selection: () => this.getCurrentCollaborativeSelection(),
+                get_collaborative_selection: () =>
+                    this.getCurrentCollaborativeSelection(),
                 recover_document: (params) => {
                     const { serverDocumentId, fromStepId } = params.requestPayload;
                     if (
-                        !this.dependencies.collaboration.getBranchIds().includes(serverDocumentId)
+                        !this.dependencies.collaboration
+                            .getBranchIds()
+                            .includes(serverDocumentId)
                     ) {
                         return;
                     }
                     return {
-                        missingSteps: this.dependencies.collaboration.historyGetMissingSteps({
-                            fromStepId,
-                        }),
+                        missingSteps:
+                            this.dependencies.collaboration.historyGetMissingSteps({
+                                fromStepId,
+                            }),
                         snapshot: this.getHistorySnapshot(),
                     };
                 },
             },
             onNotification: async (notification) => {
                 this.dispatchTo("collaboration_notification_handlers", notification);
-                let { fromPeerId, notificationName, notificationPayload } = notification;
+                let { fromPeerId, notificationName, notificationPayload } =
+                    notification;
                 switch (notificationName) {
                     case "ptp_remove":
                         // todo: to implement
@@ -290,7 +304,7 @@ export class CollaborationOdooPlugin extends Plugin {
                             fromPeerId,
                             "get_peer_metadata",
                             undefined,
-                            { transport: "rtc" }
+                            { transport: "rtc" },
                         );
                         if (metadata === REQUEST_ERROR) {
                             return;
@@ -314,7 +328,7 @@ export class CollaborationOdooPlugin extends Plugin {
                                 this.resetCollabRequests();
                                 const response = await this.resetFromPeer(
                                     fromPeerId,
-                                    this.lastCollaborationResetId
+                                    this.lastCollaborationResetId,
                                 );
                                 if (response === REQUEST_ERROR) {
                                     return;
@@ -326,7 +340,7 @@ export class CollaborationOdooPlugin extends Plugin {
                             this.ptp.notifyAllPeers(
                                 "oe_history_step",
                                 this.dependencies.history.getHistorySteps().at(-1),
-                                { transport: "rtc" }
+                                { transport: "rtc" },
                             );
                             this.resetCollaborativeSelection(fromPeerId);
                         }
@@ -368,13 +382,15 @@ export class CollaborationOdooPlugin extends Plugin {
     }
 
     async requestPeer(peerId, requestName, requestPayload, params) {
-        return this.ptp.requestPeer(peerId, requestName, requestPayload, params).catch((e) => {
-            if (e instanceof RequestError) {
-                return REQUEST_ERROR;
-            } else {
-                throw e;
-            }
-        });
+        return this.ptp
+            .requestPeer(peerId, requestName, requestPayload, params)
+            .catch((e) => {
+                if (e instanceof RequestError) {
+                    return REQUEST_ERROR;
+                } else {
+                    throw e;
+                }
+            });
     }
     getMetadata() {
         const metadatas = {
@@ -425,7 +441,9 @@ export class CollaborationOdooPlugin extends Plugin {
         if (!this.serverLastStepId) {
             return false;
         }
-        return !this.dependencies.collaboration.getBranchIds().includes(this.serverLastStepId);
+        return !this.dependencies.collaboration
+            .getBranchIds()
+            .includes(this.serverLastStepId);
     }
 
     /**
@@ -481,9 +499,11 @@ export class CollaborationOdooPlugin extends Plugin {
                     "recover_document",
                     {
                         serverDocumentId: this.serverLastStepId,
-                        fromStepId: this.dependencies.collaboration.getBranchIds().at(-1),
+                        fromStepId: this.dependencies.collaboration
+                            .getBranchIds()
+                            .at(-1),
                     },
-                    { transport: "rtc" }
+                    { transport: "rtc" },
                 ).then((response) => {
                     nbPendingResponses--;
                     if (
@@ -584,7 +604,9 @@ export class CollaborationOdooPlugin extends Plugin {
         }
 
         const content =
-            record[this.config.collaboration.collaborationChannel.collaborationFieldName];
+            record[
+                this.config.collaboration.collaborationChannel.collaborationFieldName
+            ];
         const lastHistoryId = content && this.getLastHistoryStepId(content);
         // If a change was made in the document while retrieving it, the
         // lastHistoryId will be different if the odoo bus did not have time to
@@ -592,7 +614,7 @@ export class CollaborationOdooPlugin extends Plugin {
         if (this.serverLastStepId !== lastHistoryId) {
             // todo: instrument it to ensure it never happens
             throw new Error(
-                "Concurency detected while recovering from a stale document. The last history id of the server is different from the history id received by the html_field_write event."
+                "Concurency detected while recovering from a stale document. The last history id of the server is different from the history id received by the html_field_write event.",
             );
         }
 
@@ -601,7 +623,9 @@ export class CollaborationOdooPlugin extends Plugin {
             // content here is trusted
             this.editable.innerHTML = content;
         } else {
-            this.editable.replaceChildren(this.dependencies.baseContainer.createBaseContainer());
+            this.editable.replaceChildren(
+                this.dependencies.baseContainer.createBaseContainer(),
+            );
         }
         stripHistoryIds(this.editable);
         this.dispatchTo("normalize_handlers", this.editable);
@@ -622,8 +646,8 @@ export class CollaborationOdooPlugin extends Plugin {
                 // Reset from the fastest peer. The first peer to reset will set
                 // this.historySyncAtLeastOnce to true canceling the other peers
                 // resets.
-                this.resetFromPeer(peer.id, collaborationResetId)
-            )
+                this.resetFromPeer(peer.id, collaborationResetId),
+            ),
         );
         return true;
     }
@@ -634,7 +658,8 @@ export class CollaborationOdooPlugin extends Plugin {
         // different history, we should not apply it.
         this.historyShareId = Math.floor(Math.random() * Math.pow(2, 52)).toString();
 
-        const lastStepId = content && content.match(/data-last-history-steps="([\d,]+)"/)?.[1];
+        const lastStepId =
+            content && content.match(/data-last-history-steps="([\d,]+)"/)?.[1];
         if (lastStepId) {
             this.dependencies.collaboration.setInitialBranchStepId(lastStepId);
         }
@@ -716,7 +741,7 @@ export class CollaborationOdooPlugin extends Plugin {
             fromPeerId,
             "get_history_from_snapshot",
             undefined,
-            { transport: "rtc" }
+            { transport: "rtc" },
         );
         if (snapshot === REQUEST_ERROR) {
             return REQUEST_ERROR;
@@ -742,7 +767,10 @@ export class CollaborationOdooPlugin extends Plugin {
         }
         const anchorNode = this._getNodeFromIndexPath(anchorNodeIndexPath);
         if (
-            this.dependencies.selection.isSelectionInEditable({ anchorNode, focusNode: anchorNode })
+            this.dependencies.selection.isSelectionInEditable({
+                anchorNode,
+                focusNode: anchorNode,
+            })
         ) {
             this.dependencies.selection.setSelection({
                 anchorNode,
@@ -752,7 +780,9 @@ export class CollaborationOdooPlugin extends Plugin {
         this.historySyncFinished = true;
         // In case there are steps received in the meantime, process them.
         if (this.historyStepsBuffer.length) {
-            this.dependencies.collaboration.onExternalHistorySteps(this.historyStepsBuffer);
+            this.dependencies.collaboration.onExternalHistorySteps(
+                this.historyStepsBuffer,
+            );
             this.historyStepsBuffer = [];
         }
         this.editable.dispatchEvent(new CustomEvent("onHistoryResetFromPeer"));
@@ -764,7 +794,7 @@ export class CollaborationOdooPlugin extends Plugin {
             fromPeerId,
             "get_collaborative_selection",
             undefined,
-            { transport: "rtc" }
+            { transport: "rtc" },
         );
         if (remoteSelection === REQUEST_ERROR) {
             return;
@@ -784,20 +814,20 @@ export class CollaborationOdooPlugin extends Plugin {
                 fromStepId: fromStepId,
                 toStepId: step.id,
             },
-            { transport: "rtc" }
+            { transport: "rtc" },
         );
         if (missingSteps === REQUEST_ERROR) {
             return;
         }
         this.processMissingSteps(
-            Array.isArray(missingSteps) ? missingSteps.concat(step) : missingSteps
+            Array.isArray(missingSteps) ? missingSteps.concat(step) : missingSteps,
         );
     }
     async getCurrentRecord() {
         const [record] = await this.config.collaboration.ormService.read(
             this.config.collaboration.collaborationChannel.collaborationModelName,
             [this.config.collaboration.collaborationChannel.collaborationResId],
-            [this.config.collaboration.collaborationChannel.collaborationFieldName]
+            [this.config.collaboration.collaborationChannel.collaborationFieldName],
         );
         return record;
     }
@@ -817,7 +847,7 @@ export class CollaborationOdooPlugin extends Plugin {
      */
     _getNodeIndexPath(node) {
         return [node, ...ancestors(node, this.editable)].map((ancestor) =>
-            childNodeIndex(ancestor)
+            childNodeIndex(ancestor),
         );
     }
     /**
@@ -829,7 +859,7 @@ export class CollaborationOdooPlugin extends Plugin {
     _getNodeFromIndexPath(indexPath) {
         return indexPath.reduceRight(
             (node, index) => node?.childNodes?.[index],
-            this.editable.parentElement
+            this.editable.parentElement,
         );
     }
 }

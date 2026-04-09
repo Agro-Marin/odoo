@@ -249,9 +249,7 @@ function modifyAttributes(target, operation) {
         const remove = child.getAttribute("remove") || "";
         if (add || remove) {
             if (firstNode?.nodeType === Node.TEXT_NODE) {
-                throw new Error(
-                    `Useless element content ${/** @type {Element} */ (firstNode).outerHTML}`,
-                );
+                throw new Error(`Useless element content "${firstNode.textContent}"`);
             }
             const separator = child.getAttribute("separator") || ",";
             const toRemove = new Set(splitAndTrim(remove, separator));
@@ -363,56 +361,64 @@ function replace(root, target, operation) {
  */
 export function applyInheritance(root, operations, url = "") {
     translationContext = url.split("/")[1] ?? ""; // use addon name as context
-    for (const operation of operations.children) {
-        const target = getElement(root, operation);
-        const position = operation.getAttribute("position") || "inside";
+    try {
+        for (const operation of operations.children) {
+            const target = getElement(root, operation);
+            const position = operation.getAttribute("position") || "inside";
 
-        if (odoo.debug && url) {
-            const attributes = [...operation.attributes].map(
-                ({ name, value }) =>
-                    `${name}=${JSON.stringify(name === "position" ? position : value)}`,
-            );
-            const comment = document.createComment(
-                ` From file: ${url} ; ${attributes.join(" ; ")} `,
-            );
-            if (position === "attributes") {
-                target.before(comment); // comment won't be visible if target is root
-            } else {
-                operation.prepend(comment);
+            if (odoo.debug && url) {
+                const attributes = [...operation.attributes].map(
+                    ({ name, value }) =>
+                        `${name}=${JSON.stringify(name === "position" ? position : value)}`,
+                );
+                const comment = document.createComment(
+                    ` From file: ${url} ; ${attributes.join(" ; ")} `,
+                );
+                if (position === "attributes") {
+                    target.before(comment); // comment won't be visible if target is root
+                } else {
+                    operation.prepend(comment);
+                }
+            }
+
+            switch (position) {
+                case "replace": {
+                    root = replace(root, target, operation); // root can be replaced (see outer mode)
+                    break;
+                }
+                case "attributes": {
+                    modifyAttributes(target, operation);
+                    break;
+                }
+                case "inside": {
+                    const sentinel = document.createElement("sentinel");
+                    target.append(sentinel);
+                    addBefore(sentinel, operation);
+                    removeNode(sentinel);
+                    break;
+                }
+                case "after": {
+                    const sentinel = document.createElement("sentinel");
+                    target.after(sentinel);
+                    addBefore(sentinel, operation);
+                    removeNode(sentinel);
+                    break;
+                }
+                case "before": {
+                    addBefore(target, operation);
+                    break;
+                }
+                default:
+                    throw new Error(`Invalid position attribute: '${position}'`);
             }
         }
-
-        switch (position) {
-            case "replace": {
-                root = replace(root, target, operation); // root can be replaced (see outer mode)
-                break;
-            }
-            case "attributes": {
-                modifyAttributes(target, operation);
-                break;
-            }
-            case "inside": {
-                const sentinel = document.createElement("sentinel");
-                target.append(sentinel);
-                addBefore(sentinel, operation);
-                removeNode(sentinel);
-                break;
-            }
-            case "after": {
-                const sentinel = document.createElement("sentinel");
-                target.after(sentinel);
-                addBefore(sentinel, operation);
-                removeNode(sentinel);
-                break;
-            }
-            case "before": {
-                addBefore(target, operation);
-                break;
-            }
-            default:
-                throw new Error(`Invalid position attribute: '${position}'`);
-        }
+    } catch (e) {
+        // On error, discard partial translation context entries to avoid
+        // leaking DOM node references from the failed template.
+        contextByTextNode.clear();
+        throw e;
+    } finally {
+        translationContext = null;
     }
-    translationContext = null;
     return root;
 }

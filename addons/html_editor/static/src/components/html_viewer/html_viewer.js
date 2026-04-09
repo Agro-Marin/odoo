@@ -1,4 +1,9 @@
 /** @odoo-module native */
+import { HtmlUpgradeManager } from "@html_editor/html_migrations/html_upgrade_manager";
+import { TableOfContentManager } from "@html_editor/others/embedded_components/core/table_of_content/table_of_content_manager";
+import { fillHtmlTransferData } from "@html_editor/utils/clipboard";
+import { fixInvalidHTML, instanceofMarkup } from "@html_editor/utils/sanitize";
+import { scrollAndHighlightHeading } from "@html_editor/utils/url";
 import {
     Component,
     markup,
@@ -12,11 +17,6 @@ import {
 } from "@odoo/owl";
 import { getBundle } from "@web/core/assets";
 import { memoize } from "@web/core/utils/functions";
-import { fillHtmlTransferData } from "@html_editor/utils/clipboard";
-import { fixInvalidHTML, instanceofMarkup } from "@html_editor/utils/sanitize";
-import { HtmlUpgradeManager } from "@html_editor/html_migrations/html_upgrade_manager";
-import { TableOfContentManager } from "@html_editor/others/embedded_components/core/table_of_content/table_of_content_manager";
-import { scrollAndHighlightHeading } from "@html_editor/utils/url";
 
 export class HtmlViewer extends Component {
     static template = "html_editor.HtmlViewer";
@@ -59,7 +59,9 @@ export class HtmlViewer extends Component {
         if (this.showIframe) {
             onMounted(() => {
                 const onLoadIframe = () => this.onLoadIframe(this.state.value);
-                this.iframeRef.el.addEventListener("load", onLoadIframe, { once: true });
+                this.iframeRef.el.addEventListener("load", onLoadIframe, {
+                    once: true,
+                });
                 // Force the iframe to call the `load` event. Without this line, the
                 // event 'load' might never trigger.
                 this.iframeRef.el.after(this.iframeRef.el);
@@ -70,12 +72,14 @@ export class HtmlViewer extends Component {
                 () => {
                     this.processReadonlyContent(this.readonlyElementRef.el);
                 },
-                () => [this.props.config.value.toString(), this.readonlyElementRef?.el]
+                () => [this.props.config.value.toString(), this.readonlyElementRef?.el],
             );
         }
 
         onMounted(() => {
-            scrollAndHighlightHeading(this.readonlyElementRef?.el || this.iframeRef?.el);
+            scrollAndHighlightHeading(
+                this.readonlyElementRef?.el || this.iframeRef?.el,
+            );
         });
 
         if (this.props.config.cssAssetId) {
@@ -99,7 +103,7 @@ export class HtmlViewer extends Component {
                         this.mountComponents();
                     }
                 },
-                () => [this.props.config.value.toString(), this.readonlyElementRef?.el]
+                () => [this.props.config.value.toString(), this.readonlyElementRef?.el],
             );
             this.tocManager = new TableOfContentManager(this.readonlyElementRef);
         }
@@ -110,7 +114,9 @@ export class HtmlViewer extends Component {
             fn?.call(this, ev);
         };
         target.addEventListener(eventName, handler, capture);
-        this._cleanups.push(() => target.removeEventListener(eventName, handler, capture));
+        this._cleanups.push(() =>
+            target.removeEventListener(eventName, handler, capture),
+        );
     }
 
     get showIframe() {
@@ -207,7 +213,7 @@ export class HtmlViewer extends Component {
                         <body class="o_in_iframe o_readonly" style="overflow: hidden;">
                             <div id="iframe_target"></div>
                         </body>
-                    </html>`
+                    </html>`,
             );
         }
 
@@ -262,7 +268,9 @@ export class HtmlViewer extends Component {
     }
 
     getEmbedding(host) {
-        return this.embeddedComponents(this.props.config.embeddedComponents)[host.dataset.embedded];
+        return this.embeddedComponents(this.props.config.embeddedComponents)[
+            host.dataset.embedded
+        ];
     }
 
     setupNewComponent({ name, env, props }) {
@@ -314,8 +322,11 @@ export class HtmlViewer extends Component {
     }
 
     mountComponents() {
-        this.forEachEmbeddedComponentHost(this.readonlyElementRef.el, (host, embedding) => {
-            this.mountComponent(host, embedding);
-        });
+        this.forEachEmbeddedComponentHost(
+            this.readonlyElementRef.el,
+            (host, embedding) => {
+                this.mountComponent(host, embedding);
+            },
+        );
     }
 }

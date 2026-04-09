@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { fillEmpty } from "@html_editor/utils/dom";
 import {
     containsAnyNonPhrasingContent,
     getDeepestPosition,
@@ -9,16 +10,16 @@ import {
     isProtected,
     isProtecting,
 } from "@html_editor/utils/dom_info";
+import { selectElements } from "@html_editor/utils/dom_traversal";
+import { childNodeIndex } from "@html_editor/utils/position";
+import { withSequence } from "@html_editor/utils/resource";
+
 import { Plugin } from "../plugin.js";
-import { fillEmpty } from "@html_editor/utils/dom";
 import {
     BASE_CONTAINER_CLASS,
     baseContainerGlobalSelector,
     createBaseContainer,
 } from "../utils/base_container.js";
-import { withSequence } from "@html_editor/utils/resource";
-import { selectElements } from "@html_editor/utils/dom_traversal";
-import { childNodeIndex } from "@html_editor/utils/position";
 
 /**
  * @typedef { Object } BaseContainerShared
@@ -33,7 +34,11 @@ import { childNodeIndex } from "@html_editor/utils/position";
 
 export class BaseContainerPlugin extends Plugin {
     static id = "baseContainer";
-    static shared = ["createBaseContainer", "getDefaultNodeName", "isCandidateForBaseContainer"];
+    static shared = [
+        "createBaseContainer",
+        "getDefaultNodeName",
+        "isCandidateForBaseContainer",
+    ];
     static defaultConfig = {
         baseContainers: ["P", "DIV"],
     };
@@ -43,7 +48,8 @@ export class BaseContainerPlugin extends Plugin {
      * as a property for optimization, see variants of `isCandidateForBaseContainer`.
      */
     hasNonPhrasingContentPredicate = (element) =>
-        element?.nodeType === Node.ELEMENT_NODE && containsAnyNonPhrasingContent(element);
+        element?.nodeType === Node.ELEMENT_NODE &&
+        containsAnyNonPhrasingContent(element);
     /**
      * The `unsplittable` predicate for `invalid_for_base_container_predicates`
      * is defined in this file and not in split_plugin because it has to be removed
@@ -57,7 +63,10 @@ export class BaseContainerPlugin extends Plugin {
         // `baseContainer` normalization should occur after every other normalization
         // because a `div` may only have the baseContainer identity if it does not
         // already have another incompatible identity given by another plugin.
-        normalize_handlers: withSequence(Infinity, this.normalizeDivBaseContainers.bind(this)),
+        normalize_handlers: withSequence(
+            Infinity,
+            this.normalizeDivBaseContainers.bind(this),
+        ),
         delete_handlers: () => {
             if (this.config.cleanEmptyStructuralContainers === false) {
                 return;
@@ -103,7 +112,8 @@ export class BaseContainerPlugin extends Plugin {
             isContentEditable(n.parentElement) ? closestEditable(n.parentElement) : n;
 
         const isUnsplittable = this.isUnsplittablePredicate(node);
-        const isCandidateForBase = this.isCandidateForBaseContainerAllowUnsplittable(node);
+        const isCandidateForBase =
+            this.isCandidateForBaseContainerAllowUnsplittable(node);
 
         if (isUnsplittable || !isCandidateForBase) {
             return;
@@ -140,7 +150,9 @@ export class BaseContainerPlugin extends Plugin {
      * This function considers unsplittable and childNodes.
      */
     isCandidateForBaseContainer(element) {
-        return !this.getResource("invalid_for_base_container_predicates").some((fn) => fn(element));
+        return !this.getResource("invalid_for_base_container_predicates").some((fn) =>
+            fn(element),
+        );
     }
 
     /**
@@ -169,7 +181,9 @@ export class BaseContainerPlugin extends Plugin {
      * oe_unbreakable) => it stays unsplittable.
      */
     isCandidateForBaseContainerAllowUnsplittable(element) {
-        for (const predicate of this.getResource("invalid_for_base_container_predicates")) {
+        for (const predicate of this.getResource(
+            "invalid_for_base_container_predicates",
+        )) {
             if (predicate === this.isUnsplittablePredicate) {
                 continue;
             }

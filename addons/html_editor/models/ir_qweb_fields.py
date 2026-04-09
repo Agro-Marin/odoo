@@ -1,10 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-"""
-Web_editor-context rendering needs to add some metadata to rendered and allow to edit fields,
-as well as render a few fields differently.
+"""Render fields with editor metadata and convert HTML values back to Odoo models.
 
-Also, adds methods to convert values back to Odoo models.
+Add metadata to rendered fields allowing in-place editing, render a few field
+types differently, and provide methods to convert values back to Odoo models.
 """
 
 import base64
@@ -12,8 +11,10 @@ import io
 import json
 import logging
 import re
+from collections.abc import Iterable, Iterator
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import babel
 import pytz
@@ -21,13 +22,12 @@ import requests
 from lxml import etree, html
 from markupsafe import Markup, escape_silent
 from PIL import Image as I
-from urllib.parse import parse_qs, urlsplit
 
-from odoo import _, api, models, fields
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import posix_to_ldml
 from odoo.tools.json import scriptsafe as json_safe
-from odoo.tools.misc import file_open, get_lang, babel_locale_parse
+from odoo.tools.misc import babel_locale_parse, file_open, get_lang
 
 REMOTE_CONNECTION_TIMEOUT = 2.5
 
@@ -35,139 +35,179 @@ _logger = logging.getLogger(__name__)
 
 
 class IrQweb(models.AbstractModel):
-    """ IrQweb object for rendering editor stuff
-    """
-    _inherit = 'ir.qweb'
+    """IrQweb object for rendering editor stuff."""
 
-    def _compile_node(self, el, compile_context, level):
-        snippet_key = compile_context.get('snippet-key')
+    _inherit = "ir.qweb"
 
-        template = compile_context['ref_name']
-        sub_call_key = compile_context.get('snippet-sub-call-key')
+    def _compile_node(self, el: object, compile_context: dict, level: int) -> list:
+        """Compile a QWeb node, adding snippet metadata when applicable."""
+        snippet_key = compile_context.get("snippet-key")
+
+        template = compile_context["ref_name"]
+        sub_call_key = compile_context.get("snippet-sub-call-key")
 
         # We only add the 'data-snippet' & 'data-name' attrib once when
         # compiling the root node of the template.
-        if not template or template not in {snippet_key, sub_call_key} or el.getparent() is not None:
+        if (
+            not template
+            or template not in {snippet_key, sub_call_key}
+            or el.getparent() is not None
+        ):
             return super()._compile_node(el, compile_context, level)
 
         snippet_base_node = el
-        if el.tag == 't':
-            el_children = [child for child in list(el) if isinstance(child.tag, str) and child.tag != 't']
+        if el.tag == "t":
+            el_children = [
+                child
+                for child in list(el)
+                if isinstance(child.tag, str) and child.tag != "t"
+            ]
             if len(el_children) == 1:
                 snippet_base_node = el_children[0]
             elif not el_children:
                 # If there's not a valid base node we check if the base node is
                 # a t-call to another template. If so the called template's base
                 # node must take the current snippet key.
-                el_children = [child for child in list(el) if isinstance(child.tag, str)]
+                el_children = [
+                    child for child in list(el) if isinstance(child.tag, str)
+                ]
                 if len(el_children) == 1:
-                    sub_call = el_children[0].get('t-call')
+                    sub_call = el_children[0].get("t-call")
                     if sub_call:
-                        el_children[0].set('t-options', f"{{'snippet-key': '{snippet_key}', 'snippet-sub-call-key': '{sub_call}'}}")
+                        el_children[0].set(
+                            "t-options",
+                            f"{{'snippet-key': '{snippet_key}', 'snippet-sub-call-key': '{sub_call}'}}",
+                        )
         # If it already has a data-snippet it is a saved or an
         # inherited snippet. Do not override it.
-        if 'data-snippet' not in snippet_base_node.attrib:
-            snippet_base_node.attrib['data-snippet'] = \
-                snippet_key.split('.', 1)[-1]
+        if "data-snippet" not in snippet_base_node.attrib:
+            snippet_base_node.attrib["data-snippet"] = snippet_key.split(".", 1)[-1]
         # If it already has a data-name it is a saved or an
         # inherited snippet. Do not override it.
-        snippet_name = compile_context.get('snippet-name')
-        if snippet_name and 'data-name' not in snippet_base_node.attrib:
-            snippet_base_node.attrib['data-name'] = snippet_name
+        snippet_name = compile_context.get("snippet-name")
+        if snippet_name and "data-name" not in snippet_base_node.attrib:
+            snippet_base_node.attrib["data-name"] = snippet_name
         return super()._compile_node(el, compile_context, level)
 
-    def _get_preload_attribute_xmlids(self):
-        return super()._get_preload_attribute_xmlids() + ['t-snippet', 't-snippet-call']
+    def _get_preload_attribute_xmlids(self) -> list[str]:
+        """Return XML IDs of attributes to preload for editor directives."""
+        return super()._get_preload_attribute_xmlids() + ["t-snippet", "t-snippet-call"]
 
     # compile directives
 
-    def _compile_directive_snippet(self, el, compile_context, indent):
-        key = el.attrib.pop('t-snippet')
-        el.set('t-call', key)
-        snippet_lang = self.env.context.get('snippet_lang')
+    def _compile_directive_snippet(
+        self, el: object, compile_context: dict, indent: int
+    ) -> list:
+        """Compile a t-snippet directive into an editor-annotated wrapper div."""
+        key = el.attrib.pop("t-snippet")
+        el.set("t-call", key)
+        snippet_lang = self.env.context.get("snippet_lang")
         if snippet_lang:
-            el.set('t-lang', f"'{snippet_lang}'")
+            el.set("t-lang", f"'{snippet_lang}'")
 
-        el.set('t-options', f"{{'snippet-key': {key!r}}}")
-        view = self.env['ir.ui.view']._get_template_view(key)
-        name = el.attrib.pop('string', view.name)
-        thumbnail = el.attrib.pop('t-thumbnail', "oe-thumbnail")
-        image_preview = el.attrib.pop('t-image-preview', None)
+        el.set("t-options", f"{{'snippet-key': {key!r}}}")
+        view = self.env["ir.ui.view"]._get_template_view(key)
+        name = el.attrib.pop("string", view.name)
+        thumbnail = el.attrib.pop("t-thumbnail", "oe-thumbnail")
+        image_preview = el.attrib.pop("t-image-preview", None)
         # Forbid sanitize contains the specific reason:
         # - "true": always forbid
         # - "form": forbid if forms are sanitized
-        forbid_sanitize = el.attrib.pop('t-forbid-sanitize', None)
-        grid_column_span = el.attrib.pop('t-grid-column-span', None)
-        snippet_group = el.attrib.pop('snippet-group', None)
-        group = el.attrib.pop('group', None)
-        label = el.attrib.pop('label', None)
-        div = Markup('<div name="%s" data-oe-type="snippet" data-o-image-preview="%s" data-oe-thumbnail="%s" data-oe-snippet-id="%s" data-oe-snippet-key="%s" data-oe-keywords="%s" %s %s %s %s %s>') % (
+        forbid_sanitize = el.attrib.pop("t-forbid-sanitize", None)
+        grid_column_span = el.attrib.pop("t-grid-column-span", None)
+        snippet_group = el.attrib.pop("snippet-group", None)
+        group = el.attrib.pop("group", None)
+        label = el.attrib.pop("label", None)
+        div = Markup(
+            '<div name="%s" data-oe-type="snippet" data-o-image-preview="%s" data-oe-thumbnail="%s" data-oe-snippet-id="%s" data-oe-snippet-key="%s" data-oe-keywords="%s" %s %s %s %s %s>'
+        ) % (
             name,
             escape_silent(image_preview),
             thumbnail,
             view.id,
-            key.split('.')[-1],
-            escape_silent(el.findtext('keywords')),
-            Markup('data-oe-forbid-sanitize="%s"') % forbid_sanitize if forbid_sanitize else '',
-            Markup('data-o-grid-column-span="%s"') % grid_column_span if grid_column_span else '',
-            Markup('data-o-snippet-group="%s"') % snippet_group if snippet_group else '',
-            Markup('data-o-group="%s"') % group if group else '',
-            Markup('data-o-label="%s"') % label if label else '',
+            key.split(".")[-1],
+            escape_silent(el.findtext("keywords")),
+            Markup('data-oe-forbid-sanitize="%s"') % forbid_sanitize
+            if forbid_sanitize
+            else "",
+            Markup('data-o-grid-column-span="%s"') % grid_column_span
+            if grid_column_span
+            else "",
+            Markup('data-o-snippet-group="%s"') % snippet_group
+            if snippet_group
+            else "",
+            Markup('data-o-group="%s"') % group if group else "",
+            Markup('data-o-label="%s"') % label if label else "",
         )
         self._append_text(div, compile_context)
         code = self._compile_node(el, compile_context, indent)
-        self._append_text('</div>', compile_context)
+        self._append_text("</div>", compile_context)
         return code
 
-    def _compile_directive_snippet_call(self, el, compile_context, indent):
-        key = el.attrib.pop('t-snippet-call')
-        snippet_name = el.attrib.pop('string', None)
-        el.set('t-call', key)
-        el.set('t-options', f"{{'snippet-key': {key!r}, 'snippet-name': {snippet_name!r}}}")
+    def _compile_directive_snippet_call(
+        self, el: object, compile_context: dict, indent: int
+    ) -> list:
+        """Compile a t-snippet-call directive as a t-call with snippet options."""
+        key = el.attrib.pop("t-snippet-call")
+        snippet_name = el.attrib.pop("string", None)
+        el.set("t-call", key)
+        el.set(
+            "t-options", f"{{'snippet-key': {key!r}, 'snippet-name': {snippet_name!r}}}"
+        )
         return self._compile_node(el, compile_context, indent)
 
-    def _compile_directive_install(self, el, compile_context, indent):
-        key = el.attrib.pop('t-install')
-        thumbnail = el.attrib.pop('t-thumbnail', 'oe-thumbnail')
-        image_preview = el.attrib.pop('t-image-preview', None)
-        group = el.attrib.pop('group', None)
-        label = el.attrib.pop('label', None)
-        if self.env.user.has_group('base.group_system'):
-            module = self.env['ir.module.module'].search([('name', '=', key)])
-            if not module or module.state == 'installed':
+    def _compile_directive_install(
+        self, el: object, compile_context: dict, indent: int
+    ) -> list:
+        """Compile a t-install directive for installable snippet modules."""
+        key = el.attrib.pop("t-install")
+        thumbnail = el.attrib.pop("t-thumbnail", "oe-thumbnail")
+        image_preview = el.attrib.pop("t-image-preview", None)
+        group = el.attrib.pop("group", None)
+        label = el.attrib.pop("label", None)
+        if self.env.user.has_group("base.group_system"):
+            module = self.env["ir.module.module"].search([("name", "=", key)])
+            if not module or module.state == "installed":
                 return []
-            name = el.attrib.get('string') or 'Snippet'
-            div = Markup('<div name="%s" data-oe-type="snippet" data-module-id="%s" data-module-display-name="%s" data-o-image-preview="%s" data-oe-thumbnail="%s" %s %s><section/></div>') % (
+            name = el.attrib.get("string") or "Snippet"
+            div = Markup(
+                '<div name="%s" data-oe-type="snippet" data-module-id="%s" data-module-display-name="%s" data-o-image-preview="%s" data-oe-thumbnail="%s" %s %s><section/></div>'
+            ) % (
                 name,
                 module.id,
                 module.display_name,
                 escape_silent(image_preview),
                 thumbnail,
-                Markup('data-o-group="%s"') % group if group else '',
-                Markup('data-o-label="%s"') % label if label else '',
+                Markup('data-o-group="%s"') % group if group else "",
+                Markup('data-o-label="%s"') % label if label else "",
             )
             self._append_text(div, compile_context)
         return []
 
-    def _compile_directive_placeholder(self, el, compile_context, indent):
-        el.set('t-att-placeholder', el.attrib.pop('t-placeholder'))
+    def _compile_directive_placeholder(
+        self, el: object, compile_context: dict, indent: int
+    ) -> list:
+        """Compile a t-placeholder directive into a t-att-placeholder attribute."""
+        el.set("t-att-placeholder", el.attrib.pop("t-placeholder"))
         return []
 
     # order and ignore
 
-    def _directives_eval_order(self):
+    def _directives_eval_order(self) -> list[str]:
+        """Return directive evaluation order with editor directives before 'att'."""
         directives = super()._directives_eval_order()
         # Insert before "att" as those may rely on static attributes like
         # "string" and "att" clears all of those
-        index = directives.index('att') - 1
-        directives.insert(index, 'placeholder')
-        directives.insert(index, 'snippet')
-        directives.insert(index, 'snippet-call')
-        directives.insert(index, 'install')
+        index = directives.index("att") - 1
+        directives.insert(index, "placeholder")
+        directives.insert(index, "snippet")
+        directives.insert(index, "snippet-call")
+        directives.insert(index, "install")
         return directives
 
-    def _get_template_cache_keys(self):
-        return super()._get_template_cache_keys() + ['snippet_lang']
+    def _get_template_cache_keys(self) -> list[str]:
+        """Return cache keys including snippet language."""
+        return super()._get_template_cache_keys() + ["snippet_lang"]
 
 
 # ------------------------------------------------------
@@ -176,142 +216,199 @@ class IrQweb(models.AbstractModel):
 
 
 class IrQwebField(models.AbstractModel):
-    _name = 'ir.qweb.field'
-    _description = 'Qweb Field'
-    _inherit = ['ir.qweb.field']
+    """QWeb field rendering with editor branding attributes."""
+
+    _name = "ir.qweb.field"
+    _description = "Qweb Field"
+    _inherit = ["ir.qweb.field"]
 
     @api.model
-    def attributes(self, record, field_name, options, values=None):
+    def attributes(
+        self,
+        record: object,
+        field_name: str,
+        options: dict,
+        values: dict | None = None,
+    ) -> dict:
+        """Return field attributes including placeholder and translation state."""
         attrs = super().attributes(record, field_name, options, values)
         field = record._fields[field_name]
 
-        placeholder = options.get('placeholder') or getattr(field, 'placeholder', None)
+        placeholder = options.get("placeholder") or getattr(field, "placeholder", None)
         if placeholder:
-            attrs['placeholder'] = placeholder
+            attrs["placeholder"] = placeholder
 
-        if options['translate'] and field.type in ('char', 'text'):
-            lang = record.env.lang or 'en_US'
+        if options["translate"] and field.type in ("char", "text"):
+            lang = record.env.lang or "en_US"
             base_lang = record._get_base_lang()
             if lang == base_lang:
-                attrs['data-oe-translation-state'] = 'translated'
+                attrs["data-oe-translation-state"] = "translated"
             else:
                 base_value = record.with_context(lang=base_lang)[field_name]
                 value = record[field_name]
-                attrs['data-oe-translation-state'] = 'translated' if base_value != value else 'to_translate'
+                attrs["data-oe-translation-state"] = (
+                    "translated" if base_value != value else "to_translate"
+                )
 
         return attrs
 
-    def value_from_string(self, value):
+    def value_from_string(self, value: object) -> object:
+        """Convert a string value back to the field's Python type."""
         return value
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> object:
+        """Parse an HTML element and return the field value."""
         return self.value_from_string(element.text_content().strip()) or False
 
 
 class IrQwebFieldInteger(models.AbstractModel):
-    _name = 'ir.qweb.field.integer'
-    _description = 'Qweb Field Integer'
-    _inherit = ['ir.qweb.field.integer']
+    """QWeb integer field rendering and HTML-to-value conversion."""
+
+    _name = "ir.qweb.field.integer"
+    _description = "Qweb Field Integer"
+    _inherit = ["ir.qweb.field.integer"]
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> int:
+        """Parse an HTML element and return an integer value."""
         lang = self.user_lang()
         value = element.text_content().strip()
-        return int(value.replace(lang.thousands_sep or '', ''))
+        return int(value.replace(lang.thousands_sep or "", ""))
 
 
 class IrQwebFieldFloat(models.AbstractModel):
-    _name = 'ir.qweb.field.float'
-    _description = 'Qweb Field Float'
-    _inherit = ['ir.qweb.field.float']
+    """QWeb float field rendering and HTML-to-value conversion."""
+
+    _name = "ir.qweb.field.float"
+    _description = "Qweb Field Float"
+    _inherit = ["ir.qweb.field.float"]
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> float:
+        """Parse an HTML element and return a float value."""
         lang = self.user_lang()
         value = element.text_content().strip()
-        return float(value.replace(lang.thousands_sep or '', '')
-                          .replace(lang.decimal_point, '.'))
+        return float(
+            value.replace(lang.thousands_sep or "", "").replace(lang.decimal_point, ".")
+        )
 
 
 class IrQwebFieldMany2one(models.AbstractModel):
-    _name = 'ir.qweb.field.many2one'
-    _description = 'Qweb Field Many to One'
-    _inherit = ['ir.qweb.field.many2one']
+    """QWeb Many2one field rendering with editor branding."""
+
+    _name = "ir.qweb.field.many2one"
+    _description = "Qweb Field Many to One"
+    _inherit = ["ir.qweb.field.many2one"]
 
     @api.model
-    def attributes(self, record, field_name, options, values=None):
+    def attributes(
+        self,
+        record: object,
+        field_name: str,
+        options: dict,
+        values: dict | None = None,
+    ) -> dict:
+        """Return Many2one attributes including related record info and domain."""
         field = record._fields[field_name]
         attrs = super().attributes(record, field_name, options, values)
-        if options.get('inherit_branding'):
+        if options.get("inherit_branding"):
             many2one = record[field_name]
             if many2one:
-                attrs['data-oe-many2one-id'] = many2one.id
-                attrs['data-oe-many2one-model'] = many2one._name
-            if options.get('null_text'):
-                attrs['data-oe-many2one-allowreset'] = 1
+                attrs["data-oe-many2one-id"] = many2one.id
+                attrs["data-oe-many2one-model"] = many2one._name
+            if options.get("null_text"):
+                attrs["data-oe-many2one-allowreset"] = 1
                 if not many2one:
-                    attrs['data-oe-many2one-model'] = record._fields[field_name].comodel_name
+                    attrs["data-oe-many2one-model"] = record._fields[
+                        field_name
+                    ].comodel_name
             domain = field._description_domain(self.env)
             if isinstance(domain, str):
                 domain = []
-            attrs['data-oe-many2one-domain'] = json_safe.dumps(domain)
+            attrs["data-oe-many2one-domain"] = json_safe.dumps(domain)
         return attrs
 
     @api.model
-    def from_html(self, model, field, element):
-        Model = self.env[element.get('data-oe-model')]
-        record_id = int(element.get('data-oe-id'))
+    def from_html(self, model: object, field: object, element: object) -> None:
+        """Write the Many2one value from the HTML element back to the record."""
+        Model = self.env[element.get("data-oe-model")]
+        record_id = int(element.get("data-oe-id"))
         M2O = self.env[field.comodel_name]
-        field_name = element.get('data-oe-field')
-        many2one_id = int(element.get('data-oe-many2one-id'))
+        field_name = element.get("data-oe-field")
+        many2one_id = int(element.get("data-oe-many2one-id"))
 
-        allow_reset = element.get('data-oe-many2one-allowreset')
+        allow_reset = element.get("data-oe-many2one-allowreset")
         if allow_reset and not many2one_id:
             # Reset the id of the many2one
             Model.browse(record_id).write({field_name: False})
-            return None
+            return
 
         record = many2one_id and M2O.browse(many2one_id)
         if record and record.exists():
             # save the new id of the many2one
             Model.browse(record_id).write({field_name: many2one_id})
 
-        return None
+        return
 
 
 class IrQwebFieldContact(models.AbstractModel):
-    _name = 'ir.qweb.field.contact'
-    _description = 'Qweb Field Contact'
-    _inherit = ['ir.qweb.field.contact']
+    """QWeb contact field rendering with editor branding."""
+
+    _name = "ir.qweb.field.contact"
+    _description = "Qweb Field Contact"
+    _inherit = ["ir.qweb.field.contact"]
 
     @api.model
-    def attributes(self, record, field_name, options, values=None):
+    def attributes(
+        self,
+        record: object,
+        field_name: str,
+        options: dict,
+        values: dict | None = None,
+    ) -> dict:
+        """Return contact attributes including serialized options for the editor."""
         attrs = super().attributes(record, field_name, options, values)
-        if options.get('inherit_branding'):
-            attrs['data-oe-contact-options'] = json.dumps(options)
+        if options.get("inherit_branding"):
+            attrs["data-oe-contact-options"] = json.dumps(options)
         return attrs
 
     @api.model
-    def get_record_to_html(self, contact_ids, options=None):
-        """ Helper to call the rendering of contact field. """
-        return self.value_to_html(self.env['res.partner'].search([('id', '=', contact_ids[0])]), options=options)
+    def get_record_to_html(
+        self, contact_ids: list[int], options: dict | None = None
+    ) -> object:
+        """Render the contact field for the given partner IDs."""
+        return self.value_to_html(
+            self.env["res.partner"].search([("id", "=", contact_ids[0])]),
+            options=options,
+        )
 
 
 class IrQwebFieldDate(models.AbstractModel):
-    _name = 'ir.qweb.field.date'
-    _description = 'Qweb Field Date'
-    _inherit = ['ir.qweb.field.date']
+    """QWeb date field rendering with editor branding and locale formatting."""
+
+    _name = "ir.qweb.field.date"
+    _description = "Qweb Field Date"
+    _inherit = ["ir.qweb.field.date"]
 
     @api.model
-    def attributes(self, record, field_name, options, values=None):
+    def attributes(
+        self,
+        record: object,
+        field_name: str,
+        options: dict,
+        values: dict | None = None,
+    ) -> dict:
+        """Return date attributes including original value and locale format."""
         attrs = super().attributes(record, field_name, options, values)
-        if options.get('inherit_branding'):
-            attrs['data-oe-original'] = record[field_name]
+        if options.get("inherit_branding"):
+            attrs["data-oe-original"] = record[field_name]
 
-            if record._fields[field_name].type == 'datetime':
-                attrs = self.env['ir.qweb.field.datetime'].attributes(record, field_name, options, values)
-                attrs['data-oe-type'] = 'datetime'
+            if record._fields[field_name].type == "datetime":
+                attrs = self.env["ir.qweb.field.datetime"].attributes(
+                    record, field_name, options, values
+                )
+                attrs["data-oe-type"] = "datetime"
                 return attrs
 
             lg = get_lang(self.env, self.env.user.lang)
@@ -320,13 +417,16 @@ class IrQwebFieldDate(models.AbstractModel):
 
             if record[field_name]:
                 date = fields.Date.from_string(record[field_name])
-                value_format = babel.dates.format_date(date, format=babel_format, locale=locale)
+                value_format = babel.dates.format_date(
+                    date, format=babel_format, locale=locale
+                )
 
-            attrs['data-oe-original-with-format'] = value_format
+            attrs["data-oe-original-with-format"] = value_format
         return attrs
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> str | bool:
+        """Parse a date from the HTML element text using the user's locale."""
         value = element.text_content().strip()
         if not value:
             return False
@@ -337,38 +437,54 @@ class IrQwebFieldDate(models.AbstractModel):
 
 
 class IrQwebFieldDatetime(models.AbstractModel):
-    _name = 'ir.qweb.field.datetime'
-    _description = 'Qweb Field Datetime'
-    _inherit = ['ir.qweb.field.datetime']
+    """QWeb datetime field rendering with timezone and locale support."""
+
+    _name = "ir.qweb.field.datetime"
+    _description = "Qweb Field Datetime"
+    _inherit = ["ir.qweb.field.datetime"]
 
     @api.model
-    def attributes(self, record, field_name, options, values=None):
+    def attributes(
+        self,
+        record: object,
+        field_name: str,
+        options: dict,
+        values: dict | None = None,
+    ) -> dict:
+        """Return datetime attributes including timezone-converted original value."""
         attrs = super().attributes(record, field_name, options, values)
 
-        if options.get('inherit_branding'):
+        if options.get("inherit_branding"):
             value = record[field_name]
 
             lg = get_lang(self.env, self.env.user.lang)
             locale = babel_locale_parse(lg.code)
-            babel_format = value_format = posix_to_ldml(f'{lg.date_format} {lg.time_format}', locale=locale)
-            tz = record.env.context.get('tz') or self.env.user.tz
+            babel_format = value_format = posix_to_ldml(
+                f"{lg.date_format} {lg.time_format}", locale=locale
+            )
+            tz = record.env.context.get("tz") or self.env.user.tz
 
             if isinstance(value, str):
                 value = fields.Datetime.from_string(value)
 
             if value:
                 # convert from UTC (server timezone) to user timezone
-                value = fields.Datetime.context_timestamp(self.with_context(tz=tz), timestamp=value)
-                value_format = babel.dates.format_datetime(value, format=babel_format, locale=locale)
+                value = fields.Datetime.context_timestamp(
+                    self.with_context(tz=tz), timestamp=value
+                )
+                value_format = babel.dates.format_datetime(
+                    value, format=babel_format, locale=locale
+                )
                 value = fields.Datetime.to_string(value)
 
-            attrs['data-oe-original'] = value
-            attrs['data-oe-original-with-format'] = value_format
-            attrs['data-oe-original-tz'] = tz
+            attrs["data-oe-original"] = value
+            attrs["data-oe-original-with-format"] = value_format
+            attrs["data-oe-original-tz"] = tz
         return attrs
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> str | bool:
+        """Parse a datetime from the HTML element and convert back to UTC."""
         value = element.text_content().strip()
         if not value:
             return False
@@ -376,49 +492,67 @@ class IrQwebFieldDatetime(models.AbstractModel):
         # parse from string to datetime
         lg = get_lang(self.env, self.env.user.lang)
         try:
-            datetime_format = f'{lg.date_format} {lg.time_format}'
+            datetime_format = f"{lg.date_format} {lg.time_format}"
             dt = datetime.strptime(value, datetime_format)
-        except ValueError:
-            raise ValidationError(_("The datetime %(value)s does not match the format %(format)s", value=value, format=datetime_format))
+        except ValueError as err:
+            raise ValidationError(
+                _(
+                    "The datetime %(value)s does not match the format %(format)s",
+                    value=value,
+                    format=datetime_format,
+                )
+            ) from err
 
         # convert back from user's timezone to UTC
-        tz_name = element.attrib.get('data-oe-original-tz') or self.env.context.get('tz') or self.env.user.tz
+        tz_name = (
+            element.attrib.get("data-oe-original-tz")
+            or self.env.context.get("tz")
+            or self.env.user.tz
+        )
         if tz_name:
             try:
                 user_tz = pytz.timezone(tz_name)
                 utc = pytz.utc
 
                 dt = user_tz.localize(dt).astimezone(utc)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _logger.warning(
                     "Failed to convert the value for a field of the model"
                     " %s back from the user's timezone (%s) to UTC",
-                    model, tz_name,
-                    exc_info=True)
+                    model,
+                    tz_name,
+                    exc_info=True,
+                )
 
         # format back to string
         return fields.Datetime.to_string(dt)
 
 
 class IrQwebFieldText(models.AbstractModel):
-    _name = 'ir.qweb.field.text'
-    _description = 'Qweb Field Text'
-    _inherit = ['ir.qweb.field.text']
+    """QWeb text field rendering and HTML-to-text conversion."""
+
+    _name = "ir.qweb.field.text"
+    _description = "Qweb Field Text"
+    _inherit = ["ir.qweb.field.text"]
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> str:
+        """Convert an HTML element to plain text."""
         return html_to_text(element)
 
 
 class IrQwebFieldSelection(models.AbstractModel):
-    _name = 'ir.qweb.field.selection'
-    _description = 'Qweb Field Selection'
-    _inherit = ['ir.qweb.field.selection']
+    """QWeb selection field rendering and HTML-to-value conversion."""
+
+    _name = "ir.qweb.field.selection"
+    _description = "Qweb Field Selection"
+    _inherit = ["ir.qweb.field.selection"]
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> object:
+        """Parse a selection value from the HTML element text."""
         value = element.text_content().strip()
-        selection = field.get_description(self.env)['selection']
+        selection = field.get_description(self.env)["selection"]
         for k, v in selection:
             if value == v:
                 return k
@@ -427,18 +561,27 @@ class IrQwebFieldSelection(models.AbstractModel):
 
 
 class IrQwebFieldHtml(models.AbstractModel):
-    _name = 'ir.qweb.field.html'
-    _description = 'Qweb Field HTML'
-    _inherit = ['ir.qweb.field.html']
+    """QWeb HTML field rendering with sanitization attributes."""
+
+    _name = "ir.qweb.field.html"
+    _description = "Qweb Field HTML"
+    _inherit = ["ir.qweb.field.html"]
 
     @api.model
-    def attributes(self, record, field_name, options, values=None):
+    def attributes(
+        self,
+        record: object,
+        field_name: str,
+        options: dict,
+        values: dict | None = None,
+    ) -> dict:
+        """Return HTML field attributes including sanitization settings."""
         attrs = super().attributes(record, field_name, options, values)
-        if options.get('inherit_branding'):
+        if options.get("inherit_branding"):
             field = record._fields[field_name]
             if field.sanitize:
                 if field.sanitize_overridable:
-                    if record.env.user.has_group('base.group_sanitize_override'):
+                    if record.env.user.has_group("base.group_sanitize_override"):
                         # Don't mark the field as 'sanitize' if the sanitize
                         # is defined as overridable and the user has the right
                         # to do so
@@ -452,58 +595,72 @@ class IrQwebFieldHtml(models.AbstractModel):
                             # was part of a group allowing to bypass the
                             # sanitation saved that field previously. Mark the
                             # field as not editable.
-                            attrs['data-oe-sanitize-prevent-edition'] = 1
+                            attrs["data-oe-sanitize-prevent-edition"] = 1
                             return attrs
                 # The field edition is not fully prevented and the sanitation cannot be bypassed
-                attrs['data-oe-sanitize'] = 'no_block' if field.sanitize_attributes else 1 if field.sanitize_form else 'allow_form'
+                attrs["data-oe-sanitize"] = (
+                    "no_block"
+                    if field.sanitize_attributes
+                    else 1
+                    if field.sanitize_form
+                    else "allow_form"
+                )
 
         return attrs
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> str:
+        """Extract inner HTML content from the element."""
         content = []
         if element.text:
             content.append(element.text)
-        content.extend(html.tostring(child, encoding='unicode')
-                       for child in element.iterchildren(tag=etree.Element))
-        return '\n'.join(content)
+        content.extend(
+            html.tostring(child, encoding="unicode")
+            for child in element.iterchildren(tag=etree.Element)
+        )
+        return "\n".join(content)
 
 
 class IrQwebFieldImage(models.AbstractModel):
-    """
+    """QWeb image field rendering and HTML-to-binary conversion.
+
     Widget options:
 
     ``class``
         set as attribute on the generated <img> tag
     """
-    _name = 'ir.qweb.field.image'
-    _description = 'Qweb Field Image'
-    _inherit = ['ir.qweb.field.image']
 
-    local_url_re = re.compile(r'^/(?P<module>[^/]+)/static/(?P<rest>.+)$')
-    redirect_url_re = re.compile(r'\/web\/image\/\d+-redirect\/')
+    _name = "ir.qweb.field.image"
+    _description = "Qweb Field Image"
+    _inherit = ["ir.qweb.field.image"]
+
+    local_url_re = re.compile(r"^/(?P<module>[^/]+)/static/(?P<rest>.+)$")
+    redirect_url_re = re.compile(r"\/web\/image\/\d+-redirect\/")
 
     @api.model
-    def from_html(self, model, field, element):
-        if element.find('img') is None:
+    def from_html(
+        self, model: object, field: object, element: object
+    ) -> bytes | bool | None:
+        """Extract image data from the HTML element's img tag."""
+        if element.find("img") is None:
             return False
-        url = element.find('img').get('src')
+        url = element.find("img").get("src")
 
         url_object = urlsplit(url)
-        if url_object.path.startswith('/web/image'):
-            fragments = url_object.path.split('/')
+        if url_object.path.startswith("/web/image"):
+            fragments = url_object.path.split("/")
             query = {k: v[0] for k, v in parse_qs(url_object.query).items()}
-            url_id = fragments[3].split('-')[0]
+            url_id = fragments[3].split("-")[0]
             # ir.attachment image urls: /web/image/<id>[-<checksum>][/...]
             if url_id.isdigit():
-                model = 'ir.attachment'
+                model = "ir.attachment"
                 oid = url_id
-                field = 'datas'
+                field = "datas"
             # url of binary field on model: /web/image/<model>/<id>/<field>[/...]
             else:
-                model = query.get('model', fragments[3])
-                oid = query.get('id', fragments[4])
-                field = query.get('field', fragments[5])
+                model = query.get("model", fragments[3])
+                oid = query.get("id", fragments[4])
+                field = query.get("field", fragments[5])
             item = self.env[model].browse(int(oid))
             if self.redirect_url_re.match(url_object.path):
                 return self.load_remote_url(item.url)
@@ -514,25 +671,27 @@ class IrQwebFieldImage(models.AbstractModel):
 
         return self.load_remote_url(url)
 
-    def load_local_url(self, url):
+    def load_local_url(self, url: str) -> bytes | None:
+        """Load and validate a local static file image, returning base64 data."""
         match = self.local_url_re.match(urlsplit(url).path)
-        rest = match.group('rest')
+        rest = match.group("rest")
 
-        path = str(Path(match.group('module')) / 'static' / rest)
+        path = str(Path(match.group("module")) / "static" / rest)
 
         try:
-            with file_open(path, 'rb') as f:
+            with file_open(path, "rb") as f:
                 # force complete image load to ensure it's valid image data
                 image = I.open(f)
                 image.load()
                 f.seek(0)
                 return base64.b64encode(f.read())
-        except Exception:  # noqa: BLE001
+        except Exception:
             _logger.exception("Failed to load local image %r", url)
             return None
 
-    def load_remote_url(self, url):
-        if url.startswith('data:'):
+    def load_remote_url(self, url: str) -> bytes | None:
+        """Fetch and validate a remote image, returning base64 data."""
+        if url.startswith("data:"):
             _logger.debug("Cannot load binary data url %r", url)
             return None
         try:
@@ -550,7 +709,7 @@ class IrQwebFieldImage(models.AbstractModel):
             image.load()
         # We're catching all exceptions because Pillow's exceptions are
         # directly inheriting from Exception.
-        except Exception:  # noqa: BLE001
+        except Exception:
             _logger.warning("Failed to load remote image %r", url, exc_info=True)
             return None
 
@@ -562,32 +721,46 @@ class IrQwebFieldImage(models.AbstractModel):
 
 
 class IrQwebFieldMonetary(models.AbstractModel):
-    _inherit = 'ir.qweb.field.monetary'
+    """QWeb monetary field HTML-to-value conversion."""
+
+    _inherit = "ir.qweb.field.monetary"
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> float:
+        """Parse a monetary value from the HTML element's span text."""
         lang = self.user_lang()
 
-        value = element.find('span').text_content().strip()
+        value = element.find("span").text_content().strip()
 
-        return float(value.replace(lang.thousands_sep or '', '')
-                          .replace(lang.decimal_point, '.'))
+        return float(
+            value.replace(lang.thousands_sep or "", "").replace(lang.decimal_point, ".")
+        )
 
 
 class IrQwebFieldDuration(models.AbstractModel):
-    _name = 'ir.qweb.field.duration'
-    _description = 'Qweb Field Duration'
-    _inherit = ['ir.qweb.field.duration']
+    """QWeb duration field rendering and HTML-to-value conversion."""
+
+    _name = "ir.qweb.field.duration"
+    _description = "Qweb Field Duration"
+    _inherit = ["ir.qweb.field.duration"]
 
     @api.model
-    def attributes(self, record, field_name, options, values=None):
+    def attributes(
+        self,
+        record: object,
+        field_name: str,
+        options: dict,
+        values: dict | None = None,
+    ) -> dict:
+        """Return duration attributes including the original numeric value."""
         attrs = super().attributes(record, field_name, options, values)
-        if options.get('inherit_branding'):
-            attrs['data-oe-original'] = record[field_name]
+        if options.get("inherit_branding"):
+            attrs["data-oe-original"] = record[field_name]
         return attrs
 
     @api.model
-    def from_html(self, model, field, element):
+    def from_html(self, model: object, field: object, element: object) -> float:
+        """Parse a duration float from the HTML element text."""
         value = element.text_content().strip()
 
         # non-localized value
@@ -595,81 +768,96 @@ class IrQwebFieldDuration(models.AbstractModel):
 
 
 class IrQwebFieldRelative(models.AbstractModel):
-    _name = 'ir.qweb.field.relative'
-    _description = 'Qweb Field Relative'
-    _inherit = ['ir.qweb.field.relative']
+    """QWeb relative date field with datetime editing and saving."""
+
+    _name = "ir.qweb.field.relative"
+    _description = "Qweb Field Relative"
+    _inherit = ["ir.qweb.field.relative"]
 
     # get formatting from ir.qweb.field.relative but edition/save from datetime
 
 
 class IrQwebFieldQweb(models.AbstractModel):
-    _name = 'ir.qweb.field.qweb'
-    _description = 'Qweb Field qweb'
-    _inherit = ['ir.qweb.field.qweb']
+    """QWeb sub-template field rendering."""
+
+    _name = "ir.qweb.field.qweb"
+    _description = "Qweb Field qweb"
+    _inherit = ["ir.qweb.field.qweb"]
 
 
-def html_to_text(element):
-    """ Converts HTML content with HTML-specified line breaks (br, p, div, ...)
-    in roughly equivalent textual content.
+def html_to_text(element: object) -> str:
+    """Convert HTML content with line breaks to roughly equivalent plain text.
 
-    Used to replace and fixup the roundtripping of text and m2o: when using
-    libxml 2.8.0 (but not 2.9.1) and parsing IrQwebFieldHtml with lxml.html.fromstring
-    whitespace text nodes (text nodes composed *solely* of whitespace) are
-    stripped out with no recourse, and fundamentally relying on newlines
-    being in the text (e.g. inserted during user edition) is probably poor form
-    anyway.
+    Collapse whitespace sequences and replace block-level nodes by
+    corresponding linebreaks:
 
-    -> this utility function collapses whitespace sequences and replaces
-       nodes by roughly corresponding linebreaks
-       * p are pre-and post-fixed by 2 newlines
-       * br are replaced by a single newline
-       * block-level elements not already mentioned are pre- and post-fixed by
-         a single newline
+    * ``<p>`` elements are pre- and post-fixed by 2 newlines.
+    * ``<br>`` elements are replaced by a single newline.
+    * Other block-level elements are pre- and post-fixed by a single newline.
 
-    ought be somewhat similar (but much less high-tech) to aaronsw's html2text.
-    the latter produces full-blown markdown, our text -> html converter only
-    replaces newlines by <br> elements at this point so we're reverting that,
+    Somewhat similar (but much less high-tech) to aaronsw's html2text.
+    The latter produces full-blown markdown; our text-to-HTML converter only
+    replaces newlines by ``<br>`` elements at this point so we revert that,
     and a few more newline-ish elements in case the user tried to add
-    newlines/paragraphs into the text field
+    newlines/paragraphs into the text field.
 
     :param element: lxml.html content
     :returns: corresponding pure-text output
     """
-
     # output is a list of str | int. Integers are padding requests (in minimum
     # number of newlines). When multiple padding requests, fold them into the
     # biggest one
-    output = []
+    output: list[str | int] = []
     _wrap(element, output)
 
     # remove any leading or tailing whitespace, replace sequences of
     # (whitespace)\n(whitespace) by a single newline, where (whitespace) is a
     # non-newline whitespace in this case
     return re.sub(
-        r'[ \t\r\f]*\n[ \t\r\f]*',
-        '\n',
-        ''.join(_realize_padding(output)).strip())
+        r"[ \t\r\f]*\n[ \t\r\f]*", "\n", "".join(_realize_padding(output)).strip()
+    )
 
 
 _PADDED_BLOCK = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
 # https://developer.mozilla.org/en-US/docs/HTML/Block-level_elements minus p
-_MISC_BLOCK = {"address", "article", "aside", "audio", "blockquote", "canvas",
-               "dd", "dl", "div", "figcaption", "figure", "footer", "form",
-               "header", "hgroup", "hr", "ol", "output", "pre", "section", "tfoot",
-               "ul", "video"}
+_MISC_BLOCK = {
+    "address",
+    "article",
+    "aside",
+    "audio",
+    "blockquote",
+    "canvas",
+    "dd",
+    "dl",
+    "div",
+    "figcaption",
+    "figure",
+    "footer",
+    "form",
+    "header",
+    "hgroup",
+    "hr",
+    "ol",
+    "output",
+    "pre",
+    "section",
+    "tfoot",
+    "ul",
+    "video",
+}
 
 
-def _collapse_whitespace(text):
-    """ Collapses sequences of whitespace characters in ``text`` to a single
-    space
-    """
-    return re.sub(r'\s+', ' ', text)
+def _collapse_whitespace(text: str) -> str:
+    """Collapse sequences of whitespace characters in ``text`` to a single space."""
+    return re.sub(r"\s+", " ", text)
 
 
-def _realize_padding(it):
-    """ Fold and convert padding requests: integers in the output sequence are
-    requests for at least n newlines of padding. Runs thereof can be collapsed
-    into the largest requests and converted to newlines.
+def _realize_padding(it: Iterable[str | int]) -> Iterator[str]:
+    """Fold and convert padding requests to newlines.
+
+    Integers in the output sequence are requests for at least n newlines of
+    padding. Runs thereof can be collapsed into the largest requests and
+    converted to newlines.
     """
     padding = 0
     for item in it:
@@ -678,16 +866,15 @@ def _realize_padding(it):
             continue
 
         if padding:
-            yield '\n' * padding
+            yield "\n" * padding
             padding = 0
 
         yield item
     # leftover padding irrelevant as the output will be stripped
 
 
-def _wrap(element, output, wrapper=''):
-    """ Recursively extracts text from ``element`` (via _element_to_text), and
-    wraps it all in ``wrapper``. Extracted text is added to ``output``
+def _wrap(element: object, output: list[str | int], wrapper: str | int = "") -> None:
+    """Extract text from *element* recursively and wrap it in *wrapper*.
 
     :type wrapper: str | int
     """
@@ -699,9 +886,10 @@ def _wrap(element, output, wrapper=''):
     output.append(wrapper)
 
 
-def _element_to_text(e, output):
-    if e.tag == 'br':
-        output.append('\n')
+def _element_to_text(e: object, output: list[str | int]) -> None:
+    """Convert an HTML element to text entries in the output list."""
+    if e.tag == "br":
+        output.append("\n")
     elif e.tag in _PADDED_BLOCK:
         _wrap(e, output, 2)
     elif e.tag in _MISC_BLOCK:

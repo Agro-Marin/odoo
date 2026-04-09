@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef } from "@odoo/owl";
-import { Dialog } from "@web/ui/dialog/dialog";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
+import { Component, useEffect, useRef } from "@odoo/owl";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { Dialog } from "@web/ui/dialog/dialog";
 
 export class ImageDescription extends Component {
     static components = { Dialog };
@@ -36,7 +36,7 @@ export class ImageDescriptionPopover extends Component {
         this.inputRef = useRef("description");
         useEffect(
             (el) => el?.focus(),
-            () => [this.inputRef.el]
+            () => [this.inputRef.el],
         );
         useHotkey("escape", () => this.props.close());
     }

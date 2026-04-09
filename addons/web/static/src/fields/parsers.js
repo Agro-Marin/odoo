@@ -77,8 +77,13 @@ function parseNumber(value, options = /** @type {any} */ ({})) {
 
         // a number can have the thousand separator multiple times. ex: 1,000,000.00
         value = value.replaceAll(thousandsSepRegex, "");
-        // a number only have one decimal separator
-        value = value.replace(new RegExp(escapeRegExp(options.decimalPoint), "g"), ".");
+        // A number has at most one decimal separator — replace only the last
+        // occurrence so that values like "1.234.567" (ambiguous input) produce
+        // NaN rather than silently corrupting.
+        const dpIdx = value.lastIndexOf(options.decimalPoint);
+        if (dpIdx !== -1) {
+            value = value.slice(0, dpIdx) + "." + value.slice(dpIdx + options.decimalPoint.length);
+        }
     }
 
     return Number(value);

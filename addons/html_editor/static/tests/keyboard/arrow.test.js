@@ -1,10 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor.js";
-import { tick } from "@odoo/hoot-mock";
 import { press } from "@odoo/hoot-dom";
-import { simulateArrowKeyPress } from "../_helpers/user_actions.js";
-import { getContent, setSelection } from "../_helpers/selection.js";
+import { tick } from "@odoo/hoot-mock";
+
+import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
+import { getContent, setSelection } from "../_helpers/selection.js";
+import { simulateArrowKeyPress } from "../_helpers/user_actions.js";
 
 const keyPress = (keys) => async (editor) => {
     await simulateArrowKeyPress(editor, keys);
@@ -578,7 +579,8 @@ describe("Selection correction when it lands at the editable root", () => {
 
     test("should move cursor to safe space (avoid reaching the editable root) (1)", async () => {
         await testEditor({
-            contentBefore: "<table><tbody><tr><td><p>a</p><p>b[]</p></td></tr></tbody></table>",
+            contentBefore:
+                "<table><tbody><tr><td><p>a</p><p>b[]</p></td></tr></tbody></table>",
             stepFunction: keyPress("ArrowRight"),
             contentAfterEdit:
                 '<p data-selection-placeholder=""><br></p>' +
@@ -588,7 +590,8 @@ describe("Selection correction when it lands at the editable root", () => {
     });
     test("should move cursor to safe space (avoid reaching the editable root) (2)", async () => {
         await testEditor({
-            contentBefore: "<table><tbody><tr><td><p>[]a</p><p>b</p></td></tr></tbody></table>",
+            contentBefore:
+                "<table><tbody><tr><td><p>[]a</p><p>b</p></td></tr></tbody></table>",
             stepFunction: keyPress("ArrowLeft"),
             contentAfterEdit:
                 `<p data-selection-placeholder="" o-we-hint-text='Type "/" for commands' class="o-we-hint o-horizontal-caret">[]<br></p>` +
@@ -638,11 +641,14 @@ describe("Selection correction when it lands at the editable root", () => {
 describe.tags("focus required");
 describe("Around invisible chars in RTL languages", () => {
     describe("ZWS", () => {
-        const content = "<p>" + "الرجال" + '<span class="a">\u200B</span>' + "هؤلاء" + "</p>";
+        const content =
+            "<p>" + "الرجال" + '<span class="a">\u200B</span>' + "هؤلاء" + "</p>";
         // Displayed as " هؤلاء<span class="a">\u200B</span>الرجال" in the editor:
         //                third +               span +      first
         test("should move past the zws (ArrowLeft)", async () => {
-            const { editor, el } = await setupEditor(content, { config: { direction: "rtl" } });
+            const { editor, el } = await setupEditor(content, {
+                config: { direction: "rtl" },
+            });
             const pFirstChild = el.firstChild.firstChild; // "الرجال"
             const pThirdChild = el.firstChild.childNodes[2]; // "هؤلاء"
             // Place cursor at the end of first child (next to the span)
@@ -655,10 +661,14 @@ describe("Around invisible chars in RTL languages", () => {
             expect(selection.anchorNode).toBe(pThirdChild);
             expect(selection.anchorOffset).toBe(1);
             // Displayed as ه[]ؤلاء<span class="a">\u200B</span>الرجال
-            expect(getContent(el)).toBe('<p>الرجال<span class="a">\u200B</span>ه[]ؤلاء</p>');
+            expect(getContent(el)).toBe(
+                '<p>الرجال<span class="a">\u200B</span>ه[]ؤلاء</p>',
+            );
         });
         test("should move past the zws (ArrowRight)", async () => {
-            const { editor, el } = await setupEditor(content, { config: { direction: "rtl" } });
+            const { editor, el } = await setupEditor(content, {
+                config: { direction: "rtl" },
+            });
             const pFirstChild = el.firstChild.firstChild; // "الرجال"
             const pThirdChild = el.firstChild.childNodes[2]; // "هؤلاء"
             // Place cursor at the beginning of third child (next to the span)
@@ -671,17 +681,25 @@ describe("Around invisible chars in RTL languages", () => {
             expect(selection.anchorNode).toBe(pFirstChild);
             expect(selection.anchorOffset).toBe(pFirstChild.length - 1);
             // Displayed as هؤلاء<span class="a">\u200B</span>الرجا[]ل
-            expect(getContent(el)).toBe('<p>الرجا[]ل<span class="a">\u200B</span>هؤلاء</p>');
+            expect(getContent(el)).toBe(
+                '<p>الرجا[]ل<span class="a">\u200B</span>هؤلاء</p>',
+            );
         });
     });
 
     describe("ZWNBSP", () => {
         const content =
-            "<p>" + "الرجال" + '<a href="http://test.test/">اءيتجنب</a>' + "هؤلاء" + "</p>";
+            "<p>" +
+            "الرجال" +
+            '<a href="http://test.test/">اءيتجنب</a>' +
+            "هؤلاء" +
+            "</p>";
         // Displayed as "هؤلاء<a href="http://test.test/">اءيتجنب</a>الرجال" in the editor:
         //                third +         link      + first
         test("should move into a link (ArrowLeft)", async () => {
-            const { editor, el } = await setupEditor(content, { config: { direction: "rtl" } });
+            const { editor, el } = await setupEditor(content, {
+                config: { direction: "rtl" },
+            });
             const pFirstChild = el.firstChild.firstChild; // "الرجال"
             // childNodes[1] and childNodes[3] are the ZWNBSP text nodes
             const link = el.firstChild.childNodes[2];
@@ -696,11 +714,13 @@ describe("Around invisible chars in RTL languages", () => {
             expect(selection.anchorOffset).toBe(1);
             // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب[]\uFEFF</a>\uFEFFالرجال
             expect(getContent(el)).toBe(
-                '<p>الرجال\uFEFF<a href="http://test.test/" class="o_link_in_selection">\uFEFF[]اءيتجنب\uFEFF</a>\uFEFFهؤلاء</p>'
+                '<p>الرجال\uFEFF<a href="http://test.test/" class="o_link_in_selection">\uFEFF[]اءيتجنب\uFEFF</a>\uFEFFهؤلاء</p>',
             );
         });
         test("should move into a link (ArrowRight)", async () => {
-            const { editor, el } = await setupEditor(content, { config: { direction: "rtl" } });
+            const { editor, el } = await setupEditor(content, {
+                config: { direction: "rtl" },
+            });
             // childNodes[1] and childNodes[3] are the ZWNBSP text nodes
             const link = el.firstChild.childNodes[2];
             const pFifthChild = el.firstChild.childNodes[4]; // "هؤلاء"
@@ -716,17 +736,22 @@ describe("Around invisible chars in RTL languages", () => {
             expect(selection.anchorOffset).toBe(link2ndChild.length);
             // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFF[]اءيتجنب\uFEFF</a>\uFEFFالرجال
             expect(getContent(el)).toBe(
-                '<p>الرجال\uFEFF<a href="http://test.test/" class="o_link_in_selection">\uFEFFاءيتجنب[]\uFEFF</a>\uFEFFهؤلاء</p>'
+                '<p>الرجال\uFEFF<a href="http://test.test/" class="o_link_in_selection">\uFEFFاءيتجنب[]\uFEFF</a>\uFEFFهؤلاء</p>',
             );
         });
         test("should move out of a link (ArrowLeft)", async () => {
-            const { editor, el } = await setupEditor(content, { config: { direction: "rtl" } });
+            const { editor, el } = await setupEditor(content, {
+                config: { direction: "rtl" },
+            });
             // childNodes[1] and childNodes[3] are the ZWNBSP text nodes
             const link = el.firstChild.childNodes[2];
             const link2ndChild = link.childNodes[1]; // text content inside link: اءيتجنب
             // Place cursor at the end of link's content (before the FEFF char)
             // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFF[]اءيتجنب\uFEFF</a>\uFEFFالرجال
-            setSelection({ anchorNode: link2ndChild, anchorOffset: link2ndChild.length });
+            setSelection({
+                anchorNode: link2ndChild,
+                anchorOffset: link2ndChild.length,
+            });
 
             await keyPress("ArrowLeft")(editor);
 
@@ -735,11 +760,13 @@ describe("Around invisible chars in RTL languages", () => {
             expect(selection.anchorOffset).toBe(1);
             // Displayed as هؤلاء[]\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFFالرجال
             expect(getContent(el)).toBe(
-                '<p>الرجال\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFF[]هؤلاء</p>'
+                '<p>الرجال\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFF[]هؤلاء</p>',
             );
         });
         test("should move out of a link (ArrowRight)", async () => {
-            const { editor, el } = await setupEditor(content, { config: { direction: "rtl" } });
+            const { editor, el } = await setupEditor(content, {
+                config: { direction: "rtl" },
+            });
             // childNodes[1] and childNodes[3] are the ZWNBSP text nodes
             const pFirstChild = el.firstChild.firstChild; // "الرجال"
             const link = el.firstChild.childNodes[2];
@@ -755,7 +782,7 @@ describe("Around invisible chars in RTL languages", () => {
             expect(selection.anchorOffset).toBe(pFirstChild.length);
             // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFF[]الرجال
             expect(getContent(el)).toBe(
-                '<p>الرجال[]\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFFهؤلاء</p>'
+                '<p>الرجال[]\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFFهؤلاء</p>',
             );
         });
     });

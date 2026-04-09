@@ -3,6 +3,7 @@
 
 /** @module @web/core/utils/urls - URL construction, origin resolution, image URL generation, and redirect handling */
 
+import { DateTime } from "luxon";
 import { browser } from "@web/core/browser/browser";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
@@ -96,18 +97,15 @@ export function imageUrl(
         urlParams.crop = crop;
     }
     if (unique) {
-        const { DateTime } = /** @type {any} */ (globalThis.luxon ?? {});
-        if (DateTime && unique instanceof DateTime) {
+        if (unique instanceof DateTime) {
             urlParams.unique = unique.ts;
-        } else if (DateTime) {
+        } else {
             const dateTimeFromUnique = DateTime.fromSQL(unique);
             if (dateTimeFromUnique.isValid) {
                 urlParams.unique = dateTimeFromUnique.ts;
             } else if (typeof unique === "string" && unique.length) {
                 urlParams.unique = unique;
             }
-        } else if (typeof unique === "string" && unique.length) {
-            urlParams.unique = unique;
         }
     }
     return url(route, urlParams);

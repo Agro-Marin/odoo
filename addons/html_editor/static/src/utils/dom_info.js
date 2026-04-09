@@ -49,9 +49,11 @@ export function isBold(node) {
     const fontWeight = +getComputedStyle(closestElement(node)).fontWeight;
     const referenceElement = closestElement(
         node,
-        (el) => isBlock(el) || +getComputedStyle(el).fontWeight !== fontWeight
+        (el) => isBlock(el) || +getComputedStyle(el).fontWeight !== fontWeight,
     );
-    return fontWeight > 500 || fontWeight > +getComputedStyle(referenceElement).fontWeight;
+    return (
+        fontWeight > 500 || fontWeight > +getComputedStyle(referenceElement).fontWeight
+    );
 }
 
 /**
@@ -322,7 +324,16 @@ const iconTags = ["I", "SPAN"];
 // @todo @phoenix: move the specific part in a proper plugin.
 // FA7 native style prefixes (fa-solid/fa-regular/fa-brands) are listed alongside
 // the legacy FA4 base class ("fa") and the FA5 short prefixes (fab/fad/far).
-export const iconClasses = ["fa", "fab", "fad", "far", "oi", "fa-solid", "fa-regular", "fa-brands"];
+export const iconClasses = [
+    "fa",
+    "fab",
+    "fad",
+    "far",
+    "oi",
+    "fa-solid",
+    "fa-regular",
+    "fa-brands",
+];
 
 export const ICON_SELECTOR = iconTags
     .map((tag) => iconClasses.map((cls) => `${tag}.${cls}`).join(", "))
@@ -517,7 +528,16 @@ export function isUnprotecting(node) {
 // This is a list of "paragraph-related elements", defined as elements that
 // behave like paragraphs. It is non-exhaustive and should not be used as a
 // standalone. @see isParagraphRelatedElement
-export const paragraphRelatedElements = ["P", "H1", "H2", "H3", "H4", "H5", "H6", "PRE"];
+export const paragraphRelatedElements = [
+    "P",
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5",
+    "H6",
+    "PRE",
+];
 
 /**
  * Return true if the given node allows "paragraph-related elements".
@@ -531,7 +551,12 @@ export function allowsParagraphRelatedElements(node) {
 }
 
 export const phrasingContent = new Set(["#text", ...phrasingTagNames]);
-const flowContent = new Set([...phrasingContent, ...paragraphRelatedElements, "DIV", "HR"]);
+const flowContent = new Set([
+    ...phrasingContent,
+    ...paragraphRelatedElements,
+    "DIV",
+    "HR",
+]);
 export const listItem = new Set(["LI"]);
 const listContainers = new Set(["UL", "OL"]);
 
@@ -560,7 +585,8 @@ export function isParagraphRelatedElement(node) {
     }
     return (
         paragraphRelatedElements.includes(node.nodeName) ||
-        (node.nodeType === Node.ELEMENT_NODE && node.matches(baseContainerGlobalSelector))
+        (node.nodeType === Node.ELEMENT_NODE &&
+            node.matches(baseContainerGlobalSelector))
     );
 }
 
@@ -651,7 +677,11 @@ export function isEmptyBlock(blockEl) {
  * @returns {boolean}
  */
 export function isShrunkBlock(blockEl) {
-    return isEmptyBlock(blockEl) && !blockEl.querySelector("br") && !isSelfClosingElement(blockEl);
+    return (
+        isEmptyBlock(blockEl) &&
+        !blockEl.querySelector("br") &&
+        !isSelfClosingElement(blockEl)
+    );
 }
 
 export function isEditorTab(node) {
@@ -671,13 +701,19 @@ export function getDeepestPosition(node, offset) {
             const childrenNodes = childNodes(node);
             direction = offset < childrenNodes.length;
             next = childrenNodes[direction ? offset : offset - 1];
-        } else if (direction && next.nextSibling && closestBlock(node).contains(next.nextSibling)) {
+        } else if (
+            direction &&
+            next.nextSibling &&
+            closestBlock(node).contains(next.nextSibling)
+        ) {
             // Invalid node: skip to next sibling (without crossing blocks).
             next = next.nextSibling;
         } else {
             // Invalid node: skip to previous sibling (without crossing blocks).
             direction = DIRECTIONS.LEFT;
-            next = closestBlock(node).contains(next.previousSibling) && next.previousSibling;
+            next =
+                closestBlock(node).contains(next.previousSibling) &&
+                next.previousSibling;
         }
         // Avoid too-deep ranges inside self-closing elements like [BR, 0].
         next = !isSelfClosingElement(next) && next;
@@ -736,7 +772,10 @@ export function areSimilarElements(node, node2) {
     if (node.nodeName !== node2.nodeName) {
         return false; // The nodes aren't the same type of element.
     }
-    for (const name of new Set([...node.getAttributeNames(), ...node2.getAttributeNames()])) {
+    for (const name of new Set([
+        ...node.getAttributeNames(),
+        ...node2.getAttributeNames(),
+    ])) {
         if (name === "style") {
             if (!hasSameStyleAttributes(node, node2)) {
                 return false;
@@ -751,7 +790,9 @@ export function areSimilarElements(node, node2) {
     }
     if (
         [node, node2].some(
-            (n) => hasPseudoElementContent(n, ":before") || hasPseudoElementContent(n, ":after")
+            (n) =>
+                hasPseudoElementContent(n, ":before") ||
+                hasPseudoElementContent(n, ":after"),
         )
     ) {
         return false; // The nodes have pseudo elements with content.
@@ -762,7 +803,10 @@ export function areSimilarElements(node, node2) {
     const nodeStyle = getComputedStyle(node);
     const node2Style = getComputedStyle(node2);
     if (node.matches("code.o_inline_code")) {
-        if (nodeStyle.padding === node2Style.padding && nodeStyle.margin === node2Style.margin) {
+        if (
+            nodeStyle.padding === node2Style.padding &&
+            nodeStyle.margin === node2Style.margin
+        ) {
             return true;
         }
     }

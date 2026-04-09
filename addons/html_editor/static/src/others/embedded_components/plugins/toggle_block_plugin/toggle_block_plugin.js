@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import { Plugin } from "@html_editor/plugin";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { baseContainerGlobalSelector } from "@html_editor/utils/base_container";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { isEmptyBlock, isParagraphRelatedElement } from "@html_editor/utils/dom_info";
@@ -17,8 +17,8 @@ import { parseHTML } from "@html_editor/utils/html";
 import { childNodeIndex, nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
-import { renderToString } from "@web/core/utils/render";
 import { uuid } from "@web/core/utils/format/strings";
+import { renderToString } from "@web/core/utils/render";
 
 const toggleSelector = "[data-embedded='toggleBlock']";
 const titleSelector = "[data-embedded-editable='title']";
@@ -49,13 +49,16 @@ export class ToggleBlockPlugin extends Plugin {
         ],
         hint_targets_providers: (selectionData, editable) => [
             ...editable.querySelectorAll(
-                `${toggleSelector} ${contentSelector} > ${baseContainerGlobalSelector}:only-child`
+                `${toggleSelector} ${contentSelector} > ${baseContainerGlobalSelector}:only-child`,
             ),
         ],
         move_node_blacklist_selectors: `${toggleSelector} ${titleSelector} *`,
         selection_blocker_predicates: (blocker) => {
             // Prevent the insertion of selection placeholders around toggle blocks.
-            if (blocker.nodeType === Node.ELEMENT_NODE && blocker.dataset.embedded === "toggleBlock") {
+            if (
+                blocker.nodeType === Node.ELEMENT_NODE &&
+                blocker.dataset.embedded === "toggleBlock"
+            ) {
                 return false;
             }
         },
@@ -74,7 +77,10 @@ export class ToggleBlockPlugin extends Plugin {
                 icon: "fa-regular fa-square-caret-right",
                 isAvailable: (selection) =>
                     isHtmlContentSupported(selection) &&
-                    !closestElement(selection.anchorNode, `${toggleSelector} ${titleSelector}`),
+                    !closestElement(
+                        selection.anchorNode,
+                        `${toggleSelector} ${titleSelector}`,
+                    ),
                 run: () => {
                     this.insertToggleBlock();
                 },
@@ -90,7 +96,10 @@ export class ToggleBlockPlugin extends Plugin {
         delete_backward_overrides: this.handleDeleteBackward.bind(this),
         delete_forward_overrides: this.handleDeleteForward.bind(this),
         shift_tab_overrides: this.handleShiftTab.bind(this),
-        split_element_block_overrides: withSequence(1, this.handleSplitElementBlock.bind(this)),
+        split_element_block_overrides: withSequence(
+            1,
+            this.handleSplitElementBlock.bind(this),
+        ),
         tab_overrides: this.handleTab.bind(this),
 
         power_buttons_visibility_predicates: this.showPowerButtons.bind(this),
@@ -115,7 +124,9 @@ export class ToggleBlockPlugin extends Plugin {
 
     forceToggle(toggle, { showContent, restoreSelection } = {}) {
         toggle.dispatchEvent(
-            new CustomEvent("forceToggle", { detail: { showContent, restoreSelection } })
+            new CustomEvent("forceToggle", {
+                detail: { showContent, restoreSelection },
+            }),
         );
     }
 
@@ -212,7 +223,7 @@ export class ToggleBlockPlugin extends Plugin {
         this.dependencies.selection.setCursorStart(block);
         this.dependencies.delete.deleteBackward(
             this.dependencies.selection.getEditableSelection(),
-            "character"
+            "character",
         );
         return true;
     }
@@ -221,7 +232,12 @@ export class ToggleBlockPlugin extends Plugin {
         const block = closestBlock(endContainer);
         const leaf = isEmptyBlock(endContainer) ? endContainer : firstLeaf(block);
         const { toggle, title } = this.getClosestToggleTitleInfo(endContainer);
-        if (!title || endOffset !== 0 || childNodeIndex(block) !== 0 || leaf !== endContainer) {
+        if (
+            !title ||
+            endOffset !== 0 ||
+            childNodeIndex(block) !== 0 ||
+            leaf !== endContainer
+        ) {
             return;
         }
         const cursors = this.dependencies.selection.preserveSelection();
@@ -234,7 +250,11 @@ export class ToggleBlockPlugin extends Plugin {
         const block = closestBlock(endContainer);
         const leaf = isEmptyBlock(endContainer) ? endContainer : firstLeaf(block);
         const toggle = block?.previousSibling;
-        if (!toggle?.matches?.(toggleSelector) || endOffset !== 0 || leaf !== endContainer) {
+        if (
+            !toggle?.matches?.(toggleSelector) ||
+            endOffset !== 0 ||
+            leaf !== endContainer
+        ) {
             return;
         }
         let target = toggle.querySelector(contentSelector);
@@ -250,7 +270,7 @@ export class ToggleBlockPlugin extends Plugin {
         this.preventDeleteBackwardContentEnd = true;
         this.dependencies.delete.deleteBackward(
             this.dependencies.selection.getEditableSelection(),
-            "character"
+            "character",
         );
         this.preventDeleteBackwardContentEnd = false;
         return true;
@@ -308,7 +328,7 @@ export class ToggleBlockPlugin extends Plugin {
         this.dependencies.selection.setCursorEnd(block);
         this.dependencies.delete.deleteForward(
             this.dependencies.selection.getEditableSelection(),
-            "character"
+            "character",
         );
         return true;
     }
@@ -317,7 +337,8 @@ export class ToggleBlockPlugin extends Plugin {
         const block = closestBlock(startContainer);
         const isEmptyContainer = isEmptyBlock(startContainer);
         const leaf = isEmptyContainer ? startContainer : lastLeaf(block);
-        const { toggle, title, content } = this.getClosestToggleTitleInfo(startContainer);
+        const { toggle, title, content } =
+            this.getClosestToggleTitleInfo(startContainer);
         if (
             !title ||
             !(
@@ -351,7 +372,7 @@ export class ToggleBlockPlugin extends Plugin {
         this.dependencies.selection.setCursorEnd(block);
         this.dependencies.delete.deleteForward(
             this.dependencies.selection.getEditableSelection(),
-            "character"
+            "character",
         );
         return true;
     }
@@ -380,7 +401,7 @@ export class ToggleBlockPlugin extends Plugin {
             this.dependencies.selection.setCursorEnd(block);
             this.dependencies.delete.deleteForward(
                 this.dependencies.selection.getEditableSelection(),
-                "character"
+                "character",
             );
         }
         return true;
@@ -404,21 +425,29 @@ export class ToggleBlockPlugin extends Plugin {
     handleShiftTab() {
         const toggle = this.getToggleFromTitleSelection();
         if (toggle) {
-            const closestToggleAncestor = closestElement(toggle.parentElement, toggleSelector);
+            const closestToggleAncestor = closestElement(
+                toggle.parentElement,
+                toggleSelector,
+            );
             if (closestToggleAncestor) {
                 const cursors = this.dependencies.selection.preserveSelection();
-                const ancestorContent = closestToggleAncestor.querySelector(contentSelector);
+                const ancestorContent =
+                    closestToggleAncestor.querySelector(contentSelector);
                 const containerContent = toggle.querySelector(contentSelector);
                 const siblings = childNodes(ancestorContent).filter(
                     (node) =>
-                        toggle.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING
+                        toggle.compareDocumentPosition(node) &
+                        Node.DOCUMENT_POSITION_FOLLOWING,
                 );
                 if (isEmptyBlock(containerContent.lastElementChild)) {
                     containerContent.lastElementChild.remove();
                 }
                 containerContent.append(...siblings);
                 closestToggleAncestor.after(toggle);
-                this.forceToggle(toggle, { showContent: true, restoreSelection: cursors.restore });
+                this.forceToggle(toggle, {
+                    showContent: true,
+                    restoreSelection: cursors.restore,
+                });
                 this.dependencies.history.addStep();
             }
             return true;
@@ -447,18 +476,22 @@ export class ToggleBlockPlugin extends Plugin {
                 if (contentChildren.length !== 1 || !isEmptyBlock(contentChildren[0])) {
                     toggle.after(...children(content));
                 }
-                const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                const baseContainer =
+                    this.dependencies.baseContainer.createBaseContainer();
                 baseContainer.appendChild(this.document.createElement("br"));
                 toggle.replaceWith(baseContainer);
                 this.dependencies.selection.setCursorStart(baseContainer);
                 return true;
             }
-            const insertBefore = targetOffset === 0 && blockToSplit.parentElement === title;
-            const [beforeSplit, afterSplit] = this.dependencies.split.splitElementBlock({
-                targetNode,
-                targetOffset,
-                blockToSplit,
-            });
+            const insertBefore =
+                targetOffset === 0 && blockToSplit.parentElement === title;
+            const [beforeSplit, afterSplit] = this.dependencies.split.splitElementBlock(
+                {
+                    targetNode,
+                    targetOffset,
+                    blockToSplit,
+                },
+            );
             if (beforeSplit && afterSplit) {
                 if (content.parentElement.matches(".d-none") || insertBefore) {
                     const newToggle = this.renderToggleBlock();
@@ -500,7 +533,8 @@ export class ToggleBlockPlugin extends Plugin {
             const previousSibling = toggle.previousSibling;
             if (previousSibling?.matches?.(toggleSelector)) {
                 const cursors = this.dependencies.selection.preserveSelection();
-                const previousSiblingContent = previousSibling.querySelector(contentSelector);
+                const previousSiblingContent =
+                    previousSibling.querySelector(contentSelector);
                 if (
                     children(previousSiblingContent).length === 1 &&
                     isEmptyBlock(previousSiblingContent.firstElementChild)
@@ -525,7 +559,9 @@ export class ToggleBlockPlugin extends Plugin {
 
     insertToggleBlock() {
         const block = this.renderToggleBlock();
-        const target = block.querySelector(`${titleSelector} > ${baseContainerGlobalSelector}`);
+        const target = block.querySelector(
+            `${titleSelector} > ${baseContainerGlobalSelector}`,
+        );
         this.dependencies.dom.insert(block);
         this.dependencies.selection.setCursorStart(target);
         this.dependencies.history.addStep();
@@ -544,7 +580,7 @@ export class ToggleBlockPlugin extends Plugin {
         let shouldRestoreCursor = false;
         for (const titleChild of selectElements(
             element,
-            `${toggleSelector} ${titleSelector} > *:first-child`
+            `${toggleSelector} ${titleSelector} > *:first-child`,
         )) {
             const title = titleChild.parentElement;
             const toggle = closestElement(title, toggleSelector);
@@ -564,7 +600,7 @@ export class ToggleBlockPlugin extends Plugin {
         }
         for (const emptyToggleNode of selectElements(
             element,
-            `${toggleSelector} [data-embedded-editable]:empty`
+            `${toggleSelector} [data-embedded-editable]:empty`,
         )) {
             const baseContainer = this.dependencies.baseContainer.createBaseContainer();
             baseContainer.appendChild(this.document.createElement("br"));
@@ -581,8 +617,10 @@ export class ToggleBlockPlugin extends Plugin {
                 baseContainerAttributes: {
                     class: baseContainer.className,
                 },
-                embeddedProps: JSON.stringify({ toggleBlockId: this.getUniqueIdentifier() }),
-            })
+                embeddedProps: JSON.stringify({
+                    toggleBlockId: this.getUniqueIdentifier(),
+                }),
+            }),
         );
     }
 

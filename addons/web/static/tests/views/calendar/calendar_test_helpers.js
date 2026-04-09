@@ -13,7 +13,9 @@ import { createElement } from "@web/core/utils/dom/xml";
 import { Field } from "@web/fields/field";
 import { CalendarModel } from "@web/views/calendar/calendar_model";
 
-export const DEFAULT_DATE = luxon.DateTime.local(2021, 7, 16, 8, 0, 0, 0);
+import { DateTime } from "luxon";
+
+export const DEFAULT_DATE = DateTime.local(2021, 7, 16, 8, 0, 0, 0);
 
 export const FAKE_RECORDS = {
     1: {

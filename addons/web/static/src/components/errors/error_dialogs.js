@@ -13,7 +13,7 @@ import { Dialog } from "@web/ui/dialog/dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { Tooltip } from "@web/ui/tooltip/tooltip";
 
-const { DateTime } = globalThis.luxon ?? {};
+import { DateTime } from "luxon";
 
 // This props are added by the error handler
 /**
@@ -83,6 +83,12 @@ export class ErrorDialog extends Component {
         });
         this.copyButtonRef = useRef("copyButton");
         this.popover = usePopover(Tooltip);
+        let date = DateTime.now().setZone("UTC");
+        if (this.props.data?.timestamp) {
+            date = DateTime.fromSeconds(this.props.data.timestamp, { zone: "utc" });
+        }
+        this.logDate = date.toFormat("yyyy-MM-dd HH:mm:ss");
+
         this.contextDetails = "Occurred ";
         if (this.props.serverHost) {
             this.contextDetails += `on ${this.props.serverHost} `;
@@ -90,9 +96,7 @@ export class ErrorDialog extends Component {
         if (this.props.model) {
             this.contextDetails += `on model ${this.props.model} `;
         }
-        this.contextDetails += `on ${DateTime.now()
-            .setZone("UTC")
-            .toFormat("yyyy-MM-dd HH:mm:ss")} GMT`;
+        this.contextDetails += `on ${this.logDate} GMT`;
     }
 
     /** Show a brief "Copied" tooltip on the copy button. */
@@ -121,6 +125,14 @@ ClientErrorDialog.title = _t("Odoo Client Error");
 // -----------------------------------------------------------------------------
 export class NetworkErrorDialog extends ErrorDialog {}
 NetworkErrorDialog.title = _t("Odoo Network Error");
+
+// -----------------------------------------------------------------------------
+// Request Entity Too Large Dialog
+// -----------------------------------------------------------------------------
+export class RequestEntityTooLargeErrorDialog extends ErrorDialog {}
+RequestEntityTooLargeErrorDialog.title = _t(
+    "The request sent to the server was too large",
+);
 
 // -----------------------------------------------------------------------------
 // RPC Error Dialog

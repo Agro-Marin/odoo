@@ -721,9 +721,9 @@ describe("Remove domain leaf", () => {
         ];
         const keysToRemove = ["start_datetime", "end_datetime"];
         let newDomain = Domain.removeDomainLeaves(domain, keysToRemove);
+        // The implicit AND of the two removed leaves is fully removed,
+        // collapsing to a single TRUE leaf in the parent AND context.
         let expectedDomain = new Domain([
-            "&",
-            ...Domain.TRUE.toList({}),
             ...Domain.TRUE.toList({}),
             ["sale_line_id", "!=", false],
         ]);
@@ -758,5 +758,51 @@ describe("Remove domain leaf", () => {
             ["sale_line_id", "!=", false],
         ]);
         expect(newDomain.toList({})).toEqual(expectedDomain.toList({}));
+    });
+
+    test("Remove leaves in nested OR tree.", () => {
+        // Nested OR where ALL leaves reference removed fields — should
+        // collapse to TRUE (neutral in the implicit AND context), not FALSE.
+        const keysToRemove = ["start_datetime", "end_datetime"];
+        const domain = [
+            "|",
+            "|",
+            ["start_datetime", ">=", "2025-01-01"],
+            ["end_datetime", "<=", "2025-12-31"],
+            "|",
+            ["start_datetime", "=", false],
+            ["end_datetime", "!=", false],
+        ];
+        const newDomain = Domain.removeDomainLeaves(domain, keysToRemove);
+        // All leaves removed: the entire domain should be neutral (TRUE).
+        expect(newDomain.toList({})).toEqual(Domain.TRUE.toList({}));
+    });
+
+    test("Remove leaves in nested OR with surviving leaf.", () => {
+        const keysToRemove = ["ts"];
+        const domain = [
+            "|",
+            "|",
+            ["ts", "=", 1],
+            ["ts", "=", 2],
+            ["name", "=", "foo"],
+        ];
+        const newDomain = Domain.removeDomainLeaves(domain, keysToRemove);
+        // The inner OR(ts, ts) is fully removed → FALSE (OR neutral).
+        // Outer OR(FALSE, name=foo) → just the surviving leaf.
+        const expectedDomain = new Domain([
+            "|",
+            ...Domain.FALSE.toList({}),
+            ["name", "=", "foo"],
+        ]);
+        expect(newDomain.toList({})).toEqual(expectedDomain.toList({}));
+    });
+
+    test("Remove leaves under negation with nested structure.", () => {
+        const keysToRemove = ["ts"];
+        const domain = ["!", "&", ["ts", "=", 1], ["ts", "=", 2]];
+        const newDomain = Domain.removeDomainLeaves(domain, keysToRemove);
+        // ! AND(ts, ts) → entirely removed → TRUE (neutral in AND context)
+        expect(newDomain.toList({})).toEqual(Domain.TRUE.toList({}));
     });
 });

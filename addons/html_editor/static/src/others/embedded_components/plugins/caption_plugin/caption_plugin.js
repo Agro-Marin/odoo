@@ -1,18 +1,18 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
-import { _t } from "@web/core/l10n/translation";
 import { closestBlock, isBlock } from "@html_editor/utils/blocks";
-import { renderToElement } from "@web/core/utils/render";
 import { unwrapContents } from "@html_editor/utils/dom";
-import { closestElement } from "@html_editor/utils/dom_traversal";
 import {
     EDITABLE_MEDIA_CLASS,
     isParagraphRelatedElement,
     isVisible,
 } from "@html_editor/utils/dom_info";
+import { closestElement } from "@html_editor/utils/dom_traversal";
 import { boundariesOut, rightPos } from "@html_editor/utils/position";
 import { findInSelection } from "@html_editor/utils/selection";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
+import { _t } from "@web/core/l10n/translation";
+import { renderToElement } from "@web/core/utils/render";
 
 export class CaptionPlugin extends Plugin {
     static id = "caption";
@@ -41,7 +41,8 @@ export class CaptionPlugin extends Plugin {
                 groupId: "image_description",
                 commandId: "toggleImageCaption",
                 text: "Caption",
-                isActive: () => this.hasImageCaption(this.dependencies.image.getTargetedImage()),
+                isActive: () =>
+                    this.hasImageCaption(this.dependencies.image.getTargetedImage()),
             },
         ],
         clean_for_save_handlers: this.cleanForSave.bind(this),
@@ -56,7 +57,9 @@ export class CaptionPlugin extends Plugin {
             (node) => ["FIGURE", "FIGCAPTION"].includes(node.nodeName), // avoid merge
         ],
         image_name_predicates: [this.getImageName.bind(this)],
-        link_compatible_selection_predicates: [this.isLinkAllowedOnSelection.bind(this)],
+        link_compatible_selection_predicates: [
+            this.isLinkAllowedOnSelection.bind(this),
+        ],
         // Consider a <figure> element as empty if it only contains a
         // <figcaption> element (e.g. when its image has just been
         // removed).
@@ -102,7 +105,8 @@ export class CaptionPlugin extends Plugin {
         }
         const block = closestBlock(image);
         return (
-            block.nodeName === "FIGURE" && !!block.querySelector("[data-embedded='caption'] input")
+            block.nodeName === "FIGURE" &&
+            !!block.querySelector("[data-embedded='caption'] input")
         );
     }
 
@@ -135,7 +139,10 @@ export class CaptionPlugin extends Plugin {
             isParagraphRelatedElement(closestBlock(image))
         ) {
             // <p>wx<img/>yz</p> => <p>wx</p><p><img/></p><p>yz</p>
-            const block = this.dependencies.split.splitAroundUntil(image, closestBlock(image));
+            const block = this.dependencies.split.splitAroundUntil(
+                image,
+                closestBlock(image),
+            );
             if (isBlock(block.previousSibling) && !isVisible(block.previousSibling)) {
                 block.previousSibling.remove();
             }
@@ -183,7 +190,8 @@ export class CaptionPlugin extends Plugin {
         if (figure) {
             figure.querySelector("figcaption").remove();
             if (!isParagraphRelatedElement(closestBlock(figure.parentElement))) {
-                const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                const baseContainer =
+                    this.dependencies.baseContainer.createBaseContainer();
                 if (figure.parentElement.nodeName === "A") {
                     figure.parentElement.before(baseContainer);
                     baseContainer.append(figure.parentElement);
@@ -196,7 +204,8 @@ export class CaptionPlugin extends Plugin {
             image.removeAttribute("data-caption-id"); // (keep the data-caption for if we toggle again)
             image.classList.remove(EDITABLE_MEDIA_CLASS);
             // Select the image.
-            const [anchorNode, anchorOffset, focusNode, focusOffset] = boundariesOut(image);
+            const [anchorNode, anchorOffset, focusNode, focusOffset] =
+                boundariesOut(image);
             this.dependencies.selection.setSelection({
                 anchorNode,
                 anchorOffset,
@@ -217,7 +226,10 @@ export class CaptionPlugin extends Plugin {
                 image,
                 onUpdateCaption: (caption = "") => {
                     const figcaption = image.parentElement.querySelector("figcaption");
-                    if (figcaption && figcaption.getAttribute("placeholder") !== caption) {
+                    if (
+                        figcaption &&
+                        figcaption.getAttribute("placeholder") !== caption
+                    ) {
                         // Adapt the figcaption element's placeholder to the new
                         // caption for screen reader users.
                         figcaption.setAttribute("placeholder", caption);
@@ -252,7 +264,7 @@ export class CaptionPlugin extends Plugin {
     isLinkAllowedOnSelection() {
         const figure = findInSelection(
             this.dependencies.selection.getEditableSelection(),
-            "figure"
+            "figure",
         );
         if (
             figure &&
@@ -268,7 +280,9 @@ export class CaptionPlugin extends Plugin {
         const figure = closestElement(media, "figure");
         if (media.nodeName === "IMG" && figure) {
             const [anchorNode, anchorOffset] = rightPos(figure);
-            const caption = figure.querySelector("[data-embedded='caption'] input")?.value;
+            const caption = figure.querySelector(
+                "[data-embedded='caption'] input",
+            )?.value;
             figure.before(media);
             figure.remove();
             this.addImageCaption(media, caption, false);
@@ -280,7 +294,8 @@ export class CaptionPlugin extends Plugin {
         const { anchorNode } = this.dependencies.selection.getEditableSelection();
         const targetedNodes = this.dependencies.selection.getTargetedNodes();
         for (const figure of this.editable.querySelectorAll("figure:not(:has(img))")) {
-            const isSelectionInFigure = targetedNodes.includes(figure) || anchorNode === figure;
+            const isSelectionInFigure =
+                targetedNodes.includes(figure) || anchorNode === figure;
             const sibling = figure.nextSibling || figure.previousSibling;
             figure.remove();
             if (isSelectionInFigure) {
@@ -312,10 +327,11 @@ export class CaptionPlugin extends Plugin {
         const endFigure = closestElement(selection.focusNode, "figure");
 
         if (startFigure && startFigure === endFigure) {
-            const [anchorNode, anchorOffset, focusNode, focusOffset] = boundariesOut(startFigure);
+            const [anchorNode, anchorOffset, focusNode, focusOffset] =
+                boundariesOut(startFigure);
             this.dependencies.selection.setSelection(
                 { anchorNode, anchorOffset, focusNode, focusOffset },
-                { normalize: false }
+                { normalize: false },
             );
         }
     }

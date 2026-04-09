@@ -1235,9 +1235,9 @@ describe(parseUrl(import.meta.url), () => {
             "mouseout:0@input",
             "pointerleave:0@input",
             "mouseleave:0@input",
-            // Change
-            "blur@input",
+            // HOOT dispatches change before blur (triggerChange runs in triggerFocus)
             "change@input",
+            "blur@input",
             "focusout@input",
         ]);
     });
@@ -1755,10 +1755,13 @@ describe(parseUrl(import.meta.url), () => {
         await animationFrame();
 
         expect.verifySteps([
-            // Tab
+            // Tab — keydown fires on body (not monitored), focus moves to input,
+            // then keyup fires on the newly focused input (browser behavior).
             "focus@input",
             "focusin@input",
             "focusin@form",
+            "keyup:Tab@input",
+            "keyup:Tab@form",
             // Enter
             "keydown:Enter@input",
             "keydown:Enter@form",
@@ -1786,10 +1789,12 @@ describe(parseUrl(import.meta.url), () => {
         await press("Enter");
 
         expect.verifySteps([
-            // Tab
+            // Tab — keyup fires on newly focused button (browser behavior)
             "focus@button",
             "focusin@button",
             "focusin@form",
+            "keyup:Tab@button",
+            "keyup:Tab@form",
             // Enter
             "keydown:Enter@button",
             "keydown:Enter@form",
@@ -1818,10 +1823,12 @@ describe(parseUrl(import.meta.url), () => {
         await press("Enter");
 
         expect.verifySteps([
-            // Tab
+            // Tab — keyup fires on newly focused button (browser behavior)
             "focus@button",
             "focusin@button",
             "focusin@form",
+            "keyup:Tab@button",
+            "keyup:Tab@form",
             // Enter
             "keydown:Enter@button",
             "keydown:Enter@form",

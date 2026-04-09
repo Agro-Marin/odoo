@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { closestElement } from "@html_editor/utils/dom_traversal";
-import { URL_REGEX, cleanZWChars } from "./utils.js";
-import { isImageUrl } from "@html_editor/utils/url";
 import { Plugin } from "@html_editor/plugin";
+import { closestElement } from "@html_editor/utils/dom_traversal";
 import { childNodeIndex } from "@html_editor/utils/position";
+import { isImageUrl } from "@html_editor/utils/url";
+
+import { cleanZWChars, URL_REGEX } from "./utils.js";
 
 /**
  * @typedef {((text: string, url: string) => void | true)[]} paste_url_overrides
@@ -93,7 +94,7 @@ export class LinkPastePlugin extends Plugin {
             // A url cannot be transformed inside an existing link.
             if (i % 2 && !selectionIsInsideALink) {
                 this.dependencies.dom.insert(
-                    this.dependencies.link.createLink(url, splitAroundUrl[i])
+                    this.dependencies.link.createLink(url, splitAroundUrl[i]),
                 );
             } else if (splitAroundUrl[i] !== "") {
                 this.dependencies.clipboard.pasteText(splitAroundUrl[i]);

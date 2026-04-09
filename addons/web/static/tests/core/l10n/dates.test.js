@@ -20,8 +20,7 @@ import {
     strftimeToLuxonFormat,
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
-
-const { DateTime, Settings } = luxon;
+import { DateTime, Settings } from "luxon";
 
 const formats = {
     date: "%d.%m/%Y",

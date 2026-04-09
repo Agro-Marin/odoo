@@ -3,7 +3,7 @@ import { registry } from "@web/core/registry";
 
 export function htmlEditorVersions() {
     return Object.keys(registry.category("html_editor_upgrade").subRegistries).sort(
-        compareVersions
+        compareVersions,
     );
 }
 
@@ -27,7 +27,10 @@ export function stripVersion(element) {
 export function compareVersions(version1, version2) {
     version1 = version1.split(".").map((v) => parseInt(v));
     version2 = version2.split(".").map((v) => parseInt(v));
-    if (version1[0] < version2[0] || (version1[0] === version2[0] && version1[1] < version2[1])) {
+    if (
+        version1[0] < version2[0] ||
+        (version1[0] === version2[0] && version1[1] < version2[1])
+    ) {
         return -1;
     } else if (version1[0] === version2[0] && version1[1] === version2[1]) {
         return 0;

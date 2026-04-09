@@ -164,6 +164,7 @@
  role="button"
  t-att-class="control_index !== 0 ? 'ml16' : ''"
  t-att-tabindex="props.list.editedRecord ? '-1' : '0'"
+ t-att-data-hotkey="control.hotkey || false"
  t-on-click.stop.prevent="() => this.add({ context: control.context })"
  >
  <t t-esc="control.string"/>

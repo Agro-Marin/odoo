@@ -285,10 +285,24 @@ export function useRegistry(registry) {
                 return;
             }
             if (index !== -1) {
-                // Force-replace: remove old, insert at new position.
+                // Force-replace: remove old entry first.
                 state.entries.splice(index, 1);
             }
-            state.entries.splice(newIndex, 0, newEntries[newIndex]);
+            const newEntry = newEntries[newIndex];
+            // Find correct insertion point in state.entries (which may
+            // differ from registry.getEntries() if entries were locally
+            // removed by error handlers).  Walk the registry's sorted
+            // entries after the new one to find the first key that still
+            // exists in state.entries — insert before that key.
+            let insertAt = state.entries.length;
+            for (let i = newIndex + 1; i < newEntries.length; i++) {
+                const pos = state.entries.findIndex(([k]) => k === newEntries[i][0]);
+                if (pos !== -1) {
+                    insertAt = pos;
+                    break;
+                }
+            }
+            state.entries.splice(insertAt, 0, newEntry);
         } else if (detail.operation === "delete" && index >= 0) {
             state.entries.splice(index, 1);
         }

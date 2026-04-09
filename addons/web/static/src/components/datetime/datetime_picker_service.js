@@ -26,7 +26,7 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makePopover } from "@web/ui/popover/popover_hook";
 
 /**
- * @typedef {globalThis.luxon["DateTime"]["prototype"]} DateTime
+ * @typedef {import("luxon").DateTime} DateTime
  *
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
  * @typedef {import("@web/ui/popover/popover_hook").PopoverHookReturnType} PopoverHookReturnType

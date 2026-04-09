@@ -11,6 +11,7 @@ import {
 import { CallbackRecorder } from "@web/core/action_hook";
 import { CalendarCommonRenderer } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 
+import { DateTime, Settings } from "luxon";
 import {
     clickAllDaySlot,
     clickEvent,
@@ -38,7 +39,7 @@ async function start(props = {}, target) {
 
 preloadBundle("web.fullcalendar_lib");
 beforeEach(() => {
-    luxon.Settings.defaultZone = "UTC+1";
+    Settings.defaultZone = "UTC+1";
 });
 
 test(`mount a CalendarCommonRenderer`, async () => {
@@ -95,10 +96,10 @@ test(`Day: select range`, async () => {
             expect.step("create");
             expect(record.isAllDay).toBe(false);
             expect(record.start.valueOf()).toBe(
-                luxon.DateTime.local(2021, 7, 16, 8, 0).valueOf(),
+                DateTime.local(2021, 7, 16, 8, 0).valueOf(),
             );
             expect(record.end.valueOf()).toBe(
-                luxon.DateTime.local(2021, 7, 16, 10, 0).valueOf(),
+                DateTime.local(2021, 7, 16, 10, 0).valueOf(),
             );
         },
     });

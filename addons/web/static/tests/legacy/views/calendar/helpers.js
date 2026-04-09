@@ -8,6 +8,7 @@ import { registry } from "@web/core/registry";
 import { Field } from "@web/fields/field";
 import { clearRegistryWithCleanup, makeTestEnv } from "../../helpers/mock_env";
 import { click, getFixture, mount, nextTick, triggerEvent } from "../../helpers/utils";
+import { DateTime } from "luxon";
 import { setupViewRegistries } from "@web/../tests/views/helpers";
 
 export function makeEnv(services = {}) {
@@ -41,7 +42,7 @@ export async function mountComponent(C, env, props) {
 //------------------------------------------------------------------------------
 
 export function makeFakeDate() {
-    return luxon.DateTime.local(2021, 7, 16, 8, 0, 0, 0);
+    return DateTime.local(2021, 7, 16, 8, 0, 0, 0);
 }
 
 export function makeFakeRecords() {

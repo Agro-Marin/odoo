@@ -1,10 +1,11 @@
 import { expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor.js";
-import { insertText, switchDirection } from "../_helpers/user_actions.js";
-import { animationFrame } from "@odoo/hoot-mock";
 import { press, queryAllTexts } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
+
+import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { getContent } from "../_helpers/selection.js";
 import { expectElementCount } from "../_helpers/ui_expectations.js";
+import { insertText, switchDirection } from "../_helpers/user_actions.js";
 
 test("should switch direction on a collapsed range", async () => {
     await testEditor({

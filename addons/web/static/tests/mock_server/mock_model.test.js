@@ -10,6 +10,7 @@ import {
     MockServer,
     models,
 } from "@web/../tests/web_test_helpers";
+import { DateTime } from "luxon";
 
 class Oui extends models.Model {
     name = fields.Char();
@@ -172,7 +173,7 @@ describe("level 1", () => {
         ).resolves.toEqual([
             {
                 id: 1,
-                create_date: luxon.DateTime.utc().toSQL().slice(0, 19),
+                create_date: DateTime.utc().toSQL().slice(0, 19),
                 name: "John Doe",
                 age: 42,
                 surname: "doedoe",

@@ -59,7 +59,10 @@ export const fonts = {
                     if (!data) {
                         data = {
                             selector: match[0],
-                            css: rules[r].cssText.replace(/(^.*\{\s*)|(\s*\}\s*$)/g, ""),
+                            css: rules[r].cssText.replace(
+                                /(^.*\{\s*)|(\s*\}\s*$)/g,
+                                "",
+                            ),
                             names: [match[1]],
                         };
                     } else {
@@ -85,7 +88,9 @@ export const fonts = {
      *
      * @type Array
      */
-    fontIcons: [{ base: "fa-solid", parser: /\.(fa-(?:\w|-)+)$/i, cssFilter: /--fa\s*:/ }],
+    fontIcons: [
+        { base: "fa-solid", parser: /\.(fa-(?:\w|-)+)$/i, cssFilter: /--fa\s*:/ },
+    ],
     computedFonts: false,
     /**
      * Searches the fonts described by the @see fontIcons variable.

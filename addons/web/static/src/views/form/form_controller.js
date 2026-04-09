@@ -14,6 +14,7 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
+import { useSetupAction } from "@web/core/action_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
@@ -27,7 +28,6 @@ import {
     addFieldDependencies,
     extractFieldsFromArchInfo,
 } from "@web/model/relational_model/utils";
-import { useSetupAction } from "@web/core/action_hook";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
 import { useDebugCategory } from "@web/services/debug/debug_context";
@@ -456,7 +456,11 @@ export class FormController extends Component {
             }
         } catch (e) {
             if (e instanceof FetchRecordError) {
-                this.model.load({
+                // Record was deleted or inaccessible — remove it from the
+                // pager's id list and load the next available record.
+                // The error still propagates to the error service which
+                // displays the "record not found" notification.
+                await this.model.load({
                     resIds: this.model.config.resIds.filter(
                         (id) => !e.resIds.includes(id),
                     ),
@@ -472,9 +476,15 @@ export class FormController extends Component {
             this.formInDialog === 0 &&
             !this.model.root.isNew
         ) {
-            return this.model.root
-                .save()
-                .catch((e) => console.warn("Auto-save on tab switch failed:", e));
+            return this.model.root.save().catch((e) => {
+                // Notify the user that auto-save failed — a silent console.warn
+                // would leave them thinking their data was persisted.
+                this.notification.add(
+                    _t("Auto-save failed. Please save manually before leaving."),
+                    { type: "warning" },
+                );
+                console.warn("Auto-save on tab switch failed:", e);
+            });
         }
     }
 
@@ -487,6 +497,15 @@ export class FormController extends Component {
         }
     }
 
+    /**
+     * Note: the browser does not await async beforeunload handlers, so
+     * ev.preventDefault() may fire too late for the native confirmation
+     * dialog. However, the async pattern is intentional: urgentSave() must
+     * await internal mutex coordination (e.g. pending onchange RPCs) before
+     * dispatching the save. The test framework also relies on awaiting this
+     * handler. The save itself uses sendBeacon/keepalive which the browser
+     * guarantees to complete after unload.
+     */
     async beforeUnload(ev) {
         const succeeded = await this.model.root.urgentSave();
         if (!succeeded) {

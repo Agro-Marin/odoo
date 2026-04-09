@@ -172,6 +172,19 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
 
     const model = new ModelClass(component.env, params, services);
 
+    // Wrap load to always disable sample data mode and trigger a re-render
+    // after any load call.  Direct model.load() calls (e.g., from delete,
+    // archive, or duplicate actions) bypass _load() which normally handles
+    // notify(), so we must call it here to ensure the view re-renders.
+    const originalLoad = model.load.bind(model);
+    model.load = async (...args) => {
+        await originalLoad(...args);
+        model.useSampleModel = false;
+        if (status(component) === "mounted") {
+            model.notify();
+        }
+    };
+
     const onUpdate = () => component.render(true);
     model.bus.addEventListener("update", onUpdate);
     onWillUnmount(() => model.bus.removeEventListener("update", onUpdate));
@@ -213,9 +226,8 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
             model.useSampleModel = useSampleModel;
         }
         model.whenReady.resolve(); // resolve after the first successful load
-        if (status(component) === "mounted") {
-            model.notify();
-        }
+        // Note: notify() is now called by the model.load() wrapper above,
+        // so we don't need to call it here.
     }
     const race = new Race();
     const load = (props) => race.add(_load(props));

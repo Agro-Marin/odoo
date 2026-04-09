@@ -356,7 +356,7 @@ export class FormCompiler extends ViewCompiler {
                 sequence: sequence++,
                 "t-slot-scope": "scope",
             });
-            let itemSpan = Number.parseInt(child.getAttribute("colspan", 10) || "1", 10);
+            let itemSpan = Number.parseInt(child.getAttribute("colspan") || "1", 10);
 
             if (forceNewline) {
                 mainSlot.setAttribute("newline", "true");
@@ -364,17 +364,23 @@ export class FormCompiler extends ViewCompiler {
             }
 
             if (getTag(child, true) === "separator") {
-                itemSpan = Number.parseInt(formGroup.getAttribute("maxCols", 10) || "2", 10);
+                itemSpan = Number.parseInt(
+                    formGroup.getAttribute("maxCols") || "2",
+                    10,
+                );
             }
 
             if (child.matches("div[class='clearfix']:empty")) {
-                itemSpan = Number.parseInt(formGroup.getAttribute("maxCols", 10) || "2", 10);
+                itemSpan = Number.parseInt(
+                    formGroup.getAttribute("maxCols") || "2",
+                    10,
+                );
             }
 
             let slotContent;
             if (getTag(child, true) === "field") {
                 const addLabel = child.hasAttribute("nolabel")
-                    ? child.getAttribute("nolabel") !== "1"
+                    ? !exprToBoolean(child.getAttribute("nolabel"))
                     : true;
                 slotContent = this.compileNode(
                     child,
@@ -596,6 +602,10 @@ export class FormCompiler extends ViewCompiler {
             "onPageUpdate",
             `(page) => __comp__.props.onNotebookPageChange(${noteBookId}, page)`,
         );
+        noteBook.setAttribute(
+            "onWillActivatePage",
+            `(page) => __comp__.onWillChangeNotebookPage?.(${noteBookId}, page)`,
+        );
 
         for (const child of el.children) {
             if (getTag(child, true) !== "page") {
@@ -696,7 +706,7 @@ export class FormCompiler extends ViewCompiler {
                     );
 
                     addLabel = child.hasAttribute("nolabel")
-                        ? child.getAttribute("nolabel") !== "1"
+                        ? !exprToBoolean(child.getAttribute("nolabel"))
                         : true;
                     const fieldName = child.getAttribute("name");
                     string = child.hasAttribute("string")

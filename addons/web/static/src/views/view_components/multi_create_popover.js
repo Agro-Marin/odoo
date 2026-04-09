@@ -10,6 +10,7 @@ import { useService } from "@web/core/utils/hooks";
 import { Record } from "@web/model/record";
 import { useCallbackRecorder } from "@web/core/action_hook";
 import { FormRenderer } from "@web/views/form/form_renderer";
+import { DateTime } from "luxon";
 
 /** Popover with a mini form and optional time range picker for quick-creating records in calendar/gantt views. */
 export class MultiCreatePopover extends Component {
@@ -77,8 +78,8 @@ export class MultiCreatePopover extends Component {
                 return false;
             }
             if (
-                globalThis.luxon.DateTime.fromObject(start.toObject()) >
-                globalThis.luxon.DateTime.fromObject(end.toObject())
+                DateTime.fromObject(start.toObject()) >
+                DateTime.fromObject(end.toObject())
             ) {
                 this.notification.add(_t("Start time should be before end time"), {
                     title: "User Error",

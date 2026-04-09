@@ -69,6 +69,9 @@ export function getFormattedValue(record, fieldName, fieldInfo = null) {
     }
     formatOptions.data = record.data;
     formatOptions.field = field;
+    // `undefined` means the field is absent from the record data (not loaded) → empty string.
+    // `null` and `false` are valid ORM values (empty many2one, unset boolean) → pass to
+    // the formatter which knows how to display them.
     return record.data[fieldName] !== undefined
         ? formatter(record.data[fieldName], formatOptions)
         : "";

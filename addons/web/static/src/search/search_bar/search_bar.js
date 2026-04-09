@@ -8,7 +8,7 @@ import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/dom
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { hasTouch } from "@web/core/browser/feature_detection";
+import { hasTouch, isIOS } from "@web/core/browser/feature_detection";
 import { Domain } from "@web/core/domain";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
@@ -733,6 +733,9 @@ export class SearchBar extends Component {
     onSearchInput(ev) {
         if (!hasTouch()) {
             this.searchBarDropdownState.close();
+        }
+        if (isIOS() && !ev.key) {
+            return;
         }
         const query = /** @type {HTMLInputElement} */ (ev.target).value;
         if (query.trim()) {

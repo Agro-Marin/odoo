@@ -1,4 +1,5 @@
 import { test } from "@odoo/hoot";
+
 import { testEditor } from "../_helpers/editor.js";
 import { deleteBackward, deleteForward } from "../_helpers/user_actions.js";
 

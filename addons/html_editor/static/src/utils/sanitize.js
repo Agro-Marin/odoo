@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { containsAnyInline } from "./dom_info.js";
-import { wrapInlinesInBlocks } from "./dom.js";
 import { markup } from "@odoo/owl";
 import { htmlReplace } from "@web/core/utils/dom/html";
+
+import { wrapInlinesInBlocks } from "./dom.js";
+import { containsAnyInline } from "./dom_info.js";
 
 export function initElementForEdition(element, options = {}) {
     if (

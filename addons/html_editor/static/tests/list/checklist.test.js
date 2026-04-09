@@ -1,8 +1,9 @@
 import { test } from "@odoo/hoot";
+import { click, manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
+
 import { testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 import { clickCheckbox, pasteHtml } from "../_helpers/user_actions.js";
-import { click, manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
 
 test("should do nothing if do not click on the checkbox", async () => {
     await testEditor({
@@ -13,7 +14,9 @@ test("should do nothing if do not click on the checkbox", async () => {
         stepFunction: async (editor) => {
             const li = editor.editable.querySelector("li");
             const liRect = li.getBoundingClientRect();
-            await click(li, { position: { clientX: liRect.left + 10, clientY: liRect.top + 10 } });
+            await click(li, {
+                position: { clientX: liRect.left + 10, clientY: liRect.top + 10 },
+            });
         },
         contentAfter: unformat(`
             <ul class="o_checklist">
@@ -418,11 +421,11 @@ test("should preserve list type on paste", async () => {
         stepFunction: async (editor) => {
             pasteHtml(
                 editor,
-                `<ul><li>a</li></ul><ul class="o_checklist"><li>b</li><li>c</li><li>d</li></ul>`
+                `<ul><li>a</li></ul><ul class="o_checklist"><li>b</li><li>c</li><li>d</li></ul>`,
             );
         },
         contentAfter: unformat(
-            `<ul><li>a</li></ul><ul class="o_checklist"><li>b</li><li>c</li><li>d[]</li></ul><div><br></div>`
+            `<ul><li>a</li></ul><ul class="o_checklist"><li>b</li><li>c</li><li>d[]</li></ul><div><br></div>`,
         ),
     });
 });

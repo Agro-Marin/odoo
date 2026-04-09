@@ -21,8 +21,7 @@ import {
 } from "@web/views/calendar/calendar_date_range";
 import { normalizeCalendarRecord } from "@web/views/calendar/calendar_record";
 
-// luxon is available as a module-level global in the Hoot browser environment
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 
 // ---------------------------------------------------------------------------
 // computeCalendarRange — scale-based date range computation

@@ -4,11 +4,10 @@
 
 import { after, before, beforeEach, createJobScopedGetter } from "@odoo/hoot";
 import { validateType } from "@odoo/owl";
+import { Settings } from "luxon";
 
 const { view_info } = /** @type {any} */ (odoo).__session_info__ || {};
 delete (/** @type {any} */ (odoo).__session_info__);
-
-const { Settings } = luxon;
 
 /**
  * @typedef {typeof SERVER_STATE_VALUES} ServerState

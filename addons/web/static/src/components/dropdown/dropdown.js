@@ -27,7 +27,16 @@ import { utils } from "@web/ui/block/ui_service";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 /**
- * @param {any} node
+ * Traverse OWL's block-dom (vdom) tree to find the first real HTMLElement.
+ *
+ * WARNING: This accesses OWL's undocumented internal structure (.bdom,
+ * .child, .children, .el). There is no public API to get the first DOM
+ * element of a multi-root component (like `<t t-slot="default"/>`).
+ * If OWL renames these properties, the Dropdown component will throw
+ * "Could not find a valid dropdown toggler" — update this function
+ * to match the new structure.
+ *
+ * @param {any} node - OWL block-dom node
  * @returns {HTMLElement | null}
  */
 function getFirstElementOfNode(node) {

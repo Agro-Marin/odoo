@@ -68,7 +68,9 @@ export class Plugin {
             }
         };
         target.addEventListener(eventName, handler, capture);
-        this._cleanups.push(() => target.removeEventListener(eventName, handler, capture));
+        this._cleanups.push(() =>
+            target.removeEventListener(eventName, handler, capture),
+        );
     }
 
     /**

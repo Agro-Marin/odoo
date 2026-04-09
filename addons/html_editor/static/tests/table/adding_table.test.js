@@ -1,12 +1,13 @@
-import { expect, test } from "@odoo/hoot";
-import { animationFrame } from "@odoo/hoot-mock";
-import { setupEditor } from "../_helpers/editor.js";
-import { getContent } from "../_helpers/selection.js";
-import { insertText } from "../_helpers/user_actions.js";
-import { unformat } from "../_helpers/format.js";
-import { press, waitFor, queryOne } from "@odoo/hoot-dom";
-import { expectElementCount } from "../_helpers/ui_expectations.js";
 import { findInSelection } from "@html_editor/utils/selection";
+import { expect, test } from "@odoo/hoot";
+import { press, queryOne, waitFor } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
+
+import { setupEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
+import { getContent } from "../_helpers/selection.js";
+import { expectElementCount } from "../_helpers/ui_expectations.js";
+import { insertText } from "../_helpers/user_actions.js";
 
 function expectContentToBe(el, html) {
     expect(getContent(el)).toBe(unformat(html));
@@ -59,7 +60,7 @@ test("can add a table using the powerbox and keyboard", async () => {
                 </tr>
             </tbody>
         </table>
-        <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+        <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
     );
 });
 
@@ -131,7 +132,9 @@ test("Expand columns in the correct direction in 'rtl'", async () => {
     // Add one column -> we have 4 columns
     await press("ArrowLeft");
     await animationFrame();
-    expect(tablePickerOverlay.getBoundingClientRect().width).toBeGreaterThan(width3Columns);
+    expect(tablePickerOverlay.getBoundingClientRect().width).toBeGreaterThan(
+        width3Columns,
+    );
     expect(tablePickerOverlay).toHaveStyle({ right });
     expect(".o-we-cell.active").toHaveCount(12);
 
@@ -144,7 +147,9 @@ test("Expand columns in the correct direction in 'rtl'", async () => {
     // Remove one column -> we have 2 columns
     await press("ArrowRight");
     await animationFrame();
-    expect(tablePickerOverlay.getBoundingClientRect().width).toBeLessThan(width3Columns);
+    expect(tablePickerOverlay.getBoundingClientRect().width).toBeLessThan(
+        width3Columns,
+    );
     expect(tablePickerOverlay).toHaveStyle({ right });
     expect(".o-we-cell.active").toHaveCount(6);
 });
@@ -197,7 +202,7 @@ test("add table inside empty list", async () => {
                     </tbody>
                 </table>
             </li>
-        </ul>`
+        </ul>`,
     );
 });
 
@@ -249,7 +254,7 @@ test("add table inside non-empty list", async () => {
                     </tbody>
                 </table>
             </li>
-        </ul>`
+        </ul>`,
     );
 });
 
@@ -298,7 +303,7 @@ test("should not navigate table cells when table picker is open", async () => {
                     </tr>
                 </tbody>
             </table>
-        `)
+        `),
     );
     // open powerbox
     await insertText(editor, "/");
@@ -349,7 +354,7 @@ test("should not navigate table cells when table picker is open", async () => {
                 </tbody>
             </table>
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>
-        `
+        `,
     );
 });
 
@@ -370,7 +375,7 @@ test("should not navigate table cells when powerbox is open", async () => {
                     </tr>
                 </tbody>
             </table>
-        `)
+        `),
     );
 
     // Open powerbox
@@ -381,7 +386,10 @@ test("should not navigate table cells when powerbox is open", async () => {
     const secondTd = el.querySelectorAll("td")[1];
 
     // Selection starts in first cell
-    let selectedTd = findInSelection(editor.shared.selection.getEditableSelection(), "td");
+    let selectedTd = findInSelection(
+        editor.shared.selection.getEditableSelection(),
+        "td",
+    );
     expect(selectedTd).toBe(secondTd);
 
     // ArrowUp should not navigate table cells
@@ -420,6 +428,6 @@ test("should not navigate table cells when powerbox is open", async () => {
                 </tbody>
             </table>
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>
-        `
+        `,
     );
 });

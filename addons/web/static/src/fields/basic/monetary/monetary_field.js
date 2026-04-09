@@ -62,7 +62,7 @@ export class MonetaryField extends Component {
     }
     /** @returns {import("@web/services").Currency | null} */
     get currency() {
-        if (!isNaN(this.currencyId)) {
+        if (this.currencyId != null) {
             return getCurrency(this.currencyId) || null;
         }
         return null;

@@ -1,16 +1,16 @@
 /** @odoo-module native */
-import { _t } from "@web/core/l10n/translation";
-import { downloadFile } from "@web/core/network/download";
-import { useFileViewer } from "@web/components/file_viewer/file_viewer_hook";
-import { useService } from "@web/core/utils/hooks";
-import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import {
     EmbeddedComponentToolbar,
     EmbeddedComponentToolbarButton,
 } from "@html_editor/others/embedded_components/core/embedded_component_toolbar/embedded_component_toolbar";
 import { StateFileModel } from "@html_editor/others/embedded_components/core/file/state_file_model";
-import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import { Component, useState } from "@odoo/owl";
+import { useFileViewer } from "@web/components/file_viewer/file_viewer_hook";
+import { _t } from "@web/core/l10n/translation";
+import { downloadFile } from "@web/core/network/download";
+import { useService } from "@web/core/utils/hooks";
+import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
 
 export class ReadonlyEmbeddedFileComponent extends Component {
     static components = {
@@ -44,7 +44,7 @@ export class ReadonlyEmbeddedFileComponent extends Component {
             this.dialogService.add(AlertDialog, {
                 body: _t(
                     "Oops, the file %s could not be found. Please replace this file box by a new one to re-upload the file.",
-                    this.fileModel.name
+                    this.fileModel.name,
                 ),
                 title: _t("Missing File"),
                 confirm: () => {},

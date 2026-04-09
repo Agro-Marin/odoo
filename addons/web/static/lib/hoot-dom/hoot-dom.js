@@ -71,7 +71,6 @@ export {
 //-----------------------------------------------------------------------------
 
 // DOM
-export const observe = interactor("query", dom.observe);
 export const waitFor = interactor("query", dom.waitFor);
 export const waitForNone = interactor("query", dom.waitForNone);
 
@@ -115,7 +114,7 @@ export { exposeHelpers } from "./hoot_dom_utils";
 import { exposeHelpers } from "./hoot_dom_utils";
 export default { ...dom, ...events, ...time,
     // interactors (dom)
-    observe, waitFor, waitForNone,
+    waitFor, waitForNone,
     // interactors (events)
     check, clear, click, dblclick, drag, edit, fill, hover,
     keyDown, keyUp, leave, manuallyDispatchProgrammaticEvent, middleClick,

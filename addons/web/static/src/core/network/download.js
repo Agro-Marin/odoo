@@ -36,7 +36,7 @@ function _download(data, filename, mimetype) {
             document.body.appendChild(anchor);
             anchor.click();
             document.body.removeChild(anchor);
-            return true;
+            return Promise.resolve(true);
         }
         const url = data;
         return new Promise((resolve, reject) => {
@@ -64,7 +64,7 @@ function _download(data, filename, mimetype) {
     document.body.removeChild(anchor);
     // Delay revocation so the browser has time to start the download.
     setTimeout(() => URL.revokeObjectURL(objectUrl), 250);
-    return true;
+    return Promise.resolve(true);
 }
 
 // -----------------------------------------------------------------------------

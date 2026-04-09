@@ -29,8 +29,7 @@ import {
     computeRangeDomain,
 } from "./calendar_date_range.js";
 import { normalizeCalendarRecord } from "./calendar_record.js";
-
-const { DateTime } = globalThis.luxon ?? {};
+import { DateTime } from "luxon";
 
 /**
  * Data model for the calendar view.

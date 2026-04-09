@@ -1,4 +1,7 @@
 .o_tree_editor {
+    .o_tree_editor_condition > .col-md-2 {
+        min-width: 100px;
+    }
     .o_tree_editor_node {
         .o_tree_editor_node_control_panel > button {
             opacity: .2;

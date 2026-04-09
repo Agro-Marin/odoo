@@ -8323,7 +8323,8 @@ test("colorpicker doesn't appear when missing access rights", async () => {
             </kanban>`,
     });
 
-    await toggleKanbanRecordDropdown(0);
+    // With edit="0", the dropdown menu is not rendered at all
+    expect(".o_dropdown_kanban").toHaveCount(0);
     expect(".o_kanban_colorpicker").toHaveCount(0);
 });
 

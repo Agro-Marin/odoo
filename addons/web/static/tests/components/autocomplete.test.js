@@ -594,7 +594,8 @@ test("correct sequence of blur, focus and select", async () => {
     await contains(".o-autocomplete input").edit("", { confirm: false });
     await runAllTimers();
     await contains(document.body).click();
-    expect.verifySteps(["blur", "change"]);
+    // HOOT dispatches change before blur (triggerChange runs before blur/focusout)
+    expect.verifySteps(["change", "blur"]);
     expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
 });
 

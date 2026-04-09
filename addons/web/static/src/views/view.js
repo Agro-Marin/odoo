@@ -134,9 +134,11 @@ export function getDefaultConfig() {
         pagerProps: {},
         setDisplayName: (newDisplayName) => {
             displayName = newDisplayName;
-            // This is a hack to force the reactivity when a new displayName is set
-            config.breadcrumbs.push(undefined);
-            config.breadcrumbs.pop();
+            // Force OWL reactivity: the displayName is accessed via a
+            // getter on the breadcrumb item, so changing it doesn't
+            // mutate the array. Splicing in place triggers the proxy.
+            const bc = config.breadcrumbs;
+            bc.splice(0, bc.length, ...bc);
         },
         viewSwitcherEntries: [],
         views: [],

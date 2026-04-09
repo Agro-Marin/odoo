@@ -2,16 +2,21 @@ import { expect, test } from "@odoo/hoot";
 import { manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
 import { tick } from "@odoo/hoot-mock";
 import { onRpc, patchWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { cleanLinkArtifacts } from "../_helpers/format.js";
 import { getContent, setSelection } from "../_helpers/selection.js";
-import { insertText, undo } from "../_helpers/user_actions.js";
 import { expectElementCount } from "../_helpers/ui_expectations.js";
+import { insertText, undo } from "../_helpers/user_actions.js";
 
 async function insertSpace(editor) {
-    const keydownEvent = await manuallyDispatchProgrammaticEvent(editor.editable, "keydown", {
-        key: " ",
-    });
+    const keydownEvent = await manuallyDispatchProgrammaticEvent(
+        editor.editable,
+        "keydown",
+        {
+            key: " ",
+        },
+    );
     if (keydownEvent.defaultPrevented) {
         return;
     }
@@ -22,7 +27,7 @@ async function insertSpace(editor) {
         {
             inputType: "insertText",
             data: " ",
-        }
+        },
     );
     if (beforeinputEvent.defaultPrevented) {
         return;
@@ -55,10 +60,14 @@ async function insertSpace(editor) {
         anchorOffset: offset,
     });
 
-    const [inputEvent] = await manuallyDispatchProgrammaticEvent(editor.editable, "input", {
-        inputType: "insertText",
-        data: " ",
-    });
+    const [inputEvent] = await manuallyDispatchProgrammaticEvent(
+        editor.editable,
+        "input",
+        {
+            inputType: "insertText",
+            data: " ",
+        },
+    );
     if (inputEvent.defaultPrevented) {
         return;
     }
@@ -71,7 +80,8 @@ async function insertSpace(editor) {
  */
 test("should transform url after space (1)", async () => {
     await testEditor({
-        contentBefore: "<p>a http://test.com b http://test.com[] c http://test.com d</p>",
+        contentBefore:
+            "<p>a http://test.com b http://test.com[] c http://test.com d</p>",
         stepFunction: async (editor) => {
             await insertSpace(editor);
         },
@@ -145,7 +155,8 @@ test("should transform url followed by punctuation characters after space (5)", 
 
 test("should transform url after enter", async () => {
     await testEditor({
-        contentBefore: "<p>a http://test.com b http://test.com[] c http://test.com d</p>",
+        contentBefore:
+            "<p>a http://test.com b http://test.com[] c http://test.com d</p>",
         stepFunction: async (editor) => {
             // Simulate "Enter"
             await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
@@ -159,7 +170,8 @@ test("should transform url after enter", async () => {
 
 test("should transform url after shift+enter", async () => {
     await testEditor({
-        contentBefore: "<p>a http://test.com b http://test.com[] c http://test.com d</p>",
+        contentBefore:
+            "<p>a http://test.com b http://test.com[] c http://test.com d</p>",
         stepFunction: async (editor) => {
             // Simulate "Shift + Enter"
             await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
@@ -181,7 +193,8 @@ test("should not transform an email url after space", async () => {
 
 test("should not transform url after two space", async () => {
     await testEditor({
-        contentBefore: "<p>a http://test.com b http://test.com&nbsp;[] c http://test.com d</p>",
+        contentBefore:
+            "<p>a http://test.com b http://test.com&nbsp;[] c http://test.com d</p>",
         stepFunction: (editor) => insertSpace(editor),
         contentAfter:
             "<p>a http://test.com b http://test.com&nbsp; []&nbsp;c http://test.com d</p>",
@@ -192,12 +205,12 @@ test("transform text url into link and undo it", async () => {
     const { el, editor } = await setupEditor(`<p>[]</p>`);
     await insertText(editor, "www.abc.jpg ");
     expect(cleanLinkArtifacts(getContent(el))).toBe(
-        '<p><a href="https://www.abc.jpg">www.abc.jpg</a>&nbsp;[]</p>'
+        '<p><a href="https://www.abc.jpg">www.abc.jpg</a>&nbsp;[]</p>',
     );
 
     undo(editor);
     expect(cleanLinkArtifacts(getContent(el))).toBe(
-        '<p><a href="https://www.abc.jpg">www.abc.jpg</a>[]</p>'
+        '<p><a href="https://www.abc.jpg">www.abc.jpg</a>[]</p>',
     );
 
     undo(editor);

@@ -207,7 +207,11 @@
 
                 unloaded.add(moduleName);
                 for (const dep of deps) {
-                    if (!this.factories.has(dep) && !this._nativePending.has(dep)) {
+                    if (
+                        !this.factories.has(dep)
+                        && !this.modules.has(dep)
+                        && !this._nativePending.has(dep)
+                    ) {
                         missing.add(dep);
                     }
                 }
@@ -430,6 +434,11 @@
          * @param {Record<string, object>} modules  specifier → namespace object
          */
         registerNativeModules(modules) {
+            const names = Object.keys(modules);
+            console.debug(
+                `[module_loader] registerNativeModules: ${names.length} modules, ` +
+                `${this._nativePending.size} still pending`,
+            );
             for (const [name, mod] of Object.entries(modules)) {
                 this._nativePending.delete(name);
                 this.modules.set(name, mod);

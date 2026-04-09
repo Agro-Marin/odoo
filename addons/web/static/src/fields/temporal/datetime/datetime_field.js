@@ -20,10 +20,10 @@ import { FIELD_WIDTHS } from "@web/fields/field_widths";
 import { formatDate, formatDateTime } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-const { DateTime } = globalThis.luxon ?? {};
+import { DateTime } from "luxon";
 
 function getFormattedPlaceholder(value, type, options) {
-    if (value instanceof globalThis.luxon.DateTime) {
+    if (value instanceof DateTime) {
         return type === "date"
             ? formatDate(value, options)
             : formatDateTime(value, options);

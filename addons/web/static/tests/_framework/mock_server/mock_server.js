@@ -35,8 +35,7 @@ import {
     MockServerError,
     safeSplit,
 } from "./mock_server_utils.js";
-
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 
 /**
  * @typedef {{

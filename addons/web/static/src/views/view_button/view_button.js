@@ -96,7 +96,7 @@ export class ViewButton extends Component {
         }
         const { debounce } = this.clickParams;
         if (debounce) {
-            this.onClick = debounceFn(this.onClick.bind(this), debounce, true);
+            this.onClick = debounceFn(this.onClick.bind(this), Number(debounce), true);
         }
         this.tooltip = JSON.stringify({
             debug: Boolean(odoo.debug),

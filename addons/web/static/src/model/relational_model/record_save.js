@@ -11,6 +11,8 @@
 
 import { markRaw, markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+
+import { RequestEntityTooLargeError } from "@web/core/network/rpc";
 import { FetchRecordError } from "./errors.js";
 import { getBasicEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
@@ -72,11 +74,18 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         // payload (typically < 64k). So we try to save with sendBeacon, and if it
         // doesn't work, we will prevent the page from unloading.
         const route = `/web/dataset/call_kw/${record.resModel}/web_save`;
+        const kwargs = { context: record.context, specification: {} };
+        // Optimistic locking: include write_date so the server can detect
+        // concurrent edits, same as the normal save path.
+        if (record._values.write_date) {
+            const wd = record._values.write_date;
+            kwargs.last_write_date = typeof wd === "string" ? wd : wd.toISO();
+        }
         const params = {
             model: record.resModel,
             method: "web_save",
             args: [record.resId ? [record.resId] : [], changes],
-            kwargs: { context: record.context, specification: {} },
+            kwargs,
         };
         const data = { jsonrpc: "2.0", method: "call", params };
         const blob = new Blob([JSON.stringify(data)], {
@@ -131,8 +140,13 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     // Optimistic locking: send write_date so the server can detect concurrent edits
     if (record.resId && record._values.write_date) {
         const wd = record._values.write_date;
-        // write_date may be a Luxon DateTime or a string
-        kwargs.last_write_date = typeof wd === "string" ? wd : wd.toISO();
+        // write_date may be a Luxon DateTime or a string.
+        // Luxon toISO() returns null for invalid DateTimes — guard against it
+        // to avoid silently disabling the locking check.
+        const isoWd = typeof wd === "string" ? wd : wd.toISO();
+        if (isoWd) {
+            kwargs.last_write_date = isoWd;
+        }
     }
     /** @type {Record<string, any>[]} */
     let records;
@@ -144,7 +158,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             kwargs,
         );
     } catch (e) {
-        if (onError) {
+        if (onError && !(e instanceof RequestEntityTooLargeError)) {
             return onError(e, {
                 discard: () => record._discard(),
                 retry: () => save(record, { reload, onError, nextId }),
@@ -163,6 +177,9 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         const resIds = [...record.resIds, resId];
         record.model._updateConfig(record.config, { resId, resIds }, { reload: false });
     }
+    // Notify BEFORE onWillLoadRoot/setData: hooks like FormController.onRecordSaved
+    // rely on form-level state (e.g. duplicateId) that onWillLoadRoot resets.
+    // The `changes` parameter carries the saved field values.
     await record.model.hooks.onRecordSaved(record, changes);
     if (reload) {
         if (record.resId) {

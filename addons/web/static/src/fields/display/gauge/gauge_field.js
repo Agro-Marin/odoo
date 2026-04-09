@@ -26,7 +26,10 @@ export class GaugeField extends Component {
         this.chart = null;
         this.canvasRef = useRef("canvas");
 
-        onWillStart(async () => await loadBundle("web.chartjs_lib"));
+        onWillStart(async () => {
+            const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+            this.Chart = Chart;
+        });
 
         useEffect(() => {
             this.renderChart();
@@ -108,7 +111,7 @@ export class GaugeField extends Component {
                 aspectRatio: 2,
             },
         };
-        this.chart = new Chart(this.canvasRef.el, config);
+        this.chart = new this.Chart(this.canvasRef.el, config);
     }
 }
 

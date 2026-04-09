@@ -1,4 +1,18 @@
-import { test, describe, beforeEach, expect } from "@odoo/hoot";
+import { EmbeddedComponentPlugin } from "@html_editor/others/embedded_component_plugin";
+import {
+    EmbeddedToggleBlockComponent,
+    toggleBlockEmbedding,
+} from "@html_editor/others/embedded_components/core/toggle_block/toggle_block";
+import { ToggleBlockPlugin } from "@html_editor/others/embedded_components/plugins/toggle_block_plugin/toggle_block_plugin";
+import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
+import { parseHTML } from "@html_editor/utils/html";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { animationFrame, queryOne, tick } from "@odoo/hoot-dom";
+import { Deferred } from "@odoo/hoot-mock";
+import { onMounted } from "@odoo/owl";
+import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
+
 import { setupEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 import { getContent, setContent } from "../_helpers/selection.js";
@@ -11,19 +25,6 @@ import {
     splitBlock,
     switchDirection,
 } from "../_helpers/user_actions.js";
-import { contains, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import {
-    EmbeddedToggleBlockComponent,
-    toggleBlockEmbedding,
-} from "@html_editor/others/embedded_components/core/toggle_block/toggle_block";
-import { onMounted } from "@odoo/owl";
-import { animationFrame, queryOne, tick } from "@odoo/hoot-dom";
-import { Deferred } from "@odoo/hoot-mock";
-import { browser } from "@web/core/browser/browser";
-import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
-import { EmbeddedComponentPlugin } from "@html_editor/others/embedded_component_plugin";
-import { ToggleBlockPlugin } from "@html_editor/others/embedded_components/plugins/toggle_block_plugin/toggle_block_plugin";
-import { parseHTML } from "@html_editor/utils/html";
 
 let embeddedToggleMountedPromise;
 
@@ -63,11 +64,11 @@ describe("deleteBackward applied to toggle", () => {
                     </div>
                 </div>
                 <p>[]stuff</p>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         deleteBackward(editor);
@@ -90,7 +91,7 @@ describe("deleteBackward applied to toggle", () => {
                             <p>asdf[]stuff</p>
                         </div>
                     </div>
-                </div>`)
+                </div>`),
         );
     });
     test("toggle closed, after toggle: should append to title", async () => {
@@ -106,11 +107,11 @@ describe("deleteBackward applied to toggle", () => {
                     </div>
                 </div>
                 <p>[]stuff</p>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         deleteBackward(editor);
@@ -133,7 +134,7 @@ describe("deleteBackward applied to toggle", () => {
                             <p>asdf</p>
                         </div>
                     </div>
-                </div>`)
+                </div>`),
         );
     });
     test("start of title: should explode toggle", async () => {
@@ -149,11 +150,11 @@ describe("deleteBackward applied to toggle", () => {
                         <p>Riddance</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         deleteBackward(editor);
@@ -163,7 +164,7 @@ describe("deleteBackward applied to toggle", () => {
             <p>[]Hello World</p>
             <p>Good</p>
             <p>Riddance</p>
-            `)
+            `),
         );
     });
     test("start of content: should append to title", async () => {
@@ -179,7 +180,7 @@ describe("deleteBackward applied to toggle", () => {
                     </div>
                 </div>
             `),
-            { config: getConfig([toggleBlockEmbedding]) }
+            { config: getConfig([toggleBlockEmbedding]) },
         );
         await embeddedToggleMountedPromise;
         deleteBackward(editor);
@@ -200,14 +201,15 @@ describe("deleteBackward applied to toggle", () => {
                     </div>
                 </div>
             `),
-            { config: getConfig([toggleBlockEmbedding]) }
+            { config: getConfig([toggleBlockEmbedding]) },
         );
         await embeddedToggleMountedPromise;
         deleteBackward(editor);
         expect("[data-embedded-editable='content'").toHaveInnerHTML(`
             <p>Good</p>
         `);
-        expect(queryOne("[data-embedded='toggleBlock']").nextElementSibling).toHaveOuterHTML(`
+        expect(queryOne("[data-embedded='toggleBlock']").nextElementSibling)
+            .toHaveOuterHTML(`
             <p>Riddance</p>
         `);
     });
@@ -225,11 +227,11 @@ describe("deleteForward applied to toggle", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         deleteForward(editor);
@@ -251,7 +253,7 @@ describe("deleteForward applied to toggle", () => {
                             <p>asdf</p>
                         </div>
                     </div>
-                </div>`)
+                </div>`),
         );
     });
     test("end of paragraph, before toggle: should explode sibling toggle", async () => {
@@ -266,11 +268,11 @@ describe("deleteForward applied to toggle", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         deleteForward(editor);
@@ -278,7 +280,7 @@ describe("deleteForward applied to toggle", () => {
             unformat(`
                 <p>before[]HelloWorld</p>
                 <p>asdf</p>
-            `)
+            `),
         );
     });
     test("toggle open, end of title: should explode first toggle and append to title", async () => {
@@ -303,7 +305,7 @@ describe("deleteForward applied to toggle", () => {
             `),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         deleteForward(editor);
@@ -325,7 +327,7 @@ describe("deleteForward applied to toggle", () => {
                             <p>third</p>
                         </div>
                     </div>
-                </div>`)
+                </div>`),
         );
     });
     test("toggle closed, end of title: should explode sibling toggle and append to title", async () => {
@@ -350,7 +352,7 @@ describe("deleteForward applied to toggle", () => {
             `),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         deleteForward(editor);
@@ -374,7 +376,7 @@ describe("deleteForward applied to toggle", () => {
                     </div>
                 </div>
                 <p>third</p>
-            `)
+            `),
         );
     });
     test("end of content: should explode sibling toggle and append to content", async () => {
@@ -400,7 +402,7 @@ describe("deleteForward applied to toggle", () => {
             `),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         deleteForward(editor);
@@ -424,7 +426,7 @@ describe("deleteForward applied to toggle", () => {
                     </div>
                 </div>
                 <p>third</p>
-            `)
+            `),
         );
     });
 });
@@ -441,11 +443,11 @@ describe("Enter applied to toggle title", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         patchWithCleanup(ToggleBlockPlugin.prototype, {
@@ -492,7 +494,7 @@ describe("Enter applied to toggle title", () => {
                         </div>
                     </div>
                 </div>
-            `)
+            `),
         );
     });
     test("toggle closed, non-empty title: should create new sibling toggle with split title", async () => {
@@ -506,11 +508,11 @@ describe("Enter applied to toggle title", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         patchWithCleanup(ToggleBlockPlugin.prototype, {
@@ -557,7 +559,7 @@ describe("Enter applied to toggle title", () => {
                     </div>
                 </div>
             </div>
-        `)
+        `),
         );
     });
     test("toggle open, non-empty title: should prepend content with split title", async () => {
@@ -572,11 +574,11 @@ describe("Enter applied to toggle title", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         splitBlock(editor);
@@ -599,7 +601,7 @@ describe("Enter applied to toggle title", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            </div>`)
+            </div>`),
         );
     });
     test("empty title: should explode toggle", async () => {
@@ -614,11 +616,11 @@ describe("Enter applied to toggle title", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         splitBlock(editor);
@@ -626,7 +628,7 @@ describe("Enter applied to toggle title", () => {
             unformat(`
                 <p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>
                 <p>asdf</p>
-            `)
+            `),
         );
     });
 });
@@ -651,11 +653,11 @@ describe("Tab applied to toggle title", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         await keydownTab(editor);
@@ -694,7 +696,7 @@ describe("Tab applied to toggle title", () => {
                         </div>
                     </div>
                 </div>
-            </div>`)
+            </div>`),
         );
     });
     test("toggle open, should move inside previous toggle and unwrap content", async () => {
@@ -718,11 +720,11 @@ describe("Tab applied to toggle title", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         await keydownTab(editor);
@@ -762,7 +764,7 @@ describe("Tab applied to toggle title", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            </div>`)
+            </div>`),
         );
     });
 });
@@ -787,11 +789,11 @@ describe("Shift+Tab applied to toggle title", () => {
                         <p>absorb</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         await keydownShiftTab(editor);
@@ -832,7 +834,7 @@ describe("Shift+Tab applied to toggle title", () => {
                     </div>
                 </div>
             </div>
-        `)
+        `),
         );
     });
 });
@@ -848,20 +850,24 @@ describe("Hide and show toggle content", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         expect(
-            queryOne("[data-embedded-editable='content']").parentElement.matches(".d-none")
+            queryOne("[data-embedded-editable='content']").parentElement.matches(
+                ".d-none",
+            ),
         ).toBe(true);
         await contains("[data-embedded='toggleBlock'] button").click();
         await animationFrame();
         expect(
-            queryOne("[data-embedded-editable='content']").parentElement.matches(".d-none")
+            queryOne("[data-embedded-editable='content']").parentElement.matches(
+                ".d-none",
+            ),
         ).toBe(false);
     });
     test.tags("desktop");
@@ -877,23 +883,27 @@ describe("Hide and show toggle content", () => {
                     </div>
                 </div>
                 <p>[]<br></p>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         el.style.minHeight = "600px";
         const powerButtons = queryOne(".o_we_power_buttons");
         const p = el.lastChild;
         await embeddedToggleMountedPromise;
         expect(
-            queryOne("[data-embedded-editable='content']").parentElement.matches(".d-none")
+            queryOne("[data-embedded-editable='content']").parentElement.matches(
+                ".d-none",
+            ),
         ).toBe(true);
         await contains("[data-embedded='toggleBlock'] button").click();
         await animationFrame();
         expect(
-            queryOne("[data-embedded-editable='content']").parentElement.matches(".d-none")
+            queryOne("[data-embedded-editable='content']").parentElement.matches(
+                ".d-none",
+            ),
         ).toBe(false);
         let pRect = p.getBoundingClientRect();
         let powerButtonsRect = powerButtons.getBoundingClientRect();
@@ -901,7 +911,9 @@ describe("Hide and show toggle content", () => {
         await contains("[data-embedded='toggleBlock'] button").click();
         await animationFrame();
         expect(
-            queryOne("[data-embedded-editable='content']").parentElement.matches(".d-none")
+            queryOne("[data-embedded-editable='content']").parentElement.matches(
+                ".d-none",
+            ),
         ).toBe(true);
         pRect = p.getBoundingClientRect();
         powerButtonsRect = powerButtons.getBoundingClientRect();
@@ -920,11 +932,11 @@ describe("Insert (paste, drop) inside toggle title", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         expect("[data-embedded-editable='title']").toHaveInnerHTML(`
@@ -936,7 +948,7 @@ describe("Insert (paste, drop) inside toggle title", () => {
             <div class="o-paragraph">HelloNewWorld</div>
         `);
         editor.shared.dom.insert(
-            parseHTML(editor.document, `<div class="oe_unbreakable">brol</div>`)
+            parseHTML(editor.document, `<div class="oe_unbreakable">brol</div>`),
         );
         addStep(editor);
         expect(getContent(el)).toBe(
@@ -958,7 +970,7 @@ describe("Insert (paste, drop) inside toggle title", () => {
                 </div>
                 <div class="oe_unbreakable">brol</div>
                 <div class="o-paragraph">[]World</div>
-            `)
+            `),
         );
     });
 });
@@ -976,22 +988,22 @@ describe("hint", () => {
                 </div>`),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         expect("[data-embedded-editable='title']").toHaveInnerHTML(
-            '<p o-we-hint-text="Toggle title" class="o-we-hint"><br></p>'
+            '<p o-we-hint-text="Toggle title" class="o-we-hint"><br></p>',
         );
         await contains("[data-embedded='toggleBlock'] button").click();
         await animationFrame();
         const content = el.querySelector("[data-embedded-editable='content'");
         expect(content).toHaveInnerHTML(
-            '<p o-we-hint-text="Add something inside this toggle" class="o-we-hint"><br></p>'
+            '<p o-we-hint-text="Add something inside this toggle" class="o-we-hint"><br></p>',
         );
         setContent(content, "<p>[]<br></p>");
         await tick(); // selectionChange
         expect(content).toHaveInnerHTML(
-            `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><br></p>`
+            `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><br></p>`,
         );
     });
 });
@@ -1009,11 +1021,11 @@ describe("Toggle block: Switch Direction", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         await embeddedToggleMountedPromise;
         switchDirection(editor);
@@ -1037,8 +1049,8 @@ describe("Toggle block: Switch Direction", () => {
                         </div>
                     </div>
                 </div>
-            `
-            )
+            `,
+            ),
         );
     });
     test("should insert a new sibling toggle block with RTL direction on Enter", async () => {
@@ -1052,11 +1064,11 @@ describe("Toggle block: Switch Direction", () => {
                         <p>asdf</p>
                     </div>
                 </div>
-            `
+            `,
             ),
             {
                 config: getConfig([toggleBlockEmbedding]),
-            }
+            },
         );
         patchWithCleanup(ToggleBlockPlugin.prototype, {
             getUniqueIdentifier() {
@@ -1103,8 +1115,8 @@ describe("Toggle block: Switch Direction", () => {
                         </div>
                     </div>
                 </div>
-            `
-            )
+            `,
+            ),
         );
     });
 });

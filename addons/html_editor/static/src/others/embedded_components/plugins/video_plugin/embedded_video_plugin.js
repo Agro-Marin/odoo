@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { VideoPlugin } from "@html_editor/main/media/video_plugin";
+
 import { EmbeddedVideoSelector } from "./video_selector_dialog/embedded_video_selector.js";
 
 /**
@@ -7,7 +8,13 @@ import { EmbeddedVideoSelector } from "./video_selector_dialog/embedded_video_se
  */
 export class EmbeddedVideoPlugin extends VideoPlugin {
     static id = "embeddedVideo";
-    static dependencies = ["embeddedComponents", "selection", "history", "overlay", "media"];
+    static dependencies = [
+        "embeddedComponents",
+        "selection",
+        "history",
+        "overlay",
+        "media",
+    ];
 
     // Extends the base class resources
     /** @type {import("plugins").EditorResources} */

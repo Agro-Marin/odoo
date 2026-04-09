@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { nextLeaf } from "@html_editor/utils/dom_info";
+import { FilePlugin } from "@html_editor/main/media/file_plugin";
 import { isBlock } from "@html_editor/utils/blocks";
+import { nextLeaf } from "@html_editor/utils/dom_info";
+import { closestElement } from "@html_editor/utils/dom_traversal";
+
 import {
     EmbeddedFileDocumentsSelector,
     renderEmbeddedFileBox,
 } from "./embedded_file_documents_selector.js";
-import { FilePlugin } from "@html_editor/main/media/file_plugin";
-import { closestElement } from "@html_editor/utils/dom_traversal";
 
 /**
  * This plugin is meant to replace the File plugin.

@@ -4,8 +4,7 @@ import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { defineParams, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { localization } from "@web/core/l10n/localization";
 import { parseTime } from "@web/core/l10n/time";
-
-const { Settings } = luxon;
+import { Settings } from "luxon";
 
 defineParams({
     lang_parameters: {

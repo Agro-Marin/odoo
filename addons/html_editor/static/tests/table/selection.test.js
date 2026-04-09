@@ -1,11 +1,17 @@
+import { nodeSize } from "@html_editor/utils/position";
 import { describe, expect, test } from "@odoo/hoot";
+import {
+    click,
+    manuallyDispatchProgrammaticEvent,
+    press,
+    queryAll,
+} from "@odoo/hoot-dom";
+import { animationFrame, tick } from "@odoo/hoot-mock";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
-import { bold, resetSize, setColor, insertText } from "../_helpers/user_actions.js";
 import { getContent, setSelection } from "../_helpers/selection.js";
-import { press, queryAll, manuallyDispatchProgrammaticEvent, click } from "@odoo/hoot-dom";
-import { animationFrame, tick } from "@odoo/hoot-mock";
-import { nodeSize } from "@html_editor/utils/position";
+import { bold, insertText, resetSize, setColor } from "../_helpers/user_actions.js";
 
 function expectContentToBe(el, html) {
     expect(getContent(el)).toBe(unformat(html));
@@ -23,7 +29,7 @@ describe("custom selection", () => {
                         <td>e]f</td>
                     </tr>
                 </tbody>
-            </table>`)
+            </table>`),
         );
         expect(getContent(el)).toBe(
             unformat(`
@@ -37,10 +43,10 @@ describe("custom selection", () => {
                     </tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder=""><br></p>`)
+            <p data-selection-placeholder=""><br></p>`),
         );
         const overlayColorTDs = queryAll("table td").map(
-            (td) => getComputedStyle(td)["box-shadow"]
+            (td) => getComputedStyle(td)["box-shadow"],
         );
         // Unselected cells should have the default background color, without any overlay
         expect(overlayColorTDs[0]).toBe("none");
@@ -1409,7 +1415,7 @@ describe("move cursor with arrow keys", () => {
                             </tr>
                         </tbody>
                     </table>
-                    <p data-selection-placeholder=""><br></p>`
+                    <p data-selection-placeholder=""><br></p>`,
                 ),
                 contentAfter: unformat(`
                     <table>
@@ -1642,7 +1648,7 @@ describe("move cursor with arrow keys", () => {
                             </tr>
                         </tbody>
                     </table>
-                    <p data-selection-placeholder=""><br></p>`
+                    <p data-selection-placeholder=""><br></p>`,
                 ),
                 contentAfter: unformat(`
                     <table>
@@ -1685,8 +1691,8 @@ describe("symmetrical selection", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         press(["Shift", "ArrowRight"]);
@@ -1702,7 +1708,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowRight"]);
@@ -1718,7 +1724,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowDown"]);
@@ -1734,7 +1740,7 @@ describe("symmetrical selection", () => {
                     <tr><td class="o_selected_td"><br></td><td class="o_selected_td">]<br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowLeft"]);
@@ -1750,7 +1756,7 @@ describe("symmetrical selection", () => {
                     <tr><td class="o_selected_td">]<br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowUp"]);
@@ -1766,7 +1772,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -1778,8 +1784,8 @@ describe("symmetrical selection", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
         insertText(editor, "ab");
         await animationFrame();
@@ -1793,7 +1799,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
         const firstTd = el.querySelector("td");
         setSelection({
@@ -1815,7 +1821,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -1827,8 +1833,8 @@ describe("symmetrical selection", () => {
                         <tr><td><br></td><td>ab</td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const secondTd = el.querySelectorAll("td")[1];
@@ -1851,7 +1857,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowLeft"]);
@@ -1866,7 +1872,7 @@ describe("symmetrical selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 });
@@ -1880,8 +1886,8 @@ describe("single cell selection", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const BORDER_SENSITIVITY = 5;
@@ -1911,7 +1917,7 @@ describe("single cell selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -1923,8 +1929,8 @@ describe("single cell selection", () => {
                         <tr><td>ab[]c<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const BORDER_SENSITIVITY = 5;
@@ -1954,7 +1960,7 @@ describe("single cell selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -1966,8 +1972,8 @@ describe("single cell selection", () => {
                         <tr><td>ab[]c<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const firstTd = el.querySelector("td");
@@ -1986,7 +1992,7 @@ describe("single cell selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -1998,8 +2004,8 @@ describe("single cell selection", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const firstTd = el.querySelector("td");
@@ -2019,7 +2025,7 @@ describe("single cell selection", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 
@@ -2143,8 +2149,8 @@ describe("deselecting table", () => {
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td>]<br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         expectContentToBe(
@@ -2156,7 +2162,7 @@ describe("deselecting table", () => {
                         <tr><td class="o_selected_td"><br></td><td class="o_selected_td"><br></td><td class="o_selected_td">]<br></td></tr>
                     </tbody>
                 </table>
-                <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+                <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         press(["Shift", "ArrowUp"]);
@@ -2171,7 +2177,7 @@ describe("deselecting table", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
     test("deselect table when clicking outside of editor", async () => {
@@ -2182,8 +2188,8 @@ describe("deselecting table", () => {
                         <tr><td>[]<br></td><td><br></td><td><br></td></tr>
                         <tr><td><br></td><td><br></td><td><br></td></tr>
                     </tbody>
-                </table>`
-            )
+                </table>`,
+            ),
         );
 
         const BORDER_SENSITIVITY = 5;
@@ -2211,7 +2217,7 @@ describe("deselecting table", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
 
         const selection = document.getSelection();
@@ -2228,7 +2234,7 @@ describe("deselecting table", () => {
                     <tr><td><br></td><td><br></td><td><br></td></tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         );
     });
 });

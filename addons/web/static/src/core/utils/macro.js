@@ -50,13 +50,13 @@ async function performAction(trigger, action) {
     }
 }
 
-async function waitForTrigger(trigger) {
+async function waitForTrigger(trigger, signal) {
     if (!trigger) {
         return;
     }
     try {
         await delay(50);
-        return await waitUntil(() => {
+        const poll = waitUntil(() => {
             if (typeof trigger === "function") {
                 return trigger();
             } else if (typeof trigger === "string") {
@@ -64,6 +64,9 @@ async function waitForTrigger(trigger) {
                 return isVisible(triggerEl) && triggerEl;
             }
         });
+        // Allow external cancellation (e.g. when a timeout wins Promise.race)
+        signal?.addEventListener("abort", () => poll.cancel());
+        return await poll;
     } catch (error) {
         throw new MacroError(
             "Trigger",
@@ -78,28 +81,43 @@ async function waitForTrigger(trigger) {
 /**
  * Wait until a predicate returns a truthy value, polling via requestAnimationFrame.
  *
+ * The returned promise has a `cancel()` method that stops the polling loop.
+ * This is critical when the promise is used with `Promise.race` — the losing
+ * racer must be cancelled to avoid an indefinite rAF loop.
+ *
  * @template T
  * @param {() => T} predicate
- * @returns {Promise<T>}
+ * @returns {Promise<T> & { cancel: () => void }}
  */
-export async function waitUntil(predicate) {
+export function waitUntil(predicate) {
     const result = predicate();
     if (result) {
-        return Promise.resolve(result);
+        const p = Promise.resolve(result);
+        /** @type {any} */ (p).cancel = () => {};
+        return /** @type {any} */ (p);
     }
     let handle;
-    return new Promise((resolve) => {
+    let stopped = false;
+    const promise = new Promise((resolve) => {
         const runCheck = () => {
+            if (stopped) {
+                return;
+            }
             const result = predicate();
             if (result) {
+                stopped = true;
                 resolve(result);
+                return;
             }
             handle = browser.requestAnimationFrame(runCheck);
         };
         handle = browser.requestAnimationFrame(runCheck);
-    }).finally(() => {
-        browser.cancelAnimationFrame(handle);
     });
+    /** @type {any} */ (promise).cancel = () => {
+        stopped = true;
+        browser.cancelAnimationFrame(handle);
+    };
+    return /** @type {any} */ (promise);
 }
 
 /**
@@ -150,14 +168,16 @@ export class Macro {
         try {
             const step = this.steps[this.currentIndex];
             const timeoutDelay = step.timeout || this.timeout || 10000;
+            const abortController = new AbortController();
             const executeStep = async () => {
-                const trigger = await waitForTrigger(step.trigger);
+                const trigger = await waitForTrigger(step.trigger, abortController.signal);
                 const result = await performAction(trigger, step.action);
                 await this.onStep({ step, trigger, index: this.currentIndex });
                 return result;
             };
             const launchTimer = async () => {
                 await delay(timeoutDelay);
+                abortController.abort();
                 throw new MacroError(
                     "Timeout",
                     `TIMEOUT step failed to complete within ${timeoutDelay} ms.`,

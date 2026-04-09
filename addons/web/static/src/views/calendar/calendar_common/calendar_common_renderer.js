@@ -17,6 +17,7 @@ import { convertRecordToEvent, getColor } from "@web/views/calendar/calendar_uti
 import { useCalendarPopover } from "@web/views/calendar/hooks/calendar_popover_hook";
 import { useFullCalendar } from "@web/views/calendar/hooks/full_calendar_hook";
 import { useSquareSelection } from "@web/views/calendar/hooks/square_selection_hook";
+import { DateTime, Settings } from "luxon";
 
 const SCALE_TO_FC_VIEW = {
     day: "timeGridDay",
@@ -47,7 +48,6 @@ const HOUR_FORMATS = {
     },
 };
 
-const { DateTime } = globalThis.luxon ?? {};
 
 /**
  * Renderer for day, week, and month calendar scales.
@@ -83,7 +83,7 @@ export class CalendarCommonRenderer extends Component {
         );
         this.timeFormat = is24HourFormat() ? "HH:mm" : "hh:mm a";
         useBus(this.props.model.bus, "SCROLL_TO_CURRENT_HOUR", () =>
-            this.fc.api.scrollToTime(`${globalThis.luxon.DateTime.local().hour - 2}:00:00`),
+            this.fc.api.scrollToTime(`${DateTime.local().hour - 2}:00:00`),
         );
 
         const fullCalendarRenderDebounced = useDebounced(
@@ -142,7 +142,7 @@ export class CalendarCommonRenderer extends Component {
             firstDay: this.props.model.firstDayOfWeek,
             headerToolbar: false,
             height: "100%",
-            locale: globalThis.luxon.Settings.defaultLocale,
+            locale: Settings.defaultLocale,
             longPressDelay: 500,
             navLinks: false,
             nowIndicator: true,
@@ -159,7 +159,7 @@ export class CalendarCommonRenderer extends Component {
             showNonCurrentDates: this.props.model.monthOverflow,
             slotLabelFormat: is24HourFormat() ? HOUR_FORMATS[24] : HOUR_FORMATS[12],
             snapDuration: { minutes: 15 },
-            timeZone: globalThis.luxon.Settings.defaultZone.name,
+            timeZone: Settings.defaultZone.name,
             unselectAuto: false,
             weekNumberFormat: {
                 week:
@@ -257,7 +257,7 @@ export class CalendarCommonRenderer extends Component {
         this.props.createRecord(this.fcEventToRecord(info));
     }
     getDayCellClassNames(info) {
-        const date = globalThis.luxon.DateTime.fromJSDate(info.date).toISODate();
+        const date = DateTime.fromJSDate(info.date).toISODate();
         if (this.props.model.unusualDays.includes(date)) {
             return ["o_calendar_disabled"];
         }
@@ -282,7 +282,7 @@ export class CalendarCommonRenderer extends Component {
         const { event } = arg;
         if (event.start && event.end) {
             const dateFmt = (date) =>
-                globalThis.luxon.DateTime.fromJSDate(date).toFormat(this.timeFormat);
+                DateTime.fromJSDate(date).toFormat(this.timeFormat);
             arg.timeText = `${dateFmt(event.start)} - ${dateFmt(event.end)}`;
         }
         const record = this.props.model.records[event.id];
@@ -386,11 +386,11 @@ export class CalendarCommonRenderer extends Component {
     fcEventToRecord(event) {
         const { id, allDay, date, start, end } = event;
         const res = {
-            start: globalThis.luxon.DateTime.fromJSDate(date || start),
+            start: DateTime.fromJSDate(date || start),
             isAllDay: allDay,
         };
         if (end) {
-            res.end = globalThis.luxon.DateTime.fromJSDate(end);
+            res.end = DateTime.fromJSDate(end);
             if (["week", "month"].includes(this.props.model.scale) && allDay) {
                 res.end = res.end.minus({ days: 1 });
             }

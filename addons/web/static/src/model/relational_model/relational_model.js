@@ -128,7 +128,7 @@ const DEFAULT_HOOKS = {
 };
 
 rpcBus.addEventListener("RPC:RESPONSE", (ev) => {
-    if (ev.detail.data.params?.method === "unlink") {
+    if (!ev.detail.error && ev.detail.data.params?.method === "unlink") {
         rpcBus.trigger("CLEAR-CACHES", {
             tables: ["web_read", "web_search_read", "web_read_group"],
             model: ev.detail.data.params.model,

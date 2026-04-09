@@ -3,6 +3,7 @@
 
 /** @module @web/search/search_model - Search state machine managing facets, domains, groupbys, favorites, and comparisons */
 
+import { DateTime } from "luxon";
 import { EventBus, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { evaluateExpr } from "@web/core/py_js/py";
@@ -55,8 +56,6 @@ import { getIntervalOptions } from "./utils/dates.js";
 /** @import { DomainListRepr } from "@web/core/domain" */
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
-
-const { DateTime } = globalThis.luxon ?? {};
 
 /**
  * @typedef {Object} Section

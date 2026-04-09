@@ -17,17 +17,21 @@ export class CollaborationSelectionPlugin extends Plugin {
     /** @type {import("plugins").EditorResources} */
     resources = {
         /** Handlers */
-        collaboration_notification_handlers: this.handleCollaborationNotification.bind(this),
+        collaboration_notification_handlers:
+            this.handleCollaborationNotification.bind(this),
         layout_geometry_change_handlers: this.refreshSelection.bind(this),
         collaborative_selection_update_handlers: this.updateSelection.bind(this),
 
-        collaboration_peer_metadata_providers: () => ({ selectionColor: this.selectionColor }),
+        collaboration_peer_metadata_providers: () => ({
+            selectionColor: this.selectionColor,
+        }),
     };
     selectionInfos = new Map();
 
     setup() {
-        this.selectionOverlay =
-            this.dependencies.localOverlay.makeLocalOverlay("oe-selections-container");
+        this.selectionOverlay = this.dependencies.localOverlay.makeLocalOverlay(
+            "oe-selections-container",
+        );
         this.selectionColor = `hsl(${(Math.random() * 360).toFixed(0)}, 75%, 50%)`;
     }
     handleCollaborationNotification({ notificationName, notificationPayload }) {
@@ -49,7 +53,8 @@ export class CollaborationSelectionPlugin extends Plugin {
      * @param {import("./collaboration_odoo_plugin").CollaborationSelection} selection
      */
     drawPeerSelection({ selection, peerId }) {
-        const peerMetadata = this.dependencies.collaborationOdoo.getPeerMetadata(peerId);
+        const peerMetadata =
+            this.dependencies.collaborationOdoo.getPeerMetadata(peerId);
         if (!peerMetadata) {
             return;
         }
@@ -89,7 +94,12 @@ export class CollaborationSelectionPlugin extends Plugin {
             focusOffset = 0;
         }
 
-        const direction = getCursorDirection(anchorNode, anchorOffset, focusNode, focusOffset);
+        const direction = getCursorDirection(
+            anchorNode,
+            anchorOffset,
+            focusNode,
+            focusOffset,
+        );
         const range = new Range();
         try {
             if (direction === DIRECTIONS.RIGHT) {
@@ -158,7 +168,7 @@ export class CollaborationSelectionPlugin extends Plugin {
 
     multiselectionRemove(peerId) {
         const elements = this.selectionOverlay.querySelectorAll(
-            `[data-selection-peer-id="${peerId}"]`
+            `[data-selection-peer-id="${peerId}"]`,
         );
         for (const element of elements) {
             element.remove();

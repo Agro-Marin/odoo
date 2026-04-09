@@ -31,7 +31,9 @@ export function checkURL(url, hostnameList) {
  */
 export function isImageUrl(url) {
     const urlFileExtention = url.split(".").pop();
-    return ["jpg", "jpeg", "png", "gif", "svg", "webp"].includes(urlFileExtention.toLowerCase());
+    return ["jpg", "jpeg", "png", "gif", "svg", "webp"].includes(
+        urlFileExtention.toLowerCase(),
+    );
 }
 
 /**
@@ -104,7 +106,7 @@ export function isAbsoluteURLInCurrentDomain(url, env = null) {
 
 export function scrollAndHighlightHeading(
     content,
-    headingId = browser?.location?.hash?.replace?.(/^#/, "")
+    headingId = browser?.location?.hash?.replace?.(/^#/, ""),
 ) {
     if (content && headingId) {
         // Wait until the browser has rendered the editor before
@@ -113,7 +115,9 @@ export function scrollAndHighlightHeading(
         // a Youtube video is in the document and loads while the
         // autoscroll is happening, and stops it.
         setTimeout(() => {
-            const heading = content.querySelector(`[data-heading-link-id="${headingId}"]`);
+            const heading = content.querySelector(
+                `[data-heading-link-id="${headingId}"]`,
+            );
             if (heading) {
                 heading.scrollIntoView({ behavior: "smooth" });
                 heading.classList.add("o-highlight-heading");

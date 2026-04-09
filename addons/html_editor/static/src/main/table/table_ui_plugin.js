@@ -1,11 +1,12 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { reactive } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+
 import { TableMenu } from "./table_menu.js";
 import { TablePicker } from "./table_picker.js";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 /**
  * This plugin only contains the table ui feature (table picker, menus, ...).
@@ -107,7 +108,10 @@ export class TableUIPlugin extends Plugin {
             target !== this.activeTd &&
             this.editable.contains(target)
         ) {
-            if (ev.target.isContentEditable && closestElement(target, "table").isContentEditable) {
+            if (
+                ev.target.isContentEditable &&
+                closestElement(target, "table").isContentEditable
+            ) {
                 this.setActiveTd(target);
             }
         } else if (this.activeTd) {

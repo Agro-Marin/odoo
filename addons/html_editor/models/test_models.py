@@ -1,11 +1,15 @@
+"""Test models for the HTML editor converter."""
+
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields
+from odoo import fields, models
 
 
 class Html_EditorConverterTest(models.Model):
-    _name = 'html_editor.converter.test'
-    _description = 'Html Editor Converter Test'
+    """Test model for HTML editor field conversion."""
+
+    _name = "html_editor.converter.test"
+    _description = "Html Editor Converter Test"
 
     # disable translation export for those brilliant field labels and values
     _translate = False
@@ -14,23 +18,28 @@ class Html_EditorConverterTest(models.Model):
     integer = fields.Integer()
     float = fields.Float()
     numeric = fields.Float(digits=(16, 2))
-    many2one = fields.Many2one('html_editor.converter.test.sub')
+    many2one = fields.Many2one("html_editor.converter.test.sub")
     binary = fields.Binary(attachment=False)
     date = fields.Date()
     datetime = fields.Datetime()
-    selection_str = fields.Selection([
-        ('A', "Qu'il n'est pas arrivé à Toronto"),
-        ('B', "Qu'il était supposé arriver à Toronto"),
-        ('C', "Qu'est-ce qu'il fout ce maudit pancake, tabernacle ?"),
-        ('D', "La réponse D"),
-    ], string="Lorsqu'un pancake prend l'avion à destination de Toronto et "
-              "qu'il fait une escale technique à St Claude, on dit:")
+    selection_str = fields.Selection(
+        [
+            ("A", "Qu'il n'est pas arrivé à Toronto"),
+            ("B", "Qu'il était supposé arriver à Toronto"),
+            ("C", "Qu'est-ce qu'il fout ce maudit pancake, tabernacle ?"),
+            ("D", "La réponse D"),
+        ],
+        string="Lorsqu'un pancake prend l'avion à destination de Toronto et "
+        "qu'il fait une escale technique à St Claude, on dit:",
+    )
     html = fields.Html()
     text = fields.Text()
 
 
 class Html_EditorConverterTestSub(models.Model):
-    _name = 'html_editor.converter.test.sub'
-    _description = 'Html Editor Converter Subtest'
+    """Subtest model for HTML editor converter relational field tests."""
+
+    _name = "html_editor.converter.test.sub"
+    _description = "Html Editor Converter Subtest"
 
     name = fields.Char()

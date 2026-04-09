@@ -232,6 +232,12 @@ export function useListAggregates({
                             : undefined,
                         escape: true,
                     };
+                    if (formatter?.extractOptions) {
+                        Object.assign(
+                            formatOptions,
+                            formatter.extractOptions({ options: attrs.options ?? {}, attrs }),
+                        );
+                    }
                     if (currencyId) {
                         formatOptions.currencyId = currencyId;
                     }
@@ -278,6 +284,12 @@ export function useListAggregates({
                     : field.digits,
                 escape: true,
             };
+            if (formatter?.extractOptions) {
+                Object.assign(
+                    formatOptions,
+                    formatter.extractOptions({ options: attrs.options ?? {}, attrs }),
+                );
+            }
             if (field.type === "monetary") {
                 const currencies = group.aggregates[field.currency_field];
                 if (currencies.length > 1 && aggregateValue !== false) {

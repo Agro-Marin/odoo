@@ -20,7 +20,7 @@ import {
 } from "@web/core/l10n/translation";
 import { IndexedDB } from "@web/core/utils/indexed_db";
 import { session } from "@web/session";
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 
 function _t() {
     odoo.translationContext = "web";

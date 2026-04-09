@@ -3,6 +3,7 @@
 
 /** @module @web/fields/media/image/image_field - Image upload, preview, and zoom field for Binary image columns */
 
+import { DateTime } from "luxon";
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
@@ -12,7 +13,6 @@ import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { FileUploader } from "@web/fields/file_handler";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-const { DateTime } = globalThis.luxon ?? {};
 
 export const fileTypeMagicWordMap = {
     "/": "jpg",

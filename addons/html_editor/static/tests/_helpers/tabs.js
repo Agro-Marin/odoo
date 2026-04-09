@@ -1,4 +1,5 @@
 import { expect } from "@odoo/hoot";
+
 import { testEditor } from "./editor.js";
 
 export const TAB_WIDTH = 40;
@@ -123,7 +124,7 @@ function compare(contentEl, contentSpec, mode) {
                         `tab[${i}] ` +
                         `received: ${receivedWidths[i]}, ` +
                         `expected: ${expectedWidths[i]}, ` +
-                        `diff: ${diff.toFixed(1)}`
+                        `diff: ${diff.toFixed(1)}`,
                 )
                 .join("\n"),
     });

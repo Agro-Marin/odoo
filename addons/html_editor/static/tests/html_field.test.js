@@ -11,16 +11,16 @@ import { Wysiwyg } from "@html_editor/wysiwyg";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     click,
+    hover,
+    manuallyDispatchProgrammaticEvent,
     press,
     queryAll,
     queryAllTexts,
     queryFirst,
     queryOne,
     waitFor,
-    hover,
-    manuallyDispatchProgrammaticEvent,
 } from "@odoo/hoot-dom";
-import { Deferred, animationFrame, mockSendBeacon, tick } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, mockSendBeacon, tick } from "@odoo/hoot-mock";
 import { onWillDestroy, xml } from "@odoo/owl";
 import {
     clickSave,
@@ -37,15 +37,21 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { assets } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
-import { patch } from "@web/core/utils/patch";
 import { delay } from "@web/core/utils/concurrency";
+import { patch } from "@web/core/utils/patch";
 import { FormController } from "@web/views/form/form_controller";
+
 import { Counter, EmbeddedWrapperMixin } from "./_helpers/embedded_component.js";
-import { moveSelectionOutsideEditor, setSelection } from "./_helpers/selection.js";
-import { insertText, pasteOdooEditorHtml, pasteText, undo } from "./_helpers/user_actions.js";
 import { unformat } from "./_helpers/format.js";
+import { moveSelectionOutsideEditor, setSelection } from "./_helpers/selection.js";
 import { expandToolbar } from "./_helpers/toolbar.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
+import {
+    insertText,
+    pasteOdooEditorHtml,
+    pasteText,
+    undo,
+} from "./_helpers/user_actions.js";
 
 class Partner extends models.Model {
     txt = fields.Html({ trim: true });
@@ -136,14 +142,18 @@ beforeEach(() => {
         },
         getConfig() {
             const config = super.getConfig();
-            config.Plugins = config.Plugins.filter((Plugin) => Plugin.id !== "editorVersion");
+            config.Plugins = config.Plugins.filter(
+                (Plugin) => Plugin.id !== "editorVersion",
+            );
             return config;
         },
     });
 });
 
 function setSelectionInHtmlField(selector = "p", fieldName = "txt") {
-    const anchorNode = queryOne(`[name='${fieldName}'] .odoo-editor-editable ${selector}`);
+    const anchorNode = queryOne(
+        `[name='${fieldName}'] .odoo-editor-editable ${selector}`,
+    );
     setSelection({ anchorNode, anchorOffset: 0 });
     return anchorNode;
 }
@@ -246,19 +256,19 @@ test("html field in readonly with embedded components", async () => {
     expect(".odoo-editor-editable").toHaveCount(0);
     expect(`[name="txt"] .o_readonly`).toHaveCount(1);
     expect(`[name="txt"] .o_readonly`).toHaveInnerHTML(
-        `<div><span data-embedded="counter" data-embedded-props='{"name":"name"}'><span class="counter">name:0</span></div>`
+        `<div><span data-embedded="counter" data-embedded-props='{"name":"name"}'><span class="counter">name:0</span></div>`,
     );
     click(".counter");
     await animationFrame();
     expect(`[name="txt"] .o_readonly`).toHaveInnerHTML(
-        `<div><span data-embedded="counter" data-embedded-props='{"name":"name"}'><span class="counter">name:1</span></div>`
+        `<div><span data-embedded="counter" data-embedded-props='{"name":"name"}'><span class="counter">name:1</span></div>`,
     );
     // trigger the onchange method for name, which will replace the txt value.
     await contains(`.o_field_widget[name=name] input`).edit("hello");
     await animationFrame();
     expect.verifySteps(["destroyed"]);
     expect(`[name="txt"] .o_readonly`).toHaveInnerHTML(
-        `<div><span data-embedded="counter"><span class="counter">:0</span></div>`
+        `<div><span data-embedded="counter"><span class="counter">:0</span></div>`,
     );
     unpatch();
     READONLY_MAIN_EMBEDDINGS.pop();
@@ -278,7 +288,7 @@ test("html field in readonly with embedded components and editable descendants",
         {
             name: "counter",
             Component: Counter,
-        }
+        },
     );
     Partner._records = [
         {
@@ -300,12 +310,12 @@ test("html field in readonly with embedded components and editable descendants",
     expect(".odoo-editor-editable").toHaveCount(0);
     expect(`[name="txt"] .o_readonly`).toHaveCount(1);
     expect(`[name="txt"] .o_readonly`).toHaveInnerHTML(
-        `<div data-embedded="wrapper"><div class="editable"><div data-embedded-editable="editable"><span data-embedded="counter"><span class="counter">Counter:0</span></span></div></div></div>`
+        `<div data-embedded="wrapper"><div class="editable"><div data-embedded-editable="editable"><span data-embedded="counter"><span class="counter">Counter:0</span></span></div></div></div>`,
     );
     click(".counter");
     await animationFrame();
     expect(`[name="txt"] .o_readonly`).toHaveInnerHTML(
-        `<div data-embedded="wrapper"><div class="editable"><div data-embedded-editable="editable"><span data-embedded="counter"><span class="counter">Counter:1</span></span></div></div></div>`
+        `<div data-embedded="wrapper"><div class="editable"><div data-embedded-editable="editable"><span data-embedded="counter"><span class="counter">Counter:1</span></span></div></div></div>`,
     );
     READONLY_MAIN_EMBEDDINGS.pop();
     READONLY_MAIN_EMBEDDINGS.pop();
@@ -379,7 +389,7 @@ test("XML-like self-closing elements are fixed in readonly mode", async () => {
     expect(".odoo-editor-editable").toHaveCount(0);
     expect(`[name="txt"] .o_readonly`).toHaveCount(1);
     expect(`[name="txt"] .o_readonly`).toHaveInnerHTML(
-        `<a href="#" target="_blank" rel="noreferrer"></a>outside<a href="#" target="_blank" rel="noreferrer">inside</a>`
+        `<a href="#" target="_blank" rel="noreferrer"></a>outside<a href="#" target="_blank" rel="noreferrer">inside</a>`,
     );
 });
 
@@ -403,7 +413,7 @@ test("XML-like self-closing elements are fixed in editable mode", async () => {
     expect(".odoo-editor-editable").toHaveCount(1);
     expect(`[name="txt"] .o_readonly`).toHaveCount(0);
     expect(`[name="txt"] .odoo-editor-editable`).toHaveInnerHTML(
-        `<div class="o-paragraph">outside<a href="#">inside</a></div>`
+        `<div class="o-paragraph">outside<a href="#">inside</a></div>`,
     );
 });
 
@@ -470,7 +480,7 @@ test("edit and save a html field containing JSON as some attribute values should
     const txtField = queryOne('.o_field_html[name="txt"] .odoo-editor-editable');
     expect(txtField).toHaveInnerHTML(
         '<div class="o-paragraph" data-selection-placeholder=""><br></div>' +
-            `<div data-value="{&quot;myString&quot;:&quot;myString&quot;}"><p>content</p></div><p>first</p>`
+            `<div data-value="{&quot;myString&quot;:&quot;myString&quot;}"><p>content</p></div><p>first</p>`,
     );
     expect.verifySteps(["Setup Wysiwyg"]);
 
@@ -585,12 +595,16 @@ test("create new record and load it correctly", async () => {
     expect(".odoo-editor-editable").toHaveInnerHTML("<p>2</p>");
     await contains(".o_input#linked_composer_id_0").click();
     await animationFrame();
-    await contains(".ui-menu-item:contains(first), .o_kanban_record:contains(first)").click();
+    await contains(
+        ".ui-menu-item:contains(first), .o_kanban_record:contains(first)",
+    ).click();
     await animationFrame();
     expect(".odoo-editor-editable").toHaveInnerHTML("<p>1</p>");
     await contains(".o_input#linked_composer_id_0").click();
     await animationFrame();
-    await contains(".ui-menu-item:contains(second), .o_kanban_record:contains(second)").click();
+    await contains(
+        ".ui-menu-item:contains(second), .o_kanban_record:contains(second)",
+    ).click();
     await animationFrame();
     expect(".odoo-editor-editable").toHaveInnerHTML("<p>2</p>");
 });
@@ -644,14 +658,14 @@ test("edit a html field with `o-contenteditable-true` or `o-contenteditable-fals
     expect(`[name="txt"] .odoo-editor-editable`).toHaveInnerHTML(
         '<div class="o-paragraph" data-selection-placeholder=""><br></div>' +
             getTxtValue("inside", true) +
-            '<div class="o-paragraph" data-selection-placeholder=""><br></div>'
+            '<div class="o-paragraph" data-selection-placeholder=""><br></div>',
     );
     setSelectionInHtmlField();
     pasteOdooEditorHtml(htmlEditor, "addon");
     expect(`[name="txt"] .odoo-editor-editable`).toHaveInnerHTML(
         '<div class="o-paragraph" data-selection-placeholder=""><br></div>' +
             getTxtValue("addoninside", true) +
-            '<div class="o-paragraph" data-selection-placeholder=""><br></div>'
+            '<div class="o-paragraph" data-selection-placeholder=""><br></div>',
     );
     await clickSave();
     expect.verifySteps(["update_value", "web_save"]);
@@ -725,11 +739,15 @@ test("edit an html field during an onchange", async () => {
 
     setSelectionInHtmlField();
     await insertText(htmlEditor, "Yop ");
-    expect("[name='txt'] .odoo-editor-editable").toHaveInnerHTML("<p>Yop Hello first </p>");
+    expect("[name='txt'] .odoo-editor-editable").toHaveInnerHTML(
+        "<p>Yop Hello first </p>",
+    );
 
     def.resolve();
     await animationFrame();
-    expect("[name='txt'] .odoo-editor-editable").toHaveInnerHTML("<p>Yop Hello first </p>");
+    expect("[name='txt'] .odoo-editor-editable").toHaveInnerHTML(
+        "<p>Yop Hello first </p>",
+    );
 });
 
 test("click on next/previous page", async () => {
@@ -924,17 +942,20 @@ test("Embed video by pasting video URL", async () => {
     await animationFrame();
     expect(anchorNode.outerHTML).toBe(`<p>${videoURL}</p>`);
     await expectElementCount(".o-we-powerbox", 1);
-    expect(queryAllTexts(".o-we-command-name")).toEqual(["Embed Youtube Video", "Paste as URL"]);
+    expect(queryAllTexts(".o-we-command-name")).toEqual([
+        "Embed Youtube Video",
+        "Paste as URL",
+    ]);
 
     // Press Enter to select first option in the powerbox ("Embed Youtube Video").
     await press("Enter");
     await animationFrame();
     const videoIframe = queryOne("div[data-embedded='video']");
     expect(videoIframe.nextElementSibling).toHaveOuterHTML(
-        '<div class="o-paragraph" data-selection-placeholder=""><br></div>'
+        '<div class="o-paragraph" data-selection-placeholder=""><br></div>',
     );
     expect(
-        `div[data-embedded='video'] iframe[data-src="https://www.youtube.com/embed/${videoId}"]`
+        `div[data-embedded='video'] iframe[data-src="https://www.youtube.com/embed/${videoId}"]`,
     ).toHaveCount(1);
 });
 
@@ -969,7 +990,9 @@ test("Embedded video shouldn't have the 'media_iframe_video' class", async () =>
     await animationFrame();
 
     await contains(".o_video_dialog_form textarea").edit(videoURL);
-    await waitFor(".modal-dialog .modal-footer .btn-primary:not(:disabled)", { timeout: 2000 });
+    await waitFor(".modal-dialog .modal-footer .btn-primary:not(:disabled)", {
+        timeout: 2000,
+    });
     await contains(".modal-dialog .modal-footer .btn-primary").click();
     await animationFrame();
 
@@ -1088,14 +1111,14 @@ test("html field with a placeholder", async () => {
 
     expect(`[name="txt"] .odoo-editor-editable`).toHaveInnerHTML(
         '<div class="o-paragraph o-we-hint" o-we-hint-text="test"><br></div>',
-        { type: "html" }
+        { type: "html" },
     );
 
     setSelectionInHtmlField("div.o-paragraph");
     await tick();
     expect(`[name="txt"] .odoo-editor-editable`).toHaveInnerHTML(
         '<div class="o-paragraph o-we-hint" o-we-hint-text="Type &quot;/&quot; for commands"><br></div>',
-        { type: "html" }
+        { type: "html" },
     );
 
     moveSelectionOutsideEditor();
@@ -1103,7 +1126,7 @@ test("html field with a placeholder", async () => {
     await tick();
     expect(`[name="txt"] .odoo-editor-editable`).toHaveInnerHTML(
         '<div class="o-paragraph o-we-hint" o-we-hint-text="test"><br></div>',
-        { type: "html" }
+        { type: "html" },
     );
 });
 
@@ -1184,12 +1207,12 @@ test("should display overlay on video hover and handle video replacement and rem
     });
     await waitFor(
         '.o_video_dialog_iframe[data-src="https://www.youtube.com/embed/gbE3azm_Io0?rel=0&autoplay=0"]',
-        { timeout: 1500 }
+        { timeout: 1500 },
     );
     await click(queryOne(".modal-footer").firstChild);
 
     await waitFor(
-        `div[data-embedded='video'] iframe[data-src="https://www.youtube.com/embed/gbE3azm_Io0?rel=0&autoplay=0"]`
+        `div[data-embedded='video'] iframe[data-src="https://www.youtube.com/embed/gbE3azm_Io0?rel=0&autoplay=0"]`,
     );
     const iframeSrcAfter = embeddedVideoEl.dataset.src;
     expect(iframeSrcBefore).not.toBe(iframeSrcAfter);
@@ -1218,13 +1241,11 @@ test("add Vimeo video link in 'Videos' tab of MediaDialog", async () => {
     });
     setSelectionInHtmlField();
 
-    await onRpc("/html_editor/video_url/data", async () => {
-        return {
-            video_id: "1128489814",
-            platform: "vimeo",
-            embed_url: vimeoVideoLink,
-        };
-    });
+    await onRpc("/html_editor/video_url/data", async () => ({
+        video_id: "1128489814",
+        platform: "vimeo",
+        embed_url: vimeoVideoLink,
+    }));
 
     // Insert Vimeo video link
     await insertText(htmlEditor, "/video");
@@ -1480,7 +1501,12 @@ test("codeview is not available by default", async () => {
             </form>`,
     });
     const node = queryOne(".odoo-editor-editable p");
-    setSelection({ anchorNode: node, anchorOffset: 0, focusNode: node, focusOffset: 1 });
+    setSelection({
+        anchorNode: node,
+        anchorOffset: 0,
+        focusNode: node,
+        focusOffset: 1,
+    });
     await waitFor(".o-we-toolbar");
     expect(".o-we-toolbar button[name='codeview']").toHaveCount(0);
 });
@@ -1496,7 +1522,12 @@ test("codeview is not available when not in debug mode", async () => {
             </form>`,
     });
     const node = queryOne(".odoo-editor-editable p");
-    setSelection({ anchorNode: node, anchorOffset: 0, focusNode: node, focusOffset: 1 });
+    setSelection({
+        anchorNode: node,
+        anchorOffset: 0,
+        focusNode: node,
+        focusOffset: 1,
+    });
     await waitFor(".o-we-toolbar");
     expect(".o-we-toolbar button[name='codeview']").toHaveCount(0);
 });
@@ -1513,7 +1544,12 @@ test("codeview is available when option is active and in debug mode", async () =
             </form>`,
     });
     const node = queryOne(".odoo-editor-editable p");
-    setSelection({ anchorNode: node, anchorOffset: 0, focusNode: node, focusOffset: 1 });
+    setSelection({
+        anchorNode: node,
+        anchorOffset: 0,
+        focusNode: node,
+        focusOffset: 1,
+    });
     await expandToolbar();
     expect(".o-we-toolbar button[name='codeview']").toHaveCount(1);
 });
@@ -1535,7 +1571,12 @@ test("enable/disable codeview with editor toolbar", async () => {
 
     // Switch to code view
     const node = queryOne(".odoo-editor-editable p");
-    setSelection({ anchorNode: node, anchorOffset: 0, focusNode: node, focusOffset: 1 });
+    setSelection({
+        anchorNode: node,
+        anchorOffset: 0,
+        focusNode: node,
+        focusOffset: 1,
+    });
     await expandToolbar();
     await contains(".o-we-toolbar button[name='codeview']").click();
     expect("[name='txt'] .odoo-editor-editable").toHaveClass("d-none");
@@ -1570,7 +1611,12 @@ test("edit and enable/disable codeview with editor toolbar", async () => {
 
     // Switch to code view
     const node = queryOne(".odoo-editor-editable p");
-    setSelection({ anchorNode: node, anchorOffset: 0, focusNode: node, focusOffset: 1 });
+    setSelection({
+        anchorNode: node,
+        anchorOffset: 0,
+        focusNode: node,
+        focusOffset: 1,
+    });
     await expandToolbar();
     await contains(".o-we-toolbar button[name='codeview']").click();
     expect("[name='txt'] textarea").toHaveValue("<p>Hello first</p>");
@@ -1603,7 +1649,7 @@ test("edit and save a html field in collaborative should keep the same wysiwyg",
         expect.step("web_save");
         args[1].txt = txt.replace(
             /\sdata-last-history-steps="[^"]*?"/,
-            ' data-last-history-steps="12345"'
+            ' data-last-history-steps="12345"',
         );
     });
     onRpc("/html_editor/get_ice_servers", () => []);
@@ -1655,7 +1701,12 @@ test("'checklist' toolbar option is not available when 'allowChecklist' = false"
             </form>`,
     });
     const node = queryOne(".odoo-editor-editable p");
-    setSelection({ anchorNode: node, anchorOffset: 0, focusNode: node, focusOffset: 1 });
+    setSelection({
+        anchorNode: node,
+        anchorOffset: 0,
+        focusNode: node,
+        focusOffset: 1,
+    });
     await waitFor(".o-we-toolbar");
     await expandToolbar();
     await contains(".o-we-toolbar button[name='list_selector']").click();
@@ -1712,7 +1763,7 @@ describe("sandbox", () => {
                 </form>`,
         });
         expect(
-            `.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]`
+            `.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]`,
         ).toHaveCount(1);
     });
 
@@ -1729,11 +1780,13 @@ describe("sandbox", () => {
         });
 
         const readonlyIframe = queryOne(
-            '.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]'
+            '.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]',
         );
         expect(readonlyIframe.contentDocument.body).toHaveText("Hello");
         expect(
-            readonlyIframe.contentWindow.getComputedStyle(readonlyIframe.contentDocument.body).color
+            readonlyIframe.contentWindow.getComputedStyle(
+                readonlyIframe.contentDocument.body,
+            ).color,
         ).toBe("rgb(0, 0, 255)");
         expect("#codeview-btn-group > button").toHaveCount(0, {
             message: "Codeview toggle should not be possible in readonly mode.",
@@ -1786,18 +1839,21 @@ describe("sandbox", () => {
 
         // check original displayed content
         let iframe = queryOne(
-            '.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]'
+            '.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]',
         );
         expect(`.o_form_button_save`).not.toBeVisible();
         expect(iframe.contentDocument.body).toHaveText("Hello");
         expect(
-            iframe.contentDocument.head.querySelector("style").textContent.trim().replace(/\s/g, "")
+            iframe.contentDocument.head
+                .querySelector("style")
+                .textContent.trim()
+                .replace(/\s/g, ""),
         ).toBe("body{color:red;}", {
             message: "Head nodes should remain unaltered in the head",
         });
-        expect(iframe.contentWindow.getComputedStyle(iframe.contentDocument.body).color).toBe(
-            "rgb(255, 0, 0)"
-        );
+        expect(
+            iframe.contentWindow.getComputedStyle(iframe.contentDocument.body).color,
+        ).toBe("rgb(255, 0, 0)");
         expect("#codeview-btn-group > button").toHaveCount(1);
 
         // switch to XML editor and edit
@@ -1805,25 +1861,28 @@ describe("sandbox", () => {
         expect('.o_field_html[name="txt"] textarea').toHaveCount(1);
 
         await contains('.o_field_html[name="txt"] textarea').edit(
-            htmlDocumentTextTemplate("Hi", "blue")
+            htmlDocumentTextTemplate("Hi", "blue"),
         );
         expect(`.o_form_button_save`).toBeVisible();
 
         // check displayed content after edit
         await contains("#codeview-btn-group > button").click();
         iframe = queryOne(
-            '.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]'
+            '.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]',
         );
         await animationFrame();
         expect(iframe.contentDocument.body).toHaveText("Hi");
         expect(
-            iframe.contentDocument.head.querySelector("style").textContent.trim().replace(/\s/g, "")
+            iframe.contentDocument.head
+                .querySelector("style")
+                .textContent.trim()
+                .replace(/\s/g, ""),
         ).toBe("body{color:blue;}", {
             message: "Head nodes should remain unaltered in the head",
         });
-        expect(iframe.contentWindow.getComputedStyle(iframe.contentDocument.body).color).toBe(
-            "rgb(0, 0, 255)"
-        );
+        expect(
+            iframe.contentWindow.getComputedStyle(iframe.contentDocument.body).color,
+        ).toBe("rgb(0, 0, 255)");
 
         await contains(".o_form_button_save").click();
         expect.verifySteps(["web_save"]);
@@ -1864,27 +1923,27 @@ describe("sandbox", () => {
         // switch to XML editor and edit
         await contains("#codeview-btn-group > button").click();
         expect('.o_field_html[name="txt"] textarea').toHaveValue(
-            htmlDocumentTextTemplate("Hello", "red")
+            htmlDocumentTextTemplate("Hello", "red"),
         );
 
         await contains('.o_field_html[name="txt"] textarea').edit(
-            htmlDocumentTextTemplate("Hi", "blue")
+            htmlDocumentTextTemplate("Hi", "blue"),
         );
         expect(`.o_form_button_save`).toBeVisible();
         expect('.o_field_html[name="txt"] textarea').toHaveValue(
-            htmlDocumentTextTemplate("Hi", "blue")
+            htmlDocumentTextTemplate("Hi", "blue"),
         );
 
         await contains(`.o_pager_next`).click();
         expect.verifySteps(["web_save"]);
         expect(`.o_form_button_save`).not.toBeVisible();
         expect('.o_field_html[name="txt"] textarea').toHaveValue(
-            htmlDocumentTextTemplate("Bye", "green")
+            htmlDocumentTextTemplate("Bye", "green"),
         );
 
         await contains(`.o_pager_previous`).click();
         expect('.o_field_html[name="txt"] textarea').toHaveValue(
-            htmlDocumentTextTemplate("Hi", "blue")
+            htmlDocumentTextTemplate("Hi", "blue"),
         );
     });
 
@@ -1932,7 +1991,7 @@ describe("sandbox", () => {
                     </form>`,
         });
         expect(
-            `.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]`
+            `.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]`,
         ).toHaveCount(1);
     });
 
@@ -1972,7 +2031,9 @@ describe("sandbox", () => {
         });
 
         let readonlyIframe = queryOne('.o_field_html[name="txt"] iframe');
-        expect(readonlyIframe.contentDocument.body.querySelector("p")).toHaveText("first");
+        expect(readonlyIframe.contentDocument.body.querySelector("p")).toHaveText(
+            "first",
+        );
         for (const link of readonlyIframe.contentDocument.body.querySelectorAll("a")) {
             expect(link.getAttribute("target")).toBe("_blank");
             expect(link.getAttribute("rel")).toBe("noreferrer");
@@ -1980,7 +2041,9 @@ describe("sandbox", () => {
 
         await contains(`.o_pager_next`).click();
         readonlyIframe = queryOne('.o_field_html[name="txt"] iframe');
-        expect(readonlyIframe.contentDocument.body.querySelector("p")).toHaveText("second");
+        expect(readonlyIframe.contentDocument.body.querySelector("p")).toHaveText(
+            "second",
+        );
         for (const link of readonlyIframe.contentDocument.body.querySelectorAll("a")) {
             expect(link.getAttribute("target")).toBe("_blank");
             expect(link.getAttribute("rel")).toBe("noreferrer");
@@ -1988,7 +2051,9 @@ describe("sandbox", () => {
     });
 
     test("html field in readonly updated by onchange in sandboxedPreview", async () => {
-        Partner._records = [{ id: 1, name: "first", txt: getSandboxContent("<p>first</p>") }];
+        Partner._records = [
+            { id: 1, name: "first", txt: getSandboxContent("<p>first</p>") },
+        ];
         Partner._onChanges = {
             name(record) {
                 record.txt = getSandboxContent(`<p>${record.name}</p>`);
@@ -2045,10 +2110,10 @@ describe("sandbox", () => {
 
         const readonlyIframe = queryOne('.o_field_html[name="txt"] iframe');
         expect(
-            readonlyIframe.contentDocument.head.querySelector(`link[href='testCSS']`)
+            readonlyIframe.contentDocument.head.querySelector(`link[href='testCSS']`),
         ).toHaveCount(1);
         expect(readonlyIframe.contentDocument.body).toHaveInnerHTML(
-            `<div id="iframe_target"> <p> Hello </p> </div>`
+            `<div id="iframe_target"> <p> Hello </p> </div>`,
         );
         expect.verifySteps(["template.assets"]);
     });
@@ -2067,13 +2132,13 @@ describe("sandbox", () => {
 
         let readonlyIframe = queryOne('.o_field_html[name="txt"] iframe');
         expect(readonlyIframe.contentDocument.body).toHaveInnerHTML(
-            `<div id="iframe_target"> <p> first </p> </div>`
+            `<div id="iframe_target"> <p> first </p> </div>`,
         );
 
         await contains(`.o_pager_next`).click();
         readonlyIframe = queryOne('.o_field_html[name="txt"] iframe');
         expect(readonlyIframe.contentDocument.body).toHaveInnerHTML(
-            `<div id="iframe_target"> <p> second </p> </div>`
+            `<div id="iframe_target"> <p> second </p> </div>`,
         );
     });
 });
@@ -2134,7 +2199,10 @@ describe("save image", () => {
     function pasteFile(editor, file) {
         const clipboardData = new DataTransfer();
         clipboardData.items.add(file);
-        const pasteEvent = new ClipboardEvent("paste", { clipboardData, bubbles: true });
+        const pasteEvent = new ClipboardEvent("paste", {
+            clipboardData,
+            bubbles: true,
+        });
         editor.editable.dispatchEvent(pasteEvent);
     }
 
@@ -2160,7 +2228,10 @@ describe("save image", () => {
             blob.text().then((r) => {
                 const { params } = JSON.parse(r);
                 const { args, model } = params;
-                if (route === "/web/dataset/call_kw/partner/web_save" && model === "partner") {
+                if (
+                    route === "/web/dataset/call_kw/partner/web_save" &&
+                    model === "partner"
+                ) {
                     if (writeCount === 0) {
                         // Save normal value without image.
                         expect(args[1].txt).toBe(`<p class="test_target">a</p>`);
@@ -2169,10 +2240,14 @@ describe("save image", () => {
                         expect(args[1].txt).toBe(imageContainerHTML);
                     } else if (writeCount === 2) {
                         // Save the modified image.
-                        expect(args[1].txt).toBe(getImageContainerHTML(newImageSrc, false));
+                        expect(args[1].txt).toBe(
+                            getImageContainerHTML(newImageSrc, false),
+                        );
                     } else {
                         // Fail the test if too many write are called.
-                        throw new Error("Write should only be called 3 times during this test");
+                        throw new Error(
+                            "Write should only be called 3 times during this test",
+                        );
                     }
                     writeCount += 1;
                 }
@@ -2222,7 +2297,7 @@ describe("save image", () => {
         // Valid base64 encoded image in its transitory modified state.
         const imageContainerHTML = getImageContainerHTML(
             "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII",
-            true
+            true,
         );
         // New src URL to assign to the image when the modification is
         // "registered".
@@ -2240,7 +2315,9 @@ describe("save image", () => {
                 return newImageSrc;
             } else {
                 // Fail the test if too many modify_image are called.
-                throw new Error("The image should only have been modified once during this test");
+                throw new Error(
+                    "The image should only have been modified once during this test",
+                );
             }
         });
         await mountView({
@@ -2263,7 +2340,10 @@ describe("save image", () => {
 
         // Replace the empty paragraph with a paragrah containing an unsaved
         // modified image
-        const imageContainerElement = parseHTML(htmlEditor.document, imageContainerHTML).firstChild;
+        const imageContainerElement = parseHTML(
+            htmlEditor.document,
+            imageContainerHTML,
+        ).firstChild;
         const paragraph = htmlEditor.editable.querySelector(".test_target");
         htmlEditor.editable.replaceChild(imageContainerElement, paragraph);
         htmlEditor.shared.history.addStep();
@@ -2318,8 +2398,8 @@ describe("save image", () => {
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
-                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
-            )
+                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII",
+            ),
         );
         await waitFor("img");
         const img = htmlEditor.editable.querySelector("img");
@@ -2358,7 +2438,7 @@ describe("save image", () => {
         onRpc("partner", "web_save", ({ args }) => {
             expect.step("web_save");
             expect(args[1].txt).toBe(
-                `<p class="test_target"><img class="img-fluid" data-file-name="test_image.png" src="/test_image_url.png?access_token=1234"></p>`
+                `<p class="test_target"><img class="img-fluid" data-file-name="test_image.png" src="/test_image_url.png?access_token=1234"></p>`,
             );
         });
 
@@ -2377,8 +2457,8 @@ describe("save image", () => {
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
-                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
-            )
+                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII",
+            ),
         );
         await waitFor("img");
         const img = htmlEditor.editable.querySelector("img");
@@ -2395,7 +2475,11 @@ describe("save image", () => {
         expect(img.getAttribute("src")).toBe("/test_image_url.png?access_token=1234");
         expect(img).not.toHaveClass("o_b64_image_to_save");
 
-        expect.verifySteps(["add_data-start: partner 1", "add_data-end: partner 1", "web_save"]);
+        expect.verifySteps([
+            "add_data-start: partner 1",
+            "add_data-end: partner 1",
+            "web_save",
+        ]);
     });
 
     test("Pasted/dropped images are converted once to attachments on switch page with slow network", async () => {
@@ -2427,7 +2511,7 @@ describe("save image", () => {
         onRpc("partner", "web_save", ({ args }) => {
             expect.step("web_save");
             expect(args[1].txt).toBe(
-                `<p class="test_target"><img class="img-fluid" data-file-name="test_image.png" src="/test_image_url.png?access_token=1234"></p>`
+                `<p class="test_target"><img class="img-fluid" data-file-name="test_image.png" src="/test_image_url.png?access_token=1234"></p>`,
             );
         });
 
@@ -2447,8 +2531,8 @@ describe("save image", () => {
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
-                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
-            )
+                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII",
+            ),
         );
         await waitFor("img");
         const img = htmlEditor.editable.querySelector("img");
@@ -2465,7 +2549,11 @@ describe("save image", () => {
         await animationFrame();
 
         expect(".test_target_2").toHaveCount(1);
-        expect.verifySteps(["add_data-start: partner 1", "add_data-end: partner 1", "web_save"]);
+        expect.verifySteps([
+            "add_data-start: partner 1",
+            "add_data-end: partner 1",
+            "web_save",
+        ]);
     });
 
     test("Pasted/dropped images are converted to attachments without access_token on save", async () => {
@@ -2506,8 +2594,8 @@ describe("save image", () => {
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
-                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
-            )
+                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII",
+            ),
         );
         await waitFor("img");
         const img = htmlEditor.editable.querySelector("img");
@@ -2563,8 +2651,8 @@ describe("save image", () => {
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
-                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII"
-            )
+                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII",
+            ),
         );
         await waitFor("img");
         const b64img = htmlEditor.editable.querySelector("img");
@@ -2577,7 +2665,9 @@ describe("save image", () => {
         // reswitch tab, and check the image was saved properly.
         await contains(".o_notebook_headers .nav-link:not(.active)").click();
         const savedImg = htmlEditor.editable.querySelector("img");
-        expect(savedImg.getAttribute("src")).toBe("/test_image_url.png?access_token=1234");
+        expect(savedImg.getAttribute("src")).toBe(
+            "/test_image_url.png?access_token=1234",
+        );
         expect(savedImg).not.toHaveClass("o_b64_image_to_save");
 
         expect.verifySteps(["add_data-start: partner 1", "add_data-end: partner 1"]);
@@ -2679,6 +2769,6 @@ test("should always have a block before a Table of Contents", async () => {
     const firstChild = htmlEditor.editable.firstChild;
     expect(firstChild.getAttribute("data-embedded")).not.toBe("tableOfContent");
     expect(firstChild).toHaveOuterHTML(
-        '<div class="o-paragraph" data-selection-placeholder="" style="margin: 8px 0px -9px;"><br></div>'
+        '<div class="o-paragraph" data-selection-placeholder="" style="margin: 8px 0px -9px;"><br></div>',
     );
 });

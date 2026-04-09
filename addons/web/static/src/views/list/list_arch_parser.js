@@ -263,6 +263,7 @@ export class ListArchParser {
                             context: childNode.getAttribute("context"),
                             string: childNode.getAttribute("string"),
                             invisible: childNode.getAttribute("invisible"),
+                            hotkey: childNode.getAttribute("data-hotkey"),
                         });
                     } else if (childNode.tagName === "delete") {
                         controls.push({

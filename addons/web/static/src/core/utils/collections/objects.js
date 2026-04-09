@@ -13,6 +13,9 @@
  * @returns {boolean}
  */
 export function shallowEqual(obj1, obj2, comparisonFn = (a, b) => a === b) {
+    if (obj1 === obj2) {
+        return true;
+    }
     if (obj1 !== Object(obj1) || obj2 !== Object(obj2)) {
         return obj1 === obj2;
     }
@@ -48,10 +51,16 @@ export function deepCopy(object) {
     }
     try {
         return structuredClone(object);
-    } catch {
-        // structuredClone can't handle functions, DOM nodes, proxies, etc.
-        // Fall back to JSON round-trip which silently drops non-serializable values.
-        return JSON.parse(JSON.stringify(object));
+    } catch (error) {
+        // structuredClone throws DOMException (DataCloneError) for types it
+        // can't handle: functions, DOM nodes, proxies, Symbols, etc.
+        // Fall back to JSON round-trip which silently drops non-serializable
+        // values (functions → omitted, undefined → omitted, Date → string,
+        // Set/Map → {}, Infinity/NaN → null).
+        if (error instanceof DOMException) {
+            return JSON.parse(JSON.stringify(object));
+        }
+        throw error;
     }
 }
 

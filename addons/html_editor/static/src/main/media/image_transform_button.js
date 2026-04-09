@@ -1,10 +1,15 @@
 /** @odoo-module native */
-import { Component, useExternalListener, useState } from "@odoo/owl";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
+import { Component, useExternalListener, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+
 import { ImageTransformation } from "./image_transformation.js";
 
-export function useImageTransform({ document, closeImageTransformation, buttonSelector }) {
+export function useImageTransform({
+    document,
+    closeImageTransformation,
+    buttonSelector,
+}) {
     let pointerDownInsideTransform = false;
 
     // We close the image transform when we click outside any element not
@@ -30,7 +35,7 @@ export function useImageTransform({ document, closeImageTransformation, buttonSe
             }
             pointerDownInsideTransform = false;
         },
-        { capture: true }
+        { capture: true },
     );
     // When we click on any character the image is deleted and we need to close
     // the image transform. We handle this by selectionchange.
@@ -48,7 +53,10 @@ export function useImageTransform({ document, closeImageTransformation, buttonSe
         if (node.matches(buttonSelector)) {
             return true;
         }
-        if (isImageTransformationOpen() && node.matches(".transfo-controls, .transfo-controls *")) {
+        if (
+            isImageTransformationOpen() &&
+            node.matches(".transfo-controls, .transfo-controls *")
+        ) {
             return true;
         }
         return false;

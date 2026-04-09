@@ -5,7 +5,7 @@ If a future change introduces an N+1 regression, the test will fail with a
 higher-than-expected query count.
 
 Run with:
-    > ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
+    > ./odoo.log && ./core/odoo-bin -c ./infra/conf/odoo.conf -d test_db \
         --test-tags '/web:TestWebPerfRegression' -u web \
         --stop-after-init --workers=0
     grep "tests when loading" ./odoo.log

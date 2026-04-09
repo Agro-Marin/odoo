@@ -142,11 +142,17 @@ export function makeActionManager(env, router = _router) {
     router.hideKeyFromUrl("globalState");
 
     rpcBus.addEventListener("RPC:RESPONSE", async (ev) => {
+        if (ev.detail.error) {
+            return;
+        }
         const { model, method } = ev.detail.data.params;
         if (model === "ir.actions.act_window" && UPDATE_METHODS.includes(method)) {
             rpcBus.trigger("CLEAR-CACHES", "/web/action/load");
+            // Capture the current controller before the async gap to avoid
+            // reading a stale controllerStack after interleaved events.
+            const currentController = controllerStack.at(-1);
             const virtualStack = await _controllersFromState(router.current);
-            const nextStack = [...virtualStack, controllerStack.at(-1)];
+            const nextStack = [...virtualStack, currentController];
             nextStack
                 .at(-1)
                 .config.breadcrumbs.splice(
@@ -489,7 +495,7 @@ export function makeActionManager(env, router = _router) {
                     if (controller.isMounted) {
                         return;
                     }
-                    pushState(nextStack);
+                    pushState(nextStack, { sync: true });
                 },
             });
             if (action.target !== "new") {
@@ -517,13 +523,13 @@ export function makeActionManager(env, router = _router) {
         onError(error) {
             const { controller, action, reject, removeDialogRef } = this.props._context;
             if (controller.isMounted) {
-                // the error occurred on the controller which is
-                // already in the DOM, so simply show the error
-                Promise.reject(error);
+                // The error occurred on the controller which is already in
+                // the DOM — surface via unhandledrejection → error dialog.
+                Promise.reject(error); // intentional orphan — triggers global error handler
                 return;
             }
             if (!controller.isMounted && status(this) === "mounted") {
-                // The error occured during an onMounted hook of one of the components.
+                // The error occurred during an onMounted hook of one of the components.
                 env.bus.trigger("ACTION_MANAGER:UPDATE", {
                     id: ++id,
                     Component: BlankComponent,
@@ -532,7 +538,7 @@ export function makeActionManager(env, router = _router) {
                         withControlPanel: action.type === "ir.actions.act_window",
                     },
                 });
-                Promise.reject(error);
+                Promise.reject(error); // intentional orphan — triggers global error handler
                 return;
             }
             // forward the error to the _updateUI caller then restore the action container
@@ -671,9 +677,11 @@ export function makeActionManager(env, router = _router) {
                 env.services.title.setParts({ action: controller.displayName });
             }
             if (action.target !== "new") {
-                // This is a hack to force the reactivity when a new displayName is set
-                controller.config.breadcrumbs.push(undefined);
-                controller.config.breadcrumbs.pop();
+                // Force OWL reactivity: the displayName is accessed via a
+                // getter on the breadcrumb item, so changing it doesn't
+                // mutate the array. Splicing in place triggers the proxy.
+                const bc = controller.config.breadcrumbs;
+                bc.splice(0, bc.length, ...bc);
             }
         };
         controller.config.setCurrentEmbeddedAction = (embeddedActionId) => {
@@ -1128,7 +1136,9 @@ export function makeActionManager(env, router = _router) {
             // Also, I guess we may need it when we have other monoRecord views
             index = controllerStack.findIndex(
                 (ct) =>
-                    ct.action.jsId === controller.action.jsId && !ct.view.multiRecord,
+                    ct.action.jsId === controller.action.jsId &&
+                    !ct.virtual &&
+                    !ct.view.multiRecord,
             );
             index = index > -1 ? index : controllerStack.length;
         }
@@ -1238,7 +1248,7 @@ export function makeActionManager(env, router = _router) {
         }
     }
 
-    function pushState(cStack = controllerStack) {
+    function pushState(cStack = controllerStack, options) {
         if (!cStack.length) {
             return;
         }
@@ -1247,7 +1257,7 @@ export function makeActionManager(env, router = _router) {
         browser.sessionStorage.setItem("current_state", JSON.stringify(newState));
 
         cStack.at(-1).state = newState;
-        router.pushState(newState, { replace: true });
+        router.pushState(newState, Object.assign({ replace: true }, options));
     }
     return {
         doAction,

@@ -42,7 +42,7 @@ import { unique } from "@web/core/utils/collections/arrays";
  * @property {(value: any, disambiguate?: boolean) => string} [stringify]
  */
 
-const { DateTime } = globalThis.luxon ?? {};
+import { DateTime } from "luxon";
 
 // ============================================================================
 

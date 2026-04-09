@@ -1,15 +1,15 @@
 /** @odoo-module native */
-import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { HtmlViewer } from "@html_editor/components/html_viewer/html_viewer";
 import { EditorVersionPlugin } from "@html_editor/core/editor_version_plugin";
+import { HtmlUpgradeManager } from "@html_editor/html_migrations/html_upgrade_manager";
+import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
+import { normalizeHTML } from "@html_editor/utils/html";
+import { Wysiwyg } from "@html_editor/wysiwyg";
+import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
 import { patch } from "@web/core/utils/patch";
 import { PropertyValue } from "@web/fields/specialized/properties/property_value";
-import { HtmlUpgradeManager } from "@html_editor/html_migrations/html_upgrade_manager";
-import { normalizeHTML } from "@html_editor/utils/html";
-import { Wysiwyg } from "@html_editor/wysiwyg";
 import { user } from "@web/services/user";
-import { useState, onWillStart, onWillUpdateProps } from "@odoo/owl";
 
 patch(PropertyValue.prototype, {
     setup() {
@@ -65,7 +65,9 @@ patch(PropertyValue.prototype, {
             const toRemove = ["file", "media"];
             plugins = plugins.filter(
                 (plugin) =>
-                    !toRemove.some((p) => plugin.id === p || plugin.dependencies.includes(p))
+                    !toRemove.some(
+                        (p) => plugin.id === p || plugin.dependencies.includes(p),
+                    ),
             );
         }
 

@@ -4,6 +4,7 @@
 /** @module @web/services/localization_service - Fetches translations and configures Luxon locale, numbering system, and date/number formats */
 
 import { browser } from "@web/core/browser/browser";
+import { RpcEvent } from "@web/core/events";
 import { strftimeToLuxonFormat } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import {
@@ -13,13 +14,13 @@ import {
     translationLoaded,
 } from "@web/core/l10n/translation";
 import { jsToPyLocale } from "@web/core/l10n/utils";
+import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { IndexedDB } from "@web/core/utils/indexed_db";
+import { Settings } from "luxon";
 import { objectToUrlEncodedString } from "@web/core/utils/urls";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
-
-const { Settings } = globalThis.luxon ?? {};
 
 /** @type {[RegExp, string][]} */
 const NUMBERING_SYSTEMS = [
@@ -49,6 +50,16 @@ export const localizationService = {
         const lang = jsToPyLocale(
             user.lang || document.documentElement.getAttribute("lang"),
         );
+
+        rpcBus.addEventListener(RpcEvent.RESPONSE, (ev) => {
+            if (ev.detail.error) {
+                return;
+            }
+            const { method, model } = ev.detail.data.params || {};
+            if (method === "lang_install" && model === "base.language.install") {
+                rpcBus.trigger(RpcEvent.CLEAR_CACHES);
+            }
+        });
 
         /**
          * Fetch translations from the server. If the hash matches the cached

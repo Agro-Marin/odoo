@@ -6,18 +6,17 @@
  * Tests formatServerValue, getDefaultValues, getTextValues, and
  * computeDataContext without OWL, DOM, or a mock server.
  *
- * Date/datetime paths use luxon.DateTime (globally available in Hoot).
+ * Date/datetime paths use luxon DateTime.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
+import { DateTime } from "luxon";
 import {
     computeDataContext,
     formatServerValue,
     getDefaultValues,
     getTextValues,
 } from "@web/model/relational_model/record_value_transforms";
-
-const { DateTime } = luxon;
 
 // ---------------------------------------------------------------------------
 // formatServerValue

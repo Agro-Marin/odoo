@@ -11,6 +11,7 @@ import { convertRecordToEvent, getColor } from "@web/views/calendar/calendar_uti
 import { CalendarYearPopover } from "@web/views/calendar/calendar_year/calendar_year_popover";
 import { useCalendarPopover } from "@web/views/calendar/hooks/calendar_popover_hook";
 import { useFullCalendar } from "@web/views/calendar/hooks/full_calendar_hook";
+import { DateTime, Info, Interval, Settings } from "luxon";
 
 /** Year-scale calendar renderer displaying 12 mini month grids with background events. */
 export class CalendarYearRenderer extends Component {
@@ -27,7 +28,7 @@ export class CalendarYearRenderer extends Component {
     };
 
     setup() {
-        this.months = globalThis.luxon.Info.months();
+        this.months = Info.months();
         this.fcs = {};
         for (const month of this.months) {
             this.fcs[month] = useFullCalendar(
@@ -63,7 +64,7 @@ export class CalendarYearRenderer extends Component {
             firstDay: this.props.model.firstDayOfWeek,
             headerToolbar: { start: false, center: "title", end: false },
             height: "auto",
-            locale: globalThis.luxon.Settings.defaultLocale,
+            locale: Settings.defaultLocale,
             longPressDelay: 500,
             navLinks: false,
             nowIndicator: true,
@@ -72,7 +73,7 @@ export class CalendarYearRenderer extends Component {
             selectMirror: true,
             selectable: this.props.model.canCreate,
             showNonCurrentDates: false,
-            timeZone: globalThis.luxon.Settings.defaultZone.name,
+            timeZone: Settings.defaultZone.name,
             titleFormat: { month: "long", year: "numeric" },
             unselectAuto: false,
             weekNumberCalculation: (date) => getLocalYearAndWeek(date).week,
@@ -149,16 +150,16 @@ export class CalendarYearRenderer extends Component {
     onDateClick(info) {
         if (this.env.isSmall) {
             this.props.model.load({
-                date: globalThis.luxon.DateTime.fromISO(info.dateStr),
+                date: DateTime.fromISO(info.dateStr),
                 scale: "day",
             });
             return;
         }
 
         // With date value we don't want to change the time, we need the exact date
-        const date = globalThis.luxon.DateTime.fromISO(info.dateStr);
+        const date = DateTime.fromISO(info.dateStr);
         const records = Object.values(this.props.model.records).filter((r) =>
-            globalThis.luxon.Interval.fromDateTimes(
+            Interval.fromDateTimes(
                 r.start.startOf("day"),
                 r.end.endOf("day"),
             ).contains(date),
@@ -171,13 +172,13 @@ export class CalendarYearRenderer extends Component {
         } else if (this.props.model.canCreate) {
             this.props.createRecord({
                 // With date value we don't want to change the time, we need the exact date
-                start: globalThis.luxon.DateTime.fromISO(info.dateStr),
+                start: DateTime.fromISO(info.dateStr),
                 isAllDay: true,
             });
         }
     }
     getDayCellClassNames(info) {
-        const date = globalThis.luxon.DateTime.fromJSDate(info.date).toISODate();
+        const date = DateTime.fromJSDate(info.date).toISODate();
         if (this.props.model.unusualDays.includes(date)) {
             return ["o_calendar_disabled"];
         }
@@ -219,8 +220,8 @@ export class CalendarYearRenderer extends Component {
         this.popover.close();
         await this.props.createRecord({
             // With date value we don't want to change the time, we need the exact date
-            start: globalThis.luxon.DateTime.fromISO(info.startStr),
-            end: globalThis.luxon.DateTime.fromISO(info.endStr).minus({ days: 1 }),
+            start: DateTime.fromISO(info.startStr),
+            end: DateTime.fromISO(info.endStr).minus({ days: 1 }),
             isAllDay: true,
         });
         this.unselect();

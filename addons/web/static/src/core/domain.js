@@ -159,17 +159,18 @@ export class Domain {
                 }
                 return 1;
             } else if (leaf.type === 1 /* String */) {
-                // Special case: both children of OR are removed leaves —
-                // replace the whole OR+children with a single neutral value.
-                if (
-                    leaf.value === "|" &&
-                    elements[idx + 1].type === 10 &&
-                    elements[idx + 2].type === 10 &&
-                    keysToRemove.includes(elements[idx + 1].value[0].value) &&
-                    keysToRemove.includes(elements[idx + 2].value[0].value)
-                ) {
-                    pushNeutral(operatorCtx, newDomain);
-                    return 3;
+                if (leaf.value === "&" || leaf.value === "|") {
+                    // If the entire subtree (operator + both children) is
+                    // fully removed, replace it with a single neutral value
+                    // for the *parent* operator context.  Without this,
+                    // nested structures like OR(OR(removed, removed),
+                    // OR(removed, removed)) would emit
+                    // ["|", FALSE, FALSE] = FALSE instead of TRUE.
+                    const size = subtreeSize(elements, idx);
+                    if (isFullyRemoved(elements, idx)) {
+                        pushNeutral(operatorCtx, newDomain);
+                        return size;
+                    }
                 }
                 if (leaf.value === "!") {
                     const childSize = subtreeSize(elements, idx + 1);
@@ -406,7 +407,11 @@ function matchCondition(record, condition) {
             if (!parent || typeof parent !== "object") {
                 // Falsy or primitive — can't traverse deeper. Resolve to false,
                 // matching Odoo server behavior for empty relational fields.
-                return matchCondition({ [restField]: false }, [restField, operator, value]);
+                return matchCondition({ [restField]: false }, [
+                    restField,
+                    operator,
+                    value,
+                ]);
             }
             return matchCondition(parent, [restField, operator, value]);
         }
@@ -458,9 +463,9 @@ function matchCondition(record, condition) {
                 return isNot;
             }
             return (
-                new RegExp(
-                    "^" + escapeRegExp(value).replaceAll("%", ".*") + "$",
-                ).test(fieldValue) !== isNot
+                new RegExp("^" + escapeRegExp(value).replaceAll("%", ".*") + "$").test(
+                    fieldValue,
+                ) !== isNot
             );
         case "ilike":
         case "not ilike": {

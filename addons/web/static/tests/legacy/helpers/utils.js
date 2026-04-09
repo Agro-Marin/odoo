@@ -11,6 +11,7 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
 import { isVisible } from "@web/core/utils/dom/ui";
 import { _t } from "@web/core/l10n/translation";
+import { FixedOffsetZone, Settings } from "luxon";
 import { registerCleanup } from "./cleanup";
 import { customDirectives, globalValues } from "@web/env";
 
@@ -60,11 +61,11 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
 
     // By default, RealDate uses the browser offset, so we must replace it with the offset fixed in luxon.
     var fakeDate = new RealDate(year, month, day, hours, minutes, seconds, ms);
-    if (!(luxon.Settings.defaultZone instanceof luxon.FixedOffsetZone)) {
-        throw new Error("luxon.Settings.defaultZone must be a FixedOffsetZone");
+    if (!(Settings.defaultZone instanceof FixedOffsetZone)) {
+        throw new Error("Settings.defaultZone must be a FixedOffsetZone");
     }
     const browserOffset = -fakeDate.getTimezoneOffset();
-    const patchedOffset = luxon.Settings.defaultZone.offset();
+    const patchedOffset = Settings.defaultZone.offset();
     const offsetDiff = patchedOffset - browserOffset;
     const correctedMinutes = fakeDate.getMinutes() - offsetDiff;
     fakeDate.setMinutes(correctedMinutes);
@@ -145,7 +146,7 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
  *                          -120 => UTC-2
  */
 export function patchTimeZone(offset) {
-    patchWithCleanup(luxon.Settings, { defaultZone: luxon.FixedOffsetZone.instance(offset) });
+    patchWithCleanup(Settings, { defaultZone: FixedOffsetZone.instance(offset) });
 }
 
 /**

@@ -8,7 +8,7 @@ import { omit } from "@web/core/utils/collections/objects";
 
 import { DateTimePicker } from "./datetime_picker.js";
 import { useDateTimePicker } from "./datetime_picker_hook.js";
-/** @typedef {globalThis.luxon["DateTime"]["prototype"]} DateTime */
+/** @typedef {import("luxon").DateTime} DateTime */
 
 /**
  * @typedef {import("./datetime_picker").DateTimePickerProps & {

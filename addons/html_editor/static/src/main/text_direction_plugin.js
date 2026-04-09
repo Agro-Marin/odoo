@@ -1,10 +1,11 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
+import { isContentEditable, isTextNode } from "@html_editor/utils/dom_info";
 import { _t } from "@web/core/l10n/translation";
+
 import { Plugin } from "../plugin.js";
 import { closestBlock } from "../utils/blocks.js";
 import { closestElement } from "../utils/dom_traversal.js";
-import { isContentEditable, isTextNode } from "@html_editor/utils/dom_info";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 
 export class TextDirectionPlugin extends Plugin {
     static id = "textDirection";
@@ -41,17 +42,20 @@ export class TextDirectionPlugin extends Plugin {
         const targetedTextNodes = [
             selection.anchorNode,
             ...this.dependencies.selection.getTargetedNodes(),
-        ].filter((n) => isTextNode(n) && isContentEditable(n) && n.nodeValue.trim().length);
+        ].filter(
+            (n) => isTextNode(n) && isContentEditable(n) && n.nodeValue.trim().length,
+        );
         const blocks = new Set(
             targetedTextNodes.map(
                 (textNode) =>
                     closestElement(textNode, "ul,ol") ||
                     closestElement(textNode, "[data-embedded='toggleBlock']") ||
-                    closestBlock(textNode)
-            )
+                    closestBlock(textNode),
+            ),
         );
 
-        const shouldApplyStyle = !this.dependencies.format.isSelectionFormat("switchDirection");
+        const shouldApplyStyle =
+            !this.dependencies.format.isSelectionFormat("switchDirection");
 
         for (const block of blocks) {
             for (const node of block.querySelectorAll("ul,ol")) {

@@ -60,9 +60,14 @@ export class WebClient extends Component {
         });
         useBus(routerBus, "ROUTE_CHANGE", async () => {
             document.body.style.pointerEvents = "none";
+            // Safety timeout: re-enable clicks if loadRouterState hangs
+            const safety = browser.setTimeout(() => {
+                document.body.style.pointerEvents = "auto";
+            }, 10_000);
             try {
                 await this.loadRouterState();
             } finally {
+                browser.clearTimeout(safety);
                 document.body.style.pointerEvents = "auto";
             }
         });

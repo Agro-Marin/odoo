@@ -5,13 +5,14 @@
 
 /** Setting variant for header-type fields (displayed in the app header row). */
 import { Setting } from "@web/views/form/setting/setting";
+
 export class SettingHeader extends Setting {
     static template = "web.HeaderSetting";
 
-    /** @returns {any} */
+    /** @returns {Record<string, boolean>} */
     get classNames() {
         const { class: _class } = this.props;
-        const classNames = {
+        return {
             app_settings_header: true,
             "d-flex": true,
             "flex-column": true,
@@ -23,7 +24,6 @@ export class SettingHeader extends Setting {
             "bg-opacity-25": true,
             [_class]: Boolean(_class),
         };
-        return classNames;
     }
 
     get labelString() {

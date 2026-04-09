@@ -5,6 +5,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { click, press, tick, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { onRpc } from "@web/../tests/web_test_helpers";
+
 import { PowerboxPlugin } from "../src/main/powerbox/powerbox_plugin.js";
 import { setupEditor } from "./_helpers/editor.js";
 import { getContent, setSelection } from "./_helpers/selection.js";
@@ -22,7 +23,9 @@ describe("visibility", () => {
     });
 
     test("should show power buttons on P tag containing strong (bold)", async () => {
-        await setupEditor(`<p><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`);
+        await setupEditor(
+            `<p><strong data-oe-zws-empty-inline="">[]\u200B</strong></p>`,
+        );
         expect(".o_we_power_buttons").toBeVisible();
     });
 
@@ -48,7 +51,7 @@ describe("visibility", () => {
 
     test("should not show power buttons in table", async () => {
         await setupEditor(
-            "<table><tbody><tr><td><p>[]<br></p></td><td><p><br></p></td></tr></tbody></table>"
+            "<table><tbody><tr><td><p>[]<br></p></td><td><p><br></p></td></tr></tbody></table>",
         );
         expect(".o_we_power_buttons").not.toBeVisible();
     });
@@ -78,7 +81,7 @@ describe("visibility", () => {
 
     test("should not show power buttons on block p tag with tab", async () => {
         await setupEditor(
-            `<p><span class="oe-tabs" contenteditable="false" style="width: 40px;">\t</span>\u200b[]</p>`
+            `<p><span class="oe-tabs" contenteditable="false" style="width: 40px;">\t</span>\u200b[]</p>`,
         );
         expect(".o_we_power_buttons").not.toBeVisible();
     });
@@ -104,7 +107,10 @@ describe("visibility", () => {
         const tempP = document.createElement("p");
         tempP.innerText = placeholder;
         tempP.style.width = "fit-content";
-        const Plugins = [...MAIN_PLUGINS.filter((p) => p.id !== "powerbox"), TestPowerboxPlugin];
+        const Plugins = [
+            ...MAIN_PLUGINS.filter((p) => p.id !== "powerbox"),
+            TestPowerboxPlugin,
+        ];
         const { el } = await setupEditor("<p>[]<br></p>", {
             config: { Plugins },
         });
@@ -112,9 +118,11 @@ describe("visibility", () => {
         const placeholderWidth = tempP.getBoundingClientRect().width;
         el.removeChild(tempP);
         const powerButtons = document.querySelector(
-            'div[data-oe-local-overlay-id="oe-power-buttons-overlay"]'
+            'div[data-oe-local-overlay-id="oe-power-buttons-overlay"]',
         );
-        expect(powerButtons.getBoundingClientRect().left).toEqual(placeholderWidth + 20);
+        expect(powerButtons.getBoundingClientRect().left).toEqual(
+            placeholderWidth + 20,
+        );
     });
 });
 
@@ -134,7 +142,7 @@ describe("buttons", () => {
         const { el } = await setupEditor("<p>[]<br></p>");
         await click(".o_we_power_buttons .power_button.fa-list-ol");
         expect(getContent(el)).toBe(
-            `<ol><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ol>`
+            `<ol><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ol>`,
         );
     });
 
@@ -142,7 +150,7 @@ describe("buttons", () => {
         const { el } = await setupEditor("<p>[]<br></p>");
         await click(".o_we_power_buttons .power_button.fa-list-ul");
         expect(getContent(el)).toBe(
-            `<ul><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`
+            `<ul><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`,
         );
     });
 
@@ -150,7 +158,7 @@ describe("buttons", () => {
         const { el } = await setupEditor("<p>[]<br></p>");
         await click(".o_we_power_buttons .power_button.fa-square-check");
         expect(getContent(el)).toBe(
-            `<ul class="o_checklist"><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`
+            `<ul class="o_checklist"><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`,
         );
     });
 
@@ -203,9 +211,12 @@ describe("individual button availability", () => {
                 power_buttons: { commandId: "test" },
             };
         }
-        const { el } = await setupEditor(`<p>[]<br></p><p class="hide_test_button"><br></p>`, {
-            config: { Plugins: [...MAIN_PLUGINS, TestPlugin] },
-        });
+        const { el } = await setupEditor(
+            `<p>[]<br></p><p class="hide_test_button"><br></p>`,
+            {
+                config: { Plugins: [...MAIN_PLUGINS, TestPlugin] },
+            },
+        );
         expect(".o_we_power_buttons").toBeVisible();
         expect(".power_button.fa-bug").toBeVisible();
 

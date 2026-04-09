@@ -1,9 +1,14 @@
 import { CTYPES } from "@html_editor/utils/content_types";
-import { enforceWhitespace, getState, restoreState } from "@html_editor/utils/dom_state";
+import { splitTextNode } from "@html_editor/utils/dom";
+import {
+    enforceWhitespace,
+    getState,
+    restoreState,
+} from "@html_editor/utils/dom_state";
 import { DIRECTIONS } from "@html_editor/utils/position";
 import { describe, expect, test } from "@odoo/hoot";
+
 import { setupEditor } from "../_helpers/editor.js";
-import { splitTextNode } from "@html_editor/utils/dom";
 
 describe("getState", () => {
     test("should recognize invisible space to the right", async () => {

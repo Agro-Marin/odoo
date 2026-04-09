@@ -1,13 +1,19 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor } from "../_helpers/editor.js";
-import { click, manuallyDispatchProgrammaticEvent, queryAll, queryFirst } from "@odoo/hoot-dom";
+import {
+    click,
+    manuallyDispatchProgrammaticEvent,
+    queryAll,
+    queryFirst,
+} from "@odoo/hoot-dom";
 import { animationFrame, tick } from "@odoo/hoot-mock";
+
+import { setupEditor } from "../_helpers/editor.js";
+import { unformat } from "../_helpers/format.js";
 import { getContent, setSelection } from "../_helpers/selection.js";
-import { execCommand } from "../_helpers/userCommands.js";
 import { expandToolbar } from "../_helpers/toolbar.js";
 import { expectElementCount } from "../_helpers/ui_expectations.js";
 import { deleteBackward } from "../_helpers/user_actions.js";
-import { unformat } from "../_helpers/format.js";
+import { execCommand } from "../_helpers/userCommands.js";
 
 function insertTable(editor, cols, rows) {
     execCommand(editor, "insertTable", { cols, rows });
@@ -37,7 +43,7 @@ describe("insertTable", () => {
                     </tbody>
                 </table>
                 <p>hello</p>
-            `)
+            `),
         );
     });
 
@@ -57,7 +63,7 @@ describe("insertTable", () => {
                     </tbody>
                 </table>
                 <p>llo</p>
-            `)
+            `),
         );
     });
 
@@ -77,7 +83,7 @@ describe("insertTable", () => {
                     </tbody>
                 </table>
                 <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>
-            `)
+            `),
         );
     });
 });
@@ -112,7 +118,9 @@ test("can color cells", async () => {
     const cells = queryAll("td");
     expect(cells[0]).toHaveStyle({ "background-color": "rgba(107, 173, 222, 0.6)" });
     expect(cells[1]).toHaveStyle({ "background-color": "rgba(107, 173, 222, 0.6)" });
-    expect(cells[2]).not.toHaveStyle({ "background-color": "rgba(107, 173, 222, 0.6)" });
+    expect(cells[2]).not.toHaveStyle({
+        "background-color": "rgba(107, 173, 222, 0.6)",
+    });
 });
 
 test("remove text from single selected cell", async () => {

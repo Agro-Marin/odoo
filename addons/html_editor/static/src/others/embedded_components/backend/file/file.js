@@ -5,8 +5,8 @@ import {
     StateChangeManager,
     useEmbeddedState,
 } from "@html_editor/others/embedded_component_utils";
-import { useEffect, useRef, useState } from "@odoo/owl";
 import { ReadonlyEmbeddedFileComponent } from "@html_editor/others/embedded_components/core/file/readonly_file";
+import { useEffect, useRef, useState } from "@odoo/owl";
 
 export class EmbeddedFileComponent extends ReadonlyEmbeddedFileComponent {
     static template = "html_editor.EmbeddedFile";
@@ -27,7 +27,7 @@ export class EmbeddedFileComponent extends ReadonlyEmbeddedFileComponent {
                     this.nameInput.el.select();
                 }
             },
-            () => [this.localState.editFileName]
+            () => [this.localState.editFileName],
         );
     }
 
@@ -89,10 +89,10 @@ export const fileEmbedding = {
                             state,
                             "fileData",
                             previous.fileData,
-                            next.fileData
+                            next.fileData,
                         );
                     },
                 },
-            })
+            }),
         ),
 };

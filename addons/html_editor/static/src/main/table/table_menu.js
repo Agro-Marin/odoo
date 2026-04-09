@@ -108,7 +108,8 @@ export class TableMenu extends Component {
                 name: "reset_column_size",
                 icon: "fa-table",
                 text: _t("Reset column size"),
-                action: (target) => this.props.resetColumnWidth(target.closest("td, th")),
+                action: (target) =>
+                    this.props.resetColumnWidth(target.closest("td, th")),
             },
             this.hasCustomTableSize && {
                 name: "reset_table_size",

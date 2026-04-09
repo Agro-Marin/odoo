@@ -183,10 +183,13 @@ export function getFieldFromRegistry(fieldType, widget, viewType, jsClass) {
  * @returns {{ readonly: boolean, required: boolean, invalid: boolean, empty: boolean }}
  */
 export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
-    const readonly = evaluateBooleanExpr(
-        fieldInfo.readonly,
-        record.evalContextWithVirtualIds,
-    );
+    const readonly =
+        fieldInfo.viewType === "form" && !record.isInEdition
+            ? true
+            : evaluateBooleanExpr(
+                  fieldInfo.readonly,
+                  record.evalContextWithVirtualIds,
+              );
     const required = evaluateBooleanExpr(
         fieldInfo.required,
         record.evalContextWithVirtualIds,
@@ -366,11 +369,14 @@ export class Field extends Component {
                 if (relatedFields instanceof Function) {
                     relatedFields = relatedFields(fieldInfo);
                 }
-                for (const relatedField of relatedFields) {
-                    if (!("readonly" in relatedField)) {
-                        relatedField.readonly = true;
+                // Clone each field descriptor to avoid mutating shared
+                // static arrays defined on field registry entries.
+                relatedFields = relatedFields.map((f) => {
+                    if (!("readonly" in f)) {
+                        return { ...f, readonly: true };
                     }
-                }
+                    return f;
+                });
                 relatedFields = Object.fromEntries(
                     relatedFields.map((f) => [f.name, f]),
                 );

@@ -16,6 +16,6 @@ export function useDropdownAutoVisibility(overlayState, popoverRef) {
                 }
             }
         },
-        () => [state.isOverlayVisible]
+        () => [state.isOverlayVisible],
     );
 }

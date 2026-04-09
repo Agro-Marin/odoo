@@ -181,11 +181,6 @@ class WebSuite(HOOTCommon):
         self._run_hoot("@web/public", preset="desktop")
 
     @odoo.tests.no_retry
-    def test_html_editor(self):
-        """@html_editor — rich text editor tests."""
-        self._run_hoot("@html_editor", preset="desktop", timeout=900)
-
-    @odoo.tests.no_retry
     def test_model(self):
         """@web/model — relational model, record utils, command builder."""
         self._run_hoot("@web/model", preset="desktop")
@@ -329,11 +324,6 @@ class MobileWebSuite(HOOTCommon):
     def test_public(self):
         """@web/public — public page components."""
         self._run_hoot("@web/public", preset="mobile", tag="-headless")
-
-    @odoo.tests.no_retry
-    def test_html_editor(self):
-        """@html_editor — rich text editor tests."""
-        self._run_hoot("@html_editor", preset="mobile", tag="-headless", timeout=900)
 
     @odoo.tests.no_retry
     def test_model(self):

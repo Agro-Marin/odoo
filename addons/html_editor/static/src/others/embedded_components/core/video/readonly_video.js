@@ -12,7 +12,11 @@ export class ReadonlyEmbeddedVideoComponent extends Component {
     };
 
     get url() {
-        return getVideoUrl(this.props.platform, this.props.videoId, this.props.params).toString();
+        return getVideoUrl(
+            this.props.platform,
+            this.props.videoId,
+            this.props.params,
+        ).toString();
     }
 }
 

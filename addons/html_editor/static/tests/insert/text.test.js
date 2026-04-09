@@ -1,10 +1,11 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { setupEditor, testEditor } from "../_helpers/editor.js";
-import { deleteBackward, insertText } from "../_helpers/user_actions.js";
-import { getContent } from "../_helpers/selection.js";
-import { execCommand } from "../_helpers/userCommands.js";
 import { press } from "@odoo/hoot-dom";
+
+import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
+import { getContent } from "../_helpers/selection.js";
+import { deleteBackward, insertText } from "../_helpers/user_actions.js";
+import { execCommand } from "../_helpers/userCommands.js";
 
 describe("collapsed selection", () => {
     test("should insert a char into an empty span without removing the zws", async () => {
@@ -29,7 +30,8 @@ describe("collapsed selection", () => {
 
     test("should insert a char into a data-oe-zws-empty-inline span removing the zws and data-oe-zws-empty-inline", async () => {
         await testEditor({
-            contentBefore: '<p>ab<span data-oe-zws-empty-inline="">[]\u200B</span>cd</p>',
+            contentBefore:
+                '<p>ab<span data-oe-zws-empty-inline="">[]\u200B</span>cd</p>',
             stepFunction: async (editor) => {
                 await insertText(editor, "x");
             },
@@ -39,7 +41,8 @@ describe("collapsed selection", () => {
 
     test("should insert a char into a data-oe-zws-empty-inline span surrounded by space without removing the zws and data-oe-zws-empty-inline", async () => {
         await testEditor({
-            contentBefore: '<p>ab<span data-oe-zws-empty-inline="">[]\u200B</span>cd</p>',
+            contentBefore:
+                '<p>ab<span data-oe-zws-empty-inline="">[]\u200B</span>cd</p>',
             stepFunction: async (editor) => {
                 await insertText(editor, "x");
             },
@@ -101,7 +104,8 @@ describe("not collapsed selection", () => {
             contentBefore:
                 '<h1><font style="background-color: red;">[abc]</font><br></h1><p>def</p>',
             stepFunction: async (editor) => await insertText(editor, "g"),
-            contentAfter: '<h1><font style="background-color: red;">g[]</font><br></h1><p>def</p>',
+            contentAfter:
+                '<h1><font style="background-color: red;">g[]</font><br></h1><p>def</p>',
         });
     });
 
@@ -113,7 +117,8 @@ describe("not collapsed selection", () => {
                 deleteBackward(editor);
                 await insertText(editor, "g");
             },
-            contentAfter: '<h1><font style="background-color: red;">g[]</font><br></h1><p>def</p>',
+            contentAfter:
+                '<h1><font style="background-color: red;">g[]</font><br></h1><p>def</p>',
         });
     });
 

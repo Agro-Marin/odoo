@@ -3,7 +3,6 @@ import {
     getProjective,
     transform,
 } from "@html_editor/utils/perspective_utils";
-
 import { describe, expect, test } from "@odoo/hoot";
 
 const epsilon = 100 * Number.EPSILON;
@@ -18,7 +17,9 @@ function pointEqual(a, b) {
 }
 
 function notPointEqual(a, b) {
-    expect(Math.abs(a[0] - b[0]) > epsilon || Math.abs(a[1] - b[1]) > epsilon).toBe(true);
+    expect(Math.abs(a[0] - b[0]) > epsilon || Math.abs(a[1] - b[1]) > epsilon).toBe(
+        true,
+    );
 }
 
 describe("Perspective Utils", () => {
@@ -79,15 +80,15 @@ describe("Perspective Utils", () => {
 
         pointEqual(
             transform(affine1, midpoint(b, d, 0.2)),
-            transform(affine2, midpoint(b, d, 0.2))
+            transform(affine2, midpoint(b, d, 0.2)),
         );
         pointEqual(
             transform(affine1, midpoint(b, d, 0.5)),
-            transform(affine2, midpoint(b, d, 0.5))
+            transform(affine2, midpoint(b, d, 0.5)),
         );
         pointEqual(
             transform(affine1, midpoint(b, d, 0.8)),
-            transform(affine2, midpoint(b, d, 0.8))
+            transform(affine2, midpoint(b, d, 0.8)),
         );
     });
 

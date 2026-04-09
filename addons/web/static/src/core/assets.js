@@ -164,6 +164,7 @@ export const assets = {
     getBundle(bundleName) {
         const cacheMap = getGlobalBundleCache();
         if (cacheMap.has(bundleName)) {
+            console.debug(`[assets] getBundle(${bundleName}): cache hit`);
             return cacheMap.get(bundleName);
         }
         const url = new URL(`/web/bundle/${bundleName}`, location.origin);
@@ -181,6 +182,13 @@ export const assets = {
                 const result = await response.json();
                 if (result.is_esm) {
                     esmSpecifiers = result.specifiers || [];
+                    // Inline ESM: read-only transaction couldn't save an
+                    // ir.attachment.  Convert to a Blob URL so import()
+                    // inherits the page's import map (data: URIs don't).
+                    if (result.inline_esm) {
+                        const blob = new Blob([result.inline_esm], { type: "text/javascript" });
+                        esmSpecifiers.push(URL.createObjectURL(blob));
+                    }
                     for (const { src, type } of Object.values(result.files || {})) {
                         if (type === "link" && src) {
                             cssLibs.push(src);
@@ -198,6 +206,11 @@ export const assets = {
                     }
                 }
             }
+            console.debug(
+                `[assets] getBundle(${bundleName}): is_esm=${esmSpecifiers !== null}, ` +
+                `${cssLibs.length} CSS, ${jsLibs.length} JS` +
+                (esmSpecifiers ? `, ${esmSpecifiers.length} ESM specifiers` : ""),
+            );
             return { cssLibs, jsLibs, esmSpecifiers };
         })().catch((reason) => {
             cacheMap.delete(bundleName);
@@ -229,6 +242,11 @@ export const assets = {
             );
         }
         const { cssLibs, jsLibs, esmSpecifiers } = await getBundle(bundleName);
+        console.debug(
+            `[assets] loadBundle(${bundleName}): css=${css}, js=${js}, ` +
+            `cssLibs=${cssLibs?.length}, jsLibs=${jsLibs?.length}, ` +
+            `esmSpecifiers=${esmSpecifiers?.length ?? "null"}`,
+        );
         const promises = [];
         if (css && cssLibs) {
             promises.push(
@@ -238,6 +256,9 @@ export const assets = {
         if (js && esmSpecifiers) {
             // ESM bundle: use dynamic import() which respects the
             // page's import map for specifier resolution.
+            console.debug(
+                `[assets] loadBundle(${bundleName}): loading ${esmSpecifiers.length} ESM specifiers via dynamic import()`,
+            );
             promises.push(assets.loadESMBundle(esmSpecifiers));
         }
         // Also load non-ESM files (XML template bundles, legacy JS)
@@ -258,6 +279,7 @@ export const assets = {
      * @returns {Promise<void>}
      */
     async loadESMBundle(specifiers) {
+        const t0 = performance.now();
         const results = await Promise.all(
             specifiers.map(async (specifier) => {
                 const mod = await import(specifier);
@@ -270,6 +292,9 @@ export const assets = {
         if (globalThis.odoo?.loader?.registerNativeModules) {
             odoo.loader.registerNativeModules(modules);
         }
+        console.debug(
+            `[assets] loadESMBundle: imported ${specifiers.length} modules in ${(performance.now() - t0).toFixed(1)}ms`,
+        );
     },
 
     /**

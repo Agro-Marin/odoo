@@ -1,18 +1,23 @@
+"""Tests for HTML diff and patch utilities."""
+
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import odoo.tests
-
 from odoo.tests.common import BaseCase
+
 from odoo.addons.html_editor.models.diff_utils import (
-    generate_patch,
-    generate_comparison,
     apply_patch,
+    generate_comparison,
+    generate_patch,
 )
 
 
 @odoo.tests.tagged("post_install", "-at_install", "html_history")
 class TestPatchUtils(BaseCase):
-    def test_new_content_add_line(self):
+    """Test patch generation, application, and comparison for HTML content."""
+
+    def test_new_content_add_line(self) -> None:
+        """Test patch generation when new content has an added line."""
         initial_content = "<p>foo</p><p>baz</p>"
         new_content = "<p>foo</p><p>bar</p><p>baz</p>"
 
@@ -30,7 +35,8 @@ class TestPatchUtils(BaseCase):
             comparison, "<p>foo</p><p><removed>bar</removed></p><p>baz</p>"
         )
 
-    def test_new_content_remove_line(self):
+    def test_new_content_remove_line(self) -> None:
+        """Test patch generation when new content has a removed line."""
         initial_content = "<p>foo</p><p>bar</p><p>baz</p>"
         new_content = "<p>foo</p><p>baz</p>"
 
@@ -41,11 +47,10 @@ class TestPatchUtils(BaseCase):
         self.assertEqual(restored_initial_content, initial_content)
 
         comparison = generate_comparison(new_content, initial_content)
-        self.assertEqual(
-            comparison, "<p>foo</p><p><added>bar</added></p><p>baz</p>"
-        )
+        self.assertEqual(comparison, "<p>foo</p><p><added>bar</added></p><p>baz</p>")
 
-    def test_new_content_replace_line(self):
+    def test_new_content_replace_line(self) -> None:
+        """Test patch generation when new content replaces multiple lines."""
         initial_content = "<p>foo</p><p>bar</p><p>bor</p><p>bir</p><p>baz</p>"
         new_content = "<p>foo</p><p>buz</p><p>baz</p>"
 
@@ -65,7 +70,8 @@ class TestPatchUtils(BaseCase):
             "<p>baz</p>",
         )
 
-    def test_new_content_is_falsy(self):
+    def test_new_content_is_falsy(self) -> None:
+        """Test patch generation when new content is empty."""
         initial_content = "<p>foo</p><p>bar</p>"
         new_content = ""
 
@@ -80,7 +86,8 @@ class TestPatchUtils(BaseCase):
             comparison, "<p><added>foo</added></p><p><added>bar</added></p>"
         )
 
-    def test_new_content_is_equal(self):
+    def test_new_content_is_equal(self) -> None:
+        """Test patch generation when content is identical."""
         initial_content = "<p>foo</p><p>bar</p>"
         new_content = "<p>foo</p><p>bar</p>"
 
@@ -97,7 +104,8 @@ class TestPatchUtils(BaseCase):
         restored_initial_content = apply_patch(new_content, patch)
         self.assertEqual(restored_initial_content, initial_content)
 
-    def test_new_content_multiple_operation(self):
+    def test_new_content_multiple_operation(self) -> None:
+        """Test patch generation with multiple add and remove operations."""
         initial_content = "<p>foo</p><p>bar</p><p>baz</p><p>buz</p><p>boz</p>"
         new_content = (
             "<p>foo</p><div>new1<b>new2</b>new3</div>"
@@ -126,7 +134,8 @@ class TestPatchUtils(BaseCase):
             "<p>boz</p><p><removed>end</removed></p>",
         )
 
-    def test_multiple_revision(self):
+    def test_multiple_revision(self) -> None:
+        """Test reconstructing original content through multiple revisions."""
         contents = [
             "<p>foo</p><p>bar</p>",
             "<p>foo</p>",
@@ -136,9 +145,10 @@ class TestPatchUtils(BaseCase):
             "<p>foo</p><p>boz</p><p>buz</p>",
             "<p>buz</p>",
         ]
-        patches = []
-        for i in range(len(contents) - 1):
-            patches.append(generate_patch(contents[i + 1], contents[i]))
+        patches = [
+            generate_patch(contents[i + 1], contents[i])
+            for i in range(len(contents) - 1)
+        ]
 
         patches.reverse()
         reconstruct_content = contents[-1]
@@ -147,7 +157,8 @@ class TestPatchUtils(BaseCase):
 
         self.assertEqual(reconstruct_content, contents[0])
 
-    def test_replace_tag(self):
+    def test_replace_tag(self) -> None:
+        """Test comparison when an HTML tag is replaced."""
         initial_content = "<blockquote>foo</blockquote>"
         new_content = "<code>foo</code>"
 
@@ -158,7 +169,8 @@ class TestPatchUtils(BaseCase):
             "<code><removed>foo</removed></code>",
         )
 
-    def test_replace_complex(self):
+    def test_replace_complex(self) -> None:
+        """Test comparison with complex tag and content replacements."""
         initial_content = (
             "<blockquote>foo</blockquote>"
             "<blockquote>bar</blockquote>"
@@ -207,7 +219,8 @@ class TestPatchUtils(BaseCase):
             "<blockquote><added>333</added><removed>ccc</removed></blockquote>",
         )
 
-    def test_replace_tag_multiline(self):
+    def test_replace_tag_multiline(self) -> None:
+        """Test comparison when tags are swapped across multiple lines."""
         initial_content = (
             "<blockquote>foo</blockquote>"
             "<code>bar lorem ipsum dolor</code>"
@@ -230,7 +243,8 @@ class TestPatchUtils(BaseCase):
             "<code><removed>baz</removed></code>",
         )
 
-    def test_replace_nested_divs(self):
+    def test_replace_nested_divs(self) -> None:
+        """Test comparison with nested div class changes."""
         initial_content = "<div class='A1'><div class='A2'><b>A</b></div></div>"
         new_content = "<div class='B1'><div class='B2'><i>B</i></div></div>"
 
@@ -259,7 +273,8 @@ class TestPatchUtils(BaseCase):
             "</div></div>",
         )
 
-    def test_same_tag_replace_fixer(self):
+    def test_same_tag_replace_fixer(self) -> None:
+        """Test comparison when same-tag content is replaced."""
         initial_content = "<div><p><b>A</b><b>B</b></p></div>"
         new_content = "<div>X<p><b>B</b></p></div>"
 
@@ -267,12 +282,11 @@ class TestPatchUtils(BaseCase):
         # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
-            "<div><removed>X</removed>"
-            "<p><b><added>A</added></b>"
-            "<b>B</b></p></div>",
+            "<div><removed>X</removed><p><b><added>A</added></b><b>B</b></p></div>",
         )
 
-    def test_simple_removal(self):
+    def test_simple_removal(self) -> None:
+        """Test comparison for simple text removal."""
         initial_content = "<div><p>A</p></div>"
         new_content = "<div>X<p>A</p></div>"
 
@@ -283,7 +297,8 @@ class TestPatchUtils(BaseCase):
             "<div><removed>X</removed><p>A</p></div>",
         )
 
-    def test_simple_addition(self):
+    def test_simple_addition(self) -> None:
+        """Test comparison for simple text addition."""
         initial_content = "<div>X<p>A</p></div>"
         new_content = "<div><p>A</p></div>"
 
@@ -294,7 +309,8 @@ class TestPatchUtils(BaseCase):
             "<div><added>X</added><p>A</p></div>",
         )
 
-    def test_replace_just_class(self):
+    def test_replace_just_class(self) -> None:
+        """Test comparison when only the class attribute changes."""
         initial_content = "<div class='A1'>A</div>"
         new_content = "<div class='B1'>A</div>"
 
@@ -305,10 +321,9 @@ class TestPatchUtils(BaseCase):
             "<div class='A1'>A</div>",
         )
 
-    def test_replace_twice_just_class(self):
-        initial_content = (
-            "<div class='A1'>A</div><p>abc</p><div class='D1'>D</div>"
-        )
+    def test_replace_twice_just_class(self) -> None:
+        """Test comparison when two elements change only their class."""
+        initial_content = "<div class='A1'>A</div><p>abc</p><div class='D1'>D</div>"
         new_content = "<div class='B1'>A</div><p>abc</p><div class='E1'>D</div>"
 
         comparison = generate_comparison(new_content, initial_content)
@@ -318,7 +333,8 @@ class TestPatchUtils(BaseCase):
             "<div class='A1'>A</div><p>abc</p><div class='D1'>D</div>",
         )
 
-    def test_replace_with_just_class(self):
+    def test_replace_with_just_class(self) -> None:
+        """Test comparison when content and class both change."""
         initial_content = "<p>abc</p><div class='A1'>A</div>"
         new_content = "<p>def</p><div class='B1'>A</div>"
 
@@ -326,11 +342,11 @@ class TestPatchUtils(BaseCase):
         # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
-            "<p><added>abc</added><removed>def</removed></p>"
-            "<div class='A1'>A</div>",
+            "<p><added>abc</added><removed>def</removed></p><div class='A1'>A</div>",
         )
 
-    def test_replace_class_and_content(self):
+    def test_replace_class_and_content(self) -> None:
+        """Test comparison when both class and text content change."""
         initial_content = "<div class='A1'>A</div>"
         new_content = "<div class='B1'>B</div>"
 
@@ -341,7 +357,8 @@ class TestPatchUtils(BaseCase):
             "<div class='A1'><added>A</added><removed>B</removed></div>",
         )
 
-    def test_replace_class_and_deep_content(self):
+    def test_replace_class_and_deep_content(self) -> None:
+        """Test comparison when class and deeply nested content change."""
         initial_content = "<div class='A1'><p><i>A</i></p></div>"
         new_content = "<div class='B1'><p><i>B</i></p></div>"
 
@@ -349,7 +366,5 @@ class TestPatchUtils(BaseCase):
         # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
-            "<div class='A1'><p><i>"
-            "<added>A</added><removed>B</removed>"
-            "</i></p></div>",
+            "<div class='A1'><p><i><added>A</added><removed>B</removed></i></p></div>",
         )

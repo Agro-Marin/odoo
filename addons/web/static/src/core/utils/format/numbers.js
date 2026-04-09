@@ -195,9 +195,14 @@ export function humanNumber(number, options = { decimals: 0, minDigits: 1 }) {
         number = Math.round(number * 10 ** (decimals - numberMagnitude)) / d2;
         return `${number}e+${numberMagnitude}`;
     }
-    // note: we need to call toString here to make sure we manipulate the resulting
-    // string, not an object with a toString method.
+    // The translation must be exactly 6 single-character symbols (k, M, G, T, P, E)
+    // indexed positionally by magnitude. Translators must preserve this constraint.
     const unitSymbols = _t("kMGTPE").toString();
+    if (unitSymbols.length !== 6) {
+        console.warn(
+            `humanNumber: expected 6 unit symbols (kMGTPE), got ${unitSymbols.length}: "${unitSymbols}"`,
+        );
+    }
     const sign = Math.sign(number);
     number = Math.abs(number);
     let symbol = "";

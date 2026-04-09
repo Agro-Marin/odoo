@@ -9,6 +9,7 @@ import {
     startPos,
 } from "@html_editor/utils/position";
 import { describe, expect, test } from "@odoo/hoot";
+
 import { insertTestHtml } from "../_helpers/editor.js";
 
 describe("leftPos", () => {
@@ -30,7 +31,7 @@ describe("leftPos", () => {
         const [p] = insertTestHtml(
             `<p>
                 <b>a</b>
-            </p>`
+            </p>`,
         );
         const b = p.childNodes[1];
         const result = leftPos(b);
@@ -41,7 +42,7 @@ describe("leftPos", () => {
         const [p] = insertTestHtml(
             `<p>
                 abc<b>def</b>ghi<i>jkl</i><span><u>mno</u></span>pqr
-            </p>`
+            </p>`,
         );
         const i = p.childNodes[3];
         const result = leftPos(i);
@@ -68,7 +69,7 @@ describe("rightPos", () => {
         const [p] = insertTestHtml(
             `<p>
                 <b>a</b>
-            </p>`
+            </p>`,
         );
         const b = p.childNodes[1];
         const result = rightPos(b);
@@ -79,7 +80,7 @@ describe("rightPos", () => {
         const [p] = insertTestHtml(
             `<p>
                 abc<b>def</b>ghi<i>jkl</i><span><u>mno</u></span>pqr
-            </p>`
+            </p>`,
         );
         const i = p.childNodes[3];
         const result = rightPos(i);
@@ -106,7 +107,7 @@ describe("boundariesOut", () => {
         const [p] = insertTestHtml(
             `<p>
                 <b>a</b>
-            </p>`
+            </p>`,
         );
         const b = p.childNodes[1];
         const result = boundariesOut(b);
@@ -117,7 +118,7 @@ describe("boundariesOut", () => {
         const [p] = insertTestHtml(
             `<p>
                 abc<b>def</b>ghi<i>jkl</i><span><u>mno</u></span>pqr
-            </p>`
+            </p>`,
         );
         const i = p.childNodes[3];
         const result = boundariesOut(i);
@@ -144,7 +145,7 @@ describe("startPos", () => {
         const [p] = insertTestHtml(
             `<p>
                 <b>a</b>
-            </p>`
+            </p>`,
         );
         const b = p.childNodes[1];
         const result = startPos(b);
@@ -155,7 +156,7 @@ describe("startPos", () => {
         const [p] = insertTestHtml(
             `<p>
                 abc<b>def</b>ghi<i>jkl</i><span><u>mno</u></span>pqr
-            </p>`
+            </p>`,
         );
         const i = p.childNodes[3];
         const result = startPos(i);
@@ -182,7 +183,7 @@ describe("endPos", () => {
         const [p] = insertTestHtml(
             `<p>
                 <b>a</b>
-            </p>`
+            </p>`,
         );
         const b = p.childNodes[1];
         const result = endPos(b);
@@ -193,7 +194,7 @@ describe("endPos", () => {
         const [p] = insertTestHtml(
             `<p>
                 abc<b>def</b>ghi<i>jkl</i><span><u>mno</u></span>pqr
-            </p>`
+            </p>`,
         );
         const i = p.childNodes[3];
         const result = endPos(i);
@@ -220,7 +221,7 @@ describe("boundariesIn", () => {
         const [p] = insertTestHtml(
             `<p>
                 <b>a</b>
-            </p>`
+            </p>`,
         );
         const b = p.childNodes[1];
         const result = boundariesIn(b);
@@ -231,7 +232,7 @@ describe("boundariesIn", () => {
         const [p] = insertTestHtml(
             `<p>
                 abc<b>def</b>ghi<i>jkl</i><span><u>mno</u></span>pqr
-            </p>`
+            </p>`,
         );
         const i = p.childNodes[3];
         const result = boundariesIn(i);
@@ -258,7 +259,7 @@ describe("childNodeIndex", () => {
         const [p] = insertTestHtml(
             `<p>
                 <b>a</b>
-            </p>`
+            </p>`,
         );
         p.childNodes.forEach((child, index) => {
             expect(childNodeIndex(child)).toBe(index);
@@ -269,7 +270,7 @@ describe("childNodeIndex", () => {
         const [p] = insertTestHtml(
             `<p>
                 abc<b>def</b>ghi<i>jkl</i><span><u>mno</u></span>pqr
-            </p>`
+            </p>`,
         );
         p.childNodes.forEach((child, index) => {
             expect(childNodeIndex(child)).toBe(index);
@@ -294,7 +295,7 @@ describe("nodeSize", () => {
         const [p] = insertTestHtml(
             `<p>
                 a<b>bc</b>d<i>ef</i>
-            </p>`
+            </p>`,
         );
         const result = nodeSize(p);
         expect(result).toBe(5);

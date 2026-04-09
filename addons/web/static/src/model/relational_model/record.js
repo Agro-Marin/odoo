@@ -291,6 +291,15 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
+     * Sometimes necessary when fields have an expensive computation to do
+     * before an update (e.g. HtmlField). Could be removed when external usages
+     * of dirty are replaced by isDirty() (e.g. FormController.beforeLeave).
+     */
+    setDirty() {
+        this.dirty = true;
+    }
+
+    /**
      * @param {string} fieldName
      */
     async setInvalidField(fieldName) {

@@ -1,10 +1,11 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillDestroy, useRef, useSubEnv } from "@odoo/owl";
-import { Editor } from "./editor.js";
-import { Toolbar } from "./main/toolbar/toolbar.js";
-import { useChildRef, useSpellCheck } from "@web/core/utils/hooks";
-import { LocalOverlayContainer } from "./local_overlay_container.js";
 import { uniqueId } from "@web/core/utils/functions";
+import { useChildRef, useSpellCheck } from "@web/core/utils/hooks";
+
+import { Editor } from "./editor.js";
+import { LocalOverlayContainer } from "./local_overlay_container.js";
+import { Toolbar } from "./main/toolbar/toolbar.js";
 
 /**
  * @typedef { import("./editor").EditorConfig } EditorConfig
@@ -88,7 +89,7 @@ export class Wysiwyg extends Component {
                             attachEditor();
                             this.render();
                         },
-                        { once: true }
+                        { once: true },
                     );
                 }
             } else {

@@ -1,5 +1,4 @@
 /** @odoo-module native */
-/* global Prism */
 import { fillEmpty } from "@html_editor/utils/dom";
 import { descendants, lastLeaf } from "@html_editor/utils/dom_traversal";
 
@@ -12,9 +11,14 @@ export const DEFAULT_LANGUAGE_ID = "plaintext";
  * @param {Element} element
  * @param {Document} [doc = element.ownerDocument || document]
  */
-export const newlinesToLineBreaks = (element, doc = element.ownerDocument || document) => {
+export const newlinesToLineBreaks = (
+    element,
+    doc = element.ownerDocument || document,
+) => {
     // 1. Replace \n with <br>.
-    for (const node of descendants(element).filter((node) => node.nodeType === Node.TEXT_NODE)) {
+    for (const node of descendants(element).filter(
+        (node) => node.nodeType === Node.TEXT_NODE,
+    )) {
         let newline = node.textContent.indexOf("\n");
         while (newline !== -1) {
             node.before(doc.createTextNode(node.textContent.slice(0, newline)));
@@ -49,7 +53,10 @@ export const getPreValue = (pre) => {
     // Trailing br gives \n in innerText but should not be visible.
     const trailingBrs = pre.innerHTML.match(/(<br>)+$/)?.length || 0;
     return pre.innerText
-        .slice(0, pre.innerText.length - (trailingBrs > 1 ? trailingBrs - 1 : trailingBrs))
+        .slice(
+            0,
+            pre.innerText.length - (trailingBrs > 1 ? trailingBrs - 1 : trailingBrs),
+        )
         .replace(/[\u200B\uFEFF]/g, "");
 };
 
@@ -67,7 +74,11 @@ export const highlightPre = (pre, value, languageId) => {
     // recording the removal of the contents.
     const fakeElement = pre.ownerDocument.createElement("pre");
     if (window.Prism) {
-        fakeElement.innerHTML = Prism.highlight(value, Prism.languages[languageId], languageId);
+        fakeElement.innerHTML = Prism.highlight(
+            value,
+            Prism.languages[languageId],
+            languageId,
+        );
     } else {
         fakeElement.innerHTML = value;
     }

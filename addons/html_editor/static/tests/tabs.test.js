@@ -1,6 +1,13 @@
 import { describe, test } from "@odoo/hoot";
+
 import { testEditor } from "./_helpers/editor.js";
-import { TAB_WIDTH, getCharWidth, getIndentWidth, oeTab, testTabulation } from "./_helpers/tabs.js";
+import {
+    getCharWidth,
+    getIndentWidth,
+    oeTab,
+    TAB_WIDTH,
+    testTabulation,
+} from "./_helpers/tabs.js";
 import {
     deleteBackward,
     deleteForward,
@@ -39,7 +46,7 @@ describe("insert tabulation", () => {
             },
             contentAfterEdit: `<p>a${oeTab(expectedTabWidth, false)}${oeTab(
                 TAB_WIDTH,
-                false
+                false,
             )}[]b</p>`,
             contentAfter: `<p>a${oeTab(expectedTabWidth)}${oeTab(TAB_WIDTH)}[]b</p>`,
         });
@@ -56,7 +63,7 @@ describe("insert tabulation", () => {
             },
             contentAfterEdit: `<p>a${oeTab(expectedTabWidth, false)}a${oeTab(
                 expectedTabWidth,
-                false
+                false,
             )}[]b</p>`,
             contentAfter: `<p>a${oeTab(expectedTabWidth)}a${oeTab(expectedTabWidth)}[]b</p>`,
         });
@@ -68,10 +75,10 @@ describe("insert tabulation", () => {
             stepFunction: keydownTab,
             contentAfterEdit: `<p>${oeTab(
                 TAB_WIDTH,
-                false
+                false,
             )}<font style="background-color: rgb(255,255,0);">[]ab</font></p>`,
             contentAfter: `<p>${oeTab(
-                TAB_WIDTH
+                TAB_WIDTH,
             )}<font style="background-color: rgb(255,255,0);">[]ab</font></p>`,
         });
     });
@@ -82,10 +89,10 @@ describe("insert tabulation", () => {
             stepFunction: keydownTab,
             contentAfterEdit: `<p>${oeTab(
                 TAB_WIDTH,
-                false
+                false,
             )}<font style="background-color: rgb(255,255,0);">\u200B[]</font></p>`,
             contentAfter: `<p>${oeTab(
-                TAB_WIDTH
+                TAB_WIDTH,
             )}<font style="background-color: rgb(255,255,0);">\u200B[]</font></p>`,
         });
     });
@@ -99,10 +106,10 @@ describe("insert tabulation", () => {
             },
             contentAfterEdit: `<p>${oeTab(TAB_WIDTH, false)}${oeTab(
                 TAB_WIDTH,
-                false
+                false,
             )}<font style="background-color: rgb(255,255,0);">[]ab</font></p>`,
             contentAfter: `<p>${oeTab(TAB_WIDTH)}${oeTab(
-                TAB_WIDTH
+                TAB_WIDTH,
             )}<font style="background-color: rgb(255,255,0);">[]ab</font></p>`,
         });
     });
@@ -114,40 +121,42 @@ describe("insert tabulation", () => {
             stepFunction: keydownTab,
             contentAfterEdit: `<p><font style="background-color: rgb(255,255,0);">a${oeTab(
                 expectedTabWidth,
-                false
+                false,
             )}[]b</font></p>`,
             contentAfter: `<p><font style="background-color: rgb(255,255,0);">a${oeTab(
-                expectedTabWidth
+                expectedTabWidth,
             )}[]b</font></p>`,
         });
     });
 
     test("tab should be colored when inserting a tab in the middle of text having background color (2)", async () => {
-        const expectedTabWidth = TAB_WIDTH - (getCharWidth("p", "a") + getCharWidth("p", "b"));
+        const expectedTabWidth =
+            TAB_WIDTH - (getCharWidth("p", "a") + getCharWidth("p", "b"));
         await testTabulation({
             contentBefore: `<p><font style="background-color: rgb(255,255,0);">ab<strong>[]cd</strong></font></p>`,
             stepFunction: keydownTab,
             contentAfterEdit: `<p><font style="background-color: rgb(255,255,0);">ab${oeTab(
                 expectedTabWidth,
-                false
+                false,
             )}<strong>[]cd</strong></font></p>`,
             contentAfter: `<p><font style="background-color: rgb(255,255,0);">ab${oeTab(
-                expectedTabWidth
+                expectedTabWidth,
             )}<strong>[]cd</strong></font></p>`,
         });
     });
 
     test("tab should be colored when inserting a tab in the end of text having background color", async () => {
-        const expectedTabWidth = TAB_WIDTH - (getCharWidth("p", "a") + getCharWidth("p", "b"));
+        const expectedTabWidth =
+            TAB_WIDTH - (getCharWidth("p", "a") + getCharWidth("p", "b"));
         await testTabulation({
             contentBefore: `<p><font style="background-color: rgb(255,255,0);">ab[]</font></p>`,
             stepFunction: keydownTab,
             contentAfterEdit: `<p><font style="background-color: rgb(255,255,0);">ab${oeTab(
                 expectedTabWidth,
-                false
+                false,
             )}[]</font></p>`,
             contentAfter: `<p><font style="background-color: rgb(255,255,0);">ab${oeTab(
-                expectedTabWidth
+                expectedTabWidth,
             )}[]</font></p>`,
         });
     });
@@ -157,8 +166,10 @@ describe("insert tabulation", () => {
             contentBefore: `<p>a[b</p>` + `<p>c]d</p>`,
             stepFunction: keydownTab,
             contentAfterEdit:
-                `<p>${oeTab(TAB_WIDTH, false)}a[b</p>` + `<p>${oeTab(TAB_WIDTH, false)}c]d</p>`,
-            contentAfter: `<p>${oeTab(TAB_WIDTH)}a[b</p>` + `<p>${oeTab(TAB_WIDTH)}c]d</p>`,
+                `<p>${oeTab(TAB_WIDTH, false)}a[b</p>` +
+                `<p>${oeTab(TAB_WIDTH, false)}c]d</p>`,
+            contentAfter:
+                `<p>${oeTab(TAB_WIDTH)}a[b</p>` + `<p>${oeTab(TAB_WIDTH)}c]d</p>`,
         });
     });
 
@@ -211,12 +222,14 @@ describe("insert tabulation", () => {
 
         await testTabulation({
             contentBefore:
-                `<p>${oeTab()}a[${oeTab()}b${oeTab()}</p>` + `<p>c${oeTab()}]d${oeTab()}</p>`,
+                `<p>${oeTab()}a[${oeTab()}b${oeTab()}</p>` +
+                `<p>c${oeTab()}]d${oeTab()}</p>`,
             stepFunction: keydownTab,
             contentAfter:
                 `<p>${oeTab(TAB_WIDTH)}${oeTab(TAB_WIDTH)}a[${oeTab(tabAfterA)}b${oeTab(
-                    tabAfterB
-                )}</p>` + `<p>${oeTab(TAB_WIDTH)}c${oeTab(tabAfterC)}]d${oeTab(tabAfterD)}</p>`,
+                    tabAfterB,
+                )}</p>` +
+                `<p>${oeTab(TAB_WIDTH)}c${oeTab(tabAfterC)}]d${oeTab(tabAfterD)}</p>`,
         });
     });
 
@@ -263,7 +276,7 @@ describe("insert tabulation", () => {
                 `<h1>${oeTab(TAB_WIDTH, false)}${oeTab(TAB_WIDTH, false)}cd</h1>` +
                 `<blockquote>${oeTab(tabInBlockquote, false)}${oeTab(
                     TAB_WIDTH,
-                    false
+                    false,
                 )}e]f</blockquote>` +
                 `<h4>${oeTab(TAB_WIDTH, false)}zzz</h4>`,
             contentAfter:
@@ -290,7 +303,7 @@ describe("insert tabulation", () => {
                 `<p>xxx</p>` +
                 `<p>${oeTab(TAB_WIDTH, false)}${oeTab(TAB_WIDTH, false)}${oeTab(
                     TAB_WIDTH,
-                    false
+                    false,
                 )}a[b</p>` +
                 `<h1>${oeTab(TAB_WIDTH, false)}${oeTab(TAB_WIDTH, false)}cd</h1>` +
                 `<blockquote>${oeTab(tabInBlockquote, false)}e]f</blockquote>` +
@@ -324,25 +337,25 @@ describe("insert tabulation", () => {
                 `<p>xxx</p>` +
                 `<p>${oeTab(TAB_WIDTH, false)}${oeTab(TAB_WIDTH, false)}a[${oeTab(
                     tabAfterA,
-                    false
+                    false,
                 )}b${oeTab(tabAfterB, false)}</p>` +
                 `<h1>${oeTab(TAB_WIDTH, false)}c${oeTab(tabAfterCinH1, false)}d${oeTab(
                     tabAfterDinH1,
-                    false
+                    false,
                 )}</h1>` +
                 `<blockquote>${oeTab(tabInBlockquote, false)}e${oeTab(
                     tabAfterEinBlockquote,
-                    false
+                    false,
                 )}]f</blockquote>` +
                 `<h4>zzz</h4>`,
             contentAfter:
                 `<p>xxx</p>` +
                 `<p>${oeTab(TAB_WIDTH)}${oeTab(TAB_WIDTH)}a[${oeTab(tabAfterA)}b${oeTab(
-                    tabAfterB
+                    tabAfterB,
                 )}</p>` +
                 `<h1>${oeTab(TAB_WIDTH)}c${oeTab(tabAfterCinH1)}d${oeTab(tabAfterDinH1)}</h1>` +
                 `<blockquote>${oeTab(tabInBlockquote)}e${oeTab(
-                    tabAfterEinBlockquote
+                    tabAfterEinBlockquote,
                 )}]f</blockquote>` +
                 `<h4>zzz</h4>`,
         });
@@ -352,9 +365,11 @@ describe("insert tabulation", () => {
         const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
         const tabAfterB = TAB_WIDTH - getCharWidth("p", "b");
         const tabAfterCinNestedLI =
-            TAB_WIDTH - ((2 * getIndentWidth("li") + getCharWidth("li", "c")) % TAB_WIDTH);
+            TAB_WIDTH -
+            ((2 * getIndentWidth("li") + getCharWidth("li", "c")) % TAB_WIDTH);
         const tabAfterD = TAB_WIDTH - getCharWidth("li", "d"); // in LI, after a tab
-        const tabInDoubleNestedList = TAB_WIDTH - ((3 * getIndentWidth("li")) % TAB_WIDTH);
+        const tabInDoubleNestedList =
+            TAB_WIDTH - ((3 * getIndentWidth("li")) % TAB_WIDTH);
         const tabAfterE = TAB_WIDTH - getCharWidth("li", "e"); // in LI, after a tab
         const tabInBlockquote = TAB_WIDTH - getIndentWidth("blockquote");
         const tabAfterFinBlockquote = TAB_WIDTH - getCharWidth("blockquote", "f"); // in blockquote, after a tab
@@ -671,11 +686,14 @@ describe("remove tabulation with shift+tab", () => {
 
     test("should remove tab characters from the beginning of two separate double-indented paragraphs", async () => {
         await testTabulation({
-            contentBefore: `<p>${oeTab()}${oeTab()}a[b</p>` + `<p>${oeTab()}${oeTab()}c]d</p>`,
+            contentBefore:
+                `<p>${oeTab()}${oeTab()}a[b</p>` + `<p>${oeTab()}${oeTab()}c]d</p>`,
             stepFunction: keydownShiftTab,
             contentAfterEdit:
-                `<p>${oeTab(TAB_WIDTH, false)}a[b</p>` + `<p>${oeTab(TAB_WIDTH, false)}c]d</p>`,
-            contentAfter: `<p>${oeTab(TAB_WIDTH)}a[b</p>` + `<p>${oeTab(TAB_WIDTH)}c]d</p>`,
+                `<p>${oeTab(TAB_WIDTH, false)}a[b</p>` +
+                `<p>${oeTab(TAB_WIDTH, false)}c]d</p>`,
+            contentAfter:
+                `<p>${oeTab(TAB_WIDTH)}a[b</p>` + `<p>${oeTab(TAB_WIDTH)}c]d</p>`,
         });
     });
 
@@ -760,7 +778,8 @@ describe("remove tabulation with shift+tab", () => {
         const tabAfterCinH1 = TAB_WIDTH - getCharWidth("h1", "c");
         const tabAfterDinH1 = TAB_WIDTH - getCharWidth("h1", "d");
         const tabAfterEinBlockquote =
-            TAB_WIDTH - (getIndentWidth("blockquote") + getCharWidth("blockquote", "e"));
+            TAB_WIDTH -
+            (getIndentWidth("blockquote") + getCharWidth("blockquote", "e"));
 
         await testTabulation({
             contentBefore:
@@ -794,7 +813,8 @@ describe("remove tabulation with shift+tab", () => {
         const tabAfterE = TAB_WIDTH - getCharWidth("li", "e"); // in LI, after a tab
         const tabInNestedList = TAB_WIDTH - ((2 * getIndentWidth("li")) % TAB_WIDTH);
         const tabAfterFinBlockquote =
-            TAB_WIDTH - (getIndentWidth("blockquote") + getCharWidth("blockquote", "f"));
+            TAB_WIDTH -
+            (getIndentWidth("blockquote") + getCharWidth("blockquote", "f"));
 
         await testTabulation({
             contentBefore:
@@ -808,13 +828,13 @@ describe("remove tabulation with shift+tab", () => {
             contentAfterEdit:
                 `<p>${oeTab(TAB_WIDTH, false)}a[${oeTab(tabAfterA, false)}b${oeTab(
                     tabAfterB,
-                    false
+                    false,
                 )}</p>` +
                 `<ul>` +
                 `<li><p>c${oeTab(tabAfterCinLI, false)}d${oeTab(tabAfterD, false)}</p>` +
                 `<ul><li>${oeTab(tabInNestedList, false)}e${oeTab(
                     tabAfterE,
-                    false
+                    false,
                 )}</li></ul></li>` +
                 `</ul>` +
                 `<blockquote>f${oeTab(tabAfterFinBlockquote, false)}]g</blockquote>`,
@@ -839,7 +859,8 @@ describe("remove tabulation with shift+tab", () => {
     test("should remove tab characters from the beginning of two separate formatted paragraphs", async () => {
         await testEditor({
             contentBefore:
-                `<p>${oeTab()}<strong>a[b</strong></p>` + `<p>${oeTab()}<strong>c]d</strong></p>`,
+                `<p>${oeTab()}<strong>a[b</strong></p>` +
+                `<p>${oeTab()}<strong>c]d</strong></p>`,
             stepFunction: keydownShiftTab,
             contentAfter: `<p><strong>a[b</strong></p>` + `<p><strong>c]d</strong></p>`,
         });

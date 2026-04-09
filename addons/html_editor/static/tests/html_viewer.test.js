@@ -20,7 +20,7 @@ test(`XML-like self-closing elements are fixed in a standalone HtmlViewer`, asyn
     });
     await animationFrame();
     expect(".o_readonly").toHaveInnerHTML(
-        `<a href="#" target="_blank" rel="noreferrer"></a>outside<a href="#" target="_blank" rel="noreferrer">inside</a>`
+        `<a href="#" target="_blank" rel="noreferrer"></a>outside<a href="#" target="_blank" rel="noreferrer">inside</a>`,
     );
 });
 
@@ -63,7 +63,7 @@ test(`copy from HtmlViewer must support application/vnd.odoo.odoo-editor`, async
     expect(clipboardData.getData("text/plain").trim()).toBe("A");
     expect(clipboardData.getData("text/html")).toInclude("background-color");
     expect(clipboardData.getData("application/vnd.odoo.odoo-editor")).toBe(
-        clipboardData.getData("text/html")
+        clipboardData.getData("text/html"),
     );
 });
 
@@ -96,10 +96,12 @@ test(`copy from HtmlViewer should copy all the selection`, async () => {
     getSelection().addRange(range);
     await animationFrame();
     const clipboardData = new DataTransfer();
-    tableParent.dispatchEvent(new ClipboardEvent("copy", { bubbles: true, clipboardData }));
+    tableParent.dispatchEvent(
+        new ClipboardEvent("copy", { bubbles: true, clipboardData }),
+    );
 
     expect(clipboardData.getData("text/html")).toInclude("table");
     expect(clipboardData.getData("application/vnd.odoo.odoo-editor")).toBe(
-        clipboardData.getData("text/html")
+        clipboardData.getData("text/html"),
     );
 });

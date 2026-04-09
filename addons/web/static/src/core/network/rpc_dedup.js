@@ -52,13 +52,29 @@ export function deduplicateRpc(rpcFn) {
 /**
  * Build a deduplication key from URL and params.
  *
- * Uses JSON.stringify for deterministic serialization. This is safe because
- * RPC params are plain JSON-serializable objects.
+ * Uses JSON.stringify with a sorted-key replacer to guarantee deterministic
+ * output regardless of object property insertion order. RPC params are
+ * plain JSON-serializable objects so this is safe.
  *
  * @param {string} url
  * @param {any} params
  * @returns {string}
  */
 export function buildKey(url, params) {
-    return JSON.stringify({ url, params });
+    return JSON.stringify({ url, params }, _sortedReplacer);
+}
+
+/**
+ * JSON.stringify replacer that sorts object keys so that logically
+ * identical objects produce the same string regardless of insertion order.
+ *
+ * @param {string} _key
+ * @param {any} value
+ * @returns {any}
+ */
+function _sortedReplacer(_key, value) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+        return Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+    }
+    return value;
 }

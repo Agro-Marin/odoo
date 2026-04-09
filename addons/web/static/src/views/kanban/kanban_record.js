@@ -26,6 +26,7 @@ import { KANBAN_CARD_ATTRIBUTE, KANBAN_MENU_ATTRIBUTE } from "./kanban_arch_pars
 import { KanbanCompiler } from "./kanban_compiler.js";
 import { KanbanCoverImageDialog } from "./kanban_cover_image_dialog.js";
 import { KanbanDropdownMenuWrapper } from "./kanban_dropdown_menu_wrapper.js";
+import * as luxon from "luxon";
 
 const { COLORS } = ColorList;
 
@@ -417,7 +418,7 @@ export class KanbanRecord extends Component {
         const renderingContext = {
             context: this.props.record.context,
             JSON,
-            luxon: globalThis.luxon,
+            luxon,
             record: this.dataState.record,
             selection_mode: this.props.forceGlobalClick,
             widget: this.dataState.widget,

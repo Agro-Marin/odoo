@@ -202,15 +202,28 @@ if (document.readyState === "complete") {
 function _loadScripts(scripts, index) {
     if (scripts === undefined) {
         scripts = document.querySelectorAll("script[data-src]");
+        console.debug(
+            `[lazyloader] _loadScripts: found ${scripts.length} deferred script(s)`,
+        );
     }
     if (index === undefined) {
         index = 0;
     }
     if (index >= scripts.length) {
-        allScriptsLoadedResolve();
+        // After all legacy scripts are loaded, activate deferred ESM
+        // bridge scripts that were waiting for the legacy bundle.
+        // Wait for them to finish before resolving allScriptsLoaded,
+        // otherwise event replay may fire before ESM modules register.
+        _activateLazyESM().then(() => {
+            console.debug("[lazyloader] _loadScripts: all scripts loaded");
+            allScriptsLoadedResolve();
+        });
         return;
     }
     const script = scripts[index];
+    console.debug(
+        `[lazyloader] _loadScripts[${index}/${scripts.length}]: loading ${script.dataset.src}`,
+    );
     script.addEventListener(
         "load",
         _loadScripts.bind(this, scripts, index + 1),
@@ -218,6 +231,62 @@ function _loadScripts(scripts, index) {
     script.setAttribute("defer", "defer"); // See LAZY_LOAD_DEFER
     script.src = script.dataset.src;
     script.removeAttribute("data-src");
+}
+
+/**
+ * Activate deferred ESM bridge scripts and wait for them to execute.
+ *
+ * These are produced by ``_get_asset_nodes`` for lazy ESM bundles and
+ * carry either ``data-lazy-esm-src`` (external) or ``data-lazy-esm``
+ * (inline).  They must run AFTER the legacy bundle's ``odoo.define()``
+ * calls so that ``odoo.loader.modules`` is populated before
+ * ``registerNativeModules()`` propagates dependents.
+ *
+ * @returns {Promise<void>} resolves when all ESM bridge scripts finish
+ */
+function _activateLazyESM() {
+    // Resolve __legacyReady so bridge shims (data: URIs) can proceed.
+    globalThis.odoo?.__legacyReady_resolve?.();
+
+    const esmScripts = document.querySelectorAll(
+        "script[data-lazy-esm-src], script[data-lazy-esm]",
+    );
+    if (!esmScripts.length) {
+        return Promise.resolve();
+    }
+    console.debug(
+        `[lazyloader] activating ${esmScripts.length} deferred ESM bridge script(s)`,
+    );
+    const loadPromises = [];
+    for (const script of esmScripts) {
+        const src = script.dataset.lazyEsmSrc;
+        const live = document.createElement("script");
+        live.type = "module";
+        if (script.dataset.bridge) {
+            live.dataset.bridge = script.dataset.bridge;
+        }
+        if (src) {
+            // External ESM bridge — wait for network load + execution.
+            // Module scripts fire "load" after the module graph resolves
+            // and the top-level body executes (including
+            // registerNativeModules).
+            const p = new Promise((resolve, reject) => {
+                live.addEventListener("load", resolve, { once: true });
+                live.addEventListener("error", (e) => {
+                    console.error("[lazyloader] ESM bridge load failed:", src, e);
+                    resolve(); // don't block page on ESM failure
+                }, { once: true });
+            });
+            loadPromises.push(p);
+            live.src = src;
+        } else {
+            // Inline ESM bridge — executes synchronously in the
+            // microtask after insertion (no network fetch needed).
+            live.textContent = script.textContent;
+        }
+        script.replaceWith(live);
+    }
+    return Promise.all(loadPromises);
 }
 
 export default {

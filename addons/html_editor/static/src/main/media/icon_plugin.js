@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { withSequence } from "@html_editor/utils/resource";
-import { Plugin } from "../../plugin.js";
-import { _t } from "@web/core/l10n/translation";
-import { MediaDialog } from "./media_dialog/media_dialog.js";
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { ICON_SELECTOR, isElement } from "@html_editor/utils/dom_info";
+import { withSequence } from "@html_editor/utils/resource";
+import { _t } from "@web/core/l10n/translation";
+
+import { Plugin } from "../../plugin.js";
+import { MediaDialog } from "./media_dialog/media_dialog.js";
 
 export class IconPlugin extends Plugin {
     static id = "icon";
@@ -66,7 +67,8 @@ export class IconPlugin extends Plugin {
                         (node) =>
                             node.matches?.(ICON_SELECTOR) ||
                             node.parentElement.matches?.(ICON_SELECTOR) ||
-                            (node.querySelector?.(ICON_SELECTOR) && node.isContentEditable !== false)
+                            (node.querySelector?.(ICON_SELECTOR) &&
+                                node.isContentEditable !== false),
                     )
                 ) {
                     return this.toolbarNamespace;
@@ -131,7 +133,9 @@ export class IconPlugin extends Plugin {
 
     getTargetedIcon() {
         const targetedNodes = this.dependencies.selection.getTargetedNodes();
-        return targetedNodes.find((node) => isElement(node) && node.matches(ICON_SELECTOR));
+        return targetedNodes.find(
+            (node) => isElement(node) && node.matches(ICON_SELECTOR),
+        );
     }
 
     resizeIcon({ size }) {
@@ -166,7 +170,7 @@ export class IconPlugin extends Plugin {
         }
         if (size === "1") {
             return ![...selectedIcon.classList].some((classString) =>
-                classString.match(/^fa-[2-5]x$/)
+                classString.match(/^fa-[2-5]x$/),
             );
         }
         return selectedIcon.classList.contains(`fa-${size}x`);

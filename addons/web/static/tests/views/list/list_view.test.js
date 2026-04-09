@@ -85,6 +85,7 @@ import { useBus } from "@web/core/utils/hooks";
 import { floatField } from "@web/fields/basic/float/float_field";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { DateTime } from "luxon";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { currencies } from "@web/services/currency";
 import { user } from "@web/services/user";
@@ -16288,7 +16289,7 @@ test(`Datetime in evaluation context works with datetime field`, async () => {
      * calculated with the offset of the current browser.
      */
     function dateStringDelta(deltaMinutes) {
-        return luxon.DateTime.now()
+        return DateTime.now()
             .plus({ minutes: deltaMinutes })
             .toSQL({ includeZone: false });
     }

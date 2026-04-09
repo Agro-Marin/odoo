@@ -1546,7 +1546,7 @@ export class MockServer {
      */
     mockSearchPanelSelectRange(model, [fieldName], kwargs) {
         const field = this.models[model].fields[fieldName];
-        const supportedTypes = ["many2one", "selection"];
+        const supportedTypes = ["many2one", "many2many", "selection"];
         if (!supportedTypes.includes(field.type)) {
             throw new Error(
                 `Only types ${supportedTypes} are supported for category (found type ${field.type})`

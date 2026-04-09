@@ -149,7 +149,10 @@ export function _makeUser(session) {
         updateActiveCompanies(getCookieCompanyIds(), allowedCompanies, defaultCompany);
     }
 
-    // Delete user-related information from the session, s.t. there's a single source of truth
+    // Delete user-related information from the session so that the `user`
+    // object is the single source of truth. After this point, accessing
+    // session.uid, session.is_admin, etc. returns undefined — use the
+    // exported `user` object instead.
     delete session.home_action_id;
     delete session.is_admin;
     delete session.is_internal_user;

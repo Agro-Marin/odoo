@@ -1,13 +1,14 @@
 /** @odoo-module native */
-import { Plugin } from "@html_editor/plugin";
-import { withSequence } from "@html_editor/utils/resource";
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
+import { Plugin } from "@html_editor/plugin";
+import { removeInvisibleWhitespace } from "@html_editor/utils/dom";
+import { withSequence } from "@html_editor/utils/resource";
+
 import {
     DEFAULT_LANGUAGE_ID,
     getPreValue,
     newlinesToLineBreaks,
 } from "../../core/syntax_highlighting/syntax_highlighting_utils.js";
-import { removeInvisibleWhitespace } from "@html_editor/utils/dom";
 
 const CODE_BLOCK_CLASS = "o_syntax_highlighting";
 const CODE_BLOCK_SELECTOR = `div.${CODE_BLOCK_CLASS}`;
@@ -46,7 +47,8 @@ export class SyntaxHighlightingPlugin extends Plugin {
         },
 
         /** Processors */
-        clipboard_content_processors: (clonedContent) => this.cleanForSave(clonedContent),
+        clipboard_content_processors: (clonedContent) =>
+            this.cleanForSave(clonedContent),
     };
 
     setup() {
@@ -82,7 +84,7 @@ export class SyntaxHighlightingPlugin extends Plugin {
     addCodeBlocks(root = this.editable, preserveFocus = false) {
         const targetedNodes = this.dependencies.selection.getTargetedNodes();
         const nonEmbeddedPres = [...root.querySelectorAll("pre")].filter(
-            (pre) => !pre.closest(CODE_BLOCK_SELECTOR)
+            (pre) => !pre.closest(CODE_BLOCK_SELECTOR),
         );
         for (const pre of nonEmbeddedPres) {
             const isPreInSelection = !targetedNodes.some((node) => !pre.contains(node));
@@ -90,19 +92,20 @@ export class SyntaxHighlightingPlugin extends Plugin {
                 value: getPreValue(pre),
                 languageId: pre.dataset.languageId || DEFAULT_LANGUAGE_ID,
             });
-            const codeBlock = this.dependencies.embeddedComponents.renderBlueprintToElement(
-                "html_editor.EmbeddedSyntaxHighlightingBlueprint",
-                { embeddedProps },
-                () => {
-                    if (preserveFocus && isPreInSelection) {
-                        const textarea = codeBlock.querySelector("textarea");
-                        if (textarea !== codeBlock.ownerDocument.activeElement) {
-                            textarea.focus();
-                            this.dependencies.history.stageFocus();
+            const codeBlock =
+                this.dependencies.embeddedComponents.renderBlueprintToElement(
+                    "html_editor.EmbeddedSyntaxHighlightingBlueprint",
+                    { embeddedProps },
+                    () => {
+                        if (preserveFocus && isPreInSelection) {
+                            const textarea = codeBlock.querySelector("textarea");
+                            if (textarea !== codeBlock.ownerDocument.activeElement) {
+                                textarea.focus();
+                                this.dependencies.history.stageFocus();
+                            }
                         }
-                    }
-                }
-            );
+                    },
+                );
             pre.before(codeBlock);
             if (isPreInSelection) {
                 // Removing the pre will make us lose the selection. The DOM
@@ -122,7 +125,8 @@ export class SyntaxHighlightingPlugin extends Plugin {
                     this.dependencies.history.stageSelection();
                     const component = target.closest(`[data-embedded='${name}']`);
                     const embeddedProps = getEmbeddedProps(component);
-                    const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                    const baseContainer =
+                        this.dependencies.baseContainer.createBaseContainer();
                     baseContainer.textContent = embeddedProps.value;
                     component.replaceWith(baseContainer);
                     newlinesToLineBreaks(baseContainer);

@@ -1,5 +1,7 @@
+import { before, test } from "@odoo/hoot";
+
 import { testEditor } from "../_helpers/editor.js";
-import { test, before } from "@odoo/hoot";
+import { unformat } from "../_helpers/format.js";
 import {
     setFontSize,
     splitBlock,
@@ -7,13 +9,15 @@ import {
     toggleUnorderedList,
 } from "../_helpers/user_actions.js";
 import { execCommand } from "../_helpers/userCommands.js";
-import { unformat } from "../_helpers/format.js";
 
 before(
     () =>
         document.fonts.add(
-            new FontFace("Roboto", "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)")
-        ).ready
+            new FontFace(
+                "Roboto",
+                "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)",
+            ),
+        ).ready,
 );
 
 test.tags("font-dependent");
@@ -129,7 +133,8 @@ test("should carry font-size of list item to paragraph", async () => {
     await testEditor({
         contentBefore: '<ol><li style="font-size: 18px;">[]abc</li><li>def</li></ol>',
         stepFunction: toggleOrderedList,
-        contentAfter: '<p><span style="font-size: 18px;">[]abc</span></p><ol><li>def</li></ol>',
+        contentAfter:
+            '<p><span style="font-size: 18px;">[]abc</span></p><ol><li>def</li></ol>',
     });
 });
 
@@ -144,7 +149,8 @@ test("should carry font-size of list item to paragraph (2)", async () => {
 
 test("should carry font-size of list item to paragraph (3)", async () => {
     await testEditor({
-        contentBefore: '<ol><li style="font-size: 18px;">abc</li><li>[]def</li><li>ghi</li></ol>',
+        contentBefore:
+            '<ol><li style="font-size: 18px;">abc</li><li>[]def</li><li>ghi</li></ol>',
         stepFunction: toggleOrderedList,
         contentAfter:
             '<ol><li style="font-size: 18px;">abc</li></ol><p>[]def</p><ol><li>ghi</li></ol>',
@@ -172,7 +178,9 @@ test("should keep list item font-size on toggling list twice", async () => {
             toggleOrderedList(editor);
             // Strip padding-inline-start from the OL — its exact value
             // depends on font rendering and varies across environments.
-            editor.editable.querySelector("ol")?.style.removeProperty("padding-inline-start");
+            editor.editable
+                .querySelector("ol")
+                ?.style.removeProperty("padding-inline-start");
         },
         contentAfter:
             '<ol><li style="font-size: 18px;">[abc</li><li style="font-size: 32px;">def]</li></ol>',
@@ -223,7 +231,8 @@ test("should pad list based on font-size", async () => {
     const className = "h2-fs";
     await testEditor({
         contentBefore: "<ol><li>[a]</li></ol>",
-        stepFunction: (editor) => execCommand(editor, "formatFontSizeClassName", { className }),
+        stepFunction: (editor) =>
+            execCommand(editor, "formatFontSizeClassName", { className }),
         contentAfter: `<ol><li class="${className}">[a]</li></ol>`,
     });
 });

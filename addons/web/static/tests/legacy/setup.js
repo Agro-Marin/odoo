@@ -21,12 +21,13 @@ import { currencies } from "@web/services/currency";
 import { cookie } from "@web/core/browser/cookie";
 import { router } from "@web/core/browser/router";
 import { registerTemplateProcessor } from "@web/core/templates";
+import { Settings } from "luxon";
 
 function forceLocaleAndTimezoneWithCleanup() {
-    const originalLocale = luxon.Settings.defaultLocale;
-    luxon.Settings.defaultLocale = "en";
+    const originalLocale = Settings.defaultLocale;
+    Settings.defaultLocale = "en";
     registerCleanup(() => {
-        luxon.Settings.defaultLocale = originalLocale;
+        Settings.defaultLocale = originalLocale;
     });
     patchTimeZone(60);
 }

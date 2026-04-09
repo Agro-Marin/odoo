@@ -4,16 +4,17 @@ import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+
 import { setupEditor, testEditor } from "./_helpers/editor.js";
-import { insertText } from "./_helpers/user_actions.js";
-import { getContent } from "./_helpers/selection.js";
 import { unformat } from "./_helpers/format.js";
+import { getContent } from "./_helpers/selection.js";
+import { insertText } from "./_helpers/user_actions.js";
 
 beforeEach(() => {
     patchWithCleanup(Editor.prototype, {
         preparePlugins() {
             this.config.Plugins = (this.config.Plugins || MAIN_PLUGINS).filter(
-                (plugin) => plugin.id !== "editorVersion"
+                (plugin) => plugin.id !== "editorVersion",
             );
             super.preparePlugins();
         },
@@ -29,7 +30,7 @@ test("can get content of an Editor", async () => {
 test("can get content of an empty paragraph", async () => {
     const { el, editor } = await setupEditor("<p>[]</p>", {});
     expect(el.innerHTML).toBe(
-        `<p o-we-hint-text="Type &quot;/&quot; for commands" class="o-we-hint"></p>`
+        `<p o-we-hint-text="Type &quot;/&quot; for commands" class="o-we-hint"></p>`,
     );
     expect(editor.getContent()).toBe(`<p></p>`);
 });
@@ -60,7 +61,11 @@ test("plugin destruction is reverse of instantiation order", async () => {
             }
         };
     }
-    const Plugins = [...MAIN_PLUGINS, makeTestPlugin("first"), makeTestPlugin("second", ["first"])];
+    const Plugins = [
+        ...MAIN_PLUGINS,
+        makeTestPlugin("first"),
+        makeTestPlugin("second", ["first"]),
+    ];
     const { editor } = await setupEditor(`<p>[]</p>`, { config: { Plugins } });
     expect.verifySteps(["setup: first", "setup: second"]);
     editor.destroy();
@@ -78,7 +83,9 @@ test("Remove odoo-editor-editable class after every plugin is destroyed", async 
         }
     }
     const Plugins = [...MAIN_PLUGINS, TestPlugin];
-    const { editor } = await setupEditor(`<div><p>a</p></div>`, { config: { Plugins } });
+    const { editor } = await setupEditor(`<div><p>a</p></div>`, {
+        config: { Plugins },
+    });
     editor.destroy();
     expect.verifySteps(["operation"]);
 });
@@ -99,7 +106,7 @@ test("Element is not editable if any plugin marks it non-editable", async () => 
         `<div>[<img class="o-editable-media o-will-break-if-edited">]</div>`,
         {
             config: { Plugins },
-        }
+        },
     );
     const img = el.querySelector(".o-editable-media");
     const selectionPlugin = plugins.get("selection");
@@ -126,9 +133,12 @@ test("clean_for_save_listeners is done last", async () => {
         }
     }
     const Plugins = [...MAIN_PLUGINS, TestPlugin];
-    const { editor } = await setupEditor(`<div><c-div>a</c-div><c-div>b</c-div></div>`, {
-        config: { Plugins },
-    });
+    const { editor } = await setupEditor(
+        `<div><c-div>a</c-div><c-div>b</c-div></div>`,
+        {
+            config: { Plugins },
+        },
+    );
 
     const el = editor.getElContent();
     expect(getContent(el)).toBe(`<div><c-div>a</c-div><c-div>b</c-div></div>`);
@@ -176,7 +186,7 @@ test("Remove `width`, `height` attributes from image and apply them to style", a
         </div>
     `);
     expect(el.innerHTML.trim().replace(/\s+/g, " ")).toBe(
-        `<div class="o-paragraph"> <img src="#" style="width: 50%; height: 50%;"> </div>`
+        `<div class="o-paragraph"> <img src="#" style="width: 50%; height: 50%;"> </div>`,
     );
 });
 
@@ -187,6 +197,6 @@ test("Remove `width`, `height` attributes from image and apply them to style wit
         </div>
     `);
     expect(el.innerHTML.trim().replace(/\s+/g, " ")).toBe(
-        `<div class="o-paragraph"> <img src="#" style="width: 50px; height: 50px;"> </div>`
+        `<div class="o-paragraph"> <img src="#" style="width: 50px; height: 50px;"> </div>`,
     );
 });

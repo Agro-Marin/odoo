@@ -1047,7 +1047,7 @@ function searchPanelDomainImage(
 ) {
     const field = model._fields[fieldName];
     let groupIdName;
-    if (isM2OField(field)) {
+    if (isM2OField(field) || field.type === "many2many") {
         groupIdName = (value) => value || [false, undefined];
         // formatted_read_group does not take care of the condition [fieldName, '!=', false]
         // in the domain defined below!!!
@@ -2487,10 +2487,10 @@ export class Model extends Array {
 
         const field = this._fields[fieldName];
         const coModel = getRelation(field);
-        const supportedTypes = ["many2one", "selection"];
+        const supportedTypes = ["many2one", "many2many", "selection"];
         if (!supportedTypes.includes(field.type)) {
             throw new MockServerError(
-                `Only category types ${supportedTypes.join(" and ")} are supported, got "${
+                `Only category types ${supportedTypes.join(", ")} are supported, got "${
                     field.type
                 }"`,
             );
@@ -3533,16 +3533,16 @@ export class Model extends Array {
             // in by the 'in' operator (with the ids of children)
             if (criterion[1] === "child_of") {
                 let oldLength = 0;
-                const childIds = [criterion[2]];
-                while (childIds.length > oldLength) {
-                    oldLength = childIds.length;
+                const childIds = new Set([criterion[2]]);
+                while (childIds.size > oldLength) {
+                    oldLength = childIds.size;
                     for (const record of this) {
-                        if (childIds.indexOf(record[this._parent_name]) >= 0) {
-                            childIds.push(record.id);
+                        if (childIds.has(record[this._parent_name])) {
+                            childIds.add(record.id);
                         }
                     }
                 }
-                criterion = [criterion[0], "in", childIds];
+                criterion = [criterion[0], "in", Array.from(childIds)];
             }
             // In case of many2many field, if domain operator is '=' generally change it to 'in' operator
             const field = this._fields[criterion[0]] || {};

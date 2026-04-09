@@ -13,6 +13,7 @@ import {
     mountView,
     preloadBundle,
 } from "@web/../tests/web_test_helpers";
+import { DateTime } from "luxon";
 import { CalendarController } from "@web/views/calendar/calendar_controller";
 
 describe.current.tags("desktop");
@@ -148,7 +149,7 @@ test(`Click on active day should change scale : day -> month`, async () => {
     await contains(`.o_datetime_picker .o_selected`).click();
     expect(calendar.model.scale).toBe("month");
     expect(calendar.model.date.valueOf()).toBe(
-        luxon.DateTime.local(2021, 8, 14).valueOf(),
+        DateTime.local(2021, 8, 14).valueOf(),
     );
 });
 
@@ -165,7 +166,7 @@ test(`Click on active day should change scale : month -> week`, async () => {
     await contains(`.o_datetime_picker .o_selected`).click();
     expect(calendar.model.scale).toBe("week");
     expect(calendar.model.date.valueOf()).toBe(
-        luxon.DateTime.local(2021, 8, 14).valueOf(),
+        DateTime.local(2021, 8, 14).valueOf(),
     );
 });
 
@@ -182,7 +183,7 @@ test(`Click on active day should change scale : week -> day`, async () => {
     await contains(`.o_datetime_picker .o_selected`).click();
     expect(calendar.model.scale).toBe("day");
     expect(calendar.model.date.valueOf()).toBe(
-        luxon.DateTime.local(2021, 8, 14).valueOf(),
+        DateTime.local(2021, 8, 14).valueOf(),
     );
 });
 

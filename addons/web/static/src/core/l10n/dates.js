@@ -3,6 +3,7 @@
 
 /** @module @web/core/l10n/dates - Luxon-based date/datetime parsing, formatting, serialization, and locale-aware week helpers */
 
+import { DateTime, Duration, Settings } from "luxon";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { memoize } from "@web/core/utils/functions";
@@ -25,8 +26,6 @@ export {
     isInRange,
     today,
 } from "./date_utils.js";
-
-const { DateTime, Settings } = /** @type {any} */ (globalThis.luxon ?? {});
 
 /**
  * @typedef ConversionOptions
@@ -324,7 +323,7 @@ export function formatDuration(seconds, showFullDuration) {
     }
     seconds -= seconds % 60;
 
-    let duration = /** @type {any} */ (globalThis.luxon).Duration.fromObject({
+    let duration = Duration.fromObject({
         seconds: seconds,
     }).shiftTo(...durationKeys);
     duration = duration.shiftTo(...durationKeys.filter((key) => duration.get(key)));

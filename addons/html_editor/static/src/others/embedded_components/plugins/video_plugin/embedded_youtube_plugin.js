@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { YoutubePlugin } from "@html_editor/main/youtube_plugin";
+
 import { EmbeddedVideoSelector } from "./video_selector_dialog/embedded_video_selector.js";
 
 export class EmbeddedYoutubePlugin extends YoutubePlugin {

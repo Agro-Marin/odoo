@@ -10,7 +10,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 const SEARCH_LIMIT = 7;
-const SEARCH_MORE_LIMIT = 320;
+const SEARCH_MORE_LIMIT = 1000;
 
 export class RecordAutocomplete extends Component {
     static props = {
@@ -104,8 +104,12 @@ export class RecordAutocomplete extends Component {
             : undefined;
         // fine for now but we don't like this kind of dependence of core to views
         const SelectCreateDialog = registry.category("dialogs").get("select_create");
+        let title = _t("Search");
+        if (fieldString && fieldString.trim()) {
+            title = _t("Search: %s", fieldString);
+        }
         this.addDialog(SelectCreateDialog, {
-            title: _t("Search: %s", fieldString),
+            title,
             dynamicFilters,
             domain: this.getDomain(),
             resModel,

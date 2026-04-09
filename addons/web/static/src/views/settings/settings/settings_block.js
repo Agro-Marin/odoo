@@ -42,9 +42,10 @@ export class SettingsBlock extends Component {
         this.settingsContainerTipRef = useRef("settingsContainerTip");
         useEffect(
             () => {
-                const regexp = new RegExp(escapeRegExp(this.state.search.value), "i");
+                const searchVal = this.state.search.value;
+                const regexp = new RegExp(escapeRegExp(searchVal), "i");
                 const force =
-                    this.state.search.value &&
+                    searchVal &&
                     !regexp.test([this.props.title, this.props.tip].join()) &&
                     !this.settingsContainerRef.el.querySelector(
                         ".o_setting_box.o_searchable_setting",

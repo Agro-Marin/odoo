@@ -1426,6 +1426,7 @@ test("restore previous view state when switching back", async () => {
     expect(".o_graph_renderer [data-mode='line']").toHaveCount(0);
 
     await switchView("graph");
+    await animationFrame();
     expect(".o_graph_renderer [data-mode='line']").toHaveClass("active");
 });
 

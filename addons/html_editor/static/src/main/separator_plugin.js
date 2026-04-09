@@ -1,21 +1,29 @@
 /** @odoo-module native */
+import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
+import { removeClass } from "@html_editor/utils/dom";
+import { withSequence } from "@html_editor/utils/resource";
 import { _t } from "@web/core/l10n/translation";
+
 import { Plugin } from "../plugin.js";
 import { closestBlock } from "../utils/blocks.js";
-import { closestElement, firstLeaf, selectElements } from "../utils/dom_traversal.js";
+import { fillEmpty } from "../utils/dom.js";
 import {
     isEmptyBlock,
     isListItemElement,
     paragraphRelatedElementsSelector,
 } from "../utils/dom_info.js";
-import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
-import { removeClass } from "@html_editor/utils/dom";
-import { withSequence } from "@html_editor/utils/resource";
-import { fillEmpty } from "../utils/dom.js";
+import { closestElement, firstLeaf, selectElements } from "../utils/dom_traversal.js";
 
 export class SeparatorPlugin extends Plugin {
     static id = "separator";
-    static dependencies = ["selection", "history", "split", "delete", "lineBreak", "baseContainer"];
+    static dependencies = [
+        "selection",
+        "history",
+        "split",
+        "delete",
+        "lineBreak",
+        "baseContainer",
+    ];
     /** @type {import("plugins").EditorResources} */
     resources = {
         user_commands: [
@@ -51,11 +59,14 @@ export class SeparatorPlugin extends Plugin {
     };
 
     insertSeparator() {
-        const selection = this.dependencies.selection.getSelectionData().deepEditableSelection;
+        const selection =
+            this.dependencies.selection.getSelectionData().deepEditableSelection;
         const block = closestBlock(selection.startContainer);
         const element =
-            closestElement(selection.startContainer, paragraphRelatedElementsSelector) ||
-            (block && !isListItemElement(block) ? block : null);
+            closestElement(
+                selection.startContainer,
+                paragraphRelatedElementsSelector,
+            ) || (block && !isListItemElement(block) ? block : null);
 
         if (element && element !== this.editable) {
             const sep = this.document.createElement("hr");
@@ -71,7 +82,8 @@ export class SeparatorPlugin extends Plugin {
                 element.before(sep);
             } else {
                 element.after(sep);
-                const baseContainer = this.dependencies.baseContainer.createBaseContainer();
+                const baseContainer =
+                    this.dependencies.baseContainer.createBaseContainer();
                 fillEmpty(baseContainer);
                 sep.after(baseContainer);
                 this.dependencies.selection.setCursorStart(baseContainer);

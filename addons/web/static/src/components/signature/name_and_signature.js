@@ -115,6 +115,9 @@ export class NameAndSignature extends Component {
             return;
         }
         const canvas = /** @type {HTMLCanvasElement} */ (this.signatureRef.el);
+        if (!canvas) {
+            return;
+        }
         const img = this.getSVGText(font, text, canvas.width, canvas.height);
         await this.printImage(img);
     }

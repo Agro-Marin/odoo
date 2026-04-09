@@ -2,8 +2,7 @@
 
 import { after, onTimeZoneChange } from "@odoo/hoot";
 import { patch } from "@web/core/utils/patch";
-
-const { FixedOffsetZone, IANAZone, Settings } = luxon;
+import { FixedOffsetZone, IANAZone, Settings } from "luxon";
 
 onTimeZoneChange((tz) => {
     let defaultZone;

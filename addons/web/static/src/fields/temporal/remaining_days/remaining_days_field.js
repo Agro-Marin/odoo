@@ -11,9 +11,8 @@ import { getClassNameFromDecoration } from "@web/core/utils/decorations";
 import { capitalize } from "@web/core/utils/format/strings";
 import { formatDate } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { DateTime } from "luxon";
 import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
-
-const { DateTime } = globalThis.luxon ?? {};
 
 export class RemainingDaysField extends Component {
     static components = { DateTimeField };

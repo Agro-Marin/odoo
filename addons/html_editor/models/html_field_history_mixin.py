@@ -1,13 +1,22 @@
+"""Mixin for tracking HTML field revision history."""
+
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-from .diff_utils import apply_patch, generate_comparison, generate_patch, generate_unified_diff
+from .diff_utils import (
+    apply_patch,
+    generate_comparison,
+    generate_patch,
+    generate_unified_diff,
+)
 
 
 class HtmlFieldHistoryMixin(models.AbstractModel):
-    _name = 'html.field.history.mixin'
+    """Abstract mixin that tracks revision history for HTML fields."""
+
+    _name = "html.field.history.mixin"
     _description = "Field html History"
     _html_field_history_size_limit = 300
 
@@ -18,15 +27,17 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
     )
 
     @api.model
-    def _get_versioned_fields(self):
-        """This method should be overriden
+    def _get_versioned_fields(self) -> list[str]:
+        """Return the list of field names to be versioned.
 
-        :return: List[string]: A list of name of the fields to be versioned
+        Override in subclasses to specify which HTML fields should track history.
+
+        :return: list of field names to version
         """
         return []
 
     @api.depends("html_field_history")
-    def _compute_metadata(self):
+    def _compute_metadata(self) -> None:
         for rec in self:
             history_metadata = None
             if rec.html_field_history:
@@ -39,7 +50,8 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
                         history_metadata[field_name].append(metadata)
             rec.html_field_history_metadata = history_metadata
 
-    def write(self, vals):
+    def write(self, vals: dict) -> bool:
+        """Write with automatic HTML field history tracking."""
         rec_db_contents = {}
         versioned_fields = self._get_versioned_fields()
         vals_contain_versioned_fields = set(vals).intersection(versioned_fields)
@@ -99,12 +111,16 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
             # Call super().write again to include the new revision
             if new_revisions:
                 extra_vals = {"html_field_history": history_revs}
-                write_result = super(HtmlFieldHistoryMixin, rec).write(extra_vals) and write_result
+                write_result = (
+                    super(HtmlFieldHistoryMixin, rec).write(extra_vals) and write_result
+                )
 
         return write_result
 
-    def html_field_history_get_content_at_revision(self, field_name, revision_id):
-        """Get the requested field content restored at the revision_id.
+    def html_field_history_get_content_at_revision(
+        self, field_name: str, revision_id: int
+    ) -> str:
+        """Return the field content restored at the given revision.
 
         :param str field_name: the name of the field
         :param int revision_id: id of the last revision to restore
@@ -124,10 +140,10 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
 
         return content
 
-    def html_field_history_get_comparison_at_revision(self, field_name, revision_id):
-        """For the requested field,
-        Get a comparison between the current content of the field and the
-        content restored at the requested revision_id.
+    def html_field_history_get_comparison_at_revision(
+        self, field_name: str, revision_id: int
+    ) -> str:
+        """Return a comparison between current content and the given revision.
 
         :param str field_name: the name of the field
         :param int revision_id: id of the last revision to compare
@@ -141,10 +157,10 @@ class HtmlFieldHistoryMixin(models.AbstractModel):
 
         return generate_comparison(restored_content, self[field_name] or "")
 
-    def html_field_history_get_unified_diff_at_revision(self, field_name, revision_id):
-        """For the requested field,
-        Get a unified diff between the current content of the field and the
-        content restored at the requested revision_id.
+    def html_field_history_get_unified_diff_at_revision(
+        self, field_name: str, revision_id: int
+    ) -> str:
+        """Return a unified diff between current content and the given revision.
 
         :param str field_name: the name of the field
         :param int revision_id: id of the last revision to compare

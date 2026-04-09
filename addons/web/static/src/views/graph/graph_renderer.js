@@ -53,7 +53,8 @@ export class GraphRenderer extends Component {
         this.legendTooltip = null;
 
         onWillStart(async () => {
-            await loadBundle("web.chartjs_lib");
+            const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+            this.Chart = Chart;
         });
 
         useEffect(() => this.renderChart());
@@ -497,7 +498,7 @@ export class GraphRenderer extends Component {
         }
         if (this.canvasRef.el) {
             const config = this.getChartConfig();
-            this.chart = new Chart(this.canvasRef.el, config);
+            this.chart = new this.Chart(this.canvasRef.el, config);
         }
     }
 

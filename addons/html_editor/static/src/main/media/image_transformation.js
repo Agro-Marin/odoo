@@ -24,10 +24,10 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 */
 
-import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { usePositionHook } from "@html_editor/position_hook";
 import { closestElement } from "@html_editor/utils/dom_traversal";
+import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
+import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 
 const rad = Math.PI / 180;
 const MIN_IMAGE_SIZE = 20;
@@ -184,7 +184,7 @@ export class ImageTransformation extends Component {
             ) {
                 const aspectRatio = width / height;
                 if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                    newHeight = newWidth / aspectRatio;
+                    // newHeight not used (height: "auto"), only newWidth matters
                 } else {
                     newWidth = newHeight * aspectRatio;
                 }
@@ -214,7 +214,7 @@ export class ImageTransformation extends Component {
         const currentPixelWidth = this.image.offsetWidth;
         const container = closestElement(
             this.image.parentElement,
-            (node) => node.offsetWidth > currentPixelWidth
+            (node) => node.offsetWidth > currentPixelWidth,
         );
         const widthPercent = (currentPixelWidth / container.offsetWidth) * 100;
         this.image.style.width = Math.min(100, widthPercent).toFixed(2) + "%";
@@ -293,14 +293,19 @@ export class ImageTransformation extends Component {
             this.transfo.settings.translatex =
                 (this.transfo.settings.translatexp / 100) * this.transfo.settings.width;
         } else {
-            this.transfo.settings.translatex = translatex ? parseFloat(translatex[1]) : 0;
+            this.transfo.settings.translatex = translatex
+                ? parseFloat(translatex[1])
+                : 0;
         }
         if (translatey && translatey[2] === "%") {
             this.transfo.settings.translateyp = parseFloat(translatey[1]);
             this.transfo.settings.translatey =
-                (this.transfo.settings.translateyp / 100) * this.transfo.settings.height;
+                (this.transfo.settings.translateyp / 100) *
+                this.transfo.settings.height;
         } else {
-            this.transfo.settings.translatey = translatey ? parseFloat(translatey[1]) : 0;
+            this.transfo.settings.translatey = translatey
+                ? parseFloat(translatey[1])
+                : 0;
         }
 
         this.transfo.settings.css = window.getComputedStyle(this.image, null);
@@ -361,8 +366,16 @@ export class ImageTransformation extends Component {
         if (evView === iframeWindow && frameElement) {
             const frameRect = frameElement.getBoundingClientRect();
             return {
-                pageX: ev.clientX + frameRect.left + frameElement.clientLeft + window.pageXOffset,
-                pageY: ev.clientY + frameRect.top + frameElement.clientTop + window.pageYOffset,
+                pageX:
+                    ev.clientX +
+                    frameRect.left +
+                    frameElement.clientLeft +
+                    window.pageXOffset,
+                pageY:
+                    ev.clientY +
+                    frameRect.top +
+                    frameElement.clientTop +
+                    window.pageYOffset,
             };
         }
         return { pageX: ev.pageX, pageY: ev.pageY };

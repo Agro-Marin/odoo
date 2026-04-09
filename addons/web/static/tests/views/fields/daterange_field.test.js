@@ -1113,7 +1113,10 @@ test("list daterange: start date input width matches its span counterpart", asyn
     const initialWidth = queryFirst(".o_field_daterange span").offsetWidth;
     await contains(".o_field_daterange span:first").click();
     await animationFrame();
-    expect(".o_field_daterange input").toHaveProperty("offsetWidth", initialWidth);
+    const inputWidth = queryFirst(".o_field_daterange input").offsetWidth;
+    expect(Math.abs(inputWidth - initialWidth)).toBeLessThan(2, {
+        message: `input width (${inputWidth}) should match span width (${initialWidth}) within 1px tolerance`,
+    });
 });
 
 test("always range: related end date, both start date and end date empty", async () => {

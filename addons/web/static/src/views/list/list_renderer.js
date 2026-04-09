@@ -174,7 +174,7 @@ export class ListRenderer extends Component {
 
         this.controls = this.props.archInfo.controls.length
             ? this.props.archInfo.controls
-            : [{ type: "create", string: _t("Add a line") }];
+            : [{ type: "create", string: _t("Add a line"), hotkey: "shift+l" }];
         this.deleteControl =
             this.controls.find((control) => control.type === "delete") || {};
 
@@ -348,12 +348,7 @@ export class ListRenderer extends Component {
                     this.focusCell(column, forward);
                 } else {
                     const column = this.nav.lastEditedCell?.column || this.columns[0];
-                    if (
-                        column.widget !== "daterange" ||
-                        !this.editedRecord.data[column.name]
-                    ) {
-                        this.focusCell(column);
-                    }
+                    this.focusCell(column);
                 }
             }
             this.nav.cellToFocus = null;

@@ -99,7 +99,7 @@ class TestMenusAdminLight(odoo.tests.HttpCase):
                     "project_id": self.env.ref("industry_fsm.fsm_project").id,
                     "user_ids": [(4, self.env.ref("base.user_admin").id)],
                     "date_deadline": datetime.now() + relativedelta(hour=12),
-                    "planned_date_begin": datetime.now() + relativedelta(hour=10),
+                    "date_start": datetime.now() + relativedelta(hour=10),
                 }
             )
         self.browser_js(

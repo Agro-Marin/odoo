@@ -67,7 +67,6 @@ export class Many2ManyTagsField extends Component {
     };
 
     static RECORD_COLORS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-    static SEARCH_MORE_LIMIT = 320;
 
     setup() {
         this.orm = useService("orm");

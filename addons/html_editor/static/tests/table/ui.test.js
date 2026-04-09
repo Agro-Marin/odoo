@@ -1,11 +1,19 @@
 import { expect, test } from "@odoo/hoot";
-import { click, hover, queryAllAttributes, queryOne, waitFor, waitForNone } from "@odoo/hoot-dom";
+import {
+    click,
+    hover,
+    queryAllAttributes,
+    queryOne,
+    waitFor,
+    waitForNone,
+} from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
+
 import { setupEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 import { getContent } from "../_helpers/selection.js";
-import { undo } from "../_helpers/user_actions.js";
 import { expectElementCount } from "../_helpers/ui_expectations.js";
+import { undo } from "../_helpers/user_actions.js";
 
 function availableCommands(menu) {
     return queryAllAttributes("span div.user-select-none", "name", { root: menu });
@@ -365,7 +373,7 @@ test("basic delete column operation", async () => {
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -389,7 +397,7 @@ test("basic delete column operation", async () => {
                 <tr><td class="c">3</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -402,7 +410,7 @@ test("basic delete column operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -414,7 +422,7 @@ test("basic clear column content operation", async () => {
                 <tr><td class="a"><p>1[]</p></td><td class="b"><p>2</p></td></tr>
                 <tr><td class="c"><p>3</p></td><td class="d"><h1>4</h1></td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -438,7 +446,7 @@ test("basic clear column content operation", async () => {
                 <tr><td class="c"><p>3</p></td><td class="d"><p><br></p></td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -451,7 +459,7 @@ test("basic clear column content operation", async () => {
                 <tr><td class="c"><p>3</p></td><td class="d"><h1>4</h1></td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -463,7 +471,7 @@ test("basic delete row operation", async () => {
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -486,7 +494,7 @@ test("basic delete row operation", async () => {
                 <tr><td class="a">[]1</td><td class="b">2</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -499,7 +507,7 @@ test("basic delete row operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -511,7 +519,7 @@ test("basic clear row content operation", async () => {
                 <tr><td class="a"><p>1[]</p></td><td class="b"><p>2</p></td></tr>
                 <tr><td class="c"><p>3</p></td><td class="d"><h2>4</h2></td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -535,7 +543,7 @@ test("basic clear row content operation", async () => {
                 <tr><td class="c"><p><br></p></td><td class="d"><p><br></p></td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -548,7 +556,7 @@ test("basic clear row content operation", async () => {
                 <tr><td class="c"><p>3</p></td><td class="d"><h2>4</h2></td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -560,7 +568,7 @@ test("insert column left operation", async () => {
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -591,7 +599,7 @@ test("insert column left operation", async () => {
                 </tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -604,7 +612,7 @@ test("insert column left operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -616,7 +624,7 @@ test("insert column right operation", async () => {
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -647,7 +655,7 @@ test("insert column right operation", async () => {
                 </tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -660,7 +668,7 @@ test("insert column right operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -672,7 +680,7 @@ test("insert column right operation when table header exists", async () => {
                 <tr><th class="a o_table_header">1[]</th><th class="b o_table_header">2</th></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -703,7 +711,7 @@ test("insert column right operation when table header exists", async () => {
                 </tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -715,7 +723,7 @@ test("insert row above operation", async () => {
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -748,7 +756,7 @@ test("insert row above operation", async () => {
                 </tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -761,7 +769,7 @@ test("insert row above operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -773,7 +781,7 @@ test("insert row above operation should not retain height and width styles", asy
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -806,7 +814,7 @@ test("insert row above operation should not retain height and width styles", asy
                 </tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -818,7 +826,7 @@ test("insert row below operation", async () => {
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -851,7 +859,7 @@ test("insert row below operation", async () => {
                 </tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -864,7 +872,7 @@ test("insert row below operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -876,7 +884,7 @@ test("move column left operation", async () => {
                 <tr><td class="a">1</td><td class="b">2[]</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -899,7 +907,7 @@ test("move column left operation", async () => {
             <tr><td class="d">4</td><td class="c">3</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -912,7 +920,7 @@ test("move column left operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -924,7 +932,7 @@ test("move column right operation", async () => {
                 <tr><td class="a">1</td><td class="b">2[]</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -947,7 +955,7 @@ test("move column right operation", async () => {
             <tr><td class="d">4</td><td class="c">3</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -960,7 +968,7 @@ test("move column right operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -972,7 +980,7 @@ test("move row above operation", async () => {
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -995,7 +1003,7 @@ test("move row above operation", async () => {
             <tr><td class="a">1[]</td><td class="b">2</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -1008,7 +1016,7 @@ test("move row above operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -1020,7 +1028,7 @@ test("move second row to top when first row is header row", async () => {
                 <tr><th class="o_table_header">1[]</th><th class="o_table_header">2</th></tr>
                 <tr><td class="a">3</td><td>4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1043,7 +1051,7 @@ test("move second row to top when first row is header row", async () => {
                 <tr><td>1[]</td><td>2</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -1056,7 +1064,7 @@ test("preserve table rows width on move row above operation", async () => {
                 <tr><td style="width: 150px;" class="c">3</td><td style="width: 150px;" class="d">4</td></tr>
                 <tr><td style="width: 150px;" class="e">5</td><td style="width: 150px;" class="f">6</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1080,7 +1088,7 @@ test("preserve table rows width on move row above operation", async () => {
                 <tr><td style="width: 150px;" class="e">5</td><td style="width: 150px;" class="f">6</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -1092,7 +1100,7 @@ test("move row below operation", async () => {
                 <tr><td class="a">1[]</td><td class="b">2</td></tr>
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1115,7 +1123,7 @@ test("move row below operation", async () => {
             <tr><td class="a">1[]</td><td class="b">2</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -1128,7 +1136,7 @@ test("move row below operation", async () => {
                 <tr><td class="c">3</td><td class="d">4</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -1140,7 +1148,7 @@ test("move header row below operation", async () => {
                 <tr><th class="a o_table_header">1[]</th><th class="o_table_header">2</th></tr>
                 <tr><td>3</td><td>4</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1163,7 +1171,7 @@ test("move header row below operation", async () => {
                 <tr><td>1[]</td><td>2</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -1176,7 +1184,7 @@ test("preserve table rows width on move row below operation", async () => {
                 <tr><td style="width: 150px;" class="c">3</td><td style="width: 150px;" class="d">4</td></tr>
                 <tr><td style="width: 150px;" class="e">5</td><td style="width: 150px;" class="f">6</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1200,7 +1208,7 @@ test("preserve table rows width on move row below operation", async () => {
                 <tr><td style="width: 150px;" class="e">5</td><td style="width: 150px;" class="f">6</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -1212,7 +1220,7 @@ test("reset table size to remove custom width", async () => {
             <tr><td style="width: 100px;" class="a">1[]</td></tr>
             <tr><td style="width: 50px;" class="b">2</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1232,7 +1240,7 @@ test("reset table size to remove custom width", async () => {
                 <tr><td style="" class="b">2</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -1245,8 +1253,8 @@ test("reset table size to remove custom width", async () => {
             <tr><td style="width: 50px;" class="b">2</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`
-        )
+        <p data-selection-placeholder=""><br></p>`,
+        ),
     );
 });
 
@@ -1258,7 +1266,7 @@ test("reset table size to remove custom height", async () => {
             <tr style="height: 100px;"><td class="a">1[]</td></tr>
             <tr style="height: 50px;"><td class="b">2</td></tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1278,7 +1286,7 @@ test("reset table size to remove custom height", async () => {
                 <tr style=""><td class="b">2</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 
     undo(editor);
@@ -1291,7 +1299,7 @@ test("reset table size to remove custom height", async () => {
             <tr style="height: 50px;"><td class="b">2</td></tr>
             </tbody>
         </table>
-        <p data-selection-placeholder=""><br></p>`)
+        <p data-selection-placeholder=""><br></p>`),
     );
 });
 
@@ -1316,7 +1324,7 @@ test("reset row size to remove custom height", async () => {
                     <td class="i">9</td>
                 </tr>
             </tbody>
-        </table>`)
+        </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1349,8 +1357,8 @@ test("reset row size to remove custom height", async () => {
                     </tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
-        )
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
+        ),
     );
 });
 
@@ -1374,7 +1382,7 @@ test("should redistribute excess width from current column to smaller columns", 
                         <td style="width: 100px;" class="j">10</td>
                     </tr>
                 </tbody>
-            </table>`)
+            </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1406,8 +1414,8 @@ test("should redistribute excess width from current column to smaller columns", 
                     </tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
-        )
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
+        ),
     );
 });
 
@@ -1435,7 +1443,7 @@ test("should redistribute excess width from larger columns to current column", a
                         <td style="width: 120px;" class="n">14</td>
                     </tr>
                 </tbody>
-            </table>`)
+            </table>`),
     );
     await expectElementCount(".o-we-table-menu", 0);
 
@@ -1471,7 +1479,7 @@ test("should redistribute excess width from larger columns to current column", a
                     </tr>
                 </tbody>
             </table>
-            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`
-        )
+            <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
+        ),
     );
 });

@@ -1,14 +1,18 @@
-import { describe, expect, test, before } from "@odoo/hoot";
+import { before, describe, expect, test } from "@odoo/hoot";
+
 import { setupEditor, testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
-import { bold, deleteBackward, keydownShiftTab } from "../_helpers/user_actions.js";
 import { getContent } from "../_helpers/selection.js";
+import { bold, deleteBackward, keydownShiftTab } from "../_helpers/user_actions.js";
 
 before(
     () =>
         document.fonts.add(
-            new FontFace("Roboto", "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)")
-        ).ready
+            new FontFace(
+                "Roboto",
+                "url(/web/static/fonts/google/Roboto/Roboto-Regular.ttf)",
+            ),
+        ).ready,
 );
 
 describe("Regular list", () => {
@@ -511,7 +515,7 @@ describe("with selection collapsed", () => {
                 <ul>
                     <li>a</li>
                     <li>[]</li>
-                </ul>`)
+                </ul>`),
         );
         // add an empty text node to the list item
         el.firstChild.lastChild.append(editor.document.createTextNode(""));
@@ -521,7 +525,7 @@ describe("with selection collapsed", () => {
                 <ul>
                     <li>a</li>
                 </ul>
-                <p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`)
+                <p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`),
         );
     });
     test("should not crash when outdenting a list item with invisible nodes", async () => {

@@ -21,8 +21,7 @@ import {
     formatX2many,
 } from "@web/fields/formatters";
 import { currencies } from "@web/services/currency";
-
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 
 describe.current.tags("headless");
 

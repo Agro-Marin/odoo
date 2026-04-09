@@ -26,11 +26,16 @@ const services = registry.category("services");
  * Higher-level services (popover, dialog, bottom_sheet, effect) build on top of this.
  */
 export const overlayService = {
-    start() {
+    start(env) {
         let nextId = 0;
         const overlays = reactive({});
 
-        mainComponents.add("OverlayContainer", {
+        // Use a unique key per env to prevent multi-tab tests from
+        // overwriting each other's overlay containers.
+        const key = env.discussAsTabId
+            ? `OverlayContainer_${env.discussAsTabId}`
+            : "OverlayContainer";
+        mainComponents.add(key, {
             Component: OverlayContainer,
             props: { overlays },
         });

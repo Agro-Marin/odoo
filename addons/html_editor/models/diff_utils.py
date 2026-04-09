@@ -1,10 +1,12 @@
+"""HTML diff, patch generation, and comparison utilities."""
+
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import re
-
+from collections.abc import Generator
 from difflib import SequenceMatcher, unified_diff
-from bs4 import BeautifulSoup
 
+from bs4 import BeautifulSoup
 
 # ------------------------------------------------------------
 # Patch and comparison functions
@@ -21,11 +23,11 @@ PATCH_OPERATION_ADD = "+"
 PATCH_OPERATION_REMOVE = "-"
 PATCH_OPERATION_REPLACE = "R"
 
-PATCH_OPERATIONS = dict(
-    insert=PATCH_OPERATION_ADD,
-    delete=PATCH_OPERATION_REMOVE,
-    replace=PATCH_OPERATION_REPLACE,
-)
+PATCH_OPERATIONS = {
+    "insert": PATCH_OPERATION_ADD,
+    "delete": PATCH_OPERATION_REMOVE,
+    "replace": PATCH_OPERATION_REPLACE,
+}
 
 HTML_ATTRIBUTES_TO_REMOVE = ["data-last-history-steps"]
 HTML_TAG_ISOLATION_REGEX = r"^([^>]*>)(.*)$"
@@ -40,21 +42,15 @@ UNNECESSARY_REPLACE_FIXER = (
 )
 
 
-def apply_patch(initial_content, patch):
+def apply_patch(initial_content: str, patch: str) -> str:
     """Apply a patch (multiple operations) on a content.
+
     Each operation is a string with the following format:
-    <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
-    patch format example:
-        +@4:<p>ab</p><p>cd</p>
-        +@4,15:<p>ef</p><p>gh</p>
-        -@32
-        -@125,129
-        R@523:<b>sdf</b>
+    ``<operation_type>@<start_index>[,<end_index>][:<patch_text>*]``
 
-    :param string initial_content: the initial content to patch
-    :param string patch: the patch to apply
-
-    :return: string: the patched content
+    :param initial_content: the initial content to patch.
+    :param patch: the patch to apply.
+    :return: the patched content.
     """
     if not patch:
         return initial_content
@@ -62,9 +58,7 @@ def apply_patch(initial_content, patch):
     # Replace break line in initial content to ensure they don't interfere with
     # operations
     initial_content = initial_content.replace("\n", "")
-    initial_content = _remove_html_attribute(
-        initial_content, HTML_ATTRIBUTES_TO_REMOVE
-    )
+    initial_content = _remove_html_attribute(initial_content, HTML_ATTRIBUTES_TO_REMOVE)
 
     content = initial_content.split(LINE_SEPARATOR)
     patch_operations = patch.split(OPERATION_SEPARATOR)
@@ -104,14 +98,12 @@ def apply_patch(initial_content, patch):
     return LINE_SEPARATOR.join(content)
 
 
-def generate_comparison(new_content, old_content):
-    """Compare a content to an older content
-    and generate a comparison html between both content.
+def generate_comparison(new_content: str, old_content: str) -> str:
+    """Generate an HTML comparison between two content versions.
 
-    :param string new_content: the current content
-    :param string old_content: the old content
-
-    :return: string: the comparison content
+    :param new_content: the current content.
+    :param old_content: the old content.
+    :return: the comparison content with added/removed markers.
     """
     new_content = _remove_html_attribute(new_content, HTML_ATTRIBUTES_TO_REMOVE)
     old_content = _remove_html_attribute(old_content, HTML_ATTRIBUTES_TO_REMOVE)
@@ -176,9 +168,7 @@ def generate_comparison(new_content, old_content):
                 )
                 # Only use this line if it doesn't generate an empty
                 # <removed> tag
-                if not re.search(
-                    EMPTY_OPERATION_TAG, deletion_flagged_comparison
-                ):
+                if not re.search(EMPTY_OPERATION_TAG, deletion_flagged_comparison):
                     comparison[index] = deletion_flagged_comparison
 
         if operation_type == PATCH_OPERATION_ADD:
@@ -199,9 +189,7 @@ def generate_comparison(new_content, old_content):
                 )
                 if not re.search(EMPTY_OPERATION_TAG, addition_flagged_line):
                     comparison.insert(start_index, addition_flagged_line)
-                elif (
-                    line.split(">")[0] != comparison[start_index].split(">")[0]
-                ):
+                elif line.split(">")[0] != comparison[start_index].split(">")[0]:
                     comparison.insert(start_index, line)
 
     final_comparison = LINE_SEPARATOR.join(comparison)
@@ -222,19 +210,17 @@ def generate_comparison(new_content, old_content):
     # their container tags are the same but the tags parameters are different
     for match in re.finditer(UNNECESSARY_REPLACE_FIXER, final_comparison):
         if match.group(1) == match.group(2):
-            final_comparison = final_comparison.replace(
-                match.group(0), match.group(1)
-            )
+            final_comparison = final_comparison.replace(match.group(0), match.group(1))
 
     return final_comparison
 
 
-def _format_line_index(start, end):
-    """Format the line index to be used in a patch operation.
+def _format_line_index(start: int, end: int) -> str:
+    """Format the line index for use in a patch operation.
 
-    :param start: the start index
-    :param end: the end index
-    :return: string
+    :param start: the start index.
+    :param end: the end index.
+    :return: formatted line index string.
     """
     length = end - start
     if not length:
@@ -244,22 +230,15 @@ def _format_line_index(start, end):
     return f"{PATCH_OPERATION_LINE_AT}{start},{start + length - 1}"
 
 
-def _patch_generator(new_content, old_content):
-    """Generate a patch (multiple operations) between two contents.
+def _patch_generator(new_content: str, old_content: str) -> Generator[str]:
+    """Generate patch operations between two contents.
+
     Each operation is a string with the following format:
-    <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
-    patch format example:
-        +@4:<p>ab</p><p>cd</p>
-        +@4,15:<p>ef</p><p>gh</p>
-        -@32
-        -@125,129
-        R@523:<b>sdf</b>
+    ``<operation_type>@<start_index>[,<end_index>][:<patch_text>*]``
 
-    :param string new_content: the new content
-    :param string old_content: the old content
-
-    :return: string: the patch containing all the operations to reverse
-                     the new content to the old content
+    :param new_content: the new content.
+    :param old_content: the old content.
+    :return: patch operations to reverse the new content to the old content.
     """
     # remove break line in contents to ensure they don't interfere with
     # operations
@@ -285,64 +264,63 @@ def _patch_generator(new_content, old_content):
             for tag, _, _, j1, j2 in group:
                 if tag not in {"delete", "equal"}:
                     patch_operation = PATCH_OPERATIONS[tag] + patch_operation
-                    for line in old_content_lines[j1:j2]:
-                        patch_content_line.append(line)
+                    patch_content_line.extend(old_content_lines[j1:j2])
 
         if patch_content_line:
-            patch_content = LINE_SEPARATOR + LINE_SEPARATOR.join(
-                patch_content_line
-            )
+            patch_content = LINE_SEPARATOR + LINE_SEPARATOR.join(patch_content_line)
             yield str(patch_operation) + PATCH_OPERATION_CONTENT + patch_content
         else:
             yield str(patch_operation)
 
 
-def generate_patch(new_content, old_content):
+def generate_patch(new_content: str, old_content: str) -> str:
+    """Generate a patch string from new content to old content."""
     new_content = _remove_html_attribute(new_content, HTML_ATTRIBUTES_TO_REMOVE)
     old_content = _remove_html_attribute(old_content, HTML_ATTRIBUTES_TO_REMOVE)
 
-    return OPERATION_SEPARATOR.join(
-        list(_patch_generator(new_content, old_content))
-    )
+    return OPERATION_SEPARATOR.join(list(_patch_generator(new_content, old_content)))
 
 
-def _remove_html_attribute(html_content, attributes_to_remove):
+def _remove_html_attribute(html_content: str, attributes_to_remove: list[str]) -> str:
+    """Remove specified HTML attributes from the content."""
     for attribute in attributes_to_remove:
-        html_content = re.sub(
-            rf' {attribute}="[^"]*"', "", html_content
-        )
+        html_content = re.sub(rf' {attribute}="[^"]*"', "", html_content)
 
     return html_content
 
 
-def _indent(content):
+def _indent(content: str) -> str:
     """Indent the content using BeautifulSoup.
 
-    :param string content: the content to indent
-
-    :return: string: the indented content
+    :param content: the content to indent.
+    :return: the indented content.
     """
-    content = "<document>" + _remove_html_attribute(content, HTML_ATTRIBUTES_TO_REMOVE) + "</document>"
-    soup = BeautifulSoup(content, 'html.parser')
+    content = (
+        "<document>"
+        + _remove_html_attribute(content, HTML_ATTRIBUTES_TO_REMOVE)
+        + "</document>"
+    )
+    soup = BeautifulSoup(content, "html.parser")
     return soup.prettify()
 
 
-def generate_unified_diff(new_content, old_content):
+def generate_unified_diff(new_content: str, old_content: str) -> str:
     """Generate a unified diff between two contents.
 
-    :param string new_content: the current content
-    :param string old_content: the old content
-
-    :return: string: the unified diff content
+    :param new_content: the current content.
+    :param old_content: the old content.
+    :return: the unified diff content.
     """
     new_content = _indent(new_content)
     old_content = _indent(old_content)
 
     return OPERATION_SEPARATOR.join(
-        list(unified_diff(
-            old_content.split(OPERATION_SEPARATOR),
-            new_content.split(OPERATION_SEPARATOR),
-            fromfile='old',
-            tofile='new'
-        ))
+        list(
+            unified_diff(
+                old_content.split(OPERATION_SEPARATOR),
+                new_content.split(OPERATION_SEPARATOR),
+                fromfile="old",
+                tofile="new",
+            )
+        )
     )

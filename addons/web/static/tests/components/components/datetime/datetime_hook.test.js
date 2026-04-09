@@ -9,7 +9,7 @@ import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 
 /**
  * @param {() => any} setup

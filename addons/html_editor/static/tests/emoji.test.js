@@ -1,17 +1,18 @@
 import { expect, test } from "@odoo/hoot";
 import { click, press, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { loadBundle } from "@web/core/assets";
+import { preloadBundle } from "@web/../tests/web_test_helpers";
+
 import { setupEditor } from "./_helpers/editor.js";
 import { getContent } from "./_helpers/selection.js";
-import { insertText, undo } from "./_helpers/user_actions.js";
 import { expectElementCount } from "./_helpers/ui_expectations.js";
+import { insertText, undo } from "./_helpers/user_actions.js";
+
+preloadBundle("web.assets_emoji");
 
 test.tags("desktop");
 test("add an emoji with powerbox", async () => {
     const { el, editor } = await setupEditor("<p>ab[]</p>");
-    await loadBundle("web.assets_emoji");
-
     await expectElementCount(".o-EmojiPicker", 0);
     expect(getContent(el)).toBe("<p>ab[]</p>");
 
@@ -25,8 +26,6 @@ test("add an emoji with powerbox", async () => {
 
 test("click on emoji command to open emoji picker", async () => {
     const { el, editor } = await setupEditor("<p>ab[]</p>");
-    await loadBundle("web.assets_emoji");
-
     await expectElementCount(".o-EmojiPicker", 0);
     expect(getContent(el)).toBe("<p>ab[]</p>");
 
@@ -39,7 +38,6 @@ test("click on emoji command to open emoji picker", async () => {
 test.tags("desktop");
 test("undo an emoji", async () => {
     const { el, editor } = await setupEditor("<p>ab[]</p>");
-    await loadBundle("web.assets_emoji");
     expect(getContent(el)).toBe("<p>ab[]</p>");
 
     await insertText(editor, "test");
@@ -55,7 +53,6 @@ test("undo an emoji", async () => {
 
 test("close emoji picker with escape", async () => {
     const { el, editor } = await setupEditor("<p>ab[]</p>");
-    await loadBundle("web.assets_emoji");
     expect(getContent(el)).toBe("<p>ab[]</p>");
 
     await insertText(editor, "/emoji");

@@ -1,14 +1,14 @@
 /** @odoo-module native */
+import { Component, onWillStart, useEffect, useRef, useState, xml } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useDebounced } from "@web/core/utils/timing";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dialog } from "@web/ui/dialog/dialog";
-import { KeepLast } from "@web/core/utils/concurrency";
-import { useDebounced } from "@web/core/utils/timing";
-import { SearchMedia } from "./search_media.js";
 
-import { Component, xml, useState, useRef, onWillStart, useEffect } from "@odoo/owl";
+import { SearchMedia } from "./search_media.js";
 
 export const IMAGE_MIMETYPES = [
     "image/jpg",
@@ -19,7 +19,15 @@ export const IMAGE_MIMETYPES = [
     "image/gif",
     "image/webp",
 ];
-export const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".jpe", ".png", ".svg", ".gif", ".webp"];
+export const IMAGE_EXTENSIONS = [
+    ".jpg",
+    ".jpeg",
+    ".jpe",
+    ".png",
+    ".svg",
+    ".gif",
+    ".webp",
+];
 
 class RemoveButton extends Component {
     static template = xml`<i class="fa-solid fa-trash-can o_existing_attachment_remove position-absolute top-0 end-0 p-2 bg-white-25 cursor-pointer opacity-0 opacity-100-hover z-1 transition-base" t-att-title="removeTitle" role="img" t-att-aria-label="removeTitle" t-on-click="this.remove"/>`;
@@ -120,7 +128,7 @@ export class FileSelectorControlPanel extends Component {
                     urlInputRef.el.focus();
                 }
             },
-            () => [this.state.showUrlInput]
+            () => [this.state.showUrlInput],
         );
     }
 
@@ -131,7 +139,9 @@ export class FileSelectorControlPanel extends Component {
     get enableUrlUploadClick() {
         return (
             !this.state.showUrlInput ||
-            (this.state.urlInput && this.state.isValidUrl && this.state.isValidFileFormat)
+            (this.state.urlInput &&
+                this.state.isValidUrl &&
+                this.state.isValidFileFormat)
         );
     }
 
@@ -146,7 +156,9 @@ export class FileSelectorControlPanel extends Component {
 
     async onUrlInput(ev) {
         this.state.isValidatingUrl = true;
-        const { isValidUrl, isValidFileFormat } = await this.debouncedValidateUrl(ev.target.value);
+        const { isValidUrl, isValidFileFormat } = await this.debouncedValidateUrl(
+            ev.target.value,
+        );
         this.state.isValidFileFormat = isValidFileFormat;
         this.state.isValidUrl = isValidUrl;
         this.state.isValidatingUrl = false;
@@ -198,7 +210,7 @@ export class FileSelector extends Component {
         onWillStart(async () => {
             this.state.attachments = await this.fetchAttachments(
                 this.NUMBER_OF_ATTACHMENTS_TO_DISPLAY,
-                0
+                0,
             );
         });
 
@@ -214,7 +226,7 @@ export class FileSelector extends Component {
                     };
                 }
             },
-            () => [this.props.modalRef.el?.querySelector("main.modal-body")]
+            () => [this.props.modalRef.el?.querySelector("main.modal-body")],
         );
 
         useEffect(
@@ -225,7 +237,7 @@ export class FileSelector extends Component {
                 this.state.canScrollAttachments = false;
                 this.debouncedScrollUpdate();
             },
-            () => [this.allAttachments.length]
+            () => [this.allAttachments.length],
         );
     }
 
@@ -320,8 +332,8 @@ export class FileSelector extends Component {
             .add(
                 this.fetchAttachments(
                     this.NUMBER_OF_ATTACHMENTS_TO_DISPLAY,
-                    this.state.attachments.length
-                )
+                    this.state.attachments.length,
+                ),
             )
             .then((newAttachments) => {
                 // This is never reached if another search or loadMore occurred.
@@ -350,7 +362,7 @@ export class FileSelector extends Component {
         await this.uploadService.uploadFiles(
             files,
             { resModel: this.props.resModel, resId: this.props.resId },
-            (attachment) => this.onUploaded(attachment)
+            (attachment) => this.onUploaded(attachment),
         );
     }
 
@@ -376,7 +388,7 @@ export class FileSelector extends Component {
                             {
                                 type: "danger",
                                 sticky: true,
-                            }
+                            },
                         );
                         resolve();
                     };
@@ -395,7 +407,7 @@ export class FileSelector extends Component {
                 resModel: this.props.resModel,
                 resId: this.props.resId,
             },
-            (attachment) => this.onUploaded(attachment)
+            (attachment) => this.onUploaded(attachment),
         );
         resolve();
     }
@@ -416,7 +428,7 @@ export class FileSelector extends Component {
 
     onRemoved(attachmentId) {
         this.state.attachments = this.state.attachments.filter(
-            (attachment) => attachment.id !== attachmentId
+            (attachment) => attachment.id !== attachmentId,
         );
     }
 
@@ -451,7 +463,9 @@ export class FileSelector extends Component {
      * @returns {Boolean} true if the attachment is hidden, false otherwise.
      */
     isAttachmentHidden(attachmentEl) {
-        const attachmentBottom = Math.round(attachmentEl.getBoundingClientRect().bottom);
+        const attachmentBottom = Math.round(
+            attachmentEl.getBoundingClientRect().bottom,
+        );
         const modalEl = this.props.modalRef.el.querySelector("main.modal-body");
         const modalBottom = modalEl.getBoundingClientRect().bottom;
         return attachmentBottom > modalBottom;
@@ -464,17 +478,26 @@ export class FileSelector extends Component {
     handleScrollAttachments() {
         let scrollToEl = this.loadMoreButtonRef.el;
         const attachmentEls = [
-            ...this.existingAttachmentsRef.el.querySelectorAll(".o_existing_attachment_cell"),
+            ...this.existingAttachmentsRef.el.querySelectorAll(
+                ".o_existing_attachment_cell",
+            ),
         ];
-        const firstHiddenAttachmentEl = attachmentEls.find((el) => this.isAttachmentHidden(el));
+        const firstHiddenAttachmentEl = attachmentEls.find((el) =>
+            this.isAttachmentHidden(el),
+        );
         if (firstHiddenAttachmentEl) {
-            const attachmentBottom = firstHiddenAttachmentEl.getBoundingClientRect().bottom;
+            const attachmentBottom =
+                firstHiddenAttachmentEl.getBoundingClientRect().bottom;
             const attachmentIndex = attachmentEls.indexOf(firstHiddenAttachmentEl);
             const firstNextRowAttachmentEl = attachmentEls
                 .slice(attachmentIndex)
                 .find((el) => el.getBoundingClientRect().bottom > attachmentBottom);
             scrollToEl = firstNextRowAttachmentEl || scrollToEl;
         }
-        scrollToEl.scrollIntoView({ block: "end", inline: "nearest", behavior: "smooth" });
+        scrollToEl.scrollIntoView({
+            block: "end",
+            inline: "nearest",
+            behavior: "smooth",
+        });
     }
 }

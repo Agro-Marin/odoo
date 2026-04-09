@@ -12,8 +12,7 @@ import {
 import { BuilderComponent } from "./builder_component.js";
 import { BuilderTextInputBase, textInputBasePassthroughProps } from "./builder_text_input_base.js";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class BuilderDateTimePicker extends Component {
     static template = "html_builder.BuilderDateTimePicker";
     static props = {

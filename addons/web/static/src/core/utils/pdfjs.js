@@ -3,7 +3,6 @@
 
 /** @module @web/core/utils/pdfjs - PDF.js viewer button visibility control and library lazy-loading */
 
-import { loadJS } from "@web/core/assets";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 
 /**
@@ -70,9 +69,19 @@ export function hidePDFJSButtons(rootElement, options = {}) {
     }
 }
 
+/**
+ * Dynamically loads the PDF.js library (ESM build) and returns the
+ * pdfjsLib namespace.  Also sets ``globalThis.pdfjsLib`` for backward
+ * compatibility with code that reads the global.
+ *
+ * @returns {Promise<typeof import("pdfjs-dist")>}
+ */
 export async function loadPDFJSAssets() {
-    return Promise.all([
-        loadJS("/web/static/lib/pdfjs/build/pdf.js"),
-        loadJS("/web/static/lib/pdfjs/build/pdf.worker.js"),
-    ]);
+    if (globalThis.pdfjsLib) {
+        return globalThis.pdfjsLib;
+    }
+    const pdfjsLib = await import("/web/static/lib/pdfjs/build/pdf.mjs");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "/web/static/lib/pdfjs/build/pdf.worker.mjs";
+    globalThis.pdfjsLib = pdfjsLib;
+    return pdfjsLib;
 }

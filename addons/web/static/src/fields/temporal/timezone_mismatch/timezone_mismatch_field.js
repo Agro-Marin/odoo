@@ -3,6 +3,7 @@
 
 /** @module @web/fields/temporal/timezone_mismatch/timezone_mismatch_field - Timezone selection field that warns when browser and user timezones differ */
 
+import { DateTime } from "luxon";
 import { formatDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -10,8 +11,6 @@ import {
     SelectionField,
     selectionField,
 } from "@web/fields/selection/selection/selection_field";
-
-const { DateTime } = globalThis.luxon ?? {};
 
 export class TimezoneMismatchField extends SelectionField {
     static template = "web.TimezoneMismatchField";
