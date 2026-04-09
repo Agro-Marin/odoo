@@ -4,7 +4,7 @@ import { Dialog } from "@web/ui/dialog/dialog";
 import { rpc } from "@web/core/network/rpc";
 import { formatDuration, deserializeDateTime } from "@web/core/l10n/dates";
 
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 export class ExhibitorConnectClosedDialog extends Component {
     static template = "website_event_exhibitor.ExhibitorConnectClosedDialog";
     static components = { Dialog };

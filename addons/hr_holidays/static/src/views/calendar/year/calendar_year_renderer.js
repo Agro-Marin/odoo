@@ -5,6 +5,7 @@ import { useService } from "@web/core/utils/hooks";
 import { useMandatoryDays } from "../../hooks.js";
 import { useCalendarPopover } from "@web/views/calendar/hooks/calendar_popover_hook";
 import { TimeOffCalendarYearPopover } from "./calendar_year_popover.js";
+import * as luxon from "luxon";
 
 export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {
     setup() {

@@ -3,8 +3,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { selectionField, SelectionField } from "@web/fields/selection/selection/selection_field";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class TimePeriodSelectionField extends SelectionField {
     static props = {
         ...SelectionField.props,

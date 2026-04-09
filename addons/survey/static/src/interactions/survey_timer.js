@@ -2,8 +2,7 @@
 import { Interaction } from "@web/public/interaction";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class SurveyTimer extends Interaction {
     static selector = ".o_survey_timer_container .o_survey_timer";
 

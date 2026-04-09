@@ -18,7 +18,7 @@
                                 <div class="small d-lg-inline-block ms-3">
                                     Date:
                                     <span class="text-muted"
-                                        t-field="mo.date_finished"
+                                        t-field="mo.date_end"
                                         t-options="{'date_only': True}"/>
                                 </div>
                             </div>

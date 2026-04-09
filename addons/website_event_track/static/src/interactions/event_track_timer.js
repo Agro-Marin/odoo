@@ -3,8 +3,7 @@ import { formatDuration } from "@web/core/l10n/dates";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 /*
  * Simple implementation of a timer interaction that uses a "time to live" configuration
  * value to countdown seconds on a target element.

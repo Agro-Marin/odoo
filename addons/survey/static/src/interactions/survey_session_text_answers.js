@@ -4,8 +4,7 @@ import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
 import { Interaction } from "@web/public/interaction";
 import SESSION_CHART_COLORS from "@survey/interactions/survey_session_colors";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class SurveySessionTextAnswers extends Interaction {
     static selector = ".o_survey_session_text_answers_container";
     dynamicContent = {

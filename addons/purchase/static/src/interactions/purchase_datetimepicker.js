@@ -3,6 +3,7 @@ import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
 import { rpc } from "@web/core/network/rpc";
+import * as luxon from "luxon";
 
 export class PurchaseDatetimePicker extends Interaction {
     static selector = ".o-purchase-datetimepicker";

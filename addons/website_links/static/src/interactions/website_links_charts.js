@@ -3,9 +3,7 @@ import { Interaction } from "@web/public/interaction";
 import { _t } from "@web/core/l10n/translation";
 import { deserializeDate } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
-import { loadBundle } from "@web/core/assets";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 class WebsiteLinksCharts extends Interaction {
     static selector = ".o_website_links_chart";
     dynamicContent = {
@@ -80,7 +78,8 @@ class WebsiteLinksCharts extends Interaction {
         for (const pieChartData of Object.values(this.pieChartsData)) {
             pieChartData.data = await pieChartData.fetch();
         }
-        await loadBundle("web.chartjs_lib");
+        const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+        this.Chart = Chart;
     }
 
     start() {
@@ -156,7 +155,7 @@ class WebsiteLinksCharts extends Interaction {
         const containerEl = this.el.querySelector(selector);
         const canvasEl = containerEl.querySelector("canvas");
         const context = canvasEl.getContext("2d");
-        new Chart(context, config);
+        new this.Chart(context, config);
         return formattedData.length;
     }
 
@@ -210,7 +209,7 @@ class WebsiteLinksCharts extends Interaction {
         };
         const canvasEl = containerEl.querySelector("canvas");
         const context = canvasEl.getContext("2d");
-        new Chart(context, config);
+        new this.Chart(context, config);
         return totalClicks;
     }
 

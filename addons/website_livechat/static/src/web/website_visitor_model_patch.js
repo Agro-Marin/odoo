@@ -4,8 +4,7 @@ import { patch } from "@web/core/utils/patch";
 
 import { WebsiteVisitor } from "@website/common/website_visitor_model";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 patch(WebsiteVisitor.prototype, {
     setup() {
         super.setup();

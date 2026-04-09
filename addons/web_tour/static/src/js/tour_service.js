@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, markup, whenReady, validate } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import DOMPurify from "dompurify";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
@@ -216,7 +217,7 @@ export const tourService = {
                     browser.console.log("tour succeeded");
                     let message = tourConfig.rainbowManMessage || tour.rainbowManMessage;
                     if (message) {
-                        message = window.DOMPurify.sanitize(tourConfig.rainbowManMessage);
+                        message = DOMPurify.sanitize(tourConfig.rainbowManMessage);
                         effect.add({
                             type: "rainbow_man",
                             message: markup(message),

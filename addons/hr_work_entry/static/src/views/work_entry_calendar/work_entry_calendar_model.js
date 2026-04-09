@@ -4,8 +4,7 @@ import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";
 import { CalendarModel } from "@web/views/calendar/calendar_model";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class WorkEntryCalendarModel extends CalendarModel {
     setup() {
         super.setup(...arguments);

@@ -5,8 +5,7 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { DateTimeInput } from '@web/components/datetime/datetime_input';
 import { Component, useState, onWillStart, markup, xml } from "@odoo/owl";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class LunchCurrency extends Component {
     static template = "lunch.LunchCurrency";
     static props = ["currency", "amount"];

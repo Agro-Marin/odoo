@@ -4,6 +4,7 @@ import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { formatDate } from "@web/core/l10n/dates";
+import * as luxon from "luxon";
 
 export class InternalResumeLineComponent extends Component {
     static template = "hr_skills.InternalResumeLineComponent";

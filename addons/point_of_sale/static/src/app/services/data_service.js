@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { markRaw } from "@odoo/owl";
-import { Base, createRelatedModels } from "@point_of_sale/app/models/related_models";
+import { Base, createRelatedModels } from "@point_of_sale/app/models/related_models/index";
 import { getOnNotified, uuidv4 } from "@point_of_sale/utils";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
@@ -13,7 +13,7 @@ import { DataServiceOptions } from "../models/data_service_options.js";
 import IndexedDB from "../models/utils/indexed_db.js";
 import DeviceIdentifierSequence from "../utils/devices_identifier_sequence.js";
 import { logPosMessage } from "../utils/pretty_console_log.js";
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 const CONSOLE_COLOR = "#28ffeb";
 
 export class PosData extends Reactive {

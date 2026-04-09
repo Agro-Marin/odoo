@@ -5,8 +5,7 @@ import { registry } from "@web/core/registry";
 import { parseDate, formatDate, serializeDate } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class CRMPartnerAssign extends Interaction {
     static selector = "#wrapwrap";
     static selectorHas = ".interested_partner_assign_form, .desinterested_partner_assign_form, .opp-stage-button, .new_opp_form";

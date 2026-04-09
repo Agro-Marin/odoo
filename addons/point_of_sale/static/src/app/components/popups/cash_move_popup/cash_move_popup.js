@@ -11,8 +11,7 @@ import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { parseFloat } from "@web/fields/parsers";
 import { Dialog } from "@web/ui/dialog/dialog";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class CashMovePopup extends Component {
     static template = "point_of_sale.CashMovePopup";
     static components = { Input, Dialog };

@@ -13,8 +13,7 @@ import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
 const POLLING_REQUEST_MS = 3 * 1000; // 3 seconds
 const CANCEL_REQUEST_TIME_LIMIT_MS = 3 * 60 * 1000; // 3 minutes
 const WAIT_BEFORE_RESULT_FETCH = 3 * 1000; // 3 seconds
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class PaymentDPOPay extends PaymentInterface {
     setup() {
         super.setup(...arguments);

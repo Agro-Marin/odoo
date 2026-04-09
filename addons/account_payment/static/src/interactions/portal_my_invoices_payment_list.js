@@ -5,8 +5,7 @@ import { registry } from "@web/core/registry";
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class PortalMyInvoicesPaymentList extends Interaction {
     static selector = ".o_portal_my_doc_table";
 

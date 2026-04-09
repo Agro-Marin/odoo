@@ -3,8 +3,7 @@
 import { ProductCard } from "@point_of_sale/app/components/product_card/product_card";
 
 import { patch } from "@web/core/utils/patch";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 patch(ProductCard.prototype, {
     get displayRemainingSeats() {
         return Boolean(this.props.product.event_id);

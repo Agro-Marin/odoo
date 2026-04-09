@@ -6,8 +6,7 @@ import { _t } from "@web/core/l10n/translation";
 import { register_payment_method } from "@point_of_sale/app/services/pos_store";
 
 const REQUEST_TIMEOUT = 10000;
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class PaymentRazorpay extends PaymentInterface {
     setup() {
         super.setup(...arguments);

@@ -19,8 +19,7 @@ import { Logger } from "@bus/workers/bus_worker_utils";
 import { browser } from "@web/core/browser/browser";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { uuid } from "@web/core/utils/format/strings";
-const { DateTime } = luxon;
-
+import * as luxon from "luxon";
 const WEBSOCKET_PORT = browser.location.protocol === "https:" ? 3001 : 3000;
 const WEBSOCKET_PROTOCOL =
     browser.location.protocol === "https:" ? "wss:" : "ws:";

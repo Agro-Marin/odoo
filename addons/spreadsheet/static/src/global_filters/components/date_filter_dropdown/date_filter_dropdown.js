@@ -10,8 +10,7 @@ import {
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/l10n/translation";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 const DATE_OPTIONS = [
     {
         id: "today",

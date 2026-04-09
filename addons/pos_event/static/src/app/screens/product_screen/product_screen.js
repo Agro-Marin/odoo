@@ -6,8 +6,7 @@ import { EventRegistrationPopup } from "../../components/popup/event_registratio
 import { EventSlotSelectionPopup } from "../../components/popup/event_slot_selection_popup/event_slot_selection_popup.js";
 
 import { patch } from "@web/core/utils/patch";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 patch(ProductScreen.prototype, {
     get products() {
         const products = super.products;

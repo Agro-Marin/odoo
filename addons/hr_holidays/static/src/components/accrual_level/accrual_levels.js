@@ -9,6 +9,7 @@ import { useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import * as luxon from "luxon";
 
 export class AccrualLevels extends Component {
     static template = "hr_holidays.AccrualLevels";

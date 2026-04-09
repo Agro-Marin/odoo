@@ -28,7 +28,7 @@ import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { parseFloat } from "@web/fields/parsers";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 const NBR_BY_PAGE = 30;
 
 export class TicketScreen extends Component {

@@ -5,6 +5,7 @@ import { Cache } from "@web/core/utils/collections/cache";
 import { useService } from "@web/core/utils/hooks";
 import { useState, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { TimeOffCalendarFilterSection } from "../filter_section/calendar_filter_section.js";
+import * as luxon from "luxon";
 
 export class TimeOffCalendarSidePanel extends CalendarSidePanel {
     static components = {

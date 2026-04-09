@@ -9,13 +9,12 @@ import { omit } from "@web/core/utils/collections/objects";
 import { Mutex } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
+import * as luxon from "luxon";
 let nextId = -1;
 const mutex = new Mutex();
 const updateRewardsMutex = new Mutex();
 const updateProgramsMutex = new Mutex();
 const pointsForProgramsCountedRules = {};
-const { DateTime } = luxon;
-
 export function loyaltyIdsGenerator() {
     return nextId--;
 }

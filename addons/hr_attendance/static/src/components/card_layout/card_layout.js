@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useState, onWillUnmount } from "@odoo/owl";
 
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 export class CardLayout extends Component {
     static template = "hr_attendance.CardLayout";
     static props = {

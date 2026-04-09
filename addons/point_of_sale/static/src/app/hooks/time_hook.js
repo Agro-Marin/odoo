@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { useEffect, useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export function useTime() {
     const state = useState({ hours: "", day: "", date: "" });
     const timeFormat = localization.timeFormat;

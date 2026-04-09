@@ -12,8 +12,7 @@ import { register_payment_method } from "@point_of_sale/app/services/pos_store";
 
 const REQUEST_TIMEOUT_MS = 5000;
 const CANCEL_REQUEST_TIME_LIMIT_MS = 125000;
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class PaymentPineLabs extends PaymentInterface {
     setup() {
         super.setup(...arguments);

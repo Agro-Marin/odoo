@@ -14,8 +14,7 @@ import { registry } from '@web/core/registry';
 import { redirect } from '@web/core/utils/urls';
 import { session } from '@web/session';
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 /**
  * @typedef {Object} CustomAttributeValues
  * @property {Number} custom_product_template_attribute_value_id

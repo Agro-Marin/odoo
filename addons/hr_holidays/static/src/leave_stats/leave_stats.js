@@ -7,8 +7,7 @@ import { formatFloatTime } from "@web/fields/formatters";
 import { Component, useState, onWillStart } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 import { KanbanMany2OneAvatarEmployeeField } from "@hr/views/fields/many2one_avatar_employee_field/kanban_many2one_avatar_employee_field";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class LeaveStatsComponent extends Component {
     static template = "hr_holidays.LeaveStatsComponent";
     static components = {

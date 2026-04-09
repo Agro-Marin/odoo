@@ -4,6 +4,7 @@ import {
     serializeDate,
     serializeDateTime,
 } from "@web/core/l10n/dates";
+import * as luxon from "luxon";
 
 /**
  * Configuration depending on the granularity, using Luxon DateTime objects:

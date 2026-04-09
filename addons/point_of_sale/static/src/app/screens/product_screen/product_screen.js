@@ -36,8 +36,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class ProductScreen extends Component {
     static template = "point_of_sale.ProductScreen";
     static components = {

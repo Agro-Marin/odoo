@@ -28,8 +28,7 @@ import { serializeDate } from "@web/core/l10n/dates";
 import { getFilterCellValue, getFilterValueDomain } from "../helpers.js";
 import { deepEqual } from "@web/core/utils/collections/objects";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 const { UuidGenerator, createEmptyExcelSheet, createEmptySheet, toXC, toNumber } = helpers;
 const uuidGenerator = new UuidGenerator();
 

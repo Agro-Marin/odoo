@@ -27,13 +27,17 @@ export class SurveySessionChart extends Interaction {
     }
 
     async willStart() {
-        await loadJS("/survey/static/src/js/libs/chartjs-plugin-datalabels.js");
+        const [{ Chart }] = await Promise.all([
+            import("/web/static/lib/Chart/chart.esm.js"),
+            loadJS("/survey/static/src/js/libs/chartjs-plugin-datalabels.js"),
+        ]);
+        this.Chart = Chart;
     }
 
     start() {
         const canvas = this.el.querySelector("canvas");
         const ctx = canvas.getContext("2d");
-        this.chart = new Chart(ctx, this.buildChartConfiguration());
+        this.chart = new this.Chart(ctx, this.buildChartConfiguration());
         this.registerCleanup(() => this.chart.destroy());
         // survey_session_manage waits for us to start.
         // If we are ready before survey_session_manage, this is signaled

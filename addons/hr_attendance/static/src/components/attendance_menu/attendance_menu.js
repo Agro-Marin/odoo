@@ -9,8 +9,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { isIosApp } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class ActivityMenu extends Component {
     static components = {Dropdown, DropdownItem};
     static props = [];

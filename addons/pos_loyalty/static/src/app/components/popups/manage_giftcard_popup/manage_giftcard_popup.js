@@ -10,6 +10,7 @@ import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dialog } from "@web/ui/dialog/dialog";
+import * as luxon from "luxon";
 export class ManageGiftCardPopup extends Component {
     static template = "pos_loyalty.ManageGiftCardPopup";
     static components = { Dialog, DateTimeInput };

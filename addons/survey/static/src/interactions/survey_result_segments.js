@@ -10,6 +10,11 @@ export class SurveyResultSegments extends Interaction {
         this.loadSegments();
     }
 
+    async willStart() {
+        const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+        this.Chart = Chart;
+    }
+
     async loadSegments() {
         const surveyId = parseInt(this.el.dataset.surveyId);
         const data = await rpc(`/survey/results/${surveyId}/segments`);
@@ -39,8 +44,7 @@ export class SurveyResultSegments extends Interaction {
         if (!canvas || !segments.length) {
             return;
         }
-        // eslint-disable-next-line no-undef
-        const chart = new Chart(canvas, {
+        const chart = new this.Chart(canvas, {
             type: "doughnut",
             data: {
                 labels: segments.map((s) => s.label),

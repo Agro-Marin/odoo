@@ -4,8 +4,7 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { Dialog } from "@web/ui/dialog/dialog";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class PresetSlotsPopup extends Component {
     static template = "point_of_sale.PresetSlotsPopup";
     static components = { Dialog };

@@ -10,8 +10,7 @@ import { Component, useState } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { NumericInput } from "@point_of_sale/app/components/inputs/numeric_input/numeric_input";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class EventSlotSelectionPopup extends Component {
     static template = "pos_event.EventSlotSelectionPopup";
     static props = ["getPayload", "close", "event", "availabilityPerSlot"];

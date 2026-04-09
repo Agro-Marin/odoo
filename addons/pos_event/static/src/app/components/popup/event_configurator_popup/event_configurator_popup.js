@@ -9,8 +9,7 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { ProductCard } from "@point_of_sale/app/components/product_card/product_card";
 import { NumericInput } from "@point_of_sale/app/components/inputs/numeric_input/numeric_input";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class EventConfiguratorPopup extends Component {
     static template = "pos_event.EventConfiguratorPopup";
     static props = [

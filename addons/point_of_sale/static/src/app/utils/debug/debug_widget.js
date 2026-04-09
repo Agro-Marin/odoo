@@ -13,8 +13,7 @@ import { _t } from "@web/core/l10n/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { downloadPosLogs } from "../pretty_console_log.js";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class DebugWidget extends Component {
     static template = "point_of_sale.DebugWidget";
     static props = {};

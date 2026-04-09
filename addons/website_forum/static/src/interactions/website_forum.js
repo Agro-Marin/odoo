@@ -14,6 +14,7 @@ import { FlagMarkAsOffensiveDialog } from "../components/flag_mark_as_offensive/
 import { WebsiteForumTagsWrapper } from "../components/website_forum_tags_wrapper.js";
 import { WebsiteForumWysiwyg } from "@website_forum/components/website_forum_wysiwyg/website_forum_wysiwyg";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import * as luxon from "luxon";
 
 export class WebsiteForum extends Interaction {
     static selector = ".website_forum";

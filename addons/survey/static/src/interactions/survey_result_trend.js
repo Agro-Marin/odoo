@@ -15,6 +15,11 @@ export class SurveyResultTrend extends Interaction {
         this.loadTrends("day");
     }
 
+    async willStart() {
+        const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+        this.Chart = Chart;
+    }
+
     async onGranularityChange(ev) {
         await this.loadTrends(ev.target.value);
     }
@@ -75,8 +80,7 @@ export class SurveyResultTrend extends Interaction {
             };
         }
 
-        // eslint-disable-next-line no-undef
-        this.chart = new Chart(canvas, {
+        this.chart = new this.Chart(canvas, {
             type: "line",
             data: { labels: data.labels, datasets },
             options: {

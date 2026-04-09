@@ -5,8 +5,7 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
 import { computeComboItems } from "./utils/compute_combo_items.js";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class PosOrder extends PosOrderAccounting {
     static pythonModel = "pos.order";
 

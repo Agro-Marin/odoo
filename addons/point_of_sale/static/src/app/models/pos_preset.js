@@ -1,8 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { Base } from "./related_models.js";
-const { DateTime } = luxon;
-
+import { Base } from "./related_models/index.js";
+import { DateTime } from "luxon";
 export class PosPreset extends Base {
     static pythonModel = "pos.preset";
 

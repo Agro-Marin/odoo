@@ -5,8 +5,7 @@ import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network/rpc";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 const MAX_DATES_PER_PAGE = 6;
 
 export class SlotDetails extends Interaction {

@@ -14,8 +14,7 @@ import { parseFloat } from "@web/fields/parsers";
 import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class ClosePosPopup extends Component {
     static components = { SaleDetailsButton, Input, Dialog, PaymentMethodBreakdown };
     static template = "point_of_sale.ClosePosPopup";

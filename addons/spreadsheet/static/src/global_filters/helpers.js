@@ -14,8 +14,7 @@ import { formatList } from "@web/core/l10n/utils";
 
 export const globalFieldMatchingRegistry = new Registry();
 
-const { DateTime, Interval } = luxon;
-
+import { DateTime, Interval } from "luxon";
 /**
  * @typedef {import("@spreadsheet").DateValue} DateValue
  * @typedef {import("@spreadsheet").MonthDateValue} MonthDateValue

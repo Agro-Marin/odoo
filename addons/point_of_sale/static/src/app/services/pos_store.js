@@ -51,7 +51,7 @@ import { initLNA } from "../utils/init_lna.js";
 import OrderPaymentValidation from "../utils/order_payment_validation.js";
 import { logPosMessage } from "../utils/pretty_console_log.js";
 
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 export const CONSOLE_COLOR = "#F5B427";
 
 export class PosStore extends WithLazyGetterTrap {

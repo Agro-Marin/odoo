@@ -5,7 +5,7 @@ import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { localization } from "@web/core/l10n/localization";
 import { rpc } from "@web/core/network/rpc";
 import { useService } from "@web/core/utils/hooks";
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 export class PresetInfoPopup extends Component {
     static template = "pos_self_order.PresetInfoPopup";
     static props = { callback: Function };

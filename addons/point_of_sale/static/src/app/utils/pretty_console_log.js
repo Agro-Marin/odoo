@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Logger } from "@bus/workers/bus_worker_utils";
 import { downloadFile } from "@web/core/network/download";
+import * as luxon from "luxon";
 const posLogger = new Logger(`point_of_sale_config_${odoo.pos_config_id}_logger`);
 
 export function logPosMessage(

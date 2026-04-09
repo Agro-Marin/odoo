@@ -3,8 +3,7 @@ import { Domain } from '@web/core/domain';
 import { rpc } from "@web/core/network/rpc";
 import { SearchModel } from '@web/search/search_model';
 import { useState, onWillStart } from "@odoo/owl";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class LunchSearchModel extends SearchModel {
     setup() {
         super.setup(...arguments);

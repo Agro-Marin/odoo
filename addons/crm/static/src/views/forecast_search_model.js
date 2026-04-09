@@ -6,6 +6,7 @@ import {
     serializeDate,
     serializeDateTime,
 } from "@web/core/l10n/dates";
+import * as luxon from "luxon";
 
 /**
  * This is the conversion of ForecastModelExtension. See there for more

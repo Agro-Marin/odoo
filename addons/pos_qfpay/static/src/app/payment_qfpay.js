@@ -6,8 +6,7 @@ import { register_payment_method } from "@point_of_sale/app/services/pos_store";
 
 import { QFPay, QFPayError } from "./qfpay.js";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class PaymentQFpay extends PaymentInterface {
     setup() {
         super.setup(...arguments);

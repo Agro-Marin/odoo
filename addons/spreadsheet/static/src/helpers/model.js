@@ -139,7 +139,7 @@ export async function freezeOdooData(model) {
                 figure.tag === "chart" &&
                 (figure.data.type.startsWith("odoo_") || figure.data.type === "geo")
             ) {
-                const img = odooChartToImage(model, figure, figure.data.chartId);
+                const img = await odooChartToImage(model, figure, figure.data.chartId);
                 figure.tag = "image";
                 figure.data = {
                     path: img,
@@ -159,7 +159,7 @@ export async function freezeOdooData(model) {
                     const chartId = figure.data.items.find((item) => item.type === "chart").chartId;
                     figure.tag = "image";
                     figure.data = {
-                        path: odooChartToImage(model, figure, chartId),
+                        path: await odooChartToImage(model, figure, chartId),
                         size: { width: figure.width, height: figure.height },
                     };
                 }
@@ -274,7 +274,7 @@ function isLoaded(model) {
  * @param {string} chartId
  * @returns {string}
  */
-function odooChartToImage(model, figure, chartId) {
+async function odooChartToImage(model, figure, chartId) {
     const runtime = model.getters.getChartRuntime(chartId);
     // wrap the canvas in a div with a fixed size because chart.js would
     // fill the whole page otherwise
@@ -291,6 +291,7 @@ function odooChartToImage(model, figure, chartId) {
         return "";
     }
     runtime.chartJsConfig.plugins = [backgroundColorPlugin];
+    const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
     // @ts-ignore
     const chart = new Chart(canvas, runtime.chartJsConfig);
     const img = chart.toBase64Image();

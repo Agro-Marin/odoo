@@ -5,8 +5,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
 import { FloatTimeSelectionPopover } from "./float_time_selection_popover.js";
 
 import { FloatTimeField, floatTimeField } from "@web/fields/basic/float_time/float_time_field";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 function floatToHoursMinutes(floatValue) {
     const hours = Math.floor(floatValue);
     const minutes = Math.round((floatValue - hours) * 60);

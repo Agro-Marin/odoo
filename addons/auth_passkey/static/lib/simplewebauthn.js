@@ -1,11 +1,5 @@
-/** @odoo-module **/
-
-/*!
-  * simplewebauthn/browser@9.0.1 (https://github.com/MasterKale/SimpleWebAuthn)
-  * Copyright 2020 Matthew Miller
-  * Licensed under MIT (https://github.com/MasterKale/SimpleWebAuthn/blob/master/LICENSE.md)
-  */
-
+/** @odoo-module native */
+/* [@simplewebauthn/browser@9.0.1] */
 function utf8StringToBuffer(value) {
     return new TextEncoder().encode(value);
 }

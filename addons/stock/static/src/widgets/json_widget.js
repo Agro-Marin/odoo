@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { loadBundle } from "@web/core/assets";
 import { cookie } from "@web/core/browser/cookie";
 import { getColor } from "@web/core/colors/colors";
 import { registry } from "@web/core/registry";
@@ -48,7 +47,8 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
         this.canvasRef = useRef("canvas");
         onWillStart(async () => {
             this.displayUOM = await user.hasGroup("uom.group_uom");
-            await loadBundle("web.chartjs_lib");
+            const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+            this.Chart = Chart;
         });
 
         useEffect(() => {
@@ -93,7 +93,7 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
             this.chart.destroy();
         }
         const config = this.getScatterGraphConfig();
-        this.chart = new Chart(this.canvasRef.el, config);
+        this.chart = new this.Chart(this.canvasRef.el, config);
     }
 
     getScatterGraphConfig() {

@@ -1,5 +1,5 @@
 import { expect, test, describe } from "@odoo/hoot";
-import { createRelatedModels, Base } from "@point_of_sale/app/models/related_models";
+import { createRelatedModels, Base } from "@point_of_sale/app/models/related_models/index";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { SERIALIZED_UI_STATE_PROP } from "@point_of_sale/app/models/related_models/utils";
 import { getModelDefinitions, getRelatedModelsInstance } from "../data/get_model_definitions.js";

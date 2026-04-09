@@ -2,6 +2,7 @@
 import { CalendarCommonRenderer } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 import { CalendarRenderer } from "@web/views/calendar/calendar_renderer";
 import { CalendarYearRenderer } from "@web/views/calendar/calendar_year/calendar_year_renderer";
+import * as luxon from "luxon";
 
 export class EventSlotCalendarCommonRenderer extends CalendarCommonRenderer {
     // Display end time and hide title on the full calendar library event.

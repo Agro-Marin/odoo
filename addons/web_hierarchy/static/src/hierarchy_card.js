@@ -9,6 +9,7 @@ import { useViewCompiler } from "@web/views/view_compiler";
 
 import { HierarchyCompiler } from "./hierarchy_compiler.js";
 import { getFormattedRecord } from "@web/views/kanban/kanban_record";
+import * as luxon from "luxon";
 
 export class HierarchyCard extends Component {
     static components = {

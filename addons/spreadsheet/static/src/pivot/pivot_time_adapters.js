@@ -5,12 +5,11 @@ import { registries, helpers, constants, EvaluationError } from "@odoo/o-spreads
 import { deserializeDate } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { user } from "@web/services/user";
+import * as luxon from "luxon";
 
 const { pivotTimeAdapterRegistry } = registries;
 const { toNumber, toJsDate, toString } = helpers;
 const { DEFAULT_LOCALE } = constants;
-
-const { DateTime } = luxon;
 
 /**
  * The Time Adapter: Managing Time Periods for Pivot Functions

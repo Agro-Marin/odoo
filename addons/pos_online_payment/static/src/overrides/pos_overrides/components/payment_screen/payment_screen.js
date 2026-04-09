@@ -2,6 +2,7 @@
 import { PaymentScreen } from "@point_of_sale/app/screens/payment_screen/payment_screen";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { patch } from "@web/core/utils/patch";
+import * as luxon from "luxon";
 patch(PaymentScreen.prototype, {
     async addNewPaymentLine(paymentMethod) {
         if (paymentMethod.is_online_payment && !this.currentOrder.isSynced) {

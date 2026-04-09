@@ -23,6 +23,7 @@ import { Reactive } from "@web/core/utils/reactive";
 import { renderToElement } from "@web/core/utils/render";
 import { formatCurrency as webFormatCurrency } from "@web/services/currency";
 import { getOrderLineValues } from "./card_utils.js";
+import * as luxon from "luxon";
 export class SelfOrder extends Reactive {
     constructor(...args) {
         super();

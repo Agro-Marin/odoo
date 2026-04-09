@@ -5,8 +5,7 @@ import { user } from "@web/services/user";
 import { getColor } from "@web/views/calendar/calendar_utils";
 import { patch } from "@web/core/utils/patch";
 
-const { Interval } = luxon;
-
+import { Interval } from "luxon";
 patch(AttendeeCalendarModel.prototype, {
     fetchEventLocation(data) {
         let attendeeIds;

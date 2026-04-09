@@ -6,8 +6,7 @@ import { patch } from "@web/core/utils/patch";
 import { renderToString } from "@web/core/utils/render";
 import { onPatched } from "@odoo/owl";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 patch(AttendeeCalendarCommonRenderer.prototype, {
     setup() {
         super.setup()

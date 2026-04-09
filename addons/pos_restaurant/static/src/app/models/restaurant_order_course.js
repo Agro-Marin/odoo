@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Base } from "@point_of_sale/app/models/related_models";
+import { Base } from "@point_of_sale/app/models/related_models/index";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 export class RestaurantOrderCourse extends Base {

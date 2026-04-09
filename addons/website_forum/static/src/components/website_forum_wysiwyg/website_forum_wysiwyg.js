@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import DOMPurify from "dompurify";
 import { removeClass } from "@html_editor/utils/dom";
 import { markup, onMounted, useExternalListener } from "@odoo/owl";
 import { BASIC_PLUGINS, FULL_EDIT_PLUGINS } from "../../plugins/plugin_sets.js";

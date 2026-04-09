@@ -4,8 +4,7 @@ import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_inter
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { _t } from "@web/core/l10n/translation";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class PaymentAdyen extends PaymentInterface {
     setup() {
         super.setup(...arguments);

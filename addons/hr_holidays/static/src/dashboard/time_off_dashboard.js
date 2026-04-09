@@ -4,6 +4,7 @@ import { useNewAllocationRequest } from "@hr_holidays/views/hooks";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { Component, useState, onWillStart } from "@odoo/owl";
+import * as luxon from "luxon";
 
 export class TimeOffDashboard extends Component {
     static components = { TimeOffCard, DateTimeInput };

@@ -83,7 +83,7 @@ export class SkillMatchGaugeField extends GaugeField {
                 aspectRatio: 2,
             },
         };
-        this.chart = new Chart(this.canvasRef.el, config);
+        this.chart = new this.Chart(this.canvasRef.el, config);
     }
 }
 

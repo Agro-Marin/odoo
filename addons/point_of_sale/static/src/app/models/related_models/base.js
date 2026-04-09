@@ -3,8 +3,7 @@ import { toRaw } from "@odoo/owl";
 import { WithLazyGetterTrap } from "@point_of_sale/lazy_getter";
 
 import { clone, deepImmutable, RAW_SYMBOL } from "./utils.js";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class Base extends WithLazyGetterTrap {
     static excludedLazyGetters = ["id", "models"];
 

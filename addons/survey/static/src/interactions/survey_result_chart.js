@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { loadBundle } from "@web/core/assets";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";
 
@@ -66,7 +65,8 @@ export class SurveyResultChart extends Interaction {
     }
 
     async willStart() {
-        await loadBundle("web.chartjs_lib");
+        const { Chart } = await import("/web/static/lib/Chart/chart.esm.js");
+        this.Chart = Chart;
     }
 
     /**
@@ -372,7 +372,7 @@ export class SurveyResultChart extends Interaction {
         this.el.style.position = "relative";
         const canvas = this.el.querySelector("canvas");
         const ctx = canvas.getContext("2d");
-        return new Chart(ctx, this.chartConfig);
+        return new this.Chart(ctx, this.chartConfig);
     }
 }
 

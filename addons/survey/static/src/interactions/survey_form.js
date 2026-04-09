@@ -21,8 +21,7 @@ import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { preloadBackground } from "@survey/js/survey_preload_image_mixin";
 import { fadeIn, fadeOut } from "@survey/utils";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class SurveyForm extends Interaction {
     static selector = ".o_survey_form";
     dynamicSelectors = {

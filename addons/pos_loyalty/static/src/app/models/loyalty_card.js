@@ -1,8 +1,7 @@
 /** @odoo-module native */
-import { Base } from "@point_of_sale/app/models/related_models";
+import { Base } from "@point_of_sale/app/models/related_models/index";
 import { registry } from "@web/core/registry";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class LoyaltyCard extends Base {
     static pythonModel = "loyalty.card";
 

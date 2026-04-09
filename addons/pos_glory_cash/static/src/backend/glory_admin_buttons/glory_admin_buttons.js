@@ -10,6 +10,7 @@ import { GloryService } from "@pos_glory_cash/glory_service";
 import { GLORY_STATUS_STRING } from "@pos_glory_cash/utils/constants";
 
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
+import * as luxon from "luxon";
 export class GloryAdminButtons extends Component {
     static template = `pos_glory_cash.GloryAdminButtons`;
     static props = {
