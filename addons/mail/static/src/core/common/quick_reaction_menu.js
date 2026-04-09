@@ -2,7 +2,8 @@
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
-import { loadEmoji, useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
+import { emojiLoader, useLoadEmoji } from "@web/components/emoji_picker/emoji_loader";
+import { useEmojiPicker } from "@web/components/emoji_picker/emoji_picker";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
@@ -56,7 +57,8 @@ export class QuickReactionMenu extends Component {
                 },
             }),
         );
-        this.frequentEmojiService = useService("web.frequent.emoji");
+        this.loadEmoji = useLoadEmoji();
+        this.frequentEmojiService = useService("frequent_emoji");
         useExternalListener(window, "keydown", async (ev) => {
             if (
                 !this.dropdown.isOpen ||
@@ -79,15 +81,11 @@ export class QuickReactionMenu extends Component {
     }
 
     getEmojiShortcode(emoji) {
-        return (
-            this.store.emojiLoader.loaded?.emojiValueToShortcodes?.[emoji]?.[0] ?? "?"
-        );
+        return emojiLoader.getShortCode(emoji);
     }
 
     onClick() {
-        if (!this.store.emojiLoader.isLoaded) {
-            loadEmoji();
-        }
+        this.loadEmoji();
         if (this.ui.isSmall) {
             this.props.action.onSelected();
         } else {

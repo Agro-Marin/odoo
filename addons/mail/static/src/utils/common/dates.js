@@ -1,6 +1,5 @@
 /** @odoo-module native */
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 /**
  * @param {luxon.DateTime} datetime
  */

@@ -475,14 +475,14 @@ test("Systray icon shows latest action", async () => {
     await click(".dropdown-menu button:contains('Deafen')");
     await contains(".o-discuss-CallMenu-buttonContent .fa-deaf");
     await click("[title='Turn camera on']");
-    await contains(".o-discuss-CallMenu-buttonContent .fa-video-camera");
+    await contains(".o-discuss-CallMenu-buttonContent .fa-video");
     await click("[title='More']");
     await click("[title='Share Screen']");
     await contains(".o-discuss-CallMenu-buttonContent .fa-desktop");
     await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]); // show overlay
     await click("[title='More']");
     await click(".o-dropdown-item:contains('Raise Hand')");
-    await contains(".o-discuss-CallMenu-buttonContent .fa-hand-paper-o");
+    await contains(".o-discuss-CallMenu-buttonContent .fa-hand");
 });
 
 test("Systray icon keeps track of earlier actions", async () => {
@@ -499,13 +499,13 @@ test("Systray icon keeps track of earlier actions", async () => {
     await triggerEvents(".o-discuss-Call-mainCards", ["mousemove"]); // show overlay
     await click("[title='Turn camera on']");
     // stack: ["video", "share-screen"]
-    await contains(".o-discuss-CallMenu-buttonContent .fa-video-camera");
+    await contains(".o-discuss-CallMenu-buttonContent .fa-video");
     await click("[title='Mute']");
     // stack: ["mute", "video", "share-screen"]
     await contains(".o-discuss-CallMenu-buttonContent .fa-microphone-slash");
     await click("[title='Unmute']");
     // stack: ["video", "share-screen"]
-    await contains(".o-discuss-CallMenu-buttonContent .fa-video-camera");
+    await contains(".o-discuss-CallMenu-buttonContent .fa-video");
     await click("[title='Stop camera']");
     // stack: ["share-screen"]
     await contains(".o-discuss-CallMenu-buttonContent .fa-desktop");
@@ -813,9 +813,9 @@ test("shows warning on infinite mirror effect (screen-sharing then fullscreen)",
     await contains(
         ".o-discuss-CallInfiniteMirroringWarning:contains('To avoid the infinite mirror effect, please share a specific window or tab or another monitor.')"
     );
-    await contains("button:contains('Stream paused') i.fa-pause-circle-o");
+    await contains("button:contains('Stream paused') i.fa-circle-pause");
     await hover(queryFirst("button:contains('Stream paused')"));
-    await contains("button:contains('Resume stream') i.fa-play-circle-o");
+    await contains("button:contains('Resume stream') i.fa-circle-play");
 });
 
 test("single 'join' (without camera) button when last call was audio-only", async () => {
@@ -869,7 +869,7 @@ test("single 'join' (with camera) button when last call had camera on", async ()
     await click("button[title='Disconnect']");
     await click("button[title='Join Video Call']", {
         text: "Join",
-        contains: [".fa-video-camera"],
+        contains: [".fa-video"],
     });
 });
 
@@ -936,6 +936,8 @@ test("Shows warning badge on mic/camera on non-granted permission in meeting con
     await contains("button[title='Stop camera'].o-tag-DANGER");
     await contains("button[title='Stop camera'].o-tag-WARNING_BADGE");
 
+    // Exit fullscreen meeting before navigating to General channel
+    await click("button[title='Exit Fullscreen']");
     await click(".o-mail-DiscussSidebarChannel:text('General')");
     await click("[title='Join Call']");
     await contains("button[title='Turn camera on']");
@@ -1093,7 +1095,7 @@ test("Can see raised hands from other call participants", async () => {
     await contains(".o-discuss-CallParticipantCard[title='Bob']");
     await bobRemote.updateConnectionState("connected");
     await bobRemote.updateInfo({ isRaisingHand: true });
-    await contains(".o-discuss-CallParticipantCard[title='Bob'] .fa-hand-paper-o");
+    await contains(".o-discuss-CallParticipantCard[title='Bob'] .fa-hand");
     await contains(".o-discuss-Call-notification:contains('Bob raised their hand')");
 });
 

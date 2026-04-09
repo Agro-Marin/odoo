@@ -1,42 +1,48 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-from markupsafe import Markup
+import io
 from unittest.mock import patch
 
-import io
 import requests
+from markupsafe import Markup
+
+from odoo.tests.common import tagged
 
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tools import link_preview
-from odoo.tests.common import tagged
 
 
 @tagged("mail_link_preview", "mail_message", "post_install", "-at_install")
 class TestLinkPreview(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.maxDiff = None
-        cls.test_partner = cls.env['res.partner'].create({'name': 'a partner'})
-        cls.existing_message = cls.test_partner.message_post(body='Test')
-        cls.title = 'Test title'
-        cls.og_title = 'Le carousel ne démarre pas.webm'
-        cls.og_description = 'Test OG description'
-        cls.og_image = 'https://dummy-image-url.nothing'
-        cls.source_url = 'https://thisdomainedoentexist.nothing'
+        cls.test_partner = cls.env["res.partner"].create({"name": "a partner"})
+        cls.existing_message = cls.test_partner.message_post(body="Test")
+        cls.title = "Test title"
+        cls.og_title = "Le carousel ne démarre pas.webm"
+        cls.og_description = "Test OG description"
+        cls.og_image = "https://dummy-image-url.nothing"
+        cls.source_url = "https://thisdomainedoentexist.nothing"
+
+    def setUp(self):
+        super().setUp()
+        # Bypass SSRF guard — these tests exercise link preview parsing,
+        # not DNS-based private-IP detection.
+        patcher = patch.object(link_preview, "_is_url_private", return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _patch_head_html(self, *args, **kwargs):
         response = requests.Response()
         response.status_code = 200
-        response.headers["Content-Type"] = 'text/html'
+        response.headers["Content-Type"] = "text/html"
         return response
 
     def _patched_get_html(self, content_type, content):
         response = requests.Response()
         response.status_code = 200
         response._content = content
-        response.encoding = 'utf-8'
+        response.encoding = "utf-8"
         # To handle chunks read on stream requests
         response.raw = io.BytesIO(response._content)
         response.headers["Content-Type"] = content_type
@@ -53,7 +59,7 @@ class TestLinkPreview(MailCommon):
         </head>
         </html>
         """
-        return self._patched_get_html('text/html', content)
+        return self._patched_get_html("text/html", content)
 
     def _patch_without_og_properties(self, *args, **kwargs):
         content = b"""
@@ -63,7 +69,7 @@ class TestLinkPreview(MailCommon):
         </head>
         </html>
         """
-        return self._patched_get_html('text/html', content)
+        return self._patched_get_html("text/html", content)
 
     def _patch_with_image_mimetype(self, *args, **kwargs):
         content = b"""
@@ -73,7 +79,7 @@ class TestLinkPreview(MailCommon):
         </body>
         </html>
         """
-        return self._patched_get_html('image/png', content)
+        return self._patched_get_html("image/png", content)
 
     def _patch_with_no_content_type(self, *args, **kwargs):
         content = b""""""
@@ -94,52 +100,60 @@ class TestLinkPreview(MailCommon):
             (self._patch_with_og_properties, self.source_url),
             (self._patch_without_og_properties, self.source_url),
             (self._patch_with_image_mimetype, self.og_image),
-            (self._patch_with_xml_declaration, self.source_url)
+            (self._patch_with_xml_declaration, self.source_url),
         ]
         expected_values = [
             {
-                'og_description': self.og_description,
-                'og_image': self.og_image,
-                'og_mimetype': None,
-                'og_title': self.og_title,
-                'og_type': None,
-                'og_site_name': None,
-                'source_url': self.source_url,
+                "og_description": self.og_description,
+                "og_image": self.og_image,
+                "og_mimetype": None,
+                "og_title": self.og_title,
+                "og_type": None,
+                "og_site_name": None,
+                "source_url": self.source_url,
             },
             {
-                'og_description': None,
-                'og_image': None,
-                'og_mimetype': None,
-                'og_title': self.title,
-                'og_type': None,
-                'og_site_name': None,
-                'source_url': self.source_url,
+                "og_description": None,
+                "og_image": None,
+                "og_mimetype": None,
+                "og_title": self.title,
+                "og_type": None,
+                "og_site_name": None,
+                "source_url": self.source_url,
             },
             {
-                'image_mimetype': 'image/png',
-                'og_image': self.og_image,
-                'source_url': self.og_image,
+                "image_mimetype": "image/png",
+                "og_image": self.og_image,
+                "source_url": self.og_image,
             },
             {
-                'og_description': None,
-                'og_image': None,
-                'og_mimetype': None,
-                'og_title': self.title,
-                'og_type': None,
-                'og_site_name': None,
-                'source_url': self.source_url,
-            }
+                "og_description": None,
+                "og_image": None,
+                "og_mimetype": None,
+                "og_title": self.title,
+                "og_type": None,
+                "og_site_name": None,
+                "source_url": self.source_url,
+            },
         ]
         session = requests.Session()
-        for (get_patch, url), expected in zip(test_cases, expected_values):
-            with self.subTest(get_patch=get_patch, url=url, expected=expected), patch.object(requests.Session, 'get', get_patch):
+        for (get_patch, url), expected in zip(
+            test_cases, expected_values, strict=False
+        ):
+            with (
+                self.subTest(get_patch=get_patch, url=url, expected=expected),
+                patch.object(requests.Session, "get", get_patch),
+            ):
                 preview = link_preview.get_link_preview_from_url(url, session)
                 self.assertEqual(preview, expected)
 
     def test_link_preview(self):
-        with patch.object(requests.Session, 'get', self._patch_with_og_properties), patch.object(requests.Session, 'head', self._patch_head_html):
+        with (
+            patch.object(requests.Session, "get", self._patch_with_og_properties),
+            patch.object(requests.Session, "head", self._patch_head_html),
+        ):
             message = self.test_partner.message_post(
-                body=Markup(f'<a href={self.source_url}>Nothing link</a>'),
+                body=Markup(f"<a href={self.source_url}>Nothing link</a>"),
             )
 
             def get_bus_params():
@@ -184,15 +198,18 @@ class TestLinkPreview(MailCommon):
                 self.env["mail.link.preview"]._create_from_message_and_notify(message)
 
     def test_link_preview_no_content_type(self):
-        with patch.object(requests.Session, 'request', self._patch_with_no_content_type):
+        with patch.object(
+            requests.Session, "request", self._patch_with_no_content_type
+        ):
             url = self.source_url
             session = requests.Session()
             link_preview.get_link_preview_from_url(url, session)
 
     def test_link_preview_ignore_internal_link(self):
         """Test internal links are properly ignored from link preview."""
-        with patch.object(requests.Session, "get", self._patch_with_og_properties), patch.object(
-            requests.Session, "head", self._patch_head_html
+        with (
+            patch.object(requests.Session, "get", self._patch_with_og_properties),
+            patch.object(requests.Session, "head", self._patch_head_html),
         ):
             urls = [
                 ("http://localhost:8069/", "http://localhost:8069/odoo", 0),
@@ -200,21 +217,41 @@ class TestLinkPreview(MailCommon):
                 ("http://localhost:8069/", "http://localhost:8069/web/test", 0),
                 ("http://localhost:8069/", "http://localhost:8069/", 1),
                 ("http://localhost:8069/", "http://localhost:8069/odoo-experience", 1),
-                ("http://localhost:8069/", "http://localhost:8069/chat/5/bFtIfYHRco", 0),
+                (
+                    "http://localhost:8069/",
+                    "http://localhost:8069/chat/5/bFtIfYHRco",
+                    0,
+                ),
                 ("https://www.odoo.com/", "https://www.odoo.com/web", 0),
                 ("https://www.odoo.com/", "https://www.odoo.com/odoo", 0),
                 ("https://www.odoo.com/", "https://www.odoo.com/odoo/", 0),
                 ("https://www.odoo.com/", "https://www.odoo.com/odoo?debug=assets", 0),
                 ("https://www.odoo.com/", "https://www.odoo.com/odoo#anchor", 0),
                 ("https://www.odoo.com/", "https://www.odoo.com/odoo-experience", 1),
-                ("https://www.odoo.com/", "https://www.odoo.com/odoo/1519/tasks/4102866", 0),
-                ("http://www.odoo.com/", "https://www.odoo.com/odoo/1519/tasks/4102866", 1),
+                (
+                    "https://www.odoo.com/",
+                    "https://www.odoo.com/odoo/1519/tasks/4102866",
+                    0,
+                ),
+                (
+                    "http://www.odoo.com/",
+                    "https://www.odoo.com/odoo/1519/tasks/4102866",
+                    1,
+                ),
                 ("https://www.odoo.com/", "https://wwwaodoo.com/odoo/", 1),
                 ("https://www.odoo.com/", "https://www.odoo.com/chat/", 0),
                 ("https://www.odoo.com/", "https://www.odoo.com/chat/5/bFtIfYHRco", 0),
                 ("http://www.odoo.com/", "https://www.odoo.com/chat/5/bFtIfYHRco", 1),
-                ("https://clients.odoo.com/", "https://www.odoo.com/odoo/1519/tasks/4102866", 1),
-                ("https://clients.odoo.com/", "https://www.odoo.com/chat/5/bFtIfYHRco", 1),
+                (
+                    "https://clients.odoo.com/",
+                    "https://www.odoo.com/odoo/1519/tasks/4102866",
+                    1,
+                ),
+                (
+                    "https://clients.odoo.com/",
+                    "https://www.odoo.com/chat/5/bFtIfYHRco",
+                    1,
+                ),
             ]
             for request_url, url, counter in urls:
                 with self.subTest(request_url=request_url, url=url, counter=counter):
@@ -224,9 +261,9 @@ class TestLinkPreview(MailCommon):
                     self.env["mail.link.preview"]._create_from_message_and_notify(
                         message, request_url
                     )
-                    link_preview_count = self.env["mail.message.link.preview"].search_count(
-                        [("message_id", "=", message.id)]
-                    )
+                    link_preview_count = self.env[
+                        "mail.message.link.preview"
+                    ].search_count([("message_id", "=", message.id)])
                     self.assertEqual(link_preview_count, counter)
 
     def test_remove_unused_link_preview(self):
@@ -247,7 +284,9 @@ class TestLinkPreview(MailCommon):
             self.assertEqual(link_preview_count, 2)
             self.test_partner._message_update_content(
                 message,
-                body=Markup('<a href="https://www.odoo.com/odoo-experience">Nothing link</a>'),
+                body=Markup(
+                    '<a href="https://www.odoo.com/odoo-experience">Nothing link</a>'
+                ),
             )
             self.env["mail.link.preview"]._create_from_message_and_notify(message)
             link_preview_count = self.env["mail.message.link.preview"].search_count(
@@ -256,7 +295,9 @@ class TestLinkPreview(MailCommon):
             self.assertEqual(link_preview_count, 1)
 
     def test_link_preview_throttle(self):
-        self.env["ir.config_parameter"].sudo().set_param("mail.link_preview_throttle", 1)
+        self.env["ir.config_parameter"].sudo().set_param(
+            "mail.link_preview_throttle", 1
+        )
         with (
             patch.object(requests.Session, "get", self._patch_with_og_properties),
             patch.object(requests.Session, "head", self._patch_head_html),
@@ -271,7 +312,7 @@ class TestLinkPreview(MailCommon):
                 .link_preview_id
             )
             message = self.test_partner.message_post(
-                body=Markup(f'<a href="%s/test">Nothing link</a>') % self.source_url
+                body=Markup('<a href="%s/test">Nothing link</a>') % self.source_url
             )
             self.env["mail.link.preview"]._create_from_message_and_notify(message)
             link_preview_count = self.env["mail.message.link.preview"].search_count(
@@ -280,12 +321,13 @@ class TestLinkPreview(MailCommon):
             self.assertEqual(link_preview_count, 1)
 
     def test_link_preview_delete_with_message(self):
-        with patch.object(requests.Session, "get", self._patch_with_og_properties), patch.object(
-            requests.Session, "head", self._patch_head_html
+        with (
+            patch.object(requests.Session, "get", self._patch_with_og_properties),
+            patch.object(requests.Session, "head", self._patch_head_html),
         ):
             message = self.test_partner.message_post(
                 body=Markup('<a href="%s">Test link</a>') % self.source_url,
-                message_type="comment"
+                message_type="comment",
             )
             self.env["mail.link.preview"]._create_from_message_and_notify(message)
             preview = message.message_link_preview_ids

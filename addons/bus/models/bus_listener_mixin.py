@@ -1,38 +1,56 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
+from typing import Any, Self
 
 from odoo import models
 
+# Maximum number of _bus_channel() delegation hops before cycle detection fires.
+_MAX_CHANNEL_HOPS = 10
+
 
 class BusListenerMixin(models.AbstractModel):
-    """Allow sending messages related to the current model via as a bus.bus channel.
+    """Mixin that enables sending bus notifications via a model record.
 
-    The model needs to be allowed as a valid channel for the bus in `_build_bus_channel_list`.
+    Inherit this mixin and register the model as a valid channel in
+    ``_build_bus_channel_list`` to allow ``record._bus_send(...)`` calls.
+
+    Override ``_bus_channel()`` to delegate to a related record (e.g. a
+    user model delegates to its partner).
     """
 
-    _name = 'bus.listener.mixin'
+    _name = "bus.listener.mixin"
     _description = "Can send messages via bus.bus"
 
-    def _bus_send(self, notification_type, message, /, *, subchannel=None):
-        """Send a notification to the webclient."""
+    def _bus_send(
+        self, notification_type: str, message: Any, /, *, subchannel: str | None = None
+    ) -> None:
+        """Send a bus notification for each record in ``self``.
+
+        Follows the ``_bus_channel()`` delegation chain (up to
+        ``_MAX_CHANNEL_HOPS`` hops) to resolve the final channel.  Records
+        whose chain resolves to an empty recordset are silently skipped.
+        """
+        bus = self.env["bus.bus"]
         for record in self:
             main_channel = record
-            for _ in range(10):
+            for _ in range(_MAX_CHANNEL_HOPS):
                 new_main_channel = main_channel._bus_channel()
                 if new_main_channel == main_channel:
                     break
                 main_channel = new_main_channel
             else:
                 raise RecursionError(
-                    f"_bus_channel() chain on {record!r} did not terminate within 10 hops. "
-                    "Check for a cycle in _bus_channel() overrides."
+                    f"_bus_channel() chain on {record!r} did not terminate within "
+                    f"{_MAX_CHANNEL_HOPS} hops. Check for a cycle in _bus_channel() overrides."
                 )
-            assert isinstance(main_channel, models.Model)
             if not main_channel:
                 continue
             main_channel.ensure_one()
             channel = main_channel if subchannel is None else (main_channel, subchannel)
-            # _sendone: channel is safe (record or tuple with record)
-            self.env["bus.bus"]._sendone(channel, notification_type, message)
+            bus._sendone(channel, notification_type, message)
 
-    def _bus_channel(self):
+    def _bus_channel(self) -> Self:
+        """Return the record that acts as the bus channel for ``self``.
+
+        Override to delegate to a related record (e.g. ``self.partner_id``).
+        The default returns ``self``.
+        """
         return self

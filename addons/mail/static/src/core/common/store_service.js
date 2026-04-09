@@ -14,7 +14,6 @@ import {
 } from "@mail/utils/common/format";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { reactive } from "@odoo/owl";
-import { loader } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
 import { isMobileOS } from "@web/core/browser/feature_detection";
@@ -124,7 +123,6 @@ export class Store extends BaseStore {
         sort: (f1, f2) => f2.lastMessage?.id - f1.lastMessage?.id,
     });
     settings = fields.One("Settings");
-    emojiLoader = loader;
 
     /** @type {[[string, any, import("models").DataResponse]]} */
     fetchParams = [];
@@ -591,7 +589,7 @@ export class Store extends BaseStore {
 
     handleValidChannelMention(channelLinks) {
         for (const linkEl of channelLinks.filter(
-            (el) => !el.querySelector(".fa-comments-o, .fa-hashtag"),
+            (el) => !el.querySelector(".fa-comments, .fa-hashtag"),
         )) {
             const text = linkEl.textContent.substring(1); // remove '#' prefix
             const icon = linkEl.classList.contains("o_channel_redirect_asThread")

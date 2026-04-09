@@ -1,13 +1,13 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import json
-import requests
 from http import HTTPStatus
 from unittest.mock import patch
 
-from odoo.addons.base.tests.common import HttpCaseWithUserDemo
+import requests
+
 from odoo.tests.common import JsonRpcException, new_test_user, tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 SAMPLE = {
     "text": "<p>Al mal tiempo, buena cara.</p>",
@@ -46,7 +46,9 @@ class TestTranslationController(HttpCaseWithUserDemo):
         cls.env["res.lang"]._activate_lang("en_US")
         cls.env.ref("base.user_admin").write({"lang": "fr_FR"})
         cls.api_key = "VALIDKEY"
-        cls.env["ir.config_parameter"].set_param("mail.google_translate_api_key", cls.api_key)
+        cls.env["ir.config_parameter"].set_param(
+            "mail.google_translate_api_key", cls.api_key
+        )
         cls.message = cls.env["mail.message"].create(
             {
                 "body": SAMPLE["text"],
@@ -69,6 +71,7 @@ class TestTranslationController(HttpCaseWithUserDemo):
             return {"detections": [[result]]}
         if f"/v2/?key={self.api_key}" in url:
             return {"translations": [{"translatedText": SAMPLE[data.get("target")]}]}
+        return None
 
     def _mock_translation_request(self, data):
         with patch.object(requests, "post", self._patched_post):
@@ -82,7 +85,10 @@ class TestTranslationController(HttpCaseWithUserDemo):
         # The translation records should not be discarded if the body did not change.
         self.make_jsonrpc_request(
             "/mail/message/update_content",
-            {"message_id": self.message.id, "update_data": {"body": None, "attachment_ids": []}},
+            {
+                "message_id": self.message.id,
+                "update_data": {"body": None, "attachment_ids": []},
+            },
         )
         self.assertEqual(self.env["mail.message.translation"].search_count([]), 1)
         self.make_jsonrpc_request(
@@ -97,7 +103,11 @@ class TestTranslationController(HttpCaseWithUserDemo):
     def test_translation_multi_users(self):
         new_test_user(self.env, "user_test_fr", groups="base.group_user", lang="fr_FR")
         new_test_user(self.env, "user_test_en", groups="base.group_user", lang="en_US")
-        for login, target_lang in [("user_test_fr", "fr"), ("user_test_en", "en"), ("admin", "fr")]:
+        for login, target_lang in [
+            ("user_test_fr", "fr"),
+            ("user_test_en", "en"),
+            ("admin", "fr"),
+        ]:
             self.authenticate(login, login)
             result = self._mock_translation_request({"message_id": self.message.id})
             self.assertFalse(result.get("error"))
@@ -109,7 +119,9 @@ class TestTranslationController(HttpCaseWithUserDemo):
         self.assertEqual(self.request_count, 3)
 
     def test_invalid_api_key(self):
-        self.env["ir.config_parameter"].set_param("mail.google_translate_api_key", "INVALIDKEY")
+        self.env["ir.config_parameter"].set_param(
+            "mail.google_translate_api_key", "INVALIDKEY"
+        )
         self.authenticate("demo", "demo")
         result = self._mock_translation_request({"message_id": self.message.id})
         self.assertNotIn("body", result)
@@ -128,11 +140,18 @@ class TestTranslationController(HttpCaseWithUserDemo):
         self.assertHTMLEqual(translation.body, "<p>Bij slecht weer, goed gezicht.</p>")
 
     def test_access_right(self):
-        with self.assertRaises(JsonRpcException, msg="odoo.http.SessionExpiredException"):
+        with self.assertRaises(
+            JsonRpcException, msg="odoo.http.SessionExpiredException"
+        ):
             self._mock_translation_request({"message_id": self.message.id})
-        new_test_user(self.env, "user_test_portal", groups="base.group_portal", lang="fr_FR")
+        new_test_user(
+            self.env, "user_test_portal", groups="base.group_portal", lang="fr_FR"
+        )
         self.authenticate("user_test_portal", "user_test_portal")
-        with self.assertRaises(JsonRpcException, msg="odoo.exceptions.AccessError"), mute_logger("odoo.http"):
+        with (
+            self.assertRaises(JsonRpcException, msg="odoo.exceptions.AccessError"),
+            mute_logger("odoo.http"),
+        ):
             self._mock_translation_request({"message_id": self.message.id})
 
     def test_unknown_language(self):

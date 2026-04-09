@@ -19,12 +19,20 @@ import {
 import { describe, getFixture, test } from "@odoo/hoot";
 
 import { queryFirst } from "@odoo/hoot-dom";
+import { emojiLoader } from "@web/components/emoji_picker/emoji_loader";
 
 describe.current.tags("desktop");
 defineMailModels();
 preloadBundle("web.assets_emoji");
 
 test("emoji picker correctly handles translations with special characters", async () => {
+    // Reset emoji loader to reload translations *for* the current test
+    patchWithCleanup(emojiLoader, {
+        categories: [],
+        emojis: [],
+        _loadingPromise: null,
+        _map: null,
+    });
     defineParams({
         translations: {
             "Japanese “here” button": `Bouton "ici" japonais`,
@@ -175,9 +183,9 @@ test("search matches only frequently used emojis", async () => {
     await contains(".o-EmojiPicker-sectionIcon", { count: 0 }); // await search performed
     await contains(".o-EmojiPicker-content .o-Emoji:eq(0)", { text: "🥦" });
     await contains(".o-EmojiPicker-content .o-Emoji", { count: 1 });
-    await contains(".o-EmojiPicker-content", { text: "No emoji matches your search", count: 0 });
+    await contains(".o-EmojiPicker-content", { text: "No emojis match your search", count: 0 });
     await insertText(".o-EmojiPicker-search input", "2");
-    await contains(".o-EmojiPicker-content", { text: "No emoji matches your search" });
+    await contains(".o-EmojiPicker-content", { text: "No emojis match your search" });
 });
 
 test("emoji usage amount orders frequent emojis", async () => {
@@ -244,15 +252,13 @@ test("shortcodes shown in emoji title in message", async () => {
 });
 
 test("Emoji picker shows failure to load emojis", async () => {
-    // Simulate failure to load emojis
-    patchWithCleanup(odoo.loader.modules.get("@web/components/emoji_picker/emoji_data"), {
-        getEmojis() {
-            return [];
-        },
-    });
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "" });
     await start();
+    // Simulate failure to load emojis
+    patchWithCleanup(emojiLoader, {
+        emojis: [],
+    });
     await openDiscuss(channelId);
     await click("button[title='Add Emojis']");
     await contains(".o-EmojiPicker", { text: "😵‍💫Failed to load emojis..." });

@@ -31,12 +31,14 @@ test("Attachment panel sort by date", async () => {
             res_id: channelId,
             res_model: "discuss.channel",
             name: "file1.pdf",
+            mimetype: "application/pdf",
             create_date: "2023-08-20 10:00:00",
         },
         {
             res_id: channelId,
             res_model: "discuss.channel",
             name: "file2.pdf",
+            mimetype: "application/pdf",
             create_date: "2023-09-21 10:00:00",
         },
     ]);

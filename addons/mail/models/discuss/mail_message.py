@@ -1,6 +1,5 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
+from odoo import api, fields, models
 
-from odoo import api, models, fields
 from odoo.addons.mail.tools.discuss import Store
 
 

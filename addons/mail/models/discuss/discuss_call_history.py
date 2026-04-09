@@ -1,6 +1,4 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-from odoo import api, models, fields
+from odoo import api, fields, models
 
 
 class DiscussCallHistory(models.Model):
@@ -8,7 +6,9 @@ class DiscussCallHistory(models.Model):
     _order = "start_dt DESC, id DESC"
     _description = "Keep the call history"
 
-    channel_id = fields.Many2one("discuss.channel", index=True, required=True, ondelete="cascade")
+    channel_id = fields.Many2one(
+        "discuss.channel", index=True, required=True, ondelete="cascade"
+    )
     duration_hour = fields.Float(compute="_compute_duration_hour")
     start_dt = fields.Datetime(index=True, required=True)
     end_dt = fields.Datetime()
@@ -21,7 +21,8 @@ class DiscussCallHistory(models.Model):
         "CHECK (start_dt IS NOT NULL)", "Call history must have a start date"
     )
     _message_id_unique_constraint = models.Constraint(
-        "UNIQUE (start_call_message_id)", "Messages can only be linked to one call history"
+        "UNIQUE (start_call_message_id)",
+        "Messages can only be linked to one call history",
     )
     _channel_id_end_dt_idx = models.Index("(channel_id, end_dt) WHERE end_dt IS NULL")
 

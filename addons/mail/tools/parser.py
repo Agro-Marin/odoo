@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import ast
 
 from odoo.exceptions import ValidationError
@@ -8,7 +5,7 @@ from odoo.tools import is_list_of
 
 
 def parse_res_ids(res_ids, env):
-    """ Returns the already valid list/tuple of int or returns the literal eval
+    """Returns the already valid list/tuple of int or returns the literal eval
     of the string as a list/tuple of int. Void strings / missing values are
     evaluated as an empty list.
 

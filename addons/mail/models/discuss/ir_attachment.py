@@ -1,6 +1,5 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
+from odoo import fields, models
 
-from odoo import models, fields
 from odoo.addons.mail.tools.discuss import Store
 
 
@@ -21,12 +20,16 @@ class IrAttachment(models.Model):
     def _to_store_defaults(self, target):
         # sudo: discuss.voice.metadata - checking the existence of voice metadata for accessible
         # attachments is fine
-        return super()._to_store_defaults(target) + [Store.Many("voice_ids", [], sudo=True)]
+        return super()._to_store_defaults(target) + [
+            Store.Many("voice_ids", [], sudo=True)
+        ]
 
     def _post_add_create(self, **kwargs):
         super()._post_add_create(**kwargs)
-        if kwargs.get('voice'):
+        if kwargs.get("voice"):
             self._set_voice_metadata()
 
     def _set_voice_metadata(self):
-        self.env["discuss.voice.metadata"].create([{"attachment_id": att.id} for att in self])
+        self.env["discuss.voice.metadata"].create(
+            [{"attachment_id": att.id} for att in self]
+        )

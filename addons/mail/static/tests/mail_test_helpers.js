@@ -28,7 +28,7 @@ import { click, contains } from "./mail_test_helpers_contains.js";
 import { closeStream, mailGlobal } from "@mail/utils/common/misc";
 import { Component, onMounted, onPatched, onWillDestroy, status } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
+import { emojiLoader } from "@web/components/emoji_picker/emoji_loader";
 import { registry } from "@web/core/registry";
 import { MEDIAS_BREAKPOINTS, utils as uiUtils } from "@web/ui/block/ui_service";
 import { useServiceProtectMethodHandling } from "@web/core/utils/hooks";
@@ -372,8 +372,9 @@ export async function start(options) {
         env = getMockEnv() || (await makeMockEnv({}));
     }
     env.testEnv = true;
-    await mountWithCleanup(WebClient, { env, target });
-    await loadEmoji();
+    // Note that loading the emojis cannot be called before setting up the env because
+    // it depends on translations being loaded.
+    await Promise.all([mountWithCleanup(WebClient, { env, target }), emojiLoader.load()]);
     return Object.assign(env, { ...options?.env, target });
 }
 

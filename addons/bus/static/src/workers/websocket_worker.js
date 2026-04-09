@@ -502,6 +502,12 @@ export class WebsocketWorker {
      * applied to the reconnect attempts.
      */
     _retryConnectionWithDelay() {
+        // Clear any previously scheduled retry to prevent orphaned timeouts.
+        // Both _onWebsocketError and _onWebsocketClose can call this method
+        // for the same failed connection; without clearing, the first timeout
+        // becomes unreachable (its reference overwritten) and can resurrect a
+        // connection even after _stop() cancels the second one.
+        clearTimeout(this.connectTimeout);
         this.connectRetryDelay =
             Math.min(this.connectRetryDelay * 1.5, MAXIMUM_RECONNECT_DELAY) +
             this.RECONNECT_JITTER * Math.random();

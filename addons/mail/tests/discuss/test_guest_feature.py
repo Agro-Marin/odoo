@@ -1,7 +1,7 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import json
+
 from odoo.tests import tagged
+
 from odoo.addons.bus.tests.common import WebsocketCase
 from odoo.addons.mail.tests.common import MailCommon
 
@@ -28,7 +28,7 @@ class TestGuestFeature(WebsocketCase, MailCommon):
                 "channel_id": channel.id,
                 "last_message_id": channel.message_ids[0].id,
             },
-            cookies={guest._cookie_name: guest._format_auth_cookie()}
+            cookies={guest._cookie_name: guest._format_auth_cookie()},
         )
         self.assertEqual(guest_member.seen_message_id, channel.message_ids[0])
 
@@ -36,7 +36,9 @@ class TestGuestFeature(WebsocketCase, MailCommon):
         self._reset_bus()
         guest = self.env["mail.guest"].create({"name": "Guest"})
         guest_websocket = self.websocket_connect()
-        self.subscribe(guest_websocket, [f"mail.guest_{guest._format_auth_cookie()}"], guest.id)
+        self.subscribe(
+            guest_websocket, [f"mail.guest_{guest._format_auth_cookie()}"], guest.id
+        )
         guest._bus_send("lambda", {"foo": "bar"})
         self.trigger_notification_dispatching([guest])
         notifications = json.loads(guest_websocket.recv())
@@ -52,7 +54,9 @@ class TestGuestFeature(WebsocketCase, MailCommon):
         channel._add_members(guests=guest)
         self._reset_bus()
         guest_websocket = self.websocket_connect()
-        self.subscribe(guest_websocket, [f"mail.guest_{guest._format_auth_cookie()}"], guest.id)
+        self.subscribe(
+            guest_websocket, [f"mail.guest_{guest._format_auth_cookie()}"], guest.id
+        )
         channel._bus_send("lambda", {"foo": "bar"})
         self.trigger_notification_dispatching([channel])
         notifications = json.loads(guest_websocket.recv())

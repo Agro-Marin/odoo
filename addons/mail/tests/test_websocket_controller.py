@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 from odoo.addons.bus.models.bus import channel_with_db, json_dump
 
@@ -51,9 +49,14 @@ class TestWebsocketController(HttpCaseWithUserDemo):
         )["notifications"][0]
         bus_record = self.env["bus.bus"].search([("id", "=", int(notification["id"]))])
         self.assertEqual(
-            bus_record.channel, json_dump(channel_with_db(self.env.cr.dbname, self.partner_demo))
+            bus_record.channel,
+            json_dump(channel_with_db(self.env.cr.dbname, self.partner_demo)),
         )
         self.assertEqual(notification["message"]["type"], "bus.bus/im_status_updated")
-        self.assertEqual(notification["message"]["payload"]["partner_id"], self.partner_demo.id)
+        self.assertEqual(
+            notification["message"]["payload"]["partner_id"], self.partner_demo.id
+        )
         self.assertEqual(notification["message"]["payload"]["im_status"], "online")
-        self.assertEqual(notification["message"]["payload"]["presence_status"], "online")
+        self.assertEqual(
+            notification["message"]["payload"]["presence_status"], "online"
+        )

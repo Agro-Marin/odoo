@@ -100,7 +100,7 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
             trigger: 'div[name="subject"] input[type="text"]',
             run() {
                 const subjectValue = this.anchor.value;
-                const correctValue = "yes_model_id {{object.company_name|||defValue}}";
+                const correctValue = "yes_model_id {{object.company_name ||| defValue}}";
                 if (subjectValue !== correctValue) {
                     console.error(
                         `Email template should have "${correctValue}" in subject input (actual: ${subjectValue})`

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields, models
 
 
@@ -12,6 +10,10 @@ class ResRole(models.Model):
     )
 
     name = fields.Char(required=True)
-    user_ids = fields.Many2many("res.users", relation="res_role_res_users_rel", string="Users")
+    user_ids = fields.Many2many(
+        "res.users", relation="res_role_res_users_rel", string="Users"
+    )
 
-    _unique_name = models.UniqueIndex("(name)", "A role with the same name already exists.")
+    _unique_name = models.UniqueIndex(
+        "(name)", "A role with the same name already exists."
+    )

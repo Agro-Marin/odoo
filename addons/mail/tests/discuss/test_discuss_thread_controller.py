@@ -1,10 +1,13 @@
-from odoo.addons.mail.tests.common_controllers import MailControllerThreadCommon, MessagePostSubTestData
 from odoo.tests import tagged
+
+from odoo.addons.mail.tests.common_controllers import (
+    MailControllerThreadCommon,
+    MessagePostSubTestData,
+)
 
 
 @tagged("-at_install", "post_install", "mail_controller")
 class TestDiscussThreadController(MailControllerThreadCommon):
-
     def test_internal_channel_message_post_access(self):
         """Test access of message_post on internal channel."""
         channel = self.env["discuss.channel"].create({"name": "Internal Channel"})
@@ -51,7 +54,10 @@ class TestDiscussThreadController(MailControllerThreadCommon):
         )
         channel._add_members(users=self.user_employee_nopartner)
         partners = (
-            self.user_portal + self.user_employee + self.user_employee_nopartner + self.user_admin
+            self.user_portal
+            + self.user_employee
+            + self.user_employee_nopartner
+            + self.user_admin
         ).partner_id
 
         def test_partners(user, allowed, exp_partners):

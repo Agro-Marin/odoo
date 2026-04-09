@@ -6,6 +6,7 @@ import { formatDate } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { formatList } from "@web/core/l10n/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";
+import * as luxon from "luxon";
 export class ActivityCell extends Component {
     static components = {
         Avatar,

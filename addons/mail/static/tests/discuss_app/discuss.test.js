@@ -1946,7 +1946,7 @@ test("warning on send with shortcut when attempting to post message with still-u
     await insertText(".o-mail-Composer-input", "Dummy Message");
     await editInput(document.body, ".o-mail-Composer input[type=file]", [file]);
     await contains(
-        ".o-mail-AttachmentContainer.o-isUploading:contains(text.txt) .fa.fa-circle-o-notch"
+        ".o-mail-AttachmentContainer.o-isUploading:contains(text.txt) .fa-solid.fa-circle-notch"
     );
     await contains(".o-mail-Composer button[title='Send']:disabled");
     await press("Enter"); // Try to send message
@@ -1963,7 +1963,7 @@ test("[text composer] Can post message with only attachment", async () => {
     const file = new File(["hello, world"], "text.txt", { type: "text/plain" });
     await editInput(document.body, ".o-mail-Composer input[type=file]", [file]);
     await contains(
-        ".o-mail-AttachmentContainer:not(.o-isUploading):contains('text.txt'):not(:has(.fa.fa-circle-o-notch))"
+        ".o-mail-AttachmentContainer:not(.o-isUploading):contains('text.txt'):not(:has(.fa-solid.fa-circle-notch))"
     );
     await press("Enter");
     await contains(".o-mail-Message");
@@ -1984,7 +1984,7 @@ test("Can post message with only attachment", async () => {
     const file = new File(["hello, world"], "text.txt", { type: "text/plain" });
     await editInput(document.body, ".o-mail-Composer input[type=file]", [file]);
     await contains(
-        ".o-mail-AttachmentContainer:not(.o-isUploading):contains('text.txt'):not(:has(.fa.fa-circle-o-notch))"
+        ".o-mail-AttachmentContainer:not(.o-isUploading):contains('text.txt'):not(:has(.fa-solid.fa-circle-notch))"
     );
     await press("Enter");
     await contains(".o-mail-Message");

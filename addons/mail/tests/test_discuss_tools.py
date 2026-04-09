@@ -1,9 +1,8 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-from odoo.addons.mail.tools.discuss import Store
-from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.tests import tagged, TransactionCase
+from odoo.tests import TransactionCase, tagged
 from odoo.tests.common import new_test_user
+
+from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.mail.tools.discuss import Store
 
 
 @tagged("post_install", "-at_install")
@@ -23,7 +22,9 @@ class TestDiscussTools(TransactionCase):
         store = Store()
         store.add_model_values("key1", {"id": 1, "test": True})
         store.add_model_values("key1", {"id": 1, "test": False, "abc": 1})
-        self.assertEqual(store.get_result(), {"key1": [{"id": 1, "test": False, "abc": 1}]})
+        self.assertEqual(
+            store.get_result(), {"key1": [{"id": 1, "test": False, "abc": 1}]}
+        )
 
     def test_012_store_dict_update_multiple_ids(self):
         """Test dict update multiple ids."""
@@ -68,7 +69,10 @@ class TestDiscussTools(TransactionCase):
             Store()
             .add(
                 user,
-                [Store.One("partner_id", "name"), Store.One("partner_id", "country_id")],
+                [
+                    Store.One("partner_id", "name"),
+                    Store.One("partner_id", "country_id"),
+                ],
             )
             .get_result(),
             {
@@ -84,6 +88,7 @@ class TestDiscussTools(TransactionCase):
                 ],
             },
         )
+
     # 1xx Store specific tests (singleton in ids_by_model)
 
     def test_110_store_store_singleton(self):
@@ -129,27 +134,44 @@ class TestDiscussTools(TransactionCase):
     def test_210_store_thread_dict(self):
         """Test Thread dict is present in result."""
         store = Store()
-        store.add_model_values("mail.thread", {"id": 1, "model": "res.partner", "test": True})
+        store.add_model_values(
+            "mail.thread", {"id": 1, "model": "res.partner", "test": True}
+        )
         self.assertEqual(
-            store.get_result(), {"mail.thread": [{"id": 1, "model": "res.partner", "test": True}]}
+            store.get_result(),
+            {"mail.thread": [{"id": 1, "model": "res.partner", "test": True}]},
         )
 
     def test_211_store_thread_dict_update_same_id(self):
         """Test Thread dict update same id."""
         store = Store()
-        store.add_model_values("mail.thread", {"id": 1, "model": "res.partner", "test": True})
-        store.add_model_values("mail.thread", {"id": 1, "model": "res.partner", "test": False, "abc": 1})
+        store.add_model_values(
+            "mail.thread", {"id": 1, "model": "res.partner", "test": True}
+        )
+        store.add_model_values(
+            "mail.thread", {"id": 1, "model": "res.partner", "test": False, "abc": 1}
+        )
         self.assertEqual(
             store.get_result(),
-            {"mail.thread": [{"id": 1, "model": "res.partner", "test": False, "abc": 1}]},
+            {
+                "mail.thread": [
+                    {"id": 1, "model": "res.partner", "test": False, "abc": 1}
+                ]
+            },
         )
 
     def test_212_store_thread_dict_update_multiple_ids(self):
         """Test Thread dict update multiple ids."""
         store = Store()
-        store.add_model_values("mail.thread", {"id": 1, "model": "res.partner", "test": True})
-        store.add_model_values("mail.thread", {"id": 2, "model": "res.partner", "test": True})
-        store.add_model_values("mail.thread", {"id": 2, "model": "res.partner", "test": False, "abc": 1})
+        store.add_model_values(
+            "mail.thread", {"id": 1, "model": "res.partner", "test": True}
+        )
+        store.add_model_values(
+            "mail.thread", {"id": 2, "model": "res.partner", "test": True}
+        )
+        store.add_model_values(
+            "mail.thread", {"id": 2, "model": "res.partner", "test": False, "abc": 1}
+        )
         self.assertEqual(
             store.get_result(),
             {
@@ -163,11 +185,22 @@ class TestDiscussTools(TransactionCase):
     def test_213_store_thread_dict_update_multiple_models(self):
         """Test Thread dict update multiple models."""
         store = Store()
-        store.add_model_values("mail.thread", {"id": 1, "model": "res.partner", "test": True})
-        store.add_model_values("mail.thread", {"id": 2, "model": "res.partner", "test": True})
-        store.add_model_values("mail.thread", {"id": 2, "model": "discuss.channel", "test": True, "abc": 1})
-        store.add_model_values("mail.thread", {"id": 2, "model": "discuss.channel", "test": False, "abc": 2})
-        store.add_model_values("mail.thread", {"id": 1, "model": "res.partner", "test": False})
+        store.add_model_values(
+            "mail.thread", {"id": 1, "model": "res.partner", "test": True}
+        )
+        store.add_model_values(
+            "mail.thread", {"id": 2, "model": "res.partner", "test": True}
+        )
+        store.add_model_values(
+            "mail.thread", {"id": 2, "model": "discuss.channel", "test": True, "abc": 1}
+        )
+        store.add_model_values(
+            "mail.thread",
+            {"id": 2, "model": "discuss.channel", "test": False, "abc": 2},
+        )
+        store.add_model_values(
+            "mail.thread", {"id": 1, "model": "res.partner", "test": False}
+        )
         self.assertEqual(
             store.get_result(),
             {
@@ -214,7 +247,9 @@ class TestDiscussTools(TransactionCase):
         store = Store()
         store.add_model_values("key1", {})
         store.add_model_values("mail.thread", {"id": 1, "model": "res.partner"})
-        self.assertEqual(store.get_result(), {"mail.thread": [{"id": 1, "model": "res.partner"}]})
+        self.assertEqual(
+            store.get_result(), {"mail.thread": [{"id": 1, "model": "res.partner"}]}
+        )
 
     # 3xx Tests with real models
 
@@ -223,7 +258,9 @@ class TestDiscussTools(TransactionCase):
         user = new_test_user(self.env, "test_user_350@example.com")
         store = Store()
         store.add(user, Store.One("partner_id", extra_fields="email"))
-        self.assertEqual(store.get_result()["res.partner"][0]["email"], "test_user_350@example.com")
+        self.assertEqual(
+            store.get_result()["res.partner"][0]["email"], "test_user_350@example.com"
+        )
 
     def test_355_single_extra_fields_copy_with_records(self):
         """Test that dynamic_fields apply individually to each record even when list extra_fields are present."""
@@ -239,5 +276,7 @@ class TestDiscussTools(TransactionCase):
                 extra_fields=["name"],
             ),
         )
-        self.assertEqual(store.get_result()["res.partner"][0]["email"], "test_user_355_a@example.com")
+        self.assertEqual(
+            store.get_result()["res.partner"][0]["email"], "test_user_355_a@example.com"
+        )
         self.assertNotIn("email", store.get_result()["res.partner"][1])

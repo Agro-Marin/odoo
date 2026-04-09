@@ -10,6 +10,7 @@ import {
 import { _t } from "@web/core/l10n/translation";
 import { escape } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
+import * as luxon from "luxon";
 export class NotificationMessage extends Component {
     static template = "mail.NotificationMessage";
     static props = ["message", "thread", "registerMessageRef?"];

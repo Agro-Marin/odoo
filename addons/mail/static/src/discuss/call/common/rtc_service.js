@@ -780,11 +780,6 @@ export class Rtc extends Record {
             this.clear();
             return;
         }
-        await Promise.resolve(() =>
-            loadJS(
-                url("/mail/static/lib/selfie_segmentation/selfie_segmentation.js"),
-            ).catch(() => {}),
-        );
         if (this.state.hasPendingRequest) {
             return;
         }
@@ -1852,6 +1847,7 @@ export class Rtc extends Record {
      * @returns {Promise<BlurManager>} - BlurManager instance.
      */
     async applyBlurEffect(videoStream) {
+        await loadJS(url("/mail/static/lib/selfie_segmentation/selfie_segmentation.js"));
         return new BlurManager(videoStream, {
             backgroundBlur: this.store.settings.backgroundBlurAmount,
             edgeBlur: this.store.settings.edgeBlurAmount,

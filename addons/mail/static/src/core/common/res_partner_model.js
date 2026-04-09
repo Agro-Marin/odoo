@@ -3,8 +3,8 @@ import { fields, Record } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { debounce } from "@web/core/utils/timing";
 import { imageUrl } from "@web/core/utils/urls";
-const { DateTime } = luxon;
-
+import * as luxon from "luxon";
+import { DateTime } from "luxon";
 export class ResPartner extends Record {
     static id = "id";
     static _name = "res.partner";

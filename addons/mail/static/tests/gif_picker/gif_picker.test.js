@@ -226,8 +226,8 @@ test("Add GIF to favorite", async () => {
     await openDiscuss(channelId);
     await click("button[title='Add GIFs']");
     await click("img[data-src='https://media.tenor.com/6uIlQAHIkNoAAAAM/cry.gif']");
-    await click(":nth-child(1 of div) > .o-discuss-Gif .fa-star-o");
-    await contains(".o-discuss-Gif .fa-star");
+    await click(":nth-child(1 of div) > .o-discuss-Gif .fa-regular.fa-star");
+    await contains(".o-discuss-Gif .fa-solid.fa-star");
     await click("i[aria-label='back']");
     await click(".o-discuss-GifPicker div[aria-label='list-item']", { text: "Favorites" });
     await contains(".o-discuss-Gif");

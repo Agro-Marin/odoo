@@ -1068,8 +1068,19 @@ function fontToImg(element) {
             fonts.getCssSelectors(fontIcon.parser).find((data) => {
                 if (font.matches(data.selector.replace(/::?before/g, ""))) {
                     icon = data.names[0].split("-").shift();
-                    content = data.css.match(/content:\s*['"]?(.)['"]?/)[1];
-                    return true;
+                    // FA4 uses `content: "\fXXX"` (browser decodes the escape).
+                    // FA7 uses CSS custom property `--fa: "\fXXX"` which is
+                    // preserved as-is in cssText (backslash + hex digits).
+                    const contentMatch = data.css.match(/content:\s*['"]?(.)['"]?/);
+                    if (contentMatch) {
+                        content = contentMatch[1];
+                        return true;
+                    }
+                    const faVarMatch = data.css.match(/--fa\s*:\s*["']\\([0-9a-fA-F]+)["']/);
+                    if (faVarMatch) {
+                        content = String.fromCodePoint(parseInt(faVarMatch[1], 16));
+                        return true;
+                    }
                 }
             }),
         );

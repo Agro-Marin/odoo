@@ -10,6 +10,7 @@ import {
     getImageSrcFromRecordInfo,
 } from "@web/views/kanban/kanban_record";
 import { useViewCompiler } from "@web/views/view_compiler";
+import * as luxon from "luxon";
 export class ActivityRecord extends Component {
     static components = {
         Field,

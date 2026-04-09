@@ -1,38 +1,50 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
 class IrModel(models.Model):
-    _inherit = 'ir.model'
-    _order = 'is_mail_thread DESC, name ASC'
+    _inherit = "ir.model"
+    _order = "is_mail_thread DESC, name ASC"
 
     is_mail_thread = fields.Boolean(
-        string="Has Mail Thread", default=False,
+        string="Has Mail Thread",
+        default=False,
     )
     is_mail_activity = fields.Boolean(
-        string="Has Mail Activity", default=False,
+        string="Has Mail Activity",
+        default=False,
     )
     is_mail_blacklist = fields.Boolean(
-        string="Has Mail Blacklist", default=False,
+        string="Has Mail Blacklist",
+        default=False,
     )
 
     def unlink(self):
-        """ Delete mail data (followers, messages, activities) associated with
+        """Delete mail data (followers, messages, activities) associated with
         the models being deleted.
         """
         if not self:
             return True
 
         # Delete followers, messages and attachments for models that will be unlinked.
-        mail_models = self.search([
-            ('model', 'in', ('mail.activity', 'mail.activity.type', 'mail.followers', 'mail.message'))
-        ], order='id')
+        mail_models = self.search(
+            [
+                (
+                    "model",
+                    "in",
+                    (
+                        "mail.activity",
+                        "mail.activity.type",
+                        "mail.followers",
+                        "mail.message",
+                    ),
+                )
+            ],
+            order="id",
+        )
 
         if not (self & mail_models):
-            models = list(self.mapped('model'))
+            models = list(self.mapped("model"))
             model_ids = list(self.ids)
 
             query = "DELETE FROM mail_activity WHERE res_model_id = ANY(%s)"
@@ -48,7 +60,7 @@ class IrModel(models.Model):
             self.env.cr.execute(query, [models])
 
         # Get files attached solely to the models being deleted (and none other)
-        models = list(self.mapped('model'))
+        models = list(self.mapped("model"))
         query = """
             SELECT DISTINCT store_fname
             FROM ir_attachment
@@ -65,67 +77,97 @@ class IrModel(models.Model):
         self.env.cr.execute(query, [models])
 
         for (fname,) in fnames:
-            self.env['ir.attachment']._file_delete(fname)
+            self.env["ir.attachment"]._file_delete(fname)
 
-        return super(IrModel, self).unlink()
+        return super().unlink()
 
     def write(self, vals):
-        if self and ('is_mail_thread' in vals or 'is_mail_activity' in vals or 'is_mail_blacklist' in vals):
-            if any(rec.state != 'manual' for rec in self):
-                raise UserError(_('Only custom models can be modified.'))
-            if 'is_mail_thread' in vals and any(rec.is_mail_thread > vals['is_mail_thread'] for rec in self):
+        if self and (
+            "is_mail_thread" in vals
+            or "is_mail_activity" in vals
+            or "is_mail_blacklist" in vals
+        ):
+            if any(rec.state != "manual" for rec in self):
+                raise UserError(_("Only custom models can be modified."))
+            if "is_mail_thread" in vals and any(
+                rec.is_mail_thread > vals["is_mail_thread"] for rec in self
+            ):
                 raise UserError(_('Field "Mail Thread" cannot be changed to "False".'))
-            if 'is_mail_activity' in vals and any(rec.is_mail_activity > vals['is_mail_activity'] for rec in self):
-                raise UserError(_('Field "Mail Activity" cannot be changed to "False".'))
-            if 'is_mail_blacklist' in vals and any(rec.is_mail_blacklist > vals['is_mail_blacklist'] for rec in self):
-                raise UserError(_('Field "Mail Blacklist" cannot be changed to "False".'))
-            res = super(IrModel, self).write(vals)
+            if "is_mail_activity" in vals and any(
+                rec.is_mail_activity > vals["is_mail_activity"] for rec in self
+            ):
+                raise UserError(
+                    _('Field "Mail Activity" cannot be changed to "False".')
+                )
+            if "is_mail_blacklist" in vals and any(
+                rec.is_mail_blacklist > vals["is_mail_blacklist"] for rec in self
+            ):
+                raise UserError(
+                    _('Field "Mail Blacklist" cannot be changed to "False".')
+                )
+            res = super().write(vals)
             self.env.flush_all()
             # setup models; this reloads custom models in registry
-            model_names = self.mapped('model')
+            model_names = self.mapped("model")
             self.pool._setup_models__(self.env.cr, model_names)
             # update database schema of models
-            model_names = self.pool.descendants(model_names, '_inherits')
-            self.pool.init_models(self.env.cr, model_names, dict(self.env.context, update_custom_fields=True))
+            model_names = self.pool.descendants(model_names, "_inherits")
+            self.pool.init_models(
+                self.env.cr,
+                model_names,
+                dict(self.env.context, update_custom_fields=True),
+            )
         else:
-            res = super(IrModel, self).write(vals)
+            res = super().write(vals)
         return res
 
     def _reflect_model_params(self, model):
-        vals = super(IrModel, self)._reflect_model_params(model)
-        vals['is_mail_thread'] = isinstance(model, self.pool['mail.thread'])
-        vals['is_mail_activity'] = isinstance(model, self.pool['mail.activity.mixin'])
-        vals['is_mail_blacklist'] = isinstance(model, self.pool['mail.thread.blacklist'])
+        vals = super()._reflect_model_params(model)
+        vals["is_mail_thread"] = isinstance(model, self.pool["mail.thread"])
+        vals["is_mail_activity"] = isinstance(model, self.pool["mail.activity.mixin"])
+        vals["is_mail_blacklist"] = isinstance(
+            model, self.pool["mail.thread.blacklist"]
+        )
         return vals
 
     @api.model
     def _instantiate_attrs(self, model_data):
         attrs = super()._instantiate_attrs(model_data)
-        if model_data.get('is_mail_blacklist') and attrs['_name'] != 'mail.thread.blacklist':
-            parents = attrs.get('_inherit') or []
+        if (
+            model_data.get("is_mail_blacklist")
+            and attrs["_name"] != "mail.thread.blacklist"
+        ):
+            parents = attrs.get("_inherit") or []
             parents = [parents] if isinstance(parents, str) else parents
-            attrs['_inherit'] = parents + ['mail.thread.blacklist']
-            if attrs['_custom']:
-                attrs['_primary_email'] = 'x_email'
-        elif model_data.get('is_mail_thread') and attrs['_name'] != 'mail.thread':
-            parents = attrs.get('_inherit') or []
+            attrs["_inherit"] = parents + ["mail.thread.blacklist"]
+            if attrs["_custom"]:
+                attrs["_primary_email"] = "x_email"
+        elif model_data.get("is_mail_thread") and attrs["_name"] != "mail.thread":
+            parents = attrs.get("_inherit") or []
             parents = [parents] if isinstance(parents, str) else parents
-            attrs['_inherit'] = parents + ['mail.thread']
-        if model_data.get('is_mail_activity') and attrs['_name'] != 'mail.activity.mixin':
-            parents = attrs.get('_inherit') or []
+            attrs["_inherit"] = parents + ["mail.thread"]
+        if (
+            model_data.get("is_mail_activity")
+            and attrs["_name"] != "mail.activity.mixin"
+        ):
+            parents = attrs.get("_inherit") or []
             parents = [parents] if isinstance(parents, str) else parents
-            attrs['_inherit'] = parents + ['mail.activity.mixin']
+            attrs["_inherit"] = parents + ["mail.activity.mixin"]
         return attrs
 
     def _get_definitions(self, model_names):
         model_definitions = super()._get_definitions(model_names)
         for model_name, model_definition in model_definitions.items():
             model = self.env[model_name]
-            tracked_field_names = model._track_get_fields() if 'mail.thread' in model._inherit else []
+            tracked_field_names = (
+                model._track_get_fields() if "mail.thread" in model._inherit else []
+            )
             for fname in tracked_field_names:
                 if fname in model_definition["fields"]:
                     model_definition["fields"][fname]["tracking"] = True
-            if isinstance(self.env[model_name], self.env.registry['mail.activity.mixin']):
+            if isinstance(
+                self.env[model_name], self.env.registry["mail.activity.mixin"]
+            ):
                 model_definition["has_activities"] = True
         return model_definitions
 
@@ -133,10 +175,14 @@ class IrModel(models.Model):
         model_definitions = super()._get_model_definitions(model_names_to_fetch)
         for model_name, model_definition in model_definitions.items():
             model = self.env[model_name]
-            tracked_field_names = model._track_get_fields() if 'mail.thread' in model._inherit else []
+            tracked_field_names = (
+                model._track_get_fields() if "mail.thread" in model._inherit else []
+            )
             for fname, field in model_definition["fields"].items():
                 if fname in tracked_field_names:
-                    field['tracking'] = True
-            if isinstance(self.env[model_name], self.env.registry['mail.activity.mixin']):
+                    field["tracking"] = True
+            if isinstance(
+                self.env[model_name], self.env.registry["mail.activity.mixin"]
+            ):
                 model_definition["has_activities"] = True
         return model_definitions

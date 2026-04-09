@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { url } from "@web/core/utils/urls";
+import * as luxon from "luxon";
 
 async function loadFont(name, url, targetDocument) {
     await targetDocument.fonts.ready;

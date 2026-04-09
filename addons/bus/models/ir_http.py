@@ -1,11 +1,10 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, models
 from odoo.tools import config
+
 from ..websocket import WebsocketConnectionHandler
 
 
-def _websocket_session_info() -> dict:
+def _websocket_session_info() -> dict[str, str | int]:
     """Return session fields relevant to WebSocket connection setup.
 
     In prefork mode without a reverse proxy, the WebSocket-capable EventServer
@@ -22,15 +21,19 @@ def _websocket_session_info() -> dict:
 
 
 class IrHttp(models.AbstractModel):
+    """Inject WebSocket configuration into session info."""
+
     _inherit = "ir.http"
 
     @api.model
-    def get_frontend_session_info(self):
+    def get_frontend_session_info(self) -> dict:
+        """Extend frontend session info with WebSocket worker version and port."""
         session_info = super().get_frontend_session_info()
         session_info.update(_websocket_session_info())
         return session_info
 
-    def session_info(self):
+    def session_info(self) -> dict:
+        """Extend backend session info with WebSocket worker version and port."""
         session_info = super().session_info()
         session_info.update(_websocket_session_info())
         return session_info

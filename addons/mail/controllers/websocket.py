@@ -1,7 +1,6 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
+from odoo.http import SessionExpiredException, request, route
 
 from odoo.addons.bus.controllers.websocket import WebsocketController
-from odoo.http import request, route, SessionExpiredException
 
 
 class WebsocketControllerPresence(WebsocketController):
@@ -12,6 +11,6 @@ class WebsocketControllerPresence(WebsocketController):
         """Manually update presence of current user, useful when implementing custom websocket code.
         This is mainly used by Odoo.sh."""
         if "is_websocket_session" not in request.session:
-            raise SessionExpiredException()
+            raise SessionExpiredException
         request.env["ir.websocket"]._update_mail_presence(int(inactivity_period))
         return {}

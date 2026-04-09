@@ -6,6 +6,7 @@ import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
+import * as luxon from "luxon";
 
 // List of worker events that should not be broadcasted.
 const INTERNAL_EVENTS = new Set([

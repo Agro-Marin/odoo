@@ -3,6 +3,7 @@
 /** @typedef {import("./record_list").RecordList} RecordList */
 
 import { registry } from "@web/core/registry";
+import * as luxon from "luxon";
 export const modelRegistry = registry.category("discuss.model");
 
 export const FIELD_DEFINITION_SYM = Symbol("field_definition");

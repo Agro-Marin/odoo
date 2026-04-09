@@ -3,6 +3,7 @@ import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import * as luxon from "luxon";
 export class DiscussCorePublicWeb {
     /**
      * @param {import("@web/env").OdooEnv} env

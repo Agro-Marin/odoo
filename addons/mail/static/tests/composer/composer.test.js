@@ -440,7 +440,7 @@ test("Show send button in mobile", async () => {
     await click("button", { text: "Channels" });
     await click(".o-mail-NotificationItem", { text: "minecraft-wii-u" });
     await contains(".o-mail-Composer button[title='Send']");
-    await contains(".o-mail-Composer button[title='Send'] i.fa-paper-plane-o");
+    await contains(".o-mail-Composer button[title='Send'] i.fa-paper-plane");
 });
 
 test("composer textarea content is retained when changing channel then going back", async () => {

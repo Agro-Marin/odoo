@@ -11,8 +11,7 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 
 import { discussComponentRegistry } from "./discuss_component_registry.js";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export const messageActionsRegistry = registry.category("mail.message/actions");
 
 /** @typedef {import("@odoo/owl").Component} Component */

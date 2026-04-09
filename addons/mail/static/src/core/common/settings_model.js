@@ -6,6 +6,7 @@ import { rpc } from "@web/core/network/rpc";
 import { debounce } from "@web/core/utils/timing";
 
 import { fields, Record } from "./record.js";
+import * as luxon from "luxon";
 export const MESSAGE_SOUND = "mail.user_setting.message_sound";
 export const USE_BLUR_LS = "mail_user_setting_use_blur";
 

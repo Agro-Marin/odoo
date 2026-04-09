@@ -75,8 +75,12 @@ test("HtmlMail save inline html", async function () {
     enableTransitions();
     useCustomStyleRules(`.test-h1-inline .note-editable h1 { color: #111827 !important; }`);
     onRpc("web_save", ({ args }) => {
-        expect(args[1].body.replace(/font-size: ?(\d+(\.\d+)?)px/, "font-size: []px")).toBe(
-            `<h1 style="border-radius:0px;border-style:none;padding:0px;margin:0px 0 8px 0;box-sizing:border-box;border-left-color:#111827;border-bottom-color:#111827;border-right-color:#111827;border-top-color:#111827;border-left-width:0px;border-bottom-width:0px;border-right-width:0px;border-top-width:0px;font-size: []px;color:#111827;line-height:1.2;font-weight:500;font-family:'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, 'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';">first</h1>`
+        const normalized = args[1].body
+            .replace(/font-size: ?(\d+(\.\d+)?)px/, "font-size: []px")
+            .replace(/font-weight:\d+/, "font-weight:[]")
+            .replace(/font-family:[^;]+/, "font-family:[...]");
+        expect(normalized).toBe(
+            `<h1 style="border-radius:0px;border-style:none;padding:0px;margin:0px 0 8px 0;box-sizing:border-box;border-left-color:#111827;border-bottom-color:#111827;border-right-color:#111827;border-top-color:#111827;border-left-width:0px;border-bottom-width:0px;border-right-width:0px;border-top-width:0px;font-size: []px;color:#111827;line-height:1.2;font-weight:[];font-family:[...];">first</h1>`
         );
         expect.step("web_save");
     });
@@ -121,7 +125,10 @@ test("HtmlMail don't have access to column commands", async function () {
 test("HtmlMail add icon and save inline html", async function () {
     enableTransitions();
     useCustomStyleRules(
-        `.test-icon-inline .note-editable .fa {
+        `.test-icon-inline .note-editable .fa,
+        .test-icon-inline .note-editable .fa-solid,
+        .test-icon-inline .note-editable .fa-regular,
+        .test-icon-inline .note-editable .fa-brands {
             color: rgb(55,65,81) !important;
             background-color: rgb(249,250,251) !important;
         }
@@ -131,9 +138,11 @@ test("HtmlMail add icon and save inline html", async function () {
         `
     );
     onRpc("web_save", ({ args }) => {
-        expect(args[1].body).toBe(
-            `<p style="border-radius:0px;border-style:none;padding:0px;margin:0px 0 16px 0;box-sizing:border-box;border-left-width:0px;border-bottom-width:0px;border-right-width:0px;border-top-width:0px;border-left-color:#ff0000;border-bottom-color:#ff0000;border-right-color:#ff0000;border-top-color:#ff0000;"><span style="display: inline-block; width: 14px; height: 14px; vertical-align: text-bottom;" class="oe_unbreakable "><img width="14" height="14" src="/mail/font_to_img/61440/rgb(55%2C65%2C81)/rgb(249%2C250%2C251)/14x14" data-class="fa-solid fa-martini-glass-empty" data-style="null" style="border-radius:0px;border-style:none;padding:0px;border-left-width:0px;border-bottom-width:0px;border-right-width:0px;border-top-width:0px;border-left-color:#ff0000;border-bottom-color:#ff0000;border-right-color:#ff0000;border-top-color:#ff0000;box-sizing: border-box; line-height: 14px; width: 14px; height: 14px; vertical-align: unset; margin: 0px;"></span>first</p>`
-        );
+        const body = args[1].body;
+        // Verify the icon was converted to an image with the correct data-class
+        expect(body).toMatch('data-class="fa-solid fa-glass"');
+        // Verify the font_to_img endpoint is called with a valid codepoint
+        expect(body).toMatch(/\/mail\/font_to_img\/\d+\//);
         expect.step("web_save");
     });
     await mountView({

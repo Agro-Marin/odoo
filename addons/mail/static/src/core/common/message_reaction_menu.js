@@ -8,7 +8,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
-import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
+import { emojiLoader, useLoadEmoji } from "@web/components/emoji_picker/emoji_loader";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 export class MessageReactionMenu extends Component {
@@ -41,11 +41,7 @@ export class MessageReactionMenu extends Component {
             },
             () => [this.props.message.reactions.length],
         );
-        onMounted(() => {
-            if (!this.store.emojiLoader.loaded) {
-                loadEmoji();
-            }
-        });
+        onMounted(useLoadEmoji());
     }
 
     onKeydown(ev) {
@@ -62,11 +58,7 @@ export class MessageReactionMenu extends Component {
     }
 
     getEmojiShortcode(reaction) {
-        return (
-            this.store.emojiLoader.loaded?.emojiValueToShortcodes?.[
-                reaction.content
-            ]?.[0] ?? "?"
-        );
+        return emojiLoader.getShortCode(reaction.content);
     }
 
     get contentClass() {

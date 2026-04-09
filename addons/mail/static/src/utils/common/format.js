@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { htmlEscape, markup } from "@odoo/owl";
-import { loadEmoji, loader } from "@web/components/emoji_picker/emoji_picker";
+import { emojiLoader } from "@web/components/emoji_picker/emoji_loader";
 import { router } from "@web/core/browser/router";
+import { formatList } from "@web/core/l10n/utils/format_list";
 import { normalize } from "@web/core/l10n/utils";
 import {
     createDocumentFragmentFromContent,
     createElementWithContent,
-    htmlFormatList,
     htmlJoin,
     htmlReplace,
     htmlReplaceAll,
@@ -57,11 +57,11 @@ export async function generateEmojisOnHtml(
     { allowEmojiLoading = true } = {},
 ) {
     let body = htmlBody;
-    if (
-        allowEmojiLoading ||
-        odoo.loader.modules.get("@web/components/emoji_picker/emoji_data")
-    ) {
-        body = await _generateEmojisOnHtml(body);
+    if (allowEmojiLoading && !emojiLoader.loaded) {
+        await emojiLoader.load();
+    }
+    if (emojiLoader.loaded) {
+        body = _generateEmojisOnHtml(body);
     }
     return body;
 }
@@ -303,13 +303,12 @@ function generateMentionsLinks(
 /**
  * @private
  * @param {string|ReturnType<markup>} htmlString
- * @returns {Promise<ReturnType<markup>>}
+ * @returns {ReturnType<markup>}
  */
-async function _generateEmojisOnHtml(htmlString) {
-    const { emojis } = await loadEmoji();
-    for (const emoji of emojis) {
-        for (const source of [...emoji.shortcodes, ...emoji.emoticons]) {
-            const escapedSource = htmlEscape(String(source));
+function _generateEmojisOnHtml(htmlString) {
+    for (const emoji of emojiLoader.emojis) {
+        for (const source of emoji.shortcodes.concat(emoji.emoticons)) {
+            const escapedSource = htmlEscape(source);
             const regexp = new RegExp(
                 "(\\s|^)(" + escapeRegExp(escapedSource) + ")(?=\\s|$|<)",
                 "g",
@@ -407,7 +406,7 @@ export const EMOJI_REGEX = /\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\u200d/gu;
  * @returns {ReturnType<markup>}
  */
 export function decorateEmojis(content) {
-    if (!loader.loaded || !content) {
+    if (!emojiLoader.loaded || !content) {
         return content;
     }
     const doc = createDocumentFragmentFromContent(content);
@@ -423,14 +422,15 @@ export function decorateEmojis(content) {
         const span = document.createElement("span");
         setElementContent(
             span,
-            htmlReplaceAll(node.textContent, loader.loaded.emojiRegex, (codepoints) =>
-                markup(
-                    `<span class="o-mail-emoji" title="${htmlFormatList(
-                        loader.loaded.emojiValueToShortcodes[codepoints],
-                        { style: "unit-narrow" },
-                    )}">${htmlEscape(codepoints)}</span>`,
-                ),
-            ),
+            htmlReplaceAll(node.textContent, EMOJI_REGEX, (codepoints) => {
+                if (!emojiLoader.map.has(codepoints)) {
+                    return codepoints;
+                }
+                const title = formatList(emojiLoader.map.get(codepoints).shortcodes, {
+                    style: "unit-narrow",
+                });
+                return markup`<span class="o-mail-emoji" title="${title}">${codepoints}</span>`;
+            }),
         );
         node.replaceWith(...span.childNodes);
     }

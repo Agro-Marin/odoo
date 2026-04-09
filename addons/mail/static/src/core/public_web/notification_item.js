@@ -4,8 +4,7 @@ import { useHover } from "@mail/utils/common/hooks";
 import { Component, useRef, useSubEnv } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { useService } from "@web/core/utils/hooks";
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 export class NotificationItem extends Component {
     static components = { ActionSwiper };
     static props = [

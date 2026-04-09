@@ -10,7 +10,7 @@ import {
     htmlToTextContentInline,
 } from "@mail/utils/common/format";
 import { markup } from "@odoo/owl";
-import { loadEmoji } from "@web/components/emoji_picker/emoji_picker";
+import { emojiLoader } from "@web/components/emoji_picker/emoji_loader";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { _t } from "@web/core/l10n/translation";
@@ -21,7 +21,7 @@ import {
 } from "@web/core/utils/dom/html";
 import { url } from "@web/core/utils/urls";
 import { user } from "@web/services/user";
-const { DateTime } = luxon;
+import { DateTime } from "luxon";
 export class Message extends Record {
     static _name = "mail.message";
     static id = "id";
@@ -46,17 +46,13 @@ export class Message extends Record {
     call_history_ids = fields.Many("discuss.call.history");
     richBody = fields.Html("", {
         compute() {
-            if (!this.store.emojiLoader.loaded) {
-                loadEmoji();
-            }
+            emojiLoader.load();
             return decorateEmojis(this.body) ?? "";
         },
     });
     richTranslationValue = fields.Html("", {
         compute() {
-            if (!this.store.emojiLoader.loaded) {
-                loadEmoji();
-            }
+            emojiLoader.load();
             return decorateEmojis(this.translationValue) ?? "";
         },
     });

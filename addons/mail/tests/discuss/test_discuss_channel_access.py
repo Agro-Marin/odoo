@@ -1,12 +1,10 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from psycopg.errors import UniqueViolation
 
-from odoo.addons.mail.tests.common import mail_new_test_user
-from odoo.addons.mail.tests.common import MailCommon
 from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 
 
 @tagged("post_install", "-at_install")
@@ -328,21 +326,33 @@ class TestDiscussChannelAccess(MailCommon):
             if result:
                 try:
                     self._execute_action_channel(
-                        user_key, channel_key, membership, operation, result, for_sub_channel
+                        user_key,
+                        channel_key,
+                        membership,
+                        operation,
+                        result,
+                        for_sub_channel,
                     )
-                except Exception as e:  # noqa: BLE001 - re-raising, just with a more contextual message
+                except Exception as e:
                     raise AssertionError(
                         f"{user_key, channel_key, membership, operation} should not raise"
                     ) from e
             else:
                 try:
-                    with self.assertRaises(AccessError), mute_logger("odoo.db"), mute_logger(
-                        "odoo.addons.base.models.ir_model"
-                    ), mute_logger("odoo.addons.base.models.ir_rule"), mute_logger(
-                        "odoo.models.unlink"
+                    with (
+                        self.assertRaises(AccessError),
+                        mute_logger("odoo.db"),
+                        mute_logger("odoo.addons.base.models.ir_model"),
+                        mute_logger("odoo.addons.base.models.ir_rule"),
+                        mute_logger("odoo.models.unlink"),
                     ):
                         self._execute_action_channel(
-                            user_key, channel_key, membership, operation, result, for_sub_channel
+                            user_key,
+                            channel_key,
+                            membership,
+                            operation,
+                            result,
+                            for_sub_channel,
                         )
                 except AssertionError as e:
                     raise AssertionError(
@@ -406,20 +416,26 @@ class TestDiscussChannelAccess(MailCommon):
             ``cases`` parameter is used to configure the parent channel's member.
         """
         for user_key, channel_key, membership, target, operation, result in cases:
-            channel_id = self._get_channel_id(user_key, channel_key, membership, for_sub_channel)
+            channel_id = self._get_channel_id(
+                user_key, channel_key, membership, for_sub_channel
+            )
             if result:
                 try:
-                    self._execute_action_member(channel_id, user_key, target, operation, result)
-                except Exception as e:  # noqa: BLE001 - re-raising, just with a more contextual message
+                    self._execute_action_member(
+                        channel_id, user_key, target, operation, result
+                    )
+                except Exception as e:
                     raise AssertionError(
                         f"{user_key, channel_key, membership, target, operation} should not raise"
                     ) from e
             else:
                 try:
-                    with self.assertRaises(AccessError), mute_logger("odoo.db"), mute_logger(
-                        "odoo.addons.base.models.ir_model"
-                    ), mute_logger("odoo.addons.base.models.ir_rule"), mute_logger(
-                        "odoo.models.unlink"
+                    with (
+                        self.assertRaises(AccessError),
+                        mute_logger("odoo.db"),
+                        mute_logger("odoo.addons.base.models.ir_model"),
+                        mute_logger("odoo.addons.base.models.ir_rule"),
+                        mute_logger("odoo.models.unlink"),
                     ):
                         try:
                             self._execute_action_member(
@@ -508,10 +524,16 @@ class TestDiscussChannelAccess(MailCommon):
                 channel.sudo()._add_members(users=user, guests=guest)
         return channel.id
 
-    def _execute_action_channel(self, user_key, channel_key, membership, operation, result, for_sub_channel):
+    def _execute_action_channel(
+        self, user_key, channel_key, membership, operation, result, for_sub_channel
+    ):
         current_user = self.users[user_key]
         guest = self.guest if user_key == "public" else self.env["mail.guest"]
-        ChannelAsUser = self.env["discuss.channel"].with_user(current_user).with_context(guest=guest)
+        ChannelAsUser = (
+            self.env["discuss.channel"]
+            .with_user(current_user)
+            .with_context(guest=guest)
+        )
         if operation == "create":
             group_public_id = None
             if channel_key == "group_matching":
@@ -520,7 +542,9 @@ class TestDiscussChannelAccess(MailCommon):
                 group_public_id = self.env.ref("base.group_system").id
             data = {
                 "name": "Test Channel",
-                "channel_type": channel_key if channel_key in ("group", "chat") else "channel",
+                "channel_type": (
+                    channel_key if channel_key in ("group", "chat") else "channel"
+                ),
                 "group_public_id": group_public_id,
             }
             ChannelAsUser.create(data)
@@ -530,7 +554,10 @@ class TestDiscussChannelAccess(MailCommon):
             )
             self.assertEqual(len(channel), 1, "should find the channel")
             if operation == "read":
-                self.assertEqual(len(ChannelAsUser.search([("id", "=", channel.id)])), 1 if result else 0)
+                self.assertEqual(
+                    len(ChannelAsUser.search([("id", "=", channel.id)])),
+                    1 if result else 0,
+                )
                 channel.read(["name"])
             elif operation == "write":
                 channel.write({"name": "new name"})
@@ -539,9 +566,15 @@ class TestDiscussChannelAccess(MailCommon):
 
     def _execute_action_member(self, channel_id, user_key, target, operation, result):
         current_user = self.users[user_key]
-        partner = self.env["res.partner"] if user_key == "public" else current_user.partner_id
+        partner = (
+            self.env["res.partner"] if user_key == "public" else current_user.partner_id
+        )
         guest = self.guest if user_key == "public" else self.env["mail.guest"]
-        ChannelMemberAsUser = self.env["discuss.channel.member"].with_user(current_user).with_context(guest=guest)
+        ChannelMemberAsUser = (
+            self.env["discuss.channel.member"]
+            .with_user(current_user)
+            .with_context(guest=guest)
+        )
         if operation == "create":
             create_data = {"channel_id": channel_id}
             if target == "self":
@@ -564,7 +597,9 @@ class TestDiscussChannelAccess(MailCommon):
             member = ChannelMemberAsUser.sudo().search(domain).sudo(False)
             self.assertEqual(len(member), 1, "should find the target member")
             if operation == "read":
-                self.assertEqual(len(ChannelMemberAsUser.search(domain)), 1 if result else 0)
+                self.assertEqual(
+                    len(ChannelMemberAsUser.search(domain)), 1 if result else 0
+                )
                 member.read(["custom_channel_name"])
             elif operation == "write":
                 member.write({"custom_channel_name": "new name"})

@@ -1,18 +1,15 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import json
-import logging as logger
+import logging
 import os
 import struct
 import textwrap
+from urllib.parse import urlsplit
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-from urllib.parse import urlsplit
 
 from . import jwt
 
@@ -30,6 +27,7 @@ ENCRYPTION_HEADER_SIZE = 16 + 4 + 1 + (1 + 32 + 32)
 # 1 padding delimiter (continue or final block) + 16-bytes in-message authentication tag from AEAD_AES_128_GCM
 ENCRYPTION_BLOCK_OVERHEAD = 1 + 16
 
+
 class PUSH_NOTIFICATION_TYPE:
     CALL = "CALL"
     CANCEL = "CANCEL"
@@ -40,29 +38,33 @@ class PUSH_NOTIFICATION_ACTION:
     DECLINE = "DECLINE"
 
 
-_logger = logger.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------
 # Errors specific to web push
 # ------------------------------------------------------------
 
+
 class DeviceUnreachableError(Exception):
     pass
+
 
 # ------------------------------------------------------------
 # Web Push
 # ------------------------------------------------------------
 
+
 def _iv(base, counter):
-    mask = int.from_bytes(base[4:], 'big')
-    return base[:4] + (counter ^ mask).to_bytes(8, 'big')
+    mask = int.from_bytes(base[4:], "big")
+    return base[:4] + (counter ^ mask).to_bytes(8, "big")
+
 
 def _derive_key(salt, private_key, device):
     # browser keys
     device_keys = json.loads(device["keys"])
-    p256dh = jwt.base64_decode_with_padding(device_keys.get('p256dh'))
-    auth = jwt.base64_decode_with_padding(device_keys.get('auth'))
+    p256dh = jwt.base64_decode_with_padding(device_keys.get("p256dh"))
+    auth = jwt.base64_decode_with_padding(device_keys.get("auth"))
 
     # generate a public key derived from the browser public key
     pub_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), p256dh)
@@ -96,6 +98,7 @@ def _derive_key(salt, private_key, device):
     secret = hkdf_auth.derive(private_key.exchange(ec.ECDH(), pub_key))
     return hkdf_key.derive(secret), hkdf_nonce.derive(secret)
 
+
 def _encrypt_payload(content, device, record_size=MAX_PAYLOAD_SIZE):
     """
     Encrypt a payload for Push Notification Endpoint using AES128GCM
@@ -111,7 +114,7 @@ def _encrypt_payload(content, device, record_size=MAX_PAYLOAD_SIZE):
     private_key = ec.generate_private_key(ec.SECP256R1())
     salt = os.urandom(16)
     # generate key
-    (key, nonce) = _derive_key(salt=salt, private_key=private_key, device=device)
+    key, nonce = _derive_key(salt=salt, private_key=private_key, device=device)
     # AEAD_AES_128_GCM produces ciphertext 16 octets longer than its input plaintext.
     # Therefore, the unencrypted content of each record is shorter than the record size by 16 octets.
     # Valid records always contain at least a padding delimiter octet and a 16-octet authentication tag.
@@ -123,7 +126,7 @@ def _encrypt_payload(content, device, record_size=MAX_PAYLOAD_SIZE):
     aesgcm = AESGCM(key)
     for i in range(0, end, chunk_size):
         padding = b"\x02" if (i + chunk_size) >= end else b"\x01"
-        body += aesgcm.encrypt(nonce, content[i: i + chunk_size] + padding, None)
+        body += aesgcm.encrypt(nonce, content[i : i + chunk_size] + padding, None)
 
     sender_public_key = private_key.public_key().public_bytes(
         Encoding.X962, PublicFormat.UncompressedPoint
@@ -136,7 +139,10 @@ def _encrypt_payload(content, device, record_size=MAX_PAYLOAD_SIZE):
     header += sender_public_key
     return header + body
 
-def push_to_end_point(base_url, device, payload, vapid_private_key, vapid_public_key, session):
+
+def push_to_end_point(
+    base_url, device, payload, vapid_private_key, vapid_public_key, session
+):
     """
     https://www.rfc-editor.org/rfc/rfc8291
     """
@@ -151,35 +157,41 @@ def push_to_end_point(base_url, device, payload, vapid_private_key, vapid_public
         # aud: The “Audience” is a JWT construct that indicates the recipient scheme and host
         # e.g. for an endpoint like https://updates.push.services.mozilla.com/wpush/v2/gAAAAABY...,
         #      the “aud” would be https://updates.push.services.mozilla.com
-        'aud': '{}://{}'.format(url.scheme, url.netloc),
+        "aud": f"{url.scheme}://{url.netloc}",
         # sub: the sub value needs to be either a URL address. This is so that if a push service needed to reach out
         # to sender, it can find contact information from the JWT.
-        'sub': base_url,
+        "sub": base_url,
     }
-    token = jwt.sign(jwt_claims, vapid_private_key, ttl=12 * 60 * 60, algorithm=jwt.Algorithm.ES256)
+    token = jwt.sign(
+        jwt_claims, vapid_private_key, ttl=12 * 60 * 60, algorithm=jwt.Algorithm.ES256
+    )
     body_payload = payload.encode()
     payload = _encrypt_payload(body_payload, device)
     headers = {
         #  Authorization header field contains these parameters:
         #  - "t" is the JWT;
         #  - "k" the base64url-encoded key that signed that token.
-        'Authorization': 'vapid t={}, k={}'.format(token, vapid_public_key),
-        'Content-Encoding': 'aes128gcm',
+        "Authorization": f"vapid t={token}, k={vapid_public_key}",
+        "Content-Encoding": "aes128gcm",
         # The TTL is set to '60' as workaround because the push notifications
         # are not received on Edge with TTL ='0'.
         # Using the TTL '0' , the microsoft endpoint returns a 400 bad request error.
         # and we are sure that the notification will be received
-        'TTL': '60',
+        "TTL": "60",
     }
 
     response = session.post(endpoint, headers=headers, data=payload, timeout=5)
     if response.status_code == 201:
-        _logger.debug('Sent push notification %s', endpoint)
+        _logger.debug("Sent push notification %s", endpoint)
     else:
         error_message_shorten = textwrap.shorten(response.text, 100)
-        _logger.warning('Failed push notification %s %d - %s',
-                        endpoint, response.status_code, error_message_shorten)
+        _logger.warning(
+            "Failed push notification %s %d - %s",
+            endpoint,
+            response.status_code,
+            error_message_shorten,
+        )
 
         # Invalid subscription
-        if response.status_code == 404 or response.status_code == 410:
+        if response.status_code in (404, 410):
             raise DeviceUnreachableError("Device Unreachable")

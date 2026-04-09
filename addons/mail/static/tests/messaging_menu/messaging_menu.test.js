@@ -913,9 +913,9 @@ test("Attachment-only message preview shows file type icon", async () => {
             text: "Voice Message",
             voice_ids: [Command.create({ display_name: "voicemessage" })],
         },
-        { mimetype: "video/mp4", name: "Video.mp4", icon: "fa-video-camera", text: "Video.mp4" },
+        { mimetype: "video/mp4", name: "Video.mp4", icon: "fa-video", text: "Video.mp4" },
         { mimetype: "application/pdf", name: "File.pdf", icon: "fa-file", text: "File.pdf" },
-        { mimetype: "image/jpeg", name: "Image.jpeg", icon: "fa-picture-o", text: "Image.jpeg" },
+        { mimetype: "image/jpeg", name: "Image.jpeg", icon: "fa-image", text: "Image.jpeg" },
         { mimetype: "audio/mpeg", name: "Audio.mp3", icon: "fa-headphones", text: "Audio.mp3" },
     ];
 
@@ -940,11 +940,11 @@ test("Attachment-only message preview shows file type icon", async () => {
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(".o-mail-NotificationItem:eq(0) i.fa-microphone");
     await contains(".o-mail-NotificationItem:eq(0)", { text: "Partner1: Voice Message" });
-    await contains(".o-mail-NotificationItem:eq(1) i.fa-video-camera");
+    await contains(".o-mail-NotificationItem:eq(1) i.fa-video");
     await contains(".o-mail-NotificationItem:eq(1)", { text: "Partner2: Video.mp4" });
     await contains(".o-mail-NotificationItem:eq(2) i.fa-file");
     await contains(".o-mail-NotificationItem:eq(2)", { text: "Partner3: File.pdf" });
-    await contains(".o-mail-NotificationItem:eq(3) i.fa-picture-o");
+    await contains(".o-mail-NotificationItem:eq(3) i.fa-image");
     await contains(".o-mail-NotificationItem:eq(3)", { text: "Partner4: Image.jpeg" });
     await contains(".o-mail-NotificationItem:eq(4) i.fa-headphones");
     await contains(".o-mail-NotificationItem:eq(4)", { text: "Partner5: Audio.mp3" });

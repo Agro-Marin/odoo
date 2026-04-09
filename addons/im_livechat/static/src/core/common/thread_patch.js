@@ -5,8 +5,7 @@ import { _t } from "@web/core/l10n/translation";
 import { user } from "@web/services/user";
 import { patch } from "@web/core/utils/patch";
 
-const { DateTime } = luxon;
-
+import { DateTime } from "luxon";
 patch(Thread.prototype, {
     setup() {
         super.setup(...arguments);
