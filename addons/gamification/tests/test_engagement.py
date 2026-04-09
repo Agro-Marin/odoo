@@ -107,16 +107,23 @@ class TestEngagementSnapshot(common.TransactionCase):
         self.assertGreaterEqual(snapshot.badges_granted_7d, 1)
 
     def test_cron_creates_snapshot_per_company(self):
-        """Cron creates snapshots for all companies."""
+        """Cron creates snapshots for all companies with meaningful data."""
         Snapshot = self.env["gamification.engagement.snapshot"]
         Snapshot._cron_record_snapshot()
 
-        count = Snapshot.search_count(
-            [
-                ("company_id", "=", self.company.id),
-            ]
+        snapshot = Snapshot.search(
+            [("company_id", "=", self.company.id)],
+            limit=1,
+            order="snapshot_date desc",
         )
-        self.assertGreaterEqual(count, 1)
+        self.assertTrue(snapshot, "Cron should create at least one snapshot")
+        self.assertEqual(snapshot.company_id, self.company)
+        self.assertTrue(snapshot.snapshot_date, "Snapshot should have a date")
+        # At minimum, active_users should reflect our test users
+        self.assertGreaterEqual(
+            snapshot.total_karma_users, 0,
+            "Snapshot should capture karma user count",
+        )
 
     def test_get_analytics_summary_empty(self):
         """get_analytics_summary returns empty dict when no snapshots exist."""

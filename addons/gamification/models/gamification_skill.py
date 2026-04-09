@@ -139,14 +139,15 @@ class GamificationSkillNode(models.Model):
         ):
             return False
 
-        # Check prerequisites
-        for prereq in self.prerequisite_ids:
-            if not Unlock.search_count(
+        # Check prerequisites — single query for all prereqs
+        if self.prerequisite_ids:
+            unlocked_prereqs = Unlock.search(
                 [
-                    ("node_id", "=", prereq.id),
+                    ("node_id", "in", self.prerequisite_ids.ids),
                     ("user_id", "=", user.id),
                 ]
-            ):
+            ).mapped("node_id")
+            if self.prerequisite_ids - unlocked_prereqs:
                 return False
 
         # Check karma threshold
@@ -189,6 +190,7 @@ class GamificationSkillNode(models.Model):
         if self.karma_reward:
             user.sudo()._add_karma(
                 self.karma_reward,
+                source=unlock,
                 reason=_("Skill unlocked: %s", self.name),
             )
         if self.badge_id:

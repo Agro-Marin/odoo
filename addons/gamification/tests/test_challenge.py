@@ -447,6 +447,69 @@ class TestChallengeRewardNobodyBadge(TestGamificationCommon):
         )
 
 
+class TestCompletionCap(TestGamificationCommon):
+    """Tests for completion percentage capping in challenge rankings."""
+
+    def test_topN_caps_completion_at_100(self):
+        """_get_topN_users caps individual goal completeness at 100%.
+
+        Regression: a user exceeding a target 5x was credited 500% per goal,
+        dominating the ranking over users who completed all goals normally.
+        """
+        goal_def = self.env["gamification.goal.definition"].create(
+            {
+                "name": "Cap Test Def",
+                "computation_mode": "manually",
+                "condition": "higher",
+            }
+        )
+        challenge = self.env["gamification.challenge"].create(
+            {
+                "name": "Cap Test Challenge",
+                "state": "draft",
+                "period": "once",
+                "visibility_mode": "ranking",
+                "user_ids": [(6, 0, [self.user_demo.id, self.robot.id])],
+            }
+        )
+        self.env["gamification.challenge.line"].create(
+            {
+                "challenge_id": challenge.id,
+                "definition_id": goal_def.id,
+                "target_goal": 10,
+            }
+        )
+        challenge.action_start()
+
+        # Robot exceeds target 5x, demo exactly reaches it
+        goals = self.env["gamification.goal"].search(
+            [("challenge_id", "=", challenge.id)]
+        )
+        for goal in goals:
+            if goal.user_id == self.robot:
+                goal.write({"current": 50, "state": "reached"})
+            else:
+                goal.write({"current": 10, "state": "reached"})
+
+        challengers = challenge._get_topN_users(3)
+        for c in challengers:
+            self.assertLessEqual(
+                c["total_completeness"],
+                100.0,
+                f"Completeness for {c['user'].name} should be capped at 100%, "
+                f"got {c['total_completeness']}",
+            )
+
+    def test_challenge_line_name_is_readonly(self):
+        """Challenge line name field is readonly to prevent accidental global rename."""
+        field = self.env["gamification.challenge.line"]._fields["name"]
+        self.assertTrue(
+            field.readonly,
+            "Challenge line 'name' related field must be readonly to prevent "
+            "accidental rename of the global goal definition",
+        )
+
+
 class test_badge_wizard(TestGamificationCommon):
     def test_grant_badge(self):
         wiz = self.env["gamification.badge.user.wizard"].create(

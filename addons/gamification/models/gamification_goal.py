@@ -62,9 +62,10 @@ class GamificationGoal(models.Model):
         default="draft",
         string="State",
         required=True,
+        index=True,
     )
     to_update = fields.Boolean("To update")
-    closed = fields.Boolean("Closed goal")
+    closed = fields.Boolean("Closed goal", index=True)
 
     computation_mode = fields.Selection(related="definition_id.computation_mode")
     color = fields.Integer("Color Index", compute="_compute_color")
@@ -315,10 +316,16 @@ class GamificationGoal(models.Model):
                     definition.name,
                 )
 
+            # Batch writes: group goals by identical values dict
+            by_values: dict[frozenset, list[int]] = {}
             for goal, values in goals_to_write.items():
                 if not values:
                     continue
-                goal.write(values)
+                key = frozenset(values.items())
+                by_values.setdefault(key, []).append(goal.id)
+            Goal = self.env["gamification.goal"]
+            for vals_key, goal_ids in by_values.items():
+                Goal.browse(goal_ids).write(dict(vals_key))
             if self.env.context.get("commit_gamification"):
                 self.env.cr.commit()
         return True

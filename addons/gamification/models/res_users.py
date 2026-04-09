@@ -63,6 +63,11 @@ class ResUsers(models.Model):
         default="public",
         help="Controls who can see this user's gamification profile.",
     )
+    last_gamification_nudge_date = fields.Date(
+        "Last Nudge Date",
+        help="Last date a gamification nudge was sent to this user.  "
+        "Used to rate-limit nudges to at most once per week.",
+    )
 
     @api.depends("karma_tracking_ids.new_value")
     def _compute_karma(self) -> None:
@@ -546,6 +551,7 @@ WHERE sub.user_id = ANY(%s)""",
         return []
 
     def action_karma_report(self) -> dict[str, Any]:
+        """Open the karma tracking history for this user."""
         self.ensure_one()
         return {
             "name": _("Karma Updates"),
@@ -757,6 +763,23 @@ WHERE sub.user_id = ANY(%s)""",
 
     # ── Engagement Nudges ───────────────────────────────────────────
 
+    NUDGE_COOLDOWN_DAYS = 7
+
+    def _can_nudge(self) -> Self:
+        """Return the subset of users eligible for a nudge (not nudged within cooldown).
+
+        Also marks the returned users as nudged today so subsequent
+        nudge methods in the same cron run won't double-send.
+        """
+        cutoff = fields.Date.today() - timedelta(days=self.NUDGE_COOLDOWN_DAYS)
+        eligible = self.filtered(
+            lambda u: not u.last_gamification_nudge_date
+            or u.last_gamification_nudge_date <= cutoff
+        )
+        if eligible:
+            eligible.sudo().write({"last_gamification_nudge_date": fields.Date.today()})
+        return eligible
+
     @api.model
     def _cron_engagement_nudges(self):
         """Detect engagement patterns and send targeted nudges.
@@ -766,12 +789,15 @@ WHERE sub.user_id = ANY(%s)""",
         - Users close to next rank (within 10% of karma threshold)
         - Goals close to completion (>80% but not reached)
         - Users inactive for 7+ days (had karma activity before)
+
+        Each user receives at most one nudge per ``NUDGE_COOLDOWN_DAYS`` period.
         """
         self._nudge_streak_warning()
         self._nudge_close_to_rank()
         self._nudge_goals_almost_done()
         self._nudge_inactive_users()
 
+    @api.model
     def _nudge_streak_warning(self):
         """Warn users whose streaks have 0 freeze days left."""
         streaks = self.env["gamification.streak"].search(
@@ -781,7 +807,10 @@ WHERE sub.user_id = ANY(%s)""",
                 ("current_count", ">=", 3),
             ]
         )
-        for streak in streaks:
+        eligible_users = streaks.mapped("user_id")._can_nudge()
+        if not eligible_users:
+            return
+        for streak in streaks.filtered(lambda s: s.user_id in eligible_users):
             streak.user_id._send_gamification_notification(
                 "streak",
                 {
@@ -794,60 +823,72 @@ WHERE sub.user_id = ANY(%s)""",
                 },
             )
 
+    @api.model
     def _nudge_close_to_rank(self):
         """Notify users within 10% of their next rank."""
-        users = self.search(
-            [
-                ("active", "=", True),
-                ("share", "=", False),
-                ("next_rank_id", "!=", False),
-                ("karma", ">", 0),
-            ]
+        # Push arithmetic filter to SQL instead of loading all users into Python
+        self.env["res.users"].flush_model()
+        self.env.cr.execute(
+            """
+            SELECT u.id
+            FROM res_users u
+            JOIN gamification_karma_rank r ON r.id = u.next_rank_id
+            WHERE u.active IS TRUE
+              AND u.share IS NOT TRUE
+              AND u.karma > 0
+              AND (r.karma_min - u.karma) BETWEEN 1 AND CEIL(r.karma_min * 0.10)
+            """,
         )
-        for user in users:
-            if not user.next_rank_id:
-                continue
+        candidate_ids = [row[0] for row in self.env.cr.fetchall()]
+        if not candidate_ids:
+            return
+        candidates = self.browse(candidate_ids)
+        for user in candidates._can_nudge():
             threshold = user.next_rank_id.karma_min
             distance = threshold - user.karma
-            if 0 < distance <= threshold * 0.10:
-                user._send_gamification_notification(
-                    "level_up",
-                    {
-                        "title": _("Almost There!"),
-                        "message": _(
-                            "Only %(xp)s XP to reach %(rank)s!",
-                            xp=distance,
-                            rank=user.next_rank_id.name,
-                        ),
-                    },
-                )
+            user._send_gamification_notification(
+                "level_up",
+                {
+                    "title": _("Almost There!"),
+                    "message": _(
+                        "Only %(xp)s XP to reach %(rank)s!",
+                        xp=distance,
+                        rank=user.next_rank_id.name,
+                    ),
+                },
+            )
 
+    @api.model
     def _nudge_goals_almost_done(self):
-        """Notify users with goals that are >80% complete."""
+        """Notify users with goals >80% complete (handles both 'higher' and 'lower' conditions)."""
         goals = self.env["gamification.goal"].search(
             [
                 ("state", "=", "inprogress"),
                 ("closed", "=", False),
                 ("target_goal", ">", 0),
+                ("user_id.company_id", "=", self.env.company.id),
             ]
         )
-        for goal in goals:
-            completion = goal.current / goal.target_goal if goal.target_goal else 0
-            if 0.8 <= completion < 1.0:
-                remaining = goal.target_goal - goal.current
+        # Pre-filter goals to nudge-eligible users
+        candidate_users = goals.mapped("user_id")._can_nudge()
+        if not candidate_users:
+            return
+        for goal in goals.filtered(lambda g: g.user_id in candidate_users):
+            pct = goal.completeness
+            if 80 <= pct < 100:
                 goal.user_id._send_gamification_notification(
                     "badge",
                     {
                         "title": _("So Close!"),
                         "message": _(
-                            "%(goal)s is %(pct)s%% complete — just %(remaining)s to go!",
+                            "%(goal)s is %(pct)s%% complete!",
                             goal=goal.definition_id.name,
-                            pct=round(completion * 100),
-                            remaining=round(remaining, 1),
+                            pct=round(pct),
                         ),
                     },
                 )
 
+    @api.model
     def _nudge_inactive_users(self):
         """Re-engage users who were active but haven't earned karma in 7+ days."""
         cutoff = fields.Date.today() - timedelta(days=7)
@@ -876,8 +917,7 @@ WHERE sub.user_id = ANY(%s)""",
         if not user_ids:
             return
 
-        users = self.browse(user_ids)
-        for user in users:
+        for user in self.browse(user_ids)._can_nudge():
             user._send_gamification_notification(
                 "badge",
                 {

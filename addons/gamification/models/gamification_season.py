@@ -1,6 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models
+from typing import Any
+
+from odoo import _, api, fields, models
 
 
 class GamificationSeason(models.Model):
@@ -72,6 +74,18 @@ class GamificationSeason(models.Model):
             season.challenge_count = len(season.challenge_ids)
             all_users = season.challenge_ids.mapped("user_ids")
             season.participant_count = len(all_users)
+
+    def action_view_challenges(self) -> dict[str, Any]:
+        """Navigate to challenges linked to this season."""
+        self.ensure_one()
+        return {
+            "name": _("Season Challenges"),
+            "type": "ir.actions.act_window",
+            "res_model": "gamification.challenge",
+            "view_mode": "list,form",
+            "domain": [("season_id", "=", self.id)],
+            "context": {"default_season_id": self.id},
+        }
 
     def action_activate(self):
         """Start the season."""
