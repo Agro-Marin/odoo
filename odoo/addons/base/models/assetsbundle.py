@@ -554,16 +554,20 @@ class AssetsBundle:
         # instead of externalizing (--external:@odoo/* would leave them
         # as bare imports that the browser can't resolve).
         # Aliases are resolved BEFORE externals, so these override --external.
-        odoo_lib_aliases = {
-            "@odoo/hoot-dom": (Path(_addon_paths[2]) / "web" / "static" / "lib" / "hoot-dom" / "hoot-dom.js"),
-            "@popperjs/core": (Path(_addon_paths[2]) / "web" / "static" / "lib" / "popper" / "popper.esm.js"),
+        # Library paths are resolved dynamically across all addon paths
+        # because the index order depends on addons_path configuration.
+        _lib_candidates = {
+            "@odoo/hoot-dom": ("web", "static", "lib", "hoot-dom", "hoot-dom.js"),
+            "@popperjs/core": ("web", "static", "lib", "popper", "popper.esm.js"),
+            "@odoo/o-spreadsheet": ("spreadsheet", "static", "src", "o_spreadsheet", "o_spreadsheet.js"),
         }
-        # @odoo/o-spreadsheet: alias from o_spreadsheet.js header
-        for addon_dir in _addon_paths:
-            o_spreadsheet = Path(addon_dir) / "spreadsheet" / "static" / "src" / "o_spreadsheet" / "o_spreadsheet.js"
-            if o_spreadsheet.exists():
-                odoo_lib_aliases["@odoo/o-spreadsheet"] = o_spreadsheet
-                break
+        odoo_lib_aliases = {}
+        for alias_name, path_parts in _lib_candidates.items():
+            for addon_dir in _addon_paths:
+                candidate = Path(addon_dir).joinpath(*path_parts)
+                if candidate.exists():
+                    odoo_lib_aliases[alias_name] = candidate
+                    break
         for name, lib_path in odoo_lib_aliases.items():
             if lib_path.exists():
                 rel = os.path.relpath(lib_path, odoo_root)
