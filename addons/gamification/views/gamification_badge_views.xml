@@ -9,6 +9,11 @@
                 <field name="name"/>
                 <separator/>
                 <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <separator/>
+                <group>
+                    <filter string="Authorization" name="group_auth" context="{'group_by': 'rule_auth'}"/>
+                    <filter string="Level" name="group_level" context="{'group_by': 'level'}"/>
+                </group>
             </search>
         </field>
     </record>

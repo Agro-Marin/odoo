@@ -142,10 +142,10 @@ class ProjectHistory(models.Model):
             ct_values = [t.cycle_time_hours for t in closed_tasks if t.cycle_time_hours]
             avg_ct = sum(ct_values) / len(ct_values) if ct_values else 0.0
 
-        dl_tasks = closed_tasks.filtered("date_deadline")
+        dl_tasks = closed_tasks.filtered("date_end")
         dl_pct = 0.0
         if dl_tasks:
-            met = dl_tasks.filtered(lambda t: t.date_end and t.date_end <= t.date_deadline)
+            met = dl_tasks.filtered(lambda t: t.date_closed and t.date_closed <= t.date_end)
             dl_pct = len(met) / len(dl_tasks) * 100
 
         return self.create({

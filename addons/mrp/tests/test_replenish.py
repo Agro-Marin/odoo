@@ -226,7 +226,7 @@ class TestMrpReplenish(TestMrpCommon):
         orderpoint.action_replenish()
 
         prod = self.env['mrp.production'].search([('origin', '=', orderpoint.name)])
-        # Error is triggered for date_start <= lead_horizon_date < date_finished
+        # Error is triggered for date_start <= lead_horizon_date < date_end
         prod.date_start = fields.Date.today() + timedelta(days=1)
 
         with Form(orderpoint, view='stock.view_stock_warehouse_orderpoint_list_editable') as form:

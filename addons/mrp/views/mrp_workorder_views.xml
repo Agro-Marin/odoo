@@ -79,7 +79,7 @@
                 <field name="qty_ready" optional="hide" groups="base.group_no_one"/>
                 <field name="finished_lot_ids" optional="hide" string="Lot/Serial"/>
                 <field name="date_start" optional="hide" readonly="state in ['progress', 'done', 'cancel']"/>
-                <field name="date_finished" optional="hide" readonly="state in ['progress', 'done', 'cancel']"/>
+                <field name="date_end" optional="hide" readonly="state in ['progress', 'done', 'cancel']"/>
                 <field name="duration_expected" widget="float_time" sum="expected duration" readonly="state in ['cancel', 'done']"/>
                 <field name="duration" widget="mrp_timer"
                   invisible="production_state == 'draft'"
@@ -187,7 +187,7 @@
                             <field name="is_planned" invisible="1"/>
                             <field name="date_start" class="mr8 oe_inline" readonly="state in ['cancel', 'done']"/>
                             <strong class="mr8 oe_inline">to</strong>
-                            <field name="date_finished" class="oe_inline" readonly="state in ['cancel', 'done']"/>
+                            <field name="date_end" class="oe_inline" readonly="state in ['cancel', 'done']"/>
                             <field name="show_json_popover" invisible="1"/>
                             <field name="json_popover" widget="mrp_workorder_popover" class="oe_inline mx-2" invisible="not show_json_popover"/>
                         </div>
@@ -258,7 +258,7 @@
                             <field name="company_id" optional="hide" groups="base.group_multi_company"/>
                             <field name="workcenter_id" readonly="state in ['cancel', 'done', 'progress']"/>
                             <field name="date_start" readonly="1"/>
-                            <field name="date_finished" readonly="1"/>
+                            <field name="date_end" readonly="1"/>
                             <field name="duration_expected" widget="float_time" sum="expected duration" readonly="state in ['cancel', 'done']"/>
                             <field name="production_state" column_invisible="True"/>
                             <field name="state" widget="badge" decoration-warning="state == 'progress'" decoration-success="state == 'done'" decoration-info="state not in ('progress', 'done', 'cancel')"
@@ -308,7 +308,7 @@
         <field name="name">mrp.production.work.order.calendar</field>
         <field name="model">mrp.workorder</field>
         <field name="arch" type="xml">
-            <calendar date_stop="date_finished" date_start="date_start" string="Operations" color="workcenter_id" event_limit="5" delete="0" create="0">
+            <calendar date_stop="date_end" date_start="date_start" string="Operations" color="workcenter_id" event_limit="5" delete="0" create="0">
                 <field name="workcenter_id" filters="1"/>
                 <field name="production_id"/>
                 <field name="state"/>

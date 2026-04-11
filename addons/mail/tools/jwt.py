@@ -1,12 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
-import hashlib
-import json
 import binascii
-import time
 import enum
+import hashlib
 import hmac
+import json
+import time
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, utils
@@ -15,12 +15,15 @@ from cryptography.hazmat.primitives.asymmetric import ec, utils
 # Errors specific to JWT
 # ------------------------------------------------------------
 
+
 class InvalidVapidError(Exception):
     pass
+
 
 # ------------------------------------------------------------
 # JWT
 # ------------------------------------------------------------
+
 
 class Algorithm(enum.Enum):
     ES256 = "ES256"  # ECDSA SHA-256
@@ -48,7 +51,9 @@ def generate_vapid_keys() -> (str, str):
 
     :return: tuple (private_key, public_key)
     """
-    private, public = _generate_keys(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+    private, public = _generate_keys(
+        serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
+    )
     private_string = base64.urlsafe_b64encode(private).decode("ascii").strip("=")
     public_string = base64.urlsafe_b64encode(public).decode("ascii").strip("=")
     return private_string, public_string
@@ -59,23 +64,33 @@ def base64_decode_with_padding(value: str) -> bytes:
 
 
 def _generate_jwt(claims: dict, key: str, algorithm: Algorithm) -> str:
-    JOSE_header = base64.urlsafe_b64encode(json.dumps({"typ": "JWT", "alg": algorithm.value}).encode())
+    JOSE_header = base64.urlsafe_b64encode(
+        json.dumps({"typ": "JWT", "alg": algorithm.value}).encode()
+    )
     payload = base64.urlsafe_b64encode(json.dumps(claims).encode())
-    unsigned_token = "{}.{}".format(JOSE_header.decode().strip("="), payload.decode().strip("="))
+    unsigned_token = "{}.{}".format(
+        JOSE_header.decode().strip("="), payload.decode().strip("=")
+    )
     key_decoded = base64_decode_with_padding(key)
 
     match algorithm:
         case Algorithm.HS256:
-            signature = hmac.new(key_decoded, unsigned_token.encode(), hashlib.sha256).digest()
+            signature = hmac.new(
+                key_decoded, unsigned_token.encode(), hashlib.sha256
+            ).digest()
             sig = base64.urlsafe_b64encode(signature)
         case Algorithm.ES256:
             # Retrieve the private key using a P256 elliptic curve
             private_key = ec.derive_private_key(
                 int(binascii.hexlify(key_decoded), 16), ec.SECP256R1()
             )
-            signature = private_key.sign(unsigned_token.encode(), ec.ECDSA(hashes.SHA256()))
+            signature = private_key.sign(
+                unsigned_token.encode(), ec.ECDSA(hashes.SHA256())
+            )
             (r, s) = utils.decode_dss_signature(signature)
-            sig = base64.urlsafe_b64encode(r.to_bytes(32, "big") + s.to_bytes(32, "big"))
+            sig = base64.urlsafe_b64encode(
+                r.to_bytes(32, "big") + s.to_bytes(32, "big")
+            )
         case _:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
 

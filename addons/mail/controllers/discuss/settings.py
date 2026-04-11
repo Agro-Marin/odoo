@@ -1,10 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from datetime import datetime
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import fields
-from odoo.http import request, route, Controller
+from odoo.http import Controller, request, route
 
 
 class DiscussSettingsController(Controller):
@@ -21,14 +22,21 @@ class DiscussSettingsController(Controller):
         if not member:
             raise request.not_found()
         if minutes == -1:
-            member.mute_until_dt = datetime.max
+            member.mute_until_dt = datetime.max  # noqa: DTZ901
         elif minutes:
-            member.mute_until_dt = fields.Datetime.now() + relativedelta(minutes=minutes)
+            member.mute_until_dt = fields.Datetime.now() + relativedelta(
+                minutes=minutes
+            )
         else:
             member.mute_until_dt = False
         member._notify_mute()
 
-    @route("/discuss/settings/custom_notifications", methods=["POST"], type="jsonrpc", auth="user")
+    @route(
+        "/discuss/settings/custom_notifications",
+        methods=["POST"],
+        type="jsonrpc",
+        auth="user",
+    )
     def discuss_custom_notifications(self, custom_notifications, channel_id=None):
         """Set custom notifications for the given channel or general user settings.
         :param custom_notifications: (false|all|mentions|no_notif) custom notifications to set
@@ -43,7 +51,11 @@ class DiscussSettingsController(Controller):
                 raise request.not_found()
             member.custom_notifications = custom_notifications
         else:
-            user_settings = request.env["res.users.settings"]._find_or_create_for_user(request.env.user)
+            user_settings = request.env["res.users.settings"]._find_or_create_for_user(
+                request.env.user
+            )
             if not user_settings:
                 raise request.not_found()
-            user_settings.set_res_users_settings({"channel_notifications": custom_notifications})
+            user_settings.set_res_users_settings(
+                {"channel_notifications": custom_notifications}
+            )

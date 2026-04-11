@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { defineBaseIbanModels } from "./base_iban_test_helpers.js";
 import { DELAY } from "@base_iban/components/iban_widget/iban_widget";
 import { test } from "@odoo/hoot";

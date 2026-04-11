@@ -1,5 +1,6 @@
 """Gamification models: goals, challenges, badges, karma, and engagement tools."""
 
+from . import gamification_utils
 from . import gamification_badge
 from . import gamification_badge_user
 from . import gamification_challenge

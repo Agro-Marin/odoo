@@ -978,15 +978,15 @@ class ProjectProject(models.Model):
                 CASE
                     WHEN COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
-                          AND t.date_deadline IS NOT NULL
+                          AND t.date_end IS NOT NULL
                     ) = 0 THEN 100.0
                     ELSE 100.0 * COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
-                          AND t.date_deadline IS NOT NULL
-                          AND t.date_deadline >= NOW()
+                          AND t.date_end IS NOT NULL
+                          AND t.date_end >= NOW()
                     ) / NULLIF(COUNT(*) FILTER (
                         WHERE t.state NOT IN ('done', 'canceled')
-                          AND t.date_deadline IS NOT NULL
+                          AND t.date_end IS NOT NULL
                     ), 0)
                 END AS schedule_score,
                 -- Staleness: pct of open tasks not rotting
@@ -1134,15 +1134,15 @@ class ProjectProject(models.Model):
                 CASE
                     WHEN COUNT(*) FILTER (
                         WHERE state IN ('done', 'canceled')
-                          AND date_deadline IS NOT NULL
+                          AND date_end IS NOT NULL
                     ) = 0 THEN 0.0
                     ELSE 100.0 * COUNT(*) FILTER (
                         WHERE state IN ('done', 'canceled')
-                          AND date_deadline IS NOT NULL
-                          AND date_end <= date_deadline
+                          AND date_end IS NOT NULL
+                          AND date_end <= date_end
                     ) / COUNT(*) FILTER (
                         WHERE state IN ('done', 'canceled')
-                          AND date_deadline IS NOT NULL
+                          AND date_end IS NOT NULL
                     )
                 END AS deadline_compliance_pct
             FROM project_task

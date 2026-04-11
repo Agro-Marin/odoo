@@ -2,6 +2,7 @@
 
 from odoo import api, models
 from odoo.tools import config
+
 from ..websocket import WebsocketConnectionHandler
 
 

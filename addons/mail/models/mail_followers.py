@@ -1,15 +1,15 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from collections import defaultdict
 import itertools
+from collections import defaultdict
 
-from odoo import api, fields, models, Command
+from odoo import Command, api, fields, models
+
 from odoo.addons.mail.tools.discuss import Store
 
 
 class MailFollowers(models.Model):
-    """ mail_followers holds the data related to the follow mechanism inside
+    """mail_followers holds the data related to the follow mechanism inside
     Odoo. Partners can choose to follow documents (records) of any kind
     that inherits from mail.thread. Following documents allow to receive
     notifications for new messages. A subscription is characterized by:
@@ -17,36 +17,49 @@ class MailFollowers(models.Model):
     :param: res_model: model of the followed objects
     :param: res_id: ID of resource (may be 0 for every objects)
     """
-    _name = 'mail.followers'
+
+    _name = "mail.followers"
     _log_access = False
-    _description = 'Document Followers'
+    _description = "Document Followers"
 
     # Note. There is no integrity check on model names for performance reasons.
     # However, followers of unlinked models are deleted by models themselves
     # (see 'ir.model' inheritance).
-    res_model = fields.Char(
-        'Related Document Model Name', required=True, index=True)
+    res_model = fields.Char("Related Document Model Name", required=True, index=True)
     res_id = fields.Many2oneReference(
-        'Related Document ID', index=True, help='Id of the followed resource', model_field='res_model')
+        "Related Document ID",
+        index=True,
+        help="Id of the followed resource",
+        model_field="res_model",
+    )
     partner_id = fields.Many2one(
-        'res.partner', string='Related Partner', index=True, ondelete='cascade', required=True)
+        "res.partner",
+        string="Related Partner",
+        index=True,
+        ondelete="cascade",
+        required=True,
+    )
     subtype_ids = fields.Many2many(
-        'mail.message.subtype', string='Subtype',
-        help="Message subtypes followed, meaning subtypes that will be pushed onto the user's Wall.")
-    name = fields.Char('Name', related='partner_id.name')
-    email = fields.Char('Email', related='partner_id.email')
-    is_active = fields.Boolean('Is Active', related='partner_id.active')
+        "mail.message.subtype",
+        string="Subtype",
+        help="Message subtypes followed, meaning subtypes that will be pushed onto the user's Wall.",
+    )
+    name = fields.Char("Name", related="partner_id.name")
+    email = fields.Char("Email", related="partner_id.email")
+    is_active = fields.Boolean("Is Active", related="partner_id.active")
 
     def _invalidate_documents(self, vals_list=None):
-        """ Invalidate the cache of the documents followed by ``self``.
+        """Invalidate the cache of the documents followed by ``self``.
 
         Modifying followers change access rights to individual documents. As the
         cache may contain accessible/inaccessible data, one has to refresh it.
         """
         to_invalidate = defaultdict(list)
-        for record in (vals_list or [{'res_model': rec.res_model, 'res_id': rec.res_id} for rec in self]):
-            if record.get('res_id'):
-                to_invalidate[record.get('res_model')].append(record.get('res_id'))
+        for record in vals_list or [
+            {"res_model": rec.res_model, "res_id": rec.res_id} for rec in self
+        ]:
+            if record.get("res_id"):
+                to_invalidate[record.get("res_model")].append(record.get("res_id"))
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -55,10 +68,10 @@ class MailFollowers(models.Model):
         return res
 
     def write(self, vals):
-        if 'res_model' in vals or 'res_id' in vals:
+        if "res_model" in vals or "res_id" in vals:
             self._invalidate_documents()
         res = super().write(vals)
-        if any(x in vals for x in ['res_model', 'res_id', 'partner_id']):
+        if any(x in vals for x in ["res_model", "res_id", "partner_id"]):
             self._invalidate_documents()
         return res
 
@@ -67,8 +80,8 @@ class MailFollowers(models.Model):
         return super().unlink()
 
     _mail_followers_res_partner_res_model_id_uniq = models.Constraint(
-        'unique(res_model,res_id,partner_id)',
-        'Error, a partner cannot follow twice the same object.',
+        "unique(res_model,res_id,partner_id)",
+        "Error, a partner cannot follow twice the same object.",
     )
 
     @api.depends("partner_id")
@@ -84,7 +97,7 @@ class MailFollowers(models.Model):
 
     @api.model
     def _get_mail_doc_to_followers(self, mail_ids):
-        """ Get partner mail recipients that follows the related record of the mails.
+        """Get partner mail recipients that follows the related record of the mails.
 
         :param list mail_ids: mail_mail ids
 
@@ -93,11 +106,12 @@ class MailFollowers(models.Model):
         """
         if not mail_ids:
             return {}
-        self.env['mail.mail'].flush_model(['mail_message_id', 'recipient_ids'])
-        self.env['mail.followers'].flush_model(['partner_id', 'res_model', 'res_id'])
-        self.env['mail.message'].flush_model(['model', 'res_id'])
+        self.env["mail.mail"].flush_model(["mail_message_id", "recipient_ids"])
+        self.env["mail.followers"].flush_model(["partner_id", "res_model", "res_id"])
+        self.env["mail.message"].flush_model(["model", "res_id"])
         # mail_mail_res_partner_rel is the join table for the m2m recipient_ids field
-        self.env.cr.execute("""
+        self.env.cr.execute(
+            """
             SELECT message.model, message.res_id, mail_partner.res_partner_id
               FROM mail_mail mail
               JOIN mail_mail_res_partner_rel mail_partner ON mail_partner.mail_mail_id = mail.id
@@ -106,14 +120,16 @@ class MailFollowers(models.Model):
                AND message.res_id = follower.res_id
                AND mail_partner.res_partner_id = follower.partner_id
              WHERE mail.id = ANY(%(mail_ids)s)
-        """, {'mail_ids': list(mail_ids)})
+        """,
+            {"mail_ids": list(mail_ids)},
+        )
         res = defaultdict(list)
         for model, doc_id, partner_id in self.env.cr.fetchall():
             res[(model, doc_id)].append(partner_id)
         return res
 
     def _get_recipient_data(self, records, message_type, subtype_id, pids=None):
-        """ Private method allowing to fetch recipients data based on a subtype.
+        """Private method allowing to fetch recipients data based on a subtype.
         Purpose of this method is to fetch all data necessary to notify recipients
         in a single query. It fetches data from
 
@@ -152,14 +168,18 @@ class MailFollowers(models.Model):
           }
         :rtype: dict
         """
-        self.env['mail.followers'].flush_model(['partner_id', 'subtype_ids'])
-        self.env['mail.message.subtype'].flush_model(['internal'])
-        self.env['res.users'].flush_model(['notification_type', 'active', 'partner_id', 'group_ids'])
-        self.env['res.partner'].flush_model(['active', 'email_normalized', 'name', 'partner_share'])
-        self.env['res.groups'].flush_model(['user_ids'])
+        self.env["mail.followers"].flush_model(["partner_id", "subtype_ids"])
+        self.env["mail.message.subtype"].flush_model(["internal"])
+        self.env["res.users"].flush_model(
+            ["notification_type", "active", "partner_id", "group_ids"]
+        )
+        self.env["res.partner"].flush_model(
+            ["active", "email_normalized", "name", "partner_share"]
+        )
+        self.env["res.groups"].flush_model(["user_ids"])
         # if we have records and a subtype: we have to fetch followers, unless being
         # in user notification mode (contact only pids)
-        if message_type != 'user_notification' and records and subtype_id:
+        if message_type != "user_notification" and records and subtype_id:
             query = """
     WITH sub_followers AS (
         SELECT fol.partner_id AS pid,
@@ -222,7 +242,13 @@ class MailFollowers(models.Model):
 
      WHERE sub_followers.subtype_follower OR partner.id = ANY(%s)
 """
-            params = [subtype_id, records._name, list(records.ids), list(pids or []), list(pids or [])]
+            params = [
+                subtype_id,
+                records._name,
+                list(records.ids),
+                list(pids or []),
+                list(pids or []),
+            ]
             self.env.cr.execute(query, tuple(params))
             res = self.env.cr.fetchall()
         # partner_ids and records: no sub query for followers but check for follower status
@@ -277,8 +303,7 @@ class MailFollowers(models.Model):
                 if not res_ids:  # keep res_ids Falsy (global), set as not follower
                     flattened = [list(item) + [False]]
                 else:  # generate an entry for each res_id with partner being follower
-                    flattened = [list(item[:-1]) + [res_id, True]
-                                 for res_id in res_ids]
+                    flattened = [list(item[:-1]) + [res_id, True] for res_id in res_ids]
                 res += flattened
         # only partner ids: no follower status involved, fetch only direct recipients information
         elif pids:
@@ -325,46 +350,62 @@ class MailFollowers(models.Model):
             res = []
 
         res_ids = records.ids if records else [0]
-        doc_infos = dict((res_id, {}) for res_id in res_ids)
+        doc_infos = {res_id: {} for res_id in res_ids}
         for (
-            partner_id, is_active, email_normalized, lang, name,
-            pshare, uid, ushare, notif, groups, res_id, is_follower
+            partner_id,
+            is_active,
+            email_normalized,
+            lang,
+            name,
+            pshare,
+            uid,
+            ushare,
+            notif,
+            groups,
+            res_id,
+            is_follower,
         ) in res:
             to_update = [res_id] if res_id else res_ids
             # add transitive closure of implied groups; note that the field
             # all_implied_ids relies on ormcache'd data, which shouldn't add
             # more queries
-            groups = self.env['res.groups'].browse(set(groups or [])).all_implied_ids.ids
+            groups = (
+                self.env["res.groups"].browse(set(groups or [])).all_implied_ids.ids
+            )
             for res_id_to_update in to_update:
                 # avoid updating already existing information, unnecessary dict update
                 if not res_id and partner_id in doc_infos[res_id_to_update]:
                     continue
                 follower_data = {
-                    'active': is_active,
-                    'email_normalized': email_normalized,
-                    'id': partner_id,
-                    'is_follower': is_follower,
-                    'lang': lang,
-                    'name': name,
-                    'groups': set(groups or []),
-                    'notif': notif,
-                    'share': pshare,
-                    'uid': uid,
-                    'ushare': ushare,
+                    "active": is_active,
+                    "email_normalized": email_normalized,
+                    "id": partner_id,
+                    "is_follower": is_follower,
+                    "lang": lang,
+                    "name": name,
+                    "groups": set(groups or []),
+                    "notif": notif,
+                    "share": pshare,
+                    "uid": uid,
+                    "ushare": ushare,
                 }
                 # additional information
-                if follower_data['ushare']:  # any type of share user
-                    follower_data['type'] = 'portal'
-                elif follower_data['share']:  # no user, is share -> customer (partner only)
-                    follower_data['type'] = 'customer'
+                if follower_data["ushare"]:  # any type of share user
+                    follower_data["type"] = "portal"
+                elif follower_data[
+                    "share"
+                ]:  # no user, is share -> customer (partner only)
+                    follower_data["type"] = "customer"
                 else:  # has a user not share -> internal user
-                    follower_data['type'] = 'user'
+                    follower_data["type"] = "user"
                 doc_infos[res_id_to_update][partner_id] = follower_data
 
         return doc_infos
 
-    def _get_subscription_data(self, doc_data, pids, include_pshare=False, include_active=False):
-        """ Private method allowing to fetch follower data from several documents of a given model.
+    def _get_subscription_data(
+        self, doc_data, pids, include_pshare=False, include_active=False
+    ):
+        """Private method allowing to fetch follower data from several documents of a given model.
         MailFollowers can be filtered given partner IDs and channel IDs.
 
         :param doc_data: list of pair (res_model, res_ids) that are the documents from which we
@@ -381,11 +422,17 @@ class MailFollowers(models.Model):
           share status of partner (returned only if include_pshare is True)
           active flag status of partner (returned only if include_active is True)
         """
-        self.env['mail.followers'].flush_model(['partner_id', 'res_id', 'res_model', 'subtype_ids'])
-        self.env['res.partner'].flush_model(['active', 'partner_share'])
+        self.env["mail.followers"].flush_model(
+            ["partner_id", "res_id", "res_model", "subtype_ids"]
+        )
+        self.env["res.partner"].flush_model(["active", "partner_share"])
         # base query: fetch followers of given documents
-        where_clause = ' OR '.join(['fol.res_model = %s AND fol.res_id = ANY(%s)'] * len(doc_data))
-        where_params = list(itertools.chain.from_iterable((rm, list(rids)) for rm, rids in doc_data))
+        where_clause = " OR ".join(
+            ["fol.res_model = %s AND fol.res_id = ANY(%s)"] * len(doc_data)
+        )
+        where_params = list(
+            itertools.chain.from_iterable((rm, list(rids)) for rm, rids in doc_data)
+        )
 
         # additional: filter on optional pids
         sub_where = []
@@ -405,12 +452,14 @@ LEFT JOIN mail_followers_mail_message_subtype_rel fol_rel ON fol_rel.mail_follow
 LEFT JOIN mail_message_subtype subtype ON subtype.id = fol_rel.mail_message_subtype_id
 WHERE %s
 GROUP BY fol.id%s%s""" % (
-            ', partner.partner_share' if include_pshare else '',
-            ', partner.active' if include_active else '',
-            'LEFT JOIN res_partner partner ON partner.id = fol.partner_id' if (include_pshare or include_active) else '',
+            ", partner.partner_share" if include_pshare else "",
+            ", partner.active" if include_active else "",
+            "LEFT JOIN res_partner partner ON partner.id = fol.partner_id"
+            if (include_pshare or include_active)
+            else "",
             where_clause,
-            ', partner.partner_share' if include_pshare else '',
-            ', partner.active' if include_active else ''
+            ", partner.partner_share" if include_pshare else "",
+            ", partner.active" if include_active else "",
         )
         self.env.cr.execute(query, tuple(where_params))
         return self.env.cr.fetchall()
@@ -419,10 +468,17 @@ GROUP BY fol.id%s%s""" % (
     # Private tools methods to generate new subscription
     # --------------------------------------------------
 
-    def _insert_followers(self, res_model, res_ids,
-                          partner_ids, subtypes=None,
-                          customer_ids=None, check_existing=True, existing_policy='skip'):
-        """ Main internal method allowing to create or update followers for documents, given a
+    def _insert_followers(
+        self,
+        res_model,
+        res_ids,
+        partner_ids,
+        subtypes=None,
+        customer_ids=None,
+        check_existing=True,
+        existing_policy="skip",
+    ):
+        """Main internal method allowing to create or update followers for documents, given a
         res_model and the document res_ids. This method does not handle access rights. This is the
         role of the caller to ensure there is no security breach.
 
@@ -434,28 +490,43 @@ GROUP BY fol.id%s%s""" % (
         sudo_self = self.sudo().with_context(default_partner_id=False)
         if not subtypes:  # no subtypes -> default computation, no force, skip existing
             new, upd = self._add_default_followers(
-                res_model, res_ids, partner_ids,
+                res_model,
+                res_ids,
+                partner_ids,
                 customer_ids=customer_ids,
                 check_existing=check_existing,
-                existing_policy=existing_policy)
+                existing_policy=existing_policy,
+            )
         else:
             new, upd = self._add_followers(
-                res_model, res_ids,
-                partner_ids, subtypes,
+                res_model,
+                res_ids,
+                partner_ids,
+                subtypes,
                 check_existing=check_existing,
-                existing_policy=existing_policy)
+                existing_policy=existing_policy,
+            )
         if new:
-            sudo_self.create([
-                dict(values, res_id=res_id)
-                for res_id, values_list in new.items()
-                for values in values_list
-            ])
+            sudo_self.create(
+                [
+                    dict(values, res_id=res_id)
+                    for res_id, values_list in new.items()
+                    for values in values_list
+                ]
+            )
         for fol_id, values in upd.items():
             sudo_self.browse(fol_id).write(values)
 
-    def _add_default_followers(self, res_model, res_ids, partner_ids, customer_ids=None,
-                               check_existing=True, existing_policy='skip'):
-        """ Shortcut to ``_add_followers`` that computes default subtypes. Existing
+    def _add_default_followers(
+        self,
+        res_model,
+        res_ids,
+        partner_ids,
+        customer_ids=None,
+        check_existing=True,
+        existing_policy="skip",
+    ):
+        """Shortcut to ``_add_followers`` that computes default subtypes. Existing
         followers are skipped as their subscription is considered as more important
         compared to new default subscription.
 
@@ -468,19 +539,43 @@ GROUP BY fol.id%s%s""" % (
         :return: see ``_add_followers``
         """
         if not partner_ids:
-            return dict(), dict()
+            return {}, {}
 
-        default, _, external = self.env['mail.message.subtype'].default_subtypes(res_model)
+        default, _, external = self.env["mail.message.subtype"].default_subtypes(
+            res_model
+        )
         if partner_ids and customer_ids is None:
-            customer_ids = self.env['res.partner'].sudo().search([('id', 'in', partner_ids), ('partner_share', '=', True)]).ids
+            customer_ids = (
+                self.env["res.partner"]
+                .sudo()
+                .search([("id", "in", partner_ids), ("partner_share", "=", True)])
+                .ids
+            )
 
-        p_stypes = dict((pid, external.ids if pid in customer_ids else default.ids) for pid in partner_ids)
+        p_stypes = {
+            pid: external.ids if pid in customer_ids else default.ids
+            for pid in partner_ids
+        }
 
-        return self._add_followers(res_model, res_ids, partner_ids, p_stypes, check_existing=check_existing, existing_policy=existing_policy)
+        return self._add_followers(
+            res_model,
+            res_ids,
+            partner_ids,
+            p_stypes,
+            check_existing=check_existing,
+            existing_policy=existing_policy,
+        )
 
-    def _add_followers(self, res_model, res_ids, partner_ids, subtypes,
-                       check_existing=False, existing_policy='skip'):
-        """ Internal method that generates values to insert or update followers. Callers have to
+    def _add_followers(
+        self,
+        res_model,
+        res_ids,
+        partner_ids,
+        subtypes,
+        check_existing=False,
+        existing_policy="skip",
+    ):
+        """Internal method that generates values to insert or update followers. Callers have to
         handle the result, for example by making a valid ORM command, inserting or updating directly
         follower records, ... This method returns two main data
 
@@ -505,38 +600,49 @@ GROUP BY fol.id%s%s""" % (
           * update: gives an update dict allowing to add missing subtypes (no subtype removal);
         """
         _res_ids = res_ids or [0]
-        data_fols, doc_pids = dict(), dict((i, set()) for i in _res_ids)
+        data_fols, doc_pids = {}, {i: set() for i in _res_ids}
 
         if check_existing and res_ids:
-            for fid, rid, pid, sids in self._get_subscription_data([(res_model, res_ids)], partner_ids or None):
-                if existing_policy != 'force':
+            for fid, rid, pid, sids in self._get_subscription_data(
+                [(res_model, res_ids)], partner_ids or None
+            ):
+                if existing_policy != "force":
                     if pid:
                         doc_pids[rid].add(pid)
                 data_fols[fid] = (rid, pid, sids)
 
-            if existing_policy == 'force':
+            if existing_policy == "force":
                 self.sudo().browse(data_fols.keys()).unlink()
 
-        new, update = dict(), dict()
+        new, update = {}, {}
         for res_id in _res_ids:
             for partner_id in set(partner_ids or []):
                 if partner_id not in doc_pids[res_id]:
-                    new.setdefault(res_id, list()).append({
-                        'res_model': res_model,
-                        'partner_id': partner_id,
-                        'subtype_ids': [Command.set(subtypes[partner_id])],
-                    })
-                elif existing_policy in ('replace', 'update'):
-                    fol_id, sids = next(((key, val[2]) for key, val in data_fols.items() if val[0] == res_id and val[1] == partner_id), (False, []))
+                    new.setdefault(res_id, []).append(
+                        {
+                            "res_model": res_model,
+                            "partner_id": partner_id,
+                            "subtype_ids": [Command.set(subtypes[partner_id])],
+                        }
+                    )
+                elif existing_policy in ("replace", "update"):
+                    fol_id, sids = next(
+                        (
+                            (key, val[2])
+                            for key, val in data_fols.items()
+                            if val[0] == res_id and val[1] == partner_id
+                        ),
+                        (False, []),
+                    )
                     new_sids = set(subtypes[partner_id]) - set(sids)
                     old_sids = set(sids) - set(subtypes[partner_id])
                     update_cmd = []
                     if fol_id and new_sids:
                         update_cmd += [Command.link(sid) for sid in new_sids]
-                    if fol_id and old_sids and existing_policy == 'replace':
+                    if fol_id and old_sids and existing_policy == "replace":
                         update_cmd += [Command.unlink(sid) for sid in old_sids]
                     if update_cmd:
-                        update[fol_id] = {'subtype_ids': update_cmd}
+                        update[fol_id] = {"subtype_ids": update_cmd}
 
         return new, update
 

@@ -24,7 +24,7 @@ class ProjectCFDReport(models.AbstractModel):
 
     date = fields.Datetime("Date", readonly=True)
     date_assign = fields.Datetime(string="Assignment Date", readonly=True)
-    date_deadline = fields.Date(string="Deadline", readonly=True)
+    date_end = fields.Date(string="Deadline", readonly=True)
     date_last_status_change = fields.Date(
         string="Last Status Change", readonly=True
     )
@@ -69,7 +69,7 @@ class ProjectCFDReport(models.AbstractModel):
         """Fields that map to project.task columns for CTE filtering."""
         return [
             "date_assign",
-            "date_deadline",
+            "date_end",
             "date_last_status_change",
             "state",
             "milestone_id",

@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+from odoo import fields
 from odoo.tests import common
 
 from odoo.addons.mail.tests.common import mail_new_test_user
@@ -184,8 +185,14 @@ class TestEngagementNudges(common.TransactionCase):
 
     def test_nudge_cron_runs_without_error(self):
         """The nudge cron runs without crashing even with no data."""
-        # Should not raise
-        self.env["res.users"]._cron_engagement_nudges()
+        with patch.object(
+            type(self.user),
+            "_send_gamification_notification",
+        ) as mock_notif:
+            self.env["res.users"]._cron_engagement_nudges()
+        # Smoke test: should complete without exceptions.
+        # With no qualifying data, no notifications should fire.
+        mock_notif.assert_not_called()
 
     def test_nudge_close_to_rank(self):
         """Users close to next rank get notified."""
@@ -229,6 +236,76 @@ class TestEngagementNudges(common.TransactionCase):
             "_send_gamification_notification",
         ) as mock_notif:
             self.env["res.users"]._nudge_goals_almost_done()
+
+        mock_notif.assert_called()
+
+    def test_nudge_streak_warning(self):
+        """Users with active streaks and 0 freeze days get warned."""
+        streak_type = self.env["gamification.streak.type"].create(
+            {
+                "name": "Nudge Streak Type",
+                "model_id": self.env.ref("base.model_res_partner").id,
+                "date_field_id": self.env["ir.model.fields"]
+                ._get("res.partner", "write_date")
+                .id,
+                "domain": "[]",
+                "freeze_allowance": 0,
+            }
+        )
+        streak = self.env["gamification.streak"].create(
+            {
+                "user_id": self.user.id,
+                "streak_type_id": streak_type.id,
+                "state": "active",
+                "freeze_remaining": 0,
+            }
+        )
+        # Force current_count >= 3 via SQL (readonly field)
+        streak.env.cr.execute(
+            "UPDATE gamification_streak SET current_count = 5 WHERE id = %s",
+            [streak.id],
+        )
+        streak.invalidate_recordset()
+
+        with patch.object(
+            type(self.user),
+            "_send_gamification_notification",
+        ) as mock_notif:
+            self.env["res.users"]._nudge_streak_warning()
+
+        mock_notif.assert_called()
+
+    def test_nudge_inactive_users(self):
+        """Users inactive for 7+ days but active before get re-engaged."""
+        from datetime import timedelta
+
+        # Create a separate user with no recent karma to avoid interference
+        inactive_user = mail_new_test_user(
+            self.env,
+            login="inactive_nudge",
+            name="Inactive Nudge User",
+            email="inactive_nudge@example.com",
+            karma=0,
+            groups="base.group_user",
+        )
+        # Move all existing tracking records to the past (outside 7-day window
+        # but inside 30-day window)
+        self.env["gamification.karma.tracking"].sudo().create(
+            {
+                "user_id": inactive_user.id,
+                "old_value": 0,
+                "new_value": 50,
+                "tracking_date": fields.Datetime.now() - timedelta(days=15),
+                "origin_ref": f"res.users,{inactive_user.id}",
+                "reason": "Past activity",
+            }
+        )
+
+        with patch.object(
+            type(inactive_user),
+            "_send_gamification_notification",
+        ) as mock_notif:
+            self.env["res.users"]._nudge_inactive_users()
 
         mock_notif.assert_called()
 
@@ -307,3 +384,25 @@ class TestVisibilityControls(common.TransactionCase):
         leaderboard = Users._get_karma_leaderboard(limit=50)
         user_ids = [e["user_id"] for e in leaderboard]
         self.assertIn(self.public_user.id, user_ids)
+
+
+class TestGoalFieldIndexes(common.TransactionCase):
+    """Verify that frequently-filtered goal fields have database indexes."""
+
+    def test_goal_state_is_indexed(self):
+        """Goal state field must be indexed for cron and dashboard queries."""
+        field = self.env["gamification.goal"]._fields["state"]
+        self.assertTrue(
+            field.index,
+            "gamification.goal.state must have index=True — "
+            "filtered by every cron, dashboard, and nudge query",
+        )
+
+    def test_goal_closed_is_indexed(self):
+        """Goal closed field must be indexed for cron and nudge queries."""
+        field = self.env["gamification.goal"]._fields["closed"]
+        self.assertTrue(
+            field.index,
+            "gamification.goal.closed must have index=True — "
+            "filtered by cron _update_all and nudge queries",
+        )

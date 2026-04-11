@@ -2,9 +2,10 @@
 
 from unittest.mock import MagicMock, patch
 
+from odoo.tests.common import BaseCase
+
 from odoo.addons.bus.models.ir_http import _websocket_session_info
 from odoo.addons.bus.websocket import WebsocketConnectionHandler
-from odoo.tests.common import BaseCase
 
 
 def _mock_config(workers, proxy_mode, gevent_port=8072):

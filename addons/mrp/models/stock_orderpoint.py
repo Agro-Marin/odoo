@@ -206,9 +206,9 @@ class StockWarehouseOrderpoint(models.Model):
             ('id', 'not in', self.env.context.get('ignore_mo_ids', [])),
         ])
         for prod in in_progress_productions:
-            date_start, date_finished, orderpoint = prod.date_start, prod.date_finished, prod.orderpoint_id
+            date_start, date_end, orderpoint = prod.date_start, prod.date_end, prod.orderpoint_id
             lead_horizon_date = datetime.combine(orderpoint.lead_horizon_date, time.max)
-            if date_start <= lead_horizon_date < date_finished:
+            if date_start <= lead_horizon_date < date_end:
                 res[orderpoint.id] += prod.product_uom_id._compute_quantity(
                         prod.product_qty, orderpoint.product_uom, round=False)
         return res

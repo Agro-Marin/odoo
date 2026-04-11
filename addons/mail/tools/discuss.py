@@ -4,6 +4,7 @@ import os
 from collections import defaultdict
 from datetime import date, datetime
 from functools import wraps
+
 from markupsafe import Markup
 
 import odoo
@@ -11,19 +12,20 @@ from odoo import models
 from odoo.exceptions import MissingError
 from odoo.http import request
 from odoo.tools import groupby
+
 from odoo.addons.bus.websocket import wsrequest
 
+
 def add_guest_to_context(func):
-    """ Decorate a function to extract the guest from the request.
+    """Decorate a function to extract the guest from the request.
     The guest is then available on the context of the current
     request.
     """
+
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         req = request or wsrequest
-        token = (
-            req.cookies.get(req.env["mail.guest"]._cookie_name, "")
-        )
+        token = req.cookies.get(req.env["mail.guest"]._cookie_name, "")
         guest = req.env["mail.guest"]._get_guest_from_token(token)
         if guest and not guest.timezone and not req.env.cr.readonly:
             timezone = req.env["mail.guest"]._get_timezone_from_request(req)
@@ -53,15 +55,20 @@ def get_twilio_credentials(env) -> tuple[str | None, str | None]:
 
 def get_sfu_url(env) -> str | None:
     params = env["ir.config_parameter"].sudo()
-    sfu_url = params.get_param("mail.sfu_server_url") if params.get_param("mail.use_sfu_server") else None
+    sfu_url = (
+        params.get_param("mail.sfu_server_url")
+        if params.get_param("mail.use_sfu_server")
+        else None
+    )
     if not sfu_url:
         sfu_url = os.getenv("ODOO_SFU_URL")
     if sfu_url:
         return sfu_url.rstrip("/")
+    return None
 
 
 def get_sfu_key(env) -> str | None:
-    sfu_key = env['ir.config_parameter'].sudo().get_param('mail.sfu_server_key')
+    sfu_key = env["ir.config_parameter"].sudo().get_param("mail.sfu_server_key")
     if not sfu_key:
         return os.getenv("ODOO_SFU_KEY")
     return sfu_key
@@ -109,19 +116,20 @@ class Store:
                     if hasattr(records, "_to_store_defaults")
                     else []
                 )
-        fields = self._format_fields(records, fields) + self._format_fields(records, extra_fields)
+        fields = self._format_fields(records, fields) + self._format_fields(
+            records, extra_fields
+        )
         if as_thread:
             if hasattr(records, "_thread_to_store"):
                 records._thread_to_store(self, fields, **kwargs)
             else:
                 assert not kwargs
                 self.add_records_fields(records, fields, as_thread=True)
+        elif hasattr(records, "_to_store"):
+            records._to_store(self, fields, **kwargs)
         else:
-            if hasattr(records, "_to_store"):
-                records._to_store(self, fields, **kwargs)
-            else:
-                assert not kwargs
-                self.add_records_fields(records, fields)
+            assert not kwargs
+            self.add_records_fields(records, fields)
         return self
 
     def add_global_values(self, **values):
@@ -159,14 +167,19 @@ class Store:
         if not fields:
             return self
         fields = self._format_fields(records, fields)
-        for record, record_data_list in zip(records, self._get_records_data_list(records, fields)):
+        for record, record_data_list in zip(
+            records, self._get_records_data_list(records, fields), strict=False
+        ):
             for record_data in record_data_list:
                 if as_thread:
                     self.add_model_values(
-                        "mail.thread", {"id": record.id, "model": record._name, **record_data},
+                        "mail.thread",
+                        {"id": record.id, "model": record._name, **record_data},
                     )
                 else:
-                    self.add_model_values(record._name, {"id": record.id, **record_data})
+                    self.add_model_values(
+                        record._name, {"id": record.id, **record_data}
+                    )
         return self
 
     def add_singleton_values(self, model_name, values):
@@ -189,7 +202,9 @@ class Store:
         model_name = "mail.thread" if as_thread else records._name
         for record in records:
             values = (
-                {"id": record.id} if not as_thread else {"id": record.id, "model": record._name}
+                {"id": record.id}
+                if not as_thread
+                else {"id": record.id, "model": record._name}
             )
             index = self._get_record_index(model_name, values)
             self._ensure_record_at_index(model_name, index)
@@ -204,7 +219,9 @@ class Store:
             if not ids_by_model[model_name]:  # singleton
                 res[model_name] = dict(sorted(records.items()))
             else:
-                res[model_name] = [dict(sorted(record.items())) for record in records.values()]
+                res[model_name] = [
+                    dict(sorted(record.items())) for record in records.values()
+                ]
         return res
 
     def bus_send(self, notification_type="mail.record/insert", /):
@@ -212,7 +229,9 @@ class Store:
             "Missing `bus_channel`. Pass it to the `Store` constructor to use `bus_send`."
         )
         if res := self.get_result():
-            self.target.channel._bus_send(notification_type, res, subchannel=self.target.subchannel)
+            self.target.channel._bus_send(
+                notification_type, res, subchannel=self.target.subchannel
+            )
 
     def resolve_data_request(self, **values):
         """Add values to the store for the current data request.
@@ -220,7 +239,9 @@ class Store:
         Use case: resolve a specific data request from a client."""
         if not self.data_id:
             return self
-        self.add_model_values("DataResponse", {"id": self.data_id, "_resolve": True, **values})
+        self.add_model_values(
+            "DataResponse", {"id": self.data_id, "_resolve": True, **values}
+        )
         return self
 
     def _add_values(self, values, model_name, index=None):
@@ -262,20 +283,25 @@ class Store:
         return list(fields)  # prevent mutation of original list
 
     def _get_records_data_list(self, records, fields):
-        abstract_fields = [field for field in fields if isinstance(field, (dict, Store.Attr))]
+        abstract_fields = [
+            field for field in fields if isinstance(field, (dict, Store.Attr))
+        ]
         records_data_list = [
             [data_dict]
             for data_dict in records._read_format(
-                [f for f in fields if f not in abstract_fields], load=False,
+                [f for f in fields if f not in abstract_fields],
+                load=False,
             )
         ]
-        for record, record_data_list in zip(records, records_data_list):
+        for record, record_data_list in zip(records, records_data_list, strict=False):
             for field in abstract_fields:
                 if isinstance(field, dict):
                     record_data_list.append(field)
                 elif not field.predicate or field.predicate(record):
                     try:
-                        record_data_list.append({field.field_name: field._get_value(record)})
+                        record_data_list.append(
+                            {field.field_name: field._get_value(record)}
+                        )
                     except MissingError:
                         break
         return records_data_list
@@ -350,7 +376,11 @@ class Store:
             records = self.channel
             if self.channel is None and self.subchannel is None:
                 records = env["mail.guest"]._get_guest_from_context()
-            return records if isinstance(records, env.registry["mail.guest"]) else env["mail.guest"]
+            return (
+                records
+                if isinstance(records, env.registry["mail.guest"])
+                else env["mail.guest"]
+            )
 
         def get_user(self, env):
             """Return target user (if any). Target user is either the current bus target if the
@@ -359,7 +389,11 @@ class Store:
             records = self.channel
             if self.channel is None and self.subchannel is None:
                 records = env.user
-            return records if isinstance(records, env.registry["res.users"]) else env["res.users"]
+            return (
+                records
+                if isinstance(records, env.registry["res.users"])
+                else env["res.users"]
+            )
 
     class Attr:
         """Attribute to be added for each record. The value can be a static value or a function
@@ -398,14 +432,21 @@ class Store:
             value=None,
             **kwargs,
         ):
-            field_name = records_or_field_name if isinstance(records_or_field_name, str) else None
+            field_name = (
+                records_or_field_name
+                if isinstance(records_or_field_name, str)
+                else None
+            )
             super().__init__(field_name, predicate=predicate, sudo=sudo, value=value)
-            assert (
-                not records_or_field_name
-                or isinstance(records_or_field_name, (str, models.Model))
-            ), f"expected recordset, field name, or empty value for Relation: {records_or_field_name}"
+            assert not records_or_field_name or isinstance(
+                records_or_field_name, (str, models.Model)
+            ), (
+                f"expected recordset, field name, or empty value for Relation: {records_or_field_name}"
+            )
             self.records = (
-                records_or_field_name if isinstance(records_or_field_name, models.Model) else None
+                records_or_field_name
+                if isinstance(records_or_field_name, models.Model)
+                else None
             )
             assert self.records is None or dynamic_fields is None, (
                 """dynamic_fields can only be set when field name is provided, not records. """
@@ -420,9 +461,13 @@ class Store:
         def _get_value(self, record):
             target = super()._get_value(record)
             if target is None:
-                res_model_field = "res_model" if "res_model" in record._fields else "model"
+                res_model_field = (
+                    "res_model" if "res_model" in record._fields else "model"
+                )
                 if self.field_name == "thread" and "thread" not in record._fields:
-                    if (res_model := record[res_model_field]) and (res_id := record["res_id"]):
+                    if (res_model := record[res_model_field]) and (
+                        res_id := record["res_id"]
+                    ):
                         target = record.env[res_model].browse(res_id)
             return self._copy_with_records(target, calling_record=record)
 
@@ -438,13 +483,19 @@ class Store:
                 "extra_fields": extra_fields,
                 "fields": self.fields,
                 "only_data": self.only_data,
-                **{key: val for key, val in self.kwargs.items() if key != "extra_fields"},
+                **{
+                    key: val
+                    for key, val in self.kwargs.items()
+                    if key != "extra_fields"
+                },
             }
             return self.__class__(records, **params)
 
-        def _add_to_store(self, store: "Store", target, key):
+        def _add_to_store(self, store: Store, target, key):
             """Add the current relation to the given store at target[key]."""
-            store.add(self.records, self.fields, as_thread=self.as_thread, **self.kwargs)
+            store.add(
+                self.records, self.fields, as_thread=self.as_thread, **self.kwargs
+            )
 
     class One(Relation):
         """Flags a record or field name to be added to the store in a One relation."""
@@ -475,7 +526,7 @@ class Store:
             )
             assert not self.records or len(self.records) == 1
 
-        def _add_to_store(self, store: "Store", target, key):
+        def _add_to_store(self, store: Store, target, key):
             super()._add_to_store(store, target, key)
             if not self.only_data:
                 target[key] = self._get_id()
@@ -529,13 +580,15 @@ class Store:
             res.sort = self.sort
             return res
 
-        def _add_to_store(self, store: "Store", target, key):
+        def _add_to_store(self, store: Store, target, key):
             self._sort_recods()
             super()._add_to_store(store, target, key)
             if not self.only_data:
                 rel_val = self._get_id()
                 target[key] = (
-                    target[key] + rel_val if key in target and self.mode != "REPLACE" else rel_val
+                    target[key] + rel_val
+                    if key in target and self.mode != "REPLACE"
+                    else rel_val
                 )
 
         def _get_id(self):
@@ -550,7 +603,8 @@ class Store:
                 ]
             else:
                 res = [
-                    Store.One(record, as_thread=self.as_thread)._get_id() for record in self.records
+                    Store.One(record, as_thread=self.as_thread)._get_id()
+                    for record in self.records
                 ]
             if self.mode == "ADD":
                 res = [("ADD", res)]

@@ -128,7 +128,7 @@ class TestKarmaGain(common.SlidesCase):
         self.assertEqual(len(channel_partners), 4)
 
         # Set courses as completed and update karma
-        with self.assertQueryCount(69):  # com 55; +3 for has_questions compute via survey
+        with self.assertQueryCount(74):  # com 55; +3 survey; +5 nudge/engagement
             channel_partners._post_completion_update_hook()
 
         computed_karma = self.channel.karma_gen_channel_finish + self.channel_2.karma_gen_channel_finish

@@ -1,64 +1,71 @@
 import io
 import logging
 import time
-
-from PIL import Image, ImageFont, ImageDraw
-from werkzeug.exceptions import NotFound
 from urllib.parse import parse_qsl, urlencode, urlparse
+
+from PIL import Image, ImageDraw, ImageFont
+from werkzeug.exceptions import NotFound
 
 from odoo import _, http
 from odoo.exceptions import AccessError
-from odoo.http import request, Response
+from odoo.http import Response, request
 from odoo.tools import consteq
-from odoo.addons.mail.tools.discuss import add_guest_to_context
 from odoo.tools.misc import file_open
+
+from odoo.addons.mail.tools.discuss import add_guest_to_context
 
 _logger = logging.getLogger(__name__)
 
 
 class MailController(http.Controller):
-    _cp_path = '/mail'
+    _cp_path = "/mail"
 
     @classmethod
     def _redirect_to_generic_fallback(cls, model, res_id, access_token=None, **kwargs):
         if request.session.uid is None:
             return cls._redirect_to_login_with_mail_view(
-                model, res_id, access_token=access_token, **kwargs,
+                model,
+                res_id,
+                access_token=access_token,
+                **kwargs,
             )
         return cls._redirect_to_messaging()
 
     @classmethod
     def _redirect_to_messaging(cls):
-        url = '/odoo/action-mail.action_discuss'
+        url = "/odoo/action-mail.action_discuss"
         return request.redirect(url)
 
     @classmethod
-    def _redirect_to_login_with_mail_view(cls, model, res_id, access_token=None, **kwargs):
-        url_base = '/mail/view'
-        url_params = request.env['mail.thread']._get_action_link_params(
-            'view', **{
-                'model': model,
-                'res_id': res_id,
-                'access_token': access_token,
+    def _redirect_to_login_with_mail_view(
+        cls, model, res_id, access_token=None, **kwargs
+    ):
+        url_base = "/mail/view"
+        url_params = request.env["mail.thread"]._get_action_link_params(
+            "view",
+            **{
+                "model": model,
+                "res_id": res_id,
+                "access_token": access_token,
                 **kwargs,
-            }
+            },
         )
-        mail_view_url = f'{url_base}?{urlencode(sorted(url_params.items()))}'
-        return request.redirect(f'/web/login?{urlencode({"redirect": mail_view_url})}')
+        mail_view_url = f"{url_base}?{urlencode(sorted(url_params.items()))}"
+        return request.redirect(f"/web/login?{urlencode({'redirect': mail_view_url})}")
 
     @classmethod
     def _check_token(cls, token):
         base_link = request.httprequest.path
         params = dict(request.params)
-        params.pop('token', '')
-        valid_token = request.env['mail.thread']._encode_link(base_link, params)
+        params.pop("token", "")
+        valid_token = request.env["mail.thread"]._encode_link(base_link, params)
         return consteq(valid_token, str(token))
 
     @classmethod
     def _check_token_and_record_or_redirect(cls, model, res_id, token):
         comparison = cls._check_token(token)
         if not comparison:
-            _logger.warning('Invalid token in route %s', request.httprequest.url)
+            _logger.warning("Invalid token in route %s", request.httprequest.url)
             return comparison, None, cls._redirect_to_generic_fallback(model, res_id)
         try:
             record = request.env[model].browse(res_id).exists()
@@ -74,13 +81,16 @@ class MailController(http.Controller):
         # access_token and kwargs are used in the portal controller override for the Send by email or Share Link
         # to give access to the record to a recipient that has normally no access.
         uid = request.session.uid
-        user = request.env['res.users'].sudo().browse(uid)
+        user = request.env["res.users"].sudo().browse(uid)
         cids = []
 
         # no model / res_id, meaning no possible record -> redirect to login
         if not model or not res_id or model not in request.env:
             return cls._redirect_to_generic_fallback(
-                model, res_id, access_token=access_token, **kwargs,
+                model,
+                res_id,
+                access_token=access_token,
+                **kwargs,
             )
 
         # find the access action using sudo to have the details about the access link
@@ -89,24 +99,32 @@ class MailController(http.Controller):
         if not record_sudo:
             # record does not seem to exist -> redirect to login
             return cls._redirect_to_generic_fallback(
-                model, res_id, access_token=access_token, **kwargs,
+                model,
+                res_id,
+                access_token=access_token,
+                **kwargs,
             )
 
         suggested_company = record_sudo._get_redirect_suggested_company()
         # the record has a window redirection: check access rights
         if uid is not None:
-            if not RecordModel.with_user(uid).has_access('read'):
+            if not RecordModel.with_user(uid).has_access("read"):
                 return cls._redirect_to_generic_fallback(
-                    model, res_id, access_token=access_token, **kwargs,
+                    model,
+                    res_id,
+                    access_token=access_token,
+                    **kwargs,
                 )
             try:
                 # We need here to extend the "allowed_company_ids" to allow a redirection
                 # to any record that the user can access, regardless of currently visible
                 # records based on the "currently allowed companies".
-                cids_str = request.cookies.get('cids', str(user.company_id.id))
-                cids = [int(cid) for cid in cids_str.split('-')]
+                cids_str = request.cookies.get("cids", str(user.company_id.id))
+                cids = [int(cid) for cid in cids_str.split("-")]
                 try:
-                    record_sudo.with_user(uid).with_context(allowed_company_ids=cids).check_access('read')
+                    record_sudo.with_user(uid).with_context(
+                        allowed_company_ids=cids
+                    ).check_access("read")
                 except AccessError:
                     # In case the allowed_company_ids from the cookies (i.e. the last user configuration
                     # on their browser) is not sufficient to avoid an ir.rule access error, try to following
@@ -118,36 +136,56 @@ class MailController(http.Controller):
                     # - Make a new access test if it succeeds, redirect to the record. Otherwise,
                     #   redirect to the messaging.
                     if not suggested_company:
-                        raise AccessError(_("There is no candidate company that has read access to the record."))
+                        raise AccessError(
+                            _(
+                                "There is no candidate company that has read access to the record."
+                            )
+                        ) from None
                     cids = cids + [suggested_company.id]
-                    record_sudo.with_user(uid).with_context(allowed_company_ids=cids).check_access('read')
-                    request.future_response.set_cookie('cids', '-'.join([str(cid) for cid in cids]))
+                    record_sudo.with_user(uid).with_context(
+                        allowed_company_ids=cids
+                    ).check_access("read")
+                    request.future_response.set_cookie(
+                        "cids", "-".join([str(cid) for cid in cids])
+                    )
             except AccessError:
                 return cls._redirect_to_generic_fallback(
-                    model, res_id, access_token=access_token, **kwargs,
+                    model,
+                    res_id,
+                    access_token=access_token,
+                    **kwargs,
                 )
             else:
                 record_action = record_sudo._get_access_action(access_uid=uid)
         else:
             record_action = record_sudo._get_access_action()
             # we have an act_url (probably a portal link): we need to retry being logged to check access
-            if record_action['type'] == 'ir.actions.act_url' and record_action.get('target_type') != 'public':
+            if (
+                record_action["type"] == "ir.actions.act_url"
+                and record_action.get("target_type") != "public"
+            ):
                 return cls._redirect_to_login_with_mail_view(
-                    model, res_id, access_token=access_token, **kwargs,
+                    model,
+                    res_id,
+                    access_token=access_token,
+                    **kwargs,
                 )
 
-        record_action.pop('target_type', None)
+        record_action.pop("target_type", None)
         # the record has an URL redirection: use it directly
-        if record_action['type'] == 'ir.actions.act_url':
+        if record_action["type"] == "ir.actions.act_url":
             url = record_action["url"]
             if highlight_message_id := kwargs.get("highlight_message_id"):
                 parsed_url = urlparse(url)
-                url = parsed_url._replace(query=urlencode(
-                    parse_qsl(parsed_url.query) + [("highlight_message_id", highlight_message_id)]
-                )).geturl()
+                url = parsed_url._replace(
+                    query=urlencode(
+                        parse_qsl(parsed_url.query)
+                        + [("highlight_message_id", highlight_message_id)]
+                    )
+                ).geturl()
             return request.redirect(url)
         # anything else than an act_window is not supported
-        elif record_action['type'] != 'ir.actions.act_window':
+        elif record_action["type"] != "ir.actions.act_window":
             return cls._redirect_to_messaging()
 
         # backend act_window: when not logged, unless really readable as public,
@@ -155,54 +193,66 @@ class MailController(http.Controller):
         # in that case. In case of readable record, we consider this might be
         # a customization and we do not change the behavior in stable
         if uid is None or request.env.user._is_public():
-            has_access = record_sudo.with_user(request.env.user).has_access('read')
+            has_access = record_sudo.with_user(request.env.user).has_access("read")
             if not has_access:
                 return cls._redirect_to_login_with_mail_view(
-                    model, res_id, access_token=access_token, **kwargs,
+                    model,
+                    res_id,
+                    access_token=access_token,
+                    **kwargs,
                 )
 
         url_params = {}
-        menu_id = request.env['ir.ui.menu']._get_best_backend_root_menu_id_for_model(model)
+        menu_id = request.env["ir.ui.menu"]._get_best_backend_root_menu_id_for_model(
+            model
+        )
         if menu_id:
-            url_params['menu_id'] = menu_id
+            url_params["menu_id"] = menu_id
         view_id = record_sudo.get_formview_id()
         if view_id:
-            url_params['view_id'] = view_id
+            url_params["view_id"] = view_id
         if highlight_message_id := kwargs.get("highlight_message_id"):
             url_params["highlight_message_id"] = highlight_message_id
         if cids:
-            request.future_response.set_cookie('cids', '-'.join([str(cid) for cid in cids]))
+            request.future_response.set_cookie(
+                "cids", "-".join([str(cid) for cid in cids])
+            )
 
         # @see commit c63d14a0485a553b74a8457aee158384e9ae6d3f
         # @see router.js: heuristics to discrimate a model name from an action path
         # is the presence of dots, or the prefix m- for models
         model_in_url = model if "." in model else "m-" + model
-        url = f'/odoo/{model_in_url}/{res_id}?{urlencode(sorted(url_params.items()))}'
+        url = f"/odoo/{model_in_url}/{res_id}?{urlencode(sorted(url_params.items()))}"
         return request.redirect(url)
 
-    @http.route('/mail/view', type='http', auth='public')
+    @http.route("/mail/view", type="http", auth="public")
     def mail_action_view(self, model=None, res_id=None, access_token=None, **kwargs):
-        """ Generic access point from notification emails. The heuristic to
-            choose where to redirect the user is the following :
+        """Generic access point from notification emails. The heuristic to
+           choose where to redirect the user is the following :
 
-         - find a public URL
-         - if none found
-          - users with a read access are redirected to the document
-          - users without read access are redirected to the Messaging
-          - not logged users are redirected to the login page
+        - find a public URL
+        - if none found
+         - users with a read access are redirected to the document
+         - users without read access are redirected to the Messaging
+         - not logged users are redirected to the login page
 
-            models that have an access_token may apply variations on this.
+           models that have an access_token may apply variations on this.
         """
         # ==============================================================================================
         # This block of code disappeared on saas-11.3 to be reintroduced by TBE.
         # This is needed because after a migration from an older version to saas-11.3, the link
         # received by mail with a message_id no longer work.
         # So this block of code is needed to guarantee the backward compatibility of those links.
-        if kwargs.get('message_id'):
+        if kwargs.get("message_id"):
             try:
-                message = request.env['mail.message'].sudo().browse(int(kwargs['message_id'])).exists()
-            except:
-                message = request.env['mail.message']
+                message = (
+                    request.env["mail.message"]
+                    .sudo()
+                    .browse(int(kwargs["message_id"]))
+                    .exists()
+                )
+            except Exception:
+                message = request.env["mail.message"]
             if message:
                 model, res_id = message.model, message.res_id
         # ==============================================================================================
@@ -215,11 +265,13 @@ class MailController(http.Controller):
         return self._redirect_to_record(model, res_id, access_token, **kwargs)
 
     # csrf is disabled here because it will be called by the MUA with unpredictable session at that time
-    @http.route('/mail/unfollow', type='http', auth='public', csrf=False)
+    @http.route("/mail/unfollow", type="http", auth="public", csrf=False)
     def mail_action_unfollow(self, model, res_id, pid, token, **kwargs):
-        comparison, record, __ = MailController._check_token_and_record_or_redirect(model, int(res_id), token)
+        comparison, record, __ = MailController._check_token_and_record_or_redirect(
+            model, int(res_id), token
+        )
         if not comparison or not record:
-            raise AccessError(_('Non existing record or wrong token.'))
+            raise AccessError(_("Non existing record or wrong token."))
 
         pid = int(pid)
         record_sudo = record.sudo()
@@ -227,66 +279,91 @@ class MailController(http.Controller):
 
         display_link = True
         if request.session.uid:
-            display_link = record.has_access('read')
+            display_link = record.has_access("read")
 
-        return request.render('mail.message_document_unfollowed', {
-            'name': record_sudo.display_name,
-            'model_name': request.env['ir.model'].sudo()._get(model).display_name,
-            'access_url': record._notify_get_action_link('view', model=model, res_id=res_id) if display_link else False,
-        })
+        return request.render(
+            "mail.message_document_unfollowed",
+            {
+                "name": record_sudo.display_name,
+                "model_name": request.env["ir.model"].sudo()._get(model).display_name,
+                "access_url": record._notify_get_action_link(
+                    "view", model=model, res_id=res_id
+                )
+                if display_link
+                else False,
+            },
+        )
 
-    @http.route('/mail/message/<int:message_id>', type='http', auth='public')
+    @http.route("/mail/message/<int:message_id>", type="http", auth="public")
     @add_guest_to_context
     def mail_thread_message_redirect(self, message_id, **kwargs):
-        message = request.env['mail.message'].search([('id', '=', message_id)])
+        message = request.env["mail.message"].search([("id", "=", message_id)])
         if not message:
             if request.env.user._is_public():
-                return request.redirect(f'/web/login?redirect=/mail/message/{message_id}')
-            raise NotFound()
+                return request.redirect(
+                    f"/web/login?redirect=/mail/message/{message_id}"
+                )
+            raise NotFound
 
-        return self._redirect_to_record(message.model, message.res_id, highlight_message_id=message_id)
+        return self._redirect_to_record(
+            message.model, message.res_id, highlight_message_id=message_id
+        )
 
     # web_editor routes need to be kept otherwise mail already sent won't be able to load icons anymore
-    @http.route([
-        '/web_editor/font_to_img/<icon>',
-        '/web_editor/font_to_img/<icon>/<color>',
-        '/web_editor/font_to_img/<icon>/<color>/<int:size>',
-        '/web_editor/font_to_img/<icon>/<color>/<int:width>x<int:height>',
-        '/web_editor/font_to_img/<icon>/<color>/<int:size>/<int:alpha>',
-        '/web_editor/font_to_img/<icon>/<color>/<int:width>x<int:height>/<int:alpha>',
-        '/web_editor/font_to_img/<icon>/<color>/<bg>',
-        '/web_editor/font_to_img/<icon>/<color>/<bg>/<int:size>',
-        '/web_editor/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>',
-        '/web_editor/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>/<int:alpha>',
-        '/mail/font_to_img/<icon>',
-        '/mail/font_to_img/<icon>/<color>',
-        '/mail/font_to_img/<icon>/<color>/<int:size>',
-        '/mail/font_to_img/<icon>/<color>/<int:width>x<int:height>',
-        '/mail/font_to_img/<icon>/<color>/<int:size>/<int:alpha>',
-        '/mail/font_to_img/<icon>/<color>/<int:width>x<int:height>/<int:alpha>',
-        '/mail/font_to_img/<icon>/<color>/<bg>',
-        '/mail/font_to_img/<icon>/<color>/<bg>/<int:size>',
-        '/mail/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>',
-        '/mail/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>/<int:alpha>',
-        ], type='http', auth="none")
-    def export_icon_to_png(self, icon, color='#000', bg=None, size=100, alpha=255, font='/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2', width=None, height=None):
-        """ This method converts an unicode character to an image (using Font
-            Awesome font by default) and is used only for mass mailing because
-            custom fonts are not supported in mail.
+    @http.route(
+        [
+            "/web_editor/font_to_img/<icon>",
+            "/web_editor/font_to_img/<icon>/<color>",
+            "/web_editor/font_to_img/<icon>/<color>/<int:size>",
+            "/web_editor/font_to_img/<icon>/<color>/<int:width>x<int:height>",
+            "/web_editor/font_to_img/<icon>/<color>/<int:size>/<int:alpha>",
+            "/web_editor/font_to_img/<icon>/<color>/<int:width>x<int:height>/<int:alpha>",
+            "/web_editor/font_to_img/<icon>/<color>/<bg>",
+            "/web_editor/font_to_img/<icon>/<color>/<bg>/<int:size>",
+            "/web_editor/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>",
+            "/web_editor/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>/<int:alpha>",
+            "/mail/font_to_img/<icon>",
+            "/mail/font_to_img/<icon>/<color>",
+            "/mail/font_to_img/<icon>/<color>/<int:size>",
+            "/mail/font_to_img/<icon>/<color>/<int:width>x<int:height>",
+            "/mail/font_to_img/<icon>/<color>/<int:size>/<int:alpha>",
+            "/mail/font_to_img/<icon>/<color>/<int:width>x<int:height>/<int:alpha>",
+            "/mail/font_to_img/<icon>/<color>/<bg>",
+            "/mail/font_to_img/<icon>/<color>/<bg>/<int:size>",
+            "/mail/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>",
+            "/mail/font_to_img/<icon>/<color>/<bg>/<int:width>x<int:height>/<int:alpha>",
+        ],
+        type="http",
+        auth="none",
+    )
+    def export_icon_to_png(
+        self,
+        icon,
+        color="#000",
+        bg=None,
+        size=100,
+        alpha=255,
+        font="/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2",
+        width=None,
+        height=None,
+    ):
+        """This method converts an unicode character to an image (using Font
+        Awesome font by default) and is used only for mass mailing because
+        custom fonts are not supported in mail.
 
-            NOTE: FA7 ships woff2 only; PIL's ImageFont.truetype() requires a
-            TTF/OTF file. The default font path will fail until a compatible
-            font file is added. Callers can pass an explicit ``font`` path.
-            :param icon : decimal encoding of unicode character
-            :param color : RGB code of the color
-            :param bg : RGB code of the background color
-            :param size : Pixels in integer
-            :param alpha : transparency of the image from 0 to 255
-            :param font : font path
-            :param width : Pixels in integer
-            :param height : Pixels in integer
+        NOTE: FA7 ships woff2 only; PIL's ImageFont.truetype() requires a
+        TTF/OTF file. The default font path will fail until a compatible
+        font file is added. Callers can pass an explicit ``font`` path.
+        :param icon : decimal encoding of unicode character
+        :param color : RGB code of the color
+        :param bg : RGB code of the background color
+        :param size : Pixels in integer
+        :param alpha : transparency of the image from 0 to 255
+        :param font : font path
+        :param width : Pixels in integer
+        :param height : Pixels in integer
 
-            :returns PNG image converted from given font
+        :returns PNG image converted from given font
         """
         # For custom icons, use the corresponding custom font
         if icon.isdigit():
@@ -296,7 +373,6 @@ class MailController(http.Controller):
                 # one is also considered for consistency anyway).
                 "61569": "59464",  # F081 -> E848: fa-twitter-square
                 "61593": "59418",  # F099 -> E81A: fa-twitter
-
                 # Addition of new icons
                 "59407": "59407",  # E80F: fa-strava
                 "59409": "59409",  # E811: fa-discord
@@ -317,22 +393,21 @@ class MailController(http.Controller):
         width = max(1, min(width, 512))
         height = max(1, min(height, 512))
         # Initialize font
-        if font.startswith('/'):
-            font = font[1:]
-        font_obj = ImageFont.truetype(file_open(font, 'rb'), height)
+        font = font.removeprefix("/")
+        font_obj = ImageFont.truetype(file_open(font, "rb"), height)
 
         # if received character is not a number, keep old behaviour (icon is character)
         icon = chr(int(icon)) if icon.isdigit() else icon
 
         # Background standardization
-        if bg is not None and bg.startswith('rgba'):
-            bg = bg.replace('rgba', 'rgb')
-            bg = ','.join(bg.split(',')[:-1]) + ')'
+        if bg is not None and bg.startswith("rgba"):
+            bg = bg.replace("rgba", "rgb")
+            bg = ",".join(bg.split(",")[:-1]) + ")"
 
         # Strip alpha channel from color — icon opacity comes from glyph shape
-        if color is not None and color.startswith('rgba'):
-            color = color.replace('rgba', 'rgb')
-            color = ','.join(color.split(',')[:-1]) + ')'
+        if color is not None and color.startswith("rgba"):
+            color = color.replace("rgba", "rgb")
+            color = ",".join(color.split(",")[:-1]) + ")"
 
         # Measure the icon glyph dimensions
         dummy = Image.new("RGBA", (1, 1))
@@ -349,13 +424,15 @@ class MailController(http.Controller):
         output = io.BytesIO()
         outimage.save(output, format="PNG")
         response = Response()
-        response.mimetype = 'image/png'
+        response.mimetype = "image/png"
         response.data = output.getvalue()
-        response.headers['Cache-Control'] = 'public, max-age=604800'
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST'
-        response.headers['Connection'] = 'close'
-        response.headers['Date'] = time.strftime("%a, %d-%b-%Y %T GMT", time.gmtime())
-        response.headers['Expires'] = time.strftime("%a, %d-%b-%Y %T GMT", time.gmtime(time.time() + 604800 * 60))
+        response.headers["Cache-Control"] = "public, max-age=604800"
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST"
+        response.headers["Connection"] = "close"
+        response.headers["Date"] = time.strftime("%a, %d-%b-%Y %T GMT", time.gmtime())
+        response.headers["Expires"] = time.strftime(
+            "%a, %d-%b-%Y %T GMT", time.gmtime(time.time() + 604800 * 60)
+        )
 
         return response

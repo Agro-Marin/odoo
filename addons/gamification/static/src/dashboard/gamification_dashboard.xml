@@ -65,8 +65,8 @@
                                     </div>
                                 </div>
                                 <button class="btn btn-sm btn-outline-secondary" t-on-click="refresh"
-                                        title="Refresh dashboard">
-                                    <i class="fa fa-refresh"/>
+                                        title="Refresh dashboard" aria-label="Refresh dashboard">
+                                    <i class="fa fa-refresh" aria-hidden="true"/>
                                 </button>
                             </div>
                             <!-- Featured Badges -->
@@ -156,6 +156,14 @@
                                 </t>
                                 <t t-else="">
                                     <table class="table table-sm mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">Streak</th>
+                                                <th scope="col" class="text-center">Current</th>
+                                                <th scope="col" class="text-center">Best</th>
+                                                <th scope="col" class="text-end">Status</th>
+                                            </tr>
+                                        </thead>
                                         <tbody>
                                             <t t-foreach="state.streaks" t-as="streak" t-key="streak.id">
                                                 <tr>
@@ -248,13 +256,13 @@
                                                 <tr t-att-class="entry.is_current_user ? 'table-primary' : ''">
                                                     <td class="align-middle text-center" style="width: 40px;">
                                                         <t t-if="entry_index === 0">
-                                                            <i class="fa fa-trophy text-warning"/>
+                                                            <i class="fa fa-trophy text-warning" role="img" aria-label="1st place"/>
                                                         </t>
                                                         <t t-elif="entry_index === 1">
-                                                            <i class="fa fa-trophy text-secondary"/>
+                                                            <i class="fa fa-trophy text-secondary" role="img" aria-label="2nd place"/>
                                                         </t>
                                                         <t t-elif="entry_index === 2">
-                                                            <i class="fa fa-trophy text-danger"/>
+                                                            <i class="fa fa-trophy text-danger" role="img" aria-label="3rd place"/>
                                                         </t>
                                                         <t t-else="">
                                                             <span class="text-muted" t-esc="entry_index + 1"/>
@@ -356,7 +364,8 @@
                                 <div class="card-body border-bottom bg-light">
                                     <div class="mb-2">
                                         <select class="form-select form-select-sm"
-                                                t-on-change="onKudosRecipientChange">
+                                                t-on-change="onKudosRecipientChange"
+                                                aria-label="Select kudos recipient">
                                             <option value="">Select recipient...</option>
                                             <t t-foreach="state.kudosUsers" t-as="u" t-key="u.id">
                                                 <option t-att-value="u.id" t-esc="u.name"/>
@@ -365,7 +374,8 @@
                                     </div>
                                     <div class="mb-2">
                                         <select class="form-select form-select-sm"
-                                                t-on-change="onKudosCategoryChange">
+                                                t-on-change="onKudosCategoryChange"
+                                                aria-label="Select kudos category">
                                             <option value="">Select category...</option>
                                             <t t-foreach="state.kudosCategories" t-as="cat" t-key="cat.id">
                                                 <option t-att-value="cat.id">
@@ -377,6 +387,7 @@
                                     <div class="mb-2">
                                         <textarea class="form-control form-control-sm" rows="2"
                                                   placeholder="Write your recognition message..."
+                                                  aria-label="Kudos message"
                                                   t-on-input="onKudosMessageChange"
                                                   t-att-value="state.kudosMessage"/>
                                     </div>
@@ -401,7 +412,7 @@
                                         <t t-foreach="state.activity_feed" t-as="act" t-key="act.id">
                                             <div class="list-group-item py-2">
                                                 <div class="d-flex align-items-start gap-2">
-                                                    <i t-att-class="(act.icon || 'fa fa-star') + ' mt-1 text-primary'"/>
+                                                    <i t-att-class="(act.icon || 'fa fa-star') + ' mt-1 text-primary'" aria-hidden="true"/>
                                                     <div class="flex-grow-1">
                                                         <div t-esc="act.summary"/>
                                                         <div class="d-flex justify-content-between">

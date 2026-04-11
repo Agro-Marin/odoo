@@ -83,8 +83,14 @@ class GamificationBadgeUser(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        # Check granting once per unique badge (not per record in the batch)
+        checked_badge_ids: set[int] = set()
+        Badge = self.env["gamification.badge"]
         for vals in vals_list:
-            self.env["gamification.badge"].browse(vals["badge_id"]).check_granting()
+            badge_id = vals["badge_id"]
+            if badge_id not in checked_badge_ids:
+                Badge.browse(badge_id).check_granting()
+                checked_badge_ids.add(badge_id)
         return super().create(vals_list)
 
     def _mail_get_partner_fields(self, introspect_fields: bool = False) -> list[str]:

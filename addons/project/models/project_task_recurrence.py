@@ -53,7 +53,7 @@ class ProjectTaskRecurrence(models.Model):
     @api.model
     def _get_recurring_fields_to_postpone(self) -> list[str]:
         return [
-            "date_deadline",
+            "date_end",
         ]
 
     def _get_last_task_id_per_recurrence_id(self) -> dict[int, int]:
@@ -83,10 +83,10 @@ class ProjectTaskRecurrence(models.Model):
             rec = task.recurrence_id.sudo()
             return (
                 rec.repeat_type != "until"
-                or not task.date_deadline
+                or not task.date_end
                 or (
                     rec.repeat_until
-                    and (task.date_deadline + rec._get_recurrence_delta()).date()
+                    and (task.date_end + rec._get_recurrence_delta()).date()
                     <= rec.repeat_until
                 )
             )

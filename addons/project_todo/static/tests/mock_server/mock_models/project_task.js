@@ -6,7 +6,7 @@ export class ProjectTask extends projectModels.ProjectTask {
 
     company_id = fields.Many2one({ string: "Company", relation: "res.company" });
     tag_ids = fields.Many2many({ relation: "project.tags" });
-    date_deadline = fields.Datetime({ string: "Deadline" });
+    date_end = fields.Datetime({ string: "Deadline" });
 
     _records = [
         {
@@ -14,7 +14,7 @@ export class ProjectTask extends projectModels.ProjectTask {
             name: "Todo 1",
             state: "01_in_progress",
             tag_ids: [1],
-            date_deadline: "2022-01-01 08:30:00",
+            date_end: "2022-01-01 08:30:00",
         },
         {
             id: 2,
@@ -27,7 +27,7 @@ export class ProjectTask extends projectModels.ProjectTask {
             name: "Todo 3",
             state: "01_in_progress",
             tag_ids: [3, 2],
-            date_deadline: "2022-01-05 08:30:00",
+            date_end: "2022-01-05 08:30:00",
         },
     ];
 }

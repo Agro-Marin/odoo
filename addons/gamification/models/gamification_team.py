@@ -84,9 +84,7 @@ class GamificationTeam(models.Model):
         :param challenge: ``gamification.challenge`` record.
         :return: float, average completeness percentage.
         """
-        from odoo.addons.gamification.models.gamification_challenge import (
-            start_end_date_for_period,
-        )
+        from .gamification_utils import start_end_date_for_period
 
         self.ensure_one()
         if not self.member_ids:

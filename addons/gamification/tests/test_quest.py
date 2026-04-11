@@ -216,7 +216,27 @@ class TestSeason(common.TransactionCase):
         self.assertEqual(season.state, "archived")
 
     def test_season_leaderboard(self):
-        """Season leaderboard returns karma earned during the window."""
+        """Season leaderboard returns karma earned during the window, sorted."""
+        user_a = mail_new_test_user(
+            self.env,
+            login="season_a",
+            name="Season User A",
+            email="season_a@example.com",
+            karma=0,
+            groups="base.group_user",
+        )
+        user_b = mail_new_test_user(
+            self.env,
+            login="season_b",
+            name="Season User B",
+            email="season_b@example.com",
+            karma=0,
+            groups="base.group_user",
+        )
+        # Grant karma so tracking records exist within the season window
+        user_a._add_karma(50, source=user_a, reason="test")
+        user_b._add_karma(100, source=user_b, reason="test")
+
         season = self.env["gamification.season"].create(
             {
                 "name": "Test Season",
@@ -226,6 +246,22 @@ class TestSeason(common.TransactionCase):
         )
         result = season.get_season_leaderboard(limit=5)
         self.assertIsInstance(result, list)
+        self.assertGreaterEqual(len(result), 2, "Leaderboard should include both users")
+        # Verify sorted by karma descending
+        karmas = [r["season_karma"] for r in result]
+        self.assertEqual(karmas, sorted(karmas, reverse=True))
+
+    def test_season_leaderboard_empty(self):
+        """Season leaderboard returns empty list when no karma in window."""
+        season = self.env["gamification.season"].create(
+            {
+                "name": "Empty Season",
+                "start_date": "1990-01-01",
+                "end_date": "1990-12-31",
+            }
+        )
+        result = season.get_season_leaderboard(limit=5)
+        self.assertEqual(result, [])
 
 
 class TestSkillTree(common.TransactionCase):

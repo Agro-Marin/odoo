@@ -27,7 +27,7 @@ beforeEach(() => {
             <form string="To-do" class="o_todo_form_view" js_class="todo_form">
                 <field name="name"/>
                 <field name="priority" invisible="1"/>
-                <field name="date_deadline" widget="remaining_days"/>
+                <field name="date_end" widget="remaining_days"/>
             </form>`,
         activity: `
             <activity string="MailTestActivity">

@@ -174,7 +174,7 @@ class TestTaskDependencies(TestProjectCommon):
     def test_duplicate_project_with_task_dependencies(self) -> None:
         self.project_pigs.allow_dependencies = True
         self.task_1.predecessor_ids = self.task_2
-        self.task_1.date_deadline = Datetime.now()
+        self.task_1.date_end = Datetime.now()
         pigs_copy = self.project_pigs.copy()
 
         task1_copy = pigs_copy.task_ids.filtered(lambda t: t.name == "Pigs UserTask")

@@ -19,7 +19,7 @@
                 <separator/>
                 <filter name="filter_date" date="date" string="Date" default_period="year,year-1" />
                 <filter name="filter_last_stage_update" date="date_last_status_change"/>
-                <filter name="filter_date_deadline" date="date_deadline"/>
+                <filter name="filter_date_deadline" date="date_end"/>
                 <filter string="Last Month" invisible="1" name="last_month" domain="[('date','&gt;=', 'today -30d')]"/>
                 <separator/>
                 <filter string="Open Tasks" name="open_tasks" domain="[('is_closed', '=', 'open')]"/>

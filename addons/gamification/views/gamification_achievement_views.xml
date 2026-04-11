@@ -6,7 +6,7 @@
     <record id="achievement_list_action" model="ir.actions.act_window">
         <field name="name">Achievements</field>
         <field name="res_model">gamification.achievement</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first achievement
@@ -26,6 +26,34 @@
     </record>
 
     <!-- ===== Achievement Views ===== -->
+
+    <record id="achievement_kanban_view" model="ir.ui.view">
+        <field name="name">gamification.achievement.kanban</field>
+        <field name="model">gamification.achievement</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="rarity" class="o_kanban_small_column">
+                <templates>
+                    <t t-name="card">
+                        <field name="icon" widget="image" class="o_kanban_image"/>
+                        <div>
+                            <strong><field name="name"/></strong>
+                            <div class="text-muted" t-if="record.hidden.raw_value">
+                                <i class="fa fa-eye-slash"/> Mystery
+                            </div>
+                            <div class="mt-1">
+                                <span class="badge text-bg-secondary me-1" t-if="record.karma_reward.raw_value">
+                                    +<field name="karma_reward"/> karma
+                                </span>
+                                <span class="badge text-bg-info">
+                                    <field name="unlock_count"/> unlocked
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
 
     <record id="achievement_list_view" model="ir.ui.view">
         <field name="name">gamification.achievement.list</field>

@@ -172,7 +172,7 @@ class StockPicking(models.Model):
             grouped_mo = self.env['mrp.production'].with_company(company).create(vals_list)
             grouped_mo.with_context(self._get_subcontract_mo_confirmation_ctx()).action_confirm()
             for mo, move in zip(grouped_mo, moves):
-                mo.date_finished = move.date
+                mo.date_end = move.date
                 finished_move = mo.move_finished_ids.filtered(lambda m: m.product_id == move.product_id)
                 finished_move.move_dest_ids = [Command.link(move.id)]
             grouped_mo.action_assign()

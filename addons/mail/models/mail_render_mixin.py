@@ -1,24 +1,30 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import babel
 import copy
 import logging
 import re
 import traceback
-
-from lxml import html
 from functools import reduce
+
+import babel
+from lxml import html
 from markupsafe import Markup, escape
 
 from odoo import _, api, fields, models, tools
-from odoo.addons.base.models.ir_qweb import QWebError
-from odoo.exceptions import UserError, AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.libs.web import urls
-from odoo.tools.mail import is_html_empty, prepend_html_content, html_normalize
-from odoo.tools.rendering_tools import convert_inline_template_to_qweb, parse_inline_template, render_inline_template, template_env_globals
+from odoo.tools.mail import html_normalize, is_html_empty, prepend_html_content
+from odoo.tools.rendering_tools import (
+    convert_inline_template_to_qweb,
+    parse_inline_template,
+    render_inline_template,
+    template_env_globals,
+)
+
+from odoo.addons.base.models.ir_qweb import QWebError
 
 _logger = logging.getLogger(__name__)
+
 
 def format_date(env, date, pattern=False, lang_code=False):
     try:
@@ -27,22 +33,27 @@ def format_date(env, date, pattern=False, lang_code=False):
         return date
 
 
-def format_datetime(env, dt, tz=False, dt_format='medium', lang_code=False):
+def format_datetime(env, dt, tz=False, dt_format="medium", lang_code=False):
     try:
-        return tools.format_datetime(env, dt, tz=tz, dt_format=dt_format, lang_code=lang_code)
+        return tools.format_datetime(
+            env, dt, tz=tz, dt_format=dt_format, lang_code=lang_code
+        )
     except babel.core.UnknownLocaleError:
         return dt
 
-def format_time(env, time, tz=False, time_format='medium', lang_code=False):
+
+def format_time(env, time, tz=False, time_format="medium", lang_code=False):
     try:
-        return tools.format_time(env, time, tz=tz, time_format=time_format, lang_code=lang_code)
+        return tools.format_time(
+            env, time, tz=tz, time_format=time_format, lang_code=lang_code
+        )
     except babel.core.UnknownLocaleError:
         return time
 
 
 class MailRenderMixin(models.AbstractModel):
-    _name = 'mail.render.mixin'
-    _description = 'Mail Render Mixin'
+    _name = "mail.render.mixin"
+    _description = "Mail Render Mixin"
 
     # If True, we trust the value on the model for rendering
     # If False, we need the group "Template Editor" to render the model fields
@@ -50,17 +61,20 @@ class MailRenderMixin(models.AbstractModel):
 
     # language for rendering
     lang = fields.Char(
-        'Language',
+        "Language",
         help="Optional translation language (ISO code) to select when sending out an email. "
-             "If not set, the main partner's language will be used. This should usually be a placeholder expression "
-             "that provides the appropriate language, e.g. {{ object.partner_id.lang }}.")
+        "If not set, the main partner's language will be used. This should usually be a placeholder expression "
+        "that provides the appropriate language, e.g. {{ object.partner_id.lang }}.",
+    )
     # rendering context
-    render_model = fields.Char("Rendering Model", compute='_compute_render_model', store=False)
+    render_model = fields.Char(
+        "Rendering Model", compute="_compute_render_model", store=False
+    )
 
     def _compute_render_model(self):
-        """ Give the target model for rendering. Void by default as models
+        """Give the target model for rendering. Void by default as models
         inheriting from ``mail.render.mixin`` should define how to find this
-        model. """
+        model."""
         self.render_model = False
 
     @api.model
@@ -71,8 +85,8 @@ class MailRenderMixin(models.AbstractModel):
         :param field_name: main field name
         :param sub_field_name: sub field name (M2O)
         :param null_value: default value if the target value is empty
-        :return: final placeholder expression """
-        expression = ''
+        :return: final placeholder expression"""
+        expression = ""
         if field_name:
             expression = "{{ object." + field_name
             if sub_field_name:
@@ -88,7 +102,10 @@ class MailRenderMixin(models.AbstractModel):
 
     def _valid_field_parameter(self, field, name):
         # allow specifying rendering options directly from field when using the render mixin
-        return name in ['render_engine', 'render_options'] or super()._valid_field_parameter(field, name)
+        return name in [
+            "render_engine",
+            "render_options",
+        ] or super()._valid_field_parameter(field, name)
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -107,8 +124,12 @@ class MailRenderMixin(models.AbstractModel):
             self._check_access_right_dynamic_template()
         return True
 
-    def _update_field_translations(self, field_name, translations, digest=None, source_lang=''):
-        res = super()._update_field_translations(field_name, translations, digest=digest, source_lang=source_lang)
+    def _update_field_translations(
+        self, field_name, translations, digest=None, source_lang=""
+    ):
+        res = super()._update_field_translations(
+            field_name, translations, digest=digest, source_lang=source_lang
+        )
         if self._unrestricted_rendering:
             for lang in translations:
                 # If the rendering is unrestricted (e.g. mail.template),
@@ -121,7 +142,7 @@ class MailRenderMixin(models.AbstractModel):
     # ------------------------------------------------------------
 
     def _replace_local_links(self, html, base_url=None):
-        """ Replace local links by absolute links. It is required in various
+        """Replace local links by absolute links. It is required in various
         cases, for example when sending emails on chatter or sending mass
         mailings. It replaces
 
@@ -143,92 +164,148 @@ class MailRenderMixin(models.AbstractModel):
             # compute here to do it only if really necessary + cache will ensure it is done only once
             # if not base_url
             if not _sub_relative2absolute.base_url:
-                _sub_relative2absolute.base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
-            return match.group(1) + urls.urljoin(_sub_relative2absolute.base_url, match.group(2))
+                _sub_relative2absolute.base_url = (
+                    self.env["ir.config_parameter"].sudo().get_param("web.base.url")
+                )
+            return match.group(1) + urls.urljoin(
+                _sub_relative2absolute.base_url, match.group(2)
+            )
 
         _sub_relative2absolute.base_url = base_url
-        html = re.sub(r"""(<(?:img|v:fill|v:image)(?=\s)[^>]*\ssrc=")(/[^/][^"]+)""", _sub_relative2absolute, html)
-        html = re.sub(r"""(<a(?=\s)[^>]*\shref=")(/[^/][^"]+)""", _sub_relative2absolute, html)
-        html = re.sub(r"""(<[\w-]+(?=\s)[^>]*\sbackground=")(/[^/][^"]+)""", _sub_relative2absolute, html)
-        html = re.sub(re.compile(
-            r"""( # Group 1: element up to url in style
+        html = re.sub(
+            r"""(<(?:img|v:fill|v:image)(?=\s)[^>]*\ssrc=")(/[^/][^"]+)""",
+            _sub_relative2absolute,
+            html,
+        )
+        html = re.sub(
+            r"""(<a(?=\s)[^>]*\shref=")(/[^/][^"]+)""", _sub_relative2absolute, html
+        )
+        html = re.sub(
+            r"""(<[\w-]+(?=\s)[^>]*\sbackground=")(/[^/][^"]+)""",
+            _sub_relative2absolute,
+            html,
+        )
+        html = re.sub(
+            re.compile(
+                r"""( # Group 1: element up to url in style
                 <[^>]+\bstyle=" # Element with a style attribute
                 [^"]+\burl\( # Style attribute contains "url(" style
                 (?:&\#34;|'|&quot;|&\#39;)?) # url style may start with (escaped) quote: capture it
             ( # Group 2: url itself
                 /(?:[^'")]|(?!&\#34;)|(?!&\#39;))+ # stop at the first closing quote
-        )""", re.VERBOSE), _sub_relative2absolute, html)
+        )""",
+                re.VERBOSE,
+            ),
+            _sub_relative2absolute,
+            html,
+        )
 
         return Wrapper(html)
 
     @api.model
-    def _render_encapsulate(self, layout_xmlid, html, add_context=None, context_record=None):
-        """ Encapsulate html content (i.e. an email body) in a layout containing
+    def _render_encapsulate(
+        self, layout_xmlid, html, add_context=None, context_record=None
+    ):
+        """Encapsulate html content (i.e. an email body) in a layout containing
         more complex html. Used to generate a 'email friendly' content from
         simple html content.
 
         Typical usage: encapsulate content in email layouts like 'mail_notification_layout'
         or 'mail_notification_light'. Also used for digest layouts. This leads
         to some default rendering values being computed here, often used in those
-        templates. """
-        record_name = (add_context or {}).get('record_name', context_record.display_name if context_record else '')
-        subtype = (add_context or {}).get('subtype', self.env['mail.message.subtype'].sudo())
+        templates."""
+        record_name = (add_context or {}).get(
+            "record_name", context_record.display_name if context_record else ""
+        )
+        subtype = (add_context or {}).get(
+            "subtype", self.env["mail.message.subtype"].sudo()
+        )
         template_ctx = {
-            'body': html,
-            'record': context_record,
-            'record_name': record_name,
+            "body": html,
+            "record": context_record,
+            "record_name": record_name,
             **(add_context or {}),
         }
         # the 'mail_notification_light' expects a mail.message 'message' context, let's give it one
-        if not template_ctx.get('message'):
-            msg_vals = {'body': html}
+        if not template_ctx.get("message"):
+            msg_vals = {"body": html}
             if context_record:
-                msg_vals.update({'model': context_record._name, 'res_id': context_record.id})
-            template_ctx['message'] = self.env['mail.message'].sudo().new(msg_vals)
+                msg_vals.update(
+                    {"model": context_record._name, "res_id": context_record.id}
+                )
+            template_ctx["message"] = self.env["mail.message"].sudo().new(msg_vals)
         # other message info
         if not subtype:
-            template_ctx['is_discussion'] = False
-            template_ctx['subtype_internal'] = False
+            template_ctx["is_discussion"] = False
+            template_ctx["subtype_internal"] = False
         else:
-            if 'is_discussion' not in template_ctx:
-                template_ctx['is_discussion'] = subtype.id == self.env['ir.model.data']._xmlid_to_res_id('mail.mt_comment')
-            if 'subtype_internal' not in template_ctx:
-                template_ctx['subtype_internal'] = subtype.is_internal
-        template_ctx.setdefault('subtype', subtype)
-        template_ctx.setdefault('tracking_values', [])
+            if "is_discussion" not in template_ctx:
+                template_ctx["is_discussion"] = subtype.id == self.env[
+                    "ir.model.data"
+                ]._xmlid_to_res_id("mail.mt_comment")
+            if "subtype_internal" not in template_ctx:
+                template_ctx["subtype_internal"] = subtype.is_internal
+        template_ctx.setdefault("subtype", subtype)
+        template_ctx.setdefault("tracking_values", [])
         # record info
-        if 'model_description' not in template_ctx:
-            template_ctx['model_description'] = self.env['ir.model']._get(context_record._name).display_name if context_record else False
-        template_ctx.setdefault('subtitles', [record_name])
+        if "model_description" not in template_ctx:
+            template_ctx["model_description"] = (
+                self.env["ir.model"]._get(context_record._name).display_name
+                if context_record
+                else False
+            )
+        template_ctx.setdefault("subtitles", [record_name])
         # user / environment
-        template_ctx.setdefault('author_user', False)
-        if 'company' not in template_ctx:
-            template_ctx['company'] = context_record._mail_get_companies(default=self.env.company)[context_record.id] if context_record else self.env.company
-        template_ctx.setdefault('email_add_signature', False)
-        template_ctx.setdefault('lang', self.env.lang)
-        template_ctx.setdefault('signature', '')
-        template_ctx.setdefault('show_unfollow', False)
-        template_ctx.setdefault('website_url', '')
-        # display: actions / buttons
-        template_ctx.setdefault('button_access', False)
-        template_ctx.setdefault('has_button_access', False)
+        template_ctx.setdefault("author_user", False)
+        if "company" not in template_ctx:
+            template_ctx["company"] = (
+                context_record._mail_get_companies(default=self.env.company)[
+                    context_record.id
+                ]
+                if context_record
+                else self.env.company
+            )
+        template_ctx.setdefault("email_add_signature", False)
+        template_ctx.setdefault("lang", self.env.lang)
+        template_ctx.setdefault("signature", "")
+        template_ctx.setdefault("show_unfollow", False)
+        template_ctx.setdefault("website_url", "")
+        # display: actions / buttons  # noqa: ERA001
+        template_ctx.setdefault("button_access", False)
+        template_ctx.setdefault("has_button_access", False)
         # display
-        template_ctx.setdefault('email_notification_force_header', self.env.context.get('email_notification_force_header', False))
-        template_ctx.setdefault('email_notification_force_footer', self.env.context.get('email_notification_force_footer', False))
-        template_ctx.setdefault('email_notification_allow_header', self.env.context.get('email_notification_allow_header', True))
-        template_ctx.setdefault('email_notification_allow_footer', self.env.context.get('email_notification_allow_footer', False))
+        template_ctx.setdefault(
+            "email_notification_force_header",
+            self.env.context.get("email_notification_force_header", False),
+        )
+        template_ctx.setdefault(
+            "email_notification_force_footer",
+            self.env.context.get("email_notification_force_footer", False),
+        )
+        template_ctx.setdefault(
+            "email_notification_allow_header",
+            self.env.context.get("email_notification_allow_header", True),
+        )
+        template_ctx.setdefault(
+            "email_notification_allow_footer",
+            self.env.context.get("email_notification_allow_footer", False),
+        )
         # tools
-        template_ctx.setdefault('is_html_empty', is_html_empty)
+        template_ctx.setdefault("is_html_empty", is_html_empty)
 
-        html = self.env['ir.qweb']._render(layout_xmlid, template_ctx, minimal_qcontext=True, raise_if_not_found=False)
+        html = self.env["ir.qweb"]._render(
+            layout_xmlid, template_ctx, minimal_qcontext=True, raise_if_not_found=False
+        )
         if not html:
-            _logger.warning('QWeb template %s not found when rendering encapsulation template.' % (layout_xmlid))
-        html = self.env['mail.render.mixin']._replace_local_links(html)
-        return html
+            _logger.warning(
+                "QWeb template %s not found when rendering encapsulation template.",
+                layout_xmlid,
+            )
+        return self.env["mail.render.mixin"]._replace_local_links(html)
 
     @api.model
     def _prepend_preview(self, html, preview):
-        """ Prepare the email body before sending. Add the text preview at the
+        """Prepare the email body before sending. Add the text preview at the
         beginning of the mail. The preview text is displayed bellow the mail
         subject of most mail client (gmail, outlook...).
 
@@ -257,40 +334,57 @@ class MailRenderMixin(models.AbstractModel):
     def _has_unsafe_expression(self):
         for template in self.sudo():
             for fname, field in template._fields.items():
-                engine = getattr(field, 'render_engine', 'inline_template')
-                if engine in ('qweb', 'qweb_view'):
-                    if self._has_unsafe_expression_template_qweb(template[fname], template.render_model, fname):
+                engine = getattr(field, "render_engine", "inline_template")
+                if engine in ("qweb", "qweb_view"):
+                    if self._has_unsafe_expression_template_qweb(
+                        template[fname], template.render_model, fname
+                    ):
                         return True
-                else:
-                    if self._has_unsafe_expression_template_inline_template(template[fname], template.render_model, fname):
-                        return True
+                elif self._has_unsafe_expression_template_inline_template(
+                    template[fname], template.render_model, fname
+                ):
+                    return True
         return False
 
     @api.model
     def _has_unsafe_expression_template_qweb(self, template_src, model, fname=None):
         if template_src:
             try:
-                node = html.fragment_fromstring(template_src, create_parent='div')
-                self.env["ir.qweb"].with_context(raise_on_forbidden_code_for_model=model)._generate_code(node)
+                node = html.fragment_fromstring(template_src, create_parent="div")
+                self.env["ir.qweb"].with_context(
+                    raise_on_forbidden_code_for_model=model
+                )._generate_code(node)
             except PermissionError:
                 return True
         return False
 
     @api.model
-    def _has_unsafe_expression_template_inline_template(self, template_txt, model, fname=None):
+    def _has_unsafe_expression_template_inline_template(
+        self, template_txt, model, fname=None
+    ):
         if template_txt:
             template_instructions = parse_inline_template(str(template_txt))
             expressions = [inst[1] for inst in template_instructions]
-            if not all(self.env["ir.qweb"]._is_expression_allowed(e, model) for e in expressions if e):
+            if not all(
+                self.env["ir.qweb"]._is_expression_allowed(e, model)
+                for e in expressions
+                if e
+            ):
                 return True
         return False
 
     def _check_access_right_dynamic_template(self):
-        if not self.env.su and not self.env.user.has_group('mail.group_mail_template_editor') and self._has_unsafe_expression():
-            group = self.env.ref('mail.group_mail_template_editor')
+        if (
+            not self.env.su
+            and not self.env.user.has_group("mail.group_mail_template_editor")
+            and self._has_unsafe_expression()
+        ):
+            group = self.env.ref("mail.group_mail_template_editor")
             raise AccessError(
-                _('Only members of %(group_name)s group are allowed to edit templates containing sensible placeholders',
-                  group_name=group.name)
+                _(
+                    "Only members of %(group_name)s group are allowed to edit templates containing sensible placeholders",
+                    group_name=group.name,
+                )
             )
 
     # ------------------------------------------------------------
@@ -299,32 +393,41 @@ class MailRenderMixin(models.AbstractModel):
 
     @api.model
     def _render_eval_context(self):
-        """ Evaluation context used in all rendering engines. Contains
+        """Evaluation context used in all rendering engines. Contains
 
-          * ``user``: current user browse record;
-          * ``ctx```: current context;
-          * various formatting tools;
+        * ``user``: current user browse record;
+        * ``ctx```: current context;
+        * various formatting tools;
         """
         render_context = {
-            'ctx': self.env.context,
-            'format_addr': tools.formataddr,
-            'format_date': lambda date, date_format=False, lang_code=False: format_date(self.env, date, date_format, lang_code),
-            'format_datetime': lambda dt, tz=False, dt_format=False, lang_code=False: format_datetime(self.env, dt, tz, dt_format, lang_code),
-            'format_time': lambda time, tz=False, time_format=False, lang_code=False: format_time(self.env, time, tz, time_format, lang_code),
-            'format_amount': lambda amount, currency, lang_code=False: tools.format_amount(self.env, amount, currency, lang_code),
-            'format_duration': tools.format_duration,
-            'is_html_empty': is_html_empty,
-            'slug': self.env['ir.http']._slug,
-            'user': self.env.user,
-            'env': self.env,
+            "ctx": self.env.context,
+            "format_addr": tools.formataddr,
+            "format_date": lambda date, date_format=False, lang_code=False: format_date(
+                self.env, date, date_format, lang_code
+            ),
+            "format_datetime": lambda dt, tz=False, dt_format=False, lang_code=False: (
+                format_datetime(self.env, dt, tz, dt_format, lang_code)
+            ),
+            "format_time": lambda time, tz=False, time_format=False, lang_code=False: (
+                format_time(self.env, time, tz, time_format, lang_code)
+            ),
+            "format_amount": lambda amount, currency, lang_code=False: (
+                tools.format_amount(self.env, amount, currency, lang_code)
+            ),
+            "format_duration": tools.format_duration,
+            "is_html_empty": is_html_empty,
+            "slug": self.env["ir.http"]._slug,
+            "user": self.env.user,
+            "env": self.env,
         }
         render_context.update(copy.copy(template_env_globals))
         return render_context
 
     @api.model
-    def _render_template_qweb(self, template_src, model, res_ids,
-                              add_context=None, options=None):
-        """ Render a raw QWeb template.
+    def _render_template_qweb(
+        self, template_src, model, res_ids, add_context=None, options=None
+    ):
+        """Render a raw QWeb template.
 
         In addition to the generic evaluation context available, some other
         variables are added:
@@ -343,7 +446,7 @@ class MailRenderMixin(models.AbstractModel):
         :returns: {res_id: string of rendered template based on record}
         :rtype: dict
         """
-        results = dict.fromkeys(res_ids, u"")
+        results = dict.fromkeys(res_ids, "")
         if not template_src or not res_ids:
             return results
 
@@ -356,34 +459,46 @@ class MailRenderMixin(models.AbstractModel):
         if add_context:
             variables.update(**add_context)
 
-        is_restricted = not self._unrestricted_rendering and not self.env.is_admin() and not self.env.user.has_group('mail.group_mail_template_editor')
+        is_restricted = (
+            not self._unrestricted_rendering
+            and not self.env.is_admin()
+            and not self.env.user.has_group("mail.group_mail_template_editor")
+        )
 
         for record in self.env[model].browse(res_ids):
-            variables['object'] = record
+            variables["object"] = record
             options = options or {}
             if is_restricted:
-                options['raise_on_forbidden_code_for_model'] = model
+                options["raise_on_forbidden_code_for_model"] = model
             try:
-                render_result = self.env['ir.qweb']._render(
-                    html.fragment_fromstring(template_src, create_parent='div'),
+                render_result = self.env["ir.qweb"]._render(
+                    html.fragment_fromstring(template_src, create_parent="div"),
                     variables,
                     **options,
                 )
                 # remove the rendered tag <div> that was added in order to wrap potentially multiples nodes into one.
                 render_result = render_result[5:-6]
             except Exception as e:
-                if isinstance(e, QWebError) and isinstance(e.__cause__, PermissionError):
-                    group = self.env.ref('mail.group_mail_template_editor')
+                if isinstance(e, QWebError) and isinstance(
+                    e.__cause__, PermissionError
+                ):
+                    group = self.env.ref("mail.group_mail_template_editor")
                     raise AccessError(
-                        _('Only members of %(group_name)s group are allowed to edit templates containing sensible placeholders',
-                           group_name=group.name)
+                        _(
+                            "Only members of %(group_name)s group are allowed to edit templates containing sensible placeholders",
+                            group_name=group.name,
+                        )
                     ) from e
-                _logger.info("Failed to render template: %s", template_src, exc_info=True)
+                _logger.info(
+                    "Failed to render template: %s", template_src, exc_info=True
+                )
                 raise UserError(
-                    _("Failed to render QWeb template: %(template_src)s\n\n%(template_traceback)s)",
-                      template_src=template_src,
-                      template_traceback=traceback.format_exc())
-                    ) from e
+                    _(
+                        "Failed to render QWeb template: %(template_src)s\n\n%(template_traceback)s)",
+                        template_src=template_src,
+                        template_traceback=traceback.format_exc(),
+                    )
+                ) from e
             results[record.id] = render_result
 
         return results
@@ -397,39 +512,48 @@ class MailRenderMixin(models.AbstractModel):
         records = self.env[model].browse(res_ids)
         result = {}
         for record in records:
-            def replace(match):
+
+            def replace(match, record=record):
                 tag = match.group(1)
                 expr = match.group(3)
                 default = match.group(9)
-                if not self.env['ir.qweb']._is_expression_allowed(expr, model):
+                if not self.env["ir.qweb"]._is_expression_allowed(expr, model):
                     raise SyntaxError(f"Invalid expression for the regex mode {expr!r}")
 
                 try:
-                    value = reduce(lambda rec, field: rec[field], expr.split('.')[1:], record) or default
+                    value = (
+                        reduce(
+                            lambda rec, field: rec[field], expr.split(".")[1:], record
+                        )
+                        or default
+                    )
                 except KeyError:
                     value = default
 
-                value = escape(value or '')
-                return value if tag.lower() == 't' else f"<{tag}>{value}</{tag}>"
+                value = escape(value or "")
+                return value if tag.lower() == "t" else f"<{tag}>{value}</{tag}>"
 
             # normalize the HTML (add a parent div to avoid modification of the template)
-            template_src = html_normalize(f'<div>{template_src}</div>')
-            if template_src.startswith('<div>') and template_src.endswith('</div>'):
+            template_src = html_normalize(f"<div>{template_src}</div>")
+            if template_src.startswith("<div>") and template_src.endswith("</div>"):
                 template_src = template_src[5:-6]
 
-            result[record.id] = Markup(re.sub(
-                r'''<(\w+)[\s|\n]+t-out=[\s|\n]*(\'|\")((\w|\.)+)(\2)[\s|\n]*((\/>)|(>[\s|\n]*([^<>]*?))[\s|\n]*<\/\1>)''',
-                replace,
-                template_src,
-                flags=re.DOTALL,
-            ))
+            result[record.id] = Markup(
+                re.sub(
+                    r"""<(\w+)[\s|\n]+t-out=[\s|\n]*(\'|\")((\w|\.)+)(\2)[\s|\n]*((\/>)|(>[\s|\n]*([^<>]*?))[\s|\n]*<\/\1>)""",
+                    replace,
+                    template_src,
+                    flags=re.DOTALL,
+                )
+            )
 
         return result
 
     @api.model
-    def _render_template_qweb_view(self, view_ref, model, res_ids,
-                                   add_context=None, options=None):
-        """ Render a QWeb template based on an ir.ui.view content.
+    def _render_template_qweb_view(
+        self, view_ref, model, res_ids, add_context=None, options=None
+    ):
+        """Render a QWeb template based on an ir.ui.view content.
 
         In addition to the generic evaluation context available, some other
         variables are added:
@@ -461,14 +585,14 @@ class MailRenderMixin(models.AbstractModel):
 
         view_ref = view_ref.id if isinstance(view_ref, models.BaseModel) else view_ref
         for record in self.env[model].browse(res_ids):
-            variables['object'] = record
+            variables["object"] = record
             try:
-                render_result = self.env['ir.qweb']._render(
+                render_result = self.env["ir.qweb"]._render(
                     view_ref,
                     variables,
                     minimal_qcontext=True,
                     raise_if_not_found=False,
-                    **(options or {})
+                    **(options or {}),
                 )
                 results[record.id] = render_result
             except Exception as e:
@@ -480,9 +604,10 @@ class MailRenderMixin(models.AbstractModel):
         return results
 
     @api.model
-    def _render_template_inline_template(self, template_txt, model, res_ids,
-                                         add_context=None, options=None):
-        """ Render a string-based template on records given by a model and a list
+    def _render_template_inline_template(
+        self, template_txt, model, res_ids, add_context=None, options=None
+    ):
+        """Render a string-based template on records given by a model and a list
         of IDs, using inline_template.
 
         In addition to the generic evaluation context available, some other
@@ -506,17 +631,25 @@ class MailRenderMixin(models.AbstractModel):
         if not template_txt or not res_ids:
             return results
 
-        if not self._has_unsafe_expression_template_inline_template(str(template_txt), model):
+        if not self._has_unsafe_expression_template_inline_template(
+            str(template_txt), model
+        ):
             # do not call the qweb engine
-            return self._render_template_inline_template_regex(str(template_txt), model, res_ids)
+            return self._render_template_inline_template_regex(
+                str(template_txt), model, res_ids
+            )
 
-        if (not self._unrestricted_rendering
+        if (
+            not self._unrestricted_rendering
             and not self.env.is_admin()
-            and not self.env.user.has_group('mail.group_mail_template_editor')):
-            group = self.env.ref('mail.group_mail_template_editor')
+            and not self.env.user.has_group("mail.group_mail_template_editor")
+        ):
+            group = self.env.ref("mail.group_mail_template_editor")
             raise AccessError(
-                _('Only members of %(group_name)s group are allowed to edit templates containing sensible placeholders',
-                  group_name=group.name)
+                _(
+                    "Only members of %(group_name)s group are allowed to edit templates containing sensible placeholders",
+                    group_name=group.name,
+                )
             )
 
         # prepare template variables
@@ -524,19 +657,25 @@ class MailRenderMixin(models.AbstractModel):
         if add_context:
             variables.update(**add_context)
 
+        parsed_template = parse_inline_template(str(template_txt))
         for record in self.env[model].browse(res_ids):
-            variables['object'] = record
+            variables["object"] = record
 
             try:
                 results[record.id] = render_inline_template(
-                    parse_inline_template(str(template_txt)),
-                    variables
+                    parsed_template, variables
                 )
             except Exception as e:
-                _logger.info("Failed to render inline_template: \n%s", str(template_txt), exc_info=True)
+                _logger.info(
+                    "Failed to render inline_template: \n%s",
+                    template_txt,
+                    exc_info=True,
+                )
                 raise UserError(
-                    _("Failed to render inline_template template: %(template_txt)s",
-                      template_txt=template_txt)
+                    _(
+                        "Failed to render inline_template template: %(template_txt)s",
+                        template_txt=template_txt,
+                    )
                 ) from e
 
         return results
@@ -552,19 +691,30 @@ class MailRenderMixin(models.AbstractModel):
             for string, expression, default in template:
                 renderer.append(string)
                 if expression:
-                    if not self.env['ir.qweb']._is_expression_allowed(expression, model):
-                        raise SyntaxError(f"Invalid expression for the regex mode {expression!r}")
+                    if not self.env["ir.qweb"]._is_expression_allowed(
+                        expression, model
+                    ):
+                        raise SyntaxError(
+                            f"Invalid expression for the regex mode {expression!r}"
+                        )
                     try:
-                        value = reduce(lambda rec, field: rec[field], expression.split('.')[1:], record) or default
+                        value = (
+                            reduce(
+                                lambda rec, field: rec[field],
+                                expression.split(".")[1:],
+                                record,
+                            )
+                            or default
+                        )
                     except KeyError:
                         value = default
                     renderer.append(str(value))
-            result[record.id] = ''.join(renderer)
+            result[record.id] = "".join(renderer)
         return result
 
     @api.model
     def _render_template_postprocess(self, model, rendered):
-        """ Tool method for post processing. In this method we ensure local
+        """Tool method for post processing. In this method we ensure local
         links ('/shop/Basil-1') are replaced by global links ('https://www.
         mygarden.com/shop/Basil-1').
 
@@ -577,7 +727,9 @@ class MailRenderMixin(models.AbstractModel):
         for res_id, rendered_html in rendered.items():
             base_url = None
             if model:
-                base_url = self.env[model].browse(res_id).with_prefetch(res_ids).get_base_url()
+                base_url = (
+                    self.env[model].browse(res_id).with_prefetch(res_ids).get_base_url()
+                )
             rendered[res_id] = self._replace_local_links(rendered_html, base_url)
         return rendered
 
@@ -586,18 +738,29 @@ class MailRenderMixin(models.AbstractModel):
         if scheduled_date:
             # parse scheduled_date to make it timezone agnostic UTC as expected
             # by the ORM
-            parsed_datetime = self.env['mail.mail']._parse_scheduled_datetime(scheduled_date)
-            scheduled_date = parsed_datetime.replace(tzinfo=None) if parsed_datetime else False
+            parsed_datetime = self.env["mail.mail"]._parse_scheduled_datetime(
+                scheduled_date
+            )
+            scheduled_date = (
+                parsed_datetime.replace(tzinfo=None) if parsed_datetime else False
+            )
         return scheduled_date
 
     @api.model
     def _render_template_get_valid_options(self):
-        return {'post_process', 'preserve_comments'}
+        return {"post_process", "preserve_comments"}
 
     @api.model
-    def _render_template(self, template_src, model, res_ids, engine='inline_template',
-                         add_context=None, options=None):
-        """ Render the given string on records designed by model / res_ids using
+    def _render_template(
+        self,
+        template_src,
+        model,
+        res_ids,
+        engine="inline_template",
+        add_context=None,
+        options=None,
+    ):
+        """Render the given string on records designed by model / res_ids using
         the given rendering engine. Possible engine are small_web, qweb, or
         qweb_view.
 
@@ -627,40 +790,48 @@ class MailRenderMixin(models.AbstractModel):
             options = {}
 
         if not isinstance(res_ids, (list, tuple)):
-            raise ValueError(
-                _('Template rendering should only be called with a list of IDs. Received “%(res_ids)s” instead.',
-                  res_ids=res_ids)
+            raise ValueError(  # noqa: TRY004
+                _(
+                    "Template rendering should only be called with a list of IDs. Received “%(res_ids)s” instead.",
+                    res_ids=res_ids,
+                )
             )
-        if engine not in ('inline_template', 'qweb', 'qweb_view'):
+        if engine not in ("inline_template", "qweb", "qweb_view"):
             raise ValueError(
-                _('Template rendering supports only inline_template, qweb, or qweb_view (view or raw); received %(engine)s instead.',
-                  engine=engine)
+                _(
+                    "Template rendering supports only inline_template, qweb, or qweb_view (view or raw); received %(engine)s instead.",
+                    engine=engine,
+                )
             )
         valid_render_options = self._render_template_get_valid_options()
         if not set((options or {}).keys()) <= valid_render_options:
             raise ValueError(
-                _('Those values are not supported as options when rendering: %(param_names)s',
-                  param_names=', '.join(set(options.keys()) - valid_render_options)
-                 )
+                _(
+                    "Those values are not supported as options when rendering: %(param_names)s",
+                    param_names=", ".join(set(options.keys()) - valid_render_options),
+                )
             )
 
-        if engine == 'qweb_view':
-            rendered = self._render_template_qweb_view(template_src, model, res_ids,
-                                                       add_context=add_context, options=options)
-        elif engine == 'qweb':
-            rendered = self._render_template_qweb(template_src, model, res_ids,
-                                                  add_context=add_context, options=options)
+        if engine == "qweb_view":
+            rendered = self._render_template_qweb_view(
+                template_src, model, res_ids, add_context=add_context, options=options
+            )
+        elif engine == "qweb":
+            rendered = self._render_template_qweb(
+                template_src, model, res_ids, add_context=add_context, options=options
+            )
         else:
-            rendered = self._render_template_inline_template(template_src, model, res_ids,
-                                                             add_context=add_context, options=options)
+            rendered = self._render_template_inline_template(
+                template_src, model, res_ids, add_context=add_context, options=options
+            )
 
-        if options.get('post_process'):
+        if options.get("post_process"):
             rendered = self._render_template_postprocess(model, rendered)
 
         return rendered
 
-    def _render_lang(self, res_ids, engine='inline_template'):
-        """ Given some record ids, return the lang for each record based on
+    def _render_lang(self, res_ids, engine="inline_template"):
+        """Given some record ids, return the lang for each record based on
         lang field of template or through specific context-based key. Lang is
         computed by performing a rendering on res_ids, based on self.render_model.
 
@@ -674,22 +845,24 @@ class MailRenderMixin(models.AbstractModel):
         self.ensure_one()
         if self.lang:
             rendered_langs = self._render_template(
-                self.lang, self.render_model, res_ids, engine=engine)
+                self.lang, self.render_model, res_ids, engine=engine
+            )
         else:
             rendered_langs = dict.fromkeys(res_ids, "")
             records = self.env[self.render_model].browse(res_ids)
             customers = records._mail_get_partners()
             for record in records:
-                partner = customers[record.id][0] if customers[record.id] else self.env['res.partner']
+                partner = (
+                    customers[record.id][0]
+                    if customers[record.id]
+                    else self.env["res.partner"]
+                )
                 rendered_langs[record.id] = partner.lang
 
-        return dict(
-            (res_id, lang)
-            for res_id, lang in rendered_langs.items()
-        )
+        return dict(rendered_langs.items())
 
-    def _classify_per_lang(self, res_ids, engine='inline_template'):
-        """ Given some record ids, return for computed each lang a contextualized
+    def _classify_per_lang(self, res_ids, engine="inline_template"):
+        """Given some record ids, return for computed each lang a contextualized
         template and its subset of res_ids.
 
         :param list res_ids: list of ids of records (all belonging to same model
@@ -701,24 +874,32 @@ class MailRenderMixin(models.AbstractModel):
         """
         self.ensure_one()
 
-        if self.env.context.get('template_preview_lang'):
-            lang_to_res_ids = {self.env.context['template_preview_lang']: res_ids}
+        if self.env.context.get("template_preview_lang"):
+            lang_to_res_ids = {self.env.context["template_preview_lang"]: res_ids}
         else:
             lang_to_res_ids = {}
             for res_id, lang in self._render_lang(res_ids, engine=engine).items():
                 lang_to_res_ids.setdefault(lang, []).append(res_id)
 
-        return dict(
-            (lang, (self.with_context(lang=lang) if lang else self, lang_res_ids))
+        return {
+            lang: (self.with_context(lang=lang) if lang else self, lang_res_ids)
             for lang, lang_res_ids in lang_to_res_ids.items()
-        )
+        }
 
-    def _render_field(self, field, res_ids, engine='inline_template',
-                      # lang options
-                      compute_lang=False, res_ids_lang=False, set_lang=False,
-                      # rendering context and options
-                      add_context=None, options=None):
-        """ Given some record ids, render a template located on field on all
+    def _render_field(
+        self,
+        field,
+        res_ids,
+        engine="inline_template",
+        # lang options
+        compute_lang=False,
+        res_ids_lang=False,
+        set_lang=False,
+        # rendering context and options
+        add_context=None,
+        options=None,
+    ):
+        """Given some record ids, render a template located on field on all
         records. ``field`` should be a field of self (i.e. ``body_html`` on
         ``mail.template``). res_ids are record IDs linked to ``model`` field
         on self.
@@ -754,9 +935,10 @@ class MailRenderMixin(models.AbstractModel):
         """
         if field not in self:
             raise ValueError(
-                _('Rendering of %(field_name)s is not possible as not defined on template.',
-                  field_name=field
-                 )
+                _(
+                    "Rendering of %(field_name)s is not possible as not defined on template.",
+                    field_name=field,
+                )
             )
         self.ensure_one()
         if compute_lang:
@@ -764,20 +946,22 @@ class MailRenderMixin(models.AbstractModel):
         elif res_ids_lang:
             templates_res_ids = {}
             for res_id, lang in res_ids_lang.items():
-                lang_values = templates_res_ids.setdefault(lang, (self.with_context(lang=lang), []))
+                lang_values = templates_res_ids.setdefault(
+                    lang, (self.with_context(lang=lang), [])
+                )
                 lang_values[1].append(res_id)
         elif set_lang:
             templates_res_ids = {set_lang: (self.with_context(lang=set_lang), res_ids)}
         else:
-            templates_res_ids = {self.env.context.get('lang'): (self, res_ids)}
+            templates_res_ids = {self.env.context.get("lang"): (self, res_ids)}
 
         # rendering options (update default defined on field by asked options)
         f = self._fields[field]
-        if hasattr(f, 'render_engine') and f.render_engine:
+        if hasattr(f, "render_engine") and f.render_engine:
             engine = f.render_engine
 
         render_options = options.copy() if options else {}
-        if hasattr(f, 'render_options') and f.render_options:
+        if hasattr(f, "render_options") and f.render_options:
             render_options = {**f.render_options, **render_options}
 
         return {

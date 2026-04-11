@@ -426,7 +426,9 @@ class TestStreak(TestStreakCommon):
             self.env["gamification.streak"]._cron_update_streaks()
 
         streak.invalidate_recordset()
-        self.assertEqual(streak.state, "active", "Broken streak should revive on activity")
+        self.assertEqual(
+            streak.state, "active", "Broken streak should revive on activity"
+        )
         self.assertEqual(streak.current_count, 1)
 
     def test_cron_does_not_rebreak_broken_streak(self):
@@ -455,7 +457,9 @@ class TestStreak(TestStreakCommon):
         streak.invalidate_recordset()
         self.assertEqual(streak.state, "broken")
         self.assertEqual(
-            streak.freeze_remaining, 2, "Freeze days should not be consumed on broken streaks"
+            streak.freeze_remaining,
+            2,
+            "Freeze days should not be consumed on broken streaks",
         )
 
     def test_display_name(self):

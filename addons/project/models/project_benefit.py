@@ -105,7 +105,7 @@ class ProjectBenefit(models.Model):
                 "res_id": benefit.id,
                 "activity_type_id": activity_type.id if activity_type else False,
                 "user_id": benefit.accountable_id.id,
-                "date_deadline": benefit.review_date,
+                "date_end": benefit.review_date,
                 "summary": f"Benefit review: {benefit.name}",
             })
         _logger.info("Benefit review cron: scheduled %d activities", len(benefits))

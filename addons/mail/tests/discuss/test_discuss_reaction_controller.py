@@ -1,10 +1,10 @@
-from odoo.addons.mail.tests.common_controllers import MailControllerReactionCommon
 from odoo.tests import tagged
+
+from odoo.addons.mail.tests.common_controllers import MailControllerReactionCommon
 
 
 @tagged("-at_install", "post_install", "mail_controller")
 class TestMessageReactionController(MailControllerReactionCommon):
-
     def test_message_reaction_public_channel(self):
         """Test access of message reaction for a public channel."""
         channel = self.env["discuss.channel"].create(

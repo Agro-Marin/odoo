@@ -141,13 +141,15 @@ class GamificationAchievement(models.Model):
             return Unlock.browse()
 
         Obj = self.env[self.model_id.model].sudo()
-        new_unlocks = Unlock.browse()
-
+        # Note: safe_eval references 'user' per candidate so each domain
+        # is unique — cannot be batched into a single query.  We batch the
+        # unlock *creation* instead to reduce INSERT round-trips.
+        unlock_vals = []
         for user in candidates:
             domain = safe_eval(self.trigger_domain, {"user": user})
             count = Obj.search_count(domain)
             if count >= self.trigger_count:
-                new_unlocks |= Unlock.create(
+                unlock_vals.append(
                     {
                         "achievement_id": self.id,
                         "user_id": user.id,
@@ -159,7 +161,7 @@ class GamificationAchievement(models.Model):
                     user.login,
                 )
 
-        return new_unlocks
+        return Unlock.create(unlock_vals) if unlock_vals else Unlock.browse()
 
     @api.model
     def _cron_check_achievements(self) -> None:

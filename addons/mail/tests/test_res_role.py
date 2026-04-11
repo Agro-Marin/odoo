@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import Command
-from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 from odoo.tests.common import HttpCase, tagged
+
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 
 
 @tagged("-at_install", "post_install")
@@ -53,8 +54,10 @@ class TestResRole(MailCommon, HttpCase):
                     },
                 },
             )
-            message = next(filter(lambda m: m["id"] == data["message_id"], data["store_data"]["mail.message"]))
-            self.assertEqual(
-                message["partner_ids"],
-                expected_users.partner_id.ids
+            message = next(
+                filter(
+                    lambda m: m["id"] == data["message_id"],
+                    data["store_data"]["mail.message"],
+                )
             )
+            self.assertEqual(message["partner_ids"], expected_users.partner_id.ids)

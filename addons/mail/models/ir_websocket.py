@@ -7,8 +7,9 @@ from datetime import datetime, timedelta
 
 from odoo import models
 from odoo.fields import Domain
-from odoo.addons.mail.tools.discuss import add_guest_to_context
 from odoo.tools.misc import verify_limited_field_access_token
+
+from odoo.addons.mail.tools.discuss import add_guest_to_context
 
 PRESENCE_CHANNEL_PREFIX = "odoo-presence-"
 PRESENCE_CHANNEL_REGEX = re.compile(
@@ -47,7 +48,9 @@ class IrWebsocket(models.AbstractModel):
         data = super()._prepare_subscribe_data(channels, last)
         model_ids_to_token = defaultdict(dict)
         for channel in channels:
-            if not isinstance(channel, str) or not channel.startswith(PRESENCE_CHANNEL_PREFIX):
+            if not isinstance(channel, str) or not channel.startswith(
+                PRESENCE_CHANNEL_PREFIX
+            ):
                 continue
             data["channels"].discard(channel)
             if not (match := re.match(PRESENCE_CHANNEL_REGEX, channel)):
@@ -68,21 +71,33 @@ class IrWebsocket(models.AbstractModel):
         partner, guest = self.env["res.partner"]._get_current_persona()
         allowed_partners = (
             partners.filtered(
-                lambda p: verify_limited_field_access_token(
-                    p, "im_status", model_ids_to_token["res.partner"][p.id], scope="mail.presence"
+                lambda p: (
+                    verify_limited_field_access_token(
+                        p,
+                        "im_status",
+                        model_ids_to_token["res.partner"][p.id],
+                        scope="mail.presence",
+                    )
+                    or p.has_access("read")
                 )
-                or p.has_access("read")
             )
             | partner
         )
         guest_ids = model_ids_to_token["mail.guest"].keys()
-        guests = self.env["mail.guest"].sudo().search([("id", "in", guest_ids)]).sudo(False)
+        guests = (
+            self.env["mail.guest"].sudo().search([("id", "in", guest_ids)]).sudo(False)
+        )
         allowed_guests = (
             guests.filtered(
-                lambda g: verify_limited_field_access_token(
-                    g, "im_status", model_ids_to_token["mail.guest"][g.id], scope="mail.presence"
+                lambda g: (
+                    verify_limited_field_access_token(
+                        g,
+                        "im_status",
+                        model_ids_to_token["mail.guest"][g.id],
+                        scope="mail.presence",
+                    )
+                    or g.has_access("read")
                 )
-                or g.has_access("read")
             )
             | guest
         )
@@ -91,7 +106,9 @@ class IrWebsocket(models.AbstractModel):
         # There is a gap between a subscription client side (which is debounced)
         # and the actual subcription thus presences can be missed. Send a
         # notification to avoid missing presences during a subscription.
-        presence_domain = Domain("last_poll", ">", datetime.now() - timedelta(seconds=2)) & (
+        presence_domain = Domain(
+            "last_poll", ">", datetime.now() - timedelta(seconds=2)
+        ) & (
             Domain(
                 "user_id",
                 "in",
@@ -100,13 +117,17 @@ class IrWebsocket(models.AbstractModel):
             | Domain("guest_id", "in", allowed_guests.ids)
         )
         # sudo: mail.presence: access to presence was validated with access token.
-        data["missed_presences"] = self.env["mail.presence"].sudo().search(presence_domain)
+        data["missed_presences"] = (
+            self.env["mail.presence"].sudo().search(presence_domain)
+        )
         return data
 
     def _after_subscribe_data(self, data):
         current_partner, current_guest = self.env["res.partner"]._get_current_persona()
         if current_partner or current_guest:
-            data["missed_presences"]._send_presence(bus_target=current_partner or current_guest)
+            data["missed_presences"]._send_presence(
+                bus_target=current_partner or current_guest
+            )
 
     def _on_websocket_closed(self, cookies):
         super()._on_websocket_closed(cookies)

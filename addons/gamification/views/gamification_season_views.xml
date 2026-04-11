@@ -4,7 +4,55 @@
     <record id="season_list_action" model="ir.actions.act_window">
         <field name="name">Seasons</field>
         <field name="res_model">gamification.season</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
+    </record>
+
+    <record id="season_search_view" model="ir.ui.view">
+        <field name="name">gamification.season.search</field>
+        <field name="model">gamification.season</field>
+        <field name="arch" type="xml">
+            <search string="Seasons">
+                <field name="name"/>
+                <field name="theme"/>
+                <separator/>
+                <filter string="Active" name="active_seasons" domain="[('state', '=', 'active')]"/>
+                <filter string="Draft" name="draft_seasons" domain="[('state', '=', 'draft')]"/>
+                <separator/>
+                <group>
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Start Date" name="group_start" context="{'group_by': 'start_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="season_kanban_view" model="ir.ui.view">
+        <field name="name">gamification.season.kanban</field>
+        <field name="model">gamification.season</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_small_column">
+                <templates>
+                    <t t-name="card">
+                        <field name="icon" widget="image" class="o_kanban_image"/>
+                        <div>
+                            <strong><field name="name"/></strong>
+                            <div class="text-muted"><field name="theme"/></div>
+                            <div>
+                                <field name="start_date"/> — <field name="end_date"/>
+                            </div>
+                            <div class="mt-1">
+                                <span class="badge text-bg-primary me-1">
+                                    <field name="challenge_count"/> challenges
+                                </span>
+                                <span class="badge text-bg-secondary">
+                                    <field name="participant_count"/> participants
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
     </record>
 
     <record id="season_list_view" model="ir.ui.view">
@@ -42,6 +90,15 @@
                            statusbar_visible="draft,active,ended"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" icon="fa-flag" type="object"
+                                name="action_view_challenges">
+                            <field name="challenge_count" widget="statinfo" string="Challenges"/>
+                        </button>
+                        <button class="oe_stat_button" icon="fa-users">
+                            <field name="participant_count" widget="statinfo" string="Participants"/>
+                        </button>
+                    </div>
                     <field name="icon" widget="image" class="oe_avatar"/>
                     <div class="oe_title">
                         <h1><field name="name" placeholder="e.g. Q1 2026: Innovation Sprint"/></h1>

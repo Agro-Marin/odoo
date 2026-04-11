@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 import re
-from lxml import html
+
 import chardet
 import requests
+from lxml import html
 from urllib3.exceptions import LocationParseError
 
 
@@ -23,32 +23,37 @@ def get_link_preview_from_url(url, request_session=None):
     """
     # Some websites are blocking non browser user agent.
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0',
-        'Odoo-Link-Preview': 'True',  # Used to identify coming from the link previewer
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; rv:91.0) Gecko/20100101 Firefox/91.0",
+        "Odoo-Link-Preview": "True",  # Used to identify coming from the link previewer
     }
     try:
         if request_session:
-            response = request_session.get(url, timeout=3, headers=headers, allow_redirects=True, stream=True)
+            response = request_session.get(
+                url, timeout=3, headers=headers, allow_redirects=True, stream=True
+            )
         else:
-            response = requests.get(url, timeout=3, headers=headers, allow_redirects=True, stream=True)
+            response = requests.get(
+                url, timeout=3, headers=headers, allow_redirects=True, stream=True
+            )
     except requests.exceptions.RequestException:
         return False
     except LocationParseError:
         return False
-    if not response.ok or not response.headers.get('Content-Type'):
+    if not response.ok or not response.headers.get("Content-Type"):
         return False
     # Content-Type header can return a charset, but we just need the
     # mimetype (eg: image/jpeg;charset=ISO-8859-1)
-    content_type = response.headers['Content-Type'].split(';')
-    if response.headers['Content-Type'].startswith('image/'):
+    content_type = response.headers["Content-Type"].split(";")
+    if response.headers["Content-Type"].startswith("image/"):
         return {
-            'image_mimetype': content_type[0],
-            'og_image': url, # If the url mimetype is already an image type, set url as preview image
-            'source_url': url,
+            "image_mimetype": content_type[0],
+            "og_image": url,  # If the url mimetype is already an image type, set url as preview image
+            "source_url": url,
         }
-    elif response.headers['Content-Type'].startswith('text/html'):
+    elif response.headers["Content-Type"].startswith("text/html"):
         return get_link_preview_from_html(url, response)
     return False
+
 
 def get_link_preview_from_html(url, response):
     """
@@ -61,10 +66,10 @@ def get_link_preview_from_html(url, response):
     content = b""
     for chunk in response.iter_content(chunk_size=8192):
         content += chunk
-        pos = content.find(b'</head>', -8196 * 2)
+        pos = content.find(b"</head>", -8196 * 2)
         # Stop reading once all the <head> data is found
         if pos != -1:
-            content = content[:pos + 7]
+            content = content[: pos + 7]
             break
 
     if not content:
@@ -73,7 +78,7 @@ def get_link_preview_from_html(url, response):
     encoding = response.encoding or chardet.detect(content).get("encoding", "utf-8")
     try:
         decoded_content = content.decode(encoding)
-    except (UnicodeDecodeError, TypeError) as e:
+    except UnicodeDecodeError, TypeError:
         decoded_content = content.decode("utf-8", errors="ignore")
 
     try:
@@ -87,9 +92,9 @@ def get_link_preview_from_html(url, response):
     og_title = tree.xpath('//meta[@property="og:title"]/@content')
     if og_title:
         og_title = og_title[0]
-    elif tree.find('.//title') is not None:
+    elif tree.find(".//title") is not None:
         # Fallback on the <title> tag if it exists
-        og_title = tree.find('.//title').text
+        og_title = tree.find(".//title").text
     else:
         return False
     og_description = tree.xpath('//meta[@property="og:description"]/@content')
@@ -98,11 +103,11 @@ def get_link_preview_from_html(url, response):
     og_image = tree.xpath('//meta[@property="og:image"]/@content')
     og_mimetype = tree.xpath('//meta[@property="og:image:type"]/@content')
     return {
-        'og_description': og_description[0] if og_description else None,
-        'og_image': og_image[0] if og_image else None,
-        'og_mimetype': og_mimetype[0] if og_mimetype else None,
-        'og_title': og_title,
-        'og_type': og_type[0] if og_type else None,
-        'og_site_name': og_site_name[0] if og_site_name else None,
-        'source_url': url,
+        "og_description": og_description[0] if og_description else None,
+        "og_image": og_image[0] if og_image else None,
+        "og_mimetype": og_mimetype[0] if og_mimetype else None,
+        "og_title": og_title,
+        "og_type": og_type[0] if og_type else None,
+        "og_site_name": og_site_name[0] if og_site_name else None,
+        "source_url": url,
     }

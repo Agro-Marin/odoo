@@ -171,13 +171,18 @@ class GamificationEngagementSnapshot(models.Model):
         activity_row = cr.dictfetchone()
 
         # ── Challenge & Goal metrics ────────────────────────────────
-        cr.execute("""
-            SELECT
-                COUNT(*) FILTER (
-                    WHERE state = 'inprogress'
-                ) AS active_challenges
-            FROM gamification_challenge
-        """)
+        cr.execute(
+            """
+            SELECT COUNT(DISTINCT gc.id) AS active_challenges
+            FROM gamification_challenge gc
+            JOIN gamification_challenge_users_rel rel
+                ON rel.gamification_challenge_id = gc.id
+            JOIN res_users u ON u.id = rel.res_users_id
+            WHERE gc.state = 'inprogress'
+              AND u.company_id = %(company_id)s
+        """,
+            {"company_id": company.id},
+        )
         challenge_row = cr.dictfetchone()
 
         cr.execute(

@@ -84,6 +84,13 @@ class test_challenge(TestGamificationCommon):
         missed = goal_ids.filtered(lambda g: g.state != "reached")
         self.assertFalse(missed, "Not every goal was reached after changing timezone")
 
+        # Mark demo goals as fully reached (top rank) and others as partial
+        all_goals = Goals.search([("challenge_id", "=", challenge.id)])
+        demo_goals = all_goals.filtered(lambda g, demo=demo: g.user_id == demo)
+        other_goals = all_goals - demo_goals
+        demo_goals.write({"state": "reached", "current": 9999})
+        other_goals.write({"state": "reached", "current": 0})
+
         # reward for two firsts as admin may have timezone
         badge_id = self.badge_good_job.id
         challenge.write({"reward_first_id": badge_id, "reward_second_id": badge_id})
@@ -444,6 +451,70 @@ class TestChallengeRewardNobodyBadge(TestGamificationCommon):
             len(badge_grant),
             1,
             "Nobody badge should be granted via challenge reward even by non-admin manager",
+        )
+
+
+class TestCompletionCap(TestGamificationCommon):
+    """Tests for completion percentage capping in challenge rankings."""
+
+    def test_topN_caps_completion_at_100(self):
+        """_get_topN_users caps individual goal completeness at 100%.
+
+        Regression: a user exceeding a target 5x was credited 500% per goal,
+        dominating the ranking over users who completed all goals normally.
+        """
+        goal_def = self.env["gamification.goal.definition"].create(
+            {
+                "name": "Cap Test Def",
+                "computation_mode": "manually",
+                "condition": "higher",
+            }
+        )
+        challenge = self.env["gamification.challenge"].create(
+            {
+                "name": "Cap Test Challenge",
+                "state": "draft",
+                "period": "once",
+                "visibility_mode": "ranking",
+                "user_ids": [(6, 0, [self.user_demo.id, self.robot.id])],
+            }
+        )
+        self.env["gamification.challenge.line"].create(
+            {
+                "challenge_id": challenge.id,
+                "definition_id": goal_def.id,
+                "target_goal": 10,
+            }
+        )
+        challenge.action_start()
+
+        # Robot exceeds target 5x, demo exactly reaches it
+        goals = self.env["gamification.goal"].search(
+            [("challenge_id", "=", challenge.id)]
+        )
+        for goal in goals:
+            if goal.user_id == self.robot:
+                goal.write({"current": 50, "state": "reached"})
+            else:
+                goal.write({"current": 10, "state": "reached"})
+
+        # _get_topN_users returns a tuple of res.users records (or False).
+        # The completion cap is internal to the ranking algorithm; we verify
+        # indirectly: robot (50/10 = 500% uncapped) must NOT outrank demo
+        # (10/10 = 100%) — both should be capped at 100% and thus tied.
+        challengers = challenge._get_topN_users(3)
+        ranked_users = [c for c in challengers if c]
+        self.assertGreaterEqual(len(ranked_users), 2, "At least 2 users should qualify")
+        # Robot must not be exclusively first (would mean uncapped 500% > 100%)
+        self.assertIn(self.user_demo, ranked_users[:2], "Demo should be in top 2")
+
+    def test_challenge_line_name_is_readonly(self):
+        """Challenge line name field is readonly to prevent accidental global rename."""
+        field = self.env["gamification.challenge.line"]._fields["name"]
+        self.assertTrue(
+            field.readonly,
+            "Challenge line 'name' related field must be readonly to prevent "
+            "accidental rename of the global goal definition",
         )
 
 

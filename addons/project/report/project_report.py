@@ -24,8 +24,8 @@ class ReportProjectTaskUser(models.Model):
     )
     create_date = fields.Datetime("Create Date", readonly=True)
     date_assign = fields.Datetime(string="Assignment Date", readonly=True)
-    date_end = fields.Datetime(string="Ending Date", readonly=True)
-    date_deadline = fields.Datetime(string="Deadline", readonly=True)
+    date_closed = fields.Datetime(string="Closed Date", readonly=True)
+    date_end = fields.Datetime(string="Deadline", readonly=True)
     date_last_status_change = fields.Datetime(
         string="Last Status Change", readonly=True
     )
@@ -139,9 +139,9 @@ class ReportProjectTaskUser(models.Model):
                 t.id as task_id,
                 t.create_date,
                 t.date_assign,
-                t.date_end,
+                t.date_closed,
                 t.date_last_status_change,
-                t.date_deadline,
+                t.date_end,
                 t.display_in_project,
                 t.project_id,
                 t.priority,
@@ -161,7 +161,7 @@ class ReportProjectTaskUser(models.Model):
                 NULLIF(t.queue_time_days, 0) as queue_time_days,
                 NULLIF(t.queue_time_hours, 0) as queue_time_hours,
                 NULLIF(t.lead_time_hours, 0) as lead_time_hours,
-                (extract('epoch' from (t.date_deadline-(now() at time zone 'UTC'))))/(3600*24) as delay_endings_days,
+                (extract('epoch' from (t.date_end-(now() at time zone 'UTC'))))/(3600*24) as delay_endings_days,
                 COUNT(td.task_id) as successor_ids_count,
                 t.is_template,
                 t.has_template_ancestor
@@ -172,9 +172,9 @@ class ReportProjectTaskUser(models.Model):
                 t.id,
                 t.create_date,
                 t.date_assign,
-                t.date_end,
+                t.date_closed,
                 t.date_last_status_change,
-                t.date_deadline,
+                t.date_end,
                 t.project_id,
                 t.priority,
                 t.name,

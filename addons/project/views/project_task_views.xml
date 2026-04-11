@@ -81,22 +81,22 @@
                 <filter name="creation_date_filter" position="after">
                     <field name="activity_user_id" string="Activities of"/>
                     <field name="activity_type_id" string="Activity type"/>
-                    <filter string="Deadline" name="date_deadline" date="date_deadline">
-                        <filter name="deadline_future" string="Future" domain="[('date_deadline', '&gt;=', 'today +1d')]"/>
+                    <filter string="Deadline" name="date_end" date="date_end">
+                        <filter name="deadline_future" string="Future" domain="[('date_end', '&gt;=', 'today +1d')]"/>
                         <filter name="deadline_this_week" string="This Week" domain="[
-                            ('date_deadline', '&gt;=', '=week_start'),
-                            ('date_deadline', '&lt;', '=week_start +1w'),
+                            ('date_end', '&gt;=', '=week_start'),
+                            ('date_end', '&lt;', '=week_start +1w'),
                         ]"/>
                         <filter name="deadline_today" string="Today" domain="[
-                            ('date_deadline', '&gt;=', 'today'),
-                            ('date_deadline', '&lt;', 'today +1d'),
+                            ('date_end', '&gt;=', 'today'),
+                            ('date_end', '&lt;', 'today +1d'),
                         ]"/>
-                        <filter name="deadline_past_due" string="Overdue" domain="[('date_deadline', '&lt;', 'today')]"/>
+                        <filter name="deadline_past_due" string="Overdue" domain="[('date_end', '&lt;', 'today')]"/>
                         <filter name="deadline_missed" string="Deadline Missed" domain="[('deadline_met', '=', False), ('state', 'in', ['done', 'canceled'])]"/>
                     </filter>
                 </filter>
                 <filter name="create_date" position="after">
-                    <filter string="Deadline" name="deadline" context="{'group_by': 'date_deadline'}"/>
+                    <filter string="Deadline" name="deadline" context="{'group_by': 'date_end'}"/>
                     <separator/>
                     <filter string="Properties" name="group_by_properties" context="{'group_by': 'task_properties'}"/>
                 </filter>
@@ -491,9 +491,9 @@
                             <field name="active" invisible="1"/>
                             <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}" context="{'project_id': project_id}"/>
                             <field name="partner_id" nolabel="0" widget="res_partner_many2one" class="o_task_customer_field" invisible="not project_id or has_template_ancestor or has_project_template"/>
-                            <label for="date_deadline"/>
+                            <label for="date_end"/>
                             <div id="date_deadline_and_recurring_task" class="d-inline-flex w-100">
-                                <field name="date_deadline" nolabel="1" decoration-danger="date_deadline and date_deadline &lt; current_date and state not in ['done', 'canceled']"/>
+                                <field name="date_end" nolabel="1" decoration-danger="date_end and date_end &lt; current_date and state not in ['done', 'canceled']"/>
                                 <field name="recurring_task" nolabel="1" class="ms-0" style="width: fit-content;"
                                        widget="boolean_icon" options="{'icon': 'fa-repeat'}"
                                        invisible="not active or parent_id or not allow_recurring_tasks"
@@ -558,7 +558,7 @@
                                     <field name="user_ids" widget="many2many_avatar_user" optional="show"/>
                                     <field name="company_id" groups="base.group_multi_company" optional="hide"/>
                                     <field name="company_id" column_invisible="True"/>
-                                    <field name="date_deadline" invisible="state in ['done', 'canceled']" optional="hide" decoration-danger="date_deadline and date_deadline &lt; current_date"/>
+                                    <field name="date_end" invisible="state in ['done', 'canceled']" optional="hide" decoration-danger="date_end and date_end &lt; current_date"/>
                                     <field name="priority" widget="priority" optional="hide" width="70px"/>
                                     <field name="activity_ids" string="Next Activity" widget="list_activity" optional="hide"/>
                                     <field name="my_activity_date_deadline" string="My Deadline" widget="remaining_days" options="{'allow_order': '1'}" optional="hide"/>
@@ -611,7 +611,7 @@
                                     <field name="user_ids" widget="many2many_avatar_user" optional="show"/>
                                     <field name="company_id" optional="hide" groups="base.group_multi_company" />
                                     <field name="company_id" column_invisible="True"/>
-                                    <field name="date_deadline" invisible="state in ['done', 'canceled']" optional="hide" decoration-danger="date_deadline and date_deadline &lt; current_date"/>
+                                    <field name="date_end" invisible="state in ['done', 'canceled']" optional="hide" decoration-danger="date_end and date_end &lt; current_date"/>
                                     <field name="priority" widget="priority" optional="hide" width="70px"/>
                                     <field name="activity_ids" string="Next Activity" widget="list_activity" optional="hide"/>
                                     <field name="my_activity_date_deadline" string="My Deadline" widget="remaining_days" options="{'allow_order': '1'}" optional="hide"/>
@@ -654,7 +654,7 @@
                                     <field name="cycle_time_hours" widget="float_time" string="Hours"/>
                                     <field name="cycle_time_days" string="Days"/>
                                 </group>
-                                <group string="Deadline Compliance" invisible="not date_deadline or state not in ['done', 'canceled']">
+                                <group string="Deadline Compliance" invisible="not date_end or state not in ['done', 'canceled']">
                                     <field name="deadline_met"/>
                                 </group>
                                 <group string="Economic Prioritization">
@@ -746,7 +746,7 @@
                     quick_create_view="project.quick_create_task_form"
                     examples="project"
                     js_class="project_task_kanban" sample="1"
-                    default_order="priority desc, sequence, state, date_deadline asc, id desc"
+                    default_order="priority desc, sequence, state, date_end asc, id desc"
                 >
                     <field name="step_id"/>
                     <field name="rating_count"/>
@@ -777,7 +777,7 @@
                                     <field t-if="record.allow_milestones.raw_value and record.milestone_id.raw_value" t-att-class="record.has_late_and_unreached_milestone.raw_value and !record.state.raw_value.startsWith('1_') ? 'text-danger' : ''" name="milestone_id" options="{'no_open': True}"/>
                                 </div>
                                 <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
-                                <field t-if="record.date_deadline.raw_value" invisible="state in ['done', 'canceled']" name="date_deadline" widget="remaining_days"/>
+                                <field t-if="record.date_end.raw_value" invisible="state in ['done', 'canceled']" name="date_end" widget="remaining_days"/>
                                 <field name="task_properties" widget="properties"/>
                                 <field name="displayed_image_id" widget="attachment_image"/>
                                 <footer t-if="!selection_mode" class="pt-1">
@@ -830,7 +830,7 @@
             <field name="name">project.task.view.list.main.base</field>
             <field name="model">project.task</field>
             <field name="arch" type="xml">
-                <list string="Tasks" sample="1" default_order="priority desc, sequence, state, date_deadline asc, id desc">
+                <list string="Tasks" sample="1" default_order="priority desc, sequence, state, date_end asc, id desc">
                     <field name="sequence" readonly="1" column_invisible="True"/>
                     <field name="allow_milestones" column_invisible="True"/>
                     <field name="subtask_count" column_invisible="True"/>
@@ -843,7 +843,7 @@
                     <field name="user_ids" optional="show" widget="many2many_avatar_user"/>
                     <field name="company_id" groups="base.group_multi_company" optional="hide" column_invisible="context.get('default_project_id')" options="{'no_create': True}"/>
                     <field name="company_id" column_invisible="True"/>
-                    <field name="date_deadline" optional="hide" widget="remaining_days" invisible="state in ['done', 'canceled']"/>
+                    <field name="date_end" optional="hide" widget="remaining_days" invisible="state in ['done', 'canceled']"/>
                     <field name="priority" widget="priority" optional="show" width="70px"/>
                     <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="show" context="{'project_id': project_id}"/>
                     <field name="create_date" optional="hide"/>
@@ -911,7 +911,7 @@
             <field name="model">project.task</field>
             <field eval="2" name="priority"/>
             <field name="arch" type="xml">
-                <calendar date_start="date_deadline" string="Tasks" mode="month"
+                <calendar date_start="date_end" string="Tasks" mode="month"
                           color="step_color" event_limit="5" hide_time="true"
                           event_open_popup="true" quick_create="0" show_unusual_days="True"
                           js_class="project_task_calendar"
@@ -1325,7 +1325,7 @@
             <field name="name">Overpassed Tasks</field>
             <field name="res_model">project.task</field>
             <field name="view_mode">list,form,calendar,graph,kanban</field>
-            <field name="domain">[('is_closed', '=', False), ('date_deadline', '&lt;', 'today'), ('project_id', '!=', False), ('has_template_ancestor', '=', False)]</field>
+            <field name="domain">[('is_closed', '=', False), ('date_end', '&lt;', 'today'), ('project_id', '!=', False), ('has_template_ancestor', '=', False)]</field>
             <field name="filter" eval="True"/>
             <field name="search_view_id" ref="view_task_search_form"/>
         </record>
