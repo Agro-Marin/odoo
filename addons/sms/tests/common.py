@@ -325,7 +325,7 @@ class SMSCase(MockSMS):
         if messages is not None:
             sanitize_tags = {**tools.mail.SANITIZE_TAGS}
             sanitize_tags['remove_tags'] = [*sanitize_tags['remove_tags'] + ['a']]
-            with patch('odoo.tools.mail.SANITIZE_TAGS', sanitize_tags):
+            with patch('odoo.libs.text.html.SANITIZE_TAGS', sanitize_tags):
                 for message in messages:
                     self.assertEqual(content, tools.html2plaintext(tools.html_sanitize(message.body)).rstrip('\n'))
 

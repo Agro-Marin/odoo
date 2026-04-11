@@ -6,18 +6,20 @@ import os
 import selectors
 import threading
 import time
+
 import psycopg
 import psycopg.sql
 from psycopg import InterfaceError
 
 import odoo
-from ..tools import orjson
 from odoo import api, fields, models
 from odoo.libs.json import dumps as json_dumps
 from odoo.service.server import CommonServer
 from odoo.tools import SQL
 from odoo.tools.json import orjson_default
 from odoo.tools.misc import OrderedSet
+
+from ..tools import orjson
 
 _logger = logging.getLogger(__name__)
 
@@ -26,15 +28,18 @@ TIMEOUT = 50
 DEFAULT_GC_RETENTION_SECONDS = 60 * 60 * 24  # 24 hours
 
 # custom function to call instead of default PostgreSQL's `pg_notify`
-ODOO_NOTIFY_FUNCTION = os.getenv('ODOO_NOTIFY_FUNCTION', 'pg_notify')
+ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
 
 
 def get_notify_payload_max_length(default=8000):
     try:
-        length = int(os.environ.get('ODOO_NOTIFY_PAYLOAD_MAX_LENGTH', default))
+        length = int(os.environ.get("ODOO_NOTIFY_PAYLOAD_MAX_LENGTH", default))
     except ValueError:
-        _logger.warning("ODOO_NOTIFY_PAYLOAD_MAX_LENGTH has to be an integer, "
-                        "defaulting to %d bytes", default)
+        _logger.warning(
+            "ODOO_NOTIFY_PAYLOAD_MAX_LENGTH has to be an integer, "
+            "defaulting to %d bytes",
+            default,
+        )
         length = default
     return length
 
@@ -69,7 +74,7 @@ def _close_notify_conn_locked():
     """
     global _notify_conn  # noqa: PLW0603
     if _notify_conn is not None:
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(psycopg.Error, OSError):
             _notify_conn.close()
         _notify_conn = None
 
@@ -147,7 +152,11 @@ def channel_with_db(dbname, channel):
     """
     if isinstance(channel, models.Model):
         return (dbname, channel._name, channel.id)
-    if isinstance(channel, tuple) and len(channel) == 2 and isinstance(channel[0], models.Model):
+    if (
+        isinstance(channel, tuple)
+        and len(channel) == 2
+        and isinstance(channel[0], models.Model)
+    ):
         return (dbname, channel[0]._name, channel[0].id, channel[1])
     if isinstance(channel, str):
         return (dbname, channel)
@@ -170,17 +179,21 @@ def get_notify_payloads(channels):
         return [payload]
     else:
         pivot = math.ceil(len(channels) / 2)
-        return (get_notify_payloads(channels[:pivot]) +
-                get_notify_payloads(channels[pivot:]))
+        return get_notify_payloads(channels[:pivot]) + get_notify_payloads(
+            channels[pivot:]
+        )
 
 
 class BusBus(models.Model):
-    _name = 'bus.bus'
+    _name = "bus.bus"
 
-    _description = 'Communication Bus'
+    _description = "Communication Bus"
 
-    channel = fields.Char('Channel')
-    message = fields.Char('Message')
+    channel = fields.Char("Channel")
+    message = fields.Char("Message")
+
+    _channel_id_idx = models.Index("(channel, id)")
+    _create_date_idx = models.Index("(create_date)")
 
     @api.autovacuum
     def _gc_messages(self):
@@ -196,7 +209,7 @@ class BusBus(models.Model):
                 .sudo()
                 .get_param("bus.gc_retention_seconds", DEFAULT_GC_RETENTION_SECONDS)
             )
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             gc_retention_seconds = DEFAULT_GC_RETENTION_SECONDS
         if gc_retention_seconds <= 0:
             _logger.warning(
@@ -205,11 +218,15 @@ class BusBus(models.Model):
                 DEFAULT_GC_RETENTION_SECONDS,
             )
             gc_retention_seconds = DEFAULT_GC_RETENTION_SECONDS
-        timeout_ago = fields.Datetime.now() - datetime.timedelta(seconds=gc_retention_seconds)
+        timeout_ago = fields.Datetime.now() - datetime.timedelta(
+            seconds=gc_retention_seconds
+        )
         # Direct SQL to avoid ORM overhead; this way we can delete millions of rows quickly.
         # This is a low-level table with no expected references, and doing this avoids
         # the need to split or reschedule this GC job.
-        self.env.cr.execute("DELETE FROM bus_bus WHERE create_date < %s", (timeout_ago,))
+        self.env.cr.execute(
+            "DELETE FROM bus_bus WHERE create_date < %s", (timeout_ago,)
+        )
 
     @api.model
     def _sendone(self, target, notification_type, message):
@@ -277,12 +294,15 @@ class BusBus(models.Model):
         if ignore_ids:
             where = SQL("%s AND NOT (id = ANY(%s))", where, ignore_ids)
         channels = [json_dump(channel_with_db(self.env.cr.dbname, c)) for c in channels]
-        self.env.cr.execute(SQL(
-            "SELECT id, message FROM bus_bus WHERE %s AND channel = ANY(%s) ORDER BY id",
-            where, channels,
-        ))
+        self.env.cr.execute(
+            SQL(
+                "SELECT id, message FROM bus_bus WHERE %s AND channel = ANY(%s) ORDER BY id",
+                where,
+                channels,
+            )
+        )
         return [
-            {'id': row[0], 'message': orjson.loads(row[1])}
+            {"id": row[0], "message": orjson.loads(row[1])}
             for row in self.env.cr.fetchall()
         ]
 
@@ -295,15 +315,10 @@ class BusBus(models.Model):
 # Dispatcher
 # ---------------------------------------------------------
 
-class BusSubscription:
-    def __init__(self, channels, last):
-        self.last_notification_id = last
-        self.channels = channels
-
 
 class ImDispatch(threading.Thread):
     def __init__(self):
-        super().__init__(daemon=True, name=f'{__name__}.Bus')
+        super().__init__(daemon=True, name=f"{__name__}.Bus")
         self._channels_to_ws = {}
         # Serialises all mutations to _channels_to_ws and the loop's
         # snapshot read, preventing races between the dispatch loop and
@@ -350,8 +365,10 @@ class ImDispatch(threading.Thread):
         """
         _logger.info("Bus.loop listen imbus on db postgres")
         _dbname, params = odoo.db.connection_info_for("postgres")
-        with psycopg.connect(autocommit=True, **params) as conn, \
-             selectors.DefaultSelector() as sel:
+        with (
+            psycopg.connect(autocommit=True, **params) as conn,
+            selectors.DefaultSelector() as sel,
+        ):
             conn.execute("LISTEN imbus")
             sel.register(conn, selectors.EVENT_READ)
             while not stop_event.is_set():
@@ -364,7 +381,9 @@ class ImDispatch(threading.Thread):
                     with self._lock:
                         websockets = set()
                         for channel in channels:
-                            websockets.update(self._channels_to_ws.get(hashable(channel), []))
+                            websockets.update(
+                                self._channels_to_ws.get(hashable(channel), [])
+                            )
                     for websocket in websockets:
                         websocket.trigger_notification_dispatching()
 
@@ -373,10 +392,14 @@ class ImDispatch(threading.Thread):
             try:
                 self.loop()
             except Exception as exc:
-                if isinstance(exc, (InterfaceError, psycopg.OperationalError)) and stop_event.is_set():
+                if (
+                    isinstance(exc, (InterfaceError, psycopg.OperationalError))
+                    and stop_event.is_set()
+                ):
                     continue
                 _logger.exception("Bus.loop error, sleep and retry")
                 time.sleep(TIMEOUT)
+
 
 # Lazy-started singleton — initialized early to avoid "Bus unavailable" errors.
 # ImDispatch.start() is deferred until the first subscribe() call.

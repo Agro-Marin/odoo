@@ -99,6 +99,21 @@ class GamificationStreakType(models.Model):
         :return: ``True`` if the domain matches at least one record.
         """
         self.ensure_one()
+        result = self._check_user_activity_batch(user, check_date)
+        return user.id in result
+
+    def _check_user_activity_batch(
+        self, users: models.Model, check_date: date
+    ) -> set[int]:
+        """Check activity for multiple users at once, returning active user IDs.
+
+        :param users: ``res.users`` recordset to check.
+        :param check_date: ``date`` to check.
+        :return: set of user IDs that had qualifying activity.
+        """
+        self.ensure_one()
+        if not users:
+            return set()
         Obj = self.env[self.model_id.model].sudo()
         date_from = fields.Datetime.to_string(
             fields.Datetime.start_of(
@@ -112,15 +127,54 @@ class GamificationStreakType(models.Model):
                 "day",
             )
         )
+        # Build a domain that works for all users in the batch.
+        # The safe_eval domain may reference 'user' — we evaluate once
+        # with a dummy user to get the base domain, then widen it.
+        # If the domain actually uses 'user', fall back to per-user.
+        first_user = users[0]
         domain = safe_eval(
-            self.domain, {"user": user, "date_from": date_from, "date_to": date_to}
+            self.domain,
+            {"user": first_user, "date_from": date_from, "date_to": date_to},
         )
         date_field = self.date_field_id.name
         domain += [
             (date_field, ">=", date_from),
             (date_field, "<=", date_to),
         ]
-        return Obj.search_count(domain, limit=1) > 0
+
+        # Check if domain contains a user-specific filter by evaluating
+        # with a second user (if available) and comparing.
+        domain_is_user_specific = False
+        if len(users) > 1:
+            second_domain = safe_eval(
+                self.domain,
+                {"user": users[1], "date_from": date_from, "date_to": date_to},
+            )
+            domain_is_user_specific = domain != second_domain
+
+        if domain_is_user_specific:
+            # Fall back to per-user evaluation when domain references user
+            active_ids: set[int] = set()
+            for user in users:
+                user_domain = safe_eval(
+                    self.domain,
+                    {"user": user, "date_from": date_from, "date_to": date_to},
+                )
+                user_domain += [
+                    (date_field, ">=", date_from),
+                    (date_field, "<=", date_to),
+                ]
+                if Obj.search_count(user_domain, limit=1) > 0:
+                    active_ids.add(user.id)
+            return active_ids
+
+        # Domain does not reference user — a single query checks if any
+        # record matches.  This means ALL users get credit when the domain
+        # matches, which is correct: a non-user-specific streak (e.g.,
+        # "any sale happened") is a team/global streak by definition.
+        if Obj.search_count(domain, limit=1) > 0:
+            return set(users.ids)
+        return set()
 
 
 class GamificationStreak(models.Model):
@@ -246,11 +300,18 @@ class GamificationStreak(models.Model):
         today = fields.Date.today()
         yesterday = today - timedelta(days=1)
 
-        # Reset freeze allowance on 1st of month
+        # Reset freeze allowance on 1st of month — batch by type
         if today.day == 1:
             active_streaks = self.search([("state", "=", "active")])
+            # Group by streak type for batch writes
+            by_type: dict[int, list[int]] = {}
             for streak in active_streaks:
-                streak.freeze_remaining = streak.streak_type_id.freeze_allowance
+                by_type.setdefault(streak.streak_type_id.id, []).append(streak.id)
+            for type_id, streak_ids in by_type.items():
+                stype = self.env["gamification.streak.type"].browse(type_id)
+                self.browse(streak_ids).write(
+                    {"freeze_remaining": stype.freeze_allowance}
+                )
 
         # Check active and broken streaks — broken ones can revive if the
         # user performed qualifying activity yesterday.
@@ -295,24 +356,30 @@ class GamificationStreak(models.Model):
 
         Called when a user first accesses gamification features.
         Creates missing streak records with default values.
+        Uses a single SQL query to find missing types.
         """
         user = user or self.env.user
-        existing = self.search([("user_id", "=", user.id)])
-        existing_type_ids = existing.mapped("streak_type_id").ids
-        missing_types = self.env["gamification.streak.type"].search(
-            [
-                ("id", "not in", existing_type_ids),
-                ("active", "=", True),
-            ]
+        self.env.cr.execute(
+            """
+            SELECT st.id, st.freeze_allowance
+            FROM gamification_streak_type st
+            WHERE st.active IS TRUE
+              AND NOT EXISTS (
+                  SELECT 1 FROM gamification_streak gs
+                  WHERE gs.streak_type_id = st.id AND gs.user_id = %s
+              )
+            """,
+            [user.id],
         )
-        if missing_types:
+        missing = self.env.cr.fetchall()
+        if missing:
             self.sudo().create(
                 [
                     {
                         "user_id": user.id,
-                        "streak_type_id": st.id,
-                        "freeze_remaining": st.freeze_allowance,
+                        "streak_type_id": type_id,
+                        "freeze_remaining": freeze_allowance,
                     }
-                    for st in missing_types
+                    for type_id, freeze_allowance in missing
                 ]
             )

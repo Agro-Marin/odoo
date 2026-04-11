@@ -720,7 +720,7 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
 
         subcontract = picking_receipt._get_subcontract_production()
         self.assertEqual(subcontract.date_start, picking_receipt.scheduled_date)
-        self.assertEqual(subcontract.date_finished, picking_receipt.scheduled_date)
+        self.assertEqual(subcontract.date_end, picking_receipt.scheduled_date)
 
     def test_subcontracting_set_quantity_done(self):
         """ Tests to set a quantity done directly on a subcontracted move without using the subcontracting wizard.

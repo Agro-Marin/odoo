@@ -4,8 +4,9 @@ from collections import defaultdict
 
 from odoo import http
 from odoo.http import request
+
 from odoo.addons.mail.controllers.thread import ThreadController
-from odoo.addons.mail.tools.discuss import add_guest_to_context, Store
+from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 
 class WebclientController(ThreadController):
@@ -19,7 +20,9 @@ class WebclientController(ThreadController):
         """
         return self._process_request(fetch_params, context=context)
 
-    @http.route("/mail/data", methods=["POST"], type="jsonrpc", auth="public", readonly=True)
+    @http.route(
+        "/mail/data", methods=["POST"], type="jsonrpc", auth="public", readonly=True
+    )
     @add_guest_to_context
     def mail_data(self, fetch_params, context=None):
         """Returns data depending on request parameters.
@@ -28,15 +31,15 @@ class WebclientController(ThreadController):
         return self._process_request(fetch_params, context=context)
 
     @classmethod
-    def _process_request(self, fetch_params, context):
+    def _process_request(cls, fetch_params, context):
         store = Store()
         if context:
             request.update_context(**context)
-        self._process_request_loop(store, fetch_params)
+        cls._process_request_loop(store, fetch_params)
         return store.get_result()
 
     @classmethod
-    def _process_request_loop(self, store: Store, fetch_params):
+    def _process_request_loop(cls, store: Store, fetch_params):
         for fetch_param in fetch_params:
             name, params, data_id = (
                 (fetch_param, None, None)
@@ -44,21 +47,21 @@ class WebclientController(ThreadController):
                 else (fetch_param + [None, None])[:3]
             )
             store.data_id = data_id
-            self._process_request_for_all(store, name, params)
+            cls._process_request_for_all(store, name, params)
             if not request.env.user._is_public():
-                self._process_request_for_logged_in_user(store, name, params)
+                cls._process_request_for_logged_in_user(store, name, params)
             if request.env.user._is_internal():
-                self._process_request_for_internal_user(store, name, params)
+                cls._process_request_for_internal_user(store, name, params)
         store.data_id = None
 
     @classmethod
-    def _process_request_for_all(self, store: Store, name, params):
+    def _process_request_for_all(cls, store: Store, name, params):
         if name == "init_messaging":
             if not request.env.user._is_public():
                 user = request.env.user.sudo(False)
                 user._init_messaging(store)
         if name == "mail.thread":
-            thread = self._get_thread_with_access(
+            thread = cls._get_thread_with_access(
                 params["thread_model"],
                 params["thread_id"],
                 mode="read",
@@ -74,7 +77,7 @@ class WebclientController(ThreadController):
                 store.add(thread, request_list=params["request_list"], as_thread=True)
 
     @classmethod
-    def _process_request_for_logged_in_user(self, store: Store, name, params):
+    def _process_request_for_logged_in_user(cls, store: Store, name, params):
         if name == "failures":
             domain = [
                 ("author_id", "=", request.env.user.partner_id.id),
@@ -85,7 +88,9 @@ class WebclientController(ThreadController):
             ]
             # sudo as to not check ACL, which is far too costly
             # sudo: mail.notification - return only failures of current user as author
-            notifications = request.env["mail.notification"].sudo().search(domain, limit=100)
+            notifications = (
+                request.env["mail.notification"].sudo().search(domain, limit=100)
+            )
             found = defaultdict(list)
             for message in notifications.mail_message_id:
                 found[message.model].append(message.res_id)
@@ -104,7 +109,7 @@ class WebclientController(ThreadController):
             valid.mail_message_id._message_notifications_to_store(store)
 
     @classmethod
-    def _process_request_for_internal_user(self, store: Store, name, params):
+    def _process_request_for_internal_user(cls, store: Store, name, params):
         if name == "systray_get_activities":
             # sudo: bus.bus: reading non-sensitive last id
             bus_last_id = request.env["bus.bus"].sudo()._bus_last_id()
@@ -129,5 +134,9 @@ class WebclientController(ThreadController):
                 "active_test": False,
                 "allowed_company_ids": request.env.user._get_company_ids(),
             }
-            record = request.env[model].with_context(**context).search([("id", "=", record_id)])
+            record = (
+                request.env[model]
+                .with_context(**context)
+                .search([("id", "=", record_id)])
+            )
             store.add(record, record._get_store_avatar_card_fields(store.target))

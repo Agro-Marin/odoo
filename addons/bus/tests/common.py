@@ -1,13 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+import contextlib
+import inspect
 import json
 import struct
-from threading import Event
 import unittest
+from threading import Event
 from unittest.mock import patch
-import inspect
+
 from werkzeug.exceptions import BadRequest
-import contextlib
 
 try:
     import websocket
@@ -15,10 +16,17 @@ except ImportError:
     websocket = None
 
 from odoo.http import request
-from odoo.tests.common import HOST, release_test_lock, TEST_CURSOR_COOKIE_NAME, Like, _registry_test_lock
 from odoo.tests import HttpCase
+from odoo.tests.common import (
+    HOST,
+    TEST_CURSOR_COOKIE_NAME,
+    Like,
+    _registry_test_lock,
+    release_test_lock,
+)
+
+from ..models.bus import channel_with_db, dispatch, hashable
 from ..websocket import CloseCode, Websocket, WebsocketConnectionHandler
-from ..models.bus import dispatch, hashable, channel_with_db
 
 
 class WebsocketCase(HttpCase):
@@ -29,8 +37,12 @@ class WebsocketCase(HttpCase):
             cls._logger.warning("websocket-client module is not installed")
             raise unittest.SkipTest("websocket-client module is not installed")
         cls._BASE_WEBSOCKET_URL = f"ws://{HOST}:{cls.http_port()}/websocket"
-        cls._WEBSOCKET_URL = f"{cls._BASE_WEBSOCKET_URL}?version={WebsocketConnectionHandler._VERSION}"
-        websocket_allowed_patch = patch.object(WebsocketConnectionHandler, "websocket_allowed", return_value=True)
+        cls._WEBSOCKET_URL = (
+            f"{cls._BASE_WEBSOCKET_URL}?version={WebsocketConnectionHandler._VERSION}"
+        )
+        websocket_allowed_patch = patch.object(
+            WebsocketConnectionHandler, "websocket_allowed", return_value=True
+        )
         cls.startClassPatcher(websocket_allowed_patch)
 
     def setUp(self):
@@ -48,13 +60,13 @@ class WebsocketCase(HttpCase):
             websocket_closed_event.set()
 
         self._serve_forever_patch = patch.object(
-            WebsocketConnectionHandler,
-            '_serve_forever',
-            wraps=_mocked_serve_forever
+            WebsocketConnectionHandler, "_serve_forever", wraps=_mocked_serve_forever
         )
         self.startPatcher(self._serve_forever_patch)
-        self.enterContext(release_test_lock())  # Release the lock during websocket tests
-        self.http_request_key = 'websocket'
+        self.enterContext(
+            release_test_lock()
+        )  # Release the lock during websocket tests
+        self.http_request_key = "websocket"
 
     def tearDown(self):
         self._close_websockets()
@@ -81,15 +93,18 @@ class WebsocketCase(HttpCase):
         # As the lock is always unlocked during WebsocketCases we have a whitelist of
         # methods which must match. We also default to super if we are coming from a cursor.
         allowed_methods = [  # function + filename
-            ('acquire_cursor', Like('.../bus/websocket.py')),
+            ("acquire_cursor", Like(".../bus/websocket.py")),
         ]
-        if any(
-            frame.function == function and frame.filename == filename
-            for frame in inspect.stack()
-            for function, filename in allowed_methods
-        ) or request:
+        if (
+            any(
+                frame.function == function and frame.filename == filename
+                for frame in inspect.stack()
+                for function, filename in allowed_methods
+            )
+            or request
+        ):
             return super().assertCanOpenTestCursor()
-        raise BadRequest('Opening a cursor from an unknown method in websocket test.')
+        raise BadRequest("Opening a cursor from an unknown method in websocket test.")
 
     def websocket_connect(self, *args, ping_after_connect=True, **kwargs):
         """
@@ -97,15 +112,15 @@ class WebsocketCase(HttpCase):
         opened with a default session. The created websocket is closed
         at the end of the test.
         """
-        if 'cookie' not in kwargs:
+        if "cookie" not in kwargs:
             self.session = self.authenticate(None, None)
-            kwargs['cookie'] = f'session_id={self.session.sid}'
-        kwargs['timeout'] = 10  # keep a large timeout to avoid aving a websocket request escaping the test
-        # The cursor lock is already released, we just need to pass the right cookie.
-        kwargs['cookie'] += f';{TEST_CURSOR_COOKIE_NAME}={self.http_request_key}'
-        ws = websocket.create_connection(
-            self._WEBSOCKET_URL, *args, **kwargs
+            kwargs["cookie"] = f"session_id={self.session.sid}"
+        kwargs["timeout"] = (
+            10  # keep a large timeout to avoid aving a websocket request escaping the test
         )
+        # The cursor lock is already released, we just need to pass the right cookie.
+        kwargs["cookie"] += f";{TEST_CURSOR_COOKIE_NAME}={self.http_request_key}"
+        ws = websocket.create_connection(self._WEBSOCKET_URL, *args, **kwargs)
         if ping_after_connect:
             ws.ping()
             ws.recv_data_frame(control_frame=True)  # pong
@@ -113,7 +128,7 @@ class WebsocketCase(HttpCase):
         return ws
 
     def subscribe(self, websocket, channels=None, last=None, wait_for_dispatch=True):
-        """ Subscribe the websocket to the given channels.
+        """Subscribe the websocket to the given channels.
 
         :param websocket: The websocket of the client.
         :param channels: The list of channels to subscribe to.
@@ -128,18 +143,23 @@ class WebsocketCase(HttpCase):
             original_dispatch_bus_notifications(self, *args)
             dispatch_bus_notification_done.set()
 
-        with patch.object(Websocket, '_dispatch_bus_notifications', _mocked_dispatch_bus_notifications):
-            sub = {'event_name': 'subscribe', 'data': {
-                'channels': channels or [],
-            }}
+        with patch.object(
+            Websocket, "_dispatch_bus_notifications", _mocked_dispatch_bus_notifications
+        ):
+            sub = {
+                "event_name": "subscribe",
+                "data": {
+                    "channels": channels or [],
+                },
+            }
             if last is not None:
-                sub['data']['last'] = last
+                sub["data"]["last"] = last
             websocket.send(json.dumps(sub))
             if wait_for_dispatch:
                 dispatch_bus_notification_done.wait(timeout=5)
 
     def trigger_notification_dispatching(self, channels):
-        """ Notify the websockets subscribed to the given channels that new
+        """Notify the websockets subscribed to the given channels that new
         notifications are available. Usefull since the bus is not able to do
         it during tests.
         """
@@ -154,7 +174,7 @@ class WebsocketCase(HttpCase):
             websocket.trigger_notification_dispatching()
 
     def wait_remaining_websocket_connections(self):
-        """ Wait for the websocket connections to terminate. """
+        """Wait for the websocket connections to terminate."""
         for event in self._websocket_events:
             event.wait(5)
 
@@ -165,7 +185,7 @@ class WebsocketCase(HttpCase):
         opcode, payload = websocket.recv_data()
         # ensure it's a close frame
         self.assertEqual(opcode, 8)
-        code = struct.unpack('!H', payload[:2])[0]
+        code = struct.unpack("!H", payload[:2])[0]
         # ensure the close code is the one we expected
         self.assertEqual(code, expected_code)
         if expected_reason:

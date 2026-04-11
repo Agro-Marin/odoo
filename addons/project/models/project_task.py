@@ -75,7 +75,7 @@ PROJECT_TASK_WRITABLE_FIELDS = {
     "name",
     "description",
     "partner_id",
-    "date_deadline",
+    "date_end",
     "date_last_status_change",
     "tag_ids",
     "sequence",
@@ -108,7 +108,7 @@ class ProjectTask(models.Model):
     ]
     _mail_post_access = "read"
     _mail_thread_customer = True
-    _order = "priority desc, sequence, date_deadline asc, id desc"
+    _order = "priority desc, sequence, date_end asc, id desc"
     _primary_email = "email_from"
     _systray_view = "list"
     _track_duration_field = "step_id"
@@ -252,14 +252,14 @@ class ProjectTask(models.Model):
     )
     create_date = fields.Datetime("Created On", readonly=True, index=True)
     write_date = fields.Datetime("Last Updated On", readonly=True)
-    date_end = fields.Datetime(string="Ending Date", index=True, copy=False)
+    date_closed = fields.Datetime(string="Closed Date", index=True, copy=False)
     date_assign = fields.Datetime(
         string="Assigning Date",
         copy=False,
         readonly=True,
         help="Date on which this task was last assigned (or unassigned). Based on this, you can get statistics on the time it usually takes to assign tasks.",
     )
-    date_deadline = fields.Datetime(
+    date_end = fields.Datetime(
         string="Deadline",
         index=True,
         tracking=True,
@@ -551,13 +551,13 @@ class ProjectTask(models.Model):
     planned_date_start = fields.Datetime(
         "Planned Start",
         copy=False,
-        help="Calendar-aware start date computed by CPM. Distinct from date_deadline (user-entered).",
+        help="Calendar-aware start date computed by CPM. Distinct from date_end (user-entered).",
         export_string_translation=False,
     )
     planned_date_end = fields.Datetime(
         "Planned End",
         copy=False,
-        help="Calendar-aware end date computed by CPM. Distinct from date_end (actual completion).",
+        help="Calendar-aware end date computed by CPM. Distinct from date_closed (actual completion).",
         export_string_translation=False,
     )
 
@@ -1339,7 +1339,7 @@ class ProjectTask(models.Model):
                 (6, 0, list(set(attachment_ids) - set(message_attachment_ids)))
             ]
 
-    @api.depends("create_date", "date_end", "date_assign")
+    @api.depends("create_date", "date_closed", "date_assign")
     def _compute_elapsed(self) -> None:
         """Compute queue time, lead time, and cycle time (calendar-adjusted)."""
         task_linked_to_calendar = self.filtered(
@@ -1366,9 +1366,9 @@ class ProjectTask(models.Model):
                 task.queue_time_hours = 0.0
                 task.queue_time_days = 0.0
 
-            # Lead time: create → end
-            if task.date_end:
-                dt_end = fields.Datetime.from_string(task.date_end)
+            # Lead time: create → closed
+            if task.date_closed:
+                dt_end = fields.Datetime.from_string(task.date_closed)
                 data = calendar.get_work_duration_data(
                     dt_create, dt_end,
                     compute_leaves=True, domain=leave_domain,
@@ -1379,10 +1379,10 @@ class ProjectTask(models.Model):
                 task.lead_time_hours = 0.0
                 task.lead_time_days = 0.0
 
-            # Cycle time: assign → end (requires both dates)
-            if task.date_assign and task.date_end:
+            # Cycle time: assign → closed (requires both dates)
+            if task.date_assign and task.date_closed:
                 dt_assign = fields.Datetime.from_string(task.date_assign)
-                dt_end = fields.Datetime.from_string(task.date_end)
+                dt_end = fields.Datetime.from_string(task.date_closed)
                 data = calendar.get_work_duration_data(
                     dt_assign, dt_end,
                     compute_leaves=True, domain=leave_domain,
@@ -1407,15 +1407,15 @@ class ProjectTask(models.Model):
             )
         )
 
-    @api.depends("date_end", "date_deadline", "state")
+    @api.depends("date_closed", "date_end", "state")
     def _compute_deadline_met(self) -> None:
         """Determine whether a closed task met its deadline."""
         for task in self:
-            if not task.date_deadline or task.state not in CLOSED_STATES:
+            if not task.date_end or task.state not in CLOSED_STATES:
                 task.deadline_met = None
             else:
                 task.deadline_met = bool(
-                    task.date_end and task.date_end <= task.date_deadline
+                    task.date_closed and task.date_closed <= task.date_end
                 )
 
     @api.depends("cost_of_delay", "allocated_hours")
@@ -2086,9 +2086,9 @@ class ProjectTask(models.Model):
                     )
                 vals["step_id"] = default_stage[project_id]
 
-            # Step change: Update date_end if folded stage and date_last_status_change
+            # Step change: Update date_closed if folded stage and date_last_status_change
             if vals.get("step_id"):
-                additional_vals.update(self_ctx.update_date_end(vals["step_id"]))
+                additional_vals.update(self_ctx.update_date_closed(vals["step_id"]))
                 additional_vals["date_last_status_change"] = fields.Datetime.now()
             # recurrence
             rec_fields = vals.keys() & self_ctx._get_recurrence_fields()
@@ -2244,7 +2244,7 @@ class ProjectTask(models.Model):
                     _("You can only set a personal stage on a private task.")
                 )
 
-            additional_vals.update(self.update_date_end(vals["step_id"]))
+            additional_vals.update(self.update_date_closed(vals["step_id"]))
             additional_vals["date_last_status_change"] = now
         task_ids_without_user_set = set()
         if "user_ids" in vals and "date_assign" not in vals:
@@ -2396,11 +2396,12 @@ class ProjectTask(models.Model):
             ("res_id", "in", self.ids),
         ]).unlink()
 
-    def update_date_end(self, step_id: int) -> None:
+    def update_date_closed(self, step_id: int) -> None:
+        """Return dict setting date_closed when step is folded (task closed)."""
         step = self.env["project.workflow.step"].browse(step_id)
         if step.fold:
-            return {"date_end": fields.Datetime.now()}
-        return {"date_end": False}
+            return {"date_closed": fields.Datetime.now()}
+        return {"date_closed": False}
 
     # ------------------------------------------------------------------
     # Resource reservation integration

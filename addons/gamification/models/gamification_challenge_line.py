@@ -30,7 +30,7 @@ class GamificationChallengeLine(models.Model):
     sequence = fields.Integer("Sequence", default=1)
     target_goal = fields.Float("Target Value to Reach", required=True)
 
-    name = fields.Char("Name", related="definition_id.name", readonly=False)
+    name = fields.Char("Name", related="definition_id.name")
     condition = fields.Selection(
         string="Condition", related="definition_id.condition", readonly=True
     )

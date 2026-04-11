@@ -278,6 +278,7 @@ class GamificationQuestEnrollment(models.Model):
         if step.karma_reward:
             user.sudo()._add_karma(
                 step.karma_reward,
+                source=self,
                 reason=_("Quest step: %s", step.name),
             )
         if step.badge_id:
@@ -307,6 +308,7 @@ class GamificationQuestEnrollment(models.Model):
         if quest.reward_karma:
             user.sudo()._add_karma(
                 quest.reward_karma,
+                source=self,
                 reason=_("Quest completed: %s", quest.name),
             )
         if quest.reward_badge_id:

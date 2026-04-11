@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useRef } from "@odoo/owl";
 
+import * as luxon from "luxon";
 import { _t } from "@web/core/l10n/translation";
 import { CalendarController } from "@web/views/calendar/calendar_controller";
 import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_form/project_task_form_controller";

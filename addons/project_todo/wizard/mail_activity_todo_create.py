@@ -16,7 +16,7 @@ class MailActivityTodoCreate(models.TransientModel):
         todo = self.env['project.task'].create({
             'name': self.summary,
             'description': self.note,
-            'date_deadline': self.date_deadline,
+            'date_end': self.date_deadline,
             'user_ids': self.user_id.ids,
         })
         self.env['mail.activity'].create({

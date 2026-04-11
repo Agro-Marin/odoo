@@ -7,6 +7,19 @@
         <field name="view_mode">list,form</field>
     </record>
 
+    <record id="skill_tree_search_view" model="ir.ui.view">
+        <field name="name">gamification.skill.tree.search</field>
+        <field name="model">gamification.skill.tree</field>
+        <field name="arch" type="xml">
+            <search string="Skill Trees">
+                <field name="name"/>
+                <separator/>
+                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
     <record id="skill_tree_list_view" model="ir.ui.view">
         <field name="name">gamification.skill.tree.list</field>
         <field name="model">gamification.skill.tree</field>
@@ -25,6 +38,11 @@
         <field name="arch" type="xml">
             <form string="Skill Tree">
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" icon="fa-puzzle-piece">
+                            <field name="node_count" widget="statinfo" string="Nodes"/>
+                        </button>
+                    </div>
                     <field name="icon" widget="image" class="oe_avatar"/>
                     <div class="oe_title">
                         <h1><field name="name" placeholder="e.g. Sales Mastery"/></h1>
@@ -52,6 +70,22 @@
     </record>
 
     <!-- Skill Node standalone views for detailed editing -->
+
+    <record id="skill_node_search_view" model="ir.ui.view">
+        <field name="name">gamification.skill.node.search</field>
+        <field name="model">gamification.skill.node</field>
+        <field name="arch" type="xml">
+            <search string="Skill Nodes">
+                <field name="name"/>
+                <field name="tree_id"/>
+                <separator/>
+                <group>
+                    <filter string="Tree" name="group_tree" context="{'group_by': 'tree_id'}"/>
+                    <filter string="Level" name="group_level" context="{'group_by': 'level'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
 
     <record id="skill_node_list_action" model="ir.actions.act_window">
         <field name="name">Skill Nodes</field>

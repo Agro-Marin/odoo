@@ -19,6 +19,7 @@ class TestEngagementSnapshot(common.TransactionCase):
         )
         cls.startClassPatcher(patch_email)
 
+        cls.company = cls.env.company
         cls.user_1 = mail_new_test_user(
             cls.env,
             login="engage_user1",
@@ -26,6 +27,7 @@ class TestEngagementSnapshot(common.TransactionCase):
             email="engage1@example.com",
             karma=100,
             groups="base.group_user",
+            company_id=cls.company.id,
         )
         cls.user_2 = mail_new_test_user(
             cls.env,
@@ -34,8 +36,8 @@ class TestEngagementSnapshot(common.TransactionCase):
             email="engage2@example.com",
             karma=200,
             groups="base.group_user",
+            company_id=cls.company.id,
         )
-        cls.company = cls.env.company
 
     def test_record_snapshot_creates_record(self):
         """_record_snapshot creates an engagement snapshot for the company."""

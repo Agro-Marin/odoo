@@ -3,6 +3,7 @@ from unittest.mock import patch
 from weakref import WeakSet
 
 from odoo.tests import tagged
+
 from .. import websocket as websocket_module
 from .common import WebsocketCase
 
@@ -27,7 +28,9 @@ class TestCloseWebsocketAfterTour(WebsocketCase):
             websocket_created = True
 
         # Open a socket that won't be closed when calling browser.close()
-        mocked_brower_class.return_value.navigate_to.side_effect = navigate_to_side_effect
+        mocked_brower_class.return_value.navigate_to.side_effect = (
+            navigate_to_side_effect
+        )
 
         with patch.object(websocket_module, "_websocket_instances", WeakSet()):
             self.browser_js("/odoo", "")

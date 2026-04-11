@@ -4,7 +4,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any, Literal, Self
 
-from dateutil.relativedelta import MO, relativedelta
+from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import Command, _, api, exceptions, fields, models
@@ -12,41 +12,11 @@ from odoo.http import SESSION_LIFETIME
 from odoo.orm.primitives import ValuesType
 from odoo.tools import SQL
 
+from .gamification_utils import start_end_date_for_period
+
 _logger = logging.getLogger(__name__)
 
 MAX_VISIBILITY_RANKING = 3
-
-
-def start_end_date_for_period(
-    period: str,
-    default_start_date: date | bool = False,
-    default_end_date: date | bool = False,
-) -> tuple[date | bool, date | bool]:
-    """Return the start and end date for a goal period based on today.
-
-    :param period: one of 'daily', 'weekly', 'monthly', 'yearly', 'once'.
-    :param default_start_date: fallback start date for 'once' period.
-    :param default_end_date: fallback end date for 'once' period.
-    :return: ``(start_date, end_date)`` as date objects, or ``False`` if
-        the period is 'once' and no defaults are provided.
-    """
-    today = date.today()
-    if period == "daily":
-        start_date = today
-        end_date = today
-    elif period == "weekly":
-        start_date = today + relativedelta(weekday=MO(-1))
-        end_date = start_date + timedelta(days=6)
-    elif period == "monthly":
-        start_date = today.replace(day=1)
-        end_date = today + relativedelta(months=1, day=1, days=-1)
-    elif period == "yearly":
-        start_date = today.replace(month=1, day=1)
-        end_date = today.replace(month=12, day=31)
-    else:  # period == 'once'
-        return (default_start_date, default_end_date)
-
-    return (start_date, end_date)
 
 
 class GamificationChallenge(models.Model):
@@ -224,7 +194,7 @@ class GamificationChallenge(models.Model):
         help="Define the visibility of the challenge through menus",
     )
 
-    @api.depends("user_ids")
+    @api.depends("user_ids", "user_ids.active")
     def _compute_user_count(self) -> None:
         mapped_data = {}
         if self.ids:
@@ -479,6 +449,7 @@ class GamificationChallenge(models.Model):
                 challenge.period, challenge.start_date, challenge.end_date
             )
             to_update = Goals.browse(())
+            adaptive_targets = challenge._compute_adaptive_targets()
 
             for line in challenge.line_ids:
                 # there is potentially a lot of users
@@ -535,9 +506,23 @@ class GamificationChallenge(models.Model):
 
                 new_user_ids = participant_user_ids - user_with_goal_ids
                 if new_user_ids:
-                    to_update |= Goals.create(
-                        [{**values, "user_id": uid} for uid in new_user_ids]
-                    )
+                    goal_vals = []
+                    for uid in new_user_ids:
+                        user_target = adaptive_targets.get(
+                            (uid, line.id), values["target_goal"]
+                        )
+                        user_vals = {
+                            **values,
+                            "user_id": uid,
+                            "target_goal": user_target,
+                        }
+                        # Recompute initial "current" for the adjusted target
+                        if line.condition == "higher":
+                            user_vals["current"] = min(user_target - 1, 0)
+                        else:
+                            user_vals["current"] = max(user_target + 1, 0)
+                        goal_vals.append(user_vals)
+                    to_update |= Goals.create(goal_vals)
 
             to_update.update_goal()
 
@@ -970,7 +955,7 @@ class GamificationChallenge(models.Model):
             for goal in user_goals:
                 if goal.definition_condition == "higher":
                     total_completeness += (
-                        (100.0 * goal.current / goal.target_goal)
+                        min(100.0 * goal.current / goal.target_goal, 100.0)
                         if goal.target_goal
                         else 0
                     )
@@ -1049,19 +1034,27 @@ class GamificationChallenge(models.Model):
         Goal = self.env["gamification.goal"]
         adjustments = {}
 
+        # Batch: single search for all past closed goals in this challenge
+        all_past_goals = Goal.search(
+            [
+                ("line_id", "in", self.line_ids.ids),
+                ("user_id", "in", self.user_ids.ids),
+                ("closed", "=", True),
+                ("state", "in", ["reached", "failed"]),
+            ],
+            order="end_date desc",
+        )
+        # Group by (line_id, user_id) and keep at most 3 per pair
+        goals_by_key: dict[tuple[int, int], list] = {}
+        for g in all_past_goals:
+            key = (g.line_id.id, g.user_id.id)
+            bucket = goals_by_key.setdefault(key, [])
+            if len(bucket) < 3:
+                bucket.append(g)
+
         for line in self.line_ids:
             for user in self.user_ids:
-                # Get last 3 completed goals for this user/line
-                past_goals = Goal.search(
-                    [
-                        ("line_id", "=", line.id),
-                        ("user_id", "=", user.id),
-                        ("closed", "=", True),
-                        ("state", "in", ["reached", "failed"]),
-                    ],
-                    order="end_date desc",
-                    limit=3,
-                )
+                past_goals = goals_by_key.get((line.id, user.id), [])
                 if len(past_goals) < 2:
                     continue  # Not enough history
 

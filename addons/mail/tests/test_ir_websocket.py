@@ -2,15 +2,18 @@
 
 import json
 from datetime import datetime, timedelta
+
 from freezegun import freeze_time
+
 try:
     import websocket as ws
 except ImportError:
     ws = None
 
 from odoo.tests import new_test_user, tagged
-from odoo.addons.bus.tests.common import WebsocketCase
+
 from odoo.addons.bus.models.bus import channel_with_db, json_dump
+from odoo.addons.bus.tests.common import WebsocketCase
 from odoo.addons.mail.models.mail_presence import AWAY_TIMER
 
 
@@ -88,5 +91,9 @@ class TestIrWebsocket(WebsocketCase):
         )
         self.assertEqual(notification["message"]["type"], "bus.bus/im_status_updated")
         self.assertEqual(notification["message"]["payload"]["im_status"], "online")
-        self.assertEqual(notification["message"]["payload"]["presence_status"], "online")
-        self.assertEqual(notification["message"]["payload"]["partner_id"], bob.partner_id.id)
+        self.assertEqual(
+            notification["message"]["payload"]["presence_status"], "online"
+        )
+        self.assertEqual(
+            notification["message"]["payload"]["partner_id"], bob.partner_id.id
+        )

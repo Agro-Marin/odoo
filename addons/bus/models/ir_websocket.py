@@ -1,30 +1,30 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models
-from odoo.http import request, SessionExpiredException
-from odoo.tools.misc import OrderedSet
+from odoo.http import SessionExpiredException, request
 from odoo.service import security
+from odoo.tools.misc import OrderedSet
+
 from ..models.bus import dispatch
 from ..websocket import wsrequest
 
 
 class IrWebsocket(models.AbstractModel):
-    _name = 'ir.websocket'
-    _description = 'websocket message handling'
+    _name = "ir.websocket"
+    _description = "websocket message handling"
 
     def _build_bus_channel_list(self, channels):
         """
-            Return the list of channels to subscribe to. Override this
-            method to add channels in addition to the ones the client
-            sent.
+        Return the list of channels to subscribe to. Override this
+        method to add channels in addition to the ones the client
+        sent.
 
-            :param channels: The channel list sent by the client.
+        :param channels: The channel list sent by the client.
         """
         req = request or wsrequest
-        channels.append('broadcast')
-        channels.extend(self.env.user.all_group_ids)
+        channels = [*channels, "broadcast", *self.env.user.all_group_ids]
         if req.session.uid:
-            channels.append(self.env.user.partner_id)
+            channels = [*channels, self.env.user.partner_id]
         return channels
 
     def _serve_ir_websocket(self, event_name, data):
@@ -60,7 +60,10 @@ class IrWebsocket(models.AbstractModel):
         # beyond max_id skip all existing notifications (reset to 0 instead).
         last = max(0, last)
         last = 0 if last > self.env["bus.bus"].sudo()._bus_last_id() else last
-        return {"channels": OrderedSet(self._build_bus_channel_list(list(channels))), "last": last}
+        return {
+            "channels": OrderedSet(self._build_bus_channel_list(list(channels))),
+            "last": last,
+        }
 
     def _after_subscribe_data(self, data):
         """Function invoked after subscribe data have been processed.
@@ -68,7 +71,9 @@ class IrWebsocket(models.AbstractModel):
 
     def _subscribe(self, og_data):
         data = self._prepare_subscribe_data(og_data["channels"], og_data["last"])
-        dispatch.subscribe(data["channels"], data["last"], self.env.registry.db_name, wsrequest.ws)
+        dispatch.subscribe(
+            data["channels"], data["last"], self.env.registry.db_name, wsrequest.ws
+        )
         self._after_subscribe_data(data)
 
     def _on_websocket_closed(self, cookies):
@@ -80,7 +85,7 @@ class IrWebsocket(models.AbstractModel):
         if wsrequest.session.uid is not None:
             if not security.check_session(wsrequest.session, wsrequest.env, wsrequest):
                 wsrequest.session.logout(keep_db=True)
-                raise SessionExpiredException()
+                raise SessionExpiredException
         else:
-            public_user = wsrequest.env.ref('base.public_user')
+            public_user = wsrequest.env.ref("base.public_user")
             wsrequest.update_env(user=public_user.id)

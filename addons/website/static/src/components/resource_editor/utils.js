@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
+import { formatXML } from "@web/core/utils/dom/xml";
 
 const MAPPING = {
     "{": "}",
@@ -101,13 +102,22 @@ export function checkXML(xml) {
 /**
  * Formats some XML so that it has proper indentation and structure.
  *
+ * Wraps {@link formatXML} from `@web/core/utils/dom/xml` with an
+ * additional guard: if the XML contains an inline `<script>` with a
+ * body, formatting is skipped to avoid breaking it.
+ *
  * @param {string} xml
+ * @param {number} [indent=4] number of spaces per indentation level
  * @returns {string} formatted xml
  */
-export function formatXML(xml) {
-    // do nothing if an inline script is present to avoid breaking it
+export function formatXMLSafe(xml, indent = 4) {
+    // Do nothing if an inline script is present to avoid breaking it.
     if (/<script(?: [^>]*)?>[^<][\s\S]*<\/script>/i.test(xml)) {
         return xml;
     }
-    return window.vkbeautify.xml(xml, 4);
+    return formatXML(xml, indent);
 }
+
+// Re-export for backward compatibility — existing callers import
+// formatXML from this module.
+export { formatXML };

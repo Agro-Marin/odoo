@@ -17,7 +17,7 @@ beforeEach(() => {
         <form>
             <field name="id"/>
             <field name="name"/>
-            <field name="date_deadline"/>
+            <field name="date_end"/>
             <field name="planned_date_begin"/>
         </form>
     `;
@@ -26,7 +26,7 @@ beforeEach(() => {
         {
             id: 1,
             name: "Task-1",
-            date_deadline: "2024-01-09 07:00:00",
+            date_end: "2024-01-09 07:00:00",
             create_date: "2024-01-03 12:00:00",
             project_id: 1,
             step_id: 1,
@@ -62,7 +62,7 @@ const calendarMountParams = {
     resModel: "project.task",
     type: "calendar",
     arch: `
-        <calendar date_start="date_deadline" mode="month"
+        <calendar date_start="date_end" mode="month"
                     js_class="project_task_calendar">
             <field name="project_id" widget="project" invisible="context.get('default_project_id', False)"/>
             <field name="step_id" invisible="not project_id or not step_id" widget="task_step_with_state_selection"/>
@@ -86,7 +86,7 @@ test("test task_step_with_state_selection widget with non-editable state", async
     await mountView({
         ...calendarMountParams,
         arch: `
-            <calendar date_start="date_deadline" mode="month"
+            <calendar date_start="date_end" mode="month"
                         js_class="project_task_calendar">
                 <field name="project_id" widget="project" invisible="context.get('default_project_id', False)"/>
                 <field name="step_id" invisible="not project_id or not step_id" widget="task_step_with_state_selection" options="{'state_readonly': True}"/>
@@ -109,7 +109,7 @@ test("test task_step_with_state_selection widget with editable state", async () 
     await mountView({
         ...calendarMountParams,
         arch: `
-            <calendar date_start="date_deadline" mode="month"
+            <calendar date_start="date_end" mode="month"
                         js_class="project_task_calendar">
                 <field name="project_id" widget="project" invisible="context.get('default_project_id', False)"/>
                 <field name="step_id" invisible="not project_id or not step_id" widget="task_step_with_state_selection" options="{'state_readonly': False}"/>
@@ -136,7 +136,7 @@ test("Display closed tasks as past event", async () => {
     ProjectTask._records.push({
         id: 2,
         name: "Task-2",
-        date_deadline: "2024-01-09 07:00:00",
+        date_end: "2024-01-09 07:00:00",
         create_date: "2024-01-03 12:00:00",
         project_id: 1,
         step_id: 1,
@@ -147,7 +147,7 @@ test("Display closed tasks as past event", async () => {
     ProjectTask._records.push({
         id: 3,
         name: "Task-3",
-        date_deadline: "2024-01-09 07:00:00",
+        date_end: "2024-01-09 07:00:00",
         create_date: "2024-01-03 12:00:00",
         project_id: 1,
         step_id: 1,
@@ -158,7 +158,7 @@ test("Display closed tasks as past event", async () => {
     ProjectTask._records.push({
         id: 4,
         name: "Task-4",
-        date_deadline: "2024-01-09 07:00:00",
+        date_end: "2024-01-09 07:00:00",
         create_date: "2024-01-03 12:00:00",
         project_id: 1,
         step_id: 1,
@@ -236,7 +236,7 @@ test("planned dates used in search domain should not be taken into account in Ta
     await mountView({
         ...calendarMountParams,
         context: { default_project_id: 1 },
-        domain: [['is_closed', '=', false], ['date_deadline', '!=', false], ['planned_date_begin', '!=', false]],
+        domain: [['is_closed', '=', false], ['date_end', '!=', false], ['planned_date_begin', '!=', false]],
     });
     expect(".o_calendar_view").toHaveCount(1);
     expect(".o_task_to_plan_draggable").toHaveCount(1);
@@ -259,7 +259,7 @@ test("test drag and drop a task to schedule in calendar view in month scale", as
         expect(taskIds).toEqual([10]);
         const expectedDateDeadline = serializeDateTime(expectedDate.set({ hours: 19 }));
         expect(vals).toEqual({
-            date_deadline: expectedDateDeadline,
+            date_end: expectedDateDeadline,
         });
         expect.step("plan task");
     });
@@ -288,7 +288,7 @@ test("project.task (calendar): toggle sub-tasks", async () => {
             name: "Task 1",
             step_id:  1,
             display_in_project: true,
-            date_deadline: "2024-01-09 07:00:00",
+            date_end: "2024-01-09 07:00:00",
             create_date: "2024-01-03 12:00:00",
         },
         {
@@ -297,7 +297,7 @@ test("project.task (calendar): toggle sub-tasks", async () => {
             name: "Task 2",
             step_id:  1,
             display_in_project: false,
-            date_deadline: "2024-01-09 07:00:00",
+            date_end: "2024-01-09 07:00:00",
             create_date: "2024-01-03 12:00:00",
         }
     ];

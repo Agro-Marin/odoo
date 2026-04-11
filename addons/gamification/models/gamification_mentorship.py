@@ -117,7 +117,7 @@ class GamificationMentorship(models.Model):
             if rec.mentor_karma_on_completion:
                 rec.mentor_id.sudo()._add_karma(
                     rec.mentor_karma_on_completion,
-                    source=rec.mentee_id,
+                    source=rec,
                     reason=_("Mentorship completed with %s", rec.mentee_id.name),
                 )
                 rec.total_mentor_karma += rec.mentor_karma_on_completion
@@ -159,7 +159,7 @@ class GamificationMentorship(models.Model):
             if rec.mentor_karma_per_milestone:
                 rec.mentor_id.sudo()._add_karma(
                     rec.mentor_karma_per_milestone,
-                    source=mentee,
+                    source=rec,
                     reason=_(
                         "Mentee %s reached %s",
                         mentee.name,

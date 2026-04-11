@@ -4,7 +4,7 @@
     <record id="quest_list_action" model="ir.actions.act_window">
         <field name="name">Quests</field>
         <field name="res_model">gamification.quest</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first quest
@@ -13,6 +13,50 @@
                 Quests are multi-step narrative journeys that guide users
                 through a series of objectives with a story.
             </p>
+        </field>
+    </record>
+
+    <record id="quest_search_view" model="ir.ui.view">
+        <field name="name">gamification.quest.search</field>
+        <field name="model">gamification.quest</field>
+        <field name="arch" type="xml">
+            <search string="Quests">
+                <field name="name"/>
+                <separator/>
+                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <separator/>
+                <group>
+                    <filter string="Difficulty" name="group_difficulty" context="{'group_by': 'difficulty'}"/>
+                    <filter string="Mode" name="group_mode" context="{'group_by': 'quest_mode'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="quest_kanban_view" model="ir.ui.view">
+        <field name="name">gamification.quest.kanban</field>
+        <field name="model">gamification.quest</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="difficulty" class="o_kanban_small_column">
+                <templates>
+                    <t t-name="card">
+                        <field name="icon" widget="image" class="o_kanban_image"/>
+                        <div>
+                            <strong><field name="name"/></strong>
+                            <div class="text-muted"><field name="quest_mode"/></div>
+                            <div class="mt-1">
+                                <span class="badge text-bg-info me-1">
+                                    <field name="step_count"/> steps
+                                </span>
+                                <span class="badge text-bg-success">
+                                    <field name="enrollment_count"/> enrolled
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
         </field>
     </record>
 
@@ -43,7 +87,14 @@
         <field name="arch" type="xml">
             <form string="Quest">
                 <sheet>
-                    <div class="oe_button_box" name="button_box"/>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" icon="fa-users">
+                            <field name="enrollment_count" widget="statinfo" string="Enrollments"/>
+                        </button>
+                        <button class="oe_stat_button" icon="fa-check-circle">
+                            <field name="completion_count" widget="statinfo" string="Completed"/>
+                        </button>
+                    </div>
                     <field name="icon" widget="image" class="oe_avatar"/>
                     <div class="oe_title">
                         <h1><field name="name" placeholder="e.g. The Data Quality Crusade"/></h1>

@@ -9,6 +9,14 @@ from odoo.tools import date_utils
 
 
 class GamificationKarmaTracking(models.Model):
+    """Audit log of all karma changes with source attribution.
+
+    Each record represents a single karma change event.  The ``new_value``
+    field is the user's karma *after* the change; ``gain`` is computed as
+    ``new_value - old_value``.  Monthly consolidation compresses old records
+    into one-per-user-per-month summaries.
+    """
+
     _name = "gamification.karma.tracking"
     _description = "Track Karma Changes"
     _rec_name = "user_id"
@@ -20,6 +28,9 @@ class GamificationKarmaTracking(models.Model):
             ("gamification.streak", _("Streak")),
             ("gamification.kudos", _("Kudos")),
             ("gamification.achievement.unlock", _("Achievement")),
+            ("gamification.quest.enrollment", _("Quest")),
+            ("gamification.skill.node.unlock", _("Skill")),
+            ("gamification.mentorship", _("Mentorship")),
         ]
 
     user_id = fields.Many2one(

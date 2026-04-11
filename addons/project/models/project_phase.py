@@ -5,6 +5,8 @@ activities that culminates in the completion of one or more deliverables" —
 exactly what Odoo's project stages represent at the project level.
 """
 
+from typing import Any
+
 from odoo import _, fields, models
 from odoo.exceptions import UserError
 
@@ -39,6 +41,28 @@ class ProjectPhase(models.Model):
     )
     company_id = fields.Many2one("res.company", string="Company")
     color = fields.Integer(string="Color", export_string_translation=False)
+
+    def unlink_wizard(self, stage_view: bool = False) -> dict[str, Any]:
+        """Open the delete/archive confirmation wizard for these phases."""
+        wizard = self.env["project.phase.delete.wizard"].create(
+            {"phase_ids": self.ids}
+        )
+        context = dict(self.env.context, stage_view=stage_view)
+        return {
+            "name": _("Delete Phase"),
+            "view_mode": "form",
+            "res_model": "project.phase.delete.wizard",
+            "views": [
+                (
+                    self.env.ref("project.view_project_phase_delete_wizard").id,
+                    "form",
+                )
+            ],
+            "type": "ir.actions.act_window",
+            "res_id": wizard.id,
+            "target": "new",
+            "context": context,
+        }
 
     def copy_data(self, default: dict | None = None) -> list[dict]:
         """Append '(copy)' to the name when duplicating a phase."""

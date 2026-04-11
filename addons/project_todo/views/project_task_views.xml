@@ -14,7 +14,7 @@
                     quick_create_view="project_todo.project_task_view_todo_quick_create_form"
                     sample="1"
                     js_class="project_task_kanban"
-                    default_order="state, priority desc, date_deadline asc, sequence, id desc">
+                    default_order="state, priority desc, date_end asc, sequence, id desc">
                 <field name="color"/>
                 <field name="sequence"/>
                 <field name="active"/>
@@ -30,7 +30,7 @@
                         <t t-set="todoHasAssignees" t-value="record.user_ids.raw_value.length &gt; 1"/>
                         <div t-att-class="{'opacity-50': ['done', 'canceled'].includes(record.state.raw_value)}">
                             <field name="name" class="fw-bold fs-5" widget="name_with_subtask_count"/>
-                            <field t-if="record.date_deadline.raw_value" name="date_deadline" widget="remaining_days"/>
+                            <field t-if="record.date_end.raw_value" name="date_end" widget="remaining_days"/>
                             <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
                             <field t-if="record.displayed_image_id.value" name="displayed_image_id" widget="attachment_image"/>
                         </div>
@@ -67,7 +67,7 @@
                 <field name="name"/>
                 <field name="user_ids" optional="show" required="1" widget="many2many_avatar_user"/>
                 <field name="priority" widget="priority" optional="hidden" width="70px"/>
-                <field name="date_deadline" optional="show" widget="remaining_days"/>
+                <field name="date_end" optional="show" widget="remaining_days"/>
                 <field name="activity_ids" optional="show" widget="list_activity"/>
                 <field name="tag_ids" optional="show" widget="many2many_tags" options="{'color_field': 'color', 'no_create_edit': True}"/>
                 <field name="triage_id" string="Stage" optional="hide"/>
@@ -120,8 +120,8 @@
                                 widget="many2many_tags"
                                 options="{'color_field': 'color', 'no_create_edit': True}"
                                 class="me-2"/>
-                            <field name="date_deadline"
-                                decoration-danger="date_deadline &lt; current_date"/>
+                            <field name="date_end"
+                                decoration-danger="date_end &lt; current_date"/>
                         </group>
                     </group>
                     <field name="description" type="html" class="oe_description" default_focus="1" options="{'resizable': false, 'collaborative': true}"
@@ -152,7 +152,7 @@
                             !!: Mark the to-do as high priority&#10;
                             !!!: Mark the to-do as urgent&#10;&#10;
                             Ensure you follow the correct format and order. For example: "Send invitations #event @Mitchell !"'/>
-                    <field name="date_deadline" decoration-danger="date_deadline &lt; current_date"/>
+                    <field name="date_end" decoration-danger="date_end &lt; current_date"/>
                 </group>
             </form>
         </field>
@@ -199,7 +199,7 @@
         <field name="model">project.task</field>
         <field name="arch" type="xml">
             <calendar string="To-dos"
-                      date_start="date_deadline" mode="month"
+                      date_start="date_end" mode="month"
                       color="triage_id" hide_time="true"
                       event_open_popup="true" quick_create="1" show_unusual_days="True"
                       scales="day,week,month,year">
@@ -249,7 +249,7 @@
                 <filter name="closed_tasks" string="Closed" domain="[('is_closed', '=', True)]"/>
                 <filter string="Closed On" name="closed_on" domain="[('is_closed', '=', True)]" date="date_last_stage_update"/>
                 <separator/>
-                <filter name="date_deadline" string="Deadline" domain="[('date_deadline', '!=', False)]" date="date_deadline"/>
+                <filter name="date_end" string="Deadline" domain="[('date_end', '!=', False)]" date="date_end"/>
                 <separator/>
                 <filter name="active_false" string="Archived" domain="[('active', '=', False)]"/>
                 <filter invisible="1" string="My Activities" name="filter_activities_my"
@@ -267,7 +267,7 @@
                     <filter string="Tags" name="tags" help="By assigned tags" context="{'group_by':'tag_ids'}"/>
                     <filter string="Assignees" name="user_ids" context="{'group_by': 'user_ids'}"/>
                     <filter string="Stage" name="stage" help="By personal stages" context="{'group_by':'triage_id'}"/>
-                    <filter string="Deadline" name="deadline" context="{'group_by': 'date_deadline'}"/>
+                    <filter string="Deadline" name="deadline" context="{'group_by': 'date_end'}"/>
                 </group>
             </search>
         </field>

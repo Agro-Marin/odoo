@@ -200,7 +200,9 @@ class TestActivityFeed(common.TransactionCase):
                 ("user_id", "=", self.user_1.id),
             ]
         )
-        self.assertEqual(len(activities), 1, "Quest should log 'quest_completed' activity")
+        self.assertEqual(
+            len(activities), 1, "Quest should log 'quest_completed' activity"
+        )
         self.assertIn("quest", activities.summary.lower())
 
     def test_skill_unlock_uses_skill_activity_type(self):
@@ -228,7 +230,9 @@ class TestActivityFeed(common.TransactionCase):
                 ("user_id", "=", self.user_1.id),
             ]
         )
-        self.assertEqual(len(activities), 1, "Skill unlock should log 'skill_unlocked' activity")
+        self.assertEqual(
+            len(activities), 1, "Skill unlock should log 'skill_unlocked' activity"
+        )
         self.assertIn("Root Skill", activities.summary)
 
     def test_activity_feed_filters_by_company(self):

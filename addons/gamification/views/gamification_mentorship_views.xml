@@ -4,7 +4,7 @@
     <record id="mentorship_list_action" model="ir.actions.act_window">
         <field name="name">Mentorships</field>
         <field name="res_model">gamification.mentorship</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
         <field name="context">{'search_default_active': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
@@ -14,6 +14,30 @@
                 Pair experienced users with newcomers. Mentors earn karma
                 when their mentee reaches milestones.
             </p>
+        </field>
+    </record>
+
+    <record id="mentorship_kanban_view" model="ir.ui.view">
+        <field name="name">gamification.mentorship.kanban</field>
+        <field name="model">gamification.mentorship</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_small_column">
+                <templates>
+                    <t t-name="card">
+                        <div>
+                            <strong><field name="display_name"/></strong>
+                            <div>
+                                <span class="text-muted">Mentor: </span>
+                                <field name="mentor_id" widget="many2one_avatar_user"/>
+                            </div>
+                            <div>
+                                <span class="text-muted">Mentee: </span>
+                                <field name="mentee_id" widget="many2one_avatar_user"/>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
         </field>
     </record>
 

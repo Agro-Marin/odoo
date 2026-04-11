@@ -4,7 +4,7 @@ from odoo import models
 
 
 class ResUsersSettings(models.Model):
-    _name = 'res.users.settings'
+    _name = "res.users.settings"
     _inherit = ["res.users.settings", "bus.listener.mixin"]
 
     def _bus_channel(self):

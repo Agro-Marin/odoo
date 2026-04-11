@@ -1,36 +1,43 @@
 from contextlib import contextmanager
 from unittest.mock import patch
 
-from odoo.addons.mail.models.mail_activity import MailActivity
-from odoo.addons.mail.tests.common import MailCommon
 from odoo.tests import Form
 from odoo.tools.misc import format_date
 
+from odoo.addons.mail.models.mail_activity import MailActivity
+from odoo.addons.mail.tests.common import MailCommon
+
 
 class ActivityScheduleCase(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
         # prepare activities
-        cls.activity_type_todo = cls.env.ref('mail.mail_activity_data_todo')
+        cls.activity_type_todo = cls.env.ref("mail.mail_activity_data_todo")
         cls.activity_type_todo.delay_count = 4
         cls.activity_type_todo.sequence = 1
         cls.activity_type_todo.summary = "TodoSummary"
-        cls.activity_type_call = cls.env.ref('mail.mail_activity_data_call')
+        cls.activity_type_call = cls.env.ref("mail.mail_activity_data_call")
         cls.activity_type_call.delay_count = 1
         cls.activity_type_call.sequence = 2
         cls.activity_type_call.summary = "TodoSumCallSummary"
 
     def reverse_record_set(self, records):
-        """ Get an equivalent recordset but with elements in reversed order. """
-        return self.env[records._name].browse([record.id for record in reversed(records)])
+        """Get an equivalent recordset but with elements in reversed order."""
+        return self.env[records._name].browse(
+            [record.id for record in reversed(records)]
+        )
 
     def get_last_activities(self, on_record, limit=None):
-        """ Get the last activities on the record in id asc order. """
-        return self.reverse_record_set(self.env['mail.activity'].search(
-            [('res_model', '=', on_record._name), ('res_id', '=', on_record.id)], order='id desc', limit=limit))
+        """Get the last activities on the record in id asc order."""
+        return self.reverse_record_set(
+            self.env["mail.activity"].search(
+                [("res_model", "=", on_record._name), ("res_id", "=", on_record.id)],
+                order="id desc",
+                limit=limit,
+            )
+        )
 
     # ------------------------------------------------------------
     # ACTIVITIES MOCK
@@ -39,7 +46,7 @@ class ActivityScheduleCase(MailCommon):
     @contextmanager
     def _mock_activities(self):
         activity_create_origin = MailActivity.create
-        self._new_activities = self.env['mail.activity'].sudo()
+        self._new_activities = self.env["mail.activity"].sudo()
 
         def _activity_create(model, *args, **kwargs):
             res = activity_create_origin(model, *args, **kwargs)
@@ -47,9 +54,12 @@ class ActivityScheduleCase(MailCommon):
             return res
 
         with patch.object(
-                MailActivity, 'create', autospec=True, wraps=MailActivity,
-                side_effect=_activity_create
-             ) as activity_create_mocked:
+            MailActivity,
+            "create",
+            autospec=True,
+            wraps=MailActivity,
+            side_effect=_activity_create,
+        ) as activity_create_mocked:
             self.activity_create_mocked = activity_create_mocked
             yield
 
@@ -70,10 +80,12 @@ class ActivityScheduleCase(MailCommon):
         last_message = record.message_ids[0]
         self.assertEqual(last_message.mail_activity_type_id, activity_type)
         self.assertIn(activity_type.name, last_message.body)
-        self.assertIn('done', last_message.body)
+        self.assertIn("done", last_message.body)
 
-    def assertActivitiesFromPlan(self, plan, record, expected_deadlines, expected_responsible=None):
-        """ Check that the last activities on the record correspond to the one
+    def assertActivitiesFromPlan(
+        self, plan, record, expected_deadlines, expected_responsible=None
+    ):
+        """Check that the last activities on the record correspond to the one
         that the plan must create (number of activities and activities content).
 
         We check the created activities values against the template values because
@@ -92,7 +104,9 @@ class ActivityScheduleCase(MailCommon):
         )
         self.assertEqual(len(activities), expected_number_of_activity)
 
-        for activity, template, expected_deadline in zip(activities, plan.template_ids, expected_deadlines):
+        for activity, template, expected_deadline in zip(
+            activities, plan.template_ids, expected_deadlines, strict=False
+        ):
             self.assertEqual(activity.activity_type_id, template.activity_type_id)
             self.assertEqual(activity.date_deadline, expected_deadline)
             self.assertEqual(activity.note, template.note)
@@ -101,10 +115,14 @@ class ActivityScheduleCase(MailCommon):
             if expected_responsible:
                 self.assertEqual(activity.user_id, expected_responsible)
             else:
-                self.assertEqual(activity.user_id, template.responsible_id or self.env.user)
+                self.assertEqual(
+                    activity.user_id, template.responsible_id or self.env.user
+                )
 
-    def assertMessagesFromPlan(self, plan, record, expected_deadlines, expected_responsible=None):
-        """ Check that the last posted message on the record correspond to the one
+    def assertMessagesFromPlan(
+        self, plan, record, expected_deadlines, expected_responsible=None
+    ):
+        """Check that the last posted message on the record correspond to the one
         that the plan must generate (number of activities and activities content).
 
         :param <mail.activity.plan> plan: activity plan that has been applied on the record
@@ -116,31 +134,48 @@ class ActivityScheduleCase(MailCommon):
         message = record.message_ids[0]
         self.assertIn(f'The plan "{plan.name}" has been started', message.body)
 
-        for template, expected_deadline in zip(plan.template_ids, expected_deadlines):
+        for template, expected_deadline in zip(
+            plan.template_ids, expected_deadlines, strict=False
+        ):
             if expected_responsible:
                 responsible_id = expected_responsible
             else:
                 responsible_id = template.responsible_id or self.env.user
 
             self.assertIn(template.summary, message.body)
-            self.assertIn(f'{template.summary or template.activity_type_id.name}, '
-                          f'assigned to {responsible_id.name}, due on the '
-                          f'{format_date(self.env, expected_deadline)}', message.body)
+            self.assertIn(
+                f"{template.summary or template.activity_type_id.name}, "
+                f"assigned to {responsible_id.name}, due on the "
+                f"{format_date(self.env, expected_deadline)}",
+                message.body,
+            )
 
-    def assertPlanExecution(self, plan, records, expected_deadlines, expected_responsible=None):
-        """ Check that the plan has created the right activities and send the
+    def assertPlanExecution(
+        self, plan, records, expected_deadlines, expected_responsible=None
+    ):
+        """Check that the plan has created the right activities and send the
         right message on the records (see assertActivitiesFromPlan and
-        assertMessagesFromPlan). """
+        assertMessagesFromPlan)."""
         for record in records:
-            self.assertActivitiesFromPlan(plan, record, expected_deadlines, expected_responsible)
-            self.assertMessagesFromPlan(plan, record, expected_deadlines, expected_responsible)
+            self.assertActivitiesFromPlan(
+                plan, record, expected_deadlines, expected_responsible
+            )
+            self.assertMessagesFromPlan(
+                plan, record, expected_deadlines, expected_responsible
+            )
 
-    def _instantiate_activity_schedule_wizard(self, records, additional_context_value=None):
-        """ Get a new Form with context default values referring to the records. """
-        ctx = {
-            'active_id': records.ids[0],
-            'active_ids': records.ids,
-            'active_model': records._name,
-        } if records else {}
+    def _instantiate_activity_schedule_wizard(
+        self, records, additional_context_value=None
+    ):
+        """Get a new Form with context default values referring to the records."""
+        ctx = (
+            {
+                "active_id": records.ids[0],
+                "active_ids": records.ids,
+                "active_model": records._name,
+            }
+            if records
+            else {}
+        )
         ctx.update(**(additional_context_value or {}))
-        return Form(self.env['mail.activity.schedule'].with_context(ctx))
+        return Form(self.env["mail.activity.schedule"].with_context(ctx))

@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import {registry} from '@web/core/registry';
 import {clickOnElement} from '@website/js/tours/tour_utils';
 import * as tourUtils from '@website_sale/js/tours/tour_utils';

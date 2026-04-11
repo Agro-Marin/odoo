@@ -22,7 +22,7 @@ beforeEach(() => {
             name: "My task",
             project_id: false,
             user_ids: [],
-            date_deadline: false,
+            date_end: false,
         },
     ];
 });

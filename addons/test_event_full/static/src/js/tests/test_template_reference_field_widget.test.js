@@ -1,3 +1,4 @@
+/** @odoo-module native */
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { click, select } from "@odoo/hoot-dom";

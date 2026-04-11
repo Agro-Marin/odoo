@@ -181,7 +181,7 @@ Critical Path
 
 Planned Start / Planned End (``planned_date_start``, ``planned_date_end``)
     Calendar-aware start and end dates computed by CPM. Distinct from
-    ``date_deadline`` (user-entered target) and ``date_end`` (actual
+    ``date_end`` (user-entered target) and ``date_end`` (actual
     completion). Accounts for the project's resource calendar (working
     hours, weekends, holidays).
 
