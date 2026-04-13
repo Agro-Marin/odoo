@@ -167,3 +167,93 @@ export function setAttributes(node, attributes) {
         node.setAttribute(name, value);
     }
 }
+
+/**
+ * Pretty-print an XML string with proper indentation.
+ *
+ * Regex-based formatter that handles elements, comments, CDATA,
+ * DOCTYPE, processing instructions, and xmlns attributes.
+ *
+ * @param {string} xml raw XML string
+ * @param {number} [indent=4] spaces per indentation level
+ * @returns {string} formatted XML
+ */
+export function formatXML(xml, indent = 4) {
+    const pad = " ".repeat(indent);
+    // Collapse inter-tag whitespace, then split so each tag becomes a
+    // separate token while preserving text content between tags.
+    const tokens = xml
+        .replace(/>\s+</g, "><")
+        .replace(/</g, "~::~<")
+        .replace(/\s*xmlns:/g, "~::~xmlns:")
+        .replace(/\s*xmlns=/g, "~::~xmlns=")
+        .split("~::~")
+        .filter(Boolean);
+
+    let depth = 0;
+    let inComment = false;
+    const lines = [];
+
+    for (let ix = 0; ix < tokens.length; ix++) {
+        const token = tokens[ix];
+
+        // Comment / CDATA / DOCTYPE start
+        if (/^<!/.test(token)) {
+            lines.push(pad.repeat(depth) + token);
+            inComment = true;
+            if (/-->|]>|!DOCTYPE/.test(token)) {
+                inComment = false;
+            }
+            continue;
+        }
+        // Comment / CDATA end
+        if (/-->|]>/.test(token)) {
+            lines.push(token);
+            inComment = false;
+            continue;
+        }
+        if (inComment) {
+            lines.push(token);
+            continue;
+        }
+        // Closing tag that directly follows its matching opening tag
+        // (e.g. <field name="x">Text</field> → keep on one line).
+        if (/^<\//.test(token)) {
+            const prev = ix > 0 ? tokens[ix - 1] : "";
+            const openTag = /^<([\w:.,-]+)/.exec(prev);
+            const closeTag = /^<\/([\w:.,-]+)/.exec(token);
+            if (openTag && closeTag && openTag[1] === closeTag[1]) {
+                // Append to previous line instead of adding a new one.
+                lines[lines.length - 1] += token;
+                if (!inComment) {
+                    depth--;
+                }
+            } else {
+                lines.push(pad.repeat(--depth) + token);
+            }
+        }
+        // Self-closing tag (check anywhere in token, not just end —
+        // the token may be "<tag/>text" when text follows a self-closer).
+        else if (/^<\w/.test(token) && /\/>/.test(token) && !/<\//.test(token)) {
+            lines.push(pad.repeat(depth) + token);
+        }
+        // Processing instruction <?...?>
+        else if (/^<\?/.test(token)) {
+            lines.push(pad.repeat(depth) + token);
+        }
+        // Opening tag (no self-close or closing tag anywhere in token)
+        else if (/^<\w/.test(token) && !/<\//.test(token) && !/\/>/.test(token)) {
+            lines.push(pad.repeat(depth++) + token);
+        }
+        // Opening + closing on same token: <el>text</el>
+        else if (/^<\w/.test(token)) {
+            lines.push(pad.repeat(depth) + token);
+        }
+        // xmlns continuation or bare text content
+        else {
+            lines.push(pad.repeat(depth) + token);
+        }
+    }
+
+    return lines.join("\n");
+}
