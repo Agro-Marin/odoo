@@ -1036,7 +1036,7 @@ class PurchaseOrder(models.Model):
         # Cancel related draft invoices (if any)
         draft_invoices = self.invoice_ids.filtered(lambda inv: inv.state == "draft")
         if draft_invoices:
-            draft_invoices.button_cancel()
+            draft_invoices.action_cancel()
 
         # Update state to cancelled
         self.write({"state": "cancel"})
