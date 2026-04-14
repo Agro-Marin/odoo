@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="/web/static/src/libs/fontawesome7/css/regular.css" />
     <link rel="stylesheet" href="/web/static/src/libs/fontawesome7/css/brands.css" />
     <link rel="stylesheet" href="/web/static/lib/bootstrap/dist/css/bootstrap.css" />
-    <script type="importmap">{"imports": {"@popperjs/core": "/web/static/lib/popper/popper.esm.js"}}</script>
+    <script type="importmap">{"imports": {"@popperjs/core": "/web/static/lib/popper/popper.esm.js", "bootstrap": "/web/static/lib/bootstrap/bootstrap.esm.js"}}</script>
     <script type="module" src="/web/static/lib/bootstrap/bootstrap.esm.js"></script>
 
     <script>
@@ -20,7 +20,7 @@
             document.documentElement.setAttribute("data-bs-theme", dark ? "dark" : "light");
         })();
     </script>
-    <script src="/web/static/src/public/database_manager.js" ></script>
+    <script type="module" src="/web/static/src/public/database_manager.js" ></script>
     <style>
         a {
             text-decoration: none;
