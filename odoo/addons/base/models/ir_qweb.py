@@ -4056,32 +4056,56 @@ class IrQweb(models.AbstractModel):
             all_native_specifiers, re_mod,
         )
         asset_bundle.native_modules = orig_modules
-        # In debug mode, ANY specifier that already has a direct URL
-        # mapping in import_map must keep that mapping — the bridge
-        # shim must not overwrite it. Shims only work when an esbuild
-        # production bundle has pre-populated ``odoo.loader.modules``;
-        # in debug there is no such bundle, the shim's ``_m`` is
-        # undefined, and accessing ``_m[Symbol.for("default")]`` or
-        # any named property crashes with
-        # "Cannot read properties of undefined".
+        # In debug mode, bridge shims (data: URIs reading from
+        # odoo.loader.modules) CANNOT work: there is no esbuild
+        # bundle to pre-populate the modules map, so _m is undefined
+        # and the shim crashes.
         #
-        # Serving the real file instead is always correct in debug:
-        # browsers singleton ES modules by URL, so every dynamic
-        # bundle that pulls the same specifier ends up sharing the
-        # exact same module instance (same registry, same Bootstrap
-        # Tooltip.Default, etc.) without needing the shim indirection.
-        #
-        # Shim entries we still want to keep: those that have NO
-        # direct URL at all — typically specifiers that only exist as
-        # virtual aliases inside an esbuild bundle (e.g. legacy
-        # @odoo-module aliases that don't correspond to a served
-        # file). Those are few and they fail gracefully at import
-        # time with a resolvable "module not found" rather than the
-        # confusing undefined-property crash.
+        # Strategy: convert every bridge_map entry to a direct URL.
+        # 1. If the specifier already has a direct URL in import_map
+        #    (from native_data or _ODOO_EXTERNAL_LIBS), just drop the
+        #    shim — the existing URL is already correct.
+        # 2. Otherwise, resolve the @addon/... specifier back to a
+        #    served static URL and replace the shim with that URL.
+        #    This is always safe in debug: browsers singleton ES
+        #    modules by URL, so every bundle that imports the same
+        #    specifier shares the exact same module instance.
+        # 3. If the specifier can't be resolved (unusual), drop it
+        #    entirely — the browser gets a clean "module not found"
+        #    instead of the confusing undefined-property crash.
+
+        def _specifier_to_static_url(spec):
+            """Convert @addon/path or @addon/../lib/path to a served URL."""
+            if not spec.startswith("@"):
+                return None
+            s = spec[1:]
+            slash = s.find("/")
+            if slash < 0:
+                return None
+            addon = s[:slash]
+            path = s[slash + 1:]
+            if path.startswith("../lib/"):
+                url = f"/{addon}/static/lib/{path[len('../lib/'):]}"
+            elif path.startswith("../tests/"):
+                url = f"/{addon}/static/tests/{path[len('../tests/'):]}"
+            else:
+                url = f"/{addon}/static/src/{path}"
+            if not url.endswith(".js"):
+                url += ".js"
+            return url
+
         for _spec in list(bridge_map):
             _current = import_map.get(_spec)
             if _current and not _current.startswith("data:"):
+                # Already has a direct URL — drop the shim
                 bridge_map.pop(_spec)
+            else:
+                # No direct URL — resolve specifier to static path
+                _resolved = _specifier_to_static_url(_spec)
+                if _resolved:
+                    bridge_map[_spec] = _resolved
+                else:
+                    bridge_map.pop(_spec)
         import_map.update(bridge_map)
 
         # Check if a previous ESM bundle on this page already rendered
