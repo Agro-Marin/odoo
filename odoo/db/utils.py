@@ -68,7 +68,9 @@ _HEALTH_PARAMS: dict[str, str] = {
     "keepalives_count": "3",  # give up after 3 failures
     # PG18 wire protocol 3.2: 256-bit cancel keys (vs 32-bit in 3.0).
     # First protocol change since PG 7.4 (2003).
-    "min_protocol_version": "3.2",
+    # Lowered to 3.0 so psycopg accepts the downgrade when PgBouncer
+    # (which only speaks 3.0) sits between Odoo and PG18.
+    "min_protocol_version": "3.0",
 }
 
 

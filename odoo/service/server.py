@@ -1547,6 +1547,10 @@ class WorkerCron(Worker):
         self.dbcursor.execute("SELECT pg_is_in_recovery()")
         in_recovery = self.dbcursor.fetchone()[0]
         if not in_recovery:
+            # Disable idle_session_timeout for this connection: it stays idle
+            # by design (waiting for NOTIFY) and must not be killed by PG18's
+            # default timeout.
+            self.dbcursor.execute("SET idle_session_timeout = 0")
             self.dbcursor.execute("LISTEN cron_trigger")
         else:
             self.logger.warning("PG cluster in recovery mode, cron trigger not activated")
