@@ -8,8 +8,8 @@ import { TimePicker } from "@web/components/time_picker/time_picker";
 import {
     clampDate,
     isInRange,
-    MAX_VALID_DATE,
-    MIN_VALID_DATE,
+    getMaxValidDate,
+    getMinValidDate,
     today,
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
@@ -118,8 +118,8 @@ const numberRange = (min, max) => [...Array(max - min)].map((_, i) => i + min);
 const parseLimitDate = (value, defaultValue) =>
     clampDate(
         value === "today" ? today() : value || defaultValue,
-        MIN_VALID_DATE,
-        MAX_VALID_DATE,
+        getMinValidDate(),
+        getMaxValidDate(),
     );
 
 /**
@@ -449,8 +449,8 @@ export class DateTimePicker extends Component {
             props.maxPrecision,
         );
 
-        this.maxDate = parseLimitDate(props.maxDate, MAX_VALID_DATE);
-        this.minDate = parseLimitDate(props.minDate, MIN_VALID_DATE);
+        this.maxDate = parseLimitDate(props.maxDate, getMaxValidDate());
+        this.minDate = parseLimitDate(props.minDate, getMinValidDate());
         if (this.props.type === "date") {
             this.maxDate = this.maxDate.endOf("day");
             this.minDate = this.minDate.startOf("day");

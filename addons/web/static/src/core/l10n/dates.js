@@ -48,9 +48,15 @@ const { DateTime, Settings } = /** @type {any} */ (globalThis.luxon ?? {});
 
 /**
  * Limits defining a valid date (server only understands 4-digit years).
+ * Lazily initialized to avoid crashing when luxon is not yet loaded
+ * (e.g. in standalone asset bundles like survey.survey_assets).
  */
-export const MIN_VALID_DATE = DateTime.fromObject({ year: 1000 });
-export const MAX_VALID_DATE = DateTime.fromObject({ year: 9999 }).endOf("year");
+export function getMinValidDate() {
+    return DateTime.fromObject({ year: 1000 });
+}
+export function getMaxValidDate() {
+    return DateTime.fromObject({ year: 9999 }).endOf("year");
+}
 
 const nonAlphaRegex = /[^a-z]/gi;
 const nonDigitRegex = /[^\d]/g;
@@ -110,7 +116,7 @@ export class ConversionError extends Error {
  * @param {NullableDateTime} date
  */
 function isValidDate(date) {
-    return date && date.isValid && isInRange(date, [MIN_VALID_DATE, MAX_VALID_DATE]);
+    return date && date.isValid && isInRange(date, [getMinValidDate(), getMaxValidDate()]);
 }
 
 /**
