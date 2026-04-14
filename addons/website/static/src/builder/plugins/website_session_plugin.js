@@ -12,7 +12,17 @@ export class WebsiteSessionPlugin extends Plugin {
     static shared = ["getSession"];
 
     getSession() {
-        return this.window.odoo.__session_info__;
+        // Prefer the iframe's session_info (populated by the frontend
+        // ``odoo.__session_info__ = ...`` inline script).  Fall back to
+        // the top window's session_info when the iframe's document is
+        // not a full website page (e.g. snippet preview iframes) or has
+        // not finished bootstrapping yet.  Returning ``{}`` as a last
+        // resort keeps option templates from throwing on missing keys.
+        return (
+            this.window.odoo?.__session_info__
+            || this.window.top?.odoo?.__session_info__
+            || {}
+        );
     }
 }
 

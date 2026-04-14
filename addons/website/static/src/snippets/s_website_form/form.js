@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { Popover } from "@web/libs/bootstrap";
 import { scrollTo } from "@html_builder/utils/scrolling";
 import { Interaction } from "@web/public/interaction";
 import { registry } from "@web/core/registry";

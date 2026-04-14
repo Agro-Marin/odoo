@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { Tab } from "@web/libs/bootstrap";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";

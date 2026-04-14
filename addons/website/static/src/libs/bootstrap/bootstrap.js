@@ -1,4 +1,7 @@
 /** @odoo-module native */
+
+import { Dropdown } from "@web/libs/bootstrap";
+
 /**
  * Grep `_detectNavbar`: the dynamic navbar's dropdown positioning was activated
  * to prevent sub-menus overflow. This positioning will use the default BS

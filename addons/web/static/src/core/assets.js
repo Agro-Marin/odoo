@@ -14,6 +14,7 @@ import { registry } from "./registry.js";
  *  cssLibs: string[];
  *  jsLibs: string[];
  *  esmSpecifiers: string[] | null;
+ *  esmImportMap: Record<string, string> | null;
  * }} BundleFileNames
  */
 
@@ -177,6 +178,7 @@ export const assets = {
             const cssLibs = [];
             const jsLibs = [];
             let esmSpecifiers = null;
+            let esmImportMap = null;
             if (!response.bodyUsed) {
                 const result = await response.json();
                 if (result.is_esm) {
@@ -185,6 +187,7 @@ export const assets = {
                     // import statements that fail as regular <script>.
                     // Keep .min.js (UMD libs like Bootstrap).
                     esmSpecifiers = result.specifiers || [];
+                    esmImportMap = result.import_map || null;
                     // Include ESM template URL so templates self-register
                     // via registerTemplate() when imported.
                     if (result.template_url) {
@@ -207,7 +210,7 @@ export const assets = {
                     }
                 }
             }
-            return { cssLibs, jsLibs, esmSpecifiers };
+            return { cssLibs, jsLibs, esmSpecifiers, esmImportMap };
         })().catch((reason) => {
             cacheMap.delete(bundleName);
             throw new AssetsLoadingError(`The loading of ${url} failed`, {
@@ -237,7 +240,7 @@ export const assets = {
                 )} as ${typeof bundleName}`,
             );
         }
-        const { cssLibs, jsLibs, esmSpecifiers } = await getBundle(bundleName);
+        const { cssLibs, jsLibs, esmSpecifiers, esmImportMap } = await getBundle(bundleName);
         const promises = [];
         if (css && cssLibs) {
             promises.push(
@@ -247,7 +250,12 @@ export const assets = {
         if (js && esmSpecifiers) {
             // ESM bundle: use dynamic import() which respects the
             // page's import map for specifier resolution.
-            promises.push(assets.loadESMBundle(esmSpecifiers));
+            promises.push(
+                assets.loadESMBundle(esmSpecifiers, {
+                    targetDoc,
+                    importMap: esmImportMap,
+                }),
+            );
         }
         // Also load non-ESM files (XML template bundles, legacy JS)
         // via the classic path — these are still needed alongside ESM.
@@ -261,22 +269,142 @@ export const assets = {
 
     /**
      * Loads native ESM modules via dynamic import() and registers them
-     * in odoo.loader.modules for runtime access by dynamic callers.
+     * in the target document's ``odoo.loader.modules`` for runtime access
+     * by dynamic callers.
+     *
+     * When ``targetDoc`` is a foreign document (e.g. an iframe), the
+     * imports MUST run in that document's context so specifiers resolve
+     * via its import map and modules land in its ``odoo.loader`` — not
+     * the parent's.  Achieved by injecting a ``<script type="module">``
+     * into ``targetDoc`` that performs the dynamic imports in-context.
      *
      * @param {string[]} specifiers module specifiers to import
+     * @param {{ targetDoc?: Document, importMap?: Record<string, string> | null }} [options]
      * @returns {Promise<void>}
      */
-    async loadESMBundle(specifiers) {
-        const results = await Promise.all(
-            specifiers.map(async (specifier) => {
-                const mod = await import(specifier);
-                return [specifier, mod];
-            }),
-        );
-        const modules = Object.fromEntries(results);
-        if (globalThis.odoo?.loader?.registerNativeModules) {
-            odoo.loader.registerNativeModules(modules);
+    async loadESMBundle(specifiers, { targetDoc = document, importMap = null } = {}) {
+        if (targetDoc === document || targetDoc.defaultView === window) {
+            const results = await Promise.all(
+                specifiers.map(async (specifier) => {
+                    const mod = await import(specifier);
+                    return [specifier, mod];
+                }),
+            );
+            const modules = Object.fromEntries(results);
+            if (globalThis.odoo?.loader?.registerNativeModules) {
+                odoo.loader.registerNativeModules(modules);
+            }
+            return;
         }
+        // Cross-document: run the imports inside targetDoc so they use
+        // its import map and register into its own odoo.loader.  Build
+        // an extra import map for the target document that combines:
+        //   - bridge entries for every module already registered in the
+        //     target's odoo.loader (so transitive ``@web/*`` imports
+        //     resolve to data: URIs re-exporting from odoo.loader); and
+        //   - the bundle-specific import map provided by the caller.
+        // Browsers accept multiple import maps as long as rules don't
+        // conflict — rules already present in targetDoc are kept.
+        const targetWin = targetDoc.defaultView;
+        const extraMap = {};
+        const loadedModules = targetWin.odoo?.loader?.modules;
+        const validName = /^[a-zA-Z_$][\w$]*$/;
+        // Conventional mapping from bare specifier to the URL esbuild
+        // would have fetched if the module had been loaded individually:
+        // ``@<addon>/<rest>`` → ``/<addon>/static/src/<rest>.js``.  Lets us
+        // also intercept *relative* imports (``./animation.js``) that
+        // resolve to the same URL, so the module is never re-evaluated
+        // outside its original esbuild bundle (which would trigger
+        // duplicate registry errors).
+        const specToUrl = (spec) => {
+            if (!spec.startsWith("@") || spec.includes("..")) {
+                return null;
+            }
+            const slash = spec.indexOf("/");
+            if (slash <= 1) {
+                return null;
+            }
+            const addon = spec.slice(1, slash);
+            const rest = spec.slice(slash + 1);
+            return `/${addon}/static/src/${rest}.js`;
+        };
+        if (loadedModules && typeof loadedModules.get === "function") {
+            const specs =
+                typeof loadedModules.keys === "function"
+                    ? Array.from(loadedModules.keys())
+                    : [];
+            for (const spec of specs) {
+                if (!spec || typeof spec !== "string" || spec.startsWith("@odoo/")) {
+                    continue;
+                }
+                const mod = loadedModules.get(spec);
+                if (!mod || typeof mod !== "object") {
+                    continue;
+                }
+                const names = Object.keys(mod).filter(
+                    (k) => validName.test(k) && k !== "default",
+                );
+                const nameLines = names
+                    .map(
+                        (n) =>
+                            `export const ${n} = _m[${JSON.stringify(n)}];`,
+                    )
+                    .join("\n");
+                const shim =
+                    `const _m = window.odoo.loader.modules.get(${JSON.stringify(spec)});\n` +
+                    `export default _m?.default ?? _m;\n` +
+                    nameLines;
+                const dataUri = `data:text/javascript,${encodeURIComponent(shim)}`;
+                extraMap[spec] = dataUri;
+                const url = specToUrl(spec);
+                if (url) {
+                    extraMap[url] = dataUri;
+                }
+            }
+        }
+        if (importMap) {
+            // Bundle-specific entries (real URLs + targeted bridges)
+            // override the generic shims above for any overlapping keys.
+            Object.assign(extraMap, importMap);
+        }
+        if (Object.keys(extraMap).length) {
+            const mapEl = targetDoc.createElement("script");
+            mapEl.type = "importmap";
+            mapEl.textContent = JSON.stringify({ imports: extraMap });
+            (targetDoc.head || targetDoc.documentElement).appendChild(mapEl);
+        }
+        const doneEvent = `__odoo_esm_bundle_loaded_${Math.random().toString(36).slice(2)}`;
+        const errorEvent = `__odoo_esm_bundle_error_${Math.random().toString(36).slice(2)}`;
+        const scriptText = `
+            (async () => {
+                try {
+                    const specs = ${JSON.stringify(specifiers)};
+                    const pairs = await Promise.all(
+                        specs.map(async (s) => [s, await import(s)])
+                    );
+                    const modules = Object.fromEntries(pairs);
+                    if (window.odoo?.loader?.registerNativeModules) {
+                        window.odoo.loader.registerNativeModules(modules);
+                    }
+                    window.dispatchEvent(new Event(${JSON.stringify(doneEvent)}));
+                } catch (err) {
+                    window.dispatchEvent(new CustomEvent(${JSON.stringify(errorEvent)}, { detail: err }));
+                }
+            })();
+        `;
+        const scriptEl = targetDoc.createElement("script");
+        scriptEl.type = "module";
+        scriptEl.textContent = scriptText;
+        const win = targetDoc.defaultView;
+        await new Promise((resolve, reject) => {
+            win.addEventListener(doneEvent, () => resolve(), { once: true });
+            win.addEventListener(
+                errorEvent,
+                (e) => reject(e.detail || new Error(`loadESMBundle failed`)),
+                { once: true },
+            );
+            (targetDoc.head || targetDoc.documentElement).appendChild(scriptEl);
+        });
     },
 
     /**

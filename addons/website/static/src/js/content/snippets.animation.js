@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { Carousel } from "@web/libs/bootstrap";
 /**
  * Provides a way to start JS code for snippets' initialization and animations.
  */
@@ -57,19 +58,13 @@ publicWidget.Widget.include({
 
 var registry = publicWidget.registry;
 
-// TODO Let's keep this here for now: will have to move an edit mode related
-// location.
-// FIXME temporary hack: during edit mode, the carousel crashes sometimes when
-// we hover option during a carousel cycle. This patches Bootstrap to prevent
-// the crash.
-const baseSelectorEngineFind = window.SelectorEngine.find;
-window.SelectorEngine.find = function (...args) {
-    try {
-        return baseSelectorEngineFind.call(this, ...args);
-    } catch {
-        return [document.createElement("div")];
-    }
-};
+// NOTE: A legacy patch of ``window.SelectorEngine.find`` used to live here to
+// swallow rare errors during edit-mode carousel cycling.  It was removed with
+// the migration to Bootstrap's native ESM bundle — ``SelectorEngine`` is now
+// a module-scoped binding inside ``bootstrap.esm.js`` and is no longer exposed
+// on ``window``, so the monkey-patch cannot take effect.  If the edit-mode
+// carousel crash resurfaces, patch ``Carousel.prototype`` at the public API
+// level (see ``@web/libs/bootstrap``) instead of touching internals.
 
 export default {
     Widget: publicWidget.Widget,

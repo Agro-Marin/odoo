@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Interaction } from '@web/public/interaction';
-import { Carousel } from "@web/libs/bootstrap";
+import { Carousel, Collapse } from "@web/libs/bootstrap";
 import { registry } from '@web/core/registry';
 import { hasTouch, isBrowserFirefox } from '@web/core/browser/feature_detection';
 import { redirect, url } from '@web/core/utils/urls';

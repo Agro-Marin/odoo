@@ -12,7 +12,14 @@ import {
 // Read the REAL (un-mocked) setTimeout/clearTimeout captured by
 // module_loader.js — the very first synchronous script in the bundle,
 // guaranteed to run before any mock can replace globalThis.setTimeout.
-const { setTimeout: nativeSetTimeout, clearTimeout: nativeClearTimeout } = odoo.__nativeTimers;
+// Fall back to globalThis when the loader isn't installed (e.g. the
+// webclient loads Hoot's hoot.js via the import map even though no
+// test harness is running and no mock timers are ever registered).
+// The native module_loader.js file was removed during the ESM native
+// migration but the reference here was left dangling, crashing any
+// page that imports @odoo/hoot outside a test bundle.
+const __nativeTimers = odoo.__nativeTimers ?? globalThis;
+const { setTimeout: nativeSetTimeout, clearTimeout: nativeClearTimeout } = __nativeTimers;
 import { exposeHelpers, isInstanceOf, isIterable } from "@web/../lib/hoot-dom/hoot_dom_utils";
 import {
     CASE_EVENT_TYPES,
