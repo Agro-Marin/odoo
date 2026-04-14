@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { Modal } from "@web/libs/bootstrap";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";

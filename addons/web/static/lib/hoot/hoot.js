@@ -73,7 +73,18 @@ export { createJobScopedGetter } from "./hoot_utils.js";
 
 // Constants
 export const globals = copyAndBind(globalThis);
-export const isHootReady = setupHootUI();
+// Only auto-mount the Hoot UI on the dedicated test runner page.
+// The bridge script of every ESM bundle imports @odoo/hoot to register
+// it in odoo.loader.modules, which used to be harmless because the
+// esbuild shim did not execute the real module body. After the ESM
+// native migration (and the fix that makes the import map resolve
+// @odoo/hoot to the real hoot.js URL instead of a shim), this
+// side-effect fires on every page — including the webclient —
+// overlaying the test runner UI on top of the actual app. Gate the
+// call so the UI only appears when the page explicitly requested it.
+const _inTestPage = typeof window !== "undefined"
+    && window.location.pathname.startsWith("/web/tests");
+export const isHootReady = _inTestPage ? setupHootUI() : Promise.resolve();
 
 // Mock
 export { disableAnimations, enableTransitions } from "./mock/animation.js";

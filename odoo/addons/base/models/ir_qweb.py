@@ -3709,6 +3709,14 @@ class IrQweb(models.AbstractModel):
         "@odoo/hoot": "/web/static/lib/hoot/hoot.js",
         "@odoo/hoot-dom": "/web/static/lib/hoot-dom/hoot-dom.js",
         "@odoo/hoot-mock": "/web/static/lib/hoot/hoot-mock.js",
+        # @popperjs/core is imported by the bundled Bootstrap ESM
+        # (``bootstrap.esm.js:6``). esbuild aliases it internally via
+        # AssetsBundle._lib_candidates, but in debug mode the browser
+        # must resolve the bare specifier through the import map. Without
+        # this entry, ``bootstrap.esm.js`` fails to link, leaves Tooltip/
+        # Modal/etc as undefined on the re-export, and downstream code
+        # (``web/libs/bootstrap.js:33``) crashes reading ``Tooltip.Default``.
+        "@popperjs/core": "/web/static/lib/popper/popper.esm.js",
     }
 
     @tools.conditional(
@@ -4048,6 +4056,32 @@ class IrQweb(models.AbstractModel):
             all_native_specifiers, re_mod,
         )
         asset_bundle.native_modules = orig_modules
+        # In debug mode, ANY specifier that already has a direct URL
+        # mapping in import_map must keep that mapping — the bridge
+        # shim must not overwrite it. Shims only work when an esbuild
+        # production bundle has pre-populated ``odoo.loader.modules``;
+        # in debug there is no such bundle, the shim's ``_m`` is
+        # undefined, and accessing ``_m[Symbol.for("default")]`` or
+        # any named property crashes with
+        # "Cannot read properties of undefined".
+        #
+        # Serving the real file instead is always correct in debug:
+        # browsers singleton ES modules by URL, so every dynamic
+        # bundle that pulls the same specifier ends up sharing the
+        # exact same module instance (same registry, same Bootstrap
+        # Tooltip.Default, etc.) without needing the shim indirection.
+        #
+        # Shim entries we still want to keep: those that have NO
+        # direct URL at all — typically specifiers that only exist as
+        # virtual aliases inside an esbuild bundle (e.g. legacy
+        # @odoo-module aliases that don't correspond to a served
+        # file). Those are few and they fail gracefully at import
+        # time with a resolvable "module not found" rather than the
+        # confusing undefined-property crash.
+        for _spec in list(bridge_map):
+            _current = import_map.get(_spec)
+            if _current and not _current.startswith("data:"):
+                bridge_map.pop(_spec)
         import_map.update(bridge_map)
 
         # Check if a previous ESM bundle on this page already rendered

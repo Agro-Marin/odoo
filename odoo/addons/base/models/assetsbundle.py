@@ -713,52 +713,69 @@ class AssetsBundle:
             r'export\s*\{([^}]+)\}'
         )
 
+        # Read every named export from a specifier's source file when
+        # the library is registered in _ODOO_EXTERNAL_LIBS. This is a
+        # best-effort enrichment: if the lookup fails for any reason,
+        # fall back to the names scanned from the current bundle.
+        #
+        # Why we always read the source (not only on star imports):
+        # the shim lives in the parent bundle's import map and is
+        # shared with sibling ESM bundles (test bundles, dynamic
+        # bundles) via odoo.loader.modules. Those siblings may import
+        # named exports that the parent bundle itself never references
+        # — e.g. web.assets_unit_tests_setup imports `on` from
+        # @odoo/hoot-dom, but web.assets_web (the parent) only imports
+        # queryAll/queryFirst/queryOne. Without reading the source,
+        # the shim omits `on`, and sibling bundles crash with
+        # "does not provide an export named 'on'" when evaluated.
+        from odoo.addons.base.models.ir_qweb import IrQweb
+        from odoo.tools.files import file_path
+        ext_libs = getattr(IrQweb, '_ODOO_EXTERNAL_LIBS', {})
+
+        def _source_exports(spec):
+            source_url = ext_libs.get(spec)
+            if not source_url:
+                return set()
+            try:
+                parts = source_url.strip("/").split("/", 1)
+                if len(parts) != 2:
+                    return set()
+                rel = f"{parts[0]}/static/{parts[1].split('static/', 1)[-1]}"
+                try:
+                    fpath = file_path(rel)
+                except (FileNotFoundError, ValueError):
+                    return set()
+                with open(fpath, encoding="utf-8") as f:
+                    src = f.read()
+                out = set()
+                for m in _export_re.finditer(src):
+                    out.add(m.group(1))
+                for m in _export_list_re.finditer(src):
+                    for n in m.group(1).split(","):
+                        n = n.strip().split(" as ")[-1].strip()
+                        if n:
+                            out.add(n)
+                return out
+            except Exception:
+                return set()
+
         bridge_map = {}
         for specifier, names in sorted(legacy_imports.items()):
             lines = [
                 f'const _m = odoo.loader.modules.get("{specifier}");',
             ]
+            all_named = (
+                (names - {"__default__", "__star__"})
+                | _source_exports(specifier)
+            )
             if "__star__" in names:
                 lines.append("export default _m;")
-                # Star-imported modules also need named exports for
-                # consumers that use ``import { name } from "..."``
-                # (e.g. test modules importing from @odoo/hoot-dom).
-                # Combine explicitly detected names with names extracted
-                # from the module's source file.
-                extra_names = set(names - {"__default__", "__star__"})
-                # Find the source file for this specifier and extract
-                # its exported names so the bridge re-exports them all.
-                from odoo.addons.base.models.ir_qweb import IrQweb
-                ext_libs = getattr(IrQweb, '_ODOO_EXTERNAL_LIBS', {})
-                source_url = ext_libs.get(specifier)
-                if source_url:
-                    # Resolve the URL to a file path and read it
-                    try:
-                        from odoo.modules.module import get_resource_path
-                        parts = source_url.strip("/").split("/", 1)
-                        if len(parts) == 2:
-                            fpath = get_resource_path(parts[0], "static", parts[1].split("static/", 1)[-1])
-                            if fpath:
-                                with open(fpath, encoding="utf-8") as f:
-                                    src = f.read()
-                                for m in _export_re.finditer(src):
-                                    extra_names.add(m.group(1))
-                                for m in _export_list_re.finditer(src):
-                                    for n in m.group(1).split(","):
-                                        n = n.strip().split(" as ")[-1].strip()
-                                        if n:
-                                            extra_names.add(n)
-                    except Exception:
-                        pass  # Best-effort; fall back to star-only
-                for name in sorted(extra_names):
-                    lines.append(f"export const {name} = _m.{name};")
-            else:
-                if "__default__" in names:
-                    lines.append(
-                        'export default _m[Symbol.for("default")] ?? _m;'
-                    )
-                for name in sorted(names - {"__default__", "__star__"}):
-                    lines.append(f"export const {name} = _m.{name};")
+            elif "__default__" in names:
+                lines.append(
+                    'export default _m[Symbol.for("default")] ?? _m;'
+                )
+            for name in sorted(all_named):
+                lines.append(f"export const {name} = _m.{name};")
 
             shim_js = "\n".join(lines)
             bridge_map[specifier] = f"data:text/javascript,{url_quote(shim_js)}"

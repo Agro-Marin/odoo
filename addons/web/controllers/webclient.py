@@ -182,9 +182,18 @@ class WebClient(http.Controller):
                     f"{bundle_name}.templates", esm_tpl, asset_bundle,
                 )
 
+            # Build the import map entries the target document needs in
+            # order to resolve this bundle's specifiers: the bundle's own
+            # native modules plus bridge data: URIs for any cross-bundle
+            # legacy imports (so dynamic consumers share instances with
+            # whichever bundle is already loaded in the target document).
+            import_map = dict(native_data["import_map"])
+            import_map.update(native_data.get("bridge_import_map", {}))
+
             data = {
                 "is_esm": True,
                 "specifiers": specifiers,
+                "import_map": import_map,
                 "files": data,
                 "template_url": tpl_url,
             }

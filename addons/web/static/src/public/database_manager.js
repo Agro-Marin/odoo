@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { Modal } from "@web/libs/bootstrap";
 /** @module @web/public/database_manager - DOM event handlers for the database manager page (eye toggle, modals, master password) */
 
 // Keep theme in sync if the user changes OS preference while the page is open
