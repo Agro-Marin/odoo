@@ -47,3 +47,13 @@ weasyprint==68.1
 Werkzeug==3.1.5
 XlsxWriter==3.2.9
 zeep==4.3.2  # Fixes notation visitor bug (issue #1185)
+maturin>=1.0  # Build tool for odoo_rust extension
+beautifulsoup4==4.14.3  # core/odoo/_monkeypatches/bs4.py, core/html_editor
+dbfread==2.0.7  # enterprise/account_winbooks_import
+defusedxml==0.7.1  # core/odoo/logutils.py
+geojson==3.2.0  # enterprise/web_map
+google-auth==2.49.2  # core/cloud_storage_google, enterprise/social_push_notifications
+paramiko==4.0.0  # enterprise/l10n_be_hr_payroll
+PyJWT==2.12.1  # enterprise/l10n_in_reports, l10n_be_hr_payroll_dimona
+websocket-client==1.9.0  # core/iot_drivers/websocket_client.py
+xmlsec==1.3.17  # enterprise/l10n_nl_reports
