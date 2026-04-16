@@ -101,6 +101,8 @@ select = [
     "RUF069",     # float-equality-comparison (precision bugs in financial code)
     "RUF065",     # f-string-in-logging (performance — use lazy %s formatting)
     # "FURB113",  # repeated-append — DISABLED: loses inter-append comments, rarely a real perf issue
+    # NOT selected: RUF067 (non-empty-init-module) — Odoo requires __init__.py
+    # to register models/wizards with the ORM via side-effect imports.
     "FURB188",    # slice-to-remove-prefix (use removeprefix()/removesuffix())
 
     # Misc
@@ -134,8 +136,6 @@ ignore = [
     "PLW0642",    # self-or-cls-assignment (self = self.sudo() / self.with_context())
     "PLW2901",    # redefined-loop-name (common in Odoo batch processing)
     "TID252",     # relative-imports (Odoo uses them everywhere)
-    "RUF067",     # non-empty-init-module (Odoo requires __init__.py imports)
-
     # --- Ambiguous variable names ---
     "E741",       # ambiguous-variable-name (640 false positives from `lambda l:` — Odoo idiom)
 
