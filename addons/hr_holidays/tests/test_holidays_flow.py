@@ -8,7 +8,7 @@ from freezegun import freeze_time
 from psycopg import IntegrityError
 
 from odoo import Command
-from odoo.tools import date_utils, mute_logger, test_reports
+from odoo.tools import date_utils, mute_logger
 
 from odoo.addons.hr_holidays.tests.common import TestHrHolidaysCommon
 
@@ -213,18 +213,28 @@ class TestHolidaysFlow(TestHrHolidaysCommon):
             _check_holidays_status(hol3_status, self.env['hr.employee'].browse(employee_id), 20.0, 1.0, 19.0, 19.0)
 
     def test_10_leave_summary_reports(self):
-        # Print the HR Holidays(Summary Employee) Report through the wizard
-        ctx = {
-            'model': 'hr.employee',
-            'active_ids': [self.ref('hr.employee_admin')]
-        }
-        data_dict = {
-            'date_from': datetime.today().strftime('%Y-%m-01'),
-            'emp': [(6, 0, [self.ref('hr.employee_admin')])],
-            'holiday_type': 'Approved'
-        }
+        """Smoke test: hr.holidays.summary.employee wizard returns a valid
+        ir.actions.report dict for action_report_holidayssummary."""
+        admin_emp = self.env.ref('hr.employee_admin')
         self.env.company.external_report_layout_id = self.env.ref('web.external_layout_standard').id
-        test_reports.try_report_action(self.env.cr, self.env.uid, 'action_hr_holidays_summary_employee', wiz_data=data_dict, context=ctx, our_module='hr_holidays')
+
+        wizard = self.env['hr.holidays.summary.employee'].with_context(
+            active_ids=admin_emp.ids,
+            active_model='hr.employee',
+        ).create({
+            'date_from': datetime.today().strftime('%Y-%m-01'),
+            'emp': [Command.set(admin_emp.ids)],
+            'holiday_type': 'Approved',
+        })
+
+        action = wizard.print_report()
+
+        self.assertEqual(action['type'], 'ir.actions.report')
+        self.assertEqual(action['report_name'], 'hr_holidays.report_holidayssummary')
+        self.assertEqual(action['report_type'], 'qweb-pdf')
+        self.assertIn('form', action['data'])
+        self.assertEqual(action['data']['form']['holiday_type'], 'Approved')
+        self.assertEqual(action['data']['form']['emp'], admin_emp.ids)
 
     def test_sql_constraint_dates(self):
         # The goal is mainly to verify that a human friendly
