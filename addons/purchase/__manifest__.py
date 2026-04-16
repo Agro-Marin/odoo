@@ -1,6 +1,6 @@
 {
     "name": "Purchase",
-    "version": "1.3",
+    "version": "1.4",
     "category": "Supply Chain/Purchase",
     "sequence": 35,
     "summary": "Purchase orders, tenders and agreements",
@@ -37,7 +37,7 @@
         "wizard/bill_to_po_wizard_views.xml",
         "wizard/mass_cancel_orders_views.xml",
         "data/purchase_tour.xml",
-        "views/purchase_menu.xml",
+        "views/purchase_menus.xml",
     ],
     "demo": [
         "demo/purchase_demo.xml",
