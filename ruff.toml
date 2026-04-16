@@ -136,6 +136,8 @@ ignore = [
     "PLW0642",    # self-or-cls-assignment (self = self.sudo() / self.with_context())
     "PLW2901",    # redefined-loop-name (common in Odoo batch processing)
     "TID252",     # relative-imports (Odoo uses them everywhere)
+    "D101",       # missing-docstring-in-public-class — _inherit classes own no canonical docstring
+    "SIM105",     # suppressible-exception — try/except is idiomatic in Odoo model code
     # --- Ambiguous variable names ---
     "E741",       # ambiguous-variable-name (640 false positives from `lambda l:` — Odoo idiom)
 
