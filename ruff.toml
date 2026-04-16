@@ -98,9 +98,12 @@ select = [
 
     # Preview rules (cherry-picked — requires explicit-preview-rules)
     "RUF039",     # unraw-re-pattern (regex missing r"" prefix)
-    "RUF069",     # float-equality-comparison (precision bugs in financial code)
-    "RUF065",     # f-string-in-logging (performance — use lazy %s formatting)
-    # "FURB113",  # repeated-append — DISABLED: loses inter-append comments, rarely a real perf issue
+    # Invalid / non-existent selectors (ruff 0.15 supports up to RUF059):
+    #   RUF065, RUF067, RUF069 — were intended as f-string-in-logging,
+    #   non-empty-init-module and float-equality-comparison but those codes
+    #   do not exist. For f-string logging use G004 (flake8-logging-format);
+    #   non-empty-init-module would penalize Odoo's __init__.py model
+    #   registration so it is intentionally NOT selected.
     "FURB188",    # slice-to-remove-prefix (use removeprefix()/removesuffix())
 
     # Misc
@@ -134,8 +137,6 @@ ignore = [
     "PLW0642",    # self-or-cls-assignment (self = self.sudo() / self.with_context())
     "PLW2901",    # redefined-loop-name (common in Odoo batch processing)
     "TID252",     # relative-imports (Odoo uses them everywhere)
-    "RUF067",     # non-empty-init-module (Odoo requires __init__.py imports)
-
     # --- Ambiguous variable names ---
     "E741",       # ambiguous-variable-name (640 false positives from `lambda l:` — Odoo idiom)
 
