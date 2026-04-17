@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.http import Controller, SessionExpiredException, request, route
 from odoo.libs.json import dumps as json_dumps
 

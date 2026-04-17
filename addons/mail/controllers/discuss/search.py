@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import http
 from odoo.fields import Domain
 from odoo.http import request

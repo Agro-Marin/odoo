@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import bus
 from . import bus_listener_mixin
 from . import ir_attachment

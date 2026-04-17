@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import base_module_uninstall
 from . import base_partner_merge_automatic_wizard
 from . import mail_blacklist_remove

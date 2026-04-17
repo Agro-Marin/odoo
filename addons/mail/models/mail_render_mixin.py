@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import copy
 import logging
 import re
@@ -662,9 +660,7 @@ class MailRenderMixin(models.AbstractModel):
             variables["object"] = record
 
             try:
-                results[record.id] = render_inline_template(
-                    parsed_template, variables
-                )
+                results[record.id] = render_inline_template(parsed_template, variables)
             except Exception as e:
                 _logger.info(
                     "Failed to render inline_template: \n%s",
