@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import logging
 from collections import defaultdict
 from datetime import datetime

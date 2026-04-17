@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import contextlib
 from collections import defaultdict
 
@@ -559,7 +557,9 @@ class ResUsers(models.Model):
 
         for activity in activities:
             if activity.res_model:
-                activities_rec_ids[activity.res_model][activity.res_id].append(activity.id)
+                activities_rec_ids[activity.res_model][activity.res_id].append(
+                    activity.id
+                )
             else:
                 activities_rec_ids["mail.activity"][activity.id].append(activity.id)
         # prefetch state for all activities to avoid per-record compute

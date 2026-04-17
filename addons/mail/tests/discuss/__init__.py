@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from . import test_avatar_acl
 from . import test_discuss_attachment_controller
 from . import test_discuss_binary_controller

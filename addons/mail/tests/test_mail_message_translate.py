@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import json
 from http import HTTPStatus
 from unittest.mock import patch

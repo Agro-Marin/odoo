@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from contextlib import contextmanager
 from unittest.mock import patch
 from uuid import uuid4
