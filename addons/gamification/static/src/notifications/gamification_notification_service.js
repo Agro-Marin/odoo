@@ -14,6 +14,9 @@ export const gamificationNotificationService = {
     start(env, { bus_service, notification }) {
         bus_service.subscribe("gamification/notification", (payload) => {
             const icon = NOTIFICATION_ICONS[payload.type] || "fa-star";
+            // Note: icon is computed above but the notification service API
+            // does not support rendering a custom icon.  The type-specific
+            // className (o_gamification_badge, etc.) can be styled in SCSS.
             notification.add(payload.message, {
                 title: payload.title,
                 type: "success",
