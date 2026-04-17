@@ -3,431 +3,303 @@ from odoo.tools.sql import SQL
 
 
 class SqlReportMixin(models.AbstractModel):
-    """Mixin for SQL-based analytical reports with registry-driven construction.
+    """Registry-driven SQL construction for analytical reports.
 
-    This mixin provides a clean inheritance pattern for Odoo SQL reports (_auto = False)
-    where SQL clauses are built from structured registries (dicts/lists) rather than
-    string manipulation. This makes reports much easier to extend via inheritance.
+    This mixin builds the ``FROM`` expression of ``_auto = False`` reports from
+    structured registries (dicts for SELECT, lists for FROM / WHERE / GROUP /
+    ORDER) rather than from string-manipulation of monolithic SQL methods.
+    Subclasses add, modify, or remove entries via normal dict / list operations.
 
-    Design Philosophy
-    -----------------
-    Traditional Odoo reports build SQL using monolithic methods that return complete
-    clauses (e.g., "_select_sale() returns 'SELECT ... AS id, ...'"). This makes
-    inheritance difficult because you need string manipulation to modify the SQL.
+    Composition with ``materialized.view.mixin``
+    --------------------------------------------
+    When a model also inherits ``materialized.view.mixin``, its ``_materialized``
+    class attribute is True.  ``_table_query`` then returns ``None`` so the ORM
+    reads from the physical materialized view at ``self._table`` instead of
+    inlining the query as a subquery.  ``_build_table_query()`` is still used to
+    populate the MV via ``_create_materialized_view()``.
 
-    This mixin uses the **Registry Pattern** where each clause is built from structured
-    data (dicts for SELECT, lists for FROM/WHERE/GROUP BY). Inheriting modules simply
-    modify the registry data structures - no SQL string parsing required.
+    Trust contract for registry values
+    ----------------------------------
+    Every string returned by the ``_get_*`` methods is inserted into SQL
+    verbatim — there is no parameter binding.  **Never** build registry values
+    from ``self.env.context``, request data, or any other untrusted source.
+    For parameterized conditions, return a ``SQL`` object directly (supported
+    in ``_get_where_conditions``) — e.g. ``SQL("o.partner_id = %s", partner_id)``.
 
-    Based on the excellent design in addons/purchase/report/purchase_report.py
+    Registry hooks (override these)
+    -------------------------------
+    - ``_get_select_fields() -> dict``  : ``{field_name: sql_expression}``
+    - ``_get_from_tables()  -> list``   : ``[(table, alias, join_type, on)]``
+    - ``_get_where_conditions() -> list``  : ``[str | SQL]``
+    - ``_get_group_by_fields()  -> list``  : ``[str]``
+    - ``_get_order_by_fields()  -> list``  : ``[str]``
+    - ``_with_cte() -> SQL`` (optional, default ``SQL.EMPTY``)
 
-    Architecture
-    ------------
-    1. **Registry Methods** (_get_*): Return structured data (dict/list)
-       - _get_select_fields() → dict: {field_name: sql_expression}
-       - _get_from_tables() → list: [(table, alias, join_type, on_condition)]
-       - _get_where_conditions() → list: [condition_string]
-       - _get_group_by_fields() → list: [field_expression]
-       - _get_order_by_fields() → list: [field_expression]  (optional)
-       - _with_cte() → SQL: CTE definition (optional)
+    Example
+    -------
+    ::
 
-    2. **Builder Methods** (_select, _from, _where, _group_by, _order_by):
-       - Called by _table_query to construct SQL from registries
-       - Handle formatting, SQL object creation, and joining
-       - Generally should NOT be overridden (override registries instead)
+        class MyReport(models.Model):
+            _name = "my.report"
+            _inherit = "sql.report.mixin"
+            _auto = False
 
-    3. **Main Query Method** (_table_query):
-       - Property that assembles final SQL from builder methods
-       - Handles optional clauses (WITH, WHERE, ORDER BY)
-       - Should NOT be overridden unless you need custom assembly logic
+            product_id = fields.Many2one("product.product", readonly=True)
+            total_qty = fields.Float(readonly=True)
 
-    Usage Example
-    -------------
-    class MyReport(models.Model):
-        _name = 'my.report'
-        _inherit = 'sql.report.mixin'
-        _description = 'My Analysis Report'
-        _auto = False
+            def _get_select_fields(self):
+                return {
+                    "id": "MIN(l.id)",
+                    "product_id": "l.product_id",
+                    "total_qty": "SUM(l.quantity)",
+                }
 
-        # Define fields
-        id = fields.Integer(readonly=True)
-        product_id = fields.Many2one('product.product', readonly=True)
-        total_qty = fields.Float(readonly=True)
+            def _get_from_tables(self):
+                return [
+                    ("sale_order_line", "l", None, None),
+                    ("sale_order", "o", "LEFT JOIN", "l.order_id = o.id"),
+                ]
 
-        # Implement registries
-        def _get_select_fields(self):
-            return {
-                'id': 'MIN(l.id)',
-                'product_id': 'l.product_id',
-                'total_qty': 'SUM(l.quantity)',
-            }
+            def _get_where_conditions(self):
+                return ["l.display_type IS NULL"]
 
-        def _get_from_tables(self):
-            return [
-                ('sale_order_line', 'l', None, None),  # Base table
-                ('sale_order', 'o', 'LEFT JOIN', 'l.order_id=o.id'),
-            ]
-
-        def _get_where_conditions(self):
-            return ['l.display_type IS NULL']
-
-        def _get_group_by_fields(self):
-            return ['l.product_id']
-
-    Inheritance Example
-    -------------------
-    class MyReportInherit(models.Model):
-        _inherit = 'my.report'
-
-        margin = fields.Monetary(readonly=True)
-
-        def _get_select_fields(self):
-            fields = super()._get_select_fields()
-            fields['margin'] = 'SUM(l.margin)'  # Add field
-            fields['total_qty'] = 'SUM(l.quantity * 2)'  # Modify field
-            return fields
-
-        def _get_where_conditions(self):
-            conditions = super()._get_where_conditions()
-            conditions.append("o.state != 'cancel'")  # Add condition
-            return conditions
-
-    Benefits
-    --------
-    Clear separation: Data (registries) vs Logic (builders)
-    Easy inheritance: Add/modify/remove via dict/list operations
-    Type safety: SQL objects prevent injection
-    Readable: Registry structure is self-documenting
-    Testable: Can unit test registries independently
-    Maintainable: No fragile string manipulation
-    Consistent: Same pattern across all reports
+            def _get_group_by_fields(self):
+                return ["l.product_id"]
     """
 
     _name = "sql.report.mixin"
     _description = "SQL Report Construction Helper"
     _auto = False
 
-    # ============================================================
-    # MAIN QUERY ASSEMBLY
-    # ============================================================
+    # ------------------------------------------------------------------
+    # PUBLIC QUERY ACCESSORS
+    # ------------------------------------------------------------------
 
-    def _query(self):
-        """Return SQL query object for compatibility with materialized.view.mixin.
+    def _build_table_query(self) -> SQL:
+        """Assemble the analytical query from all registries.
 
-        This method bridges the registry pattern with the materialized view mixin
-        by delegating to _table_query property.
+        Always returns a non-empty ``SQL`` object.  Raises
+        ``NotImplementedError`` if ``_get_select_fields`` or ``_get_from_tables``
+        are empty — those two registries are mandatory.
 
-        When used with materialized.view.mixin, this allows _create_materialized_view()
-        to work correctly by calling self._query() which delegates to _table_query.
-
-        Returns:
-            SQL: Complete SQL query built from registries
+        Do not override this method.  Override the registry hooks instead.
         """
-        return self._table_query
-
-    @property
-    def _table_query(self) -> SQL:
-        """Build complete SQL query from registries.
-
-        Assembles the final SQL query by calling builder methods in the correct
-        order and handling optional clauses (WITH, WHERE, GROUP BY, ORDER BY).
-
-        This method should rarely be overridden. Instead, customize behavior by
-        overriding registry methods (_get_select_fields, etc.).
-
-        :returns: Complete SQL query for the report view
-        :rtype: SQL
-        """
-        cte = self._with_cte()
         select = self._select()
         from_clause = self._from()
+        cte = self._with_cte()
         where = self._where()
         group_by = self._group_by()
         order_by = self._order_by()
 
-        # Build query parts (optional clauses are skipped if empty)
         parts = []
-
         if cte:
             parts.append(SQL("WITH %s", cte))
-
         parts.extend([select, from_clause])
-
-        if where:
-            parts.append(where)
-
-        if group_by:
-            parts.append(group_by)
-
-        if order_by:
-            parts.append(order_by)
-
+        parts.extend(clause for clause in (where, group_by, order_by) if clause)
         return SQL("\n").join(parts)
 
-    # ============================================================
-    # BUILDER METHODS (construct SQL from registries)
-    # ============================================================
+    @property
+    def _table_query(self):
+        """ORM table source — subquery SQL, or None when the model is materialized.
+
+        Consulted by ``BaseModel._table_sql`` (core ORM).  Returning ``None``
+        makes the ORM read ``FROM "self._table"`` (the physical relation).
+        Returning SQL makes the ORM inline ``FROM (SQL) AS "self._table"``.
+
+        ``getattr`` (not ``self._materialized``) so neither this mixin nor the
+        MRO order owns the default — the marker exists only when the MV mixin
+        explicitly sets it, regardless of ``_inherit`` order.
+        """
+        if getattr(self, "_materialized", False):
+            return None
+        return self._build_table_query()
+
+    def _query(self):
+        """Return the assembled SQL for materialized-view creation.
+
+        Called by ``materialized.view.mixin._create_materialized_view``.
+        Always returns the assembled query (independent of ``_materialized``
+        — this is the SQL that DEFINES the MV, not what the ORM reads from it).
+        """
+        return self._build_table_query()
+
+    # ------------------------------------------------------------------
+    # BUILDER METHODS (do not override)
+    # ------------------------------------------------------------------
 
     def _with_cte(self) -> SQL:
-        """Return CTE definition for the WITH clause (without the WITH keyword).
+        """Common Table Expression (body only, no WITH keyword).
 
-        Override to add Common Table Expressions. The mixin prepends ``WITH``
-        automatically. Return empty ``SQL("")`` for no CTE (default).
-
-        If you need multiple CTEs, separate them with commas inside the
-        returned SQL object.
-
-        :returns: CTE definition, or empty SQL for no CTE
-        :rtype: SQL
+        Default empty.  Override to return ``SQL("cte_name AS (...), ...")``.
         """
-        return SQL("")
+        return SQL.EMPTY
 
     def _select(self) -> SQL:
-        """Build SELECT clause from field registry.
-
-        Constructs the SELECT clause by iterating over the field registry and
-        formatting each field as "expression AS field_name".
-
-        Do NOT override this method. Instead, override _get_select_fields() to
-        customize the field list.
-
-        Returns:
-            SQL: SELECT clause with all fields, nicely formatted
-
-        Example Output:
-            SELECT
-                MIN(l.id) AS id,
-                l.product_id AS product_id,
-                SUM(l.quantity) AS total_qty
-        """
+        """Build the ``SELECT`` clause from the field registry."""
         fields = self._get_select_fields()
-
+        if not fields:
+            raise NotImplementedError(
+                f"{self._name}: override _get_select_fields() to return a "
+                "non-empty {field_name: sql_expression} mapping."
+            )
         field_parts = []
         for field_name, expression in fields.items():
+            self._check_percent_escaping(expression, f"select[{field_name!r}]")
             field_parts.append(
                 SQL("%s AS %s", SQL(expression), SQL.identifier(field_name)),
             )
-
         return SQL("SELECT\n    %s", SQL(",\n    ").join(field_parts))
 
     def _from(self) -> SQL:
-        """Build FROM clause from table registry.
-
-        Constructs the FROM clause with base table and all JOINs by iterating over
-        the table registry. Handles both string table names and SQL objects
-        (for currency tables, subqueries, etc.).
-
-        Do NOT override this method. Instead, override _get_from_tables() to
-        customize tables and joins.
-
-        Returns:
-            SQL: FROM clause with all JOINs, nicely formatted
-
-        Example Output:
-            FROM
-                sale_order_line l
-                LEFT JOIN sale_order o ON l.order_id=o.id
-                LEFT JOIN res_partner p ON o.partner_id=p.id
-        """
+        """Build the ``FROM`` clause from the table registry."""
         tables = self._get_from_tables()
+        if not tables:
+            raise NotImplementedError(
+                f"{self._name}: override _get_from_tables() to return a "
+                "non-empty list of (table, alias, join_type, on_condition) tuples."
+            )
         from_parts = []
-
         for table_name, alias, join_type, on_condition in tables:
-            if join_type is None:
-                # Base table (first FROM clause)
-                if alias:
-                    table_sql = (
-                        table_name if isinstance(table_name, SQL) else SQL(table_name)
-                    )
-                    from_parts.append(SQL("%s %s", table_sql, SQL(alias)))
-                else:
-                    from_parts.append(
-                        table_name if isinstance(table_name, SQL) else SQL(table_name),
-                    )
-            else:
-                # JOIN clause
-                if isinstance(table_name, SQL):
-                    # SQL object (e.g., currency_table) - use as-is
-                    if on_condition:
-                        from_parts.append(
-                            SQL(
-                                "%s %s ON %s",
-                                SQL(join_type),
-                                table_name,
-                                SQL(on_condition),
-                            ),
-                        )
-                    else:
-                        from_parts.append(SQL("%s %s", SQL(join_type), table_name))
-                else:
-                    # String table name - add alias
-                    table_sql = SQL(table_name)
-                    alias_sql = SQL(alias) if alias else SQL("")
-                    if on_condition:
-                        from_parts.append(
-                            SQL(
-                                "%s %s %s ON %s",
-                                SQL(join_type),
-                                table_sql,
-                                alias_sql,
-                                SQL(on_condition),
-                            ),
-                        )
-                    else:
-                        from_parts.append(
-                            SQL("%s %s %s", SQL(join_type), table_sql, alias_sql),
-                        )
-
+            from_parts.append(
+                self._build_from_entry(table_name, alias, join_type, on_condition)
+            )
         return SQL("FROM\n    %s", SQL("\n    ").join(from_parts))
 
+    def _build_from_entry(self, table_name, alias, join_type, on_condition) -> SQL:
+        """Render a single ``(table, alias, join_type, on)`` entry.
+
+        Base table (``join_type is None``) → ``<table> [<alias>]``.
+        JOIN entry → ``<join_type> <table> [<alias>] [ON <condition>]``.
+        When ``table_name`` is a ``SQL`` object (e.g. a currency-rate CTE) its
+        alias is assumed to be embedded already and the ``alias`` argument is
+        ignored on JOIN entries.
+        """
+        is_sql_obj = isinstance(table_name, SQL)
+        if join_type is None:
+            table_sql = table_name if is_sql_obj else SQL(table_name)
+            if alias:
+                return SQL("%s %s", table_sql, SQL(alias))
+            return table_sql
+        if on_condition:
+            self._check_percent_escaping(on_condition, f"from-join[{alias!r}]")
+        if is_sql_obj:
+            if on_condition:
+                return SQL("%s %s ON %s", SQL(join_type), table_name, SQL(on_condition))
+            return SQL("%s %s", SQL(join_type), table_name)
+        table_sql = SQL(table_name)
+        alias_sql = SQL(alias) if alias else SQL.EMPTY
+        if on_condition:
+            return SQL(
+                "%s %s %s ON %s",
+                SQL(join_type),
+                table_sql,
+                alias_sql,
+                SQL(on_condition),
+            )
+        return SQL("%s %s %s", SQL(join_type), table_sql, alias_sql)
+
     def _where(self) -> SQL:
-        """Build WHERE clause from condition registry.
+        """Build the ``WHERE`` clause from the condition registry.
 
-        Constructs the WHERE clause by joining all conditions with AND.
-        Returns empty SQL if no conditions exist (optional WHERE clause).
-
-        Do NOT override this method. Instead, override _get_where_conditions()
-        to customize filter conditions.
-
-        Returns:
-            SQL: WHERE clause with all conditions, or empty SQL if no conditions
-
-        Example Output:
-            WHERE
-                l.display_type IS NULL
-                AND o.state != 'cancel'
-                AND o.amount_total > 0
+        Accepts both strings (wrapped in ``SQL(...)``) and ``SQL`` objects
+        (inserted as-is).  Use ``SQL`` objects for parameterized conditions.
         """
         conditions = self._get_where_conditions()
-
         if not conditions:
-            return SQL("")
-
-        condition_parts = [SQL(cond) for cond in conditions]
+            return SQL.EMPTY
+        condition_parts = []
+        for cond in conditions:
+            if isinstance(cond, SQL):
+                condition_parts.append(cond)
+            else:
+                self._check_percent_escaping(cond, "where")
+                condition_parts.append(SQL(cond))
         return SQL("WHERE\n    %s", SQL("\n    AND ").join(condition_parts))
 
     def _group_by(self) -> SQL:
-        """Build GROUP BY clause from field registry.
-
-        Constructs the GROUP BY clause by joining all field expressions.
-        Returns empty SQL if no fields exist (optional GROUP BY clause).
-
-        Do NOT override this method. Instead, override _get_group_by_fields()
-        to customize grouping fields.
-
-        Returns:
-            SQL: GROUP BY clause with all fields, or empty SQL if no fields
-
-        Example Output:
-            GROUP BY
-                l.product_id,
-                o.partner_id,
-                o.date_order
-        """
+        """Build the ``GROUP BY`` clause from the field registry."""
         fields = self._get_group_by_fields()
-
         if not fields:
-            return SQL("")
-
-        field_parts = [SQL(field) for field in fields]
+            return SQL.EMPTY
+        field_parts = []
+        for field in fields:
+            self._check_percent_escaping(field, "group_by")
+            field_parts.append(SQL(field))
         return SQL("GROUP BY\n    %s", SQL(",\n    ").join(field_parts))
 
     def _order_by(self) -> SQL:
-        """Build ORDER BY clause from field registry.
+        """Build the ``ORDER BY`` clause from the field registry.
 
-        Constructs the ORDER BY clause by joining all field expressions.
-        Returns empty SQL if no fields exist (optional ORDER BY clause).
-
-        Do NOT override this method. Instead, override _get_order_by_fields()
-        to customize sort order.
-
-        Returns:
-            SQL: ORDER BY clause with all fields, or empty SQL if no fields
-
-        Example Output:
-            ORDER BY
-                o.date_order DESC,
-                o.id
-
-        Note:
-            Usually not needed - use the _order class attribute instead.
-            Only use this for complex ORDER BY that can't be expressed in _order.
+        Usually the ``_order`` class attribute is what you want — that
+        controls Python-side record ordering.  Use this hook only when the
+        defining query needs an explicit ``ORDER BY`` at creation time.
         """
         fields = self._get_order_by_fields()
-
         if not fields:
-            return SQL("")
-
-        field_parts = [SQL(field) for field in fields]
+            return SQL.EMPTY
+        field_parts = []
+        for field in fields:
+            self._check_percent_escaping(field, "order_by")
+            field_parts.append(SQL(field))
         return SQL("ORDER BY\n    %s", SQL(",\n    ").join(field_parts))
 
-    # ============================================================
-    # REGISTRY METHODS (override these in subclass)
-    # ============================================================
+    # ------------------------------------------------------------------
+    # REGISTRY HOOKS (override in subclass)
+    # ------------------------------------------------------------------
 
     def _get_select_fields(self) -> dict:
-        """Return field registry for the SELECT clause.
+        """Return ``{field_name: sql_expression}`` for the SELECT clause.
 
-        Override to define report fields as ``{field_name: sql_expression}``.
-        Dictionary order is preserved in the generated SQL.  Inheriting
-        modules add, modify, or remove entries via standard dict operations.
-
-        :returns: mapping of field names to SQL expressions
-        :rtype: dict
+        Mandatory override.  Dictionary insertion order is preserved in the
+        generated SQL.  Expressions are raw SQL — see the class-level trust
+        contract.
         """
         return {}
 
     def _get_from_tables(self) -> list:
-        """Return table registry for the FROM clause.
+        """Return the FROM-clause registry.
 
-        Override to define tables and JOINs as a list of 4-tuples
-        ``(table_name, alias, join_type, on_condition)``.  The first entry
-        is the base table (``join_type=None``); subsequent entries are JOINs.
-        ``table_name`` may be a string or a ``SQL`` object (for subqueries).
-
-        Inheriting modules append, insert, or filter the list.
-
-        :returns: list of ``(table_name, alias, join_type, on_condition)`` tuples
-        :rtype: list
+        Mandatory override.  Each entry is a 4-tuple
+        ``(table_name, alias, join_type, on_condition)``.  The first entry is
+        the base table (``join_type=None``); subsequent entries are JOINs.
+        ``table_name`` may be a string or a ``SQL`` object (e.g. subquery).
         """
         return []
 
     def _get_where_conditions(self) -> list:
-        """Return condition registry for the WHERE clause.
+        """Return filter conditions for the WHERE clause.
 
-        Override to define filter conditions as a list of SQL condition
-        strings.  All conditions are joined with ``AND``.  Use parentheses
-        for ``OR`` groups inside a single condition string.
-
-        Inheriting modules append, filter, or replace entries in the list.
-
-        :returns: list of SQL condition strings
-        :rtype: list
+        Each element may be a string (inserted verbatim) or a ``SQL`` object
+        (parameterized).  All conditions are joined with ``AND``.
         """
         return []
 
     def _get_group_by_fields(self) -> list:
-        """Return field registry for the GROUP BY clause.
-
-        Override to list all non-aggregated field expressions that must
-        appear in ``GROUP BY``.  Fields using aggregate functions (SUM, AVG,
-        MIN, MAX, COUNT) should **not** be included here.
-
-        Inheriting modules append, filter, or reorder entries in the list.
-
-        :returns: list of field expressions for GROUP BY
-        :rtype: list
-        """
+        """Return non-aggregated field expressions for the GROUP BY clause."""
         return []
 
     def _get_order_by_fields(self) -> list:
-        """Return field registry for the ORDER BY clause (optional).
-
-        Override to define custom sort expressions with direction (ASC/DESC).
-        Most reports should use the ``_order`` class attribute instead; only
-        use this for ORDER BY logic that requires runtime evaluation.
-
-        :returns: list of field expressions with sort direction
-        :rtype: list
-        """
+        """Return sort expressions for the ORDER BY clause (optional)."""
         return []
+
+    # ------------------------------------------------------------------
+    # SAFETY
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _check_percent_escaping(expr, location):
+        """Reject un-escaped ``%`` in registry strings.
+
+        The ``SQL()`` constructor validates format-string shape via
+        ``code % ()`` at build time.  A naive ``LIKE '%pattern%'`` therefore
+        fails with a cryptic ``TypeError: not enough arguments for format
+        string``.  Catch it here with a message that points at the offending
+        registry slot.
+        """
+        if not isinstance(expr, str) or "%" not in expr:
+            return
+        if "%" in expr.replace("%%", ""):
+            raise ValueError(
+                f"sql.report.mixin: un-escaped '%' in {location}: {expr!r}. "
+                "Use '%%' for literal percent (e.g. LIKE '%%x%%')."
+            )
