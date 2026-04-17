@@ -1,136 +1,69 @@
 {
     "name": "Base SQL Report",
-    "version": "19.0.1.0.0",
+    "version": "19.0.2.0.0",
     "category": "Hidden",
     "summary": "SQL report construction and materialized view mixins",
     "description": """
 Base SQL Report
 ===============
 
-This module provides foundational mixins for building SQL-based analytical
-reports using clean, registry-driven patterns.
+Mixins for building SQL-based analytical reports.
 
-Materialized View Mixin
-------------------------
-The ``materialized.view.mixin`` provides safe refresh() and helper methods for
-models backed by PostgreSQL materialized views:
+``sql.report.mixin``
+--------------------
+Registry-driven SQL construction for ``_auto = False`` models.  Subclasses
+define SELECT / FROM / WHERE / GROUP BY clauses as dicts and lists rather than
+monolithic strings; inheritance is just dict / list mutation::
 
-* **Safe refresh()**: Handles missing views during upgrades
-* **View existence checks**: ``_view_exists()`` helper method
-* **Population status**: ``_is_populated()`` helper method
-* **Concurrent refresh**: Automatic CONCURRENTLY when view is populated
-* **Error handling**: Graceful failures with logging for cron retry
-* **Auto-detection**: Works with both registry pattern (``_table_query``) and custom ``_query()``
+    def _get_select_fields(self):
+        fields = super()._get_select_fields()
+        fields["margin"] = "SUM(l.margin)"
+        return fields
 
-Usage Pattern 1 - Custom SQL with CTEs (for complex analytical queries)::
+``materialized.view.mixin``
+---------------------------
+Safe (re)creation and refresh of PostgreSQL materialized views.
 
-    class ComplexReport(models.Model):
-        _inherit = 'materialized.view.mixin'
-        _auto = False
+* Schema-scoped introspection (``current_schema::regnamespace``).
+* RESTRICT-aware drop: warns loudly with the list of dependent relations
+  before a CASCADE drop.
+* Refuses to silently overwrite a regular table with an MV of the same name.
+* ``refresh()`` falls back to blocking REFRESH on unpopulated MVs (PG rejects
+  CONCURRENTLY there) and only swallows transient errors — programming errors
+  propagate to the cron log.
+* ``with_data=True`` by default — PG18 raises ``ObjectNotInPrerequisiteState``
+  on SELECT from unpopulated MVs, so the previous default would break queries
+  until the first cron tick.
 
-        def _query(self):
-            return '''
-                WITH cte1 AS (...),
-                     cte2 AS (...)
-                SELECT ... FROM cte1 JOIN cte2 ...
-            '''
-
-        def init(self):
-            self._create_materialized_view()
-
-Usage Pattern 2 - Registry Pattern (for maintainable, extensible queries)::
-
-    class ExtensibleReport(models.Model):
-        _inherit = ['sql.report.mixin', 'materialized.view.mixin']
-        _auto = False
-
-        def _get_select_fields(self):
-            return {'id': 'MIN(l.id)', 'total': 'SUM(l.amount)'}
-
-        def _get_from_tables(self):
-            return [('sale_order_line', 'l', None, None)]
-
-        # _query() automatically uses _table_query!
-
-        def init(self):
-            self._create_materialized_view()
-
-SQL Report Mixin
-----------------
-The ``sql.report.mixin`` provides a clean inheritance pattern for SQL-based
-analytical reports (``_auto = False``) using the **Registry Pattern**:
-
-* **SELECT fields**: Dict-based registry - easy add/modify/remove
-* **FROM tables**: List-based registry - structured JOIN management
-* **WHERE conditions**: List of conditions joined with AND
-* **GROUP BY fields**: List of grouping expressions
-* **ORDER BY fields**: List of ordering expressions (optional)
-* **WITH CTEs**: Support for Common Table Expressions
-
-Based on the excellent design in addons/purchase/report/purchase_report.py
-
-Benefits vs traditional string manipulation:
-
-* Add fields: ``fields['margin'] = 'SUM(l.margin)'``
-* Modify fields: ``fields['total'] = 'CUSTOM_CALC'``
-* Remove fields: ``del fields['unwanted']``
-* Add JOINs: ``tables.append(('custom_table', 'ct', 'LEFT JOIN', 'o.id=ct.order_id'))``
-* Filter JOINs: ``[t for t in tables if t[1] != 'unwanted_alias']``
-* Add WHERE: ``conditions.append("o.state != 'cancel'")``
-* No SQL string parsing/regex required!
-
-Design Goals
-------------
-* Eliminate code duplication across analytical report modules
-* Provide clean extension points for customization via inheritance
-* Make SQL report behavior consistent and predictable
-* Improve code readability and maintainability
-* Type safety through SQL objects to prevent injection
-
-Usage Example
--------------
+Composition
+-----------
+The two mixins compose.  When both are inherited, the ``_materialized`` marker
+makes ``sql.report.mixin._table_query`` return ``None`` so the ORM reads the
+physical MV — the analytical query is no longer re-inlined as a subquery on
+every search.
 
 ::
 
     class MyReport(models.Model):
-        _name = 'my.report'
-        _inherit = 'sql.report.mixin'
-        _description = 'My Analysis Report'
+        _name = "my.report"
+        _inherit = ["sql.report.mixin", "materialized.view.mixin"]
         _auto = False
 
-        # Define fields
-        id = fields.Integer(readonly=True)
-        product_id = fields.Many2one('product.product', readonly=True)
-        total_qty = fields.Float(readonly=True)
+        def _get_select_fields(self): ...
+        def _get_from_tables(self): ...
 
-        # Implement registries
-        def _get_select_fields(self):
-            return {
-                'id': 'MIN(l.id)',
-                'product_id': 'l.product_id',
-                'total_qty': 'SUM(l.quantity)',
-            }
+        def init(self):
+            self._create_materialized_view(index_field="product_id")
 
-        def _get_from_tables(self):
-            return [
-                ('sale_order_line', 'l', None, None),
-                ('sale_order', 'o', 'LEFT JOIN', 'l.order_id=o.id'),
-            ]
-
-        def _get_where_conditions(self):
-            return ['l.display_type IS NULL']
-
-        def _get_group_by_fields(self):
-            return ['l.product_id']
-
-This module is part of an aggressive refactoring initiative for Odoo 19+ with
-no backward compatibility constraints.
+Trust contract
+--------------
+Registry values are inserted into SQL verbatim.  Never build them from
+``self.env.context`` or other untrusted sources.  For parameterized
+conditions, return an ``SQL`` object from ``_get_where_conditions`` —
+e.g. ``SQL("o.partner_id = %s", pid)``.
     """,
-    "author": "Odoo Community",
-    "website": "https://www.odoo.com",
+    "author": "AgroMarin",
+    "website": "https://www.agromarin.mx",
     "license": "LGPL-3",
-    "depends": [
-        "base",
-    ],
-
+    "depends": ["base"],
 }

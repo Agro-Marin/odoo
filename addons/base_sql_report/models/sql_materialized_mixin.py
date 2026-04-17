@@ -1,220 +1,241 @@
 import logging
 
-from odoo import models
-from odoo.tools.sql import SQL
+import psycopg
 
+from odoo import models
+from odoo.exceptions import UserError
+from odoo.tools.sql import SQL
 
 _logger = logging.getLogger(__name__)
 
 
+# Transient Postgres errors that are safe to surface as "retry on next cron".
+# Anything else (programming errors, auth, corruption) must propagate so the
+# cron's error log actually records it.
+_TRANSIENT_REFRESH_ERRORS = (
+    psycopg.errors.SerializationFailure,
+    psycopg.errors.LockNotAvailable,
+    psycopg.errors.DeadlockDetected,
+)
+
+
 class MaterializedViewMixin(models.AbstractModel):
-    """Abstract mixin for models using PostgreSQL materialized views.
+    """Abstract mixin for models backed by PostgreSQL materialized views.
 
-    This mixin provides:
-    - Safe refresh() that handles missing views during upgrades
-    - Helper methods to check view existence and population status
-    - Error handling for concurrent access during view recreation
+    Provides idempotent ``_create_materialized_view()``, safe ``refresh()`` with
+    a fallback between CONCURRENTLY and blocking variants, and a cron entry
+    point.  Introspection queries are scoped to ``current_schema`` so multi-
+    schema databases are handled correctly.
 
-    Usage:
-        class MyReport(models.Model):
-            _name = 'my.report'
-            _inherit = 'materialized.view.mixin'
-            _auto = False
+    Combining with ``sql.report.mixin``
+    -----------------------------------
+    The two mixins are designed to compose:
 
-            def _query(self):
-                return "SELECT * FROM ..."
+        _inherit = ["sql.report.mixin", "materialized.view.mixin"]
 
-            def init(self):
-                self._create_materialized_view()
+    The ``_materialized = True`` marker set by this mixin makes
+    ``sql.report.mixin._table_query`` return ``None``, so the ORM reads the
+    physical materialized view at ``self._table`` (fast) instead of inlining
+    the analytical query as a subquery (slow).  ``_create_materialized_view``
+    still uses the registry-built SQL via ``_query()`` to populate the MV.
+
+    Stand-alone usage
+    -----------------
+    When inherited without ``sql.report.mixin``, the subclass must override
+    ``_query()`` to return the defining SQL.
     """
 
     _name = "materialized.view.mixin"
     _description = "Materialized View Mixin"
 
+    # Consumed by sql.report.mixin._table_query: True makes the ORM read
+    # from the physical relation rather than re-inlining the analytical query.
+    _materialized = True
+
+    # ------------------------------------------------------------------
+    # QUERY ACCESSOR
+    # ------------------------------------------------------------------
+
     def _query(self):
-        """Return the SQL query for creating the materialized view.
+        """Return the defining ``SQL`` for the materialized view.
 
-        Automatically delegates to ``_table_query`` when the model also
-        inherits from ``sql.report.mixin``.  Otherwise, subclasses must
-        override this method to provide a ``SQL`` object directly.
+        Resolution order (so ``_inherit`` order between the two mixins doesn't
+        matter):
 
-        :returns: SQL object for the materialized view definition
-        :rtype: SQL
-        :raises NotImplementedError: if neither ``_table_query`` nor an
-            override is available
-        :raises TypeError: if ``_table_query`` returns a non-SQL object
-        :raises ValueError: if ``_table_query`` returns an empty SQL object
+        1. ``_build_table_query`` if present — from ``sql.report.mixin``.
+        2. ``_table_query`` attribute if it's a non-empty ``SQL`` or ``str``.
+        3. Otherwise raise ``NotImplementedError``.
+
+        Stand-alone usage (no ``sql.report.mixin``) requires overriding this
+        method.
         """
-        if hasattr(self, "_table_query"):
-            # Model inherits sql.report.mixin - use registry pattern
-            sql_obj = self._table_query
-            if not isinstance(sql_obj, SQL):
-                # _table_query exists but returns wrong type
-                raise TypeError(
-                    f"{self._name}._table_query must return a SQL object, "
-                    f"got {type(sql_obj).__name__}: {sql_obj!r}",
-                )
-            if not sql_obj:  # Empty SQL object (bool(SQL("")) is False)
-                raise ValueError(
-                    f"{self._name}._table_query returned an empty SQL object",
-                )
-            # Return SQL object directly - don't render to string
-            return sql_obj
-        # No registry pattern - subclass must override
+        build = getattr(self, "_build_table_query", None)
+        if callable(build):
+            sql_obj = build()
+            if isinstance(sql_obj, SQL) and sql_obj:
+                return sql_obj
+        table_query = getattr(self, "_table_query", None)
+        if isinstance(table_query, SQL) and table_query:
+            return table_query
+        if isinstance(table_query, str) and table_query:
+            return SQL(table_query)
         raise NotImplementedError(
-            f"{self._name}: Either inherit 'sql.report.mixin' to use the registry "
-            "pattern, or override _query() method to provide SQL manually.",
+            f"{self._name}: override _query() to return a non-empty SQL object, "
+            "or inherit 'sql.report.mixin' for the registry pattern."
         )
 
-    def _view_exists(self, table):
-        """Check if the materialized view exists in the database.
+    # ------------------------------------------------------------------
+    # POSTGRES INTROSPECTION (schema-scoped)
+    # ------------------------------------------------------------------
 
-        Args:
-            table: Name of the table to check
-
-        Returns:
-            bool: True if the materialized view exists, False otherwise
-        """
+    def _view_exists(self, table) -> bool:
+        """True if a materialized view named ``table`` exists in the current schema."""
         self.env.cr.execute(
-            SQL("SELECT 1 FROM pg_class WHERE relname = %s and relkind = 'm'", table),
+            SQL(
+                "SELECT 1 FROM pg_class "
+                "WHERE relname = %s "
+                "AND relkind = 'm' "
+                "AND relnamespace = current_schema::regnamespace",
+                table,
+            )
         )
         return bool(self.env.cr.fetchone())
 
-    def _is_populated(self, table):
-        """Check if the materialized view is populated with data.
-
-        Args:
-            table: Name of the table to check
-
-        Returns:
-            bool: True if the view is populated, False otherwise
-        """
+    def _is_populated(self, table) -> bool:
+        """True if the materialized view ``table`` has been populated with data."""
         self.env.cr.execute(
             SQL(
-                "SELECT relispopulated FROM pg_class WHERE relname = %s and relkind = 'm'",
+                "SELECT relispopulated FROM pg_class "
+                "WHERE relname = %s "
+                "AND relkind = 'm' "
+                "AND relnamespace = current_schema::regnamespace",
                 table,
-            ),
+            )
         )
-        res = self.env.cr.fetchone()
-        return res and res[0]
+        row = self.env.cr.fetchone()
+        return bool(row and row[0])
 
-    def refresh(self):
-        """Refresh the materialized view with current data.
+    def _relkind(self, table):
+        """Return ``pg_class.relkind`` for ``table`` in the current schema, or None."""
+        self.env.cr.execute(
+            SQL(
+                "SELECT relkind FROM pg_class "
+                "WHERE relname = %s "
+                "AND relnamespace = current_schema::regnamespace",
+                table,
+            )
+        )
+        row = self.env.cr.fetchone()
+        return row[0] if row else None
 
-        This method safely refreshes the materialized view, handling cases where:
-        - The view doesn't exist yet (during module upgrade)
-        - The view exists but is not populated
-        - The view is populated and can be refreshed concurrently
+    def _dependent_relations(self, table) -> list:
+        """List views / matviews that depend on ``table`` (would be dropped by CASCADE)."""
+        self.env.cr.execute(
+            SQL(
+                """
+            SELECT DISTINCT c2.relname, c2.relkind
+            FROM pg_depend d
+            JOIN pg_class c1 ON d.refobjid = c1.oid
+            JOIN pg_rewrite r ON d.objid = r.oid
+            JOIN pg_class c2 ON r.ev_class = c2.oid
+            WHERE c1.relname = %s
+              AND c1.relnamespace = current_schema::regnamespace
+              AND c2.relname != c1.relname
+            """,
+                table,
+            )
+        )
+        return list(self.env.cr.fetchall())
 
-        The CONCURRENTLY option allows queries against the materialized view
-        while it's being refreshed, but requires the view to be populated first
-        and to have a unique index.
+    # ------------------------------------------------------------------
+    # REFRESH
+    # ------------------------------------------------------------------
 
-        Returns:
-            bool: True if refresh succeeded, False if skipped
+    def refresh(self) -> bool:
+        """Refresh the materialized view.
+
+        Falls back to a blocking (non-concurrent) refresh on the first call
+        because PostgreSQL rejects CONCURRENTLY on unpopulated MVs with
+        ``FeatureNotSupported``.
+
+        Returns True on success, False if the view doesn't exist or a
+        transient error occurred.  Non-transient errors propagate so the
+        cron's error log actually shows them.
         """
-        # Check if the view exists before trying to refresh
         if not self._view_exists(self._table):
-            # View doesn't exist yet - this can happen during module upgrade
-            # when init() drops and recreates the view
             _logger.warning(
-                "Materialized view %s does not exist. "
-                "Skipping refresh. Run init() to create the view.",
+                "Materialized view %s does not exist — skipping refresh. "
+                "Run init() to create it.",
                 self._table,
             )
             return False
 
-        # Refresh the view
-        # Use CONCURRENTLY if the view is already populated to avoid locking
+        table_name = SQL.identifier(self._table)
         try:
-            is_populated = self._is_populated(self._table)
-            table_name = SQL.identifier(self._table)
-
-            if is_populated:
-                _logger.info(
-                    "Refreshing materialized view %s (concurrently)", self._table
-                )
+            if self._is_populated(self._table):
+                _logger.info("Refreshing %s (CONCURRENTLY)", self._table)
                 self.env.cr.execute(
                     SQL("REFRESH MATERIALIZED VIEW CONCURRENTLY %s", table_name),
                 )
             else:
-                _logger.info("Refreshing materialized view %s (with lock)", self._table)
+                _logger.info("Refreshing %s (blocking, first refresh)", self._table)
                 self.env.cr.execute(
                     SQL("REFRESH MATERIALIZED VIEW %s", table_name),
                 )
-            return True
-        except Exception as e:
-            # Log the error but don't crash - the cron will retry later
-            _logger.error(
-                "Failed to refresh materialized view %s: %s. "
-                "Will retry on next cron run.",
+        except _TRANSIENT_REFRESH_ERRORS as exc:
+            _logger.warning(
+                "Transient refresh failure on %s: %s. Cron will retry.",
                 self._table,
-                e,
+                exc,
             )
             return False
+        return True
 
-    def _cron_refresh_materialized_view(self):
-        """Cron job wrapper to refresh the materialized view.
-
-        This method provides a consistent API for cron jobs across all models
-        that inherit from this mixin. It simply delegates to refresh().
-
-        Returns:
-            bool: True if refresh succeeded, False if skipped or failed
-        """
+    def _cron_refresh_materialized_view(self) -> bool:
+        """Cron entry point.  Thin wrapper around ``refresh()``."""
         return self.refresh()
 
-    def _create_materialized_view(self, with_data=False, index_field=None):
-        """Create or recreate the materialized view with unique index.
+    # ------------------------------------------------------------------
+    # CREATION
+    # ------------------------------------------------------------------
 
-        This is a helper method that can be called from init() to standardize
-        materialized view creation across all report models.
+    def _create_materialized_view(self, with_data=True, index_field="id"):
+        """(Re)create the materialized view and its unique index.
 
         Args:
-            with_data: bool, if True creates the view WITH DATA (populated),
-                      if False creates WITH NO DATA (empty, faster for upgrades)
-            index_field: str, field name for unique index. If None, uses 'id'.
-                        Required for CONCURRENT refresh to work.
+            with_data: If True (default), populate immediately (``WITH DATA``).
+                Default changed from False — PostgreSQL rejects SELECT on
+                unpopulated MVs with ``ObjectNotInPrerequisiteState``, which
+                would make reports fail hard between install and first cron
+                refresh.  Pass ``with_data=False`` only for MVs so large that
+                install latency outweighs availability, and queue a refresh
+                immediately after module install.
+            index_field: Column for the UNIQUE index required by REFRESH
+                MATERIALIZED VIEW CONCURRENTLY.  Defaults to ``"id"``.
 
-        Note:
-            Subclasses must implement _query() method that returns a SQL object.
-            The unique index enables REFRESH MATERIALIZED VIEW CONCURRENTLY.
+        Raises:
+            UserError: if ``self._table`` is already used by a regular table
+                or any relation kind other than view / materialized view.
         """
         table_name = SQL.identifier(self._table)
-        query_sql = self._query()  # Returns SQL object
+        query_sql = self._query()
+        if not isinstance(query_sql, SQL) or not query_sql:
+            raise TypeError(
+                f"{self._name}._query() must return a non-empty SQL object, "
+                f"got {type(query_sql).__name__}: {query_sql!r}",
+            )
 
-        # Determine index field (default to 'id')
-        if index_field is None:
-            index_field = "id"
+        self._drop_existing_relation(table_name)
 
-        # Drop existing view/materialized view if it exists
-        # Handle migration from regular VIEW (sql.report.mixin) to MATERIALIZED VIEW
-        # PostgreSQL: relkind 'v' = view, 'm' = materialized view
-        self.env.cr.execute(
-            "SELECT relkind FROM pg_class WHERE relname = %s", (self._table,)
-        )
-        result = self.env.cr.fetchone()
-        if result:
-            if result[0] == "v":
-                _logger.info(
-                    "Dropping regular view %s (migration to materialized)", self._table
-                )
-                self.env.cr.execute(SQL("DROP VIEW IF EXISTS %s CASCADE", table_name))
-            elif result[0] == "m":
-                _logger.info("Dropping materialized view %s", self._table)
-                self.env.cr.execute(
-                    SQL("DROP MATERIALIZED VIEW IF EXISTS %s CASCADE", table_name)
-                )
-
-        # Create the view - compose SQL objects using parameter substitution
         if with_data:
             _logger.info("Creating materialized view %s WITH DATA", self._table)
             self.env.cr.execute(
                 SQL("CREATE MATERIALIZED VIEW %s AS %s", table_name, query_sql),
             )
         else:
-            _logger.info(
-                "Creating materialized view %s WITH NO DATA (will be populated by cron)",
+            _logger.warning(
+                "Creating %s WITH NO DATA — SELECT on this MV will raise "
+                "ObjectNotInPrerequisiteState until the first refresh().",
                 self._table,
             )
             self.env.cr.execute(
@@ -225,11 +246,11 @@ class MaterializedViewMixin(models.AbstractModel):
                 ),
             )
 
-        # Create unique index for concurrent refresh support
         index_name = SQL.identifier(f"id_{self._table}")
         index_field_sql = SQL.identifier(index_field)
         _logger.info(
-            "Creating unique index on %s.%s for concurrent refresh",
+            "Creating unique index id_%s on %s(%s)",
+            self._table,
             self._table,
             index_field,
         )
@@ -241,3 +262,45 @@ class MaterializedViewMixin(models.AbstractModel):
                 index_field_sql,
             ),
         )
+
+    def _drop_existing_relation(self, table_name_sql):
+        """Drop an existing view / materialized view safely.
+
+        Warns loudly when dependent objects would be CASCADE-dropped; refuses
+        to proceed when the name is used by a regular table (data-loss risk).
+        """
+        kind = self._relkind(self._table)
+        if kind is None:
+            return
+        if kind in ("r", "p"):
+            raise UserError(
+                f"Cannot create materialized view {self._table!r}: a regular "
+                f"table with that name already exists (relkind={kind!r}). "
+                "Drop or rename it manually before upgrading the module."
+            )
+        if kind not in ("v", "m"):
+            raise UserError(
+                f"Cannot (re)create materialized view {self._table!r}: "
+                f"unexpected pg_class relkind {kind!r}.  Investigate manually."
+            )
+
+        dependents = self._dependent_relations(self._table)
+        if dependents:
+            _logger.warning(
+                "Dropping %s %s will CASCADE %d dependent relation(s): %s",
+                "materialized view" if kind == "m" else "view",
+                self._table,
+                len(dependents),
+                [f"{name} (kind={relkind})" for name, relkind in dependents],
+            )
+
+        if kind == "v":
+            _logger.info(
+                "Dropping regular view %s (migration to materialized)", self._table
+            )
+            self.env.cr.execute(SQL("DROP VIEW IF EXISTS %s CASCADE", table_name_sql))
+        else:
+            _logger.info("Dropping materialized view %s", self._table)
+            self.env.cr.execute(
+                SQL("DROP MATERIALIZED VIEW IF EXISTS %s CASCADE", table_name_sql),
+            )
