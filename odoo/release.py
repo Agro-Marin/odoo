@@ -32,6 +32,6 @@ author: Final[str] = "Odoo S.A."
 
 nt_service_name: str = "odoo-server-" + series.replace("~", "-")
 
-MIN_PY_VERSION: Final[tuple[int, int]] = (3, 13)
+MIN_PY_VERSION: Final[tuple[int, int]] = (3, 14)
 MAX_PY_VERSION: Final[tuple[int, int]] = (3, 14)
 MIN_PG_VERSION: Final[int] = 18
