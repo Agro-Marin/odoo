@@ -297,6 +297,8 @@ ignore = [
 #
 # core/addons/ — standard Odoo modules (account, mail, website, etc.)
 "addons/**" = ["D", "ANN"]
+# agromarin-addons/ — AgroMarin custom modules (lives at ../addons/agromarin-addons/ relative to core/)
+"../addons/agromarin-addons/**" = ["D", "ANN"]
 # core/tests/, core/doc/ — top-level non-package directories
 "tests/**" = ["D", "ANN"]
 "doc/**" = ["D", "ANN"]
