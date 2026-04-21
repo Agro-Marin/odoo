@@ -48,5 +48,6 @@ Some modules contain a `machine_doc_v<N>/` directory (e.g. `machine_doc_v1/`) wi
 
 ## Rules Reference
 
-- `core/ruff.toml` — Linter and formatter config (enforces `doc/coding_guidelines.rst`)
-- `core/doc/coding_guidelines.rst` — Authoritative coding standards
+- **Canonical coding guidelines**: `core/doc/coding_guidelines.rst` — authoritative for all repos in `$ACTIVE_REPOS` (addons, enterprise, knowledge point here).
+- `core/ruff.toml` — Linter and formatter config (aligned with the canonical §2.6 and §2.9).
+- Changes to the canonical are made by editing `core/doc/coding_guidelines.rst` directly, via PR against `19.0-marin` (see §2 *Change protocol* inside the file).
