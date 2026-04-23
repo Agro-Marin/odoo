@@ -22,8 +22,14 @@ patch(PosStore.prototype, {
         });
     },
     get employeeIsAdmin() {
+        // Guard against an undefined cashier: when module_pos_hr is enabled,
+        // getCashier() returns this.cashier, which is unset until the user
+        // completes LoginScreen. The Navbar template evaluates employeeIsAdmin
+        // on mount (before any cashier is picked) and would throw
+        // "Cannot read properties of undefined (reading '_role')".
+        // Semantically, no cashier means no admin privileges -> return false.
         const cashier = this.getCashier();
-        return cashier._role === "manager";
+        return cashier?._role === "manager";
     },
     checkPreviousLoggedCashier() {
         if (this.config.module_pos_hr) {
