@@ -60,8 +60,8 @@ class TestTaskReservation(TransactionCase):
         task.invalidate_recordset(["reservation_ids"])
         self.assertEqual(len(task.reservation_ids), 1)
 
-    def test_schedule_conflict_count(self):
-        """schedule_conflict_count reflects overlapping reservations."""
+    def test_schedule_overlap_count(self):
+        """schedule_overlap_count reflects overlapping reservations."""
         task = self.env["project.task"].create(
             {"name": "Conflicted", "project_id": self.project.id}
         )
@@ -85,8 +85,8 @@ class TestTaskReservation(TransactionCase):
                 "res_id": task.id,
             }
         )
-        task.invalidate_recordset(["schedule_conflict_count"])
-        self.assertGreater(task.schedule_conflict_count, 0)
+        task.invalidate_recordset(["schedule_overlap_count"])
+        self.assertGreater(task.schedule_overlap_count, 0)
 
     def test_unlink_cleans_reservations(self):
         """Deleting a task removes its reservations."""
@@ -108,7 +108,9 @@ class TestTaskReservation(TransactionCase):
         remaining = self.Reservation.search(
             [("res_model", "=", "project.task"), ("res_id", "=", task_id)]
         )
-        self.assertEqual(len(remaining), 0, "Reservations should be cleaned up on unlink")
+        self.assertEqual(
+            len(remaining), 0, "Reservations should be cleaned up on unlink"
+        )
 
     def test_get_reservation_date_fields_returns_tuple(self):
         """_get_reservation_date_fields returns a 2-tuple."""

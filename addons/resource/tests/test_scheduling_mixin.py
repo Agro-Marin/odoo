@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.models import add_to_registry
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
+from odoo.tools import SQL
 
 
 @tagged("post_install", "-at_install")
@@ -27,6 +28,10 @@ class TestSchedulingMixin(TransactionCase):
         super().setUpClass()
 
         # -- Register a concrete test model inheriting the mixin --
+        # The mixin no longer owns the date / resource data fields (they live
+        # on resource.reservation). Test models that need calendar-aware
+        # computation declare the same columns locally and expose them via
+        # ``_get_reservation_date_fields``.
         class SchedulingTest(models.Model):
             _module = "resource"
             _name = cls.MODEL_NAME
@@ -37,6 +42,96 @@ class TestSchedulingMixin(TransactionCase):
             company_id = fields.Many2one(
                 "res.company", default=lambda self: self.env.company
             )
+            date_start = fields.Datetime("Scheduled Start", index=True)
+            date_end = fields.Datetime("Scheduled End", index=True)
+            resource_id = fields.Many2one("resource.resource", "Resource", index=True)
+            resource_calendar_id = fields.Many2one(
+                "resource.calendar",
+                "Working Calendar",
+                compute="_compute_resource_calendar_id",
+                store=True,
+                readonly=False,
+            )
+            _resource_schedule_idx = models.Index("(resource_id, date_start, date_end)")
+
+            @api.depends("resource_id", "resource_id.calendar_id")
+            def _compute_resource_calendar_id(self):
+                for record in self:
+                    if record.resource_id and record.resource_id.calendar_id:
+                        record.resource_calendar_id = record.resource_id.calendar_id
+                    elif record.company_id:
+                        record.resource_calendar_id = (
+                            record.company_id.resource_calendar_id
+                        )
+                    else:
+                        record.resource_calendar_id = (
+                            record.env.company.resource_calendar_id
+                        )
+
+            def _get_reservation_date_fields(self):
+                return ("date_start", "date_end")
+
+            @api.depends(
+                "date_start",
+                "date_end",
+                "resource_id",
+                "resource_calendar_id",
+                "allocated_percentage",
+            )
+            def _compute_allocated_hours(self):
+                # Full compute using local date/resource fields (the generic
+                # mixin compute would otherwise skip because it has no
+                # explicit dependencies on this model's scheduling columns).
+                return super()._compute_allocated_hours()
+
+            @api.depends(
+                "date_start", "date_end", "resource_id", "allocated_percentage"
+            )
+            def _compute_schedule_overlap_count(self):
+                stored = self.filtered(
+                    lambda r: (
+                        r.id
+                        and isinstance(r.id, int)
+                        and r.resource_id
+                        and r.date_start
+                        and r.date_end
+                    )
+                )
+                (self - stored).schedule_overlap_count = 0
+                if not stored:
+                    return
+
+                stored.flush_recordset(
+                    [
+                        "date_start",
+                        "date_end",
+                        "resource_id",
+                        "allocated_percentage",
+                    ]
+                )
+                table = SQL.identifier(self._table)
+                query = SQL(
+                    """
+                    SELECT s1.id, COUNT(s2.id)
+                      FROM %s s1
+                      JOIN %s s2
+                        ON s1.resource_id = s2.resource_id
+                       AND s1.id != s2.id
+                       AND s1.date_start < s2.date_end
+                       AND s1.date_end > s2.date_start
+                       AND COALESCE(s1.allocated_percentage, 100)
+                         + COALESCE(s2.allocated_percentage, 100) > 100
+                     WHERE s1.id = ANY(%s)
+                     GROUP BY s1.id
+                    """,
+                    table,
+                    table,
+                    list(stored.ids),
+                )
+                self.env.cr.execute(query)
+                counts = dict(self.env.cr.fetchall())
+                for record in stored:
+                    record.schedule_overlap_count = counts.get(record.id, 0)
 
         add_to_registry(cls.registry, SchedulingTest)
         cls.registry._setup_models__(cls.env.cr, [])
