@@ -2404,6 +2404,13 @@ class ProjectTask(models.Model):
 
         Returns an empty list when the task has no scheduling dates, no
         assignees, or no assignee with a resource (e.g. portal users).
+
+        Each assignee is rebound to their own ``company_id`` before the
+        resource lookup.  ``user._get_project_task_resource`` walks
+        ``user.employee_id``, which is a company-dependent related field;
+        without the rebind, a user editing the task from a different
+        active company would see every assignee's resource resolve to
+        False and the sync would wipe the existing reservations.
         """
         self.ensure_one()
         start_field, end_field = self._get_reservation_date_fields()
@@ -2421,7 +2428,8 @@ class ProjectTask(models.Model):
             get_resource = getattr(user, "_get_project_task_resource", None)
             if not get_resource:
                 continue
-            resource = get_resource()
+            scoped = user.with_company(user.company_id) if user.company_id else user
+            resource = scoped._get_project_task_resource()
             if not resource:
                 continue
             vals_list.append(
