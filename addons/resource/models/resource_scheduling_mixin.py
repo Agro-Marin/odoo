@@ -111,9 +111,11 @@ class ResourceSchedulingMixin(models.AbstractModel):
         start_field, end_field = self._get_reservation_date_fields()
         if not start_field or not end_field:
             return
-        Reservation = self.env["resource.reservation"]
+        reservation_model = self.env["resource.reservation"]
         for record in self:
-            Reservation._sync_reservation(record, record._get_reservation_vals_list())
+            reservation_model._sync_reservation(
+                record, record._get_reservation_vals_list()
+            )
 
     # ------------------------------------------------------------------
     # CRUD hooks (patterned on rating.mixin / mail.thread)
