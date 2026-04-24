@@ -112,9 +112,9 @@
         <field name="model">resource.reservation</field>
         <field name="arch" type="xml">
             <calendar string="Reservations" date_start="date_start" date_stop="date_end"
-                color="color" mode="week" event_open_popup="1">
+                color="resource_id" mode="week" event_open_popup="1">
                 <field name="name" />
-                <field name="resource_id" />
+                <field name="resource_id" avatar_field="avatar_128" filters="1" />
                 <field name="origin_display" string="Source" />
                 <field name="allocated_percentage" />
             </calendar>
