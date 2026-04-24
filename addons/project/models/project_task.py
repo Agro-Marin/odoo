@@ -2443,20 +2443,42 @@ class ProjectTask(models.Model):
         return triggers
 
     def action_view_schedule(self):
-        """Open the reservation calendar filtered to this task's assignees."""
+        """Open the reservation view filtered to the assignees' resources.
+
+        Shows every reservation held by each assignee (across all source
+        models, not only this task) so the user can spot cross-task
+        conflicts.  The calendar view opens on this task's scheduled
+        start (or end) to save a scroll.
+        """
         self.ensure_one()
-        resource_ids = []
+        resources = self.env["resource.resource"]
         for user in self.user_ids:
-            resource = user._get_project_task_resource()
-            if resource:
-                resource_ids.append(resource.id)
+            get_resource = getattr(user, "_get_project_task_resource", None)
+            if get_resource:
+                resource = get_resource()
+                if resource:
+                    resources |= resource
+
+        if len(resources) == 1:
+            action_name = self.env._("Schedule — %s", resources.name)
+        elif resources:
+            action_name = self.env._("Schedule — %s assignees", len(resources))
+        else:
+            action_name = self.env._("Schedule")
+
+        context = {"search_default_my_schedule": 0}
+        start_field, end_field = self._get_reservation_date_fields()
+        anchor = (start_field and self[start_field]) or (end_field and self[end_field])
+        if anchor:
+            context["initial_date"] = anchor
+
         return {
             "type": "ir.actions.act_window",
-            "name": self.env._("Schedule: %s", self.display_name),
+            "name": action_name,
             "res_model": "resource.reservation",
             "view_mode": "calendar,list,form",
-            "domain": [("resource_id", "in", resource_ids)] if resource_ids else [],
-            "context": {"search_default_my_schedule": 0},
+            "domain": [("resource_id", "in", resources.ids)],
+            "context": context,
         }
 
     def _search_on_comodel(
