@@ -13,7 +13,7 @@ class ProjectTask(models.Model):
     keep working without modification.
     """
 
-    _name = 'project.task'
+    _name = "project.task"
     _inherit = ["hr.mixin", "project.task"]
 
     employee_ids = fields.Many2many(
@@ -84,6 +84,52 @@ class ProjectTask(models.Model):
             if task.employee_ids and not task.date_assign:
                 task.sudo().date_assign = now
         return tasks
+
+    # ------------------------------------------------------------------
+    # Resource reservation contracts (override of core project.task)
+    # ------------------------------------------------------------------
+
+    def _get_reservation_vals_list(self):
+        """Resolve resources directly from the assigned employees.
+
+        Core ``project.task`` walks ``user_ids → user → employee → resource``
+        and rebinds each user to their own company so the lookup works
+        cross-company.  Here ``employee_ids`` is the canonical assignee
+        field, so the chain collapses to ``employee.resource_id`` —
+        already company-scoped, no rebind needed.
+        """
+        self.ensure_one()
+        start_field, end_field = self._get_reservation_date_fields()
+        if not start_field or not end_field:
+            return []
+        date_start = self[start_field]
+        date_end = self[end_field]
+        if not date_start or not date_end:
+            return []
+
+        vals_list = []
+        for employee in self.employee_ids:
+            resource = employee.resource_id
+            if not resource:
+                continue
+            vals_list.append(
+                {
+                    "name": self.display_name,
+                    "date_start": date_start,
+                    "date_end": date_end,
+                    "resource_id": resource.id,
+                    "allocated_percentage": self.allocated_percentage or 100.0,
+                    "enforcement_mode": "soft",
+                }
+            )
+        return vals_list
+
+    def _get_sync_trigger_fields(self):
+        """``employee_ids`` is the writeable field; ``user_ids`` is computed."""
+        triggers = super()._get_sync_trigger_fields()
+        triggers.discard("user_ids")
+        triggers.add("employee_ids")
+        return triggers
 
     def write(self, vals):
         """Mirror date_assign and personal stage logic for employee_ids changes.
