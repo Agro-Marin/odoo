@@ -132,6 +132,18 @@ class ResourceSchedulingMixin(models.AbstractModel):
         triggers = self._get_sync_trigger_fields()
         if triggers and triggers.intersection(vals.keys()):
             self._sync_reservations()
+        if "active" in vals:
+            # Mirror archive state: a record's reservations are no longer
+            # claims on the resource once the record is archived, and
+            # they come back when it is restored.
+            self.env["resource.reservation"].sudo().with_context(
+                active_test=False
+            ).search(
+                [
+                    ("res_model", "=", self._name),
+                    ("res_id", "in", self.ids),
+                ]
+            ).write({"active": vals["active"]})
         return result
 
     def unlink(self):

@@ -28,7 +28,10 @@ class ProjectTask(models.Model):
     )
 
     # Derived from employee_ids; stored so IR rules, portal_user_names, and
-    # any third-party module that reads user_ids continue to work correctly.
+    # any third-party module that *reads* user_ids continues to work.
+    # Direct *writes* to this field are silently ignored by the ORM
+    # (``readonly=True``) — assignees must be modified through
+    # ``employee_ids``, the canonical identity in this fork.
     user_ids = fields.Many2many(
         "res.users",
         relation="project_task_user_rel",
@@ -130,6 +133,39 @@ class ProjectTask(models.Model):
         triggers.discard("user_ids")
         triggers.add("employee_ids")
         return triggers
+
+    def action_view_schedule(self):
+        """Open the reservation view filtered to the assignees' resources.
+
+        Override of the core action: walks ``employee_ids.resource_id``
+        directly instead of ``user_ids → user._get_project_task_resource()``.
+        Each employee owns its resource, so the chain collapses and the
+        cross-company quirk goes away.
+        """
+        self.ensure_one()
+        resources = self.employee_ids.resource_id
+
+        if len(resources) == 1:
+            action_name = self.env._("Schedule — %s", resources.name)
+        elif resources:
+            action_name = self.env._("Schedule — %s assignees", len(resources))
+        else:
+            action_name = self.env._("Schedule")
+
+        context = {"search_default_my_schedule": 0}
+        start_field, end_field = self._get_reservation_date_fields()
+        anchor = (start_field and self[start_field]) or (end_field and self[end_field])
+        if anchor:
+            context["initial_date"] = anchor
+
+        return {
+            "type": "ir.actions.act_window",
+            "name": action_name,
+            "res_model": "resource.reservation",
+            "view_mode": "calendar,list,form",
+            "domain": [("resource_id", "in", resources.ids)],
+            "context": context,
+        }
 
     def write(self, vals):
         """Mirror date_assign and personal stage logic for employee_ids changes.
