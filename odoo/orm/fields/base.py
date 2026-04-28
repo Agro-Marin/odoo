@@ -1297,6 +1297,13 @@ class Field[T]:
         # Company-dependent: collect values from all company contexts into JSONB
         values = {}
         for ctx_key, cache in field_cache.items():
+            if not isinstance(cache, dict):
+                # Skip stale flat entries (id keys → scalar values) from
+                # before field_depends_context was populated.  See the same
+                # guard in _invalidate_cache and _get_all_cache_ids — without
+                # it, scalar None values crash with `'NoneType' object has no
+                # attribute 'get'` during _load_module_terms flushes.
+                continue
             if (
                 value := cache.get(record_id, SENTINEL)
             ) is not SENTINEL and value is not PENDING:
