@@ -13,7 +13,7 @@ class ProjectTask(models.Model):
     keep working without modification.
     """
 
-    _name = 'project.task'
+    _name = "project.task"
     _inherit = ["hr.mixin", "project.task"]
 
     employee_ids = fields.Many2many(
@@ -28,7 +28,10 @@ class ProjectTask(models.Model):
     )
 
     # Derived from employee_ids; stored so IR rules, portal_user_names, and
-    # any third-party module that reads user_ids continue to work correctly.
+    # any third-party module that *reads* user_ids continues to work.
+    # Direct *writes* to this field are silently ignored by the ORM
+    # (``readonly=True``) — assignees must be modified through
+    # ``employee_ids``, the canonical identity in this fork.
     user_ids = fields.Many2many(
         "res.users",
         relation="project_task_user_rel",
@@ -84,6 +87,85 @@ class ProjectTask(models.Model):
             if task.employee_ids and not task.date_assign:
                 task.sudo().date_assign = now
         return tasks
+
+    # ------------------------------------------------------------------
+    # Resource reservation contracts (override of core project.task)
+    # ------------------------------------------------------------------
+
+    def _get_reservation_vals_list(self):
+        """Resolve resources directly from the assigned employees.
+
+        Core ``project.task`` walks ``user_ids → user → employee → resource``
+        and rebinds each user to their own company so the lookup works
+        cross-company.  Here ``employee_ids`` is the canonical assignee
+        field, so the chain collapses to ``employee.resource_id`` —
+        already company-scoped, no rebind needed.
+        """
+        self.ensure_one()
+        start_field, end_field = self._get_reservation_date_fields()
+        if not start_field or not end_field:
+            return []
+        date_start = self[start_field]
+        date_end = self[end_field]
+        if not date_start or not date_end:
+            return []
+
+        vals_list = []
+        for employee in self.employee_ids:
+            resource = employee.resource_id
+            if not resource:
+                continue
+            vals_list.append(
+                {
+                    "name": self.display_name,
+                    "date_start": date_start,
+                    "date_end": date_end,
+                    "resource_id": resource.id,
+                    "allocated_percentage": self.allocated_percentage or 100.0,
+                    "enforcement_mode": "soft",
+                }
+            )
+        return vals_list
+
+    def _get_sync_trigger_fields(self):
+        """``employee_ids`` is the writeable field; ``user_ids`` is computed."""
+        triggers = super()._get_sync_trigger_fields()
+        triggers.discard("user_ids")
+        triggers.add("employee_ids")
+        return triggers
+
+    def action_view_schedule(self):
+        """Open the reservation view filtered to the assignees' resources.
+
+        Override of the core action: walks ``employee_ids.resource_id``
+        directly instead of ``user_ids → user._get_project_task_resource()``.
+        Each employee owns its resource, so the chain collapses and the
+        cross-company quirk goes away.
+        """
+        self.ensure_one()
+        resources = self.employee_ids.resource_id
+
+        if len(resources) == 1:
+            action_name = self.env._("Schedule — %s", resources.name)
+        elif resources:
+            action_name = self.env._("Schedule — %s assignees", len(resources))
+        else:
+            action_name = self.env._("Schedule")
+
+        context = {"search_default_my_schedule": 0}
+        start_field, end_field = self._get_reservation_date_fields()
+        anchor = (start_field and self[start_field]) or (end_field and self[end_field])
+        if anchor:
+            context["initial_date"] = anchor
+
+        return {
+            "type": "ir.actions.act_window",
+            "name": action_name,
+            "res_model": "resource.reservation",
+            "view_mode": "calendar,list,form",
+            "domain": [("resource_id", "in", resources.ids)],
+            "context": context,
+        }
 
     def write(self, vals):
         """Mirror date_assign and personal stage logic for employee_ids changes.

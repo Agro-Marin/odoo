@@ -513,7 +513,7 @@
                             <!-- Field needed to trigger its compute in project_enterprise, but will be replaced in an override defined in hr_timesheet module -->
                             <field name="allocated_hours" invisible="1"/>
                             <field name="allocated_percentage" invisible="1"/>
-                            <field name="schedule_conflict_count" invisible="1"/>
+                            <field name="schedule_overlap_count" invisible="1"/>
                         </group>
                     </group>
                         <field name="task_properties" columns="2"/>

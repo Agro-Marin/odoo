@@ -105,6 +105,7 @@ class ProjectTask(models.Model):
         "mail.tracking.duration.mixin",
         "portal.mixin",
         "rating.mixin",
+        "resource.scheduling.mixin",
     ]
     _mail_post_access = "read"
     _mail_thread_customer = True
@@ -367,16 +368,6 @@ class ProjectTask(models.Model):
         compute="_compute_subtask_allocated_hours",
         export_string_translation=False,
         help="Sum of the hours allocated for all the sub-tasks (and their own sub-tasks) linked to this task. Usually less than or equal to the allocated hours of this task.",
-    )
-    # ---- Resource reservations ----
-    reservation_ids = fields.One2many(
-        "resource.reservation",
-        compute="_compute_reservation_ids",
-        string="Reservations",
-    )
-    schedule_conflict_count = fields.Integer(
-        "Scheduling Conflicts",
-        compute="_compute_schedule_conflict_count",
     )
     # User names displayed in project sharing views
     portal_user_names = fields.Char(
@@ -946,12 +937,14 @@ class ProjectTask(models.Model):
         for stage, records in rot_enabled.grouped(self._track_duration_field).items():
             rotting = records.filtered(
                 lambda record: (
-                    record.date_last_status_change
-                    or record.create_date
-                    or fields.Datetime.now()
+                    (
+                        record.date_last_status_change
+                        or record.create_date
+                        or fields.Datetime.now()
+                    )
+                    + timedelta(days=stage.rotting_threshold_days)
+                    < now
                 )
-                + timedelta(days=stage.rotting_threshold_days)
-                < now
             )
             for record in rotting:
                 record.is_rotting = True
@@ -1357,8 +1350,10 @@ class ProjectTask(models.Model):
             if task.date_assign:
                 dt_assign = fields.Datetime.from_string(task.date_assign)
                 data = calendar.get_work_duration_data(
-                    dt_create, dt_assign,
-                    compute_leaves=True, domain=leave_domain,
+                    dt_create,
+                    dt_assign,
+                    compute_leaves=True,
+                    domain=leave_domain,
                 )
                 task.queue_time_hours = data["hours"]
                 task.queue_time_days = data["days"]
@@ -1370,8 +1365,10 @@ class ProjectTask(models.Model):
             if task.date_closed:
                 dt_end = fields.Datetime.from_string(task.date_closed)
                 data = calendar.get_work_duration_data(
-                    dt_create, dt_end,
-                    compute_leaves=True, domain=leave_domain,
+                    dt_create,
+                    dt_end,
+                    compute_leaves=True,
+                    domain=leave_domain,
                 )
                 task.lead_time_hours = data["hours"]
                 task.lead_time_days = data["days"]
@@ -1384,8 +1381,10 @@ class ProjectTask(models.Model):
                 dt_assign = fields.Datetime.from_string(task.date_assign)
                 dt_end = fields.Datetime.from_string(task.date_closed)
                 data = calendar.get_work_duration_data(
-                    dt_assign, dt_end,
-                    compute_leaves=True, domain=leave_domain,
+                    dt_assign,
+                    dt_end,
+                    compute_leaves=True,
+                    domain=leave_domain,
                 )
                 task.cycle_time_hours = data["hours"]
                 task.cycle_time_days = data["days"]
@@ -2310,13 +2309,6 @@ class ProjectTask(models.Model):
             super(ProjectTask, self.sudo()).write(additional_vals)
         result = super().write(vals)
 
-        # Sync resource reservations when scheduling fields change
-        start_field, end_field = self._get_reservation_date_fields()
-        if start_field:
-            reservation_triggers = {start_field, end_field, "user_ids", "allocated_percentage"}
-            if reservation_triggers & vals.keys():
-                self._sync_reservations()
-
         if "user_ids" in vals:
             self._populate_missing_triages()
 
@@ -2388,14 +2380,6 @@ class ProjectTask(models.Model):
                 task.recurrence_id.unlink()
         return super().unlink()
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_reservations(self):
-        """Clean up resource reservations when tasks are deleted."""
-        self.env["resource.reservation"].sudo().search([
-            ("res_model", "=", "project.task"),
-            ("res_id", "in", self.ids),
-        ]).unlink()
-
     def update_date_closed(self, step_id: int) -> None:
         """Return dict setting date_closed when step is folded (task closed)."""
         step = self.env["project.workflow.step"].browse(step_id)
@@ -2404,130 +2388,105 @@ class ProjectTask(models.Model):
         return {"date_closed": False}
 
     # ------------------------------------------------------------------
-    # Resource reservation integration
+    # Resource reservation integration (contracts from resource.scheduling.mixin)
     # ------------------------------------------------------------------
-
-    def _compute_reservation_ids(self):
-        """Virtual reverse One2many via res_model/res_id."""
-        reservation_sudo = self.env["resource.reservation"].sudo()
-        all_reservations = reservation_sudo.search([
-            ("res_model", "=", "project.task"),
-            ("res_id", "in", self.ids),
-        ])
-        grouped = {}
-        for res in all_reservations:
-            grouped.setdefault(res.res_id, self.env["resource.reservation"])
-            grouped[res.res_id] |= res
-        for task in self:
-            task.reservation_ids = grouped.get(task.id, self.env["resource.reservation"])
-
-    def _compute_schedule_conflict_count(self):
-        """Sum overlap counts from linked reservations."""
-        reservation_sudo = self.env["resource.reservation"].sudo()
-        all_reservations = reservation_sudo.search([
-            ("res_model", "=", "project.task"),
-            ("res_id", "in", self.ids),
-        ])
-        conflict_map = {}
-        for res in all_reservations:
-            conflict_map.setdefault(res.res_id, 0)
-            conflict_map[res.res_id] += res.schedule_overlap_count
-        for task in self:
-            task.schedule_conflict_count = conflict_map.get(task.id, 0)
 
     def _get_reservation_date_fields(self):
         """Return (start_field, end_field) names for reservation sync.
 
-        Core returns (None, None) because planned_date_begin only exists in
-        the enterprise layer.  project_enterprise overrides this.
+        Core returns (None, None) because ``planned_date_begin`` only exists
+        in the enterprise layer (``project_enterprise`` overrides this).
         """
         return (None, None)
 
-    def _sync_reservations(self):
-        """Create/update/delete resource.reservation records for scheduled tasks.
+    def _get_reservation_vals_list(self):
+        """Build one reservation dict per assignee with a resolvable resource.
 
-        Creates one reservation per assignee (user with a linked resource).
-        Called from enterprise write()/create() when scheduling fields change.
+        Returns an empty list when the task has no scheduling dates, no
+        assignees, or no assignee with a resource (e.g. portal users).
+
+        Each assignee is rebound to their own ``company_id`` before the
+        resource lookup.  ``user._get_project_task_resource`` walks
+        ``user.employee_id``, which is a company-dependent related field;
+        without the rebind, a user editing the task from a different
+        active company would see every assignee's resource resolve to
+        False and the sync would wipe the existing reservations.
         """
+        self.ensure_one()
         start_field, end_field = self._get_reservation_date_fields()
-        if not start_field:
-            return
+        if not start_field or not end_field:
+            return []
+        date_start = self[start_field]
+        date_end = self[end_field]
+        if not date_start or not date_end:
+            return []
 
-        reservation_sudo = self.env["resource.reservation"].sudo()
-        all_existing = reservation_sudo.search([
-            ("res_model", "=", "project.task"),
-            ("res_id", "in", self.ids),
-        ])
-        existing_map = {}
-        for res in all_existing:
-            existing_map.setdefault(res.res_id, self.env["resource.reservation"])
-            existing_map[res.res_id] |= res
-
-        to_create = []
-        to_delete = self.env["resource.reservation"]
-
-        for task in self:
-            existing = existing_map.get(task.id, self.env["resource.reservation"])
-            date_start = task[start_field]
-            date_end = task[end_field]
-
-            if not date_start or not date_end:
-                to_delete |= existing
+        vals_list = []
+        for user in self.user_ids:
+            # The user→resource helper lives in ``project_enterprise``; in
+            # core-only deployments no task carries reservations so skip.
+            get_resource = getattr(user, "_get_project_task_resource", None)
+            if not get_resource:
                 continue
-
-            # One reservation per assignee with a resolvable resource
-            target_resources = {}
-            for user in task.user_ids:
-                resource = user._get_project_task_resource()
-                if resource:
-                    target_resources[resource.id] = resource
-            if not target_resources:
-                to_delete |= existing
+            scoped = user.with_company(user.company_id) if user.company_id else user
+            resource = scoped._get_project_task_resource()
+            if not resource:
                 continue
-
-            # Reconcile by resource_id
-            existing_by_resource = {r.resource_id.id: r for r in existing}
-            for res_id, resource in target_resources.items():
-                vals = {
-                    "name": task.display_name,
+            vals_list.append(
+                {
+                    "name": self.display_name,
                     "date_start": date_start,
                     "date_end": date_end,
                     "resource_id": resource.id,
-                    "allocated_percentage": task.allocated_percentage or 100.0,
+                    "allocated_percentage": self.allocated_percentage or 100.0,
                     "enforcement_mode": "soft",
-                    "res_model": "project.task",
-                    "res_id": task.id,
                 }
-                if res_id in existing_by_resource:
-                    existing_by_resource.pop(res_id).write(vals)
-                else:
-                    to_create.append(vals)
-
-            # Stale reservations for resources no longer assigned
-            to_delete |= self.env["resource.reservation"].browse(
-                [r.id for r in existing_by_resource.values()]
             )
+        return vals_list
 
-        if to_create:
-            reservation_sudo.create(to_create)
-        if to_delete:
-            to_delete.sudo().unlink()
+    def _get_sync_trigger_fields(self):
+        """Assignees and allocation changes also trigger a reservation sync."""
+        triggers = super()._get_sync_trigger_fields()
+        triggers |= {"user_ids", "allocated_percentage"}
+        return triggers
 
     def action_view_schedule(self):
-        """Open the reservation calendar filtered to this task's assignees."""
+        """Open the reservation view filtered to the assignees' resources.
+
+        Shows every reservation held by each assignee (across all source
+        models, not only this task) so the user can spot cross-task
+        conflicts.  The calendar view opens on this task's scheduled
+        start (or end) to save a scroll.
+        """
         self.ensure_one()
-        resource_ids = []
+        resources = self.env["resource.resource"]
         for user in self.user_ids:
-            resource = user._get_project_task_resource()
-            if resource:
-                resource_ids.append(resource.id)
+            get_resource = getattr(user, "_get_project_task_resource", None)
+            if get_resource:
+                resource = get_resource()
+                if resource:
+                    resources |= resource
+
+        if len(resources) == 1:
+            action_name = self.env._("Schedule — %s", resources.name)
+        elif resources:
+            action_name = self.env._("Schedule — %s assignees", len(resources))
+        else:
+            action_name = self.env._("Schedule")
+
+        context = {"search_default_my_schedule": 0}
+        start_field, end_field = self._get_reservation_date_fields()
+        anchor = (start_field and self[start_field]) or (end_field and self[end_field])
+        if anchor:
+            context["initial_date"] = anchor
+
         return {
             "type": "ir.actions.act_window",
-            "name": self.env._("Schedule: %s", self.display_name),
+            "name": action_name,
             "res_model": "resource.reservation",
             "view_mode": "calendar,list,form",
-            "domain": [("resource_id", "in", resource_ids)] if resource_ids else [],
-            "context": {"search_default_my_schedule": 0},
+            "domain": [("resource_id", "in", resources.ids)],
+            "context": context,
         }
 
     def _search_on_comodel(
@@ -2895,8 +2854,9 @@ class ProjectTask(models.Model):
         project_user_group_id = self.env.ref("project.group_project_user").id
         new_group = (
             "group_project_user",
-            lambda pdata: pdata["type"] == "user"
-            and project_user_group_id in pdata["groups"],
+            lambda pdata: (
+                pdata["type"] == "user" and project_user_group_id in pdata["groups"]
+            ),
             {},
         )
         groups = [new_group] + groups
@@ -3608,8 +3568,11 @@ class ProjectTask(models.Model):
         self, thread_id, *, project_sharing_id=None, token=None, **kwargs
     ) -> Self:
         if project_sharing_id:
-            if result_token := ProjectSharingChatter._check_project_access_and_get_token(
-                self, project_sharing_id, self._name, thread_id, token
+            if (
+                result_token
+                := ProjectSharingChatter._check_project_access_and_get_token(
+                    self, project_sharing_id, self._name, thread_id, token
+                )
             ):
                 token = result_token
         return super()._get_thread_with_access(
