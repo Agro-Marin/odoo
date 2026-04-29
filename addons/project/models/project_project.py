@@ -571,7 +571,7 @@ class ProjectProject(models.Model):
         compute="_compute_flow_metrics",
         digits=(16, 1),
         help="Average working hours from creation to closure (last 90 days). "
-             "Includes queue wait time.",
+        "Includes queue wait time.",
         export_string_translation=False,
     )
     avg_cycle_time = fields.Float(
@@ -579,7 +579,7 @@ class ProjectProject(models.Model):
         compute="_compute_flow_metrics",
         digits=(16, 1),
         help="Average working hours from assignment to closure (last 90 days). "
-             "Excludes queue wait time.",
+        "Excludes queue wait time.",
         export_string_translation=False,
     )
     throughput_week = fields.Float(
@@ -708,7 +708,9 @@ class ProjectProject(models.Model):
     def _compute_current_baseline_id(self) -> None:
         """Find the current baseline for each project."""
         for project in self:
-            project.current_baseline_id = project.baseline_ids.filtered("is_current")[:1]
+            project.current_baseline_id = project.baseline_ids.filtered("is_current")[
+                :1
+            ]
 
     @api.depends("gate_ids")
     def _compute_gate_count(self) -> None:
@@ -734,11 +736,13 @@ class ProjectProject(models.Model):
         dates using the project's resource calendar.
         """
         self.ensure_one()
-        tasks = self.env["project.task"].search([
-            ("project_id", "=", self.id),
-            ("is_template", "=", False),
-            ("state", "not in", list(CLOSED_STATES)),
-        ])
+        tasks = self.env["project.task"].search(
+            [
+                ("project_id", "=", self.id),
+                ("is_template", "=", False),
+                ("state", "not in", list(CLOSED_STATES)),
+            ]
+        )
         if not tasks:
             return
 
@@ -826,7 +830,9 @@ class ProjectProject(models.Model):
                         if dtype == "fs":
                             lf[tid] = min(lf[tid], ls_map[succ_id] - lag)
                         elif dtype == "ss":
-                            lf[tid] = min(lf[tid], ls_map[succ_id] - lag + duration[tid])
+                            lf[tid] = min(
+                                lf[tid], ls_map[succ_id] - lag + duration[tid]
+                            )
                         elif dtype == "ff":
                             lf[tid] = min(lf[tid], lf[succ_id] - lag)
                         elif dtype == "sf":
@@ -845,16 +851,20 @@ class ProjectProject(models.Model):
             ls_h = ls_map.get(tid, 0.0)
             total_fl = ls_h - es_h
             planned_start = calendar.plan_hours(es_h, now) if es_h else now
-            planned_end = calendar.plan_hours(ef.get(tid, 0.0), now) if ef.get(tid) else now
+            planned_end = (
+                calendar.plan_hours(ef.get(tid, 0.0), now) if ef.get(tid) else now
+            )
             ls_dt = calendar.plan_hours(ls_h, now) if ls_h else now
-            task.write({
-                "earliest_start": planned_start,
-                "latest_start": ls_dt,
-                "total_float": total_fl,
-                "is_critical_path": abs(total_fl) < 0.01,
-                "planned_date_start": planned_start,
-                "planned_date_end": planned_end,
-            })
+            task.write(
+                {
+                    "earliest_start": planned_start,
+                    "latest_start": ls_dt,
+                    "total_float": total_fl,
+                    "is_critical_path": abs(total_fl) < 0.01,
+                    "planned_date_start": planned_start,
+                    "planned_date_end": planned_end,
+                }
+            )
 
     def action_level_resources(self) -> None:
         """Basic resource leveling: shift non-critical tasks to avoid overallocation.
@@ -874,13 +884,15 @@ class ProjectProject(models.Model):
         self.action_compute_critical_path()
 
         calendar = self.resource_calendar_id
-        tasks = self.env["project.task"].search([
-            ("project_id", "=", self.id),
-            ("is_template", "=", False),
-            ("state", "not in", list(CLOSED_STATES)),
-            ("planned_date_start", "!=", False),
-            ("planned_date_end", "!=", False),
-        ])
+        tasks = self.env["project.task"].search(
+            [
+                ("project_id", "=", self.id),
+                ("is_template", "=", False),
+                ("state", "not in", list(CLOSED_STATES)),
+                ("planned_date_start", "!=", False),
+                ("planned_date_end", "!=", False),
+            ]
+        )
         if not tasks:
             return
 
@@ -894,12 +906,14 @@ class ProjectProject(models.Model):
         user_slots: dict[int, list[tuple]] = defaultdict(list)
         for task in tasks:
             for user in task.user_ids:
-                user_slots[user.id].append((
-                    task.planned_date_start,
-                    task.planned_date_end,
-                    task.allocated_hours or 0.0,
-                    task.id,
-                ))
+                user_slots[user.id].append(
+                    (
+                        task.planned_date_start,
+                        task.planned_date_end,
+                        task.allocated_hours or 0.0,
+                        task.id,
+                    )
+                )
 
         # Heuristic: check if user has > 8h/day in any overlapping window
         for task in leveling_order:
@@ -909,7 +923,8 @@ class ProjectProject(models.Model):
                 slots = user_slots[user.id]
                 # Count concurrent hours in task's window
                 concurrent = sum(
-                    s[2] for s in slots
+                    s[2]
+                    for s in slots
                     if s[3] != task.id
                     and s[0] < task.planned_date_end
                     and s[1] > task.planned_date_start
@@ -918,31 +933,38 @@ class ProjectProject(models.Model):
                     continue
                 # Find latest end among overlapping tasks
                 latest_end = max(
-                    (s[1] for s in slots
-                     if s[3] != task.id
-                     and s[0] < task.planned_date_end
-                     and s[1] > task.planned_date_start),
+                    (
+                        s[1]
+                        for s in slots
+                        if s[3] != task.id
+                        and s[0] < task.planned_date_end
+                        and s[1] > task.planned_date_start
+                    ),
                     default=task.planned_date_start,
                 )
                 # Shift task to start after the overlap, respecting float
                 max_shift_hours = task.total_float or 0.0
-                new_start = calendar.plan_hours(
-                    task.allocated_hours, latest_end
-                ) if latest_end else task.planned_date_start
+                new_start = (
+                    calendar.plan_hours(task.allocated_hours, latest_end)
+                    if latest_end
+                    else task.planned_date_start
+                )
                 # Only shift if within float allowance
-                shift_hours = (new_start - task.planned_date_start).total_seconds() / 3600
+                shift_hours = (
+                    new_start - task.planned_date_start
+                ).total_seconds() / 3600
                 if 0 < shift_hours <= max_shift_hours:
-                    new_end = calendar.plan_hours(
-                        task.allocated_hours, new_start
-                    )
+                    new_end = calendar.plan_hours(task.allocated_hours, new_start)
                     # Update slot tracking
-                    user_slots[user.id] = [
-                        s for s in slots if s[3] != task.id
-                    ] + [(new_start, new_end, task.allocated_hours, task.id)]
-                    task.write({
-                        "planned_date_start": new_start,
-                        "planned_date_end": new_end,
-                    })
+                    user_slots[user.id] = [s for s in slots if s[3] != task.id] + [
+                        (new_start, new_end, task.allocated_hours, task.id)
+                    ]
+                    task.write(
+                        {
+                            "planned_date_start": new_start,
+                            "planned_date_end": new_end,
+                        }
+                    )
 
     @api.depends("retrospective_ids")
     def _compute_retrospective_count(self) -> None:
@@ -970,8 +992,9 @@ class ProjectProject(models.Model):
             self.health_status = "healthy"
             return
 
-        self.env.cr.execute(SQL(
-            """
+        self.env.cr.execute(
+            SQL(
+                """
             SELECT
                 t.project_id,
                 -- Schedule: pct of open tasks with deadline that are not overdue
@@ -1009,15 +1032,17 @@ class ProjectProject(models.Model):
               AND t.is_template = FALSE
             GROUP BY t.project_id
             """,
-            project_ids=tuple(self.ids),
-        ))
+                project_ids=tuple(self.ids),
+            )
+        )
         task_scores = {row[0]: (row[1], row[2]) for row in self.env.cr.fetchall()}
 
         # Milestone scores
         milestone_scores: dict[int, float] = {}
         if self.ids:
-            self.env.cr.execute(SQL(
-                """
+            self.env.cr.execute(
+                SQL(
+                    """
                 SELECT
                     project_id,
                     CASE
@@ -1030,22 +1055,25 @@ class ProjectProject(models.Model):
                 WHERE project_id IN %(project_ids)s
                 GROUP BY project_id
                 """,
-                project_ids=tuple(self.ids),
-            ))
+                    project_ids=tuple(self.ids),
+                )
+            )
             milestone_scores = {row[0]: row[1] for row in self.env.cr.fetchall()}
 
         # Risk scores (from already-computed risk_count)
         risk_data: dict[int, int] = {}
         if self.ids:
-            self.env.cr.execute(SQL(
-                """
+            self.env.cr.execute(
+                SQL(
+                    """
                 SELECT project_id, COALESCE(SUM(risk_score), 0)
                 FROM project_risk
                 WHERE project_id IN %(project_ids)s AND active = TRUE
                 GROUP BY project_id
                 """,
-                project_ids=tuple(self.ids),
-            ))
+                    project_ids=tuple(self.ids),
+                )
+            )
             risk_data = dict(self.env.cr.fetchall())
 
         for project in self:
@@ -1105,8 +1133,9 @@ class ProjectProject(models.Model):
             self.deadline_compliance_pct = 0.0
             return
 
-        self.env.cr.execute(SQL(
-            """
+        self.env.cr.execute(
+            SQL(
+                """
             SELECT
                 project_id,
                 -- WIP: open non-blocked tasks
@@ -1150,8 +1179,9 @@ class ProjectProject(models.Model):
               AND is_template = FALSE
             GROUP BY project_id
             """,
-            project_ids=tuple(self.ids),
-        ))
+                project_ids=tuple(self.ids),
+            )
+        )
         results = {row[0]: row[1:] for row in self.env.cr.fetchall()}
         for project in self:
             wip, avg_lt, avg_ct, tp, dcp = results.get(
@@ -1389,9 +1419,7 @@ class ProjectProject(models.Model):
         """Reset state for waiting tasks in the project if the feature is disabled
         or recompute the tasks with dependencies if the project has the feature enabled again
         """
-        project_with_task_dependencies_feature = self.filtered(
-            "allow_dependencies"
-        )
+        project_with_task_dependencies_feature = self.filtered("allow_dependencies")
         projects_without_task_dependencies_feature = (
             self - project_with_task_dependencies_feature
         )
@@ -1754,9 +1782,7 @@ class ProjectProject(models.Model):
 
         res = super().write(vals) if vals else True
 
-        if "allow_dependencies" in vals and not vals.get(
-            "allow_dependencies"
-        ):
+        if "allow_dependencies" in vals and not vals.get("allow_dependencies"):
             self.env["project.task"].search(
                 [
                     ("project_id", "in", self.ids),
@@ -2062,10 +2088,16 @@ class ProjectProject(models.Model):
             domain.append(("tag_ids", "in", self.tag_ids.ids))
         if self.task_count:
             # Use assignee count as proxy for team size
-            team_size = len(self.env["project.task"].search([
-                ("project_id", "=", self.id),
-                ("user_ids", "!=", False),
-            ]).mapped("user_ids"))
+            team_size = len(
+                self.env["project.task"]
+                .search(
+                    [
+                        ("project_id", "=", self.id),
+                        ("user_ids", "!=", False),
+                    ]
+                )
+                .mapped("user_ids")
+            )
             if team_size:
                 domain.append(("team_size", ">=", max(1, team_size - 2)))
                 domain.append(("team_size", "<=", team_size + 2))
@@ -2188,6 +2220,23 @@ class ProjectProject(models.Model):
         )
         action_context["search_default_project_id"] = self.id
         return dict(action, context=action_context)
+
+    def action_view_assigned_resources(self) -> dict:
+        """Open the resource.reservation calendar restricted to this project's tasks."""
+        self.ensure_one()
+        # Materialize task ids: resource.reservation links to tasks via the
+        # generic (res_model, res_id) reference pair, so the domain cannot
+        # push the project filter down through an ORM join.
+        task_ids = self.env["project.task"].search([("project_id", "=", self.id)]).ids
+        action = self.env["ir.actions.act_window"]._for_xml_id(
+            "project.action_project_task_assigned_resources"
+        )
+        action["display_name"] = _("%(name)s's Assigned Resources", name=self.name)
+        action["domain"] = [
+            ("res_model", "=", "project.task"),
+            ("res_id", "in", task_ids),
+        ]
+        return action
 
     def action_get_list_view(self) -> dict:
         action = self.env["ir.actions.act_window"]._for_xml_id(
@@ -2589,8 +2638,10 @@ class ProjectProject(models.Model):
     def _get_new_collaborators(self, partners: Any) -> list:
         self.ensure_one()
         return partners.filtered(
-            lambda partner: partner not in self.collaborator_ids.partner_id
-            and partner.partner_share
+            lambda partner: (
+                partner not in self.collaborator_ids.partner_id
+                and partner.partner_share
+            )
         )
 
     def _add_followers(self, partners: Any) -> None:
