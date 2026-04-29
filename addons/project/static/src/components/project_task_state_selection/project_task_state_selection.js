@@ -23,9 +23,12 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         this.state = useState({
             isStateButtonHighlighted: false,
         });
+        // 'todo' is consumed by project_workflow_step_state (step.task_state='todo').
+        // Removing it from any of icons/colorIcons/colorButton or from the unshift
+        // list in get options() breaks 1,300+ active tasks — see t19628, t21386.
+        // The Hoot test in tests/project_task_state_selection.test.js asserts the
+        // dropdown still includes "To Do" — it is the primary safeguard.
         this.icons = {
-            // 'todo' consumed by project_workflow_step_state (step.task_state='todo').
-            // Removing breaks 1,300+ active tasks — see t19628, t21386.
             "todo": "o_status o_status_todo",
             "in_progress": "o_status",
             "approved": "o_status o_status_green",
@@ -35,8 +38,6 @@ export class ProjectTaskStateSelection extends StateSelectionField {
             "blocked": "fa-solid fa-hourglass fa-lg",
         };
         this.colorIcons = {
-            // 'todo' consumed by project_workflow_step_state (step.task_state='todo').
-            // Removing breaks 1,300+ active tasks — see t19628, t21386.
             "todo": "",
             "in_progress": "",
             "approved": "text-success",
@@ -46,8 +47,6 @@ export class ProjectTaskStateSelection extends StateSelectionField {
             "blocked": "btn-outline-info",
         };
         this.colorButton = {
-            // 'todo' consumed by project_workflow_step_state (step.task_state='todo').
-            // Removing breaks 1,300+ active tasks — see t19628, t21386.
             "todo": "btn-outline-info",
             "in_progress": "btn-outline-secondary",
             "approved": "btn-outline-success",
@@ -92,8 +91,6 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         const states = ["canceled", "done"];
         const currentState = this.props.record.data[this.props.name];
         if (currentState != "blocked") {
-            // 'todo' consumed by project_workflow_step_state (step.task_state='todo').
-            // Removing breaks 1,300+ active tasks — see t19628, t21386.
             states.unshift("todo", "in_progress", "changes_requested", "approved");
         }
         return states.map((state) => [state, labels.get(state)]);

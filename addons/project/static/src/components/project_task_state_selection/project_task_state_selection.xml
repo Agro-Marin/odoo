@@ -42,9 +42,7 @@
                                     Mark as done
                                 </span>
                             </t>
-                            <t t-else="">
-                                <t t-out="label"/>
-                            </t>
+                            <t t-else="" t-out="label"/>
                         </span>
                     </div>
                 </button>
