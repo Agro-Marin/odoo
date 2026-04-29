@@ -558,7 +558,7 @@
                                     <field name="user_ids" widget="many2many_avatar_user" optional="show"/>
                                     <field name="company_id" groups="base.group_multi_company" optional="hide"/>
                                     <field name="company_id" column_invisible="True"/>
-                                    <field name="date_end" invisible="state in ['done', 'canceled']" optional="hide" decoration-danger="date_end and date_end &lt; current_date"/>
+                                    <field name="date_end" string="Planned Date" optional="show" readonly="state in ['done', 'canceled']" decoration-danger="date_end and date_end &lt; current_date and state not in ['done', 'canceled']"/>
                                     <field name="priority" widget="priority" optional="hide" width="70px"/>
                                     <field name="activity_ids" string="Next Activity" widget="list_activity" optional="hide"/>
                                     <field name="my_activity_date_deadline" string="My Deadline" widget="remaining_days" options="{'allow_order': '1'}" optional="hide"/>
