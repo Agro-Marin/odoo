@@ -63,6 +63,7 @@ test("project.task (form): check task state widget", async () => {
     await click("button.o_state_button");
     await animationFrame();
     expect(queryAllTexts(".state_selection_field_menu > .dropdown-item")).toEqual([
+        "To Do",
         "In Progress",
         "Changes Requested",
         "Approved",

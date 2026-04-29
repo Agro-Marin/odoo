@@ -20,7 +20,7 @@
         </xpath>
         <!-- The toggle mark as done button -->
         <xpath expr="//t[@t-if='props.readonly']" position="after">
-            <t t-elif="isToggleMode and currentValue == 'in_progress'">
+            <t t-elif="isToggleMode and ['todo', 'in_progress'].includes(currentValue)">
                 <button t-if="isView(['activity', 'kanban', 'list', 'calendar']) or this.env.isSmall"
                         class="d-flex align-items-center btn fw-normal p-0"
                         tabindex="-1"
@@ -42,9 +42,7 @@
                                     Mark as done
                                 </span>
                             </t>
-                            <t t-else="currentValue == 'in_progress'">
-                                In Progress
-                            </t>
+                            <t t-else="" t-out="label"/>
                         </span>
                     </div>
                 </button>
