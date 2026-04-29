@@ -2222,18 +2222,12 @@ class ProjectProject(models.Model):
         return dict(action, context=action_context)
 
     def action_view_assigned_resources(self) -> dict:
-        """Open the resource.reservation calendar restricted to this project's tasks.
-
-        Read-only by design (``create``/``edit``/``delete`` disabled in
-        the context): assignments are managed from each task's form,
-        this view is just the calendar projection of those.
-        """
+        """Open the resource.reservation calendar restricted to this project's tasks."""
         self.ensure_one()
-        task_ids = (
-            self.env["project.task"]
-            .search([("project_id", "=", self.id), ("active", "=", True)])
-            .ids
-        )
+        # Materialize task ids: resource.reservation links to tasks via the
+        # generic (res_model, res_id) reference pair, so the domain cannot
+        # push the project filter down through an ORM join.
+        task_ids = self.env["project.task"].search([("project_id", "=", self.id)]).ids
         action = self.env["ir.actions.act_window"]._for_xml_id(
             "project.action_project_task_assigned_resources"
         )
