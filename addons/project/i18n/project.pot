@@ -5709,3 +5709,33 @@ msgstr ""
 #: code:addons/project/models/project_task.py:0
 msgid "🔒 Private"
 msgstr ""
+
+#. module: project
+#: model:ir.actions.act_window,name:project.action_project_task_assigned_resources
+#: model:ir.ui.menu,name:project.menu_project_assigned_resources
+msgid "Assigned Resources"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_project_kanban
+msgid "Resources"
+msgstr ""
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_project.py:0
+msgid "%(name)s's Assigned Resources"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.actions.act_window,help:project.action_project_task_assigned_resources
+msgid "No assigned resources to display"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.actions.act_window,help:project.action_project_task_assigned_resources
+msgid ""
+"Resources appear here once tasks are scheduled and\n"
+"                    assigned to people or equipment.  This view is\n"
+"                    read-only; edit assignments from the task itself."
+msgstr ""

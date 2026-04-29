@@ -6341,6 +6341,39 @@ msgstr "👤 Sin asignar"
 msgid "🔒 Private"
 msgstr "🔒 Privado"
 
+#. module: project
+#: model:ir.actions.act_window,name:project.action_project_task_assigned_resources
+#: model:ir.ui.menu,name:project.menu_project_assigned_resources
+msgid "Assigned Resources"
+msgstr "Recursos asignados"
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_project_kanban
+msgid "Resources"
+msgstr "Recursos"
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_project.py:0
+msgid "%(name)s's Assigned Resources"
+msgstr "Recursos asignados de %(name)s"
+
+#. module: project
+#: model_terms:ir.actions.act_window,help:project.action_project_task_assigned_resources
+msgid "No assigned resources to display"
+msgstr "Sin recursos asignados para mostrar"
+
+#. module: project
+#: model_terms:ir.actions.act_window,help:project.action_project_task_assigned_resources
+msgid ""
+"Resources appear here once tasks are scheduled and\n"
+"                    assigned to people or equipment.  This view is\n"
+"                    read-only; edit assignments from the task itself."
+msgstr ""
+"Los recursos aparecen aquí cuando las tareas tienen fechas y se\n"
+"                    asignan a personas o equipos. Esta vista es de solo\n"
+"                    lectura; edita las asignaciones desde la tarea."
+
 #~ msgid "Invalid fields: "
 #~ msgstr "Campos no válidos: "
 
