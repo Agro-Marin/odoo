@@ -24,6 +24,9 @@ export class ProjectTaskStateSelection extends StateSelectionField {
             isStateButtonHighlighted: false,
         });
         this.icons = {
+            // 'todo' consumed by project_workflow_step_state (step.task_state='todo').
+            // Removing breaks 1,300+ active tasks — see t19628, t21386.
+            "todo": "o_status o_status_todo",
             "in_progress": "o_status",
             "approved": "o_status o_status_green",
             "changes_requested": "fa-solid fa-exclamation-circle fa-lg",
@@ -32,6 +35,9 @@ export class ProjectTaskStateSelection extends StateSelectionField {
             "blocked": "fa-solid fa-hourglass fa-lg",
         };
         this.colorIcons = {
+            // 'todo' consumed by project_workflow_step_state (step.task_state='todo').
+            // Removing breaks 1,300+ active tasks — see t19628, t21386.
+            "todo": "",
             "in_progress": "",
             "approved": "text-success",
             "changes_requested": "o_status_changes_requested",
@@ -40,6 +46,9 @@ export class ProjectTaskStateSelection extends StateSelectionField {
             "blocked": "btn-outline-info",
         };
         this.colorButton = {
+            // 'todo' consumed by project_workflow_step_state (step.task_state='todo').
+            // Removing breaks 1,300+ active tasks — see t19628, t21386.
+            "todo": "btn-outline-info",
             "in_progress": "btn-outline-secondary",
             "approved": "btn-outline-success",
             "changes_requested": "btn-outline-warning",
@@ -83,7 +92,9 @@ export class ProjectTaskStateSelection extends StateSelectionField {
         const states = ["canceled", "done"];
         const currentState = this.props.record.data[this.props.name];
         if (currentState != "blocked") {
-            states.unshift("in_progress", "changes_requested", "approved");
+            // 'todo' consumed by project_workflow_step_state (step.task_state='todo').
+            // Removing breaks 1,300+ active tasks — see t19628, t21386.
+            states.unshift("todo", "in_progress", "changes_requested", "approved");
         }
         return states.map((state) => [state, labels.get(state)]);
     }
