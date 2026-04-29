@@ -485,6 +485,9 @@
                                         <div role="menuitem" groups="project.group_project_milestone" t-if="record.allow_milestones.raw_value and !record.is_template.raw_value">
                                             <a name="action_get_list_view" type="object">Milestones</a>
                                         </div>
+                                        <div role="menuitem" t-if="!record.is_template.raw_value">
+                                            <a name="action_view_assigned_resources" type="object">Resources</a>
+                                        </div>
                                     </div>
                                     <div class="col-6 o_kanban_manage_reporting" t-if="!record.is_template.raw_value">
                                         <h5 role="menuitem" class="o_kanban_card_manage_title" groups="project.group_project_user">

@@ -43,6 +43,12 @@
                 action="action_view_backlog"
                 sequence="3"
             />
+            <menuitem
+                name="Assigned Resources"
+                id="menu_project_assigned_resources"
+                action="action_project_task_assigned_resources"
+                sequence="4"
+            />
         </menuitem>
         <menuitem
             name="Reporting"

@@ -2189,6 +2189,29 @@ class ProjectProject(models.Model):
         action_context["search_default_project_id"] = self.id
         return dict(action, context=action_context)
 
+    def action_view_assigned_resources(self) -> dict:
+        """Open the resource.reservation calendar restricted to this project's tasks.
+
+        Read-only by design (``create``/``edit``/``delete`` disabled in
+        the context): assignments are managed from each task's form,
+        this view is just the calendar projection of those.
+        """
+        self.ensure_one()
+        task_ids = (
+            self.env["project.task"]
+            .search([("project_id", "=", self.id), ("active", "=", True)])
+            .ids
+        )
+        action = self.env["ir.actions.act_window"]._for_xml_id(
+            "project.action_project_task_assigned_resources"
+        )
+        action["display_name"] = _("%(name)s's Assigned Resources", name=self.name)
+        action["domain"] = [
+            ("res_model", "=", "project.task"),
+            ("res_id", "in", task_ids),
+        ]
+        return action
+
     def action_get_list_view(self) -> dict:
         action = self.env["ir.actions.act_window"]._for_xml_id(
             "project.project_milestone_action"

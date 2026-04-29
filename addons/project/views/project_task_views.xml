@@ -1146,6 +1146,25 @@
             </field>
         </record>
 
+        <record id="action_project_task_assigned_resources" model="ir.actions.act_window">
+            <field name="name">Assigned Resources</field>
+            <field name="res_model">resource.reservation</field>
+            <field name="path">assigned-resources</field>
+            <field name="view_mode">calendar,list</field>
+            <field name="domain">[('res_model', '=', 'project.task')]</field>
+            <field name="context">{'create': False, 'edit': False, 'delete': False}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No assigned resources to display
+                </p>
+                <p>
+                    Resources appear here once tasks are scheduled and
+                    assigned to people or equipment.  This view is
+                    read-only; edit assignments from the task itself.
+                </p>
+            </field>
+        </record>
+
         <record id="open_view_task_list_kanban" model="ir.actions.act_window.view">
             <field name="sequence" eval="0"/>
             <field name="view_mode">kanban</field>
