@@ -23,6 +23,17 @@
                     options="{'no_open': True}"
                     domain="['|', ('company_id', '=', False), ('company_id', '=?', company_id)]" />
             </xpath>
+            <!--
+                Subtask list inside the form (child_ids O2M): swap user_ids for
+                employee_ids with the avatar widget, mirroring the main task list.
+            -->
+            <xpath expr="//field[@name='child_ids']/list//field[@name='user_ids']" position="replace">
+                <field name="user_ids" column_invisible="True" />
+                <field name="employee_ids"
+                    widget="many2many_avatar_employee"
+                    optional="show"
+                    domain="['|', ('company_id', '=', False), ('company_id', '=?', company_id)]" />
+            </xpath>
         </field>
     </record>
 
@@ -39,7 +50,7 @@
                 <field name="user_ids" column_invisible="True" />
                 <field name="employee_ids"
                     optional="show"
-                    widget="many2many_tags" />
+                    widget="many2many_avatar_employee" />
             </xpath>
         </field>
     </record>
