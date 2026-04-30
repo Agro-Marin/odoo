@@ -75,13 +75,13 @@ class ProjectSprint(models.Model):
     committed_hours = fields.Float(
         "Committed Hours",
         compute="_compute_task_metrics",
-        help="Sum of allocated_hours for all sprint tasks.",
+        help="Sum of planned_hours for all sprint tasks (PMI scope baseline).",
         export_string_translation=False,
     )
     velocity = fields.Float(
         "Velocity (hours)",
         compute="_compute_task_metrics",
-        help="Sum of allocated_hours for completed sprint tasks.",
+        help="Sum of planned_hours for completed sprint tasks.",
         export_string_translation=False,
     )
     story_points_committed = fields.Float(
@@ -102,7 +102,7 @@ class ProjectSprint(models.Model):
 
     @api.depends(
         "task_ids", "task_ids.state",
-        "task_ids.allocated_hours", "task_ids.story_points",
+        "task_ids.planned_hours", "task_ids.story_points",
     )
     def _compute_task_metrics(self) -> None:
         """Compute sprint metrics from task data."""
@@ -114,8 +114,8 @@ class ProjectSprint(models.Model):
             sprint.completion_pct = (
                 len(closed) / len(tasks) * 100 if tasks else 0.0
             )
-            sprint.committed_hours = sum(tasks.mapped("allocated_hours"))
-            sprint.velocity = sum(closed.mapped("allocated_hours"))
+            sprint.committed_hours = sum(tasks.mapped("planned_hours"))
+            sprint.velocity = sum(closed.mapped("planned_hours"))
             # Story points — only if tasks have the field populated
             sprint.story_points_committed = sum(tasks.mapped("story_points"))
             sprint.story_points_completed = sum(closed.mapped("story_points"))

@@ -1,6 +1,6 @@
 {
     "name": "Project HR",
-    "version": "1.0",
+    "version": "1.1",
     "author": "AgroMarin",
     "summary": "Replace user assignees in project with HR employees",
     "description": """

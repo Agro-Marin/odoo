@@ -43,7 +43,7 @@ class ProjectHistory(models.Model):
         help="(actual - planned) / planned * 100. Positive = over-schedule.",
         export_string_translation=False,
     )
-    planned_hours = fields.Float("Planned Hours (sum of allocated_hours)")
+    planned_hours = fields.Float("Planned Hours (sum of task.planned_hours)")
     actual_hours = fields.Float(
         "Actual Hours",
         help="Sum of effective_hours (requires timesheet module).",
@@ -124,8 +124,8 @@ class ProjectHistory(models.Model):
         if project.date_start:
             actual_days = (fields.Date.today() - project.date_start).days
 
-        # Aggregate hours
-        planned_hours = sum(tasks.mapped("allocated_hours"))
+        # Aggregate hours (PMI: scope baseline = sum of estimates).
+        planned_hours = sum(tasks.mapped("planned_hours"))
 
         # Actual hours — only available if timesheet module installed
         actual_hours = 0.0

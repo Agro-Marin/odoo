@@ -231,6 +231,8 @@
                     <field name="color" invisible="1"/>
                     <field name="sequence" invisible="1"/>
                     <field name="step_color" invisible="1"/>
+                    <field name="scheduled_hours" widget="float_time"/>
+                    <field name="planned_hours" widget="float_time"/>
                     <field name="allocated_hours" widget="float_time"/>
                     <field name="lead_time_hours" widget="float_time"/>
                     <field name="queue_time_hours" widget="float_time"/>
@@ -510,8 +512,17 @@
                                 <field name="repeat_until" invisible="repeat_type != 'until'" required="repeat_type == 'until'"
                                        class="me-2" />
                             </div>
-                            <!-- Field needed to trigger its compute in project_enterprise, but will be replaced in an override defined in hr_timesheet module -->
-                            <field name="allocated_hours" invisible="1"/>
+                            <!-- PMI hours model: scheduled (Duration), planned_resources (Units), planned (Effort), allocated (commitment) -->
+                            <field name="scheduled_hours" widget="float_time" readonly="1"/>
+                            <field name="planned_resources"/>
+                            <field name="planned_hours" widget="float_time"/>
+                            <field name="allocated_hours" widget="float_time" readonly="1"/>
+                            <field name="allocation_state" widget="badge"
+                                   decoration-muted="allocation_state == 'unestimated'"
+                                   decoration-info="allocation_state == 'unallocated'"
+                                   decoration-warning="allocation_state == 'under_allocated'"
+                                   decoration-success="allocation_state == 'allocated'"
+                                   decoration-danger="allocation_state == 'over_allocated'"/>
                             <field name="allocated_percentage" invisible="1"/>
                             <field name="schedule_overlap_count" invisible="1"/>
                         </group>

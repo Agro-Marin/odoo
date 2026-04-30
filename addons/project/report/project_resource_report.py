@@ -42,22 +42,34 @@ class ProjectResourceReport(models.Model):
     )
 
     def init(self) -> None:
-        """Create the SQL view for resource utilization."""
+        """Create the SQL view for resource utilization.
+
+        Sources ``allocated_hours`` from ``resource_reservation`` (per-resource
+        ledger) — NOT from ``project_task.allocated_hours``, which sums
+        across all assignees and would double-count multi-user tasks
+        when joined through ``project_task_user_rel``.  See PMI hours
+        model: this report measures actual resource commitment, so the
+        per-resource reservation row is canonical.
+        """
         tools.drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(f"""
             CREATE OR REPLACE VIEW {self._table} AS (
                 WITH user_project AS (
                     SELECT
-                        rel.user_id,
+                        res.user_id,
                         t.project_id,
-                        SUM(t.allocated_hours) AS allocated_hours,
-                        COUNT(*) AS task_count
-                    FROM project_task t
-                    JOIN project_task_user_rel rel ON rel.task_id = t.id
+                        SUM(rr.allocated_hours) AS allocated_hours,
+                        COUNT(DISTINCT t.id) AS task_count
+                    FROM resource_reservation rr
+                    JOIN resource_resource res ON res.id = rr.resource_id
+                    JOIN project_task t
+                         ON t.id = rr.res_id
+                        AND rr.res_model = 'project.task'
                     WHERE t.state NOT IN ('done', 'canceled')
                       AND t.project_id IS NOT NULL
                       AND t.is_template = FALSE
-                    GROUP BY rel.user_id, t.project_id
+                      AND res.user_id IS NOT NULL
+                    GROUP BY res.user_id, t.project_id
                 ),
                 user_totals AS (
                     SELECT

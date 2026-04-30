@@ -15,12 +15,12 @@ PROJECT_TASK_READABLE_FIELDS = {
     'analytic_account_active',
     'effective_hours',
     'encode_uom_in_days',
-    'allocated_hours',
+    'planned_hours',
     'progress',
     'overtime',
     'remaining_hours',
     'subtask_effective_hours',
-    'subtask_allocated_hours',
+    'subtask_planned_hours',
     'timesheet_ids',
     'total_hours_spent',
 }
@@ -36,7 +36,7 @@ class ProjectTask(models.Model):
         "Allow timesheets",
         compute='_compute_allow_timesheets', search='_search_allow_timesheets',
         compute_sudo=True, readonly=True, export_string_translation=False)
-    remaining_hours = fields.Float("Time Remaining", compute='_compute_remaining_hours', store=True, readonly=True, help="Number of allocated hours minus the number of hours spent.")
+    remaining_hours = fields.Float("Time Remaining", compute='_compute_remaining_hours', store=True, readonly=True, help="Number of planned hours minus the number of hours spent.")
     remaining_hours_percentage = fields.Float(compute='_compute_remaining_hours_percentage', search='_search_remaining_hours_percentage', export_string_translation=False)
     effective_hours = fields.Float("Time Spent", compute='_compute_effective_hours', compute_sudo=True, store=True)
     total_hours_spent = fields.Float("Total Time Spent", compute='_compute_total_hours_spent', store=True, help="Time spent on this task and its sub-tasks (and their own sub-tasks).")
@@ -46,7 +46,7 @@ class ProjectTask(models.Model):
     timesheet_ids = fields.One2many('account.analytic.line', 'task_id', 'Timesheets', export_string_translation=False)
     encode_uom_in_days = fields.Boolean(compute='_compute_encode_uom_in_days', default=lambda self: self._uom_in_days(), export_string_translation=False)
     display_name = fields.Char(help="""Use these keywords in the title to set new tasks:\n
-        30h Allocate 30 hours to the task
+        30h Plan 30 hours for the task
         #tags Set tags on the task
         @user Assign the task to a user
         ! Set the task a medium priority
@@ -92,22 +92,22 @@ class ProjectTask(models.Model):
         for task in self:
             task.effective_hours = timesheets_per_task.get(task.id, 0.0)
 
-    @api.depends('effective_hours', 'subtask_effective_hours', 'allocated_hours')
+    @api.depends('effective_hours', 'subtask_effective_hours', 'planned_hours')
     def _compute_progress_hours(self):
         for task in self:
-            if (task.allocated_hours > 0.0):
+            if (task.planned_hours > 0.0):
                 task_total_hours = task.effective_hours + task.subtask_effective_hours
-                task.overtime = max(task_total_hours - task.allocated_hours, 0)
-                task.progress = round(task_total_hours / task.allocated_hours, 2)
+                task.overtime = max(task_total_hours - task.planned_hours, 0)
+                task.progress = round(task_total_hours / task.planned_hours, 2)
             else:
                 task.progress = 0.0
                 task.overtime = 0
 
-    @api.depends('allocated_hours', 'remaining_hours')
+    @api.depends('planned_hours', 'remaining_hours')
     def _compute_remaining_hours_percentage(self):
         for task in self:
-            if task.allocated_hours > 0.0:
-                task.remaining_hours_percentage = task.remaining_hours / task.allocated_hours
+            if task.planned_hours > 0.0:
+                task.remaining_hours_percentage = task.remaining_hours / task.planned_hours
             else:
                 task.remaining_hours_percentage = 0.0
 
@@ -120,18 +120,18 @@ class ProjectTask(models.Model):
             SELECT id
               FROM %s
              WHERE remaining_hours > 0
-               AND allocated_hours > 0
-               AND remaining_hours / allocated_hours %s %s
+               AND planned_hours > 0
+               AND remaining_hours / planned_hours %s %s
         )""", SQL.identifier(self._table), SQL(operator), value)
         return [('id', 'in', sql)]
 
-    @api.depends('effective_hours', 'subtask_effective_hours', 'allocated_hours')
+    @api.depends('effective_hours', 'subtask_effective_hours', 'planned_hours')
     def _compute_remaining_hours(self):
         for task in self:
-            if not task.allocated_hours:
+            if not task.planned_hours:
                 task.remaining_hours = 0.0
             else:
-                task.remaining_hours = task.allocated_hours - task.effective_hours - task.subtask_effective_hours
+                task.remaining_hours = task.planned_hours - task.effective_hours - task.subtask_effective_hours
 
     @api.depends('effective_hours', 'subtask_effective_hours')
     def _compute_total_hours_spent(self):
@@ -146,23 +146,23 @@ class ProjectTask(models.Model):
     def _get_group_pattern(self):
         return {
             **super()._get_group_pattern(),
-            'allocated_hours': r'\s(\d+(?:\.\d+)?)[hH]',
+            'planned_hours': r'\s(\d+(?:\.\d+)?)[hH]',
         }
 
     def _prepare_pattern_groups(self):
-        return [self._get_group_pattern()['allocated_hours']] + super()._prepare_pattern_groups()
+        return [self._get_group_pattern()['planned_hours']] + super()._prepare_pattern_groups()
 
     def _get_cannot_start_with_patterns(self):
         return super()._get_cannot_start_with_patterns() + [r'(?!\d+(?:\.\d+)?(?:h|H))']
 
-    def _extract_allocated_hours(self):
-        allocated_hours_group = self._get_group_pattern()['allocated_hours']
+    def _extract_planned_hours(self):
+        planned_hours_group = self._get_group_pattern()['planned_hours']
         if self.allow_timesheets:
-            self.allocated_hours = sum(float(num) for num in re.findall(allocated_hours_group, self.display_name))
-            self.display_name, dummy = re.subn(allocated_hours_group, '', self.display_name)
+            self.planned_hours = sum(float(num) for num in re.findall(planned_hours_group, self.display_name))
+            self.display_name, dummy = re.subn(planned_hours_group, '', self.display_name)
 
     def _get_groups(self):
-        return [lambda task: task._extract_allocated_hours()] + super()._get_groups()
+        return [lambda task: task._extract_planned_hours()] + super()._get_groups()
 
     def action_view_subtask_timesheet(self):
         self.ensure_one()

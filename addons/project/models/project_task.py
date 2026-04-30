@@ -11,6 +11,7 @@ from odoo import SUPERUSER_ID, _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Date, Domain
 from odoo.tools import SQL, LazyTranslate, format_list, html_sanitize
+from odoo.tools.date_utils import localized
 
 from odoo.addons.html_editor.tools import handle_history_divergence
 from odoo.addons.mail.tools.discuss import Store
@@ -75,6 +76,7 @@ PROJECT_TASK_WRITABLE_FIELDS = {
     "name",
     "description",
     "partner_id",
+    "planned_date_begin",
     "date_end",
     "date_last_status_change",
     "tag_ids",
@@ -260,11 +262,24 @@ class ProjectTask(models.Model):
         readonly=True,
         help="Date on which this task was last assigned (or unassigned). Based on this, you can get statistics on the time it usually takes to assign tasks.",
     )
+    # Scheduled time range — PMI Constraint Start Date / Constraint End Date.
+    # User-entered values (independent of CPM-calculated planned_date_start /
+    # planned_date_end above).  ``date_end`` doubles as the deadline label
+    # for backward compatibility with vanilla Odoo's project module.
+    planned_date_begin = fields.Datetime(
+        "Start date",
+        tracking=True,
+        copy=False,
+    )
     date_end = fields.Datetime(
         string="Deadline",
         index=True,
         tracking=True,
         copy=False,
+    )
+    _planned_dates_check = models.Constraint(
+        "CHECK ((planned_date_begin <= date_end))",
+        "The planned start date must be before the planned end date.",
     )
 
     priority = fields.Selection(
@@ -357,17 +372,75 @@ class ProjectTask(models.Model):
     )
     tag_ids = fields.Many2many("project.tags", string="Tags")
 
-    allocated_hours = fields.Float("Allocated Time", tracking=True)
-    allocated_percentage = fields.Float(
-        "Allocation %",
-        default=100.0,
-        help="Percentage of each assignee's work capacity allocated to this task.",
+    # PMI hours model (see reference/business/pmi-hours-model.md):
+    # Three-tier intent → effort → commitment:
+    # - scheduled_hours:   working hours within the date range (Duration in
+    #                      working time units).
+    # - planned_resources: intent, how many resources the PM expects to need.
+    # - planned_hours:     scheduled x planned_resources (PMBOK Effort / Work).
+    # - allocated_hours:   sum(reservation_ids.allocated_hours) via mixin.
+    # - allocation_state:  health signal (unestimated / unallocated /
+    #                      under_allocated / allocated / over_allocated).
+    scheduled_hours = fields.Float(
+        "Working Duration",
+        compute="_compute_scheduled_hours",
+        store=True,
+        help="Working hours within the task's date range, computed against "
+        "the company calendar.  PMBOK: Activity Duration in working time "
+        "units.  One person at 100%% allocation could cover this many hours.",
     )
-    subtask_allocated_hours = fields.Float(
-        "Sub-tasks Allocated Time",
-        compute="_compute_subtask_allocated_hours",
+    planned_resources = fields.Integer(
+        "Planned Resources",
+        default=1,
+        tracking=True,
+        help="Number of parallel resources the PM expects to need to deliver "
+        "this task in its scheduled window.  Multiplies scheduled_hours to "
+        "derive total effort (planned_hours).  Example: 2-day window (16h) "
+        "with planned_resources=2 -> 32h effort = work for two people in "
+        "parallel.  PMBOK: planned resource units.",
+    )
+    planned_hours = fields.Float(
+        "Planned Hours",
+        compute="_compute_planned_hours",
+        store=True,
+        readonly=False,
+        tracking=True,
+        help="Estimated person-hours to complete the task.  Auto-derived as "
+        "scheduled_hours x planned_resources; user can override.  "
+        "PMBOK: Activity Effort / Work (scope baseline).",
+    )
+    allocated_hours = fields.Float(
+        "Allocated Hours",
+        tracking=True,
+        help="Working hours committed across all assigned employees "
+        "(sum of reservation_ids.allocated_hours).  PMBOK: Resource "
+        "Assignment Work / total person-hours.",
+    )
+    allocation_state = fields.Selection(
+        [
+            ("unestimated", "Unestimated"),
+            ("unallocated", "Unallocated"),
+            ("under_allocated", "Under-Allocated"),
+            ("allocated", "Allocated"),
+            ("over_allocated", "Over-Allocated"),
+        ],
+        string="Allocation Status",
+        compute="_compute_allocation_state",
+        store=True,
+        help="Resource allocation health relative to plan.  Tracks whether "
+        "the task has enough employees committed to cover its planned "
+        "effort.  Operational signal for PMs.  Pattern analog to "
+        "invoice_state on sale.order.",
+    )
+    # allocated_percentage inherited from resource.scheduling.mixin —
+    # uniform fractional allocation passed through to every reservation
+    # via _get_reservation_vals_list.  Per-resource fractional units (PMI
+    # strict per-assignment Units) lives on resource.reservation.
+    subtask_planned_hours = fields.Float(
+        "Sub-tasks Planned Hours",
+        compute="_compute_subtask_planned_hours",
         export_string_translation=False,
-        help="Sum of the hours allocated for all the sub-tasks (and their own sub-tasks) linked to this task. Usually less than or equal to the allocated hours of this task.",
+        help="Sum of the planned hours for all the sub-tasks (and their own sub-tasks) linked to this task. Usually less than or equal to the planned hours of this task.",
     )
     # User names displayed in project sharing views
     portal_user_names = fields.Char(
@@ -637,7 +710,7 @@ class ProjectTask(models.Model):
         store=True,
         help=(
             "Cost of Delay Divided by Duration (CD3). Higher = do first. "
-            "Computed as cost_of_delay / allocated_hours when both are set."
+            "Computed as cost_of_delay / planned_hours when both are set."
         ),
         export_string_translation=False,
     )
@@ -1417,12 +1490,16 @@ class ProjectTask(models.Model):
                     task.date_closed and task.date_closed <= task.date_end
                 )
 
-    @api.depends("cost_of_delay", "allocated_hours")
+    @api.depends("cost_of_delay", "planned_hours")
     def _compute_cd3_score(self) -> None:
-        """Compute Cost of Delay Divided by Duration for value-based prioritization."""
+        """Compute Cost of Delay Divided by Duration for value-based prioritization.
+
+        Uses ``planned_hours`` (estimate-based) so prioritization works
+        even before resources are assigned.  See PMI hours model.
+        """
         for task in self:
-            if task.cost_of_delay and task.allocated_hours:
-                task.cd3_score = task.cost_of_delay / task.allocated_hours
+            if task.cost_of_delay and task.planned_hours:
+                task.cd3_score = task.cost_of_delay / task.planned_hours
             else:
                 task.cd3_score = 0.0
 
@@ -1436,18 +1513,23 @@ class ProjectTask(models.Model):
             self.is_overallocated = False
             return
 
-        # Single query: total allocated hours per user across open tasks
+        # Per-user commitment hours come from the per-resource reservation
+        # ledger (NOT task.allocated_hours, which now sums across all
+        # assignees and would double-count under task_user_rel join).
         self.env.cr.execute(
             SQL(
                 """
-            SELECT rel.user_id, SUM(t.allocated_hours)
-            FROM project_task t
-            JOIN project_task_user_rel rel ON rel.task_id = t.id
-            WHERE rel.user_id IN %(user_ids)s
+            SELECT res.user_id, SUM(rr.allocated_hours)
+            FROM resource_reservation rr
+            JOIN resource_resource res ON res.id = rr.resource_id
+            JOIN project_task t
+                 ON t.id = rr.res_id
+                AND rr.res_model = 'project.task'
+            WHERE res.user_id IN %(user_ids)s
               AND t.state NOT IN ('done', 'canceled')
               AND t.is_template = FALSE
-            GROUP BY rel.user_id
-            HAVING SUM(t.allocated_hours) > 40
+            GROUP BY res.user_id
+            HAVING SUM(rr.allocated_hours) > 40
             """,
                 user_ids=tuple(all_user_ids),
             )
@@ -1461,10 +1543,86 @@ class ProjectTask(models.Model):
         for task in self:
             task.access_url = f"/my/tasks/{task.id}"
 
-    @api.depends("child_ids.allocated_hours")
-    def _compute_subtask_allocated_hours(self) -> None:
+    @api.depends("child_ids.planned_hours")
+    def _compute_subtask_planned_hours(self) -> None:
         for task in self:
-            task.subtask_allocated_hours = sum(task.child_ids.mapped("allocated_hours"))
+            task.subtask_planned_hours = sum(task.child_ids.mapped("planned_hours"))
+
+    @api.depends(
+        "planned_date_begin",
+        "date_end",
+        "company_id",
+    )
+    def _compute_scheduled_hours(self) -> None:
+        """Working hours within the task's scheduled range.
+
+        Computed against the company calendar (respects working days,
+        compute_leaves=True so lunch and holidays don't count).  This is
+        the *Duration* leg of the PMI triangle (Effort = Duration x Units);
+        ``planned_hours`` multiplies it by ``planned_resources`` to get
+        total effort.
+        """
+        for task in self:
+            if not task.planned_date_begin or not task.date_end:
+                task.scheduled_hours = 0.0
+                continue
+            calendar = (
+                task.company_id.resource_calendar_id
+                or task.env.company.resource_calendar_id
+            )
+            if not calendar:
+                task.scheduled_hours = 0.0
+                continue
+            task.scheduled_hours = round(
+                calendar.get_work_hours_count(
+                    localized(task.planned_date_begin),
+                    localized(task.date_end),
+                    compute_leaves=True,
+                ),
+                2,
+            )
+
+    @api.depends("scheduled_hours", "planned_resources")
+    def _compute_planned_hours(self) -> None:
+        """Total effort = scheduled hours x planned resource units.
+
+        Auto-derived following PMI's Effort = Duration x Resources formula.
+        ``readonly=False`` lets users override when the math doesn't fit
+        (e.g., a single resource at fractional allocation); the override
+        sticks until ``scheduled_hours`` or ``planned_resources`` changes.
+        """
+        for task in self:
+            task.planned_hours = round(
+                task.scheduled_hours * (task.planned_resources or 1),
+                2,
+            )
+
+    @api.depends("planned_hours", "allocated_hours")
+    def _compute_allocation_state(self) -> None:
+        """Resource allocation health relative to plan.
+
+        Mirrors the ``invoice_state`` pattern on ``sale.order``.  States:
+
+        - ``unestimated``: no planned_hours yet (no dates / no resources).
+        - ``unallocated``: estimate exists but no resources committed.
+        - ``under_allocated``: some commitment but less than estimate.
+        - ``allocated``: commitment matches estimate (within tolerance).
+        - ``over_allocated``: commitment exceeds estimate (PM over-asignó).
+        """
+        TOLERANCE = 0.01
+        for task in self:
+            if task.planned_hours <= 0:
+                task.allocation_state = "unestimated"
+                continue
+            diff = task.allocated_hours - task.planned_hours
+            if task.allocated_hours <= 0:
+                task.allocation_state = "unallocated"
+            elif abs(diff) < TOLERANCE:
+                task.allocation_state = "allocated"
+            elif diff > 0:
+                task.allocation_state = "over_allocated"
+            else:
+                task.allocation_state = "under_allocated"
 
     @api.depends("child_ids")
     def _compute_subtask_count(self) -> None:
@@ -2392,12 +2550,8 @@ class ProjectTask(models.Model):
     # ------------------------------------------------------------------
 
     def _get_reservation_date_fields(self):
-        """Return (start_field, end_field) names for reservation sync.
-
-        Core returns (None, None) because ``planned_date_begin`` only exists
-        in the enterprise layer (``project_enterprise`` overrides this).
-        """
-        return (None, None)
+        """Return (start_field, end_field) names for reservation sync."""
+        return ("planned_date_begin", "date_end")
 
     def _get_reservation_vals_list(self):
         """Build one reservation dict per assignee with a resolvable resource.
@@ -2449,6 +2603,74 @@ class ProjectTask(models.Model):
         triggers = super()._get_sync_trigger_fields()
         triggers |= {"user_ids", "allocated_percentage"}
         return triggers
+
+    @api.onchange("date_end", "planned_date_begin")
+    def _onchange_planned_dates(self):
+        """Clear ``planned_date_begin`` when ``date_end`` is removed.
+
+        Data invariant: a scheduled-start without a scheduled-end is a
+        meaningless schedule.  Mirrors what users expect when they
+        unschedule a task by clearing the deadline.
+        """
+        if not self.date_end:
+            self.planned_date_begin = False
+
+    def action_unschedule_task(self):
+        """Clear scheduling dates (used by gantt 'unschedule' action)."""
+        self.write({
+            "planned_date_begin": False,
+            "date_end": False,
+        })
+
+    @api.model
+    def _calculate_planned_dates(
+        self, date_start, date_stop, user_id=None, calendar=None
+    ):
+        """Snap a (start, stop) range to the first/last working intervals.
+
+        Returns the input range unchanged when no calendar is resolvable
+        or when the range falls entirely outside working time.  Used by
+        ``project_enterprise`` for gantt drag-on-calendar UX, and
+        available to any consumer that needs calendar-aware date alignment.
+        """
+        if not (date_start and date_stop):
+            raise UserError(
+                _(
+                    "One parameter is missing to use this method. "
+                    "You should give a start and end dates."
+                )
+            )
+        start, stop = date_start, date_stop
+        if isinstance(start, str):
+            start = fields.Datetime.from_string(start)
+        if isinstance(stop, str):
+            stop = fields.Datetime.from_string(stop)
+
+        if not calendar:
+            user = (
+                self.env["res.users"].sudo().browse(user_id)
+                if user_id and user_id != self.env.user.id
+                else self.env.user
+            )
+            calendar = (
+                user.resource_calendar_id
+                or self.env.company.resource_calendar_id
+            )
+            if not calendar:
+                return date_start, date_stop
+
+        if not start.tzinfo:
+            start = start.replace(tzinfo=UTC)
+        if not stop.tzinfo:
+            stop = stop.replace(tzinfo=UTC)
+
+        intervals = calendar._work_intervals_batch(start, stop)[False]
+        if not intervals:
+            return date_start, date_stop
+        list_intervals = [(s, e) for s, e, _records in intervals]
+        start = list_intervals[0][0].astimezone(UTC).replace(tzinfo=None)
+        stop = list_intervals[-1][1].astimezone(UTC).replace(tzinfo=None)
+        return start, stop
 
     def action_view_schedule(self):
         """Open the reservation view filtered to the assignees' resources.

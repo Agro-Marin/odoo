@@ -17,7 +17,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
     _auto = False
     _order = "date"
 
-    allocated_hours = fields.Float(string="Allocated Time", readonly=True)
+    planned_hours = fields.Float(string="Planned Hours", readonly=True)
     date = fields.Datetime("Date", readonly=True)
     date_assign = fields.Datetime(string="Assignment Date", readonly=True)
     date_end = fields.Date(string="Deadline", readonly=True)
@@ -145,7 +145,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
               WITH task_ids AS %(task_query_subselect)s,
               all_step_task_moves AS (
                  SELECT count(*) as __count,
-                        sum(allocated_hours) as allocated_hours,
+                        sum(planned_hours) as planned_hours,
                         project_id,
                         %(date_begin)s as date_begin,
                         %(date_end)s as date_end,
@@ -153,7 +153,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                         is_closed
                    FROM (
                             SELECT DISTINCT task_id,
-                                   allocated_hours,
+                                   planned_hours,
                                    project_id,
                                    %(date_begin)s as date_begin,
                                    %(date_end)s as date_end,
@@ -161,7 +161,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                                    is_closed
                               FROM (
                                      SELECT pt.id as task_id,
-                                            pt.allocated_hours,
+                                            pt.planned_hours,
                                             pt.project_id,
                                             COALESCE(LAG(mm.date) OVER (PARTITION BY mm.res_id ORDER BY mm.id), pt.create_date) as date_begin,
                                             CASE WHEN mtv.id IS NOT NULL THEN mm.date
@@ -188,7 +188,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                                       WHERE pt.active=true AND pt.id IN (SELECT id from task_ids)
                                    ) task_step_id_history
                           GROUP BY task_id,
-                                   allocated_hours,
+                                   planned_hours,
                                    project_id,
                                    %(date_begin)s,
                                    %(date_end)s,
@@ -197,7 +197,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                             WINDOW task_date_begin_window AS (PARTITION BY task_id, %(date_begin)s)
                           UNION ALL
                             SELECT pt.id as task_id,
-                                   pt.allocated_hours,
+                                   pt.planned_hours,
                                    pt.project_id,
                                    last_step_id_change_mail_message.date as date_begin,
                                    (now() at time zone 'utc')::date + INTERVAL '%(interval)s' as date_end,
@@ -219,7 +219,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                                    ) AS last_step_id_change_mail_message ON TRUE
                              WHERE pt.active=true AND pt.id IN (SELECT id from task_ids)
                         ) AS project_task_burndown_chart
-               GROUP BY allocated_hours,
+               GROUP BY planned_hours,
                         project_id,
                         %(date_begin)s,
                         %(date_end)s,
@@ -227,7 +227,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                         is_closed
               )
               SELECT (project_id*10^13 + step_id*10^7 + to_char(date, 'YYMMDD')::integer)::bigint as id,
-                     allocated_hours,
+                     planned_hours,
                      project_id,
                      step_id,
                      is_closed,
