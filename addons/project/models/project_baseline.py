@@ -88,7 +88,7 @@ class ProjectBaseline(models.Model):
                 "task_name": task.name,
                 "planned_start": task.date_assign,
                 "planned_end": task.date_end,
-                "planned_hours": task.allocated_hours,
+                "planned_hours": task.planned_hours,
                 "milestone_id": task.milestone_id.id,
                 "step_id": task.step_id.id,
             }

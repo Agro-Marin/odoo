@@ -11,8 +11,10 @@ class ResourceSchedulingMixin(models.AbstractModel):
 
     Provides:
     - Reverse One2many to ``resource.reservation`` via ``(res_model, res_id)``
-    - Shared ``allocated_percentage`` + computed ``allocated_hours``
-      and ``schedule_overlap_count``
+    - Shared ``allocated_percentage`` (input passed through to reservations)
+    - Computed ``allocated_hours`` aggregated from ``reservation_ids``
+      (PMI Work semantic: sum of person-hours committed across resources)
+    - Computed ``schedule_overlap_count`` aggregated from reservations
     - CRUD hooks that reconcile reservations via ``_sync_reservations``
     - Contracts consumers override: ``_get_reservation_date_fields``,
       ``_get_reservation_vals_list``, ``_get_sync_trigger_fields``
@@ -21,10 +23,10 @@ class ResourceSchedulingMixin(models.AbstractModel):
       ``_scheduling_resolve_calendar``) for calendar-aware computations
       independent of field-name conventions
 
-    Scheduling data fields (date_start, date_end, resource_id,
-    resource_calendar_id) live on ``resource.reservation`` itself — consumer
-    models expose their own date fields via ``_get_reservation_date_fields``
-    and build sync payloads via ``_get_reservation_vals_list``.
+    Consumers that need a planning estimate independent of resource
+    commitment (e.g. ``project.task.planned_hours``) declare it locally;
+    the mixin only computes the *committed* side.  See PMI hours model in
+    ``knowledge/agromarin-knowledge/reference/business/pmi-hours-model.md``.
     """
 
     _name = "resource.scheduling.mixin"
@@ -162,42 +164,29 @@ class ResourceSchedulingMixin(models.AbstractModel):
     # Generic computes
     # ------------------------------------------------------------------
 
+    @api.depends("reservation_ids.allocated_hours")
     def _compute_allocated_hours(self):
-        """Compute working hours from the consumer's date fields.
+        """Aggregate committed hours from the canonical reservation ledger.
 
-        When ``_get_reservation_date_fields`` returns ``(None, None)`` the
-        consumer is not calendar-aware at the core level; preserve any
-        manually entered value rather than overwriting it with zero.
+        ``resource.reservation`` owns the per-record calendar-aware
+        computation (see ``resource_reservation._compute_allocated_hours``).
+        The mixin sums those values across the consumer's reservations.
 
-        Consumers with real date fields typically override this with a
-        domain-specific compute (e.g. ``project_enterprise`` uses
-        ``planned_date_begin`` / ``date_end`` + assignee calendars).
+        Multi-resource consumers report the PMI Work semantic
+        (person-hours of effort committed): a task with two assignees over
+        the same range yields ``2x range_work_hours``.  This is intentional
+        - see ``project.task.unallocated_hours`` for the gap between
+        ``planned_hours`` (estimate) and ``allocated_hours`` (committed).
+
+        Consumers without reservations report ``0.0`` honestly: no
+        commitment yet.  The estimate of effort lives in
+        ``planned_hours`` on the consumer (when the consumer declares it),
+        not here.
         """
         for record in self:
-            start_field, end_field = record._get_reservation_date_fields()
-            if not start_field or not end_field:
-                # No scheduling fields: keep the manual value (the field is
-                # stored + readonly=False, so direct writes already persist).
-                continue
-            date_start = record[start_field]
-            date_end = record[end_field]
-            if not date_start or not date_end:
-                record.allocated_hours = 0.0
-                continue
-            resource = record.resource_id if "resource_id" in record._fields else None
-            calendar = (
-                record.resource_calendar_id
-                if "resource_calendar_id" in record._fields
-                else None
+            record.allocated_hours = sum(
+                record.reservation_ids.mapped("allocated_hours")
             )
-            work_hours = record._scheduling_get_work_hours(
-                date_start,
-                date_end,
-                resource=resource,
-                calendar=calendar,
-            )
-            pct = record.allocated_percentage
-            record.allocated_hours = round(work_hours * pct / 100.0, 2)
 
     @api.depends("reservation_ids.schedule_overlap_count")
     def _compute_schedule_overlap_count(self):

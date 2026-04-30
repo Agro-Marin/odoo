@@ -75,7 +75,7 @@
                         <list>
                             <field name="name"/>
                             <field name="user_ids" widget="many2many_avatar_user"/>
-                            <field name="allocated_hours" widget="float_time"/>
+                            <field name="planned_hours" widget="float_time"/>
                             <field name="story_points" optional="show"/>
                             <field name="state"/>
                             <field name="step_id" optional="hide"/>
