@@ -139,7 +139,14 @@ Featuring
             'website/static/src/libs/zoomodoo/zoomodoo.js',
             'web/static/src/core/**/*.js',
             'web/static/src/env.js',
-            ('remove', 'web/static/src/components/emoji_picker/emoji_data.js'),
+            # emoji_data.js was moved from web/static/src/core/emoji_picker/
+            # to web/static/src/components/emoji_picker/ during the ESM
+            # migration. The 'core/**/*.js' glob above no longer pulls it
+            # in, so the previous ('remove', ...) entry was orphaned and
+            # crashed _pregenerate_assets_bundles with ValueError. The
+            # exclusion intent (keep this minimal embed bundle small) is
+            # already satisfied by the new path layout — no replacement
+            # needed.
 
             'website_slides/static/src/scss/website_slides.scss',
             'website_slides/static/lib/pdfslidesviewer/PDFSlidesViewer.js',
