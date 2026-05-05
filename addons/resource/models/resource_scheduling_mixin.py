@@ -166,23 +166,7 @@ class ResourceSchedulingMixin(models.AbstractModel):
 
     @api.depends("reservation_ids.allocated_hours")
     def _compute_allocated_hours(self):
-        """Aggregate committed hours from the canonical reservation ledger.
-
-        ``resource.reservation`` owns the per-record calendar-aware
-        computation (see ``resource_reservation._compute_allocated_hours``).
-        The mixin sums those values across the consumer's reservations.
-
-        Multi-resource consumers report the PMI Work semantic
-        (person-hours of effort committed): a task with two assignees over
-        the same range yields ``2x range_work_hours``.  This is intentional
-        - see ``project.task.unallocated_hours`` for the gap between
-        ``planned_hours`` (estimate) and ``allocated_hours`` (committed).
-
-        Consumers without reservations report ``0.0`` honestly: no
-        commitment yet.  The estimate of effort lives in
-        ``planned_hours`` on the consumer (when the consumer declares it),
-        not here.
-        """
+        """Aggregate committed hours from the consumer's reservation ledger."""
         for record in self:
             record.allocated_hours = sum(
                 record.reservation_ids.mapped("allocated_hours")

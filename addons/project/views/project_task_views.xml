@@ -400,6 +400,12 @@
                     </header>
                     <!-- Used in inherited views to display the eventual warnings -->
                     <t name="warning_section"/>
+                    <field name="is_overallocated" invisible="1"/>
+                    <div class="alert alert-warning d-flex align-items-center" role="alert"
+                         invisible="not is_overallocated">
+                        <i class="fa fa-exclamation-triangle me-2" aria-hidden="true"/>
+                        <span>An assignee on this task is over-allocated: a reservation conflicts in time with another assignment summing more than 100% allocation.</span>
+                    </div>
                     <sheet string="Task">
                     <div class="oe_button_box" name="button_box" groups="base.group_user">
                         <!-- Dummy tag for organizing buttons, using position='replace' when inheriting -->
@@ -512,17 +518,6 @@
                                 <field name="repeat_until" invisible="repeat_type != 'until'" required="repeat_type == 'until'"
                                        class="me-2" />
                             </div>
-                            <!-- PMI hours model: scheduled (Duration), planned_resources (Units), planned (Effort), allocated (commitment) -->
-                            <field name="scheduled_hours" widget="float_time" readonly="1"/>
-                            <field name="planned_resources"/>
-                            <field name="planned_hours" widget="float_time"/>
-                            <field name="allocated_hours" widget="float_time" readonly="1"/>
-                            <field name="allocation_state" widget="badge"
-                                   decoration-muted="allocation_state == 'unestimated'"
-                                   decoration-info="allocation_state == 'unallocated'"
-                                   decoration-warning="allocation_state == 'under_allocated'"
-                                   decoration-success="allocation_state == 'allocated'"
-                                   decoration-danger="allocation_state == 'over_allocated'"/>
                             <field name="allocated_percentage" invisible="1"/>
                             <field name="schedule_overlap_count" invisible="1"/>
                         </group>
@@ -672,12 +667,18 @@
                                     <field name="cost_of_delay"/>
                                     <field name="cd3_score" invisible="not cd3_score"/>
                                 </group>
-                                <group string="Scheduling" invisible="not allow_dependencies">
-                                    <field name="is_critical_path"/>
-                                    <field name="total_float" widget="float_time" invisible="not is_critical_path and total_float == 0"/>
-                                    <field name="planned_date_start" readonly="True"/>
-                                    <field name="planned_date_end" readonly="True"/>
-                                    <field name="is_overallocated"/>
+                                <group string="Scheduling">
+                                    <!-- PMI hours: scheduled (Duration), planned_resources (Units), planned (Effort), allocated (commitment) -->
+                                    <field name="scheduled_hours" widget="float_time" readonly="1"/>
+                                    <field name="planned_resources"/>
+                                    <field name="planned_hours" widget="float_time"/>
+                                    <field name="allocated_hours" widget="float_time" readonly="1"/>
+                                    <field name="allocation_state" widget="badge"
+                                           decoration-muted="allocation_state == 'unestimated'"
+                                           decoration-info="allocation_state == 'unallocated'"
+                                           decoration-warning="allocation_state == 'under_allocated'"
+                                           decoration-success="allocation_state == 'allocated'"
+                                           decoration-danger="allocation_state == 'over_allocated'"/>
                                 </group>
                             </group>
                         </page>

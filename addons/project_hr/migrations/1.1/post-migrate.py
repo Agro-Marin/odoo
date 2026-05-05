@@ -61,7 +61,12 @@ def migrate(cr, version):
         BATCH_SIZE,
     )
 
-    Task = env["project.task"].with_context(active_test=False)
+    Task = env["project.task"].with_context(
+        active_test=False,
+        tracking_disable=True,
+        mail_notrack=True,
+        mail_create_nosubscribe=True,
+    )
     processed = 0
     for offset in range(0, total, BATCH_SIZE):
         batch_ids = task_ids[offset : offset + BATCH_SIZE]

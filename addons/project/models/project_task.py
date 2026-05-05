@@ -10,8 +10,14 @@ from pytz import UTC
 from odoo import SUPERUSER_ID, _, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Date, Domain
-from odoo.tools import SQL, LazyTranslate, format_list, html_sanitize
-from odoo.tools.date_utils import localized
+from odoo.tools import (
+    SQL,
+    LazyTranslate,
+    float_compare,
+    float_is_zero,
+    format_list,
+    html_sanitize,
+)
 
 from odoo.addons.html_editor.tools import handle_history_divergence
 from odoo.addons.mail.tools.discuss import Store
@@ -372,15 +378,8 @@ class ProjectTask(models.Model):
     )
     tag_ids = fields.Many2many("project.tags", string="Tags")
 
-    # PMI hours model (see reference/business/pmi-hours-model.md):
-    # Three-tier intent → effort → commitment:
-    # - scheduled_hours:   working hours within the date range (Duration in
-    #                      working time units).
-    # - planned_resources: intent, how many resources the PM expects to need.
-    # - planned_hours:     scheduled x planned_resources (PMBOK Effort / Work).
-    # - allocated_hours:   sum(reservation_ids.allocated_hours) via mixin.
-    # - allocation_state:  health signal (unestimated / unallocated /
-    #                      under_allocated / allocated / over_allocated).
+    # PMI hours model: scheduled (duration) -> planned (effort) ->
+    # allocated (commitment). See reference/business/pmi-hours-model.md.
     scheduled_hours = fields.Float(
         "Working Duration",
         compute="_compute_scheduled_hours",
@@ -399,15 +398,19 @@ class ProjectTask(models.Model):
         "with planned_resources=2 -> 32h effort = work for two people in "
         "parallel.  PMBOK: planned resource units.",
     )
+    _planned_resources_positive = models.Constraint(
+        "CHECK (planned_resources > 0)",
+        "Planned Resources must be greater than zero.",
+    )
     planned_hours = fields.Float(
         "Planned Hours",
         compute="_compute_planned_hours",
+        inverse="_inverse_planned_hours",
         store=True,
         readonly=False,
-        tracking=True,
         help="Estimated person-hours to complete the task.  Auto-derived as "
-        "scheduled_hours x planned_resources; user can override.  "
-        "PMBOK: Activity Effort / Work (scope baseline).",
+        "scheduled_hours x planned_resources x (allocated_percentage / 100); "
+        "user can override.  PMBOK: Activity Effort / Work (scope baseline).",
     )
     allocated_hours = fields.Float(
         "Allocated Hours",
@@ -629,7 +632,11 @@ class ProjectTask(models.Model):
     is_overallocated = fields.Boolean(
         "Overallocated Assignee",
         compute="_compute_is_overallocated",
-        help="True when any assignee has > 40h allocated across all open tasks.",
+        help=(
+            "True when any of this task's reservations conflicts in time "
+            "with another reservation of the same resource summing more "
+            "than 100% allocation (PMBOK concurrent overcommit)."
+        ),
         export_string_translation=False,
     )
 
@@ -1503,40 +1510,19 @@ class ProjectTask(models.Model):
             else:
                 task.cd3_score = 0.0
 
-    @api.depends("user_ids")
+    @api.depends("reservation_ids.schedule_overlap_count")
     def _compute_is_overallocated(self) -> None:
-        """Check if any assignee has > 40h allocated across all open tasks."""
-        all_user_ids = set()
-        for task in self:
-            all_user_ids.update(task.user_ids.ids)
-        if not all_user_ids:
-            self.is_overallocated = False
-            return
+        """Concurrent overcommit on any of this task's reservations.
 
-        # Per-user commitment hours come from the per-resource reservation
-        # ledger (NOT task.allocated_hours, which now sums across all
-        # assignees and would double-count under task_user_rel join).
-        self.env.cr.execute(
-            SQL(
-                """
-            SELECT res.user_id, SUM(rr.allocated_hours)
-            FROM resource_reservation rr
-            JOIN resource_resource res ON res.id = rr.resource_id
-            JOIN project_task t
-                 ON t.id = rr.res_id
-                AND rr.res_model = 'project.task'
-            WHERE res.user_id IN %(user_ids)s
-              AND t.state NOT IN ('done', 'canceled')
-              AND t.is_template = FALSE
-            GROUP BY res.user_id
-            HAVING SUM(rr.allocated_hours) > 40
-            """,
-                user_ids=tuple(all_user_ids),
-            )
-        )
-        overallocated_users = {row[0] for row in self.env.cr.fetchall()}
+        Delegates to ``resource.reservation.schedule_overlap_count``,
+        which counts other reservations of the same resource overlapping
+        in time AND summing > 100% allocation.  Captures real PMBOK
+        overallocation (concurrency, not lifetime backlog volume).
+        """
         for task in self:
-            task.is_overallocated = bool(overallocated_users & set(task.user_ids.ids))
+            task.is_overallocated = any(
+                r.schedule_overlap_count for r in task.reservation_ids
+            )
 
     def _compute_access_url(self) -> None:
         super()._compute_access_url()
@@ -1554,72 +1540,64 @@ class ProjectTask(models.Model):
         "company_id",
     )
     def _compute_scheduled_hours(self) -> None:
-        """Working hours within the task's scheduled range.
-
-        Computed against the company calendar (respects working days,
-        compute_leaves=True so lunch and holidays don't count).  This is
-        the *Duration* leg of the PMI triangle (Effort = Duration x Units);
-        ``planned_hours`` multiplies it by ``planned_resources`` to get
-        total effort.
-        """
+        """Working hours within the task's scheduled range."""
         for task in self:
-            if not task.planned_date_begin or not task.date_end:
-                task.scheduled_hours = 0.0
-                continue
-            calendar = (
-                task.company_id.resource_calendar_id
-                or task.env.company.resource_calendar_id
-            )
-            if not calendar:
-                task.scheduled_hours = 0.0
-                continue
             task.scheduled_hours = round(
-                calendar.get_work_hours_count(
-                    localized(task.planned_date_begin),
-                    localized(task.date_end),
+                task._scheduling_get_work_hours(
+                    task.planned_date_begin,
+                    task.date_end,
                     compute_leaves=True,
                 ),
                 2,
             )
 
-    @api.depends("scheduled_hours", "planned_resources")
+    @api.depends(
+        "scheduled_hours", "planned_resources", "allocated_percentage"
+    )
     def _compute_planned_hours(self) -> None:
-        """Total effort = scheduled hours x planned resource units.
-
-        Auto-derived following PMI's Effort = Duration x Resources formula.
-        ``readonly=False`` lets users override when the math doesn't fit
-        (e.g., a single resource at fractional allocation); the override
-        sticks until ``scheduled_hours`` or ``planned_resources`` changes.
-        """
+        """PMBOK Effort = Duration x Resources x Units (uniform rate)."""
         for task in self:
             task.planned_hours = round(
-                task.scheduled_hours * (task.planned_resources or 1),
+                task.scheduled_hours
+                * task.planned_resources
+                * (task.allocated_percentage / 100.0),
                 2,
+            )
+
+    def _inverse_planned_hours(self) -> None:
+        """Track manual overrides of the PMBOK-derived planned_hours.
+
+        ``planned_hours`` is a stored compute with ``readonly=False``: Odoo
+        calls this inverse only on direct user writes, not on
+        dependency-driven recomputes.  Posting from here keeps the chatter
+        signal precise (override events) without the noise that
+        ``tracking=True`` would generate on every formula recompute.
+        """
+        for task in self:
+            task.message_post(
+                body=_(
+                    "Planned Hours manually overridden to %(value).2f h "
+                    "(formula override).",
+                    value=task.planned_hours,
+                ),
             )
 
     @api.depends("planned_hours", "allocated_hours")
     def _compute_allocation_state(self) -> None:
-        """Resource allocation health relative to plan.
-
-        Mirrors the ``invoice_state`` pattern on ``sale.order``.  States:
-
-        - ``unestimated``: no planned_hours yet (no dates / no resources).
-        - ``unallocated``: estimate exists but no resources committed.
-        - ``under_allocated``: some commitment but less than estimate.
-        - ``allocated``: commitment matches estimate (within tolerance).
-        - ``over_allocated``: commitment exceeds estimate (PM over-asignó).
-        """
-        TOLERANCE = 0.01
+        """Resource allocation health relative to plan."""
         for task in self:
-            if task.planned_hours <= 0:
+            if float_is_zero(task.planned_hours, precision_digits=2):
                 task.allocation_state = "unestimated"
                 continue
-            diff = task.allocated_hours - task.planned_hours
-            if task.allocated_hours <= 0:
+            if float_is_zero(task.allocated_hours, precision_digits=2):
                 task.allocation_state = "unallocated"
-            elif abs(diff) < TOLERANCE:
+                continue
+            delta = float_compare(
+                task.allocated_hours, task.planned_hours, precision_digits=2
+            )
+            if delta == 0:
                 task.allocation_state = "allocated"
-            elif diff > 0:
+            elif delta > 0:
                 task.allocation_state = "over_allocated"
             else:
                 task.allocation_state = "under_allocated"
