@@ -7,9 +7,8 @@ Introduces the three-tier hours model:
   calendar).
 - ``planned_resources`` — Integer, planning intent: how many parallel
   resources the PM expects to need.  Defaults to 1.
-- ``planned_hours`` — Effort: ``scheduled_hours × planned_resources``,
-  with manual override.  Pre-existing values are preserved (they
-  represent the legacy effort estimate).
+- ``planned_hours`` — Effort: ``scheduled_hours × planned_resources ×
+  (allocated_percentage / 100)``, with manual override.
 - ``allocated_hours`` — already present, computed by the scheduling
   mixin as ``sum(reservation_ids.allocated_hours)``.
 - ``allocation_state`` — Selection signal of planning health (mirrors
@@ -17,15 +16,17 @@ Introduces the three-tier hours model:
 
 Migration steps:
 
-1. Add ``scheduled_hours`` (numeric, computed lazily on first read).
+1. Add ``scheduled_hours`` (numeric, blank — recomputed in post-migrate).
 2. Add ``planned_resources`` (integer, default 1 for all existing tasks).
-3. Add ``allocation_state`` (varchar, computed lazily).
-4. Backfill ``planned_hours`` from the legacy ``allocated_hours`` so
-   dashboards reading it as estimate keep their numbers — the value
-   represents PMI Effort intent and remains correct even after the
-   compute formula changes.
-5. (Optional) The old ``unallocated_hours`` column from an earlier
-   draft is dropped if present — superseded by ``allocation_state``.
+3. Add ``planned_hours`` (numeric, blank — recomputed in post-migrate).
+4. Add ``allocation_state`` (varchar, blank — recomputed in post-migrate).
+5. Drop legacy ``unallocated_hours`` column if present.
+
+Legacy ``allocated_hours`` values are NOT copied into ``planned_hours``:
+the post-migrate forces a fresh recompute of all three PMI fields from
+the canonical inputs (dates, calendar, resources, allocated_percentage).
+Tasks without dates land at ``planned_hours = 0`` and ``allocation_state
+= unestimated``, which is the honest representation.
 
 Idempotent: safe to re-run on partially migrated databases.
 
@@ -49,25 +50,41 @@ def migrate(cr, version):
         # Fresh install or model not yet present; nothing to seed.
         return
 
-    # planned_hours: backfill from legacy allocated_hours (effort intent).
+    # planned_hours: column-only.  Value is recomputed in post-migrate
+    # from scheduled_hours x planned_resources x allocated_percentage.
     if not _column_exists(cr, "project_task", "planned_hours"):
         cr.execute("ALTER TABLE project_task ADD COLUMN planned_hours numeric")
-        cr.execute("UPDATE project_task SET planned_hours = allocated_hours")
 
-    # scheduled_hours: computed lazily on first read; column added empty.
+    # scheduled_hours: column-only.  Value is recomputed in post-migrate.
     if not _column_exists(cr, "project_task", "scheduled_hours"):
-        cr.execute("ALTER TABLE project_task ADD COLUMN scheduled_hours numeric")
+        cr.execute(
+            "ALTER TABLE project_task ADD COLUMN scheduled_hours numeric"
+        )
 
     # planned_resources: planning intent, default 1 for legacy tasks.
+    # Defensive cleanup against NULL / non-positive values before the
+    # CHECK (planned_resources > 0) constraint loads with the model.
     if not _column_exists(cr, "project_task", "planned_resources"):
         cr.execute(
             "ALTER TABLE project_task "
             "ADD COLUMN planned_resources integer DEFAULT 1"
         )
-        cr.execute(
-            "UPDATE project_task SET planned_resources = 1 "
-            "WHERE planned_resources IS NULL"
-        )
+    cr.execute(
+        "UPDATE project_task SET planned_resources = 1 "
+        "WHERE planned_resources IS NULL OR planned_resources <= 0"
+    )
+    # Ensure CHECK constraint is present even if _auto_init does not
+    # re-trigger on a same-version reinstall.  Idempotent.
+    cr.execute("""
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'project_task_planned_resources_positive'
+    """)
+    if not cr.fetchone():
+        cr.execute("""
+            ALTER TABLE project_task
+            ADD CONSTRAINT project_task_planned_resources_positive
+            CHECK (planned_resources > 0)
+        """)
 
     # allocation_state: computed lazily on first read.
     if not _column_exists(cr, "project_task", "allocation_state"):

@@ -8,9 +8,12 @@ core post-t20171: no enterprise dependency required.
 
 from datetime import datetime
 
+from psycopg import IntegrityError
+
 from odoo.fields import Command
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 
 @tagged("post_install", "-at_install")
@@ -519,7 +522,7 @@ class TestReservationSync(TransactionCase):
         self.assertFalse(task.employee_ids)
         self.assertEqual(task.allocated_hours, 0.0)
         self.assertEqual(task.planned_hours, 8.0)
-        self.assertEqual(task.unallocated_hours, 8.0)
+        self.assertEqual(task.allocation_state, "unallocated")
 
     def test_allocated_hours_scales_by_allocated_percentage(self):
         """``allocated_percentage=50`` over 8 effective hours → 4h reservation
@@ -536,6 +539,29 @@ class TestReservationSync(TransactionCase):
             }
         )
         self.assertEqual(task.allocated_hours, 4.0)
+
+    def test_planned_hours_honors_allocated_percentage(self):
+        """PMBOK Effort = Duration x Resources x Units.
+
+        ``allocated_percentage=50`` halves planned_hours so allocation_state
+        reflects intent honestly: planning at half-time and committing at
+        half-time should land on ``allocated``, not ``under_allocated``.
+        """
+        task = self.env["project.task"].create(
+            {
+                "name": "Half-time plan",
+                "project_id": self.project.id,
+                "employee_ids": [Command.link(self.employee.id)],
+                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                "date_end": datetime(2026, 5, 4, 17, 0),
+                "allocated_percentage": 50.0,
+            }
+        )
+        self.assertEqual(task.scheduled_hours, 8.0)
+        self.assertEqual(task.planned_resources, 1)
+        self.assertEqual(task.planned_hours, 4.0)
+        self.assertEqual(task.allocated_hours, 4.0)
+        self.assertEqual(task.allocation_state, "allocated")
 
     def test_planned_resources_default_one(self):
         """Default ``planned_resources`` = 1; planned_hours = scheduled_hours."""
@@ -564,6 +590,84 @@ class TestReservationSync(TransactionCase):
         )
         self.assertEqual(task.scheduled_hours, 8.0)
         self.assertEqual(task.planned_hours, 16.0)
+
+    def test_planned_resources_must_be_positive(self):
+        """DB-level CHECK rejects planned_resources <= 0."""
+        with (
+            self.assertRaises(IntegrityError),
+            self.cr.savepoint(),
+            mute_logger("odoo.db"),
+        ):
+            self.env["project.task"].create(
+                {
+                    "name": "Zero resources",
+                    "project_id": self.project.id,
+                    "planned_resources": 0,
+                }
+            )
+
+        with (
+            self.assertRaises(IntegrityError),
+            self.cr.savepoint(),
+            mute_logger("odoo.db"),
+        ):
+            self.env["project.task"].create(
+                {
+                    "name": "Negative resources",
+                    "project_id": self.project.id,
+                    "planned_resources": -1,
+                }
+            )
+
+    def test_planned_hours_inverse_posts_on_manual_override(self):
+        """Direct user write of planned_hours posts a chatter message.
+
+        Stored compute recomputes (triggered by scheduled_hours or
+        planned_resources changes) MUST NOT post; only direct writes do.
+        """
+        task = self.env["project.task"].create(
+            {
+                "name": "Override case",
+                "project_id": self.project.id,
+                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                "date_end": datetime(2026, 5, 4, 17, 0),
+            }
+        )
+        baseline = self.env["mail.message"].search_count(
+            [("res_id", "=", task.id), ("model", "=", "project.task")]
+        )
+
+        # Dependency-driven recompute: must NOT post.
+        task.write({"planned_resources": 2})
+        self.assertEqual(task.planned_hours, 16.0)
+        after_recompute = self.env["mail.message"].search_count(
+            [("res_id", "=", task.id), ("model", "=", "project.task")]
+        )
+        recompute_messages = after_recompute - baseline
+        # planned_resources is tracked → 1 message expected, but it must
+        # not also include a planned_hours override entry.
+        override_msgs = self.env["mail.message"].search(
+            [
+                ("res_id", "=", task.id),
+                ("model", "=", "project.task"),
+                ("body", "ilike", "manually overridden"),
+            ]
+        )
+        self.assertFalse(
+            override_msgs,
+            "Recompute should not trigger override message.",
+        )
+
+        # Direct user write: must post override message.
+        task.write({"planned_hours": 99.0})
+        override_msgs = self.env["mail.message"].search(
+            [
+                ("res_id", "=", task.id),
+                ("model", "=", "project.task"),
+                ("body", "ilike", "manually overridden"),
+            ]
+        )
+        self.assertEqual(len(override_msgs), 1)
 
     def test_allocation_state_unestimated(self):
         """No dates, no resources → unestimated."""
