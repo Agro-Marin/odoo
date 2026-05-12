@@ -504,6 +504,41 @@ class TestSaleOrder(SaleManagementCommon):
             pass
         self.assertEqual(len(log_catcher.output), 0, "Form creation shouldn't trigger a warning")
 
+    def test_template_quantity_transferred(self):
+        """Template line quantities must reach the resulting sale order lines.
+
+        Regression test for t21897: in Odoo 19 sale.order.line.product_uom_qty
+        became a pure computed field (no readonly=False), so writing it from
+        sale.order.template.line._prepare_order_line_values is a silent no-op.
+        The fix maps the template qty into product_qty (the editable field);
+        product_uom_qty then recomputes to the same value.
+        """
+        quotation_template = self.empty_order_template
+        quotation_template.sale_order_template_line_ids = [
+            Command.create({
+                'product_id': self.product_1.id,
+                'product_uom_qty': 8.0,
+            }),
+        ]
+        sale_order = self.empty_order
+        sale_order.sale_order_template_id = quotation_template
+        sale_order._onchange_sale_order_template_id()
+
+        self.assertEqual(
+            len(sale_order.line_ids), 1,
+            "Template apply should produce one order line per template line.",
+        )
+        line = sale_order.line_ids
+        self.assertEqual(
+            line.product_qty, 8.0,
+            "Template product_uom_qty must reach the order line's product_qty "
+            "(the editable field) — not be silently reset to the default 1.0.",
+        )
+        self.assertEqual(
+            line.product_uom_qty, 8.0,
+            "product_uom_qty must recompute from product_qty in the line UoM.",
+        )
+
     def test_show_update_pricelist_false_on_sale_order_open(self):
         """Ensure the update pricelist button is disabled when opening a sale order
         with a default quotation template applied.
