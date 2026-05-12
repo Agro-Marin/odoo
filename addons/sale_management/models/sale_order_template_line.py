@@ -135,7 +135,7 @@ class SaleOrderTemplateLine(models.Model):
         vals = {
             'display_type': self.display_type,
             'product_id': self.product_id.id,
-            'product_uom_qty': self.product_uom_qty,
+            'product_qty': self.product_uom_qty,
             'product_uom_id': self.product_uom_id.id,
             'is_optional': self.is_optional,
             'sequence': self.sequence,
