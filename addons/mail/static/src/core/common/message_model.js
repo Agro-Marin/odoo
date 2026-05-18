@@ -719,10 +719,12 @@ export class Message extends Record {
 
     async setDone() {
         // Optimistic UI update: immediately mark as read so the notification
-        // disappears without waiting for the bus notification.
+        // disappears and the systray counter decreases without waiting for
+        // the bus notification.
         if (this.needaction) {
             this.needaction = false;
             this.store.inbox.messages.delete(this);
+            this.store.inbox.counter--;
             if (this.thread) {
                 this.thread.message_needaction_counter--;
             }
