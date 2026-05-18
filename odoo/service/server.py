@@ -60,7 +60,6 @@ except ImportError:
         return None
 
 
-import odoo
 from odoo import api, db
 from odoo.libs import gc
 from odoo.libs.filesystem import osutil
@@ -82,7 +81,6 @@ _logger = logging.getLogger(__name__)
 SLEEP_INTERVAL = 60  # 1 min
 
 
-
 def memory_info(process: Any) -> int:
     """Return the resident memory (RSS) of the process in bytes.
 
@@ -95,16 +93,24 @@ def memory_info(process: Any) -> int:
 
 
 def set_limit_memory_hard() -> None:
-    """Set RLIMIT_AS to the configured hard memory limit for the current process."""
-    if platform.system() != "Linux":
-        return
-    limit_memory_hard = config["limit_memory_hard"]
-    if odoo.evented and config["limit_memory_hard_gevent"]:
-        limit_memory_hard = config["limit_memory_hard_gevent"]
-    if limit_memory_hard:
-        rlimit = resource.RLIMIT_AS
-        _soft, hard = resource.getrlimit(rlimit)
-        resource.setrlimit(rlimit, (limit_memory_hard, hard))
+    """Deprecated: no-op.
+
+    Earlier versions applied ``RLIMIT_AS`` (virtual address space) to the
+    current process. That is incompatible with modern Python on Linux: the
+    new allocator and gevent fiber pools reserve multi-GB ranges of virtual
+    space that never become resident, so the worker reaches its ``RLIMIT_AS``
+    cap and is denied ``pthread_create`` long before any real memory pressure
+    exists. Meanwhile :func:`process_limit` measures real memory and never
+    triggers the orderly recycle path, leaving the worker zombie.
+
+    Memory control is now entirely handled by :func:`process_limit` via
+    :func:`memory_info` (RSS). The hard cap that previously came from the
+    kernel ``RLIMIT_AS`` should be enforced externally -- the recommended
+    backstop is a cgroup v2 limit on the ``odoo.service`` systemd unit
+    (``MemoryMax=`` + ``MemorySwapMax=0``), which kills the worst offender
+    cleanly if Odoo ever fails to recycle in time.
+    """
+    return
 
 
 def empty_pipe(fd: int) -> None:
@@ -697,7 +703,6 @@ class ThreadedServer(CommonServer):
 
     def start(self, stop: bool = False) -> None:
         self.logger.debug("Setting signal handlers")
-        set_limit_memory_hard()
         if os.name == "posix":
             signal.signal(signal.SIGINT, self.signal_handler)
             signal.signal(signal.SIGTERM, self.signal_handler)
@@ -874,7 +879,6 @@ class EventServer(CommonServer):
             time.sleep(beat)
 
     def start(self) -> None:
-        set_limit_memory_hard()
         if os.name == "posix":
             signal.signal(signal.SIGQUIT, dumpstacks)
             signal.signal(signal.SIGUSR1, log_ormcache_stats)
@@ -1296,7 +1300,9 @@ class PreforkServer(CommonServer):
             except SystemExit:
                 raise
             except BaseException as exc:
-                self.logger.critical("Uncaught error in main loop, exiting...", exc_info=exc)
+                self.logger.critical(
+                    "Uncaught error in main loop, exiting...", exc_info=exc
+                )
                 self.stop(False)
                 return -1
         return None
@@ -1366,8 +1372,6 @@ class Worker:
         if config["limit_memory_soft"] and memory > config["limit_memory_soft"]:
             self.logger.info("Virtual memory limit (%s) reached.", memory)
             self.alive = False  # Commit suicide after the request.
-
-        set_limit_memory_hard()
 
         # update RLIMIT_CPU so limit_time_cpu applies per unit of work
         r = resource.getrusage(resource.RUSAGE_SELF)
@@ -1553,7 +1557,9 @@ class WorkerCron(Worker):
             self.dbcursor.execute("SET idle_session_timeout = 0")
             self.dbcursor.execute("LISTEN cron_trigger")
         else:
-            self.logger.warning("PG cluster in recovery mode, cron trigger not activated")
+            self.logger.warning(
+                "PG cluster in recovery mode, cron trigger not activated"
+            )
         self.dbcursor.commit()
         # Rebuild the selector: wakeup pipe (OS signals) + postgres socket (NOTIFY).
         # Called on initial connect and on reconnect after connection loss.

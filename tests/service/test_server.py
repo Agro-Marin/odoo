@@ -270,8 +270,13 @@ class TestWorkerCronConnectPostgres:
         """Helper: call ``_connect_postgres`` with mocked DB and selector."""
         conn, cursor = self._mock_db(in_recovery=in_recovery)
         with (
-            patch("odoo.service.server.db.db_connect", return_value=conn) as mock_connect,
-            patch("odoo.service.server.selectors.DefaultSelector", return_value=MagicMock()),
+            patch(
+                "odoo.service.server.db.db_connect", return_value=conn
+            ) as mock_connect,
+            patch(
+                "odoo.service.server.selectors.DefaultSelector",
+                return_value=MagicMock(),
+            ),
         ):
             worker_cron._connect_postgres()
         return conn, cursor, mock_connect
@@ -390,7 +395,9 @@ class TestWorkerCronProcessWorkScheduling:
     def mock_ir_cron(self):
         """Stub the deferred ``IrCron`` import inside ``process_work()``."""
         mock_module = MagicMock()
-        with patch.dict("sys.modules", {"odoo.addons.base.models.ir_cron": mock_module}):
+        with patch.dict(
+            "sys.modules", {"odoo.addons.base.models.ir_cron": mock_module}
+        ):
             yield mock_module.IrCron
 
     def test_no_databases_returns_immediately(self, worker_cron):
@@ -404,7 +411,10 @@ class TestWorkerCronProcessWorkScheduling:
         """First call with an empty queue must enqueue all databases and process one."""
         worker_cron.dbcursor._cnx.notifies.return_value = iter([])
         with (
-            patch("odoo.service.server.cron_database_list", return_value=["db1", "db2", "db3"]),
+            patch(
+                "odoo.service.server.cron_database_list",
+                return_value=["db1", "db2", "db3"],
+            ),
             patch("odoo.service.server.db"),
         ):
             worker_cron.process_work()
@@ -445,7 +455,9 @@ class TestWorkerCronProcessWorkScheduling:
         ):
             worker_cron.process_work()
 
-        all_dbs = list(worker_cron.db_queue) + [mock_ir_cron._process_jobs.call_args[0][0]]
+        all_dbs = list(worker_cron.db_queue) + [
+            mock_ir_cron._process_jobs.call_args[0][0]
+        ]
         assert "unknown_db" not in all_dbs
 
     def test_existing_queue_skips_notification_polling(self, worker_cron, mock_ir_cron):
@@ -669,7 +681,9 @@ class TestCronDatabaseList:
     def test_falls_back_to_list_dbs_when_empty(self, srv):
         with (
             patch("odoo.service.server.config", {"db_name": None}),
-            patch("odoo.service.server.list_dbs", return_value=["db1", "db2"]) as mock_list,
+            patch(
+                "odoo.service.server.list_dbs", return_value=["db1", "db2"]
+            ) as mock_list,
         ):
             result = srv.cron_database_list()
         mock_list.assert_called_once_with(True)
@@ -813,7 +827,9 @@ class TestCommonRequestHandlerLogError:
     def test_other_error_calls_super(self, srv, log_handler):
         with (
             patch("odoo.service.server._logger"),
-            patch.object(werkzeug.serving.WSGIRequestHandler, "log_error") as mock_super,
+            patch.object(
+                werkzeug.serving.WSGIRequestHandler, "log_error"
+            ) as mock_super,
         ):
             log_handler.log_error("Some other error: %s", "detail")
         mock_super.assert_called_once()
@@ -891,14 +907,18 @@ class TestRequestHandlerWebSocket:
 
     def test_websocket_connection_close_is_suppressed(self, request_handler):
         request_handler.headers.get.return_value = "websocket"
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_header") as mock_send:
+        with patch.object(
+            http.server.BaseHTTPRequestHandler, "send_header"
+        ) as mock_send:
             request_handler.send_header("Connection", "close")
         mock_send.assert_not_called()
         assert request_handler.close_connection is True
 
     def test_non_websocket_connection_close_forwarded(self, request_handler):
         request_handler.headers.get.return_value = None
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_header") as mock_send:
+        with patch.object(
+            http.server.BaseHTTPRequestHandler, "send_header"
+        ) as mock_send:
             request_handler.send_header("Connection", "close")
         mock_send.assert_called_once_with("Connection", "close")
         assert request_handler.close_connection is False
@@ -939,19 +959,25 @@ class TestThreadedWSGIServerSemaphore:
 
     def test_semaphore_full_skips_processing(self, threaded_server):
         threaded_server.http_threads_sem.acquire.return_value = False
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock") as mock_super:
+        with patch.object(
+            werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock"
+        ) as mock_super:
             threaded_server._handle_request_noblock()
         mock_super.assert_not_called()
 
     def test_semaphore_acquired_calls_super(self, threaded_server):
         threaded_server.http_threads_sem.acquire.return_value = True
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock") as mock_super:
+        with patch.object(
+            werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock"
+        ) as mock_super:
             threaded_server._handle_request_noblock()
         mock_super.assert_called_once()
 
     def test_no_semaphore_calls_super_directly(self, threaded_server):
         threaded_server.max_http_threads = None
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock") as mock_super:
+        with patch.object(
+            werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock"
+        ) as mock_super:
             threaded_server._handle_request_noblock()
         mock_super.assert_called_once()
 
@@ -1014,14 +1040,18 @@ class TestServiceDb:
     def test_check_super_correct_password_returns_true(self, db_mod):
         import odoo.tools  # noqa: PLC0415
 
-        with patch.object(odoo.tools.config, "verify_admin_password", return_value=True):
+        with patch.object(
+            odoo.tools.config, "verify_admin_password", return_value=True
+        ):
             assert db_mod.check_super("correct") is True
 
     def test_check_super_wrong_password_raises(self, db_mod):
         import odoo.tools  # noqa: PLC0415
         from odoo.exceptions import AccessDenied  # noqa: PLC0415
 
-        with patch.object(odoo.tools.config, "verify_admin_password", return_value=False):
+        with patch.object(
+            odoo.tools.config, "verify_admin_password", return_value=False
+        ):
             with pytest.raises(AccessDenied):
                 db_mod.check_super("wrong")
 
@@ -1062,68 +1092,32 @@ class TestServiceDb:
 
 
 class TestSetLimitMemoryHard:
-    """``set_limit_memory_hard()``: applies RLIMIT_AS on Linux only."""
+    """``set_limit_memory_hard()`` is a deprecated no-op (task t22165).
 
-    def test_non_linux_is_noop(self, srv):
-        mock_resource = MagicMock()
-        with (
-            patch("odoo.service.server.platform") as mock_platform,
-            patch("odoo.service.server.resource", mock_resource),
-        ):
-            mock_platform.system.return_value = "Darwin"
-            srv.set_limit_memory_hard()
-        mock_resource.setrlimit.assert_not_called()
+    ``RLIMIT_AS`` is no longer applied to workers because modern Python (3.13+)
+    and gevent reserve large virtual address ranges that never become resident,
+    which made the kernel deny ``pthread_create`` on healthy workers. The hard
+    memory cap is now enforced externally via cgroups on the systemd unit.
+    """
 
-    def test_linux_no_limit_is_noop(self, srv):
+    def test_is_noop(self, srv):
+        """Calling the function must not touch the kernel rlimit on any platform."""
         mock_resource = MagicMock()
         mock_resource.getrlimit.return_value = (0, 9999)
         mock_resource.RLIMIT_AS = 9
         with (
-            patch("odoo.service.server.platform") as mock_platform,
-            patch("odoo.service.server.resource", mock_resource),
-            patch("odoo.service.server.config", {"limit_memory_hard": 0, "limit_memory_hard_gevent": 0}),
-            patch("odoo.service.server.odoo") as mock_odoo,
-        ):
-            mock_platform.system.return_value = "Linux"
-            mock_odoo.evented = False
-            srv.set_limit_memory_hard()
-        mock_resource.setrlimit.assert_not_called()
-
-    def test_linux_sets_rlimit(self, srv):
-        mock_resource = MagicMock()
-        mock_resource.getrlimit.return_value = (0, 9999)
-        mock_resource.RLIMIT_AS = 9
-        limit = 512 * 1024 * 1024
-        with (
-            patch("odoo.service.server.platform") as mock_platform,
-            patch("odoo.service.server.resource", mock_resource),
-            patch("odoo.service.server.config", {"limit_memory_hard": limit, "limit_memory_hard_gevent": 0}),
-            patch("odoo.service.server.odoo") as mock_odoo,
-        ):
-            mock_platform.system.return_value = "Linux"
-            mock_odoo.evented = False
-            srv.set_limit_memory_hard()
-        mock_resource.setrlimit.assert_called_once_with(9, (limit, 9999))
-
-    def test_linux_evented_uses_gevent_limit(self, srv):
-        """When running evented and ``limit_memory_hard_gevent`` is set, prefer it."""
-        mock_resource = MagicMock()
-        mock_resource.getrlimit.return_value = (0, 9999)
-        mock_resource.RLIMIT_AS = 9
-        gevent_limit = 256 * 1024 * 1024
-        with (
-            patch("odoo.service.server.platform") as mock_platform,
             patch("odoo.service.server.resource", mock_resource),
             patch(
                 "odoo.service.server.config",
-                {"limit_memory_hard": 512 * 1024 * 1024, "limit_memory_hard_gevent": gevent_limit},
+                {
+                    "limit_memory_hard": 512 * 1024 * 1024,
+                    "limit_memory_hard_gevent": 256 * 1024 * 1024,
+                },
             ),
-            patch("odoo.service.server.odoo") as mock_odoo,
         ):
-            mock_platform.system.return_value = "Linux"
-            mock_odoo.evented = True
             srv.set_limit_memory_hard()
-        mock_resource.setrlimit.assert_called_once_with(9, (gevent_limit, 9999))
+        mock_resource.setrlimit.assert_not_called()
+        mock_resource.getrlimit.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -1158,10 +1152,18 @@ class TestThreadedServerProcessLimit:
         ]
 
     def test_memory_soft_exceeded_adds_current_thread(self, tserver):
-        patches = self._base_patches(memory=2000, config_override={"limit_memory_soft": 1000})
-        with patches[0], patches[1], patches[2], patch("threading.enumerate", return_value=[]):
+        patches = self._base_patches(
+            memory=2000, config_override={"limit_memory_soft": 1000}
+        )
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("threading.enumerate", return_value=[]),
+        ):
             tserver.process_limit()
         import threading  # noqa: PLC0415
+
         assert threading.current_thread() in tserver.limits_reached_threads
 
     def test_thread_real_time_exceeded_adds_thread(self, tserver):
@@ -1172,7 +1174,12 @@ class TestThreadedServerProcessLimit:
         mock_thread.is_alive.return_value = True
 
         patches = self._base_patches(config_override={"limit_time_real": 60})
-        with patches[0], patches[1], patches[2], patch("threading.enumerate", return_value=[mock_thread]):
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("threading.enumerate", return_value=[mock_thread]),
+        ):
             tserver.process_limit()
         assert mock_thread in tserver.limits_reached_threads
 
@@ -1185,8 +1192,15 @@ class TestThreadedServerProcessLimit:
         mock_thread.start_time = time.monotonic() - 120
         mock_thread.is_alive.return_value = True
 
-        patches = self._base_patches(config_override={"limit_time_real": 3600, "limit_time_real_cron": 60})
-        with patches[0], patches[1], patches[2], patch("threading.enumerate", return_value=[mock_thread]):
+        patches = self._base_patches(
+            config_override={"limit_time_real": 3600, "limit_time_real_cron": 60}
+        )
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("threading.enumerate", return_value=[mock_thread]),
+        ):
             tserver.process_limit()
         assert mock_thread in tserver.limits_reached_threads
 
@@ -1196,7 +1210,12 @@ class TestThreadedServerProcessLimit:
         tserver.limits_reached_threads.add(dead)
 
         patches = self._base_patches()
-        with patches[0], patches[1], patches[2], patch("threading.enumerate", return_value=[]):
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("threading.enumerate", return_value=[]),
+        ):
             tserver.process_limit()
         assert dead not in tserver.limits_reached_threads
 
@@ -1209,14 +1228,24 @@ class TestThreadedServerProcessLimit:
         mock_thread.is_alive.return_value = True
 
         patches = self._base_patches(config_override={"limit_time_real": 60})
-        with patches[0], patches[1], patches[2], patch("threading.enumerate", return_value=[mock_thread]):
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("threading.enumerate", return_value=[mock_thread]),
+        ):
             tserver.process_limit()
         assert tserver.limit_reached_time is not None
 
         # remove the offending thread and run again — time should clear
         tserver.limits_reached_threads.clear()
         mock_thread.start_time = None  # no longer over limit
-        with patches[0], patches[1], patches[2], patch("threading.enumerate", return_value=[mock_thread]):
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("threading.enumerate", return_value=[mock_thread]),
+        ):
             tserver.process_limit()
         assert tserver.limit_reached_time is None
 
@@ -1229,7 +1258,12 @@ class TestThreadedServerProcessLimit:
         mock_thread.is_alive.return_value = True
 
         patches = self._base_patches(config_override={"limit_time_real": 1})
-        with patches[0], patches[1], patches[2], patch("threading.enumerate", return_value=[mock_thread]):
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("threading.enumerate", return_value=[mock_thread]),
+        ):
             tserver.process_limit()
         assert mock_thread not in tserver.limits_reached_threads
 
@@ -1261,9 +1295,13 @@ class TestThreadedServerProcessLimit:
             call_count += 1
             return original_monotonic()
 
-        with patches[0], patches[1], patches[2], \
-             patch("threading.enumerate", return_value=threads), \
-             patch("odoo.service.server.time") as mock_time:
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("threading.enumerate", return_value=threads),
+            patch("odoo.service.server.time") as mock_time,
+        ):
             mock_time.monotonic.side_effect = counting_monotonic
             tserver.process_limit()
 
