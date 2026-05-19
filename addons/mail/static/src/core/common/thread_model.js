@@ -702,12 +702,14 @@ export class Thread extends Record {
 
     async markAllMessagesAsRead() {
         // Optimistic UI update: immediately clear needaction messages so the
-        // notification item disappears without waiting for the bus notification.
+        // notification item disappears and the systray counter decreases
+        // without waiting for the bus notification.
         const inbox = this.store.inbox;
         const messages = [...this.needactionMessages];
         for (const message of messages) {
             message.needaction = false;
             inbox.messages.delete(message);
+            inbox.counter--;
         }
         this.message_needaction_counter = 0;
         await this.store.env.services.orm.silent.call(
