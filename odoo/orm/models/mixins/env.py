@@ -10,13 +10,16 @@ import warnings
 from typing import Self
 
 from ... import decorators as api
+from ..._typing import (  # noqa: TC003 — runtime import required (PEP 649)
+    IdType,
+    ValuesType,
+)
 from ...helpers import OriginIds, _origin_ids
 from ...primitives import NewId
 
 if typing.TYPE_CHECKING:
     from collections.abc import Reversible
 
-    from ..._typing import IdType, ValuesType
     from ...runtime import Environment
 
 

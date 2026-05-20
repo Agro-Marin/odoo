@@ -33,6 +33,7 @@ from odoo.tools import SQL, groupby, unique
 from odoo.tools.translate import _
 
 from ... import decorators as api
+from ..._typing import ValuesType  # noqa: TC003 — runtime import required (PEP 649)
 from ...helpers import get_columns_from_sql_diagnostics, itemgetter_tuple
 from ...parsing import fix_import_export_id_paths
 
@@ -43,8 +44,6 @@ from typing import Self
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator
-
-    from ..._typing import ValuesType
 
 
 class IOMixin:

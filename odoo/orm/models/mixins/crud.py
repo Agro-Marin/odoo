@@ -24,6 +24,8 @@ from odoo.tools.nplusone import _n1_enabled
 from odoo.tools.orm_profiler import _orm_profiling_enabled
 from odoo.tools.translate import _
 
+from ..._typing import ValuesType  # noqa: TC003 — runtime import required (PEP 649)
+
 # Minimum batch size to use COPY protocol instead of INSERT.
 # COPY avoids SQL parsing/planning overhead and is faster for large batches,
 # but adds +1 query (SELECT nextval) for ID pre-generation.
@@ -81,7 +83,6 @@ from ...primitives import (
 )
 
 if typing.TYPE_CHECKING:
-    from ..._typing import ValuesType
     from ...fields.base import Field
 
 

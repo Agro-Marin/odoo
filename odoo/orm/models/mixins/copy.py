@@ -9,12 +9,11 @@ import typing
 from collections import defaultdict
 from typing import Self
 
+from ..._typing import ValuesType  # noqa: TC003 — runtime import required (PEP 649)
 from ...primitives import MAGIC_COLUMNS, Command
 
 if typing.TYPE_CHECKING:
     from collections.abc import Collection
-
-    from ..._typing import ValuesType
 
 
 class CopyMixin:

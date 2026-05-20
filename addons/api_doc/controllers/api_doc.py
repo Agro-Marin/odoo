@@ -138,7 +138,12 @@ class DocController(http.Controller):
                     field.name: {'string': field.field_description}
                     for field in ir_model.field_id
                     # sorted(ir_model.field_id, key=partial(sort_key_field, modules, Model))
-                    if Model._has_field_access(Model._fields[field.name], 'read')
+                    # Skip stale ir.model.fields rows whose Python field was
+                    # removed without cleaning up the metadata (e.g. a refactor
+                    # without a migration script). Crashing /doc on the first
+                    # orphan would hide the rest of the registry.
+                    if (_python_field := Model._fields.get(field.name)) is not None
+                    and Model._has_field_access(_python_field, 'read')
                 },
                 'methods': [
                     method_name
@@ -285,10 +290,32 @@ class DocController(http.Controller):
         )
         introducing_method = getattr(introducing_class, method_name)
 
-        signature = parse_signature(introducing_method)
-        return signature.as_dict() | {
-            'model': introducing_class._name or 'core',
-            'module': introducing_class._module or 'core',
+        # ``inspect.signature`` evaluates PEP 649 deferred annotations and may
+        # raise on methods whose type aliases are imported under TYPE_CHECKING
+        # (e.g. ValuesType in some BaseModel mixins). One broken method must
+        # not kill the documentation of the entire model — log and stub.
+        try:
+            signature = parse_signature(introducing_method)
+            signature_dict = signature.as_dict()
+        except Exception as exc:
+            logger.warning(
+                "api_doc: could not parse signature of %s.%s (%s): %s",
+                model_name, method_name, type(exc).__name__, exc,
+            )
+            signature_dict = {
+                'signature': '(...)',
+                'parameters': {},
+                'doc': (
+                    f"Signature could not be introspected "
+                    f"({type(exc).__name__}: {exc})."
+                ),
+            }
+        return signature_dict | {
+            # Pure-Python mixins (e.g. LifecycleMixin) sit in the MRO but
+            # have no ``_name`` / ``_module`` because they are not real Odoo
+            # models. Fall back to 'core' so the doc endpoint stays alive.
+            'model': getattr(introducing_class, '_name', None) or 'core',
+            'module': getattr(introducing_class, '_module', None) or 'core',
         }
 
 
