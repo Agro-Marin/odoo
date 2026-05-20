@@ -33,12 +33,12 @@ except ImportError:
 from odoo.tools.orm_profiler import _orm_profiling_enabled
 
 from ... import decorators as api
+from ..._typing import ValuesType  # noqa: TC003 — runtime import required (PEP 649)
 from ...primitives import LOG_ACCESS_COLUMNS
 
 if typing.TYPE_CHECKING:
     from collections.abc import Collection, Sequence
 
-    from ..._typing import ValuesType
     from ...fields.base import Field
     from ...tools import Query
 
