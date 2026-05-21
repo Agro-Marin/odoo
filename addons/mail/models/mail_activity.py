@@ -849,7 +849,12 @@ class MailActivity(models.Model):
             "can_write",
             "chaining_type",
             "create_date",
-            Store.One("create_uid", Store.One("partner_id", "name")),
+            # sudo on create_uid: when the activity was created by the Public
+            # user (e.g. via an HTTP webhook with no authenticated session) and
+            # the current reader is in a company that does not share with the
+            # Public user, the res.users record rule blocks the read, surfacing
+            # an Access Error on /mail/data. See task t22267.
+            Store.One("create_uid", Store.One("partner_id", "name"), sudo=True),
             "date_deadline",
             "date_done",
             "icon",
@@ -858,7 +863,10 @@ class MailActivity(models.Model):
             "res_model",
             "state",
             "summary",
-            Store.One("user_id", Store.One("partner_id")),
+            # sudo on user_id: same reasoning as create_uid above — multi-
+            # company-restricted readers must not crash on activities
+            # assigned to a user from another company.
+            Store.One("user_id", Store.One("partner_id"), sudo=True),
             Store.Many("attachment_ids", ["name"]),
             Store.Many("mail_template_ids", ["name"]),
         ]
