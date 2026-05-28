@@ -1165,6 +1165,54 @@ class TestSaleToInvoice(TestSaleCommon):
         sol_prod_deliver.env.add_to_compute(qty_invoiced_field, sol_prod_deliver)
         self.assertEqual(sol_prod_deliver.qty_invoiced, expected_qty)
 
+    def test_invoice_state_over_invoiced_ordered_policy(self):
+        """Order-policy lines over-invoiced must report "over done", not "to do".
+
+        Regression for the case where qty_invoiced > product_qty on an
+        ordered-policy line produces a negative qty_to_invoice, which used to
+        short-circuit invoice_state to "to do" before reaching the
+        over-invoiced branch.
+        """
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "partner_invoice_id": self.partner_a.id,
+                "partner_shipping_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.company_data["product_order_no"].id,
+                            "product_qty": 5,
+                            "tax_ids": False,
+                        }
+                    ),
+                ],
+            }
+        )
+        line = sale_order.line_ids
+        self.assertEqual(line.product_id.invoice_policy, "ordered")
+
+        sale_order.action_confirm()
+
+        # Fully invoice the ordered quantity.
+        invoice = sale_order._create_invoices()
+        invoice.action_post()
+        self.assertEqual(line.qty_invoiced, 5.0)
+        self.assertEqual(line.invoice_state, "done")
+
+        # Reduce the ordered quantity below what was already invoiced: the line
+        # is now over-invoiced (qty_invoiced 5 > product_qty 3), so
+        # qty_to_invoice becomes negative (-2).
+        line.write({"product_qty": 3})
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual(line.qty_to_invoice, -2.0)
+        self.assertEqual(
+            line.invoice_state,
+            "over done",
+            'Over-invoiced ordered-policy line should be "over done"',
+        )
+
     def test_multi_company_invoice(self):
         """Checks that the company of the invoices generated in a multi company environment using the
         'sale.advance.payment.inv' wizard fit with the company of the SO and not with the current company.

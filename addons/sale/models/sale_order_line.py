@@ -1466,8 +1466,14 @@ class SaleOrderLine(models.Model):
 
             elif not float_is_zero(line.qty_to_invoice, precision_digits=precision):
                 if line.qty_to_invoice < 0:
-                    # Negative qty_to_invoice means refund is needed (return scenario)
-                    line.invoice_state = "to do"
+                    # Negative qty_to_invoice: more has been invoiced than is due.
+                    # For order-based products this is a genuine over-invoice.
+                    # For delivery-based products it means a return happened and a
+                    # refund/credit note is needed → action required ("to do").
+                    if line.product_id.invoice_policy == "ordered":
+                        line.invoice_state = "over done"
+                    else:
+                        line.invoice_state = "to do"
                 elif float_is_zero(line.qty_invoiced, precision_digits=precision):
                     # Nothing invoiced yet, positive qty to invoice
                     line.invoice_state = "to do"
