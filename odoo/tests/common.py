@@ -607,13 +607,23 @@ class BaseCase(case.TestCase):
 
     @contextmanager
     def _assertRaises(
-        self, exception: type[BaseException], *, msg: str | None = None
+        self,
+        exception: type[BaseException] | tuple[type[BaseException], ...],
+        *,
+        msg: str | None = None,
     ) -> Generator[Any]:
         """Context manager that clears the environment upon failure."""
         with ExitStack() as init:
             if self.env:
                 init.enter_context(self.env.cr.savepoint())
-                if issubclass(exception, AccessError):
+                # ``assertRaises`` accepts either a single exception class or a
+                # tuple of classes; a tuple is invalid as ``issubclass`` first
+                # argument, so handle both forms explicitly.
+                if isinstance(exception, tuple):
+                    clear_cache = any(issubclass(exc, AccessError) for exc in exception)
+                else:
+                    clear_cache = issubclass(exception, AccessError)
+                if clear_cache:
                     # The savepoint() above calls flush(), which leaves the
                     # record cache with lots of data.  This can prevent
                     # access errors to be detected. In order to avoid this
