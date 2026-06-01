@@ -1610,6 +1610,10 @@ class configmanager:
     def __getitem__(self, key: str) -> Any:
         return self.options[key]
 
+    def pop(self, key: str, *args: Any) -> Any:
+        """Remove ``key`` from the runtime options, dict.pop-style (optional fallback)."""
+        return self.options.pop(key, *args)
+
     @functools.cached_property
     def root_path(self):
         return self._normalize(str(Path(__file__).parent.parent))
