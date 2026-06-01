@@ -182,3 +182,185 @@ class TestQwebFieldMany2One(common.TransactionCase):
             {"name": "Minion", "parent_id": parent.id}
         )
         self.assertEqual(self.value_to_html(child.parent_id), "BigBoss")
+
+
+class TestQwebFieldHtml(common.TransactionCase):
+    def value_to_html(self, value, options=None):
+        return self.env["ir.qweb.field.html"].value_to_html(value, options or {})
+
+    def test_html_falsy_values(self):
+        """QF-C1: falsy html values must render empty, not the literal 'False'/'None'."""
+        self.assertEqual(self.value_to_html(False), "")
+        self.assertEqual(self.value_to_html(None), "")
+        self.assertEqual(self.value_to_html(""), "")
+
+    def test_html_value_passthrough(self):
+        self.assertEqual(self.value_to_html("<p>hi</p>"), "<p>hi</p>")
+
+
+# Payload reused across the escaping regression tests below.
+XSS_NAME = '<script>alert("xss")</script>'
+# After HTML-escaping, none of these substrings may appear verbatim; the
+# escaped form (&lt;script&gt; / &#34; or &quot;) must appear instead.
+XSS_RAW_FRAGMENTS = ("<script>", '"xss"')
+
+
+class TestQwebFieldEscaping(common.TransactionCase):
+    """QF-T1: per-converter escaping/XSS regression tests.
+
+    These pin the security-critical invariant that every converter building
+    ``Markup`` from untrusted data routes it through ``escape``/``nl2br``/``%``/
+    ``.format``. A regression (e.g. swapping ``nl2br(x)`` for ``Markup(x)`` or
+    dropping ``escape`` in Selection) would leak raw markup and is caught here.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env = cls.env(context=dict(cls.env.context, **DISABLED_MAIL_CONTEXT))
+
+    def _assert_escaped(self, rendered):
+        """Assert no raw XSS fragment survived and the value was escaped."""
+        rendered = str(rendered)
+        for raw in XSS_RAW_FRAGMENTS:
+            self.assertNotIn(
+                raw, rendered, f"unescaped {raw!r} leaked into {rendered!r}"
+            )
+        self.assertIn("&lt;script&gt;", rendered)
+
+    def test_text_escapes(self):
+        result = self.env["ir.qweb.field.text"].value_to_html(XSS_NAME, {})
+        self._assert_escaped(result)
+
+    def test_selection_escapes(self):
+        # Selection labels are developer-defined but must be escaped regardless.
+        result = self.env["ir.qweb.field.selection"].value_to_html(
+            "key", {"selection": {"key": XSS_NAME}}
+        )
+        self._assert_escaped(result)
+
+    def test_many2one_escapes(self):
+        parent = self.env["res.partner"].create({"name": XSS_NAME})
+        child = self.env["res.partner"].create(
+            {"name": "Child", "parent_id": parent.id}
+        )
+        result = self.env["ir.qweb.field.many2one"].value_to_html(child.parent_id, {})
+        self._assert_escaped(result)
+
+    def test_many2many_escapes(self):
+        parent = self.env["res.partner"].create({"name": "Parent"})
+        self.env["res.partner"].create({"name": XSS_NAME, "parent_id": parent.id})
+        result = self.env["ir.qweb.field.many2many"].value_to_html(parent.child_ids, {})
+        self._assert_escaped(result)
+
+    def test_one2many_escapes(self):
+        parent = self.env["res.partner"].create({"name": "Parent"})
+        self.env["res.partner"].create({"name": XSS_NAME, "parent_id": parent.id})
+        result = self.env["ir.qweb.field.one2many"].value_to_html(parent.child_ids, {})
+        self._assert_escaped(result)
+
+    def test_contact_escapes(self):
+        partner = self.env["res.partner"].create({"name": XSS_NAME})
+        result = self.env["ir.qweb.field.contact"].value_to_html(
+            partner, {"fields": ["name"]}
+        )
+        self._assert_escaped(result)
+
+    def test_monetary_escapes_currency_symbol(self):
+        # A hostile currency symbol must not break out of the markup template.
+        currency = self.env["res.currency"].create(
+            {
+                "name": "XSS",
+                "symbol": '"><script>alert(1)</script>',
+                "rounding": 0.01,
+            }
+        )
+        result = self.env["ir.qweb.field.monetary"].value_to_html(
+            1000.0, {"display_currency": currency}
+        )
+        rendered = str(result)
+        self.assertNotIn("<script>", rendered)
+        self.assertIn("&lt;script&gt;", rendered)
+
+    def test_image_url_escapes(self):
+        # The URL is interpolated into an attribute via ``%`` and must not break out.
+        result = self.env["ir.qweb.field.image_url"].value_to_html(
+            'http://example.com/"><script>alert(1)</script>', {}
+        )
+        rendered = str(result)
+        self.assertNotIn('"><script>', rendered)
+        self.assertNotIn("<script>", rendered)
+        # Attribute-breakout quote is neutralised.
+        self.assertIn("&#34;", rendered)
+
+    def test_image_renders_escaped_data_uri(self):
+        # A valid 1x1 PNG; the data URI must land safely inside the src attribute.
+        png_b64 = (
+            b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4n"
+            b"GP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+        )
+        result = self.env["ir.qweb.field.image"].value_to_html(png_b64, {})
+        rendered = str(result)
+        self.assertTrue(rendered.startswith('<img src="data:image/png;base64,'))
+        self.assertTrue(rendered.endswith('">'))
+
+    def test_barcode_escapes_value_in_alt(self):
+        # The barcode value flows into the ``alt`` attribute; lxml must escape it.
+        hostile = 'a"<script>'
+        result = self.env["ir.qweb.field.barcode"].value_to_html(
+            hostile, {"symbology": "Code128"}
+        )
+        rendered = str(result)
+        self.assertNotIn('"<script>', rendered)
+        self.assertNotIn("<script>", rendered)
+
+    def test_barcode_non_ascii_escapes(self):
+        # Non-ascii values fall through to nl2br, which escapes.
+        result = self.env["ir.qweb.field.barcode"].value_to_html(
+            XSS_NAME + "\N{SNOWMAN}", {}
+        )
+        self._assert_escaped(result)
+
+
+class TestQwebFieldAttributes(common.TransactionCase):
+    """QF-T2: branding metadata (``data-oe-*``) produced by ``attributes()``."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env = cls.env(context=dict(cls.env.context, **DISABLED_MAIL_CONTEXT))
+        cls.partner = cls.env["res.partner"].create({"name": "Branding Co"})
+
+    def test_attributes_returns_empty_without_branding_or_translate(self):
+        result = self.env["ir.qweb.field"].attributes(
+            self.partner,
+            "name",
+            {"inherit_branding": False, "translate": False},
+        )
+        self.assertEqual(result, {})
+
+    def test_attributes_branding_dict(self):
+        result = self.env["ir.qweb.field"].attributes(
+            self.partner,
+            "name",
+            {
+                "inherit_branding": True,
+                "translate": False,
+                "type": "char",
+                "expression": "record.name",
+            },
+        )
+        self.assertEqual(result["data-oe-model"], "res.partner")
+        self.assertEqual(result["data-oe-id"], self.partner.id)
+        self.assertEqual(result["data-oe-field"], "name")
+        self.assertEqual(result["data-oe-type"], "char")
+        self.assertEqual(result["data-oe-expression"], "record.name")
+
+    def test_attributes_readonly_flag(self):
+        # ``id`` is a readonly field, so the readonly marker must be present.
+        result = self.env["ir.qweb.field"].attributes(
+            self.partner,
+            "id",
+            {"inherit_branding": True, "translate": False},
+        )
+        self.assertEqual(result["data-oe-readonly"], 1)

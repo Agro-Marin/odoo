@@ -8,8 +8,12 @@ from pdfminer.pdfdocument import PDFDocument
 from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfpage import PDFPage
 from pdfminer.pdfparser import PDFParser
+from PIL import Image
 
 import odoo.tests
+from odoo import modules
+
+from odoo.addons.base.models import ir_actions_report
 
 _logger = logging.getLogger(__name__)
 
@@ -783,6 +787,78 @@ class TestReportsRendering(TestReportsRenderingCommon):
                 "landscape",
                 "Expected landscape orientation from data_report_landscape template variable",
             )
+
+    def test_paperformat_to_css_bad_margin(self):
+        """A malformed data-report-margin-* attribute falls back to the
+        paperformat value instead of raising ValueError (IAR-L4).
+
+        Templates supply data-report-margin-top/-bottom as strings; a value
+        like "2cm" must not crash the render with an uncaught HTTP 500.
+        """
+        Report = self.env["ir.actions.report"]
+        pf = self.env["report.paperformat"].new(
+            {
+                "format": "A4",
+                "margin_top": 25,
+                "margin_left": 50,
+                "margin_bottom": 75,
+                "margin_right": 100,
+                "orientation": "portrait",
+            }
+        )
+        css = Report._paperformat_to_css(
+            pf,
+            landscape=False,
+            specific_paperformat_args={
+                "data-report-margin-top": "2cm",  # malformed: unit suffix
+                "data-report-margin-bottom": "not-a-number",
+            },
+        )
+        # Falls back to paperformat margins (25 top, 75 bottom); no exception.
+        self.assertIn("margin: 25.0mm 100.0mm 75.0mm 50.0mm", css)
+
+    def test_render_html_to_image_format(self):
+        """_render_html_to_image resizes and honours the image_format branch.
+
+        The method early-returns ``[None] * len(bodies)`` whenever
+        ``current_test`` is set, so the resize / JPEG-vs-PNG fallback logic has
+        no direct coverage (IAR-T1). Clear the guard and stub WeasyPrint's
+        ``write_png`` with a known PNG to lock width/height + format behaviour.
+        """
+        Report = self.env["ir.actions.report"]
+
+        # Build a small known PNG to feed the resize/convert pipeline.
+        src_buf = io.BytesIO()
+        Image.new("RGBA", (4, 6), (255, 0, 0, 128)).save(src_buf, format="PNG")
+        png_bytes = src_buf.getvalue()
+
+        class _FakeHTML:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def write_png(self):
+                return png_bytes
+
+        # Bypass the current_test early-return and stub the WeasyPrint call.
+        self.patch(modules.module, "current_test", False)
+        self.patch(ir_actions_report.weasyprint, "HTML", _FakeHTML)
+
+        # JPEG (default) — RGB, exact target size.
+        jpg_images = Report._render_html_to_image(
+            ["<p>x</p>"], width=20, height=10, image_format="jpg"
+        )
+        self.assertEqual(len(jpg_images), 1)
+        with Image.open(io.BytesIO(jpg_images[0])) as out:
+            self.assertEqual(out.size, (20, 10))
+            self.assertEqual(out.format, "JPEG")
+
+        # PNG — preserves format and target size.
+        png_images = Report._render_html_to_image(
+            ["<p>x</p>"], width=8, height=16, image_format="png"
+        )
+        with Image.open(io.BytesIO(png_images[0])) as out:
+            self.assertEqual(out.size, (8, 16))
+            self.assertEqual(out.format, "PNG")
 
 
 @odoo.tests.tagged("post_install", "-at_install", "-standard", "pdf_rendering")

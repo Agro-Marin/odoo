@@ -1304,3 +1304,161 @@ class TestGroupsOdoo(common.TransactionCase):
 
         # this works because public user is inactive
         self.env.ref("base.group_public").implied_ids += self.test_group
+
+
+@common.tagged("post_install", "-at_install", "groups")
+class TestGroupsCacheInvalidation(common.TransactionCase):
+    """The cached `groups` registry family (res.groups._get_view_group_hierarchy)
+    must be invalidated when group or privilege metadata that feeds it changes.
+
+    Regression tests for audit findings RG-L1 (group rename) and RG-L2 (privilege
+    edit): the cache was previously busted only on implied_ids/implied_by_ids
+    changes, so renaming a group or privilege served a stale hierarchy to the
+    settings / user-form group widget.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # The `groups` cache is registry-wide and not rolled back with the test
+        # transaction; clear it so created-then-rolled-back records do not linger.
+        self.addCleanup(self.env.registry.clear_cache, "groups")
+
+    def test_group_rename_invalidates_view_group_hierarchy(self):
+        Groups = self.env["res.groups"]
+        group = Groups.create({"name": "Audit RG-L1 Group"})
+        hierarchy = Groups._get_view_group_hierarchy()
+        self.assertEqual(hierarchy["groups"][group.id]["name"], "Audit RG-L1 Group")
+
+        group.write({"name": "Audit RG-L1 Renamed"})
+
+        hierarchy = Groups._get_view_group_hierarchy()
+        self.assertEqual(
+            hierarchy["groups"][group.id]["name"],
+            "Audit RG-L1 Renamed",
+            "view_group_hierarchy served a stale group name (cache not invalidated)",
+        )
+
+    def test_privilege_edit_invalidates_view_group_hierarchy(self):
+        Groups = self.env["res.groups"]
+        privilege = self.env["res.groups.privilege"].create({"name": "Audit RG-L2"})
+        Groups.create({"name": "Audit RG-L2 Group", "privilege_id": privilege.id})
+        hierarchy = Groups._get_view_group_hierarchy()
+        self.assertEqual(hierarchy["privileges"][privilege.id]["name"], "Audit RG-L2")
+
+        privilege.write({"name": "Audit RG-L2 Renamed"})
+
+        hierarchy = Groups._get_view_group_hierarchy()
+        self.assertEqual(
+            hierarchy["privileges"][privilege.id]["name"],
+            "Audit RG-L2 Renamed",
+            "view_group_hierarchy served a stale privilege name (cache not invalidated)",
+        )
+
+    def test_unlink_invalidates_default_group_cache(self):
+        """RG-T1: a direct res.groups.unlink must bust the `default`-family
+        caches (res.users._get_group_ids) so a deleted group's id is not left
+        stale in a user who held it. Pre-fix this asserted the stale id;
+        post-fix the id is gone.
+        """
+        Groups = self.env["res.groups"]
+        group = Groups.create({"name": "Audit RG-T1 Group"})
+        user = self.env["res.users"].create(
+            {
+                "name": "Audit RG-T1 User",
+                "login": "audit_rg_t1_user",
+                "group_ids": [Command.link(self.env.ref("base.group_user").id)],
+            }
+        )
+        user.group_ids += group
+
+        # Warm the @ormcache (default family) and confirm the group is present.
+        self.assertIn(
+            group.id,
+            user._get_group_ids(),
+            "precondition: warmed _get_group_ids must contain the group id",
+        )
+
+        group.unlink()
+
+        # No intervening default-flushing operation: the unlink override itself
+        # must have busted the `default` family.
+        self.assertNotIn(
+            group.id,
+            user._get_group_ids(),
+            "unlink left the deleted group id stale in _get_group_ids "
+            "(default-family cache not invalidated)",
+        )
+
+    def test_is_feature_enabled(self):
+        """RG-T2: _is_feature_enabled is True iff the feature group is
+        transitively implied by base.group_user, False for a standalone group
+        and for an unknown reference.
+        """
+        Groups = self.env["res.groups"]
+
+        # _is_feature_enabled resolves an xmlid and checks PROPER implication by
+        # group_user (a group never implies itself), so the feature needs its own
+        # external id to be referenced.
+        feature = Groups.create({"name": "Audit RG-T2 Feature"})
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "audit_rg_t2_feature",
+                "model": "res.groups",
+                "res_id": feature.id,
+            }
+        )
+        self.env.ref("base.group_user").implied_ids += feature
+        self.assertTrue(
+            Groups._is_feature_enabled("base.audit_rg_t2_feature"),
+            "a feature group implied by group_user is enabled for all internal users",
+        )
+
+        # A standalone group that nothing implies is not a global feature.
+        standalone = Groups.create({"name": "Audit RG-T2 Standalone"})
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "audit_rg_t2_standalone",
+                "model": "res.groups",
+                "res_id": standalone.id,
+            }
+        )
+        self.assertFalse(
+            Groups._is_feature_enabled("base.audit_rg_t2_standalone"),
+            "a standalone group not implied by group_user must be disabled",
+        )
+
+        # An unknown reference resolves to no feature id.
+        self.assertFalse(
+            Groups._is_feature_enabled("base.this_group_does_not_exist"),
+            "an unknown group reference must return False",
+        )
+
+    def test_privilege_create_unlink_invalidates_view_group_hierarchy(self):
+        """RGP-T1: privilege create and unlink must bust the `groups` family so
+        the cached view_group_hierarchy reflects the privilege set.
+        """
+        Groups = self.env["res.groups"]
+        Privilege = self.env["res.groups.privilege"]
+
+        # Warm the cache, then create a privilege: it must appear.
+        Groups._get_view_group_hierarchy()
+        privilege = Privilege.create({"name": "Audit RGP-T1"})
+        hierarchy = Groups._get_view_group_hierarchy()
+        self.assertIn(
+            privilege.id,
+            hierarchy["privileges"],
+            "create did not invalidate the groups-family view_group_hierarchy",
+        )
+
+        # Warm again, then unlink: it must disappear.
+        Groups._get_view_group_hierarchy()
+        privilege_id = privilege.id
+        privilege.unlink()
+        hierarchy = Groups._get_view_group_hierarchy()
+        self.assertNotIn(
+            privilege_id,
+            hierarchy["privileges"],
+            "unlink did not invalidate the groups-family view_group_hierarchy",
+        )

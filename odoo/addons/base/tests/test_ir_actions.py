@@ -914,6 +914,280 @@ ZeroDivisionError: division by zero"""
             "crud_model_id should be res.partner (parent_id is self-referential)",
         )
 
+    def test_93_webhook_timeout(self):
+        """A webhook read timeout must not escape postcommit; it is logged."""
+        self.action.write(
+            {
+                "state": "webhook",
+                "webhook_url": "http://example.com/webhook",
+            }
+        )
+
+        def _patched_post(*args, **kwargs):
+            raise requests.exceptions.ReadTimeout("timed out")
+
+        with patch.object(requests, "post", _patched_post):
+            self.action.with_context(self.context).run()
+            with self.assertLogs(
+                "odoo.addons.base.models.ir_actions_server", level="WARNING"
+            ) as log_catcher:
+                # Must not raise even though requests.post timed out.
+                self.env.cr.postcommit.run()
+        self.assertTrue(
+            any("timed out" in line for line in log_catcher.output),
+            "the read timeout should be logged as a warning",
+        )
+
+    def test_94_webhook_connection_error(self):
+        """A webhook connection error must not escape postcommit; it is logged."""
+        self.action.write(
+            {
+                "state": "webhook",
+                "webhook_url": "http://example.com/webhook",
+            }
+        )
+
+        def _patched_post(*args, **kwargs):
+            raise requests.exceptions.ConnectionError("connection refused")
+
+        with patch.object(requests, "post", _patched_post):
+            self.action.with_context(self.context).run()
+            with self.assertLogs(
+                "odoo.addons.base.models.ir_actions_server", level="WARNING"
+            ) as log_catcher:
+                # Must not raise even though requests.post failed.
+                self.env.cr.postcommit.run()
+        self.assertTrue(
+            any("Webhook call failed" in line for line in log_catcher.output),
+            "the connection error should be logged as a warning",
+        )
+
+    def test_95_code_sandbox_blocked(self):
+        """The safe_eval sandbox must reject forbidden constructs in a code action."""
+        # `import os` is rejected by the _check_python_code constraint at write time.
+        with self.assertRaises(ValidationError):
+            self.action.write(
+                {
+                    "state": "code",
+                    "code": "import os\nos.system('echo pwned')",
+                }
+            )
+        # `open(...)` is not whitelisted in the sandbox builtins: it raises at run time.
+        self.action.write(
+            {
+                "state": "code",
+                "code": "open('/etc/passwd').read()",
+            }
+        )
+        # `open` is not a sandbox builtin, so it raises NameError at eval time,
+        # which safe_eval re-wraps as ValueError (safe_eval.py). A single class is
+        # required: Odoo's assertRaises validates its argument with issubclass(),
+        # which rejects a tuple of classes.
+        with self.assertRaises(ValueError):
+            self.action.with_context(self.context).run()
+
+    def test_96_eval_value_m2m_bad_value(self):
+        """A non-numeric m2m value must not raise; it yields a no-op command list."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "category_id",
+                "update_m2m_operation": "add",
+                "value": "not-an-int",
+            }
+        )
+        # _eval_value must not raise on a non-numeric value for an m2m operation.
+        self.assertEqual(self.action._eval_value()[self.action.id], [])
+        # Running the action is a no-op rather than a crash.
+        run_res = self.action.with_context(self.context).run()
+        self.assertFalse(run_res)
+
+    def test_97_eval_value_m2m_unknown_operation(self):
+        """An unknown/falsy m2m operation must leave the field untouched (no-op)."""
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "category_id",
+                "update_m2m_operation": False,
+                "value": "1",
+            }
+        )
+        # No matching match-case: expr stays the default empty command list.
+        self.assertEqual(self.action._eval_value()[self.action.id], [])
+
+    def test_98_object_write_no_path_errors(self):
+        """object_write with neither onchange_self nor update_path raises."""
+        # Build an object_write action and clear update_path afterwards so it
+        # mimics a programmatic action with nothing to update.
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "name",
+                "value": "X",
+            }
+        )
+        self.action.update_path = False
+        with self.assertRaises(UserError):
+            self.action.with_context(self.context).run()
+
+    def test_99_object_copy_no_resource_ref_errors(self):
+        """object_copy with an empty resource_ref raises a clean UserError."""
+        self.action.write(
+            {
+                "state": "object_copy",
+                "crud_model_id": self.res_partner_model.id,
+                "resource_ref": self.test_partner,
+            }
+        )
+        self.action.resource_ref = False
+        with self.assertRaises(UserError):
+            self.action.with_context(self.context).run()
+
+    def test_a0_relation_chain_unknown_field(self):
+        """An unknown field in update_path raises a translated ValidationError."""
+        with self.assertRaises(ValidationError):
+            self.action.write(
+                {
+                    "state": "object_write",
+                    "update_path": "does_not_exist",
+                    "value": "X",
+                }
+            )
+            self.action.flush_recordset(["update_path", "update_field_id"])
+
+    def test_a1_create_action_access(self):
+        """A non-writer calling create_action raises AccessError."""
+        self.action.write(
+            {
+                "model_id": self.res_partner_model.id,
+                "binding_model_id": False,
+            }
+        )
+        with self.assertRaises(AccessError):
+            self.action.with_user(self.user_demo.id).create_action()
+
+    def test_a2_write_blank_code_records_history(self):
+        """Blanking a code action's code records a history entry (mirrors create)."""
+        History = self.env["ir.actions.server.history"]
+        before = History.search_count([("action_id", "=", self.action.id)])
+        self.action.write({"code": ""})
+        after = History.search_count([("action_id", "=", self.action.id)])
+        self.assertEqual(
+            after,
+            before + 1,
+            "clearing the code should record a history entry",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestActionsPath(common.TransactionCase):
+    """Cover _check_path format/reserved/cross-table uniqueness (IACT-T1)."""
+
+    def _make_window(self, path):
+        return self.env["ir.actions.act_window"].create(
+            {
+                "name": "PathWindow",
+                "res_model": "res.partner",
+                "path": path,
+            }
+        )
+
+    def test_path_invalid_format(self):
+        """The path must be lowercase alnum/_/- starting with a letter."""
+        for bad in ("Foo", "1abc", "a b", "-abc"):
+            with self.subTest(path=bad), self.assertRaises(ValidationError):
+                self._make_window(bad)
+
+    def test_path_reserved_prefixes(self):
+        """The reserved prefixes/literal must be rejected."""
+        for bad in ("m-foo", "action-foo", "new"):
+            with self.subTest(path=bad), self.assertRaises(ValidationError):
+                self._make_window(bad)
+
+    def test_path_valid(self):
+        """A well-formed, unused path is accepted."""
+        action = self._make_window("my-valid_path1")
+        self.assertEqual(action.path, "my-valid_path1")
+
+    def test_path_unique_cross_table(self):
+        """The same path on an act_window and an act_url is rejected cross-table.
+
+        This proves the parent-table _read_group constraint spans child tables
+        (the PG unique index only fires per child table).
+        """
+        self._make_window("shared-path")
+        with self.assertRaises(ValidationError):
+            self.env["ir.actions.act_url"].create(
+                {
+                    "name": "PathUrl",
+                    "url": "https://example.com",
+                    "path": "shared-path",
+                }
+            )
+
+
+class TestActionsReadAndXmlId(common.TransactionCase):
+    """Cover act_window.read help path and _for_xml_id guard (IACT-T2)."""
+
+    def test_read_help_with_bad_context(self):
+        """A malformed/non-dict context degrades to {}; help still populated."""
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "HelpWindow",
+                "res_model": "res.partner",
+                # non-dict context: read() must fall back to {} and not raise
+                "context": "[1, 2, 3]",
+                "help": "<p>Custom help</p>",
+            }
+        )
+        values = action.read(["help", "res_model", "context"])[0]
+        self.assertIn("help", values)
+        self.assertIsNotNone(values["help"])
+
+    def test_read_help_with_raising_context(self):
+        """A context that raises on eval degrades to {}; help still populated."""
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "HelpWindow2",
+                "res_model": "res.partner",
+                # references an undefined name -> safe_eval raises -> fallback {}
+                "context": "{'k': undefined_name}",
+                "help": "<p>Custom help</p>",
+            }
+        )
+        values = action.read(["help", "res_model", "context"])[0]
+        self.assertIn("help", values)
+        self.assertIsNotNone(values["help"])
+
+    def test_for_xml_id_valid_window(self):
+        """_for_xml_id of a valid window returns a dict limited to readable fields."""
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "XmlIdWindow",
+                "res_model": "res.partner",
+            }
+        )
+        # a freshly-created action has no external id; create one so the lookup resolves
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "test_for_xml_id_valid_window_action",
+                "model": "ir.actions.act_window",
+                "res_id": action.id,
+            }
+        )
+        xml_id = "base.test_for_xml_id_valid_window_action"
+        result = self.env["ir.actions.act_window"]._for_xml_id(xml_id)
+        self.assertIsInstance(result, dict)
+        readable = action._get_readable_fields()
+        self.assertTrue(set(result.keys()).issubset(readable))
+
+    def test_for_xml_id_non_action_raises(self):
+        """_for_xml_id of a non-action xml_id raises ValidationError."""
+        with self.assertRaises(ValidationError):
+            # base.model_res_partner is an ir.model record, not an action.
+            self.env["ir.actions.actions"]._for_xml_id("base.model_res_partner")
+
 
 class TestCommonCustomFields(common.TransactionCase):
     MODEL = "res.partner"

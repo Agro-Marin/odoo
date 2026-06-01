@@ -103,10 +103,12 @@ web: <a class="moz-txt-link-freetext" href="https://opener.am">https://opener.am
 QUOTE_BLOCKQUOTE_IN = [
     """<blockquote cite="mid:CAEJSRZvWvud8c6Qp=wfNG6O1+wK3i_jb33qVrF7XyrgPNjnyUA@mail.gmail.com" type="cite" data-o-mail-quote-node="1" data-o-mail-quote="1">"""
 ]
-QUOTE_BLOCKQUOTE_OUT = ["""--
+QUOTE_BLOCKQUOTE_OUT = [
+    """--
 Opener B.V. - Business solutions driven by open source collaboration
 
-Stefan Rijnhart - Consultant/developer"""]
+Stefan Rijnhart - Consultant/developer"""
+]
 
 
 QUOTE_THUNDERBIRD_HTML = """<html>
@@ -264,9 +266,11 @@ QUOTE_THUNDERBIRD_1_IN = [
     '<blockquote data-o-mail-quote-node="1" data-o-mail-quote="1">',
     "Ok for me. I am replying directly below your mail, using Thunderbird, with a signature.",
 ]
-QUOTE_THUNDERBIRD_1_OUT = ["""--
+QUOTE_THUNDERBIRD_1_OUT = [
+    """--
 Raoul Grosbedonnée
-"""]
+"""
+]
 
 QUOTE_YAHOO_HTML = """
 <html>
@@ -320,9 +324,11 @@ TEXT_1_IN = [
 10 AM: meeting with Ignasse to present our app
 Is everything ok for you?"""
 ]
-TEXT_1_OUT = ["""
+TEXT_1_OUT = [
+    """
 --
-MySignature"""]
+MySignature"""
+]
 
 TEXT_2 = """Salut Raoul!
 Le 28 oct. 2012 à 00:02, Raoul Grosbedon a écrit :
@@ -429,9 +435,11 @@ HOTMAIL_1 = """<div>
         </div>
     </div>
 </div>"""
-HOTMAIL_1_IN = ["""<div dir="ltr"><br>
+HOTMAIL_1_IN = [
+    """<div dir="ltr"><br>
         I have an amazing company, i'm learning Odoo, it is a small company yet, but plannig to grow up quickly.
-        <br><br>Kindest regards,<br>xxx<br>"""]
+        <br><br>Kindest regards,<br>xxx<br>"""
+]
 HOTMAIL_1_OUT = [
     """<hr id="stopSpelling" data-o-mail-quote="1">""",
     """<pre data-o-mail-quote="1">
@@ -599,7 +607,8 @@ Tel: +32.81.81.37.00
 Web: http://www.odoo.com</pre>"""
 
 BUG_1_IN = ["Hi Migration Team", "Paragraph 1"]
-BUG_1_OUT = ["""
+BUG_1_OUT = [
+    """
 --
 Olivier Laurent
 Migration Manager
@@ -607,7 +616,8 @@ Odoo SA
 Chaussée de Namur, 40
 B-1367 Gérompont
 Tel: +32.81.81.37.00
-Web: http://www.odoo.com"""]
+Web: http://www.odoo.com"""
+]
 
 
 REMOVE_CLASS = """

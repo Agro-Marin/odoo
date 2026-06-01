@@ -2522,6 +2522,48 @@ class TestViews(ViewCase):
             '''Field "not_a_field" does not exist in model "ir.ui.view"''',
         )
 
+    def test_invalid_parent_ref_in_root_view(self):
+        """A ``parent.``-prefixed reference in a root view (no parent) is flagged.
+
+        Previously such a reference was silently dropped by ``must_have_fields``;
+        it must now be reported instead of escaping validation (IUVN-L1).
+        """
+        self.assertInvalid(
+            """
+                <form string="View">
+                    <field name="name" invisible="parent.does_not_exist"/>
+                </form>
+            """,
+            "parent.does_not_exist",
+        )
+
+    def test_reset_arch(self):
+        """reset_arch restores arch_prev on soft and is a safe no-op otherwise.
+
+        Locks the IUV-M2 contract: write_dict is only applied when both ``arch``
+        and ``write_dict`` are bound (soft, or hard with arch_fs), so a hard
+        reset without arch_fs leaves the arch untouched and never NameErrors.
+        """
+        view = self.assertValid(
+            '<form string="View"><field name="name"/></form>',
+            name="reset arch base",
+        )
+        original = view.arch
+
+        # Editing the arch records the previous arch in arch_prev.
+        view.write({"arch": '<form string="Edited"><field name="name"/></form>'})
+        self.assertNotEqual(view.arch, original)
+        self.assertEqual(view.arch_prev, original)
+
+        # Soft reset restores the previous arch.
+        view.reset_arch(mode="soft")
+        self.assertEqual(view.arch, original)
+
+        # Hard reset without an arch_fs is a safe no-op (no write_dict bound).
+        self.assertFalse(view.arch_fs)
+        view.reset_arch(mode="hard")
+        self.assertEqual(view.arch, original)
+
     def test_invalid_type(self):
         """Ensure invalid root tag infers an invalid type and raises ValidationError"""
         with self.assertRaises(ValidationError):
@@ -4211,17 +4253,27 @@ class TestViews(ViewCase):
             "A <span> with fa class (fa-solid fa-triangle-exclamation) must have title in its tag, parents, descendants or have text",
         )
         self.assertValid('<form><button icon="fa-warning"/>text</form>')
-        self.assertValid('<form><span class="fa-solid fa-triangle-exclamation"/>text</form>')
+        self.assertValid(
+            '<form><span class="fa-solid fa-triangle-exclamation"/>text</form>'
+        )
         self.assertValid(
             '<form><span class="fa-solid fa-triangle-exclamation"/><label for="key" string="Some Text"/><field name="key"/></form>'
         )
         self.assertValid(
             '<form><span class="fa-solid fa-triangle-exclamation"/><field name="key" string="Some Text"/></form>'
         )
-        self.assertValid('<form>text<span class="fa-solid fa-triangle-exclamation"/></form>')
-        self.assertValid('<form><span class="fa-solid fa-triangle-exclamation">text</span></form>')
-        self.assertValid('<form><span title="text" class="fa-solid fa-triangle-exclamation"/></form>')
-        self.assertValid('<form><span aria-label="text" class="fa-solid fa-triangle-exclamation"/></form>')
+        self.assertValid(
+            '<form>text<span class="fa-solid fa-triangle-exclamation"/></form>'
+        )
+        self.assertValid(
+            '<form><span class="fa-solid fa-triangle-exclamation">text</span></form>'
+        )
+        self.assertValid(
+            '<form><span title="text" class="fa-solid fa-triangle-exclamation"/></form>'
+        )
+        self.assertValid(
+            '<form><span aria-label="text" class="fa-solid fa-triangle-exclamation"/></form>'
+        )
 
     def test_valid_simili_button(self):
         self.assertWarning('<form><a class="btn"/></form>')
@@ -4255,7 +4307,9 @@ class TestViews(ViewCase):
             '<form><div class="o_progressbar" role="progressbar" aria-valuenow="14" aria-valuemax="100">14%</div></form>'
         )
         self.assertWarning(
-            '<form><div class="o_progressbar" role="progressbar" aria-valuenow="14" aria-valuemin="0" >14%</div></form>'
+            '<form><div class="o_progressbar" role="progressbar" aria-valuenow="14" aria-valuemin="0" >14%</div></form>',
+            # Pin the corrected warning string (IUV-M1: the space was missing).
+            expected_message="o_progressbar class must have aria-valuemax attribute",
         )
 
     def test_valid_simili_tabpanel(self):
@@ -5025,6 +5079,66 @@ class TestDefaultView(ViewCase):
             "default_view should get the view with the lowest priority for "
             "a (model, view_type) pair in all the primary tables",
         )
+
+    def test_default_list_view(self):
+        """The default list generator yields a single-field list on _rec_name."""
+        arch = self.View._get_default_list_view()
+        self.assertEqual(arch.tag, "list")
+        self.assertEqual(arch.get("string"), self.View._description)
+        fields = arch.findall("field")
+        self.assertEqual([f.get("name") for f in fields], ["name"])
+
+    def test_default_search_view(self):
+        """The default search generator yields a single-field search on _rec_name."""
+        arch = self.View._get_default_search_view()
+        self.assertEqual(arch.tag, "search")
+        self.assertEqual([f.get("name") for f in arch.findall("field")], ["name"])
+
+    def test_default_kanban_view(self):
+        """The default kanban generator yields a card template on _rec_name."""
+        arch = self.View._get_default_kanban_view()
+        self.assertEqual(arch.tag, "kanban")
+        card = arch.find('templates/t[@t-name="card"]')
+        self.assertIsNotNone(card, "kanban should embed a 'card' template")
+        self.assertEqual([f.get("name") for f in card.findall("field")], ["name"])
+
+    def test_default_pivot_view(self):
+        """The default pivot generator yields an empty pivot."""
+        arch = self.View._get_default_pivot_view()
+        self.assertEqual(arch.tag, "pivot")
+        self.assertEqual(arch.get("string"), self.View._description)
+        self.assertEqual(len(arch), 0, "default pivot view should have no children")
+
+    def test_default_graph_view(self):
+        """The default graph generator yields a single-field graph on _rec_name."""
+        arch = self.View._get_default_graph_view()
+        self.assertEqual(arch.tag, "graph")
+        self.assertEqual([f.get("name") for f in arch.findall("field")], ["name"])
+
+    def test_calendar_view_missing_date_start(self):
+        """A model without any date_start candidate raises a UserError."""
+        # ir.ui.view has none of the date_start candidate fields.
+        with self.assertRaises(UserError):
+            self.View._get_default_calendar_view()
+
+    def test_calendar_view_missing_stop_and_delay(self):
+        """A model with a date_start but no date_stop/date_delay raises a UserError."""
+        # Point _date_name at a real stored (searchable) field so the date_start
+        # inference succeeds; ir.ui.view still has no date_stop/date_delay
+        # candidate, hitting the second UserError branch. self.patch restores it.
+        self.patch(type(self.View), "_date_name", "name")
+        with self.assertRaises(UserError):
+            self.View._get_default_calendar_view()
+
+    def test_get_view_is_readonly(self):
+        """get_view must be marked @api.readonly like its sibling get_views."""
+        # A purely read-only RPC entry point routed to the readonly cursor.
+        self.assertTrue(
+            type(self.env["ir.ui.view"]).get_view._readonly,
+            "get_view should carry @api.readonly (read/write split)",
+        )
+        # Sanity: the sibling get_views is already readonly.
+        self.assertTrue(type(self.env["ir.ui.view"]).get_views._readonly)
 
 
 class TestViewCombined(ViewCase):
@@ -5835,6 +5949,53 @@ class TestAccessRights(TransactionCaseWithUserDemo):
         # unless he does not have access to the model
         with self.assertRaises(AccessError):
             self.env["ir.ui.view"].get_view(view_type="form")
+
+    def test_view_custom_per_user_isolation(self):
+        """A user cannot read another user's ir.ui.view.custom via the normal path.
+
+        Pins the per-user isolation that the global record rule provides on the
+        non-sudo path (IUVC-L1). The model's only ACL is group_system, so both
+        users are given that group to pass the ACL; the record rule
+        ``[('user_id','=',user.id)]`` must still confine each to their own
+        customizations. The hot path runs under sudo with hand-written user_id
+        filters, but this is the model-level backstop.
+        """
+        system_group = self.env.ref("base.group_system")
+        user_a = self.env["res.users"].create(
+            {
+                "name": "Custom Owner A",
+                "login": "custom_owner_a",
+                "group_ids": [(4, system_group.id)],
+            }
+        )
+        user_b = self.env["res.users"].create(
+            {
+                "name": "Custom Owner B",
+                "login": "custom_owner_b",
+                "group_ids": [(4, system_group.id)],
+            }
+        )
+        ref_view = self.env.ref("base.view_company_form")
+        custom_a = self.env["ir.ui.view.custom"].create(
+            {
+                "ref_id": ref_view.id,
+                "user_id": user_a.id,
+                "arch": "<form/>",
+            }
+        )
+
+        Custom = self.env["ir.ui.view.custom"]
+        # User A sees their own customization.
+        self.assertIn(
+            custom_a, Custom.with_user(user_a).search([("ref_id", "=", ref_view.id)])
+        )
+        # User B does not see it through search (record rule).
+        self.assertNotIn(
+            custom_a, Custom.with_user(user_b).search([("ref_id", "=", ref_view.id)])
+        )
+        # And a direct read of A's record by B is denied.
+        with self.assertRaises(AccessError):
+            Custom.with_user(user_b).browse(custom_a.id).read(["arch"])
 
 
 @common.tagged("post_install", "-at_install", "-standard", "migration")

@@ -667,3 +667,34 @@ class TestImage(TransactionCase):
             tools.image_apply_opt(image1, "JPEG"),
             tools.image_apply_opt(image2, "JPEG"),
         )
+
+    def test_30_image_mixin_resize_on_write(self):
+        """Writing image_1920 on an image.mixin consumer populates and resizes
+        the stored image_NNNN fields to their declared bounds."""
+        # res.partner mixes in image.mixin (via avatar.mixin).
+        partner = self.env["res.partner"].create(
+            {
+                "name": "Image Mixin",
+                "image_1920": base64.b64encode(self.img_1920x1080_png),
+            }
+        )
+
+        # Master field bounded to 1920x1920 (1920x1080 source stays as-is).
+        self.assertEqual(
+            img_open(base64.b64decode(partner.image_1920)).size, (1920, 1080)
+        )
+
+        # Each stored resized field is downscaled to <= its max dimension.
+        for field_name, bound in (
+            ("image_1024", 1024),
+            ("image_512", 512),
+            ("image_256", 256),
+            ("image_128", 128),
+        ):
+            value = partner[field_name]
+            self.assertTrue(value, "%s should be populated" % field_name)
+            width, height = img_open(base64.b64decode(value)).size
+            self.assertLessEqual(width, bound, "%s width within bound" % field_name)
+            self.assertLessEqual(height, bound, "%s height within bound" % field_name)
+            # Aspect ratio (16:9) is preserved on the longer edge.
+            self.assertEqual(width, bound, "%s scaled to width bound" % field_name)

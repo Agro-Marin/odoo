@@ -50,6 +50,44 @@ class EmailConfigCase(TransactionCase):
         )
         self.assertEqual(message["From"], "settings@example.com")
 
+    def test_build_email_rejects_header_injection(self):
+        """MS-T3: CR/LF in a header value or name must raise (no header smuggling).
+
+        The defense lives in CPython's ``email.policy`` (``verify_generated_headers``
+        is preserved by the cloned no-fold policy). This pins the behavior so a
+        future policy/clone change that disables it is caught.
+        """
+        IrMailServer = self.env["ir.mail_server"]
+
+        # A CR/LF in the Subject must not smuggle an extra Bcc header.
+        with self.assertRaises(ValueError):
+            IrMailServer._build_email__(
+                "sender@example.com",
+                "recipient@example.com",
+                "Subject\r\nBcc: attacker@example.com",
+                "Body",
+            )
+
+        # A CR/LF inside a user-supplied header value must also raise.
+        with self.assertRaises(ValueError):
+            IrMailServer._build_email__(
+                "sender@example.com",
+                "recipient@example.com",
+                "Subject",
+                "Body",
+                headers={"X-Custom": "value\r\nBcc: attacker@example.com"},
+            )
+
+        # A CR/LF (or ':') in a header name must raise as well.
+        with self.assertRaises(ValueError):
+            IrMailServer._build_email__(
+                "sender@example.com",
+                "recipient@example.com",
+                "Subject",
+                "Body",
+                headers={"X-Foo\r\nBcc: attacker@example.com": "v"},
+            )
+
 
 @tagged("mail_server")
 class TestIrMailServer(TransactionCase, MockSmtplibCase):

@@ -2,7 +2,7 @@ import sys
 import time
 from unittest.mock import patch
 
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.libs.profiling.speedscope import Speedscope
 from odoo.tests.common import (
     BaseCase,
@@ -36,6 +36,44 @@ class TestProfileAccess(TransactionCase):
             self.env["ir.profile"].search([])
         with self.assertRaises(AccessError):
             self.test_profile.with_user(user).read(["name"])
+
+    def test_action_view_speedscope_url(self):
+        """IRPROF-L1: the toolbar button opens the speedscope *config* URL
+        (intentional); pin it so the button label and URL do not silently
+        drift apart again."""
+        action = self.test_profile.action_view_speedscope()
+        self.assertEqual(action["type"], "ir.actions.act_url")
+        self.assertTrue(action["url"].startswith("/web/profile_config/"))
+
+    def test_generate_speedscope_check_access(self):
+        """IRPROF-C2: ``_generate_speedscope`` enforces the group_system ACL
+        up front, so a non-system user is rejected with AccessError regardless
+        of whether the profile id exists -- no existence-oracle side-channel."""
+        user = new_test_user(self.env, login="noProfileSpeed", groups="base.group_user")
+        params = self.test_profile._parse_params({})
+        with self.assertRaises(AccessError):
+            self.test_profile.with_user(user)._generate_speedscope(params)
+
+    def test_generate_memory_profile_check_access(self):
+        """IRPROF-C2: ``_generate_memory_profile`` likewise enforces the ACL
+        before reading any stored field."""
+        user = new_test_user(self.env, login="noProfileMem", groups="base.group_user")
+        params = self.test_profile._parse_params({})
+        with self.assertRaises(AccessError):
+            self.test_profile.with_user(user)._generate_memory_profile(params)
+
+    def test_speedscope_url_no_speedscope_dependency(self):
+        """IRPROF-P1: reading the cheap ``speedscope_url`` must NOT trigger the
+        expensive ``_compute_speedscope`` (the URL is derived only from id)."""
+        IrProfile = type(self.env["ir.profile"])
+        with patch.object(
+            IrProfile, "_compute_speedscope", autospec=True
+        ) as compute_speedscope:
+            self.assertEqual(
+                self.test_profile.speedscope_url,
+                f"/web/speedscope/{self.test_profile.id}",
+            )
+        compute_speedscope.assert_not_called()
 
 
 @tagged("post_install", "-at_install", "profiling")
@@ -616,10 +654,9 @@ class TestProfiling(TransactionCase):
         )
 
         values = {
-            "add_one_query": lambda: self.env.cr.execute(
-                "SELECT id FROM ir_ui_view LIMIT 1"
+            "add_one_query": lambda: (
+                self.env.cr.execute("SELECT id FROM ir_ui_view LIMIT 1") or "query"
             )
-            or "query"
         }
         result = """
                     [0: <span class="myclass">a query</span> 3]
@@ -987,3 +1024,81 @@ class TestMemoryProfiler(HttpCase):
     def test_memory_profiler(self):
         with Profiler(collectors=["memory"], db=None):
             self.env["base.module.update"].create({}).update_module()
+
+
+class _FakeRequest:
+    """Minimal stand-in for ``odoo.http.request`` in ``set_profiling`` tests.
+
+    Truthy (so the ``if not request`` guard passes) and exposes a plain dict
+    ``session`` that mimics the keys ``set_profiling`` reads/writes.
+    """
+
+    def __init__(self):
+        self.session = {}
+
+
+@tagged("post_install", "-at_install", "profiling")
+class TestProfilingStateMachine(TransactionCase):
+    """IRPROF-T1: pin the arming/consuming state machine at the unit level.
+
+    Previously only exercised end-to-end via the web HttpCase; this covers the
+    base model contract directly: an expired/blank ICP closes the window, a
+    non-system user cannot arm profiling, and a system user gets the wizard.
+    """
+
+    def _set_window(self, value):
+        """Set the ``base.profiling_enabled_until`` ICP to ``value``."""
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base.profiling_enabled_until", value
+        )
+
+    def test_enabled_until_blank_is_none(self):
+        """A blank ICP means profiling is not armed -> ``_enabled_until`` None."""
+        self._set_window(False)
+        self.assertIsNone(self.env["ir.profile"]._enabled_until())
+
+    def test_enabled_until_expired_is_none(self):
+        """A past ICP window is closed -> ``_enabled_until`` returns None."""
+        self._set_window("2000-01-01 00:00:00")
+        self.assertIsNone(self.env["ir.profile"]._enabled_until())
+
+    def test_enabled_until_future_returns_limit(self):
+        """A future ICP window is open -> ``_enabled_until`` returns the limit."""
+        self._set_window("2999-01-01 00:00:00")
+        self.assertEqual(self.env["ir.profile"]._enabled_until(), "2999-01-01 00:00:00")
+
+    def test_non_system_cannot_arm_profiling(self):
+        """IRPROF-T1: a non-system user with no open window cannot arm
+        profiling -- ``set_profiling(True)`` raises UserError, it does not
+        silently open a session."""
+        self._set_window(False)
+        user = new_test_user(self.env, login="noArmProfiling", groups="base.group_user")
+        fake_request = _FakeRequest()
+        with patch("odoo.addons.base.models.ir_profile.request", fake_request):
+            with self.assertRaises(UserError):
+                self.env["ir.profile"].with_user(user).set_profiling(True)
+        self.assertIsNone(fake_request.session.get("profile_session"))
+
+    def test_system_user_gets_wizard_when_unarmed(self):
+        """IRPROF-T1: a system user with no open window gets the enable-profiling
+        wizard action instead of a session."""
+        self._set_window(False)
+        fake_request = _FakeRequest()
+        with patch("odoo.addons.base.models.ir_profile.request", fake_request):
+            action = self.env["ir.profile"].set_profiling(True)
+        self.assertEqual(action["res_model"], "base.enable.profiling.wizard")
+
+    def test_parse_params_memory_limit_non_numeric(self):
+        """IRPROF-C1: a non-numeric ``memory_limit`` from the controller query
+        string must not raise (no HTTP 500); it degrades to 0."""
+        IrProfile = self.env["ir.profile"]
+        self.assertEqual(
+            IrProfile._parse_params({"memory_limit": "abc"})["memory_limit"], 0
+        )
+        self.assertEqual(
+            IrProfile._parse_params({"memory_limit": None})["memory_limit"], 0
+        )
+        self.assertEqual(
+            IrProfile._parse_params({"memory_limit": "42"})["memory_limit"], 42
+        )
+        self.assertEqual(IrProfile._parse_params({})["memory_limit"], 0)

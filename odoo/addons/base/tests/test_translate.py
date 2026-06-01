@@ -38,6 +38,7 @@ def unquote(s: str) -> str:
     """Return unquoted PO term string, with special PO characters unescaped."""
     return re_escaped_char.sub(_sub_replacement, s[1:-1])
 
+
 _stats_logger = logging.getLogger("odoo.tests.stats")
 
 # a string with various unicode characters
@@ -179,7 +180,10 @@ class TranslationToolsTestCase(BaseCase):
         self.assertEqual(result, source)
         self.assertItemsEqual(
             terms,
-            ["Form stuff", '<span class="fa-solid fa-earth-americas" title="Title stuff"/>'],
+            [
+                "Form stuff",
+                '<span class="fa-solid fa-earth-americas" title="Title stuff"/>',
+            ],
         )
 
     def test_translate_xml_inline5(self):
@@ -394,9 +398,7 @@ class TranslationToolsTestCase(BaseCase):
 
         # text and elements
         make_xml = '<form string="X">{}</form>'.format
-        term = (
-            '<i class="fa-solid fa-circle" role="img" aria-label="Invalid" title="Invalid"/>'
-        )
+        term = '<i class="fa-solid fa-circle" role="img" aria-label="Invalid" title="Invalid"/>'
 
         # {legal: legal}
         valid = '<i class="fa-solid fa-circle" role="img" aria-label="Non-valide" title="Non-valide"/>X'
@@ -541,12 +543,15 @@ class TestTranslation(TransactionCase):
         cls.customers = cls.env["res.partner.category"].create({"name": "Customers"})
 
         cls.customers_xml_id = cls.customers.export_data(["id"]).get("datas")[0][0]
-        po_string = """
+        po_string = (
+            """
         #. module: __export__
         #: model:res.partner.category,name:%s
         msgid "Customers"
         msgstr "Clients"
-        """ % cls.customers_xml_id
+        """
+            % cls.customers_xml_id
+        )
         with io.BytesIO(bytes(po_string, encoding="utf-8")) as f:
             f.name = "dummy"
             translation_importer = TranslationImporter(cls.env.cr, verbose=True)
@@ -950,12 +955,15 @@ class TestTranslationWrite(TransactionCase):
             "Test did not started with expected languages",
         )
 
-        po_string = """
+        po_string = (
+            """
         #. module: __export__
         #: model:res.partner.category,name:%s
         msgid "Reblochon"
         msgstr "Translated Name"
-        """ % self.category_xml_id
+        """
+            % self.category_xml_id
+        )
         with io.BytesIO(bytes(po_string, encoding="utf-8")) as f:
             f.name = "dummy"
             translation_importer = TranslationImporter(self.env.cr, verbose=True)
