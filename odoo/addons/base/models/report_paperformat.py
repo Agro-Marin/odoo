@@ -217,19 +217,19 @@ class ReportPaperformat(models.Model):
         "Header spacing (mm)",
         default=35,
         help="Height in mm of the header area. Used by report templates (e.g. DIN 5008) "
-             "as a layout variable. Has no effect on standard Odoo reports.",
+        "as a layout variable. Has no effect on standard Odoo reports.",
     )
     disable_shrinking = fields.Boolean(
         "Disable auto-shrinking",
         help="When enabled, the Web Studio report preview skips viewport-shrink "
-             "correction. Has no effect on WeasyPrint PDF generation.",
+        "correction. Has no effect on WeasyPrint PDF generation.",
     )
     dpi = fields.Integer(
         "Preview DPI",
         required=True,
         default=90,
         help="DPI used to scale the HTML preview in Web Studio (96 / dpi = zoom factor). "
-             "Does not affect WeasyPrint PDF output, which is resolution-independent.",
+        "Does not affect WeasyPrint PDF output, which is resolution-independent.",
     )
     report_ids = fields.One2many(
         "ir.actions.report",
@@ -247,9 +247,9 @@ class ReportPaperformat(models.Model):
         "Use body padding margins",
         default=False,
         help="When enabled, horizontal spacing is applied as CSS body padding (8 mm) "
-             "rather than @page margin rules. Header/footer running elements add matching "
-             "padding to stay aligned with the body content. Typically used together with "
-             "margin_left=0 and margin_right=0.",
+        "rather than @page margin rules. Header/footer running elements add matching "
+        "padding to stay aligned with the body content. Typically used together with "
+        "margin_left=0 and margin_right=0.",
     )
 
     @api.constrains("format", "page_width", "page_height")
@@ -264,6 +264,10 @@ class ReportPaperformat(models.Model):
             )
 
     def _compute_print_page_size(self) -> None:
+        # RPF-C1 (deferred, cosmetic): a falsy `format` (empty, not "custom") yields
+        # 0x0 even when page_width/page_height are set. This is a transient display-only
+        # inconsistency; the _check_format_or_page constraint is the persist-time arbiter
+        # and the source of truth. Intentionally not altering compute behaviour here.
         for record in self:
             width = height = 0.0
             if record.format:

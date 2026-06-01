@@ -27,12 +27,20 @@ class ResUsersDeletion(models.Model):
         string="State",
         required=True,
         default="todo",
+        help="Deletion request lifecycle: 'todo' when queued, 'done' once the "
+        "user is deleted, 'fail' if deletion was attempted but could not "
+        "complete (the user is then archived instead).",
     )
 
     @api.depends("user_id")
     def _compute_user_id_int(self) -> None:
         for user_deletion in self:
-            user_deletion.user_id_int = user_deletion.user_id.id or 0
+            # user_id is ondelete="set null"; once the user is actually deleted
+            # this compute re-runs with user_id == False. Guard the assignment so
+            # the originally-captured id is preserved -- it is the only remaining
+            # trace of which user the request was for. (Fork regression RUD-L1.)
+            if user_deletion.user_id:
+                user_deletion.user_id_int = user_deletion.user_id.id
 
     @api.model
     def _gc_portal_users(self, batch_size: int = 50) -> None:
@@ -43,6 +51,10 @@ class ResUsersDeletion(models.Model):
         Removing a user can be an heavy operation on large database (because of
         create_uid, write_uid on each models, which are not always indexed). Because of
         that, this operation is done in a CRON.
+
+        :param int batch_size: maximum number of queued user deletions to attempt
+            per run; the remainder stay ``todo`` for the next run.
+        :return: None (each request is marked ``done`` or ``fail`` in place).
         """
         delete_requests = self.search([("state", "=", "todo")])
 

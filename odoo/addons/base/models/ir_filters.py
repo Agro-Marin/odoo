@@ -2,6 +2,7 @@ import ast
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.orm._typing import ValuesType
 from odoo.tools import SQL
 
@@ -129,15 +130,22 @@ class IrFilters(models.Model):
     ) -> list[ValuesType]:
         """Obtain the list of filters available for the user on the given model.
 
-        :param str model: id of model to find filters for
+        :param str model: name of the model to find filters for (the
+            ``model_id`` value, e.g. ``"res.partner"``), not a database id.
         :param action_id: optional ID of action to restrict filters to this action
             plus global filters. If missing only global filters are returned.
             The action does not have to correspond to the model, it may only be
             a contextual action.
+        :param embedded_action_id: optional ID of the embedded action the filter
+            is scoped to; combined with ``embedded_parent_res_id``.
+        :param embedded_parent_res_id: optional id of the parent record the
+            embedded-action filter applies to; only meaningful when
+            ``embedded_action_id`` is set.
         :return: list of :meth:`~osv.read`-like dicts containing the
-            ``name``, ``is_default``, ``domain``, ``user_ids`` (m2m),
-            ``action_id`` (m2o tuple), ``embedded_action_id`` (m2o tuple), ``embedded_parent_res_id``
-            and ``context`` of the matching ``ir.filters``.
+            ``name``, ``is_default``, ``domain``, ``context``, ``user_ids`` (m2m),
+            ``sort``, ``embedded_action_id`` (m2o tuple) and
+            ``embedded_parent_res_id`` of the matching ``ir.filters``.
+        :rtype: list[dict]
         """
         # available filters: private filters (user_ids=uids) and public filters (uids=NULL),
         # and filters for the action (action_id=action_id) or global (action_id=NULL)
@@ -164,8 +172,83 @@ class IrFilters(models.Model):
         )
 
     @api.model
+    def _validate_serialized_fields(self, vals: dict[str, Any]) -> None:
+        """Validate that the stored ``domain``/``context``/``sort`` blobs have the right shape.
+
+        ``ir.filters`` persists ``domain``/``context``/``sort`` as free-form text
+        that downstream consumers evaluate (``_get_eval_domain``, the web client,
+        ``website_snippet_filter``). A malformed favorite created over RPC would
+        otherwise break the favorites dropdown for everyone sharing it, failing
+        far from its cause; validate at the write boundary instead.
+
+        :param dict vals: filter values about to be persisted.
+        :raises ValidationError: if ``domain`` is not a list, ``context`` is not a
+            dict, or ``sort`` is not a list of strings.
+        """
+        for fname, types, label in (
+            ("domain", (list, tuple), "list"),
+            ("context", (dict,), "dict"),
+            ("sort", (list, tuple), "list"),
+        ):
+            raw = vals.get(fname)
+            if raw is None or isinstance(raw, types):
+                parsed = raw
+            elif not isinstance(raw, str):
+                raise ValidationError(
+                    self.env._(
+                        "Filter %(field)s must be a %(type)s.", field=fname, type=label
+                    )
+                )
+            else:
+                try:
+                    parsed = ast.literal_eval(raw)
+                except (ValueError, SyntaxError) as e:
+                    raise ValidationError(
+                        self.env._(
+                            "Invalid filter %(field)s: %(error)s", field=fname, error=e
+                        )
+                    ) from e
+                if not isinstance(parsed, types):
+                    raise ValidationError(
+                        self.env._(
+                            "Filter %(field)s must be a %(type)s.",
+                            field=fname,
+                            type=label,
+                        )
+                    )
+            # The DB CHECK on `sort` only enforces "jsonb array"; it accepts
+            # non-string elements (e.g. [1, 2]) that blow up later at
+            # ",".join(...). Enforce list-of-strings here (IRF-C1).
+            if fname == "sort" and parsed is not None:
+                if not all(isinstance(item, str) for item in parsed):
+                    raise ValidationError(
+                        self.env._("Filter sort must be a list of strings.")
+                    )
+
+    @api.constrains("domain", "context", "sort")
+    def _check_serialized_fields(self) -> None:
+        """Validate serialized blobs on every write path, not only ``create_filter``.
+
+        ``create_filter`` is the documented RPC entry point, but raw ORM
+        ``create``/``write`` (server code, data files, future RPC) must validate
+        too so the IRF-L1 guarantee holds at the actual write boundary (IRF-L2).
+        """
+        for filter_ in self:
+            self._validate_serialized_fields(
+                {
+                    "domain": filter_.domain,
+                    "context": filter_.context,
+                    "sort": filter_.sort,
+                }
+            )
+
+    @api.model
     def create_filter(self, vals: dict[str, Any]) -> Self:
         embedded_action_id = vals.get("embedded_action_id")
         if not embedded_action_id and "embedded_parent_res_id" in vals:
             del vals["embedded_parent_res_id"]
+        # _validate_serialized_fields raises ValidationError before the DB hit,
+        # preserving the contract the RPC tests assert; the @api.constrains
+        # backstop (IRF-L2) re-validates on the underlying create anyway.
+        self._validate_serialized_fields(vals)
         return self.create(vals)

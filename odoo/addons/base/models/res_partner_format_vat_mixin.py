@@ -10,9 +10,24 @@ class FormatVatLabelMixin(models.AbstractModel):
     _description = "Country Specific VAT Label"
 
     @api.model
+    def _get_view_cache_key(
+        self, view_id: int | None = None, view_type: str = "form", **options
+    ) -> tuple:
+        """Key the view cache on the company.
+
+        The ``_get_view`` override relabels the ``vat`` field/label from the
+        company country's ``vat_label``, so the processed arch must not be
+        shared across companies with different vat labels. Mirrors
+        ``format.address.mixin._get_view_cache_key``.
+        """
+        key = super()._get_view_cache_key(view_id, view_type, **options)
+        return key + (self.env.company,)
+
+    @api.model
     def _get_view(
         self, view_id: int | None = None, view_type: str = "form", **options
     ) -> tuple[etree._Element, Any]:
+        """Relabel the vat field/label to the company country's vat_label."""
         arch, view = super()._get_view(view_id, view_type, **options)
         if vat_label := self.env.company.country_id.vat_label:
             for node in arch.iterfind(".//field[@name='vat']"):

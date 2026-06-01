@@ -41,7 +41,7 @@ class ResCompany(models.Model):
     def _get_logo(self) -> bytes:
         return _get_default_logo()
 
-    def _default_currency_id(self) -> Any:
+    def _default_currency_id(self) -> models.Model:
         return self.env.user.company_id.currency_id
 
     name = fields.Char(
@@ -242,8 +242,12 @@ class ResCompany(models.Model):
         return ["currency_id"]
 
     def _get_company_address_field_names(self) -> list[str]:
-        """Return a list of fields coming from the address partner to match
-        on company address fields. Fields are labeled same on both models."""
+        """Return the address field names shared by company and its partner.
+
+        :rtype: list[str]
+        """
+        # The fields are labeled identically on both models, so the same names
+        # are used to copy values between company and partner.
         return ["street", "street2", "city", "zip", "state_id", "country_id"]
 
     def _get_company_address_update(self, partner: Any) -> dict[str, Any]:
@@ -576,6 +580,10 @@ class ResCompany(models.Model):
         for company in self:
             # Copy modified delegated fields from root to branches
             if delegated_changed and not company.parent_id:
+                # Perf: one child_of search + one write per root in self. self is
+                # almost always a single company; a bulk-company migration that
+                # writes a delegated field on many roots at once would run N
+                # searches + N writes and should batch instead.
                 # Sudo: branches may include companies outside the user's scope.
                 # Delegated field sync must reach ALL branches of the root company.
                 branches = self.sudo().search(  # noqa: E8507 — bounded: only root companies (typically 1)
@@ -585,7 +593,9 @@ class ResCompany(models.Model):
                     ]
                 )
                 changed_vals = {
-                    fname: self._fields[fname].convert_to_write(company[fname], branches)
+                    fname: self._fields[fname].convert_to_write(
+                        company[fname], branches
+                    )
                     for fname in sorted(delegated_changed)
                 }
                 branches.write(changed_vals)
@@ -714,31 +724,39 @@ class ResCompany(models.Model):
             "views": [[False, "list"], [False, "kanban"], [False, "form"]],
         }
 
-    def _get_public_user(self) -> Any:
+    def _get_public_user(self) -> models.Model:
+        """Return (creating if needed) the public user for this company.
+
+        :return: the company's public ``res.users`` record
+        :rtype: res.users
+        """
         self.ensure_one()
-        # We need sudo to be able to see public users from others companies too
-        public_users = (
-            self.env.ref("base.group_public")
+        # Per-company login invariant: a company's public user always carries
+        # this deterministic login. Login uniqueness is global (DB constraint on
+        # res.users), so this login is what keeps public users from colliding.
+        login = f"public-user@company-{self.id}.com"
+        # Probe by login (sudo + active_test=False) rather than by group_public
+        # membership: a stale/half-rolled-back public user, or one whose
+        # group_public membership was removed out of band, would otherwise be
+        # missed by a membership probe and the copy below would raise on the
+        # global login-uniqueness constraint instead of returning a usable record.
+        existing = (
+            self.env["res.users"]
             .sudo()
             .with_context(active_test=False)
-            .all_user_ids
+            .search([("login", "=", login), ("company_id", "=", self.id)], limit=1)
         )
-        public_users_for_company = public_users.filtered(
-            lambda user: user.company_id == self
-        )
-
-        if public_users_for_company:
-            return public_users_for_company[0]
-        else:
-            return (
-                self.env.ref("base.public_user")
-                .sudo()
-                .copy(
-                    {
-                        "name": f"Public user for {self.name}",
-                        "login": f"public-user@company-{self.id}.com",
-                        "company_id": self.id,
-                        "company_ids": [Command.set([self.id])],
-                    }
-                )
+        if existing:
+            return existing
+        return (
+            self.env.ref("base.public_user")
+            .sudo()
+            .copy(
+                {
+                    "name": f"Public user for {self.name}",
+                    "login": login,
+                    "company_id": self.id,
+                    "company_ids": [Command.set([self.id])],
+                }
             )
+        )

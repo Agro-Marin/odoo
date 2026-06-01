@@ -417,7 +417,14 @@ class IrModelFields(models.Model):
     def _check_relation_table(self) -> None:
         for rec in self:
             if rec.relation_table:
-                models.check_pg_name(rec.relation_table)
+                try:
+                    models.check_pg_name(rec.relation_table)
+                except ValidationError as e:
+                    raise ValidationError(
+                        _(
+                            "Relation table names can only contain characters, digits and underscores (up to 63)."
+                        )
+                    ) from e
 
     @api.constrains("currency_field")
     def _check_currency_field(self) -> None:
@@ -650,7 +657,7 @@ class IrModelFields(models.Model):
             if field:
                 self.env._core.pop_dirty(field)
         # remove fields from registry, and check that views are not broken
-        fields = [
+        fields_ = [
             pop_field(self.env.registry[record.model], record.name)
             for record in records
         ]
@@ -664,14 +671,14 @@ class IrModelFields(models.Model):
                 raise UserError(
                     _(
                         "Cannot rename/delete fields that are still present in views:\nFields: %(fields)s\nView: %(view)s",
-                        fields=fields,
+                        fields=fields_,
                         view=view.name,
                     )
                 ) from None
             # uninstall mode
             _logger.warning(
                 "The following fields were force-deleted to prevent a registry crash %s the following view might be broken %s",
-                ", ".join(str(f) for f in fields),
+                ", ".join(str(f) for f in fields_),
                 view.name,
             )
         finally:
@@ -689,17 +696,17 @@ class IrModelFields(models.Model):
         self = self._prepare_update()
 
         # determine registry fields corresponding to self
-        fields = OrderedSet()
+        fields_ = OrderedSet()
         for record in self:
             with contextlib.suppress(KeyError):
-                fields.add(self.pool[record.model]._fields[record.name])
+                fields_.add(self.pool[record.model]._fields[record.name])
 
         # clean the registry from the fields to remove
         self.pool.registry_invalidated = True
-        self.pool._discard_fields(fields)
+        self.pool._discard_fields(fields_)
 
         # discard the removed fields from fields to compute
-        for field in fields:
+        for field in fields_:
             self.env._core.discard_field(field)
 
         model_names = self.mapped("model")
@@ -713,10 +720,10 @@ class IrModelFields(models.Model):
             self.env.flush_all()
             self.pool._setup_models__(self.env.cr, model_names)
             # update database schema of model and its descendant models
-            models = self.pool.descendants(model_names, "_inherits")
+            affected_models = self.pool.descendants(model_names, "_inherits")
             self.pool.init_models(
                 self.env.cr,
-                models,
+                affected_models,
                 dict(self.env.context, update_custom_fields=True),
             )
 
@@ -768,17 +775,17 @@ class IrModelFields(models.Model):
         self.env.registry.clear_cache("stable")
 
         res = super().create(vals_list)
-        models = OrderedSet(res.mapped("model"))
+        model_names = OrderedSet(res.mapped("model"))
 
-        if any(model in self.pool for model in models):
+        if any(model in self.pool for model in model_names):
             # setup models; this re-initializes model in registry
             self.env.flush_all()
-            self.pool._setup_models__(self.env.cr, models)
+            self.pool._setup_models__(self.env.cr, model_names)
             # update database schema of models and their descendants
-            models = self.pool.descendants(models, "_inherits")
+            affected_models = self.pool.descendants(model_names, "_inherits")
             self.pool.init_models(
                 self.env.cr,
-                models,
+                affected_models,
                 dict(self.env.context, update_custom_fields=True),
             )
 
@@ -786,6 +793,8 @@ class IrModelFields(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         if not self:
+            return True
+        if not vals:
             return True
 
         # if set, *one* column can be renamed here
@@ -884,18 +893,26 @@ class IrModelFields(models.Model):
                         )
                     )
 
-        if column_rename or patched_models or translate_only:
+        if column_rename or patched_models:
             # setup models, this will reload all manual fields in registry
             self.env.flush_all()
             model_names = OrderedSet(self.mapped("model"))
             self.pool._setup_models__(self.env.cr, model_names)
+        elif translate_only:
+            # A label/help-only translation edit leaves the valid field set and
+            # registry structure intact; the sole stale artefact is the
+            # lang-keyed get_field_string/get_field_help ormcache ("stable"),
+            # which is read live by Field._description_string/_help. Clearing
+            # that cache is far cheaper than a full _setup_models__ rebuild
+            # (mirrors SEL-C6 in ir_model_fields_selection.py).
+            self.env.registry.clear_cache("stable")
 
         if patched_models:
             # update the database schema of the models to patch
-            models = self.pool.descendants(patched_models, "_inherits")
+            affected_models = self.pool.descendants(patched_models, "_inherits")
             self.pool.init_models(
                 self.env.cr,
-                models,
+                affected_models,
                 dict(self.env.context, update_custom_fields=True),
             )
 
@@ -1204,16 +1221,16 @@ class IrModelFields(models.Model):
         :param model_name: the name of the field's model
         :return: {field_name: {id, help, field_description, [selection]}}
         """
-        fields = self.sudo().browse(self._get_ids(model_name).values())
+        fields_ = self.sudo().browse(self._get_ids(model_name).values())
         result = {
             field.name: {
                 "id": field.id,
                 "help": field.help,
                 "field_description": field.field_description,
             }
-            for field in fields
+            for field in fields_
         }
-        for field in fields.filtered(
+        for field in fields_.filtered(
             lambda field: field.ttype in ("selection", "reference")
         ):
             result[field.name]["selection"] = [

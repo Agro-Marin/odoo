@@ -60,7 +60,9 @@ class IrActionsServerHistory(models.Model):
             if tzinfo:
                 dt = dt.astimezone(tzinfo)
             date_label = babel.dates.format_datetime(
-                dt, tzinfo=tzinfo, locale=locale,
+                dt,
+                tzinfo=tzinfo,
+                locale=locale,
             )
             history.display_name = _(
                 "%(date_label)s - %(author)s",
@@ -387,7 +389,8 @@ class IrActionsServer(models.Model):
         return actions
 
     def write(self, vals: dict[str, Any]) -> bool:
-        if new_code := vals.get("code"):
+        if "code" in vals:
+            new_code = vals.get("code")
             history_vals = [
                 {"action_id": action.id, "code": new_code}
                 for action in self
@@ -628,9 +631,9 @@ class IrActionsServer(models.Model):
                             and field
                             and field.relation
                         ):
-                            action.update_related_model_id = (
-                                action.env["ir.model"]._get_id(field.relation)
-                            )
+                            action.update_related_model_id = action.env[
+                                "ir.model"
+                            ]._get_id(field.relation)
                     else:
                         action.crud_model_id = action.model_id
                         action.update_field_id = False
@@ -671,6 +674,14 @@ class IrActionsServer(models.Model):
         chain = []
         for i, field_name in enumerate(path):
             is_last_field = i == len(path) - 1
+            if field_name not in model._fields:
+                raise ValidationError(
+                    _(
+                        "Unknown field '%(field_name)s' on model '%(model_name)s'.",
+                        field_name=field_name,
+                        model_name=model._name,
+                    )
+                )
             field = model._fields[field_name]
             if not is_last_field:
                 if not field.relational:
@@ -765,6 +776,7 @@ class IrActionsServer(models.Model):
 
     def create_action(self) -> bool:
         """Create a contextual action for each server action."""
+        self.check_access("write")
         for model_id, actions in self.grouped("model_id").items():
             actions.write({"binding_model_id": model_id.id, "binding_type": "action"})
         return True
@@ -816,6 +828,14 @@ class IrActionsServer(models.Model):
             path = self.update_path.split(".")
             target_records = reduce(getitem, path[:-1], starting_record)
             target_records.write(res)
+        else:
+            raise UserError(
+                _(
+                    "The 'Update Record' action '%(name)s' has no field to update. "
+                    "Please set an update path.",
+                    name=self.name,
+                )
+            )
 
     def _run_action_webhook(self, eval_context: dict[str, Any] | None = None) -> None:
         """Send a post request with a read of the selected field on active_id."""
@@ -883,9 +903,7 @@ class IrActionsServer(models.Model):
         """
         if not self.link_field_id:
             return
-        record = self.env[self.model_id.model].browse(
-            self.env.context.get("active_id")
-        )
+        record = self.env[self.model_id.model].browse(self.env.context.get("active_id"))
         if self.link_field_id.ttype in ("one2many", "many2many"):
             record.write({self.link_field_id.name: [Command.link(new_id)]})
         else:
@@ -895,6 +913,8 @@ class IrActionsServer(models.Model):
         self, eval_context: dict[str, Any] | None = None
     ) -> None:
         """Duplicate the specified model object and optionally link to active record."""
+        if not self.resource_ref:
+            raise UserError(_("No record selected to duplicate."))
         dupe = self.env[self.crud_model_id.model].browse(self.resource_ref.id).copy()
         self._link_to_active_record(dupe.id)
 
@@ -1013,7 +1033,9 @@ class IrActionsServer(models.Model):
             active_id = self.env.context.get("active_id")
             if not active_id and self.env.context.get("onchange_self"):
                 active_id = self.env.context["onchange_self"]._origin.id
-                if not active_id:  # onchange on new record — run once, no active_ids loop
+                if (
+                    not active_id
+                ):  # onchange on new record — run once, no active_ids loop
                     return runner(self, eval_context=eval_context) or False
             active_ids = self.env.context.get(
                 "active_ids", [active_id] if active_id else []
@@ -1108,9 +1130,11 @@ class IrActionsServer(models.Model):
     @api.onchange("crud_model_id")
     def _set_crud_model_id(self) -> None:
         invalid = self.filtered(
-            lambda a: a.state == "object_copy"
-            and a.resource_ref
-            and a.resource_ref._name != a.crud_model_id.model
+            lambda a: (
+                a.state == "object_copy"
+                and a.resource_ref
+                and a.resource_ref._name != a.crud_model_id.model
+            )
         )
         invalid.resource_ref = False
         invalid = self.filtered(
@@ -1149,15 +1173,24 @@ class IrActionsServer(models.Model):
             elif action.evaluation_type == "sequence":
                 expr = action.sequence_id.next_by_id()
             elif action.update_field_id.ttype in ("one2many", "many2many"):
+                # Default to a no-op command list so a failed int() conversion
+                # or an unknown operation never passes raw text to .write().
+                expr = []
                 match action.update_m2m_operation:
                     case "add":
-                        expr = [Command.link(int(action.value))]
+                        with contextlib.suppress(ValueError, TypeError):
+                            expr = [Command.link(int(action.value))]
                     case "remove":
-                        expr = [Command.unlink(int(action.value))]
+                        with contextlib.suppress(ValueError, TypeError):
+                            expr = [Command.unlink(int(action.value))]
                     case "set":
-                        expr = [Command.set([int(action.value)])]
+                        with contextlib.suppress(ValueError, TypeError):
+                            expr = [Command.set([int(action.value)])]
                     case "clear":
                         expr = [Command.clear()]
+                    case _:
+                        # Unknown/falsy operation: leave the field untouched.
+                        pass
             elif action.update_field_id.ttype == "boolean":
                 expr = action.update_boolean_value == "true"
             elif action.update_field_id.ttype in ("many2one", "integer"):

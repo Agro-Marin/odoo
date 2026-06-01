@@ -27,6 +27,20 @@ class IrAutovacuum(models.AbstractModel):
         """
         Perform a complete database cleanup by safely calling every
         ``@api.autovacuum`` decorated method.
+
+        Invariants (IAVAC-M1) -- load-bearing, do not weaken:
+
+        - **Access gate**: requires both ``is_admin()`` and a ``cron_id`` in the
+          context; otherwise raises ``AccessDenied``. This prevents ad-hoc
+          invocation outside the autovacuum cron.
+        - **Per-method isolation**: each method is committed on success
+          (``_commit_progress(1)``) and, on failure, the cursor is rolled back
+          and the ORM cache invalidated *in isolation* before the loop
+          continues. One failing ``@api.autovacuum`` method must NOT abort the
+          rest, nor roll back already-committed work.
+        - **Re-queue contract**: a method may return a 2-tuple
+          ``(done, remaining)``; a truthy ``remaining`` requeues it for another
+          batch. A ``None`` return runs the method exactly once.
         """
         if not self.env.is_admin() or not self.env.context.get("cron_id"):
             raise AccessDenied
@@ -40,6 +54,10 @@ class IrAutovacuum(models.AbstractModel):
         # starving the following ones
         random.shuffle(all_methods)
         queue = collections.deque(all_methods)
+        # IAVAC-C1: _commit_progress is evaluated before the pop below, so
+        # ``remaining`` counts the about-to-be-processed item (queued incl.
+        # current). This is a cosmetic off-by-one in ir.cron.progress reporting
+        # only; it has no effect on which methods run.
         while queue and self.env["ir.cron"]._commit_progress(remaining=len(queue)):
             model, attr, func = queue.pop()
             _logger.debug("Calling %s.%s()", model, attr)
@@ -57,6 +75,12 @@ class IrAutovacuum(models.AbstractModel):
                         func_remaining,
                     )
                     if func_remaining:
+                        # IAVAC-C2: appendleft + pop (right end) is intentional --
+                        # a perpetually-"remaining" method is re-enqueued at the
+                        # LEFT and thus processed LAST each cycle, deferring it
+                        # behind fresh work instead of spinning it in a tight
+                        # loop. Do NOT "fix" this to append(); that would starve
+                        # the rest of the queue.
                         queue.appendleft((model, attr, func))
                 _logger.debug(
                     "%s.%s  took %.2fs",

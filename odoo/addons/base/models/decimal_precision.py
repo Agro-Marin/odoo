@@ -2,6 +2,7 @@ import logging
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
+from odoo.exceptions import ValidationError
 from odoo.orm._typing import ValuesType
 
 _logger = logging.getLogger(__name__)
@@ -18,6 +19,14 @@ class DecimalPrecision(models.Model):
         "unique (name)",
         "Only one value can be defined for each given usage!",
     )
+
+    @api.constrains("digits")
+    def _check_digits(self) -> None:
+        """Reject negative precisions, which are nonsensical for rounding (DP-C1)."""
+        if any(record.digits < 0 for record in self):
+            raise ValidationError(
+                self.env._("The number of digits cannot be negative.")
+            )
 
     @api.model
     @tools.ormcache("application", cache="stable")

@@ -70,7 +70,10 @@ def check_identity(
             raise UserError(_("This method can only be accessed over HTTP"))
 
         if request.session.get("identity-check-last", 0) > time.time() - 10 * 60:
-            # update identity-check-last like github?
+            # The 10-min window is intentionally NOT refreshed on a successful
+            # pass: it is a fixed re-auth interval, not a sliding session, so a
+            # long sensitive flow re-prompts once the original check ages out
+            # (RU-M1 -- resolved as a deliberate non-refresh).
             return fn(self, *args, **kwargs)
 
         w = (
@@ -231,6 +234,13 @@ class ResUsers(models.Model):
     @tools.ormcache("uid", "passwd_hash")
     def _check_uid_passwd_cached(self, uid: int, passwd: str, passwd_hash: str) -> None:
         """Cache-backed credential verification keyed on a hash, not plaintext."""
+        # Invalidation contract (security-relevant): only successful checks are
+        # memoised, so the cached fact is "sha256(passwd) is currently valid for
+        # uid". This is correct only because every password mutation clears the
+        # `default` cache -- write({'password': ...}) and `self.password = ...`
+        # carry `password` in vals (see _get_invalidation_fields), triggering
+        # registry.clear_cache(). Any raw-SQL password mutation MUST call
+        # self.env.registry.clear_cache() or an old password could keep working.
         user = self.with_user(uid).env.user
         if not user.active:
             raise AccessDenied
@@ -241,9 +251,20 @@ class ResUsers(models.Model):
         }
         user._check_credentials(credential, {"interactive": False})
 
-    @tools.ormcache("sid")
+    @tools.ormcache("self.id", "sid")
     def _compute_session_token(self, sid: str) -> str | bool:
-        """Compute a session token given a session id and a user id"""
+        """Compute a session token given a session id and a user id.
+
+        Cache key includes ``self.id`` so two distinct users could not share
+        a cache entry even in the (astronomically rare) case where two
+        random session IDs collided.  Without ``self.id`` the key would be
+        ``(model._name, method, sid)``: the function result genuinely
+        depends on ``self`` (via ``_session_token_get_values`` which queries
+        per-user fields), so omitting it from the key was a defense-in-depth
+        gap.  Cost: one cache entry per (user, session) pair instead of
+        per-session, which in practice is the same number because each
+        session belongs to exactly one user.
+        """
         # retrieve the fields used to generate the session token
         field_values = self._session_token_get_values()
         return self._session_token_hash_compute(sid, field_values)
@@ -470,7 +491,11 @@ class ResUsers(models.Model):
             # Batch: hash all plaintext passwords, then update in one query
             hashed = [(ctx.hash(pw), uid) for uid, pw in rows]
             cr.executemany("UPDATE res_users SET password=%s WHERE id=%s", hashed)
-            self.sudo().browse(uid for uid, _pw in rows).invalidate_recordset(
+            # Invalidate the cached plaintext `password` for *every* migrated
+            # user. The id must be collected from `rows`; reusing the `uid` loop
+            # variable leaked from the comprehension above would browse only the
+            # last migrated user (RU-L09).
+            self.sudo().browse([uid for uid, _pw in rows]).invalidate_recordset(
                 ["password"]
             )
 
@@ -569,6 +594,11 @@ class ResUsers(models.Model):
             self._set_encrypted_password(user.id, ctx.hash(user.password))
 
     def _set_encrypted_password(self, uid: int, pw: str) -> None:
+        # Invalidation contract: this raw-SQL update changes only the stored
+        # *hash*; the plaintext is unchanged, so the _check_uid_passwd_cached key
+        # (uid, sha256(plaintext)) stays valid and no registry cache clear is
+        # required here. A future raw mutation that changes the *plaintext* MUST
+        # call self.env.registry.clear_cache().
         if self._crypt_context().identify(pw) == "plaintext":
             msg = "Refusing to store a plaintext password — encrypt first."
             raise ValueError(msg)
@@ -584,6 +614,11 @@ class ResUsers(models.Model):
         self, credential: dict[str, Any], env: dict[str, Any]
     ) -> dict[str, Any]:
         """Validates the current user's password.
+
+        Always validates ``self.env.user``, regardless of the ``self``
+        recordset passed in: the stored hash is fetched and the result returned
+        for ``self.env.user``, not ``self`` (RU-M2). Callers must bind the env
+        to the user being checked (e.g. ``user.with_user(user)``).
 
         Override this method to plug additional authentication methods.
 
@@ -623,7 +658,9 @@ class ResUsers(models.Model):
         if not (credential["type"] == "password" and credential.get("password")):
             raise AccessDenied
 
-        env = env or {}
+        # `env` is always a dict: every caller (_login, change_password,
+        # identitycheck, _check_uid_passwd_cached) passes one, and the
+        # `'interactive' not in env` check below assumes a dict (RU-C1).
         interactive = env.get("interactive", True)
 
         if interactive or not self.env.user._rpc_api_keys_only():
@@ -898,6 +935,10 @@ class ResUsers(models.Model):
                 if "company_id" in vals:
                     if vals["company_id"] not in self.env.user.company_ids.ids:
                         del vals["company_id"]
+                        if not vals:
+                            # `company_id` was the only key and it was dropped;
+                            # avoid a no-op super().write({}) as superuser (RU-C2).
+                            return True
                 # safe fields only, so we write as super-user to bypass access rights
                 self = self.sudo()
 
@@ -1159,7 +1200,12 @@ class ResUsers(models.Model):
             )
         )
         if self.env.cr.rowcount != 1:
-            self.env.registry.clear_cache()
+            # Do NOT call registry.clear_cache() here. This path is reachable
+            # via untrusted session cookies pointing to non-existent uids
+            # (deleted users, forged cookies), which would amplify into
+            # fleet-wide "default" cache invalidation every time a stale
+            # cookie arrives. The legitimate "user was deleted" invalidation
+            # is already handled by res.users._unlink_except_master_data.
             return False
         data_fields = self.env.cr.fetchone()
         # create tuple with column name and value, allowing for overrides to manipulate the values
@@ -1358,10 +1404,28 @@ class ResUsers(models.Model):
             else:
                 positives.append(group_ext_id)
 
+        # Run the caller-identity gate once (instead of once per token via
+        # has_group) and then resolve each token with _has_group (RU-P1).
+        self.ensure_one()
+        if not (
+            self.env.su
+            or self == self.env.user
+            or self.env.user._has_group("base.group_user")
+        ):
+            raise AccessError(
+                _("You can only call user.has_group() with your current user.")
+            )
+
+        def _check(ext_id):
+            result = self._has_group(ext_id)
+            if ext_id == "base.group_no_one":
+                result = result and bool(request and request.session.debug)
+            return result
+
         # for the sake of performance, check negatives first
-        if any(self.has_group(ext_id) for ext_id in negatives):
+        if any(_check(ext_id) for ext_id in negatives):
             return False
-        if any(self.has_group(ext_id) for ext_id in positives):
+        if any(_check(ext_id) for ext_id in positives):
             return True
         return not positives
 
@@ -1668,6 +1732,24 @@ ResUsersPatchedInTest = ResUsers
 class UsersMultiCompany(models.Model):
     _inherit = "res.users"
 
+    def _multi_company_group_command(self, group_id: int) -> Any | None:
+        """Return the ``group_multi_company`` membership command for ``self``.
+
+        :param int group_id: the resolved ``base.group_multi_company`` id.
+        :return: a ``Command.link`` when the singleton has >1 company and is not
+            yet a member, a ``Command.unlink`` when it has <=1 company and is a
+            member, else ``None`` (already in the correct state).
+        :rtype: Command | None
+        """
+        self.ensure_one()
+        company_count = len(self.sudo().company_ids)
+        is_member = group_id in self.group_ids.ids
+        if company_count > 1 and not is_member:
+            return Command.link(group_id)
+        if company_count <= 1 and is_member:
+            return Command.unlink(group_id)
+        return None
+
     def _sync_multi_company_group(self) -> None:
         """Add/remove group_multi_company based on the number of companies.
 
@@ -1682,14 +1764,14 @@ class UsersMultiCompany(models.Model):
             return
         to_remove = self.filtered(
             lambda u: (
-                len(u.sudo().company_ids) <= 1
-                and group_multi_company_id in u.group_ids.ids
+                u._multi_company_group_command(group_multi_company_id)
+                == Command.unlink(group_multi_company_id)
             )
         )
         to_add = self.filtered(
             lambda u: (
-                len(u.sudo().company_ids) > 1
-                and group_multi_company_id not in u.group_ids.ids
+                u._multi_company_group_command(group_multi_company_id)
+                == Command.link(group_multi_company_id)
             )
         )
         if to_remove:
@@ -1724,9 +1806,7 @@ class UsersMultiCompany(models.Model):
         )
         if group_multi_company_id:
             # See create() above: sudo for the same record rule reason.
-            company_count = len(user.sudo().company_ids)
-            if company_count <= 1 and group_multi_company_id in user.group_ids.ids:
-                user.update({"group_ids": [Command.unlink(group_multi_company_id)]})
-            elif company_count > 1 and group_multi_company_id not in user.group_ids.ids:
-                user.update({"group_ids": [Command.link(group_multi_company_id)]})
+            command = user._multi_company_group_command(group_multi_company_id)
+            if command is not None:
+                user.update({"group_ids": [command]})
         return user

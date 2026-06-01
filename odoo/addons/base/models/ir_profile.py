@@ -65,17 +65,30 @@ class IrProfile(models.Model):
         return len(records), len(records) == GC_UNLINK_LIMIT  # done, remaining
 
     def _compute_has_memory(self) -> bool:
+        # IRPROF-M1: despite the ``_compute_`` prefix this is NOT an @api.depends
+        # field compute -- it assigns no field and returns a bool. It is called
+        # imperatively from the QWeb template web.config_speedscope_index. The
+        # name is kept for backward compatibility with that cross-addon caller.
+        # On an empty recordset ``all(...)`` returns True; the template only ever
+        # invokes it on a non-empty profile set, so the empty case is unreached.
         return all(
             bool(profile.others and json.loads(profile.others).get("memory"))
             for profile in self
         )
 
     def _generate_memory_profile(self, params: dict[str, Any]) -> list[dict[str, Any]]:
+        # IRPROF-C2: enforce the ir.profile ACL (group_system) up front so a
+        # non-system request raises AccessError deterministically, regardless of
+        # which stored field is read first -- closing the existence-oracle gap
+        # where a valid id 500s while an invalid id 404s at the controller.
+        self.check_access("read")
         memory_graph = []
         memory_limit = params.get("memory_limit", 0)
         for profile in self:
             if profile.others:
                 memory = json.loads(profile.others).get("memory", "[]")
+                # IRPROF-M2: the trailing entry is a sentinel appended by the
+                # memory collector; drop it so only real tracebacks remain.
                 memory_tracebacks = json.loads(memory)[:-1]
                 memory_graph.extend(
                     {
@@ -124,10 +137,26 @@ class IrProfile(models.Model):
             "sql_density_profile": str2bool(params.get("sql_density_profile", False)),
             "frames_profile": str2bool(params.get("frames_profile", False)),
             "profile_aggregation_mode": params.get("profile_aggregation_mode", "tabs"),
-            "memory_limit": int(params.get("memory_limit", 0)),
+            "memory_limit": self._parse_memory_limit(params.get("memory_limit")),
         }
 
+    @staticmethod
+    def _parse_memory_limit(value: Any) -> int:
+        # IRPROF-C1: ``memory_limit`` reaches us verbatim from the controller
+        # query string (**kwargs). A non-numeric value would raise ValueError on
+        # int(...) and surface as HTTP 500 (the controllers only wrap the id
+        # parse). Coerce defensively so a bad value degrades to 0 (400/404-clean).
+        try:
+            return int(value or 0)
+        except TypeError, ValueError:
+            return 0
+
     def _generate_speedscope(self, params: dict[str, Any]) -> bytes:
+        # IRPROF-C2: enforce the ir.profile ACL (group_system) up front so a
+        # non-system request raises AccessError deterministically rather than
+        # leaking profile-id existence via a status-code oracle (500 for a valid
+        # id vs 404 for an invalid one) at the controller boundary.
+        self.check_access("read")
         init_stack_trace = self[0].init_stack_trace
         if not init_stack_trace:
             return b"{}"
@@ -186,8 +215,11 @@ class IrProfile(models.Model):
         if params["frames_profile"]:
             sp.add_output(frames, display_name=f"Frames {suffix}", **params)
 
-    @api.depends("speedscope")
     def _compute_speedscope_url(self) -> None:
+        # IRPROF-P1: no @api.depends -- the URL is derived solely from the record
+        # id. A spurious @api.depends("speedscope") would force the expensive
+        # _compute_speedscope (full b64 speedscope generation) to run on every
+        # list/form load. Mirrors _compute_config_url, which is likewise id-only.
         for profile in self:
             profile.speedscope_url = f"/web/speedscope/{profile.id}"
 

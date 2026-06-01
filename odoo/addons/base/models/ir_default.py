@@ -52,7 +52,7 @@ class IrDefault(models.Model):
             field = model._fields[field_rec.name]
             try:
                 value = json.loads(record.json_value)
-                field.convert_to_cache(value, model)
+                parsed = field.convert_to_cache(value, model)
             except json.JSONDecodeError:
                 raise ValidationError(
                     self.env._("Invalid JSON format in Default Value field.")
@@ -66,6 +66,18 @@ class IrDefault(models.Model):
                         field_name=record.field_id.name,
                     )
                 ) from None
+            # Integer columns are int4; mirror set()'s guard so an out-of-range
+            # default is rejected here, not later when applied to the target
+            # column (IDEF-C1).
+            if field.type == "integer" and not (-(2**31) <= parsed <= 2**31 - 1):
+                raise ValidationError(
+                    self.env._(
+                        "Invalid value in Default Value field. %(value)s is out of bounds for '%(model_name)s.%(field_name)s' (integers should be between -2,147,483,648 and 2,147,483,647).",
+                        value=value,
+                        model_name=model_name,
+                        field_name=record.field_id.name,
+                    )
+                )
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -102,9 +114,9 @@ class IrDefault(models.Model):
         scope (field, user, company) will be replaced. The value is encoded
         in JSON to be stored to the database.
 
-        :param model_name:
-        :param field_name:
-        :param value:
+        :param model_name: technical name of the model owning the field
+        :param field_name: name of the field to set a default for
+        :param value: the default value (JSON-encoded for storage)
         :param user_id: may be ``False`` for all users, ``True`` for the
                         current user, or any user id
         :param company_id: may be ``False`` for all companies, ``True`` for
@@ -122,10 +134,10 @@ class IrDefault(models.Model):
         # check consistency of model_name, field_name, and value
         try:
             model = self.env[model_name]
-            field = model._fields[field_name]
-            parsed = field.convert_to_cache(value, model)
-            if field.type in ("date", "datetime") and isinstance(value, date):
-                value = field.to_string(value)
+            orm_field = model._fields[field_name]
+            parsed = orm_field.convert_to_cache(value, model)
+            if orm_field.type in ("date", "datetime") and isinstance(value, date):
+                value = orm_field.to_string(value)
             json_value = json.dumps(value, ensure_ascii=False)
         except KeyError:
             raise ValidationError(
@@ -144,7 +156,7 @@ class IrDefault(models.Model):
                     value=value,
                 )
             ) from None
-        if field.type == "integer" and not (-(2**31) <= parsed <= 2**31 - 1):
+        if orm_field.type == "integer" and not (-(2**31) <= parsed <= 2**31 - 1):
             raise ValidationError(
                 self.env._(
                     "Invalid value for %(model)s.%(field)s: %(value)s is out of bounds (integers should be between -2,147,483,648 and 2,147,483,647)",
@@ -193,8 +205,8 @@ class IrDefault(models.Model):
         """Return the default value for the given field, user and company, or
         ``None`` if no default is available.
 
-        :param model_name:
-        :param field_name:
+        :param model_name: technical name of the model owning the field
+        :param field_name: name of the field to read the default for
         :param user_id: may be ``False`` for all users, ``True`` for the
                         current user, or any user id
         :param company_id: may be ``False`` for all companies, ``True`` for

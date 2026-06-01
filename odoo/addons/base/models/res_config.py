@@ -107,7 +107,9 @@ class ResConfigSettings(models.TransientModel):
             _inherit = ["res.config.settings"]
 
             default_foo = (fields.type(..., default_model="my.model"),)
-            group_bar = (fields.Boolean(..., group="base.group_user", implied_group="my.group"),)
+            group_bar = (
+                fields.Boolean(..., group="base.group_user", implied_group="my.group"),
+            )
             module_baz = (fields.Boolean(...),)
             config_qux = fields.Char(..., config_parameter="my.parameter")
             other_field = (fields.type(...),)
@@ -306,7 +308,9 @@ class ResConfigSettings(models.TransientModel):
         )
         for name, icp in classified["config"]:
             field = self._fields[name]
-            default_value = field.default(self) if callable(field.default) else field.default
+            default_value = (
+                field.default(self) if callable(field.default) else field.default
+            )
             value = IrConfigParameter.get_param(icp, default_value or False)
             if value is not False:
                 match field.type:
@@ -347,6 +351,15 @@ class ResConfigSettings(models.TransientModel):
         """
         Set values for the fields other that `default`, `group` and `module`
         """
+        # RCFG-L1: intrinsic admin gate. set_values performs sudo'd, ACL-bypassing
+        # writes (ir.default, res.groups.implied_ids, ir.config_parameter); unlike
+        # execute() it had no gate of its own and relied solely on the model ACL.
+        # No-op for current callers (group_system implies is_admin); defense-in-depth.
+        if not self.env.is_admin():
+            raise AccessError(
+                self.env._("Only administrators can change system settings.")
+            )
+
         self = self.with_context(active_test=False)
         classified = self._get_classified_fields()
         current_settings = self.default_get(list(self.fields_get()))
@@ -430,8 +443,9 @@ class ResConfigSettings(models.TransientModel):
             lambda m: self[f"module_{m.name}"] and m.state != "installed"
         )
         to_uninstall = classified["module"].filtered(
-            lambda m: not self[f"module_{m.name}"]
-            and m.state in ("installed", "to upgrade")
+            lambda m: (
+                not self[f"module_{m.name}"] and m.state in ("installed", "to upgrade")
+            )
         )
 
         if to_install or to_uninstall:
@@ -600,7 +614,7 @@ class ResConfigSettings(models.TransientModel):
                 if not (field.name in vals and field.related and not field.readonly):
                     continue
                 # we write on a related field like
-                # qr_code = fields.Boolean(related='company_id.qr_code', readonly=False)  # noqa: ERA001
+                # qr_code = fields.Boolean(related='company_id.qr_code', readonly=False)
                 fname0, *fnames = field.related.split(".")
                 if fname0 not in vals:
                     continue
