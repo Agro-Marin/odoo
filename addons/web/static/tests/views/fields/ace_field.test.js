@@ -76,7 +76,7 @@ test("AceEditorField on html fields works", async () => {
     Partner._fields.html_field = fields.Html();
     Partner._records.push({ id: 3, html_field: `<p>My little HTML Test</p>` });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
 
     await mountView({
         resModel: "res.partner",

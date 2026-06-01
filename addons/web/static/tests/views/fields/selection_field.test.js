@@ -120,7 +120,7 @@ test("SelectionField, edition and on many2one field", async () => {
     Partner._onChanges.product_id = () => {};
     Partner._records[0].product_id = 37;
     Partner._records[0].trululu = false;
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         type: "form",
         resModel: "partner",

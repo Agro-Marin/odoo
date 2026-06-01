@@ -1,7 +1,5 @@
 // @ts-check
 
-/** @odoo-module alias=@web/../tests/utils default=false */
-
 import { isVisible } from "@web/core/utils/dom/ui";
 import { registerCleanup } from "@web/../tests/helpers/cleanup";
 import {

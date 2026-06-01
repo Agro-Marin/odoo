@@ -198,7 +198,7 @@ test("ProgressBarField: max value should update in edit mode when typing in inpu
 test("ProgressBarField: Standard readonly mode is readonly", async () => {
     Partner._records[0].int_field = 99;
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         type: "form",
         resModel: "partner",

@@ -287,3 +287,119 @@ test("several caches, several tables", async () => {
     await indexedDB2.deleteDatabase();
     await ensureDbIsAbsent();
 });
+
+// Regression: ``_invalidateWhere`` previously called ``transaction.commit()``
+// synchronously after opening the cursor, which moved the transaction to its
+// committing state before ``cursor.continue()`` could queue the next request,
+// raising ``TransactionInactiveError: Failed to execute 'continue' on
+// 'IDBCursor': The transaction has finished``. Hit in production by
+// ``rpc_cache.invalidateByModel`` whenever an ``ir.filters`` favorite was
+// touched. These tests exercise the real IDB cursor against the real class.
+test("invalidateWhere, deletes only matching keys", async () => {
+    onError(() => deleteCacheDB());
+    await ensureDbIsAbsent();
+
+    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    await indexedDB.write("mytable", JSON.stringify({ model: "a" }), "va");
+    await indexedDB.write("mytable", JSON.stringify({ model: "b" }), "vb");
+    await indexedDB.write("mytable", JSON.stringify({ model: "a", id: 2 }), "va2");
+
+    await indexedDB.invalidateWhere(["mytable"], (key) => {
+        try {
+            return JSON.parse(key)?.model === "a";
+        } catch {
+            return false;
+        }
+    });
+
+    expect(await indexedDB.read("mytable", JSON.stringify({ model: "a" }))).toBe(undefined);
+    expect(await indexedDB.read("mytable", JSON.stringify({ model: "a", id: 2 }))).toBe(undefined);
+    expect(await indexedDB.read("mytable", JSON.stringify({ model: "b" }))).toBe("vb");
+
+    await indexedDB.deleteDatabase();
+    await ensureDbIsAbsent();
+});
+
+test("invalidateWhere, iterates across many entries without committing early", async () => {
+    onError(() => deleteCacheDB());
+    await ensureDbIsAbsent();
+
+    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    // Enough entries to guarantee multiple ``cursor.continue()`` ticks; a
+    // single tick would not exercise the premature-commit bug.
+    const N = 32;
+    for (let i = 0; i < N; i += 1) {
+        await indexedDB.write("mytable", `key-${i}`, `v${i}`);
+    }
+
+    await indexedDB.invalidateWhere(["mytable"], (key) => Number(key.slice(4)) % 2 === 0);
+
+    for (let i = 0; i < N; i += 1) {
+        const expected = i % 2 === 0 ? undefined : `v${i}`;
+        expect(await indexedDB.read("mytable", `key-${i}`)).toBe(expected);
+    }
+
+    await indexedDB.deleteDatabase();
+    await ensureDbIsAbsent();
+});
+
+test("invalidateWhere, spans multiple tables in one transaction", async () => {
+    onError(() => deleteCacheDB());
+    await ensureDbIsAbsent();
+
+    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    await indexedDB.write("t1", "a", "1");
+    await indexedDB.write("t1", "b", "2");
+    await indexedDB.write("t2", "a", "3");
+    await indexedDB.write("t2", "b", "4");
+    await indexedDB.write("t3", "a", "5"); // not in the targeted set
+
+    await indexedDB.invalidateWhere(["t1", "t2"], (key) => key === "a");
+
+    expect(await indexedDB.read("t1", "a")).toBe(undefined);
+    expect(await indexedDB.read("t1", "b")).toBe("2");
+    expect(await indexedDB.read("t2", "a")).toBe(undefined);
+    expect(await indexedDB.read("t2", "b")).toBe("4");
+    expect(await indexedDB.read("t3", "a")).toBe("5");
+
+    await indexedDB.deleteDatabase();
+    await ensureDbIsAbsent();
+});
+
+test("invalidateWhere, predicate that throws keeps the entry", async () => {
+    onError(() => deleteCacheDB());
+    await ensureDbIsAbsent();
+
+    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    await indexedDB.write("mytable", "valid", "v1");
+    await indexedDB.write("mytable", "boom", "v2");
+
+    await indexedDB.invalidateWhere(["mytable"], (key) => {
+        if (key === "boom") {
+            throw new Error("predicate failed");
+        }
+        return true;
+    });
+
+    // ``valid`` matched and was deleted; ``boom`` threw and must be kept.
+    expect(await indexedDB.read("mytable", "valid")).toBe(undefined);
+    expect(await indexedDB.read("mytable", "boom")).toBe("v2");
+
+    await indexedDB.deleteDatabase();
+    await ensureDbIsAbsent();
+});
+
+test("invalidateWhere, no-op when none of the tables exist", async () => {
+    onError(() => deleteCacheDB());
+    await ensureDbIsAbsent();
+
+    const indexedDB = new IndexedDB(CACHE_NAME, 1);
+    await indexedDB.write("present", "k", "v");
+
+    await indexedDB.invalidateWhere(["missing1", "missing2"], () => true);
+
+    expect(await indexedDB.read("present", "k")).toBe("v");
+
+    await indexedDB.deleteDatabase();
+    await ensureDbIsAbsent();
+});

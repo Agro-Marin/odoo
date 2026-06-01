@@ -186,14 +186,14 @@ describe("batched", () => {
 });
 
 describe("debounce", () => {
-    test("debounce on a sync function", async () => {
+    test("debounce on a sync function settles superseded calls too", async () => {
         const myFunc = () => {
             expect.step("myFunc");
             return 42;
         };
         const myDebouncedFunc = debounce(myFunc, 3000);
-        myDebouncedFunc().then(() => {
-            throw new Error("Should never be resolved");
+        myDebouncedFunc().then((x) => {
+            expect.step("superseded " + x);
         });
         myDebouncedFunc().then((x) => {
             expect.step("resolved " + x);
@@ -201,18 +201,20 @@ describe("debounce", () => {
         expect.verifySteps([]);
 
         await advanceTime(3000);
-        expect.verifySteps(["myFunc", "resolved 42"]);
+        // func runs once (trailing edge), and BOTH the superseded call and the
+        // last call resolve with its result (the superseded call used to hang).
+        expect.verifySteps(["myFunc", "superseded 42", "resolved 42"]);
     });
 
-    test("debounce on an async function", async () => {
+    test("debounce on an async function settles superseded calls too", async () => {
         const imSearchDef = new Deferred();
         const myFunc = () => {
             expect.step("myFunc");
             return imSearchDef;
         };
         const myDebouncedFunc = debounce(myFunc, 3000);
-        myDebouncedFunc().then(() => {
-            throw new Error("Should never be resolved");
+        myDebouncedFunc().then((x) => {
+            expect.step("superseded " + x);
         });
         myDebouncedFunc().then((x) => {
             expect.step("resolved " + x);
@@ -226,7 +228,52 @@ describe("debounce", () => {
         await microTick(); // wait for promise returned by myFunc
         await microTick(); // wait for promise returned by debounce
 
-        expect.verifySteps(["resolved 42"]);
+        expect.verifySteps(["superseded 42", "resolved 42"]);
+    });
+
+    test("debounce propagates a rejection to every superseded call", async () => {
+        const myFunc = () => {
+            expect.step("myFunc");
+            throw new Error("boom");
+        };
+        const myDebouncedFunc = debounce(myFunc, 3000);
+        myDebouncedFunc().catch((e) => expect.step("rejected1 " + e.message));
+        myDebouncedFunc().catch((e) => expect.step("rejected2 " + e.message));
+        expect.verifySteps([]);
+
+        await advanceTime(3000);
+        expect.verifySteps(["myFunc", "rejected1 boom", "rejected2 boom"]);
+    });
+
+    test("debounce propagates an async rejection to every pending call", async () => {
+        const imSearchDef = new Deferred();
+        const myFunc = () => {
+            expect.step("myFunc");
+            return imSearchDef;
+        };
+        const myDebouncedFunc = debounce(myFunc, 3000);
+        myDebouncedFunc().catch((e) => expect.step("rejected1 " + e));
+        myDebouncedFunc().catch((e) => expect.step("rejected2 " + e));
+
+        await advanceTime(3000);
+        expect.verifySteps(["myFunc"]);
+
+        imSearchDef.reject("nope");
+        await microTick(); // wait for promise returned by myFunc
+        await microTick(); // wait for promise returned by debounce
+        expect.verifySteps(["rejected1 nope", "rejected2 nope"]);
+    });
+
+    test("cancel() releases a pending awaiter instead of hanging", async () => {
+        const myFunc = () => expect.step("myFunc");
+        const myDebouncedFunc = debounce(myFunc, 3000);
+        myDebouncedFunc().then((v) => expect.step("settled " + v));
+        myDebouncedFunc.cancel();
+        await microTick();
+        await microTick();
+        // func is NOT executed, but the awaiter resolves (with undefined) so a
+        // caller that awaits the debounced fn on teardown does not hang.
+        expect.verifySteps(["settled undefined"]);
     });
 
     test("debounce with immediate", async () => {
@@ -304,7 +351,9 @@ describe("debounce", () => {
 
         await runAllTimers();
         await microTick(); // wait for the inner promise
-        expect.verifySteps(["myFunc", "resolved 44"]);
+        // The trailing execution now settles every queued call (43 and 44), not
+        // only the last one, so both resolve with the trailing result.
+        expect.verifySteps(["myFunc", "resolved 44", "resolved 44"]);
     });
 });
 

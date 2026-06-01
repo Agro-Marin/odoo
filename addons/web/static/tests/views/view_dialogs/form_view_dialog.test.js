@@ -239,7 +239,7 @@ test("click on view buttons in a FormViewDialog", async () => {
         </form>
     `;
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
 
     await mountWithCleanup(WebClient);
     getService("dialog").add(FormViewDialog, {

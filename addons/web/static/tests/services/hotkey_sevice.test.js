@@ -144,7 +144,7 @@ test("[accesskey] attrs replaced by [data-hotkey], part 2", async () => {
 
     // UIOwnershipTakerComponent should be there and it should be the ui active element
     expect("main .owner").toHaveCount(1);
-    expect(queryOne("main .owner")).toBe(getService("ui").activeElement);
+    expect(queryOne("main .owner")).toBe(/** @type {any} */ (getService("ui").activeElement));
 
     // div must only have [accesskey] attribute
     expect("main div").toHaveCount(1);

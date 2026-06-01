@@ -1,6 +1,6 @@
 // @ts-check
 
-import { after, getFixture } from "@odoo/hoot";
+import { after, afterEach, before, getFixture } from "@odoo/hoot";
 import {
     clearRegistry,
     makeMockEnv,
@@ -21,7 +21,16 @@ export function setupInteractionWhiteList(interactions) {
     if (typeof interactions === "string") {
         interactions = [interactions];
     }
-    activeInteractions = interactions;
+    // Scope the whitelist to the calling suite. Without this hook pair,
+    // the value leaks across test files because ``setupInteractionWhiteList``
+    // is invoked at module top-level — a single file's whitelist would
+    // then poison every test file loaded after it in the same bundle.
+    before(() => {
+        activeInteractions = interactions;
+    });
+    after(() => {
+        activeInteractions = null;
+    });
 }
 
 setupInteractionWhiteList.getWhiteList = () => activeInteractions;

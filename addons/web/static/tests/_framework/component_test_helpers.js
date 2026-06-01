@@ -103,7 +103,13 @@ export function getDropdownMenu(togglerSelector) {
  * fixture if none is found in the component tree (this can be overridden by the
  * `noMainContainer` option).
  *
- * @param {any} ComponentClass
+ * The type parameter threads the actual component subclass through so that
+ * tests can assert `(await mountWithCleanup(MyComponent)).myField` without
+ * widening the return type to `Component<any, Env>`. A string template input
+ * widens to the base `Component`.
+ *
+ * @template {import("@odoo/owl").Component} TComponent
+ * @param {(new (...args: any[]) => TComponent) | string} ComponentClass
  * @param {AppConfig & {
  *  componentEnv?: Partial<OdooEnv>;
  *  containerEnv?: Partial<OdooEnv>;
@@ -113,6 +119,7 @@ export function getDropdownMenu(togglerSelector) {
  *  props?: any;
  *  target?: Target;
  * }} [options]
+ * @returns {Promise<TComponent>}
  */
 export async function mountWithCleanup(ComponentClass, options) {
     const {
