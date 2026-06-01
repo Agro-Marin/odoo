@@ -3327,9 +3327,19 @@ class IrQweb(models.AbstractModel):
                 yield '<'
                 yield tagName
 
-                # Extract inline text content (used by import maps, bridge scripts)
-                text_content = asset_attrs.pop("text", None) if asset_attrs else None
-                attrs = self._post_processing_att(tagName, asset_attrs)
+                # Extract inline text content (import maps, loader shim, bridge
+                # scripts) WITHOUT mutating asset_attrs: these node dicts are
+                # served straight from the ormcache (_get_native_module_nodes_cached),
+                # so a .pop() permanently strips 'text' from the cached copy and
+                # every render after the first emits an empty <script>. Read with
+                # .get and pass a 'text'-free copy to attribute post-processing.
+                text_content = asset_attrs.get("text") if asset_attrs else None
+                attrs = self._post_processing_att(
+                    tagName,
+                    {k: v for k, v in asset_attrs.items() if k != "text"}
+                    if asset_attrs
+                    else {},
+                )
                 for name, value in attrs.items():
                     if value or isinstance(value, str):
                         yield f' {escape(str(name))}="{escape(str(value))}"'
