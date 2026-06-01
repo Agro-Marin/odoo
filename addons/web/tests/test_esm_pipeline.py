@@ -106,7 +106,9 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertEqual(len(captured.records), 2)
         self.assertIn("fails=1", captured.records[0].getMessage())
         self.assertIn("fails=2", captured.records[1].getMessage())
-        _expiry, _reason, fails = self.IrQweb._esbuild_cooldowns["web.test_bundle"]
+        _expiry, _reason, fails = self.IrQweb._esbuild_cooldowns[
+            (self.env.cr.dbname, "web.test_bundle")
+        ]
         self.assertEqual(fails, 2)
         # Extended cooldown kicks in at the 2nd failure.
         remaining = _expiry - time.monotonic()
@@ -126,10 +128,40 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertEqual(len(captured.records), 1)
         self.assertIn("event=circuit_open", captured.records[0].getMessage())
         self.assertNotIn(
-            "web.test_bundle", self.IrQweb._esbuild_cooldowns,
+            (self.env.cr.dbname, "web.test_bundle"), self.IrQweb._esbuild_cooldowns,
         )
         allow, _ = self.IrQweb._esbuild_circuit_state("web.test_bundle")
         self.assertTrue(allow)
+
+    def test_circuit_key_is_database_scoped(self):
+        # The cooldown dict is a single process-global class attribute shared
+        # by every registry in the worker, so its key MUST include the database
+        # name — otherwise an esbuild failure for a bundle in one tenant would
+        # open the breaker for the same bundle name in every other tenant.
+        with self.assertLogs(f"{ASSET_ROOT}.fallback", level=logging.WARNING):
+            self.IrQweb._esbuild_circuit_record_failure(
+                "web.test_bundle", reason="ScopeCheck",
+            )
+        self.assertIn(
+            (self.env.cr.dbname, "web.test_bundle"),
+            self.IrQweb._esbuild_cooldowns,
+            msg="cooldown key must be (db_name, bundle)",
+        )
+        self.assertNotIn(
+            "web.test_bundle",
+            self.IrQweb._esbuild_cooldowns,
+            msg="bundle-only key would bleed the breaker across databases",
+        )
+        # A failure recorded by another database (different db_name, same
+        # bundle) must NOT open this database's breaker.
+        self.IrQweb._esbuild_cooldowns[("some_other_db", "web.test_bundle")] = (
+            time.monotonic() + 1e6, "OtherDbFail", 1,
+        )
+        allow, reason = self.IrQweb._esbuild_circuit_state("web.test_bundle")
+        self.assertFalse(
+            allow, msg="this db's own failure should still gate it",
+        )
+        self.assertEqual(reason, "ScopeCheck")
 
 
 class TestEsbuildAdvisoryLock(TransactionCase):
