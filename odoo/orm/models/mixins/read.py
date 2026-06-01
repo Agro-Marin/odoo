@@ -19,8 +19,6 @@ from collections import defaultdict, deque
 from typing import Self
 
 from odoo.exceptions import MissingError
-from odoo.libs._field_access import ACCELERATED as _FA_ACCELERATED
-from odoo.libs.constants import PREFETCH_MAX
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
 
@@ -245,7 +243,7 @@ class ReadMixin:
                     except MissingError:
                         vals.clear()
             else:
-                for id_, vals in zip(ids, results, strict=False):
+                for id_, vals in zip(ids, results, strict=True):
                     if not vals:
                         continue
                     cache_value = field_cache.get(id_, _SENTINEL)
@@ -273,7 +271,9 @@ class ReadMixin:
         # Phase 2: Fields that need singleton records (relational, translate,
         # html, binary, json, properties, non-stored computed).
         # Create singleton records lazily (only when needed).
-        data = list(zip(self, results, strict=False))
+        # strict=True: results was built with one entry per record in self,
+        # so any length mismatch indicates an upstream bug in fetch().
+        data = list(zip(self, results, strict=True))
 
         for name in record_fnames:
             field = _fields[name]
@@ -282,6 +282,12 @@ class ReadMixin:
                 records = []
                 valid_data = []
                 for record, vals in data:
+                    # Skip records cleared by an earlier field's MissingError;
+                    # without this guard, a successful properties read would
+                    # repopulate the empty dict and leak a partial record
+                    # through the final ``[v for v in data if v]`` filter.
+                    if not vals:
+                        continue
                     try:
                         values_list.append(record[name])
                         records.append(record.id)
@@ -508,7 +514,13 @@ class ReadMixin:
         for field in fields:
             if field.name == "id":
                 continue
-            assert field.store
+            # raise (not assert) so contract holds under python -O —
+            # a non-stored field reaching this path would fail later
+            # at SQL generation with an opaque error.
+            if not field.store:
+                raise RuntimeError(
+                    f"_fetch_query expects stored fields, got {field}"
+                )
             (column_fields if field.column_type else other_fields).add(field)
 
         context = self.env.context

@@ -61,12 +61,15 @@ class TestHttpBase(HttpCaseWithUserDemo):
         # Patch at multiple levels:
         # - odoo.http.* for code accessing via module (e.g., web.controllers.utils uses http.db_filter)
         # - odoo.http.request_class.* for code importing from helpers
+        # - odoo.http._serve.Registry for the dispatch path created by the
+        #   audit-pass-6 split (Request → _RequestServeMixin in _serve.py)
         with (
             patch("odoo.http.db_list") as db_list1,
             patch("odoo.http.db_filter") as db_filter1,
             patch("odoo.http.request_class.db_list") as db_list2,
             patch("odoo.http.request_class.db_filter") as db_filter2,
             patch("odoo.http.request_class.Registry") as Registry,
+            patch("odoo.http._serve.Registry") as ServeRegistry,
         ):
             for db_list in (db_list1, db_list2):
                 db_list.return_value = dblist
@@ -75,6 +78,7 @@ class TestHttpBase(HttpCaseWithUserDemo):
                     db for db in dbs if db in dblist
                 ]
             Registry.return_value = self.registry
+            ServeRegistry.return_value = self.registry
             return self.url_open(url, *args, allow_redirects=allow_redirects, **kwargs)
 
     def parse_http_cache_control(self, cache_control):

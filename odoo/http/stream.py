@@ -44,9 +44,23 @@ class Stream:
     size: int | None = None
     public: bool = False
 
+    # Whitelist of kwargs accepted by ``__init__`` — kept in sync with the
+    # class attributes above. Without this, a typo like
+    # ``Stream(as_attatchment=True)`` silently set a bogus attribute and
+    # the real ``as_attachment`` defaulted to ``False``, producing a
+    # response whose disposition was not what the caller intended.
+    _ALLOWED_KWARGS: frozenset[str] = frozenset({
+        "type", "data", "path", "url",
+        "mimetype", "as_attachment", "download_name", "conditional",
+        "etag", "last_modified", "max_age", "immutable",
+        "size", "public",
+    })
+
     def __init__(self, **kwargs: Any) -> None:
-        # Remove class methods from the instances
-        self.from_path = self.from_binary_field = None
+        unknown = kwargs.keys() - self._ALLOWED_KWARGS
+        if unknown:
+            msg = f"Stream got unexpected keyword arguments: {sorted(unknown)}"
+            raise TypeError(msg)
         self.__dict__.update(kwargs)
 
     @classmethod
@@ -63,15 +77,22 @@ class Stream:
             it.
         """
         path = file_path(path, filter_ext)
-        check = adler32(path.encode())
         p = Path(path)
+        if not p.is_file():
+            e = f"Path {path!r} is not a regular file"
+            raise ValueError(e)
+        check = adler32(path.encode())
         stat = p.stat()
+        # Use ``st_mtime_ns`` (not ``int(st_mtime)``) so a same-second rewrite
+        # of same-length content still busts the cache. ext4/xfs/apfs all
+        # provide nanosecond mtime; the size+adler32(path) suffix preserves
+        # the original collision-resistance guarantees.
         return cls(
             type="path",
             path=path,
             mimetype=mimetypes.guess_type(path)[0],
             download_name=p.name,
-            etag=f"{int(stat.st_mtime)}-{stat.st_size}-{check}",
+            etag=f"{stat.st_mtime_ns}-{stat.st_size}-{check}",
             last_modified=stat.st_mtime,
             size=stat.st_size,
             public=public,
@@ -133,14 +154,12 @@ class Stream:
         from . import request  # lazy import
         from .wrappers import Response
 
-        assert self.type in (
-            "url",
-            "data",
-            "path",
-        ), f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
-        assert getattr(self, self.type) is not None, (
-            f"There is nothing to stream, missing {self.type!r} attribute."
-        )
+        if self.type not in ("url", "data", "path"):
+            e = f"Invalid type: {self.type!r}, should be 'url', 'data' or 'path'."
+            raise ValueError(e)
+        if getattr(self, self.type) is None:
+            e = f"There is nothing to stream, missing {self.type!r} attribute."
+            raise ValueError(e)
 
         if self.type == "url":
             if self.max_age is not None:
@@ -171,6 +190,7 @@ class Stream:
             res = _send_file(BytesIO(self.data), **send_file_kwargs)
         else:  # self.type == 'path'
             send_file_kwargs["use_x_sendfile"] = False
+            x_accel_redirect: str | None = None
             if config["x_sendfile"]:
                 with contextlib.suppress(ValueError):  # outside of the filestore
                     fspath = Path(self.path).relative_to(
@@ -180,7 +200,7 @@ class Stream:
                     send_file_kwargs["use_x_sendfile"] = True
 
             res = _send_file(self.path, **send_file_kwargs)
-            if "X-Sendfile" in res.headers:
+            if "X-Sendfile" in res.headers and x_accel_redirect is not None:
                 res.headers["X-Accel-Redirect"] = x_accel_redirect
 
                 # In case of X-Sendfile/X-Accel-Redirect, the body is empty,

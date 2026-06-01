@@ -1,14 +1,11 @@
-"""
-Database connection pool management.
-
-Uses psycopg_pool for production-grade connection pooling with health checks,
-max_lifetime rotation, background workers, and pool statistics.
-"""
+from __future__ import annotations
 
 import contextlib
+import hashlib
 import logging
 import threading
 from time import monotonic
+from typing import TYPE_CHECKING
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
@@ -16,6 +13,9 @@ from psycopg_pool import ConnectionPool as _PsycopgPool
 from psycopg_pool import PoolClosed, PoolTimeout
 
 from odoo.release import MIN_PG_VERSION
+
+if TYPE_CHECKING:
+    from .cursor import Cursor
 
 _logger = logging.getLogger(__name__)
 _logger_conn = _logger.getChild("connection")
@@ -38,10 +38,22 @@ class _SuppressKnownPoolWarnings(logging.Filter):
         msg = record.getMessage()
         if "discarding closed connection" in msg:
             return False
-        return not ("FATAL" in msg and "does not exist" in msg)
+        # Narrow to the specific PG phrase for a missing database; a broad
+        # ``FATAL`` + ``does not exist`` test also swallows legitimate
+        # misconfiguration signals like ``role "x" does not exist`` or
+        # ``tablespace "x" does not exist``.
+        return not ('database "' in msg and "does not exist" in msg)
 
 
-logging.getLogger("psycopg.pool").addFilter(_SuppressKnownPoolWarnings())
+# Guard against duplicate filters if the module is reloaded (e.g. via
+# importlib.reload in test harnesses) — addFilter is not idempotent and
+# each extra copy multiplies the per-log-record cost of the suppression
+# check.
+_psycopg_pool_logger = logging.getLogger("psycopg.pool")
+if not any(
+    isinstance(f, _SuppressKnownPoolWarnings) for f in _psycopg_pool_logger.filters
+):
+    _psycopg_pool_logger.addFilter(_SuppressKnownPoolWarnings())
 
 MAX_IDLE_TIMEOUT = 60 * 10
 
@@ -53,17 +65,26 @@ class PoolError(Exception):
 def _normalize_dsn_key(dsn: dict | str) -> frozenset:
     """Normalize a DSN to a hashable key for pool lookup.
 
-    Aliases ``dbname`` → ``database``, ignores ``password`` and non-libpq keys.
+    Aliases ``dbname`` → ``database``.  Folds the password into an opaque
+    fingerprint so rotating the password invalidates the cached pool, but
+    the cleartext never lives in memory as a dict key or log artifact.
     """
     alias_keys = {"dbname": "database"}
-    ignore_keys = frozenset(("password",))
     if isinstance(dsn, str):
         dsn = conninfo_to_dict(dsn)
-    return frozenset(
+    # BLAKE2s-64 is fast, collision-resistant enough for pool routing, and
+    # avoids leaking password length information via the key repr.
+    password = dsn.get("password")
+    if password:
+        pw_fp = hashlib.blake2s(str(password).encode(), digest_size=8).hexdigest()
+    else:
+        pw_fp = ""
+    items = (
         (alias_keys.get(k, k), str(v))
         for k, v in dsn.items()
-        if k not in ignore_keys and v is not None
+        if k != "password" and v is not None
     )
+    return frozenset((*items, ("password_fp", pw_fp)))
 
 
 def _configure_connection(conn: psycopg.Connection) -> None:
@@ -106,10 +127,29 @@ def _reset_connection(conn: psycopg.Connection) -> None:
     have changed (isolation_level, read_only) and ensure autocommit
     is off for the next user. Using attribute assignment avoids a
     round-trip (unlike ``RESET ALL``).
+
+    Also restore the prepared-statement tuning set by
+    :func:`_configure_connection`.  ``Cursor.execute`` may have set
+    ``prepare_threshold = None`` in the DDL-fallback path (when
+    ``Connection._prepared`` is unavailable) — without this restore the
+    next borrower inherits disabled auto-prepare for up to max_lifetime.
+
+    .. warning::
+        Arbitrary session-level GUCs set via ``SET x = y`` are NOT
+        reset here — they persist on the connection until its
+        ``max_lifetime`` (1h) and leak to the next borrower.  Callers
+        that need short-lived GUC overrides (``statement_timeout``,
+        ``work_mem``, ``search_path``, etc.) MUST use ``SET LOCAL``
+        (transaction-scoped) or issue an explicit ``RESET`` before
+        releasing the cursor.  Unconditional ``RESET ALL`` here would
+        add a round-trip on every pool return and is not justified
+        by current callers.
     """
     conn.autocommit = False
     conn.isolation_level = None  # restore server default
     conn.read_only = None  # restore server default
+    conn.prepare_threshold = 2  # matches _configure_connection
+    conn.prepared_max = 500
 
 
 class ConnectionPool:
@@ -120,14 +160,27 @@ class ConnectionPool:
     - max_lifetime rotation (recycles connections every hour)
     - Background workers for connection creation
     - Pool statistics via get_stats()
+
+    Connection budget is enforced by ``_pool_sem``, a per-instance bounded
+    semaphore sized at ``maxconn``.  Because the R/W and read-only pools
+    are two separate ``ConnectionPool`` instances (see ``odoo/db/__init__.py``),
+    the PROCESS-WIDE budget is ``2 * maxconn``, not ``maxconn``.
     """
 
     def __init__(self, maxconn: int = 64, readonly: bool = False):
+        # Reject non-positive budgets loudly — the old max(maxconn, 1)
+        # silently turned ``db_maxconn=0`` (or a misconfigured gevent
+        # override) into a single-slot pool that wedged the whole server
+        # under trivial load.
+        if maxconn <= 0:
+            raise ValueError(f"ConnectionPool maxconn must be >= 1, got {maxconn}")
         self._pools: dict[frozenset, _PsycopgPool] = {}
-        self._maxconn = max(maxconn, 1)
+        self._maxconn = maxconn
         self._readonly = readonly
         self._lock = threading.Lock()
-        self._global_sem = threading.BoundedSemaphore(self._maxconn)
+        # Per-instance semaphore — gates connections to this pool, not the
+        # process.  Name reflects the scope: pool-local, not global.
+        self._pool_sem = threading.BoundedSemaphore(self._maxconn)
 
     def __repr__(self) -> str:
         # NB: get_stats() acquires internal locks — looks expensive, but
@@ -210,10 +263,11 @@ class ConnectionPool:
     def borrow(self, connection_info: dict) -> psycopg.Connection:
         """Borrow a connection from the appropriate per-database pool.
 
-        Acquires a slot from the global semaphore first, ensuring the total
-        number of checked-out connections across all databases never exceeds
-        ``maxconn``.  The 30-second timeout budget is shared between the
-        semaphore wait and the per-database ``getconn()`` call.
+        Acquires a slot from the pool-scoped semaphore first, ensuring the
+        total number of checked-out connections across all databases in
+        THIS pool instance never exceeds ``maxconn``.  The 30-second
+        timeout budget is shared between the semaphore wait and the
+        per-database ``getconn()`` call.
 
         :param dict connection_info: dict of psql connection keywords
         :rtype: psycopg.Connection
@@ -223,9 +277,9 @@ class ConnectionPool:
 
         deadline = monotonic() + 30.0
 
-        if not self._global_sem.acquire(timeout=30.0):
+        if not self._pool_sem.acquire(timeout=30.0):
             raise PoolError(
-                f"Could not acquire connection: global limit ({self._maxconn}) reached, "
+                f"Could not acquire connection: pool limit ({self._maxconn}) reached, "
                 f"all connections are in use across {len(self._pools)} database(s)"
             )
         try:
@@ -250,11 +304,14 @@ class ConnectionPool:
                 raise
             except Exception as e:
                 raise PoolError(str(e)) from e
+            # _debug inside the try so any failure (e.g. conn.info access on
+            # a dead backend) releases the semaphore via the BaseException
+            # handler below.
+            self._debug("Borrow connection backend PID %d", conn.info.backend_pid)
         except BaseException:
-            self._global_sem.release()
+            self._pool_sem.release()
             raise
 
-        self._debug("Borrow connection backend PID %d", conn.info.backend_pid)
         return conn
 
     def give_back(
@@ -262,14 +319,22 @@ class ConnectionPool:
     ) -> None:
         """Return a connection to its pool.
 
-        Releases a slot from the global semaphore after returning the
-        connection, ensuring the global limit is correctly maintained.
+        Releases a slot from the pool-scoped semaphore after returning the
+        connection, keeping the per-instance budget accurate.
 
         :param connection: The connection to return
         :param keep_in_pool: If False, close the connection before returning
             it so the pool discards it (used for template databases).
         """
-        self._debug("Give back connection to %r", connection.info.dsn)
+        # Reading connection.info.dsn raises OperationalError on a closed
+        # connection, so we must not dereference it unconditionally — dead
+        # connections are a normal path into give_back() (e.g. rollback
+        # after a network drop).  Only format the debug line when the
+        # handle is still usable; fall back to the pointer repr otherwise.
+        if not connection.closed:
+            self._debug("Give back connection to %r", connection.info.dsn)
+        else:
+            self._debug("Give back dead connection %r", connection)
         pool = getattr(connection, "_pool", None)
         if pool is None:
             # Connection not from a psycopg_pool (e.g. manually created)
@@ -289,7 +354,7 @@ class ConnectionPool:
             except Exception:
                 _logger.debug("Failed to return connection to pool", exc_info=True)
         finally:
-            self._global_sem.release()
+            self._pool_sem.release()
 
     def close_all(self, dsn: dict | str | None = None) -> None:
         """Close pool(s) — by DSN or all.
@@ -332,19 +397,29 @@ class ConnectionPool:
                 pool.drain()
                 _logger.debug("%r: Drained pool for %s", self, dict(key))
         else:
-            for key, pool in self._pools.items():
+            # Snapshot under the lock so a concurrent _get_or_create_pool()
+            # or close_all() can't mutate the dict mid-iteration (would
+            # raise "dictionary changed size during iteration" otherwise).
+            with self._lock:
+                pools = list(self._pools.values())
+            for pool in pools:
                 if not pool.closed:
                     pool.drain()
-            if self._pools:
-                _logger.debug("%r: Drained %d pool(s)", self, len(self._pools))
+            if pools:
+                _logger.debug("%r: Drained %d pool(s)", self, len(pools))
 
     def get_stats(self) -> dict[str, dict]:
         """Return pool statistics for all databases.
 
         Returns a dict keyed by database name with psycopg_pool stats.
         """
+        # Snapshot under the lock so a concurrent _get_or_create_pool() or
+        # close_all() can't mutate the dict mid-iteration (would raise
+        # "dictionary changed size during iteration" otherwise).
+        with self._lock:
+            snapshot = list(self._pools.items())
         stats = {}
-        for key, pool in self._pools.items():
+        for key, pool in snapshot:
             db_name = dict(key).get("database", "unknown")
             stats[db_name] = pool.get_stats()
         return stats

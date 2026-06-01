@@ -50,7 +50,7 @@ class EnvironmentMixin:
             (_id,) = self._ids
             return self
         except ValueError:
-            raise ValueError(f"Expected singleton: {self}")
+            raise ValueError(f"Expected singleton: {self}") from None
 
     @api.private
     def with_env(self, env: Environment) -> Self:
@@ -202,7 +202,7 @@ class EnvironmentMixin:
                 (fields[name], value) for name, value in values.items() if name != "id"
             ]
         except KeyError as e:
-            raise ValueError(f"Invalid field {e.args[0]!r} on model {self._name!r}")
+            raise ValueError(f"Invalid field {e.args[0]!r} on model {self._name!r}") from e
 
         # convert monetary fields after other columns for correct value rounding
         for field, value in sorted(
@@ -270,6 +270,12 @@ class EnvironmentMixin:
             values = {}
         if origin is not None:
             origin = origin.id
+        # Falsy refs (notably the literal ``0`` placeholder produced by
+        # ``Command.create``) carry no identification value and would collide
+        # under the hash-consistent NewId equality.  Normalize to ``None`` so
+        # such records remain distinct via identity.
+        if not ref:
+            ref = None
         record = self.browse((NewId(origin, ref),))
         record._update_cache(values, validate=False)
 

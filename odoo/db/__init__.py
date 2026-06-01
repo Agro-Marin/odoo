@@ -45,8 +45,9 @@ __all__ = [
     # Connection management
     "db_connect",
     "drain_all",
-    # Global counter
-    "sql_counter",
+    # Global counter — resolved dynamically via module __getattr__ below
+    # so callers always see the current cursor.sql_counter value.
+    "sql_counter",  # noqa: F822 — exposed via module __getattr__, not a name
 ]
 
 _logger = logging.getLogger(__name__)

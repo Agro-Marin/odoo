@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from datetime import timezone as dt_timezone
 from zoneinfo import ZoneInfo, available_timezones
 
+from babel.core import get_global
+
 # UTC timezone - use stdlib's timezone.utc for best compatibility
 utc = UTC
 
@@ -226,8 +228,6 @@ def country_timezones() -> dict[str, list[str]]:
     """
     global _country_timezones
     if _country_timezones is None:
-        from babel.core import get_global
-
         zone_territories = get_global("zone_territories")
         _country_timezones = {}
         for tz_name, country_code in zone_territories.items():

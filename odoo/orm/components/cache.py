@@ -92,10 +92,14 @@ class FieldCache:
         by not overwriting existing entries.  Uses ``collections.deque`` with
         ``maxlen=0`` to consume the ``map(setdefault, ...)`` iterator in C,
         which is ~15% faster than an explicit Python loop.
+
+        ``strict=True``: callers must pass equal-length iterables.  Length
+        mismatches raise ``ValueError`` at iteration time rather than
+        silently truncating to the shorter side.
         """
         field_cache = self._data[field]
         collections.deque(
-            map(field_cache.setdefault, ids, values, strict=False), maxlen=0
+            map(field_cache.setdefault, ids, values, strict=True), maxlen=0
         )
 
     def update_batch(self, field: Any, ids: tuple, value: Any) -> None:
@@ -213,13 +217,33 @@ class FieldCache:
         if not self._dirty:
             self._data.clear()
             return
-        # Keep field_cache dicts that contain dirty entries.  We preserve
-        # the *entire* sub-dict for a dirty field (not just the dirty IDs)
-        # because context-dependent fields (translate=True, company_dependent)
-        # store values across multiple cache-key sub-dicts, and the flush
-        # reads from all of them.
+        # Restrict each dirty field's sub-dict to its dirty IDs only.
+        # Context-dependent fields (translate=True, company_dependent) keep
+        # values in nested ``{cache_key: {id: value}}`` dicts; non-context
+        # fields keep flat ``{id: value}`` dicts.  Detect the shape by
+        # ``isinstance(k, tuple)`` — context-dep cache_keys are always tuples
+        # (built by ``Environment.cache_key()``), record ids are never tuples
+        # (``int`` or ``NewId``).  Inspecting the value would mis-classify
+        # flat dict-valued fields (Json, Properties) and silently evict their
+        # dirty entries — that bug was present until 2026-05.
         for field in list(self._data):
-            if field not in self._dirty:
+            dirty_ids = self._dirty.get(field)
+            if not dirty_ids:
+                del self._data[field]
+                continue
+            field_cache = self._data[field]
+            for k, v in list(field_cache.items()):
+                if isinstance(k, tuple):
+                    # context-dep shape: {cache_key: {id: value}}
+                    for sub_id in list(v):
+                        if sub_id not in dirty_ids:
+                            del v[sub_id]
+                    if not v:
+                        del field_cache[k]
+                elif k not in dirty_ids:
+                    # flat shape: {id: value}
+                    del field_cache[k]
+            if not field_cache:
                 del self._data[field]
 
     def clear(self) -> None:

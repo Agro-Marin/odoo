@@ -3,7 +3,7 @@ from operator import attrgetter
 from typing import override
 
 from odoo.exceptions import AccessError
-from odoo.tools import float_compare, float_is_zero, float_round
+from odoo.tools import float_compare, float_round
 from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
 from .base import Field, _make_scalar_get
@@ -55,7 +55,11 @@ class Integer(Field[int]):
             return value
         if isinstance(value, dict):
             # special case, when an integer field is used as inverse for a one2many
-            return value.get("id", None)
+            # ``or 0`` keeps the convention from convert_to_column: a missing or
+            # falsy ``id`` collapses to 0, never None.  Storing None here would
+            # later become 0 anyway via ``int(None or 0)`` but only after the
+            # cache has briefly held an out-of-type value.
+            return value.get("id") or 0
         return int(value or 0)
 
     @override

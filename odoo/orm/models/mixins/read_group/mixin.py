@@ -11,14 +11,12 @@ SQL generation, post-processing, and fill logic are in separate sub-mixins
 import itertools
 import typing
 from collections import defaultdict
-from collections.abc import Callable
 from operator import itemgetter
 
 from odoo.tools import SQL, unique
 
 from .... import decorators as api
-from ...._typing import DomainType, ModelType  # noqa: TC003 — runtime import required (PEP 649)
-from ....constants import READ_GROUP_TIME_GRANULARITY
+from ...._typing import DomainType
 from ....domain import Domain
 from ....parsing import parse_read_group_spec, regex_field_agg
 from .fill import _ReadGroupFillMixin
@@ -139,7 +137,15 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     return property_type in ("tags", "many2many")
 
                 if property_name:
-                    assert field.type == "many2one"
+                    # raise (not assert) so contract holds under python -O —
+                    # otherwise a malformed spec could silently look up the
+                    # wrong comodel for x2many duplication detection.
+                    if field.type != "many2one":
+                        raise TypeError(
+                            f"Field {fname!r} on {model._name!r}: dotted "
+                            f"groupby spec only supported for many2one, got "
+                            f"{field.type!r}"
+                        )
                     return might_duplicate_rows(
                         self.env[field.comodel_name], property_name
                     )
@@ -199,7 +205,14 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 if sub_grouping_sets:
                     batched_calls.append((sub_result_indexes, sub_grouping_sets))
 
-            assert not grouping_sets_to_process
+            # raise (not assert) so the invariant holds under python -O —
+            # otherwise a bug in the m2m_combinaisons loop would silently
+            # drop grouping sets from the final result.
+            if grouping_sets_to_process:
+                raise RuntimeError(
+                    f"M2M decomposition lost grouping sets: "
+                    f"{list(grouping_sets_to_process.values())}"
+                )
             # If the problem was decomposed, make recursive calls and assemble results.
             if len(batched_calls) > 1:
                 for indexes, sub_grouping_sets in batched_calls:
@@ -222,7 +235,10 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                         aggregates=aggregates,
                         order=",".join(sub_order_parts),
                     )
-                    for index, subresult in zip(indexes, sub_results, strict=False):
+                    # _read_grouping_sets returns one entry per input grouping
+                    # set — strict=True surfaces a contract violation rather
+                    # than silently leaving result[index] unfilled.
+                    for index, subresult in zip(indexes, sub_results, strict=True):
                         result[index] = subresult
                 return result
 
@@ -471,7 +487,13 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         for spec in aggregates:
             column = self._read_group_postprocess_aggregate(spec, next(column_iterator))
             column_result.append(column)
-        assert next(column_iterator, None) is None
+        # raise (not assert) so contract holds under python -O — extra
+        # columns would otherwise be silently dropped from the result.
+        if next(column_iterator, None) is not None:
+            raise RuntimeError(
+                f"Read group returned more columns than expected for "
+                f"groupby={groupby} aggregates={aggregates}"
+            )
 
         # return [(a1, b1, c1), (a2, b2, c2), ...]
         return list(zip(*column_result, strict=False))

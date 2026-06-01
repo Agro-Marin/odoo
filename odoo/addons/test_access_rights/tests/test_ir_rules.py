@@ -118,6 +118,50 @@ class TestRules(TransactionCase):
         with self.assertQueryCount(0):
             Model._filtered_access("read")
 
+    @mute_logger("odoo.addons.base.models.ir_rule")
+    def test_check_access_newid_bypasses_ir_rule(self):
+        """``ir.rule`` predicates apply only to records with a database row.
+
+        ``NewId`` records have no DB row, so a rule's domain predicate
+        evaluates against whatever the cache happens to hold (often the
+        field's default).  That is not a meaningful basis for a permission
+        decision, so ``_check_access`` restricts the rule check to records
+        with a real (truthy) id; NewIds always pass.
+        """
+        env = self.env(user=self.env.ref("base.public_user"))
+        SomeObj = env["test_access_right.some_obj"]
+
+        # 1. NewId-only recordset passes — the rule "val > 0" cannot
+        #    reject a NewId regardless of its cached val.
+        new_record = SomeObj.new({"val": -42})  # cached val fails the rule
+        self.assertEqual(new_record.val, -42)
+        new_record.check_access("read")  # must not raise
+        self.assertTrue(new_record.has_access("read"))
+
+        # 2. Mixed recordset (NewId + real-allowed): passes for both.
+        allowed_user = self.allowed.with_env(env)
+        mixed_ok = new_record | allowed_user
+        mixed_ok.check_access("read")  # must not raise
+        self.assertTrue(mixed_ok.has_access("read"))
+
+        # 3. Mixed recordset (NewId + real-forbidden): the real record
+        #    is forbidden, but the NewId is not in the forbidden subset.
+        forbidden_user = self.forbidden.with_env(env)
+        mixed_bad = new_record | forbidden_user
+        result = mixed_bad._check_access("read")
+        self.assertIsNotNone(result, "real-forbidden record should still trip the rule")
+        forbidden_records = result[0]
+        self.assertIn(forbidden_user, forbidden_records)
+        self.assertNotIn(
+            new_record, forbidden_records,
+            "NewId must not be reported as forbidden by ir.rule",
+        )
+
+        # 4. ``_filtered_access`` keeps the NewId, drops the real-forbidden.
+        filtered = mixed_bad._filtered_access("read")
+        self.assertIn(new_record, filtered)
+        self.assertNotIn(forbidden_user, filtered)
+
     def test_no_context_in_ir_rules(self):
         """The context should not impact the ir rules."""
         ObjCateg = self.env["test_access_right.obj_categ"]

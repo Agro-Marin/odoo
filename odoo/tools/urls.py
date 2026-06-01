@@ -7,7 +7,9 @@ from odoo.http import request
 
 # Re-export from canonical location
 from odoo.libs.web.urls import *  # noqa: F403
-from odoo.libs.web.urls import _contains_dot_segments  # noqa: F401 — used by website.models.website
+from odoo.libs.web.urls import (
+    _contains_dot_segments,  # noqa: F401 — used by website.models.website
+)
 
 
 def keep_query(*keep_params: str, **additional_params: object) -> str:

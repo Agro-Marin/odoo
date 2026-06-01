@@ -21,6 +21,7 @@ from odoo.tools.misc import file_path
 from odoo.addons.base.models.assetsbundle import (
     ANY_UNIQUE,
     AssetsBundle,
+    JavascriptAsset,
     XMLAssetError,
 )
 from odoo.addons.base.models.ir_asset import AssetPaths, _glob_static_file
@@ -218,6 +219,201 @@ class TestParseBundleName(TransactionCase):
         with self.assertRaises(ValueError) as cm:
             IrAsset._parse_bundle_name("web.assets.xml", debug_assets=True)
         self.assertIn("Only js and css", str(cm.exception))
+
+
+class TestSilentNoopDirectives(TransactionCase):
+    """Tests asserting that silent-noop directives (REMOVE / AFTER / BEFORE /
+    REPLACE pointing at a path that resolves to nothing) emit a WARNING with
+    enough context (bundle name + directive + path) for an operator to fix
+    the manifest by hand.
+
+    Background: CONVENTIONS.md §3 (web) documents that the ``remove`` and
+    ``after`` directives in ``__manifest__.py`` are load-bearing for the
+    asset graph.  Before this guardrail, a ``("remove", "moved_file.js")``
+    silently became a no-op when the file was renamed — the manifest tuple
+    was dead weight that nobody could spot without ``git blame`` archaeology.
+    The new warnings turn each silent no-op into a grep-able log line.
+    """
+
+    def _make_ir_asset(self):
+        return self.env["ir.asset"]
+
+    @property
+    def _ir_asset_cls(self):
+        """Patch target for class-level method mocking — model recordsets
+        are immutable, so we must patch the underlying class."""
+        return type(self.env["ir.asset"])
+
+    def test_remove_unresolved_path_warns(self):
+        """REMOVE pointing at a path that resolves to nothing emits a WARNING."""
+        IrAsset = self._make_ir_asset()
+        asset_paths = AssetPaths()
+        # Patch _get_paths to simulate a stale path (file moved/deleted).
+        with patch.object(self._ir_asset_cls, "_get_paths", return_value=[]), \
+             self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
+            IrAsset._process_path(
+                bundle="some.bundle",
+                directive="remove",
+                target=None,
+                path_def="/some_addon/static/src/moved_or_deleted.js",
+                asset_paths=asset_paths,
+                seen=[],
+                addons=[],
+                installed=set(),
+                bundle_start_index=0,
+            )
+        # The asset_paths list is unchanged because the path resolved to nothing.
+        self.assertEqual(asset_paths.list, [])
+        # The warning carries enough context for the operator to find the manifest.
+        joined = " ".join(cm.output)
+        self.assertIn("REMOVE", joined)
+        self.assertIn("some.bundle", joined)
+        self.assertIn("moved_or_deleted.js", joined)
+
+    def test_after_missing_target_warns(self):
+        """AFTER with a target that resolves to nothing emits a WARNING."""
+        IrAsset = self._make_ir_asset()
+        asset_paths = AssetPaths()
+
+        # First _get_paths call (for path_def) returns the source file;
+        # second (for target) returns nothing — simulating a renamed anchor.
+        side_effects = [
+            [("/web/source.scss", "/full/source.scss", 1)],  # source resolves
+            [],  # target does NOT
+        ]
+        with patch.object(self._ir_asset_cls, "_get_paths", side_effect=side_effects), \
+             self.assertLogs("odoo.addons.base.models.ir_asset", level="WARNING") as cm:
+            IrAsset._process_path(
+                bundle="some.bundle",
+                directive="after",
+                target="/web/missing_anchor.scss",
+                path_def="/web/source.scss",
+                asset_paths=asset_paths,
+                seen=[],
+                addons=[],
+                installed=set(),
+                bundle_start_index=0,
+            )
+        # source.scss was NOT inserted because the target index could not be
+        # resolved — the directive is a complete no-op.
+        self.assertEqual(asset_paths.list, [])
+        joined = " ".join(cm.output)
+        self.assertIn("after", joined)
+        self.assertIn("some.bundle", joined)
+        self.assertIn("missing_anchor.scss", joined)
+
+    def test_before_missing_target_warns(self):
+        """BEFORE with a missing target emits a WARNING (same path as AFTER)."""
+        IrAsset = self._make_ir_asset()
+        asset_paths = AssetPaths()
+        with patch.object(
+            self._ir_asset_cls,
+            "_get_paths",
+            side_effect=[[("/web/x.js", "/full/x.js", 1)], []],
+        ), self.assertLogs(
+            "odoo.addons.base.models.ir_asset", level="WARNING"
+        ) as cm:
+            IrAsset._process_path(
+                bundle="b.b",
+                directive="before",
+                target="/web/missing.js",
+                path_def="/web/x.js",
+                asset_paths=asset_paths,
+                seen=[],
+                addons=[],
+                installed=set(),
+                bundle_start_index=0,
+            )
+        self.assertEqual(asset_paths.list, [])
+        joined = " ".join(cm.output)
+        self.assertIn("before", joined)
+        self.assertIn("missing.js", joined)
+
+    def test_after_no_target_warns(self):
+        """AFTER with target=None emits a WARNING."""
+        IrAsset = self._make_ir_asset()
+        asset_paths = AssetPaths()
+        with patch.object(
+            self._ir_asset_cls,
+            "_get_paths",
+            return_value=[("/web/x.js", "/full/x.js", 1)],
+        ), self.assertLogs(
+            "odoo.addons.base.models.ir_asset", level="WARNING"
+        ) as cm:
+            IrAsset._process_path(
+                bundle="x.y",
+                directive="after",
+                target=None,
+                path_def="/web/x.js",
+                asset_paths=asset_paths,
+                seen=[],
+                addons=[],
+                installed=set(),
+                bundle_start_index=0,
+            )
+        self.assertEqual(asset_paths.list, [])
+        joined = " ".join(cm.output)
+        self.assertIn("no target", joined)
+        self.assertIn("x.y", joined)
+
+    def test_append_unresolved_path_does_not_warn(self):
+        """APPEND with an empty path resolution is NOT a no-op for the
+        operator — it is the normal "glob matched no files yet" case during
+        partial module load.  No new warning beyond the existing
+        path-resolution log.
+        """
+        IrAsset = self._make_ir_asset()
+        asset_paths = AssetPaths()
+        # The existing _get_paths warning at line 526 covers the empty-glob
+        # case; assertNoLogs is used to assert that our new warnings did NOT
+        # also fire for APPEND.
+        with patch.object(self._ir_asset_cls, "_get_paths", return_value=[]):
+            with self.assertNoLogs(
+                "odoo.addons.base.models.ir_asset", level="WARNING"
+            ):
+                IrAsset._process_path(
+                    bundle="x.y",
+                    directive="append",
+                    target=None,
+                    path_def="/web/x.js",
+                    asset_paths=asset_paths,
+                    seen=[],
+                    addons=[],
+                    installed=set(),
+                    bundle_start_index=0,
+                )
+        self.assertEqual(asset_paths.list, [])
+
+    def test_remove_resolved_path_succeeds_silently(self):
+        """REMOVE with a path that DOES resolve does its job silently — no
+        spurious warning when the manifest is correct.
+        """
+        IrAsset = self._make_ir_asset()
+        asset_paths = AssetPaths()
+        asset_paths.append(
+            [("/web/x.js", "/full/x.js", 1)],
+            "preexisting",
+        )
+        with patch.object(
+            self._ir_asset_cls,
+            "_get_paths",
+            return_value=[("/web/x.js", "/full/x.js", 1)],
+        ), self.assertNoLogs(
+            "odoo.addons.base.models.ir_asset", level="WARNING"
+        ):
+            IrAsset._process_path(
+                bundle="x.y",
+                directive="remove",
+                target=None,
+                path_def="/web/x.js",
+                asset_paths=asset_paths,
+                seen=[],
+                addons=[],
+                installed=set(),
+                bundle_start_index=0,
+            )
+        # The path was successfully removed.
+        self.assertEqual(asset_paths.list, [])
 
 
 class Manifests(dict):
@@ -584,6 +780,111 @@ class TestJavascriptAssetsBundle(FileTouchable):
         self.bundle.css()
         self.assertEqual(len(self._any_ira_for_bundle("min.css")), 1)
         self.assertEqual(len(self.bundle.get_attachments("min.css")), 1)
+
+    def test_compile_css_dedups_repeated_library_import(self):
+        """A library @import repeated across concatenated files is deduped,
+        not reported as a forbidden local import.
+
+        Regression: the sanitizer folded the dedup test into the security
+        predicate, so the second occurrence of a legitimate ``@import "lib"``
+        fell into the "forbidden for security reasons" branch. That polluted
+        ``css_errors`` and tripped the degraded-CSS banner in ``css()`` for an
+        entirely benign duplicate.
+        """
+        bundle = self._get_asset(self.cssbundle_name)
+        source = (
+            '@import "bootstrap/scss/functions";\n'
+            ".a { color: red; }\n"
+            '@import "bootstrap/scss/functions";'
+        )
+        # compile_css takes the compiler as an argument; an identity stub
+        # exercises only the @import sanitization, no Sass subprocess.
+        out = bundle.compile_css(lambda s: s, source)
+        self.assertEqual(
+            bundle.css_errors,
+            [],
+            "a repeated library @import must not be flagged as an error",
+        )
+        self.assertEqual(
+            out.count('@import "bootstrap/scss/functions"'),
+            1,
+            "the duplicate @import should be dropped, keeping the first",
+        )
+
+    def test_compile_css_blocks_whitespace_padded_local_import(self):
+        r"""A local @import padded with extra whitespace is still rejected.
+
+        Regression: ``rx_preprocess_imports`` used ``\s?`` (0-1 whitespace),
+        so ``@import  "./x"`` with two spaces slipped past the sanitizer
+        unmatched and reached the compiler unsanitized. ``\s*`` closes the gap.
+        """
+        bundle = self._get_asset(self.cssbundle_name)
+        source = '@import  "./secret.css";'  # two spaces — the historic bypass
+        with mute_logger("odoo.addons.base.models.assetsbundle"):
+            out = bundle.compile_css(lambda s: s, source)
+        self.assertTrue(
+            bundle.css_errors,
+            "a whitespace-padded local @import must be rejected",
+        )
+        self.assertNotIn("secret", out, "the local @import must be stripped")
+
+    def test_js_header_line_count(self):
+        """The verbose JS header emits exactly ``_HEADER_LINE_COUNT`` lines
+        before the body.
+
+        ``js_with_sourcemap`` feeds that constant to the sourcemap generator
+        as each source's ``start_offset``; if ``with_header`` gains or loses a
+        header line without updating the constant, generated line numbers
+        silently drift. This guards the coupling.
+        """
+        bundle = self._get_asset(self.jsbundle_name)
+        asset = JavascriptAsset(bundle, url="/web/static/src/_probe.js", inline="x")
+        # A single-line body adds no newlines, so the rendered header+body's
+        # newline count equals the number of header lines before the body.
+        rendered = asset.with_header("SINGLE_LINE_BODY", minimal=False)
+        self.assertEqual(rendered.count("\n"), JavascriptAsset._HEADER_LINE_COUNT)
+
+    def test_bridge_resolver_memoizes_source_exports(self):
+        """``_BridgeExportResolver.source_exports`` parses each spec once.
+
+        A re-export hub is reached through many ``export * from`` chains in a
+        single build; its parsed surface must be memoized, not recomputed on
+        every visit. ``assertIs`` is true only when the result is cached.
+        """
+        from odoo.addons.base.models.assetsbundle import _BridgeExportResolver
+
+        resolver = _BridgeExportResolver({}, {}, "test_bundle")
+        # Seed the disk-read cache so source_exports resolves without I/O.
+        resolver._cache["@x/y"] = "export const A = 1;\nexport default A;"
+        first = resolver.source_exports("@x/y")
+        second = resolver.source_exports("@x/y")
+        self.assertEqual(first[0], {"A"})
+        self.assertTrue(first[1])
+        self.assertIs(first, second, "parsed exports must be memoized")
+
+    def test_xml_template_elements_shapes(self):
+        """XMLAsset.template_elements yields each template for every root shape.
+
+        ``AssetsBundle.xml()`` consumes these directly (one parse per file)
+        instead of re-parsing the serialized content; a regression would
+        silently change which templates get registered. Covers the three root
+        shapes the old wrap+reparse handled: ``<templates>``/``<odoo>``
+        wrappers and a bare single-element template.
+        """
+        from odoo.addons.base.models.assetsbundle import XMLAsset
+
+        bundle = self._get_asset(self.jsbundle_name)
+        cases = {
+            '<templates><t t-name="a"/><t t-name="b"/></templates>': ["a", "b"],
+            '<odoo><t t-name="c"/></odoo>': ["c"],
+            '<t t-name="solo"/>': ["solo"],
+        }
+        for src, expected in cases.items():
+            asset = XMLAsset(bundle, inline=src, url="/web/static/src/_probe.xml")
+            names = [el.get("t-name") for el in asset.template_elements]
+            self.assertEqual(names, expected, f"for {src!r}")
+            # Cached: parsed once, same list object on re-access.
+            self.assertIs(asset.template_elements, asset.template_elements)
 
     def test_09_css_access(self):
         """Checks that the bundle's cache is working, i.e. that a bundle creates only enough

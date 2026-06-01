@@ -29,6 +29,39 @@ from ....fields.temporal import _get_all_timezones_set
 from ..search import _SQL_DIR, _SQL_NULLS
 
 
+def _safe_sql_str_literal(value: str) -> str:
+    """Return *value* formatted as a single-quoted SQL string literal.
+
+    This helper is used at the four sites in this module where the value
+    must be embedded into the SQL **text** rather than parameter-bound,
+    because the resulting expression appears in both ``SELECT`` and
+    ``GROUP BY`` clauses and PostgreSQL requires byte-identical text for
+    expression matching.  Server-side prepared statements assign each
+    parameter binding a unique ``$N`` number, so the same value used in
+    two places looks like two different expressions to PG and the
+    GROUP BY validation fails.
+
+    Each call site passes a value that has already been validated against
+    a fixed allow-list (timezone name, granularity keyword).  This helper
+    adds a final defense-in-depth check: any string containing a quote
+    or backslash raises :exc:`ValueError`, failing the query loudly
+    rather than producing malformed SQL.
+
+    :raises TypeError: when *value* is not a :class:`str`
+    :raises ValueError: when *value* contains ``'`` or ``\\``
+    """
+    if not isinstance(value, str):
+        raise TypeError(
+            f"_safe_sql_str_literal expects str, got {type(value).__name__}: {value!r}"
+        )
+    if "'" in value or "\\" in value:
+        raise ValueError(
+            f"_safe_sql_str_literal: {value!r} contains characters unsafe "
+            f"for direct embedding into a SQL string literal"
+        )
+    return f"'{value}'"
+
+
 class _ReadGroupSQLMixin:
     """SQL generation methods for read_group.
 
@@ -247,13 +280,21 @@ class _ReadGroupSQLMixin:
                 if prop_type == "datetime":
                     if tz_name := self.env.context.get("tz"):
                         if tz_name in _get_all_timezones_set():
+                            # tz_name is from a controlled allow-list
+                            # (pytz canonical names).  Embedded — not
+                            # parameter-bound — for GROUP BY consistency
+                            # (see ``_safe_sql_str_literal``).
                             sql_expr = SQL(
-                                "timezone('%s', timezone('UTC', %%s))" % tz_name,
+                                "timezone(%s, timezone('UTC', %%s))"
+                                % _safe_sql_str_literal(tz_name),
                                 sql_expr,
                             )
                 if granularity in READ_GROUP_NUMBER_GRANULARITY:
                     pg_granularity = READ_GROUP_NUMBER_GRANULARITY[granularity]
-                    sql_expr = SQL("date_part('%s', %%s)" % pg_granularity, sql_expr)
+                    sql_expr = SQL(
+                        "date_part(%s, %%s)" % _safe_sql_str_literal(pg_granularity),
+                        sql_expr,
+                    )
             elif granularity in READ_GROUP_NUMBER_GRANULARITY:
                 sql_expr = field.property_to_sql(
                     sql_expr, granularity, self, alias, query
@@ -266,19 +307,27 @@ class _ReadGroupSQLMixin:
                 # first_week_day: 0=Monday, 1=Tuesday, ...
                 first_week_day = int(get_lang(self.env).week_start) - 1
                 days_offset = first_week_day and 7 - first_week_day
-                # Embed interval as SQL literal for GROUP BY consistency:
-                # with server-side binding, bound params get unique $N
-                # numbers, making SELECT and GROUP BY expressions differ.
-                interval = f"-{days_offset} DAY"
+                # Embed days_offset as a SQL integer literal for GROUP BY
+                # consistency: with server-side binding, bound params get
+                # unique $N numbers, making SELECT and GROUP BY expressions
+                # differ.  ``%d`` enforces integer-only formatting at the
+                # Python level — a non-int ``days_offset`` raises TypeError
+                # so this site can never produce a malformed INTERVAL clause.
+                # The leading ``-`` is part of the format string (the original
+                # value of ``interval`` was always ``-{days_offset} DAY``).
                 sql_expr = SQL(
-                    "(date_trunc('week', %%s::timestamp - INTERVAL '%s') + INTERVAL '%s')"
-                    % (interval, interval),
+                    "(date_trunc('week', %%s::timestamp - INTERVAL '-%d DAY')"
+                    " + INTERVAL '-%d DAY')"
+                    % (days_offset, days_offset),
                     sql_expr,
                 )
             elif granularity in READ_GROUP_TIME_GRANULARITY:
-                # Embed granularity as SQL literal for GROUP BY consistency.
+                # Embed granularity as SQL literal for GROUP BY consistency
+                # (see ``_safe_sql_str_literal``).
                 sql_expr = SQL(
-                    "date_trunc('%s', %%s::timestamp)" % granularity, sql_expr
+                    "date_trunc(%s, %%s::timestamp)"
+                    % _safe_sql_str_literal(granularity),
+                    sql_expr,
                 )
 
             # If the granularity is a part number, the result is a number (double) so no conversion is needed

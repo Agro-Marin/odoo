@@ -15,7 +15,6 @@ from odoo.tools import OrderedSet
 from odoo.tools.misc import ReversedIterable
 
 from ... import decorators as api
-from ...primitives import NewId
 
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator, Reversible
@@ -62,6 +61,17 @@ class IterationMixin:
         :param env: an environment
         :param ids: a tuple of record ids
         :param prefetch_ids: a reversible iterable of record ids (for prefetching)
+
+        .. note::
+
+            Recordset construction is on the hot path of every ``env[name]``
+            call.  The fast path in :meth:`Environment.__getitem__` inlines
+            the equivalent of this body
+            (``object.__new__`` + the three slot assignments below) to skip
+            method dispatch.  If a future refactor adds a new attribute here,
+            the ``Environment.__getitem__`` fast path must be updated to set
+            it too — otherwise empty recordsets will be missing that
+            attribute.
         """
         self.env = env
         self._ids = ids
@@ -194,7 +204,60 @@ class IterationMixin:
         except AttributeError:
             if isinstance(item, str):
                 return item in self._fields
-            raise TypeError(f"unsupported operand types in: {item!r} in {self}")
+            raise TypeError(f"unsupported operand types in: {item!r} in {self}") from None
+
+    @api.private
+    def index(self, item, start: int = 0, stop: int | None = None) -> int:
+        """Return the first index where the singleton ``item`` is found in ``self``.
+
+        Honors the standard ``Sequence.index`` contract: raises ``ValueError``
+        when not found.  ``item`` must be a singleton recordset of the same
+        model as ``self``.
+        """
+        try:
+            if self._name != item._name:
+                raise TypeError(f"inconsistent models in: {item}.index({self})")
+        except AttributeError:
+            raise TypeError(
+                f"unsupported operand types in: {item!r}.index({self})"
+            ) from None
+        if len(item) != 1:
+            raise ValueError(f"index requires a singleton, got {len(item)} records")
+        target = item.id
+        ids = self._ids
+        n = len(ids)
+        # Normalize negative offsets like ``list.index`` (CPython listobject.c).
+        # Without this, ``recordset.index(rec, -1)`` would return -1 verbatim
+        # via ``ids[-1]``, breaking the Sequence protocol contract.
+        if start < 0:
+            start = max(0, n + start)
+        if stop is None:
+            stop = n
+        elif stop < 0:
+            stop = max(0, n + stop)
+        for i in range(start, stop):
+            if ids[i] == target:
+                return i
+        raise ValueError(f"{item} is not in recordset")
+
+    @api.private
+    def count(self, item) -> int:
+        """Return the number of occurrences of the singleton ``item`` in ``self``.
+
+        Honors the standard ``Sequence.count`` contract.  ``item`` must be a
+        singleton recordset of the same model as ``self``.
+        """
+        try:
+            if self._name != item._name:
+                raise TypeError(f"inconsistent models in: {item}.count({self})")
+        except AttributeError:
+            raise TypeError(
+                f"unsupported operand types in: {item!r}.count({self})"
+            ) from None
+        if len(item) != 1:
+            raise ValueError(f"count requires a singleton, got {len(item)} records")
+        target = item.id
+        return sum(1 for id_ in self._ids if id_ == target)
 
     def __add__(self, other) -> Self:
         """Return the concatenation of two recordsets."""
@@ -212,7 +275,7 @@ class IterationMixin:
                     raise TypeError(f"inconsistent models in: {self} + {arg}")
                 ids.extend(arg._ids)
             except AttributeError:
-                raise TypeError(f"unsupported operand types in: {self} + {arg!r}")
+                raise TypeError(f"unsupported operand types in: {self} + {arg!r}") from None
         return self.browse(ids)
 
     def __sub__(self, other) -> Self:
@@ -228,7 +291,7 @@ class IterationMixin:
             other_ids = set(other._ids)
             return self.browse(id_ for id_ in self._ids if id_ not in other_ids)
         except AttributeError:
-            raise TypeError(f"unsupported operand types in: {self} - {other!r}")
+            raise TypeError(f"unsupported operand types in: {self} - {other!r}") from None
 
     def __and__(self, other) -> Self:
         """Return the intersection of two recordsets.
@@ -243,7 +306,7 @@ class IterationMixin:
             other_ids = set(other._ids)
             return self.browse(OrderedSet(id_ for id_ in self._ids if id_ in other_ids))
         except AttributeError:
-            raise TypeError(f"unsupported operand types in: {self} & {other!r}")
+            raise TypeError(f"unsupported operand types in: {self} & {other!r}") from None
 
     def __or__(self, other) -> Self:
         """Return the union of two recordsets.
@@ -263,7 +326,7 @@ class IterationMixin:
                 if arg._name != self._name:
                     raise TypeError(f"inconsistent models in: {self} | {arg}")
             except AttributeError:
-                raise TypeError(f"unsupported operand types in: {self} | {arg!r}")
+                raise TypeError(f"unsupported operand types in: {self} | {arg!r}") from None
             if not arg._ids:
                 return self
             if not self._ids:
@@ -280,7 +343,7 @@ class IterationMixin:
                     raise TypeError(f"inconsistent models in: {self} | {arg}")
                 ids.extend(arg._ids)
             except AttributeError:
-                raise TypeError(f"unsupported operand types in: {self} | {arg!r}")
+                raise TypeError(f"unsupported operand types in: {self} | {arg!r}") from None
         return self.browse(OrderedSet(ids))
 
     def __eq__(self, other: object) -> bool:

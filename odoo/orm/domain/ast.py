@@ -43,7 +43,7 @@ from .constants import (
 )
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Iterable
+    from collections.abc import Callable, Iterable
 
     from ..fields import Field
     from ..models import BaseModel
@@ -64,7 +64,11 @@ class OptimizationLevel(enum.IntEnum):
     @functools.cached_property
     def next_level(self) -> OptimizationLevel:
         """Return the next optimization level."""
-        assert self is not OptimizationLevel.FULL, "FULL level is the last one"
+        # raise (not assert) — under python -O ``OptimizationLevel(int(FULL)+1)``
+        # would raise the less-helpful ``ValueError: N is not a valid
+        # OptimizationLevel`` instead of this clear contract message.
+        if self is OptimizationLevel.FULL:
+            raise ValueError("FULL level is the last one")
         return OptimizationLevel(int(self) + 1)
 
 
@@ -167,7 +171,10 @@ class Domain:
         arg = args[0]
         if isinstance(arg, Domain):
             return arg
-        if arg is True or arg == []:
+        # Accept both ``[]`` and ``()`` as TRUE.  Previously ``arg == []`` only
+        # matched lists, leaving ``Domain(())`` to fall through and crash with
+        # "malformed domain" on the empty-stack pop.
+        if arg is True or arg in ([], ()):
             return _TRUE_DOMAIN
         if arg is False:
             return _FALSE_DOMAIN
@@ -232,7 +239,7 @@ class Domain:
                 return stack[0]
             return Domain.AND(reversed(stack))
         except IndexError:
-            raise ValueError(f"Domain() malformed domain {arg!r}")
+            raise ValueError(f"Domain() malformed domain {arg!r}") from None
 
     @classproperty
     def TRUE(self) -> Domain:
@@ -587,7 +594,13 @@ class DomainNary(Domain):
 
     def __new__(cls, children: tuple[Domain, ...]):
         """Create the n-ary domain with at least 2 conditions."""
-        assert len(children) >= 2
+        # raise (not assert) so contract holds under python -O.  Building a
+        # nary with < 2 children produces a malformed AST that crashes only
+        # later, in obscure traversal code.
+        if len(children) < 2:
+            raise ValueError(
+                f"DomainNary requires at least 2 children, got {len(children)}"
+            )
         self = object.__new__(cls)
         object.__setattr__(self, "children", children)
         object.__setattr__(self, "_opt_level", OptimizationLevel.NONE)
@@ -668,9 +681,11 @@ class DomainNary(Domain):
                 if len(children) < size:
                     break
             else:
-                # if no change, skip creation of a new object
+                # if no change, skip creation of a new object — the length
+                # equality is checked in the same expression, so strict=True
+                # is structurally guaranteed and protects future refactors.
                 if len(self.children) == len(children) and all(
-                    map(operator.is_, self.children, children, strict=False)
+                    map(operator.is_, self.children, children, strict=True)
                 ):
                     return self
         return self.apply(children)
@@ -963,9 +978,12 @@ class DomainCondition(Domain):
         - Run optimizations.
         - Check the output.
         """
-        assert level is self._opt_level.next_level, (
-            f"Trying to skip optimization level after {self._opt_level}"
-        )
+        # raise (not assert) so the contract holds under python -O — skipping
+        # an optimization level silently yields an under-optimized domain.
+        if level is not self._opt_level.next_level:
+            raise RuntimeError(
+                f"Trying to skip optimization level after {self._opt_level}"
+            )
 
         if level == OptimizationLevel.BASIC:
             # optimize path
@@ -1098,7 +1116,11 @@ class DomainCondition(Domain):
                 records
             )
 
-        assert op in STANDARD_CONDITION_OPERATORS, "Expecting a sub-set of operators"
+        # raise (not assert) so the contract holds under python -O.
+        if op not in STANDARD_CONDITION_OPERATORS:
+            raise RuntimeError(
+                f"Expecting a sub-set of operators, got {op!r}"
+            )
         field_expr, value = self.field_expr, self.value
         positive_operator = NEGATIVE_CONDITION_OPERATORS.get(op, op)
 
@@ -1142,12 +1164,17 @@ class DomainCondition(Domain):
 
     def _to_sql(self, model: BaseModel, alias: str, query: Query) -> SQL:
         field_expr, op, value = self.field_expr, self.operator, self.value
-        assert op in STANDARD_CONDITION_OPERATORS, (
-            f"Invalid operator {op!r} for SQL in domain term {(field_expr, op, value)!r}"
-        )
-        assert self._opt_level >= OptimizationLevel.FULL, (
-            f"Must fully optimize before generating the query {(field_expr, op, value)}"
-        )
+        # raise (not assert) so contract violations surface under python -O.
+        # An unoptimized condition or non-standard operator would otherwise
+        # silently produce malformed or wrong SQL.
+        if op not in STANDARD_CONDITION_OPERATORS:
+            raise RuntimeError(
+                f"Invalid operator {op!r} for SQL in domain term {(field_expr, op, value)!r}"
+            )
+        if self._opt_level < OptimizationLevel.FULL:
+            raise RuntimeError(
+                f"Must fully optimize before generating the query {(field_expr, op, value)}"
+            )
 
         field = self._field(model)
         model._check_field_access(field, "read")

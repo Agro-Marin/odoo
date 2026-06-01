@@ -357,9 +357,10 @@ class BaseModel(
         for _attr, func in getmembers(cls, is_onchange):
             missing = []
             for name in func._onchange:
-                if name not in cls._fields:
+                if name in cls._fields:
+                    methods[name].append(func)
+                else:
                     missing.append(name)
-                methods[name].append(func)
             if missing:
                 _logger.warning(
                     "@api.onchange%r parameters must be field names -> not valid: %s",
@@ -433,7 +434,11 @@ class BaseModel(
     # display_name, name_create
     #
 
-    @api.depends(lambda self: (self._rec_name,) if self._rec_name else ())
+    @api.depends(
+        lambda self: (self._rec_name,)
+        if self._rec_name and self._rec_name != "id"
+        else ()
+    )
     def _compute_display_name(self) -> None:
         """Compute the value of the `display_name` field.
 
@@ -451,7 +456,7 @@ class BaseModel(
                 record.display_name = f"{record._name},{record.id}"
 
     @api.model
-    def name_create(self, name: str) -> tuple[int, str] | typing.Literal[False]:
+    def name_create(self, name: str) -> tuple[int, str]:
         """Create a new record by calling :meth:`~.create` with only one value
         provided: the display name of the new record.
 
@@ -461,6 +466,7 @@ class BaseModel(
 
         :param name: display name of the record to create
         :return: the (id, display_name) pair value of the created record
+        :raise UserError: if the model has no ``_rec_name`` defined.
         """
         if not self._rec_name:
             raise UserError(

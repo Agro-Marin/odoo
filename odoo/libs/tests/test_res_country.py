@@ -5,7 +5,6 @@ import unittest
 from odoo.libs.res_country import (
     EU_EXTRA_VAT_CODES,
     FLAG_MAPPING,
-    NO_FLAG_COUNTRIES,
     extract_address_format_fields,
     extract_address_line_fields,
     get_flag_code,

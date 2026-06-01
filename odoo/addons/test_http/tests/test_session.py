@@ -490,6 +490,31 @@ class TestSessionStore(HttpCaseWithUserDemo):
                 "the old session as been removed",
             )
 
+    def test05_session_save_logs_on_failure(self):
+        """A failed session rename must log a WARNING, not silently drop.
+
+        Regression: the vendored werkzeug `save` used `except OSError: pass`,
+        meaning NFS stale-handle or ENOSPC failures resulted in a client
+        cookie pointing to a session that never landed on disk, with zero
+        ops-visible signal.
+        """
+        session = odoo.http.root.session_store.new()
+        session["sentinel"] = "value"
+
+        with (
+            patch(
+                "odoo.libs._vendor.sessions.pathlib.Path.replace",
+                side_effect=OSError("synthetic rename failure"),
+            ),
+            self.assertLogs("odoo.libs._vendor.sessions", level="WARNING") as logs,
+        ):
+            odoo.http.root.session_store.save(session)
+
+        self.assertTrue(
+            any("Failed to persist session" in msg for msg in logs.output),
+            f"expected a WARNING about failed persistence, got: {logs.output!r}",
+        )
+
 
 # HttpCase because session rotation needs to be tested on the file store instead of memory store
 class TestSessionRotation(HttpCase):
@@ -532,3 +557,65 @@ class TestSessionRotation(HttpCase):
             [session_three[:STORED_SESSION_BYTES]]
         )
         self.assertEqual(get_amount_sessions(session_three), 0)
+
+    def test_session_rotation_excluded_on_websocket_poll(self):
+        """Rotation must NOT fire on websocket polling endpoints.
+
+        Regression: the fork's `_save_session` used to rotate any session
+        past SESSION_ROTATION_INTERVAL on any request, including the
+        high-frequency websocket polls. Upstream excluded those paths
+        specifically; the fork dropped the constant during refactor.
+        """
+        from odoo.http import SESSION_ROTATION_EXCLUDED_PATHS
+
+        self.assertIn("/websocket/peek_notifications", SESSION_ROTATION_EXCLUDED_PATHS)
+
+        self.authenticate("admin", "admin")
+        self.url_open("/odoo")
+        session_one = self.opener.cookies["session_id"]
+
+        # Age the session past the rotation interval.
+        session_obj = root.session_store.get(session_one)
+        session_obj["create_time"] -= SESSION_ROTATION_INTERVAL
+        root.session_store.save(session_obj)
+
+        # Hitting an excluded path must NOT rotate.
+        self.url_open("/websocket/peek_notifications", data={})
+        self.assertEqual(
+            self.opener.cookies.get("session_id", session_one),
+            session_one,
+            "websocket polling endpoints must not trigger session rotation",
+        )
+
+        # Hitting a non-excluded path DOES rotate — ensures the gate is
+        # only bypassing the excluded set, not rotation entirely.
+        self.url_open("/odoo")
+        session_two = self.opener.cookies["session_id"]
+        self.assertNotEqual(
+            session_one, session_two, "non-excluded paths still rotate as expected"
+        )
+
+        # Cleanup
+        self.logout()
+        root.session_store.delete_from_identifiers(
+            [session_two[:STORED_SESSION_BYTES]]
+        )
+
+    def test_session_token_lookup_does_not_clear_cache(self):
+        """An invalid-uid session-token lookup must NOT wipe the cache.
+
+        Regression: `_session_token_get_values` used to call
+        `registry.clear_cache()` on `rowcount != 1`. Because this path is
+        reachable from any incoming session cookie pointing to a deleted
+        or non-existent user, untrusted traffic could force fleet-wide
+        invalidation of the "default" ormcache category.
+        """
+        with patch.object(self.env.registry, "clear_cache") as mock_clear:
+            result = (
+                self.env["res.users"]
+                .browse(99999999)
+                ._session_token_get_values()
+            )
+
+        self.assertFalse(result, "lookup of a non-existent user must return falsy")
+        mock_clear.assert_not_called()

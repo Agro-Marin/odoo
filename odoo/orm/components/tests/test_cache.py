@@ -156,8 +156,6 @@ class TestFieldCacheDirty(unittest.TestCase):
 
     def test_custom_dirty_factory(self) -> None:
         # OrderedSet-like types (any MutableSet with .update()) are typical
-        from collections import OrderedDict
-
         class OrderedSet(set):
             """Minimal ordered set stand-in for testing."""
 
@@ -223,6 +221,52 @@ class TestFieldCacheInvalidation(unittest.TestCase):
         self.cache.invalidate_all()
         # dirty flags survive invalidate_all
         self.assertTrue(self.cache.is_any_dirty())
+
+    def test_invalidate_all_evicts_clean_on_dirty_field(self) -> None:
+        # Regression for H1 (audit round 1):
+        # ``invalidate_all`` previously preserved the *entire* sub-dict of
+        # any field with at least one dirty entry — including non-dirty
+        # record IDs.  The contract documented in the docstring is that
+        # only dirty entries survive.
+        self.cache.mark_dirty("name", [1])
+        self.cache.invalidate_all()
+        # dirty entry preserved
+        self.assertTrue(self.cache.has_value("name", 1))
+        self.assertEqual(self.cache.get_value("name", 1), "Alice")
+        # clean entry on the same field MUST be evicted
+        self.assertFalse(self.cache.has_value("name", 2))
+        # clean field with no dirty entries is fully cleared
+        self.assertFalse(self.cache.has_value("email", 1))
+
+    def test_invalidate_all_context_dep_evicts_clean(self) -> None:
+        # Regression for H1: context-dependent shape ``{cache_key: {id: v}}``.
+        # Each cache_key sub-dict must drop non-dirty IDs, and an emptied
+        # cache_key entry must be removed.
+        cache = FieldCache()
+        cache._data["G"][("en_US",)] = {1: "dirty_en", 2: "clean_en"}
+        cache._data["G"][("es_MX",)] = {1: "dirty_es", 3: "clean_es_only"}
+        cache.mark_dirty("G", [1])
+        cache.invalidate_all()
+        # both cache_keys keep id=1, drop the rest
+        self.assertEqual(cache._data["G"][("en_US",)], {1: "dirty_en"})
+        self.assertEqual(cache._data["G"][("es_MX",)], {1: "dirty_es"})
+
+    def test_invalidate_all_flat_dict_valued_preserves_dirty(self) -> None:
+        # Regression for the shape-detection bug fixed 2026-05-04: flat fields
+        # whose values are themselves Python dicts (Json, Properties) were
+        # mis-classified as context-dependent because the heuristic checked
+        # ``isinstance(v, dict)``.  The dirty entry was silently evicted.
+        # Switching to ``isinstance(k, tuple)`` (cache_keys are tuples,
+        # record ids are not) fixes the misclassification.
+        cache = FieldCache()
+        cache._data["json_f"] = {1: {"k": "v1"}, 2: {"k": "v2"}}
+        cache._data["props_f"] = {1: {"prio": "high"}, 2: {"prio": "low"}}
+        cache.mark_dirty("json_f", [1])
+        cache.mark_dirty("props_f", [1])
+        cache.invalidate_all()
+        # dirty record 1 must survive in both flat dict-valued fields
+        self.assertEqual(cache._data["json_f"], {1: {"k": "v1"}})
+        self.assertEqual(cache._data["props_f"], {1: {"prio": "high"}})
 
     def test_clear_everything(self) -> None:
         self.cache.mark_dirty("name", [1])

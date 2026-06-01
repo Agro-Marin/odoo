@@ -9,7 +9,7 @@ single database cursor lifetime.  Created lazily on first
 import logging
 import typing
 from contextlib import suppress
-from weakref import WeakSet
+from weakref import WeakSet, ref as weakref_ref
 
 from odoo.tools import OrderedSet, reset_cached_properties
 from odoo.tools.nplusone import NplusOneTracker, _n1_enabled
@@ -62,8 +62,11 @@ class Transaction:
         self.envs.data = OrderedSet()  # type: ignore[attr-defined]
         # default environment (for flushing)
         self.default_env: Environment | None = None
-        # MRU cache for fast env lookup (covers repeated with_user/sudo calls)
-        self._last_env: Environment | None = None
+        # MRU cache for fast env lookup (covers repeated with_user/sudo calls).
+        # Stored as weakref so that holding it does not prolong env lifetime —
+        # the recovery callsite at Environment.__new__ calls it like
+        # ``_last_env() if _last_env is not None else None``.
+        self._last_env: "weakref_ref[Environment] | None" = None
         # Number of active _FlushingSavepoints — used to guard against
         # cr.commit() / cr.rollback() inside a savepoint.
         self.savepoint_depth: int = 0
@@ -115,14 +118,21 @@ class Transaction:
         """Flush pending computations and updates in the transaction."""
         if self.default_env is not None:
             self.default_env.flush_all()
-        else:
+        elif env := next(iter(self.envs), None):
+            # Rare: every env created so far had uid==0 (no real user) so
+            # default_env was never set.  Fall back to SUPERUSER instead of
+            # base.public_user — public_user typically lacks write access on
+            # most models, so a flush as that user could raise AccessError on
+            # whatever happens to be dirty.  SUPERUSER is the safe choice
+            # because the records were already mutated by some path that
+            # didn't go through ACL anyway (otherwise default_env would be set).
+            _logger.warning(
+                "Transaction.flush(): no default_env; flushing as SUPERUSER"
+            )
+            from ..primitives import SUPERUSER_ID
             from .environment import Environment
 
-            for env in self.envs:
-                _logger.warning("Missing default_env, flushing as public user")
-                public_user = env.ref("base.public_user")
-                Environment(env.cr, public_user.id, {}).flush_all()
-                break
+            Environment(env.cr, SUPERUSER_ID, {}).flush_all()
         # Report N+1 violations at end of request
         if self._n1_tracker is not None:
             self._n1_tracker.report()

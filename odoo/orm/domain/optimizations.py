@@ -45,7 +45,6 @@ from .constants import (
     CONDITION_OPERATORS,
     INVERSE_OPERATOR,
     NEGATIVE_CONDITION_OPERATORS,
-    STANDARD_CONDITION_OPERATORS,
 )
 
 if typing.TYPE_CHECKING:
@@ -552,6 +551,13 @@ def _value_to_datetime(
             value = value.astimezone(UTC).replace(tzinfo=None)
         return value, True
     if isinstance(value, COLLECTION_TYPES):
+        if not value:
+            # ``zip(*())`` yields nothing; unpacking 0 values into 2 raises
+            # ValueError.  Empty collections are mitigated upstream by
+            # _optimize_in_set short-circuiting empty in/not in to
+            # TRUE/FALSE, but the helper itself must be safe for direct
+            # callers.
+            return OrderedSet(), True
         value, is_date = zip(
             *(_value_to_datetime(v, env=env, iso_only=iso_only) for v in value),
             strict=False,
