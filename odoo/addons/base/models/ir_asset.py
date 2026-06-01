@@ -216,7 +216,12 @@ class IrAsset(models.Model):
         installed = self._get_installed_addons_list()
         addons = self._get_active_addons_list(**assets_params)
         asset_paths = AssetPaths()
-        addons = self._topological_sort(tuple(addons))
+        # ``addons`` is a set, whose iteration order is process-dependent (string
+        # hash randomization). Sort before building the tuple so the
+        # ``_topological_sort`` @ormcache key is canonical across workers and
+        # restarts (the result is order-independent regardless; this only
+        # prevents cache fragmentation -- IRASSET-P1).
+        addons = self._topological_sort(tuple(sorted(addons)))
         self._fill_asset_paths(
             bundle, asset_paths, [], addons, installed, **assets_params
         )
@@ -341,9 +346,34 @@ class IrAsset(models.Model):
         # retrieve target index when it applies
         if directive in DIRECTIVES_WITH_TARGET:
             if not target:
+                # Manifest tuple was ``("after", "")`` or ``("after", None, ...)``.
+                # We can never resolve a target index, so the directive is a
+                # silent no-op.  Surface it with bundle+directive context so
+                # the operator does not have to grep the manifest by hand.
+                _logger.warning(
+                    "Asset directive %r in bundle %r has no target — "
+                    "directive skipped. Path was %r.",
+                    directive,
+                    bundle,
+                    path_def,
+                )
                 return
             target_paths = self._get_paths(target, installed)
             if not target_paths:
+                # The anchor file (the ``target`` of ``after`` / ``before`` /
+                # ``replace``) resolved to nothing — typically because it was
+                # renamed or removed since the directive was written.  Without
+                # this warning the directive would become a silent no-op, so we
+                # log it before returning.
+                _logger.warning(
+                    "Asset directive %r in bundle %r references target %r "
+                    "that resolved to nothing — directive skipped. "
+                    "Path was %r.",
+                    directive,
+                    bundle,
+                    target,
+                    path_def,
+                )
                 return
             target = target_paths[0][0]
             target_index = asset_paths.index(target, bundle)
@@ -357,17 +387,61 @@ class IrAsset(models.Model):
         elif directive == BEFORE_DIRECTIVE:
             asset_paths.insert(paths, bundle, target_index)
         elif directive == REMOVE_DIRECTIVE:
+            if not paths:
+                # ``("remove", "moved_or_deleted_file.js")`` — the path no
+                # longer resolves to anything on disk, so the remove is a
+                # silent no-op.  A ``remove`` whose target no longer exists is
+                # dead weight that hides whether the bundle still needs the
+                # directive, so we warn rather than fail.
+                _logger.warning(
+                    "REMOVE directive in bundle %r had no effect: path %r "
+                    "resolved to nothing. Either the path is stale (file "
+                    "renamed / deleted) and the directive can be dropped, "
+                    "or the glob is wrong.",
+                    bundle,
+                    path_def,
+                )
+                return
             asset_paths.remove(paths, bundle)
         elif directive == REPLACE_DIRECTIVE:
+            # A REPLACE removes the target and inserts the source paths at the
+            # target's slot. insert() is a no-op for paths already in the bundle,
+            # so an already-present source would be silently lost while the
+            # target is still removed -- reposition such sources instead of
+            # dropping them (IRASSET-L1). And if the source set includes the
+            # target itself (a self-replace, or a glob whose matches include the
+            # target), the target must SURVIVE rather than be deleted.
+            target_in_source = any(p[0] == target for p in paths)
+            other_sources = [p for p in paths if p[0] != target]
+            present = [p for p in other_sources if p[0] in asset_paths.memo]
+            new = [p for p in other_sources if p[0] not in asset_paths.memo]
             if not paths:
+                # Documented "delete the target" idiom: empty source.
                 _logger.debug(
                     "REPLACE source resolved to nothing in bundle %s, "
-                    "target %s will be removed without replacement",
+                    "target %s removed without replacement",
                     bundle,
                     target,
                 )
-            asset_paths.insert(paths, bundle, target_index)
-            asset_paths.remove(target_paths, bundle)
+            elif not new and not target_in_source:
+                _logger.warning(
+                    "REPLACE in bundle %r: all source paths %r were already "
+                    "present; repositioning them to target %r rather than "
+                    "dropping them.",
+                    bundle,
+                    [p[0] for p in present],
+                    target,
+                )
+            # New sources land at the target's current slot (the index is still
+            # valid: no mutation yet). Already-present sources are repositioned
+            # just before the target via move() (which re-derives the index
+            # after removal, so it cannot go stale). Remove the target unless it
+            # is itself one of the sources.
+            asset_paths.insert(new, bundle, target_index)
+            if present:
+                asset_paths.move(present, bundle, target)
+            if not target_in_source:
+                asset_paths.remove(target_paths, bundle)
         else:
             msg = f"Unexpected directive: {directive!r}"
             raise ValueError(msg)
@@ -499,12 +573,15 @@ class IrAsset(models.Model):
             static_dir = Path(addon_manifest.path, "static").resolve()
             if full_path.is_relative_to(static_dir):
                 paths_with_timestamps = _glob_static_file(str(full_path))
+                # ``absolute_path`` is canonicalized (it comes from globbing a
+                # ``.resolve()``d ``full_path``), so strip the *resolved*
+                # addons_path. Using the raw manifest ``addons_path`` would
+                # silently fail to strip when it contains symlinks or ``..``,
+                # yielding a malformed web path (IRASSET-M2).
+                prefix = str(Path(addons_path).resolve()) + os.sep
                 paths = [
                     (
-                        "/"
-                        + fs2web(
-                            absolute_path.removeprefix(addons_path.rstrip("/") + "/")
-                        ),
+                        "/" + fs2web(absolute_path.removeprefix(prefix)),
                         absolute_path,
                         timestamp,
                     )
@@ -602,6 +679,33 @@ class AssetPaths:
                 [path for path, _full_path, _last_modified in paths_to_remove],
                 bundle,
             )
+
+    def move(
+        self, paths_to_move: list[tuple], bundle: str, before_path: str | None
+    ) -> None:
+        """Reposition already-present paths to sit immediately before *before_path*.
+
+        Entries matching *paths_to_move* are pulled from their current position
+        and re-spliced as a contiguous block just before *before_path* (or
+        appended if it is ``None`` or absent). Only paths already in ``memo`` are
+        moved; unknown paths are ignored. The insertion index is computed AFTER
+        removal, so a removal-induced shift of earlier elements cannot invalidate
+        it. ``memo`` is left unchanged (every moved path was already present).
+        """
+        move_set = {p[0] for p in paths_to_move if p[0] in self.memo}
+        if not move_set:
+            return
+        moved = [asset for asset in self.list if asset[0] in move_set]
+        remaining = [asset for asset in self.list if asset[0] not in move_set]
+        if before_path is not None:
+            insert_at = next(
+                (i for i, asset in enumerate(remaining) if asset[0] == before_path),
+                len(remaining),
+            )
+        else:
+            insert_at = len(remaining)
+        remaining[insert_at:insert_at] = moved
+        self.list[:] = remaining
 
     def _raise_not_found(self, path: str | list[str], bundle: str) -> None:
         raise ValueError(f"File(s) {path} not found in bundle {bundle}")
