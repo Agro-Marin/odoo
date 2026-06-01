@@ -17,7 +17,7 @@
             <field name="website" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </field>
-            <field name="installed_version" position="attributes">
+            <field name="manifest_version" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </field>
         </field>

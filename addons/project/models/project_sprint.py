@@ -130,8 +130,8 @@ class ProjectSprint(models.Model):
         ])
         if active_sprints:
             raise ValidationError(
-                _("Project '%s' already has an active sprint: %s",
-                  self.project_id.name, active_sprints[0].name)
+                _("Project '%(project)s' already has an active sprint: %(sprint)s",
+                  project=self.project_id.name, sprint=active_sprints[0].name)
             )
         self.state = "active"
 

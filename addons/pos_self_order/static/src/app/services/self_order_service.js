@@ -19,11 +19,11 @@ import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError, RPCError, rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Reactive } from "@web/core/utils/reactive";
+import { SignalStore } from "@web/core/utils/reactive";
 import { renderToElement } from "@web/core/utils/render";
 import { formatCurrency as webFormatCurrency } from "@web/services/currency";
 import { getOrderLineValues } from "./card_utils.js";
-export class SelfOrder extends Reactive {
+export class SelfOrder extends SignalStore {
     constructor(...args) {
         super();
         this.ready = this.setup(...args).then(() => this);

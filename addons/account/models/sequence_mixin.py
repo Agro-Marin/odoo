@@ -293,7 +293,11 @@ class SequenceMixin(models.AbstractModel):
             param['id'] = self._origin.id
         if with_prefix is not None:
             where_string += " AND sequence_prefix = %(with_prefix)s "
-            param['with_prefix'] = with_prefix
+            # A NULL sequence_prefix is read back by the ORM as False (not ''),
+            # so callers passing self.sequence_prefix can hand us a bool. psycopg
+            # would then bind it as a SQL boolean and break "varchar = boolean".
+            # Coerce to '' so empty/NULL prefixes compare as text.
+            param['with_prefix'] = with_prefix or ''
 
         query = f"""
                 SELECT {self._sequence_field} FROM {self._table}

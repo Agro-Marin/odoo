@@ -1,6 +1,5 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.tools import OrderedSet, groupby
-from odoo.tools.translate import _
 
 
 class AccountMove(models.Model):
@@ -43,8 +42,9 @@ class AccountMove(models.Model):
 
     def unlink(self):
         downpayment_lines = self.mapped("line_ids.sale_line_ids").filtered(
-            lambda line: line.is_downpayment
-            and line.invoice_line_ids <= self.mapped("line_ids"),
+            lambda line: (
+                line.is_downpayment and line.invoice_line_ids <= self.mapped("line_ids")
+            ),
         )
         res = super().unlink()
         if downpayment_lines:
@@ -54,6 +54,23 @@ class AccountMove(models.Model):
     # ------------------------------------------------------------
     # COMPUTE METHODS
     # ------------------------------------------------------------
+
+    @api.depends("move_type", "partner_id")
+    def _compute_invoice_default_user(self):
+        """Extend to set salesperson for customer invoices.
+
+        For sale documents, sets the salesperson from the partner's default
+        salesperson or the commercial partner's salesperson.
+        """
+        super()._compute_invoice_default_user()
+        for move in self:
+            if move.is_sale_document(include_receipts=True):
+                if not move.invoice_user_id or move.invoice_user_id == self.env.user:
+                    move.invoice_user_id = (
+                        move.partner_id.user_id
+                        or move.partner_id.commercial_partner_id.user_id
+                        or self.env.user
+                    )
 
     @api.depends("invoice_user_id")
     def _compute_team_id(self):
@@ -78,23 +95,6 @@ class AccountMove(models.Model):
     def _compute_origin_so_count(self):
         for move in self:
             move.sale_order_count = len(move.line_ids.sale_line_ids.order_id)
-
-    @api.depends("move_type", "partner_id")
-    def _compute_invoice_default_user(self):
-        """Extend to set salesperson for customer invoices.
-
-        For sale documents, sets the salesperson from the partner's default
-        salesperson or the commercial partner's salesperson.
-        """
-        super()._compute_invoice_default_user()
-        for move in self:
-            if move.is_sale_document(include_receipts=True):
-                if not move.invoice_user_id or move.invoice_user_id == self.env.user:
-                    move.invoice_user_id = (
-                        move.partner_id.user_id
-                        or move.partner_id.commercial_partner_id.user_id
-                        or self.env.user
-                    )
 
     @api.depends(
         "partner_id.name",
@@ -131,30 +131,11 @@ class AccountMove(models.Model):
     # ACTION METHODS
     # ------------------------------------------------------------
 
-    def _reverse_moves(self, default_values_list=None, cancel=False):
-        # OVERRIDE
-        if not default_values_list:
-            default_values_list = [{} for move in self]
-        for move, default_values in zip(self, default_values_list):
-            default_values.update(
-                {
-                    "campaign_id": move.campaign_id.id,
-                    "medium_id": move.medium_id.id,
-                    "source_id": move.source_id.id,
-                },
-            )
-        return super()._reverse_moves(
-            default_values_list=default_values_list,
-            cancel=cancel,
-        )
-
     def action_cancel(self):
         res = super().action_cancel()
-
         self.line_ids.filtered("is_downpayment").sale_line_ids.filtered(
             lambda line: not line.display_type,
         )._compute_name()
-
         return res
 
     def action_draft(self):
@@ -167,8 +148,7 @@ class AccountMove(models.Model):
         return res
 
     def _action_invoice_ready_to_be_sent(self):
-        # OVERRIDE
-        # Make sure the send invoice CRON is called when an invoice becomes ready to be sent by mail.
+        """Trigger the send-invoice cron when an invoice becomes ready to be sent by mail."""
         res = super()._action_invoice_ready_to_be_sent()
 
         send_invoice_cron = self.env.ref(
@@ -181,7 +161,7 @@ class AccountMove(models.Model):
         return res
 
     def action_post(self):
-        # inherit of the function from account.move to validate a new tax and the priceunit of a downpayment
+        """Validate the tax and unit price of downpayment lines after posting."""
         res = super().action_post()
 
         # We cannot change lines content on locked SO, changes on invoices are not forwarded to the SO if the SO is locked
@@ -214,9 +194,10 @@ class AccountMove(models.Model):
         return result
 
     def _post(self, soft=True):
-        # OVERRIDE
-        # Auto-reconcile the invoice with payments coming from transactions.
-        # It's useful when you have a "paid" sale order (using a payment transaction) and you invoice it later.
+        """Auto-reconcile posted invoices with payments coming from in-process transactions.
+
+        Useful when a sale order was marked "paid" via a payment transaction and is invoiced later.
+        """
         posted = super()._post(soft)
 
         for invoice in posted.filtered(lambda move: move.is_invoice()):
@@ -224,16 +205,38 @@ class AccountMove(models.Model):
                 lambda x: x.state == "in_process",
             )
             move_lines = payments.move_id.line_ids.filtered(
-                lambda line: line.account_type
-                in ("asset_receivable", "liability_payable")
-                and not line.reconciled,
+                lambda line: (
+                    line.account_type in ("asset_receivable", "liability_payable")
+                    and not line.reconciled
+                ),
             )
             for line in move_lines:
                 invoice.js_assign_outstanding_line(line.id)
         return posted
 
+    def _reverse_moves(self, default_values_list=None, cancel=False):
+        """Preserve UTM fields (campaign, medium, source) on the reversal entries."""
+        if not default_values_list:
+            default_values_list = [{} for move in self]
+        for move, default_values in zip(self, default_values_list):
+            default_values.update(
+                {
+                    "campaign_id": move.campaign_id.id,
+                    "medium_id": move.medium_id.id,
+                    "source_id": move.source_id.id,
+                },
+            )
+        return super()._reverse_moves(
+            default_values_list=default_values_list,
+            cancel=cancel,
+        )
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
+
     def _invoice_paid_hook(self):
-        # OVERRIDE
+        """Post a chatter note on the linked sales order(s) when an invoice is paid."""
         res = super()._invoice_paid_hook()
         todo = set()
         for invoice in self.filtered(lambda move: move.is_invoice()):
@@ -254,8 +257,10 @@ class AccountMove(models.Model):
         for invoice in self:
             prices = sum(
                 invoice.line_ids.filtered(
-                    lambda x: x.display_type not in ("line_note", "line_section")
-                    and order in x.sale_line_ids.order_id,
+                    lambda x: (
+                        x.display_type not in ("line_note", "line_section")
+                        and order in x.sale_line_ids.order_id
+                    ),
                 ).mapped("price_total"),
             )
             order_amount += invoice.currency_id._convert(
@@ -267,13 +272,11 @@ class AccountMove(models.Model):
         return order_amount
 
     def _get_partner_credit_warning_exclude_amount(self):
-        # EXTENDS module 'account'
-        # Consider the warning on a draft invoice created from a sales order.
-        # After confirming the invoice the (partial) amount (on the invoice)
-        # stemming from sales orders will be substracted from the credit_to_invoice.
-        # This will reduce the total credit of the partner.
-        # The computation should reflect the change of credit_to_invoice from 'res.partner'.
-        # (see _compute_credit_to_invoice and _compute_amount_to_invoice from 'sale.order' )
+        """Subtract the SO-originated portion of an invoice from the partner credit warning amount."""
+        # On a draft invoice created from a sales order, after confirming the invoice the (partial)
+        # amount stemming from sales orders will be subtracted from `credit_to_invoice`, reducing the
+        # partner's total credit. The computation here mirrors that change of `credit_to_invoice`
+        # (see `_compute_credit_to_invoice` and `_compute_amount_to_invoice` on `sale.order`).
         exclude_amount = super()._get_partner_credit_warning_exclude_amount()
         for order in self.line_ids.sale_line_ids.order_id:
             order_amount = min(
@@ -294,7 +297,7 @@ class AccountMove(models.Model):
     # ------------------------------------------------------------
 
     def _is_downpayment(self):
-        # OVERRIDE
+        """True when every line of the move originates from a sale order downpayment line."""
         self.ensure_one()
         return (
             self.line_ids.sale_line_ids

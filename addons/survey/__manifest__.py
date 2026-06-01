@@ -85,6 +85,14 @@ sent mails with personal token for the invitation of the survey.
             "survey/static/src/interactions/survey_session_manage.js",
             "survey/static/src/xml/survey_session_text_answer_template.xml",
         ],
+        # Lazy-loaded by ``interactions/survey_session_chart.js`` via
+        # ``loadBundle("survey.assets_chartjs_datalabels_lib")``.  Kept
+        # separate from ``survey_user_input_session_assets`` so the
+        # ~38 KB plugin only ships when a session host opens the live
+        # chart panel — it is not needed for the participant view.
+        "survey.assets_chartjs_datalabels_lib": [
+            "survey/static/src/js/libs/chartjs-plugin-datalabels.js",
+        ],
         "web.report_assets_common": [
             "survey/static/src/scss/survey_reports.scss",
         ],

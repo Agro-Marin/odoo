@@ -9,7 +9,7 @@ from markupsafe import Markup
 
 from odoo import Command, _, api, exceptions, fields, models
 from odoo.http import SESSION_LIFETIME
-from odoo.orm.primitives import ValuesType
+from odoo.models import ValuesType
 from odoo.tools import SQL
 
 from .gamification_utils import start_end_date_for_period

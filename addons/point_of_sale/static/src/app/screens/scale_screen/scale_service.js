@@ -2,11 +2,11 @@
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { formatFloat, roundDecimals } from "@web/core/utils/format/numbers";
-import { Reactive } from "@web/core/utils/reactive";
+import { SignalStore } from "@web/core/utils/reactive";
 const MEASURING_DELAY_MS = 500;
 const TARE_TIMEOUT_MS = 3000;
 
-export class PosScaleService extends Reactive {
+export class PosScaleService extends SignalStore {
     constructor(env, deps) {
         super(...arguments);
         this.setup(env, deps);

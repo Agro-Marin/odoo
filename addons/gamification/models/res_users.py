@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from typing import Any, Literal, Self
 
 from odoo import _, api, fields, models
-from odoo.orm.primitives import ValuesType
+from odoo.models import ValuesType
 from odoo.tools import SQL
 
 

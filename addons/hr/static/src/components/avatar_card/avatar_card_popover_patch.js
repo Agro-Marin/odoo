@@ -22,7 +22,7 @@ export const patchAvatarCardPopover = {
         if (!this.employeeId) {
             return super.getProfileAction(...arguments);
         }
-        return this.orm.call("hr.employee", "get_formview_action", [this.employeeId.id]);
+        return this.orm.call("hr.employee", "get_record_default_action", [this.employeeId.id]);
     },
 };
 
