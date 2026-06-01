@@ -1,8 +1,10 @@
 import enum
 import logging
 import re
+import typing
 import warnings
 from collections import defaultdict
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 import psycopg
@@ -11,9 +13,13 @@ from psycopg import sql as _sql
 from odoo.libs.json import dumps as json_dumps
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
     from odoo.fields import Field
+else:
+    # ``Field`` lives in odoo.fields, which imports from odoo.tools.
+    # Runtime-importing it here would cycle.  Fall back to ``Any`` so
+    # introspection tools can resolve the annotation; type checkers still
+    # see the real class via the branch above.
+    Field = typing.Any
 
 
 from odoo.libs.sql import (
@@ -131,9 +137,7 @@ class SQL:
         # validate the format of code and parameters
         if args and kwargs:
             msg = "SQL() takes either positional arguments, or named arguments"
-            raise TypeError(
-                msg
-            )
+            raise TypeError(msg)
 
         if kwargs:
             code, args = named_to_positional_printf(code, kwargs)

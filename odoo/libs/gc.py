@@ -2,11 +2,6 @@
 
 ## Reference
 https://github.com/python/cpython/blob/main/InternalDocs/garbage_collector.md
-"""
-
-__all__ = ["disabling_gc", "gc_info", "gc_set_timing"]
-
-"""
 
 ## TLDR cpython
 
@@ -24,6 +19,9 @@ collection is collected. Since the, there is only one additional collection
 which is collected inrementally; `1 / threshold1` percent of the heap is
 collected.
 """
+
+__all__ = ["disabling_gc", "gc_info", "gc_set_timing"]
+
 import contextlib
 import gc
 import logging

@@ -33,9 +33,9 @@ import argparse
 import functools
 import importlib.util
 import sys
-from collections.abc import Iterator  # noqa: TC003 — runtime import required (PEP 649)
+from collections.abc import Iterator
 from pathlib import Path
-from types import ModuleType  # noqa: TC003 — runtime import required (PEP 649)
+from types import ModuleType
 
 ROOT = Path(__file__).parent.parent
 UPGRADE = ROOT / "upgrade_code"
@@ -64,8 +64,11 @@ try:
 except ImportError:
     # Assume the script is directly executed (by opposition to be
     # executed via odoo-bin), happily release/parse_version are
-    # standalone so we can hack our way there without importing odoo
-    sys.path.insert(0, str(ROOT))
+    # standalone so we can hack our way there without importing odoo.
+    # Guard the sys.path prepend so repeated imports don't accumulate
+    # duplicate entries (relevant under test collection / IDE indexing).
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
     import release
 
     # Import parse_version directly from file to avoid shadowing stdlib with libs/
@@ -75,15 +78,26 @@ except ImportError:
     parse_version = _parse_version_module.parse_version
 
     class Command:
-        """Simplified version of the one in command.py, for standalone execution"""
+        """Simplified version of the one in command.py, for standalone execution.
+
+        Caches the parser on first access (mirroring ``cli.command.Command``) so
+        subclasses can register arguments incrementally in ``__init__``. Without
+        the cache, every ``self.parser`` access returned a fresh parser and all
+        registrations were silently dropped.
+        """
+
+        def __init__(self) -> None:
+            self._parser: argparse.ArgumentParser | None = None
 
         @property
         def parser(self) -> argparse.ArgumentParser:
-            return argparse.ArgumentParser(
-                prog=Path(sys.argv[0]).name,
-                description=__doc__.replace("/odoo/upgrade_code", str(UPGRADE)),
-                formatter_class=argparse.RawDescriptionHelpFormatter,
-            )
+            if self._parser is None:
+                self._parser = argparse.ArgumentParser(
+                    prog=Path(sys.argv[0]).name,
+                    description=__doc__.replace("/odoo/upgrade_code", str(UPGRADE)),
+                    formatter_class=argparse.RawDescriptionHelpFormatter,
+                )
+            return self._parser
 
     config = None
     initialize_sys_path = None
@@ -185,7 +199,23 @@ def migrate(
     dry_run: bool = False,
 ) -> bool:
     if script:
-        script_path = next(UPGRADE.glob(f"*{script.removesuffix('.py')}*.py"), None)
+        # Scripts are named {version}-{name}.py. Accept either:
+        #   1. an exact stem, e.g. `--script 17.5-00-example`
+        #   2. a name-only suffix,  e.g. `--script foo`  → matches `19.0-foo.py`
+        # Anchor the suffix form on the hyphen so `foo` does not pick up
+        # `19.0-foobar.py` or `18.0-bar-foo-baz.py`.
+        stem = script.removesuffix(".py")
+        exact = UPGRADE / f"{stem}.py"
+        if exact.is_file():
+            candidates = [exact]
+        else:
+            candidates = sorted(UPGRADE.glob(f"*-{stem}.py"))
+        if len(candidates) > 1:
+            raise FileNotFoundError(
+                f"--script {script!r} is ambiguous: matches "
+                f"{[p.name for p in candidates]}"
+            )
+        script_path = candidates[0] if candidates else None
         if not script_path:
             raise FileNotFoundError(script)
         script_path.relative_to(UPGRADE)  # safeguard, prevent going up
@@ -216,6 +246,7 @@ class UpgradeCode(Command):
     name = "upgrade_code"
 
     def __init__(self) -> None:
+        super().__init__()
         group = self.parser.add_mutually_exclusive_group(required=True)
         group.add_argument("--script", metavar="NAME", help="run this single script")
         group.add_argument(
@@ -258,12 +289,21 @@ class UpgradeCode(Command):
 
     def run(self, cmdargs: list[str]) -> None:
         options = self.parser.parse_args(cmdargs)
+        # Catch inverted ranges early — without this, the version filter in
+        # get_upgrade_code_scripts silently matches zero scripts and exits 0,
+        # which reads as "nothing to do".
+        if options.from_version and options.to_version < options.from_version:
+            self.parser.error(
+                f"--to {options.to_version} is older than --from {options.from_version}"
+            )
         if initialize_sys_path:
             config["addons_path"] = options.addons_path
             initialize_sys_path()
             options.addons_path = odoo.addons.__path__
         else:
-            options.addons_path = [p for p in options.addons_path.split(",") if p]
+            # In standalone mode, type=str.split already returned a list;
+            # filter out empty entries that result from a trailing comma.
+            options.addons_path = [p for p in options.addons_path if p]
         if not options.addons_path:
             self.parser.error("--addons-path is required when used standalone")
         is_dirty = migrate(**vars(options))

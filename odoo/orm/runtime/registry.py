@@ -949,7 +949,7 @@ class Registry(Mapping[str, type["BaseModel"]]):
                     expression = f"({column_expression} IS NOT NULL)"
                     method = "btree"
                     where = f"{column_expression} IS NOT NULL"
-                else:  # index in ['btree', 'btree_not_null'， True]
+                else:  # index in ['btree', 'btree_not_null', True]
                     expression = f"{column_expression}"
                     method = "btree"
                     where = (
@@ -1067,7 +1067,14 @@ class Registry(Mapping[str, type["BaseModel"]]):
         """Clear the caches associated to methods decorated with
         ``tools.ormcache``if cache is in `cache_name` subset."""
         cache_names = cache_names or ("default",)
-        assert not any("." in cache_name for cache_name in cache_names)
+        # raise (not assert) — under python -O an invalid composite name like
+        # "templates.cached_values" would slip through and produce a less
+        # helpful KeyError on the ``_CACHES_BY_KEY[cache_name]`` lookup below.
+        for cache_name in cache_names:
+            if "." in cache_name:
+                raise ValueError(
+                    f"clear_cache: invalid cache name {cache_name!r} (no dots allowed)"
+                )
         for cache_name in cache_names:
             for cache in _CACHES_BY_KEY[cache_name]:
                 self.__caches[cache].clear()
@@ -1319,6 +1326,11 @@ class Registry(Mapping[str, type["BaseModel"]]):
                 try:
                     cr = self._db_readonly.cursor()
                     self._db_readonly_failed_time = None
+                    # Replica succeeded — clear any "ro->rw" cursor_mode left
+                    # from a previous fallback in the same thread.  Otherwise
+                    # the thread still reports the fallback state long after
+                    # it was resolved.
+                    threading.current_thread().cursor_mode = "ro"
                     return cr
                 except psycopg.OperationalError, db.PoolError:
                     self._db_readonly_failed_time = time.monotonic()

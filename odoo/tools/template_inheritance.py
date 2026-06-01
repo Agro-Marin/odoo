@@ -107,21 +107,21 @@ def apply_inheritance_specs(
     except ValueError as e:
         error_msg = str(e)
         if "Invalid Expression while parsing xpath" in error_msg:
-            raise ValidationError(error_msg)  # pylint: disable=E8502
+            raise ValidationError(error_msg) from e  # pylint: disable=E8502
         # Re-raise other ValueErrors — messages are dynamic (contain view/element
         # names from the underlying library) so cannot be statically translated.
         if "cannot be located in parent view" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
         if "Invalid specification for moved nodes" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
         if "Invalid mode attribute" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
         if "Invalid position attribute" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
         if "Invalid attributes" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
         if "Invalid separator" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
         if "cannot contain text" in error_msg:  # pylint: disable=E8502
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
         raise

@@ -50,8 +50,17 @@ class Controller:
         super().__init_subclass__(**kwargs)
         if Controller in cls.__bases__:
             path = cls.__module__.split(".")
-            module = path[2] if path[:2] == ["odoo", "addons"] else ""
-            Controller.children_classes[module].append(cls)
+            module = path[2] if len(path) > 2 and path[:2] == ["odoo", "addons"] else ""
+            bucket = Controller.children_classes[module]
+            # On module reload the same class is re-declared with a new
+            # identity: replace the previous registration (matched by
+            # qualname + module) instead of appending a duplicate.
+            key = (cls.__module__, cls.__qualname__)
+            for idx, existing in enumerate(bucket):
+                if (existing.__module__, existing.__qualname__) == key:
+                    bucket[idx] = cls
+                    return
+            bucket.append(cls)
 
     @property
     def env(self) -> odoo.api.Environment | None:

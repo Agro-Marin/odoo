@@ -5,6 +5,7 @@ from freezegun import freeze_time
 
 import odoo
 from odoo import Command
+from odoo.exceptions import AccessError
 
 from .test_common import TestHttpBase
 from odoo.addons.test_http.utils import (
@@ -16,7 +17,6 @@ from odoo.addons.test_http.utils import (
 
 
 class TestDevice(TestHttpBase):
-
     def setUp(self):
         super().setUp()
 
@@ -43,12 +43,22 @@ class TestDevice(TestHttpBase):
     def hit(self, time, endpoint, headers=None, ip=None):
         if ip:
             headers = headers or {}
+            # ``X-Forwarded-Proto: http`` rather than ``https`` so the response
+            # ``Set-Cookie`` does not carry the ``Secure`` attribute — the
+            # ``Opener`` (a ``requests.Session``) connects over plain
+            # ``http://127.0.0.1:8169``, and a ``Secure`` cookie would be
+            # silently held back by the cookie jar's scheme check, leaving the
+            # second hit() call stateless and the device-log test asserting
+            # against a single-IP linked_ip_addresses instead of all three.
+            # The test's intent is to simulate a proxy forwarding ``X-Forwarded-For``
+            # for IP-based device tracking, not to exercise TLS — so HTTP is
+            # the correct simulation here.
             headers = {
                 **headers,
                 "Host": "",
                 "X-Forwarded-For": ip,
                 "X-Forwarded-Host": "odoo.com",
-                "X-Forwarded-Proto": "https",
+                "X-Forwarded-Proto": "http",
             }
         with (
             freeze_time(time),
@@ -389,7 +399,9 @@ class TestDevice(TestHttpBase):
         )
         devices, _ = self.get_devices_logs(self.user_admin)
         self.assertEqual(
-            list(zip(devices.mapped("platform"), devices.mapped("browser"), strict=False)),
+            list(
+                zip(devices.mapped("platform"), devices.mapped("browser"), strict=False)
+            ),
             [("linux", "firefox"), ("android", "chrome"), ("linux", "chrome")],
             "By default, devices should be found from the most recent to the least recent (according to their last activity).",
         )
@@ -473,6 +485,39 @@ class TestDevice(TestHttpBase):
             headers={"User-Agent": USER_AGENT_linux_firefox},
         )
         self.assertIn("/web/login", res.url)
+
+    def test_revoke_foreign_device_denied_for_non_system(self):
+        """RDEV-T1: a non-system user cannot revoke another user's device even
+        when the foreign device is forced into the recordset (defense-in-depth
+        self-scoping inside ``_revoke``, audit RDEV-L1)."""
+        self.authenticate(self.user_admin.login, self.user_admin.login)
+        self.hit("2024-01-01 08:00:00", "/test_http/greeting-user?readonly=0")
+        admin_device = self.user_admin.device_ids
+        self.assertEqual(len(admin_device), 1)
+
+        # The internal user builds a recordset pointing at the admin's device
+        # (bypassing the record rule via sudo + with_user) and tries to revoke it.
+        foreign_device = admin_device.sudo().with_user(self.user_internal)
+        with self.assertRaises(AccessError):
+            foreign_device._revoke()
+        self.assertFalse(admin_device.revoked)
+
+    def test_revoke_foreign_device_allowed_for_system(self):
+        """RDEV-T2: a system user (admin) may revoke another user's device by
+        design (counterpart to the non-system denial)."""
+        self.authenticate(self.user_internal.login, self.user_internal.login)
+        self.hit("2024-01-01 08:00:00", "/test_http/greeting-user?readonly=0")
+        internal_device = self.user_internal.device_ids
+        self.assertEqual(len(internal_device), 1)
+        self.assertFalse(internal_device.revoked)
+
+        internal_device.with_user(self.user_admin)._revoke()
+        self.DeviceLog.flush_model()
+        self.Device.invalidate_model()
+        revoked_log = self.DeviceLog.search(
+            [("session_identifier", "=", internal_device.session_identifier)]
+        )
+        self.assertTrue(revoked_log.revoked)
 
     # --------------------
     # FILESYSTEM REFLEXION

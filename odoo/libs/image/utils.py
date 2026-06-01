@@ -140,7 +140,7 @@ class ImageProcess:
                 self.image = Image.open(io.BytesIO(source))
             except OSError, binascii.Error:
                 msg = "This file could not be decoded as an image file."
-                raise ValueError(msg)
+                raise ValueError(msg) from None
 
             # Original format has to be saved before fixing the orientation or
             # doing any other operations because the information will be lost on
@@ -513,7 +513,7 @@ def binary_to_image(source: bytes) -> PILImage:
         return Image.open(io.BytesIO(source))
     except OSError, binascii.Error:
         msg = "This file could not be decoded as an image file."
-        raise ValueError(msg)
+        raise ValueError(msg) from None
 
 
 def base64_to_image(base64_source: str | bytes) -> Image:
@@ -527,7 +527,7 @@ def base64_to_image(base64_source: str | bytes) -> Image:
         return Image.open(io.BytesIO(base64.b64decode(base64_source)))
     except OSError, binascii.Error:
         msg = "This file could not be decoded as an image file."
-        raise ValueError(msg)
+        raise ValueError(msg) from None
 
 
 def get_webp_size(source: bytes) -> tuple[int, int] | None:

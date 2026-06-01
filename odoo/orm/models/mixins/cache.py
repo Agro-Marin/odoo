@@ -10,8 +10,9 @@ import logging
 import time
 import typing
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from itertools import batched
+from typing import Self
 
 from odoo.exceptions import MissingError
 from odoo.tools import OrderedSet
@@ -25,9 +26,6 @@ from ...primitives import NewId
 _orm_cache = logging.getLogger("odoo.orm.cache")
 _orm_compute = logging.getLogger("odoo.orm.compute")
 
-from collections.abc import Collection, Iterable, Sequence
-from typing import Self
-
 if typing.TYPE_CHECKING:
     from ..._typing import IdType
     from ...fields.base import Field
@@ -40,7 +38,9 @@ class RecordCache(Mapping):
     __slots__ = ["_record"]
 
     def __init__(self, record) -> None:
-        assert len(record) == 1, f"Unexpected RecordCache({record})"
+        # raise (not assert) so the contract holds under python -O.
+        if len(record) != 1:
+            raise ValueError(f"Unexpected RecordCache({record})")
         self._record = record
 
     def __contains__(self, name: object) -> bool:
@@ -506,7 +506,7 @@ class CacheMixin:
                     cache_records = model.browse(field_cache)
                     new_ids = set(self._ids)
                     records |= cache_records.filtered(
-                        lambda r: not set(r[field.name]._ids).isdisjoint(new_ids)
+                        lambda r, field=field, new_ids=new_ids: not set(r[field.name]._ids).isdisjoint(new_ids)
                     )
 
             yield from records._modified_triggers(subtree)
@@ -744,12 +744,17 @@ class CacheMixin:
                                 is not PENDING
                             }
                         )
-                except KeyError:
-                    raise AssertionError(
+                except KeyError as e:
+                    # AssertionError was misleading — this is a runtime
+                    # data-integrity failure, not a broken assertion.  Some
+                    # test frameworks catch AssertionError generically and
+                    # would treat it as a failed test rather than a fatal
+                    # ORM error.  RuntimeError is the right semantic class.
+                    raise RuntimeError(
                         f"Could not find all values of {self._name}({id_}) to flush them\n"
                         f"    Context: {env.context}\n"
                         f"    Cache: {env.cache!r}"
-                    )
+                    ) from e
                 model.browse(some_ids)._write_multi(vals_list)
 
         if _debug or _agg:

@@ -40,7 +40,7 @@ def run_tests(
         # some tests need the http daemon to be available...
         server.http_spawn()
 
-    if env.cr._cnx.info.transaction_status != TransactionStatus.IDLE:
+    if env.cr.connection.info.transaction_status != TransactionStatus.IDLE:
         # rollback the cr in case it holds a database lock which may cause deadlock while running tests
         _logger.warning("Rolling back the transaction before testing")
         env.cr.rollback()

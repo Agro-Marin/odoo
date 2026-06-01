@@ -152,7 +152,9 @@ def add_to_registry(registry: Registry, model_def: type[BaseModel]) -> type[Base
     corresponding model class.  This function creates or extends a model class
     for the given model definition.
     """
-    assert is_model_definition(model_def)
+    # raise (not assert) so the contract holds under python -O
+    if not is_model_definition(model_def):
+        raise TypeError(f"{model_def!r} is not a model definition class")
 
     if hasattr(model_def, "_constraints"):
         _logger.warning(
@@ -274,7 +276,9 @@ def _check_model_parent_extension(
 
 def _init_model_class_attributes(model_cls: type[BaseModel]):
     """Initialize model class attributes."""
-    assert is_model_class(model_cls)
+    # raise (not assert) so the contract holds under python -O
+    if not is_model_class(model_cls):
+        raise TypeError(f"{model_cls!r} is not a registry model class")
 
     model_cls._description = model_cls._name
     model_cls._table = model_cls._name.replace(".", "_")
@@ -343,7 +347,12 @@ def setup_model_classes(env: Environment):
 def _prepare_setup(model_cls: type[BaseModel]):
     """Prepare the setup of the model."""
     if model_cls._setup_done__:
-        assert model_cls.__bases__ == model_cls._base_classes__
+        # raise (not assert) so the invariant holds under python -O
+        if model_cls.__bases__ != model_cls._base_classes__:
+            raise TypeError(
+                f"Model {model_cls._name!r}: __bases__ diverged from "
+                f"_base_classes__ after setup"
+            )
         return
 
     # changing base classes is costly, do it only when necessary
@@ -375,6 +384,25 @@ def _setup(model_cls: type[BaseModel], env: Environment):
     if model_cls._setup_done__:
         return
 
+    # Detect cyclic _inherits before Phase 3's recursion stack-overflows.
+    # ``_setup_done__`` is only set in Phase 4 (line below), so a cycle in
+    # ``_inherits`` would re-enter the same model with done=False forever.
+    if getattr(model_cls, "_setup_in_progress__", False):
+        raise TypeError(
+            f"Circular _inherits chain involving model {model_cls._name!r}"
+        )
+    model_cls._setup_in_progress__ = True
+    try:
+        _setup_phases(model_cls, env)
+    finally:
+        model_cls._setup_in_progress__ = False
+
+
+def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
+    """The 7 setup phases of :func:`_setup`, factored out so the top-level
+    function can wrap them in a cycle-detection guard without indenting
+    the whole body.
+    """
     # Cache the model definition classes (non-registry classes from MRO).
     # Used by fields.resolve_mro() and field collection below.
     model_cls._model_classes__ = tuple(
@@ -503,9 +531,12 @@ def _patch_company_dependent_field(
 def _validate_rec_name(model_cls: type[BaseModel]):
     """Determine and validate the _rec_name attribute."""
     if model_cls._rec_name:
-        assert model_cls._rec_name in model_cls._fields, (
-            f"Invalid _rec_name={model_cls._rec_name!r} for model {model_cls._name!r}"
-        )
+        # raise (not assert) so the validation holds under python -O
+        if model_cls._rec_name not in model_cls._fields:
+            raise TypeError(
+                f"Invalid _rec_name={model_cls._rec_name!r} "
+                f"for model {model_cls._name!r}"
+            )
     elif "name" in model_cls._fields:
         model_cls._rec_name = "name"
     elif model_cls._custom and "x_name" in model_cls._fields:
@@ -515,18 +546,16 @@ def _validate_rec_name(model_cls: type[BaseModel]):
 def _validate_active_name(model_cls: type[BaseModel]):
     """Determine and validate the _active_name attribute."""
     if model_cls._active_name:
-        assert (
-            model_cls._active_name in model_cls._fields
-            and model_cls._active_name
-            in (
-                "active",
-                "x_active",
+        # raise (not assert) so the validation holds under python -O
+        if (
+            model_cls._active_name not in model_cls._fields
+            or model_cls._active_name not in ("active", "x_active")
+        ):
+            raise TypeError(
+                f"Invalid _active_name={model_cls._active_name!r} for model "
+                f"{model_cls._name!r}; only 'active' and 'x_active' are supported "
+                f"and the field must be present on the model"
             )
-        ), (
-            f"Invalid _active_name={model_cls._active_name!r} for model "
-            f"{model_cls._name!r}; only 'active' and 'x_active' are supported "
-            f"and the field must be present on the model"
-        )
     elif "active" in model_cls._fields:
         model_cls._active_name = "active"
     elif "x_active" in model_cls._fields:
@@ -535,7 +564,16 @@ def _validate_active_name(model_cls: type[BaseModel]):
 
 def _build_table_objects(model_cls: type[BaseModel]):
     """Build the table objects (constraints, indexes) for the model."""
-    assert not model_cls._table_object_definitions, "model_cls is a registry model"
+    # The MetaModel attaches a fresh empty list to every class it constructs
+    # (including the registry class created at registration.add_to_registry),
+    # so a non-empty list here means a constraint was declared on the registry
+    # class itself rather than on a model definition.  raise (not assert) so
+    # the invariant holds under python -O.
+    if model_cls._table_object_definitions:
+        raise TypeError(
+            f"Model {model_cls._name!r}: registry class must not own "
+            f"table-object definitions"
+        )
     model_cls._table_objects = frozendict(
         {
             cons.full_name(model_cls): cons
@@ -571,11 +609,23 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
         return
 
     # determine which fields can be inherited
-    to_inherit = {
-        name: (parent_fname, field)
-        for parent_model_name, parent_fname in model_cls._inherits.items()
-        for name, field in model_cls.pool[parent_model_name]._fields.items()
-    }
+    # When two _inherits parents declare the same field name, the last one
+    # in dict-iteration order silently wins (documented but error-prone).
+    # We log a warning so accidental collisions show up in the logs.
+    to_inherit: dict[str, tuple[str, Field]] = {}
+    for parent_model_name, parent_fname in model_cls._inherits.items():
+        for name, field in model_cls.pool[parent_model_name]._fields.items():
+            if (existing := to_inherit.get(name)) is not None:
+                _logger.warning(
+                    "Model %r inherits field %r from both %r and %r; "
+                    "the latter (parent_field=%r) wins by inherits order",
+                    model_cls._name,
+                    name,
+                    existing[1].model_name,
+                    field.model_name,
+                    parent_fname,
+                )
+            to_inherit[name] = (parent_fname, field)
 
     # add inherited fields that are not redefined locally
     for name, (parent_fname, field) in to_inherit.items():
@@ -610,6 +660,17 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
             field.setup(model)
         except Exception:
             if field.base_field.manual:
+                # Log at WARNING — manual fields are user-created (Studio).
+                # Silently dropping them at DEBUG means a user can lose a
+                # custom field with zero feedback in standard log levels.
+                # WARNING is the right level because the field is user-data
+                # but the system is recovering by skipping it.
+                _logger.warning(
+                    "Skipping manual field %s.%s during setup; the field will not be available",
+                    model_cls._name,
+                    name,
+                    exc_info=True,
+                )
                 # Something goes wrong when setup a manual field.
                 # This can happen with related fields using another manual many2one field
                 # that hasn't been loaded because the comodel does not exist yet.

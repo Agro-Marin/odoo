@@ -36,7 +36,7 @@ class Intervals[T]:
         intervals: Iterable[tuple[T, T, AbstractSet]] | None = None,
         *,
         keep_distinct: bool = False,
-    ):
+    ) -> None:
         self._items: list[tuple[T, T, AbstractSet]] = []
         self._keep_distinct = keep_distinct
         if intervals:

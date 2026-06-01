@@ -1,6 +1,6 @@
 import functools
 import typing
-from datetime import UTC, date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from typing import override
 
 from odoo.libs.datetime import utc

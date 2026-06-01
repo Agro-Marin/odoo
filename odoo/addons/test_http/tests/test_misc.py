@@ -1,7 +1,7 @@
 import json
 from io import StringIO
 from socket import gethostbyname
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import odoo
 from odoo.http import content_disposition, root
@@ -71,6 +71,51 @@ class TestHttpMisc(TestHttpBase):
         self.assertEqual(
             local_redirect("https://https://www.example.com/hello?a=b"),
             "/www.example.com/hello?a=b",
+        )
+
+    def test_misc2_redirect_query_fragment_order(self):
+        """``?query`` must land before ``#fragment`` per RFC 3986.
+
+        Regression: before the fix, ``/foo#bar`` + ``?a=b`` produced
+        ``/foo#bar?a=b``, which browsers treat as a query living inside
+        the fragment — the server sees no query at all.
+        """
+        # Capture the location string that redirect_query builds by stubbing
+        # self.redirect to return the composed URL untouched.
+        captured = {}
+
+        def fake_redirect(location, code=303, local=True):
+            captured["location"] = location
+            return location
+
+        def location_from_redirect_query(path, query):
+            fake_req = MagicMock()
+            fake_req.db = False
+            fake_req.redirect = fake_redirect
+            odoo.http.Request.redirect_query(
+                fake_req, path, query=query, local=True
+            )
+            return captured["location"]
+
+        # No existing ?query, no fragment: plain append.
+        self.assertEqual(
+            location_from_redirect_query("/foo", {"a": "b"}),
+            "/foo?a=b",
+        )
+        # Existing ?query, no fragment: append with '&'.
+        self.assertEqual(
+            location_from_redirect_query("/foo?x=1", {"a": "b"}),
+            "/foo?x=1&a=b",
+        )
+        # Fragment only: query goes *before* the fragment.
+        self.assertEqual(
+            location_from_redirect_query("/foo#bar", {"a": "b"}),
+            "/foo?a=b#bar",
+        )
+        # Existing query + fragment: '&' after existing query, fragment preserved.
+        self.assertEqual(
+            location_from_redirect_query("/foo?x=1#bar", {"a": "b"}),
+            "/foo?x=1&a=b#bar",
         )
 
     def test_misc3_is_static_file(self):

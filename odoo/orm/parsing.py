@@ -72,7 +72,8 @@ def parse_field_expr(field_expr: str) -> tuple[str, str | None]:
         A tuple of (field_name, property_name) where property_name may be None.
 
     Raises:
-        ValueError: If the field expression is empty or invalid.
+        ValueError: If the field expression is empty or malformed (leading dot,
+                    trailing dot, or any empty segment between dots).
 
     Examples:
         >>> parse_field_expr("amount")
@@ -80,13 +81,20 @@ def parse_field_expr(field_expr: str) -> tuple[str, str | None]:
         >>> parse_field_expr("partner_id.name")
         ('partner_id', 'name')
     """
+    raw = field_expr
     if (property_index := field_expr.find(".")) >= 0:
         property_name = field_expr[property_index + 1 :]
         field_expr = field_expr[:property_index]
     else:
         property_name = None
-    if not field_expr:
-        raise ValueError(f"Invalid field expression {field_expr!r}")
+    if not field_expr or (property_name is not None and not property_name):
+        raise ValueError(f"Invalid field expression {raw!r}")
+    if property_name is not None and (
+        property_name.startswith(".")
+        or property_name.endswith(".")
+        or ".." in property_name
+    ):
+        raise ValueError(f"Invalid field expression {raw!r}")
     return field_expr, property_name
 
 

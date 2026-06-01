@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -25,6 +26,7 @@ class Start(Command):
     def run(self, cmdargs: list[str]) -> None:
         config.parser.prog = self.prog
         self.parser.add_argument(
+            "-p",
             "--path",
             default=".",
             help="Directory where your project's modules are stored (will autodetect from current dir)",
@@ -40,8 +42,9 @@ class Start(Command):
         args, _unknown = self.parser.parse_known_args(args=cmdargs)
 
         # When in a virtualenv, by default use its path rather than the cwd
-        if args.path == "." and os.environ.get("VIRTUAL_ENV"):
-            args.path = os.environ.get("VIRTUAL_ENV")
+        venv = os.environ.get("VIRTUAL_ENV")
+        if args.path == "." and venv:
+            args.path = venv
         project_path = Path(os.path.expandvars(args.path)).expanduser().resolve()
         db_name = None
         if is_path_in_module(project_path):
@@ -52,7 +55,7 @@ class Start(Command):
 
         # check if one of the subfolders has at least one module
         mods = self.get_module_list(project_path)
-        if mods and "--addons-path" not in cmdargs:
+        if mods and not _has_arg(cmdargs, "--addons-path"):
             cmdargs.append(f"--addons-path={project_path}")
 
         if not args.db_name:
@@ -68,16 +71,17 @@ class Start(Command):
         except Exception as e:
             sys.exit(f"Could not create database `{args.db_name}`. ({e})")
 
-        if "--db-filter" not in cmdargs:
-            cmdargs.append(f"--db-filter=^{args.db_name}$")
+        if not _has_arg(cmdargs, "--db-filter"):
+            # re.escape prevents regex meta-chars in db_name ('.', '-', '+')
+            # from matching unrelated databases.
+            cmdargs.append(f"--db-filter=^{re.escape(args.db_name)}$")
 
         # Remove --path /-p options from the command arguments
         def is_path_arg(index: int, args: list[str]) -> bool:
-            return (
-                args[index] == "-p"
-                or args[index].startswith("--path")
-                or (index > 0 and args[index - 1] in ["-p", "--path"])
-            )
+            arg = args[index]
+            if arg in ("-p", "--path") or arg.startswith("--path="):
+                return True
+            return index > 0 and args[index - 1] in ("-p", "--path")
 
         cmdargs = [v for i, v in enumerate(cmdargs) if not is_path_arg(i, cmdargs)]
 
@@ -88,3 +92,9 @@ def is_path_in_module(path: str | Path) -> bool:
     """Check if ``path`` is inside an Odoo module directory."""
     path = Path(path)
     return any(Manifest._from_path(p) for p in (path, *path.parents))
+
+
+def _has_arg(cmdargs: list[str], name: str) -> bool:
+    """Return True if ``name`` is present in ``cmdargs`` in either ``--name``
+    or ``--name=value`` form."""
+    return any(arg == name or arg.startswith(f"{name}=") for arg in cmdargs)

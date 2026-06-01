@@ -449,7 +449,7 @@ class TestAccelerated(_FieldAccessTestMixin, unittest.TestCase):
                 sort_ids_by_values,
             )
         except ImportError:
-            raise unittest.SkipTest("odoo_rust Rust extension not installed")
+            raise unittest.SkipTest("odoo_rust Rust extension not installed") from None
         cls.batch_cache_fill = staticmethod(batch_cache_fill)
         cls.batch_cache_get = staticmethod(batch_cache_get)
         cls.batch_cache_filter = staticmethod(batch_cache_filter)

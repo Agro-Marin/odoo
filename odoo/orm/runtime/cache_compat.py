@@ -179,8 +179,17 @@ class Cache:
             field._update_cache(record, value, dirty=dirty)
 
     def remove(self, record: BaseModel, field: Field) -> None:
-        """Remove the value of ``field`` for ``record``."""
-        assert record.id not in (self.transaction.core.get_dirty(field) or ())
+        """Remove the value of ``field`` for ``record``.
+
+        Removing a dirty cache entry would silently lose the pending write,
+        so it is rejected explicitly.  ``raise ValueError`` (not ``assert``)
+        because the contract must hold under ``python -O`` too.
+        """
+        if record.id in (self.transaction.core.get_dirty(field) or ()):
+            raise ValueError(
+                f"Cannot remove cache entry for dirty field "
+                f"{field!r} on record {record}: pending write would be lost"
+            )
         try:
             field_cache = self._set_field_cache(record, field)
             del field_cache[record._ids[0]]
@@ -241,7 +250,19 @@ class Cache:
         if spec is None:
             self.transaction.invalidate_field_data()
             return
-        env = next(iter(self.transaction.envs))
+        env = next(iter(self.transaction.envs), None)
+        if env is None:
+            # Rare: every Environment has been garbage-collected from this
+            # transaction.  Without an env we cannot invalidate context-aware
+            # caches; silently return rather than raising StopIteration up
+            # to a caller that has no actionable response.  Log at debug so
+            # the no-op is observable when diagnosing stale-cache issues.
+            _logger.debug(
+                "Cache.invalidate: skipped %d entries — no environments left "
+                "in transaction (all GC'd)",
+                len(spec) if hasattr(spec, "__len__") else -1,
+            )
+            return
         for field, ids in spec:
             field._invalidate_cache(env, ids)
 
@@ -305,8 +326,10 @@ class Cache:
             model = env[field.model_name]
             if field in depends_context:
                 for context_keys, inner_cache in field_cache.items():
+                    # cache_keys are built from depends_context — their length
+                    # is invariant.  strict=True surfaces any future shape drift.
                     context = dict(
-                        zip(depends_context[field], context_keys, strict=False)
+                        zip(depends_context[field], context_keys, strict=True)
                     )
                     if "company" in context:
                         # the cache key 'company' actually comes from context

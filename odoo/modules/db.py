@@ -35,10 +35,10 @@ def initialize(cr: Cursor) -> None:
     """
     try:
         f = odoo.tools.misc.file_path("base/data/base_data.sql")
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         m = "File not found: 'base/data/base_data.sql' (provided by module 'base')."
         _logger.critical(m)
-        raise OSError(m)
+        raise OSError(m) from e
 
     with odoo.tools.misc.file_open(f) as base_sql_file:
         cr.execute(base_sql_file.read())  # pylint: disable=sql-injection
@@ -245,7 +245,14 @@ def has_trigram(cr: BaseCursor) -> bool:
     pg_trgm module but any similar function will be picked by Odoo.
 
     """
-    cr.execute("SELECT proname FROM pg_proc WHERE proname='word_similarity'")
+    # Scope to current_schema to match has_unaccent and avoid cross-schema
+    # false positives when the function exists elsewhere but the index would
+    # be built on the current-schema reference.
+    cr.execute("""
+        SELECT 1 FROM pg_proc
+        WHERE proname = 'word_similarity'
+          AND pronamespace = current_schema::regnamespace
+    """)
     return bool(cr.fetchone())
 
 
@@ -278,6 +285,11 @@ def initialize_db(
     :param country_code: ISO country code for company configuration
     :param phone: Phone number for the company
     """
+    # country_timezones() keys are uppercase ISO codes (per babel/CLDR), so
+    # normalize the user-supplied value before any lookup that bypasses ilike.
+    normalized_country = country_code.upper() if country_code else None
+
+    saved_load_language = odoo.tools.config.get("load_language")
     try:
         odoo.tools.config["load_language"] = lang
 
@@ -292,23 +304,25 @@ def initialize_db(
                 modules = env["ir.module.module"].search([("state", "=", "installed")])
                 modules._update_translations(lang)
 
-            if country_code:
+            if normalized_country:
                 country = env["res.country"].search(
-                    [("code", "ilike", country_code)], limit=1
+                    [("code", "ilike", normalized_country)], limit=1
                 )
                 if country:
-                    env["res.company"].browse(1).write(
-                        {
-                            "country_id": country.id,
-                            "currency_id": country.currency_id.id,
-                        }
-                    )
+                    company_values = {"country_id": country.id}
+                    # Only override the currency if the country actually has
+                    # one set; otherwise `country.currency_id.id` would be
+                    # `False` (empty recordset .id) and silently clear the
+                    # company's currency.
+                    if country.currency_id:
+                        company_values["currency_id"] = country.currency_id.id
+                    env["res.company"].browse(1).write(company_values)
                     from odoo.libs.datetime.tz import country_timezones
 
                     tz_mapping = country_timezones()
-                    if len(tz_mapping.get(country_code, [])) == 1:
+                    if len(tz_mapping.get(normalized_country, [])) == 1:
                         users = env["res.users"].search([])
-                        users.write({"tz": tz_mapping[country_code][0]})
+                        users.write({"tz": tz_mapping[normalized_country][0]})
 
             if phone:
                 env["res.company"].browse(1).write({"phone": phone})
@@ -329,3 +343,10 @@ def initialize_db(
     except Exception:
         _logger.exception("CREATE DATABASE failed:")
         raise
+    finally:
+        # Restore so subsequent Registry.new() calls in the same process
+        # do not see the leftover language.
+        if saved_load_language is None:
+            odoo.tools.config.pop("load_language", None)
+        else:
+            odoo.tools.config["load_language"] = saved_load_language

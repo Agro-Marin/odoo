@@ -199,7 +199,12 @@ class UnitOfWork:
                 (f, len(self.engine.pending_ids(f))) for f in fields
             )
             progressing, stalled = self.check_convergence(prev_snapshot, curr_snapshot)
-            if not progressing:
+            if progressing:
+                # Transient stall recovered — drop the previously-recorded
+                # stalled list so the final LoopResult does not report
+                # stalled fields when the loop did in fact converge.
+                result.stalled_fields = []
+            else:
                 result.stalled_fields = stalled
 
             prev_snapshot = curr_snapshot

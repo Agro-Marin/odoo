@@ -1320,3 +1320,36 @@ class TestDomainOptimize(TransactionCase):
                     Domain,
                     f"Stack parser: operator {op!r} value must be parsed as Domain",
                 )
+
+
+class TestDomainEdgeCases(TransactionCase):
+    """Regression tests for ``Domain`` constructor edge cases."""
+
+    def test_domain_empty_list_is_true(self):
+        """``Domain([])`` returns the TRUE singleton (well-established)."""
+        self.assertIs(Domain([]), Domain.TRUE)
+
+    def test_domain_empty_tuple_is_true(self):
+        """``Domain(())`` returns TRUE — symmetric with the list form.
+
+        Regression: previously ``arg == []`` only matched lists, leaving
+        ``Domain(())`` to fall through to the parser and crash with
+        "malformed domain" on the empty-stack pop.
+        """
+        self.assertIs(Domain(()), Domain.TRUE)
+
+    def test_value_to_datetime_empty_collection(self):
+        """``_value_to_datetime`` must return ``(empty, True)`` on empty input,
+        not raise ``ValueError`` from unpacking ``zip(*())``.
+
+        Currently mitigated upstream by ``_optimize_in_set`` short-circuiting
+        empty ``in``/``not in`` to TRUE/FALSE, but the helper itself must be
+        safe so future direct callers do not regress.
+        """
+        from odoo.orm.domain.optimizations import _value_to_datetime
+        value, is_date = _value_to_datetime([], env=self.env, iso_only=False)
+        self.assertEqual(list(value), [])
+        self.assertTrue(is_date)
+        value, is_date = _value_to_datetime((), env=self.env, iso_only=False)
+        self.assertEqual(list(value), [])
+        self.assertTrue(is_date)

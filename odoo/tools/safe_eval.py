@@ -402,7 +402,7 @@ def compile_codeobj(
     except SyntaxError, TypeError, ValueError:
         raise
     except Exception as e:
-        raise ValueError("%r while compiling\n%r" % (e, expr))
+        raise ValueError("%r while compiling\n%r" % (e, expr)) from e
     return code_obj
 
 
@@ -554,7 +554,7 @@ def safe_eval(
         raise
 
     except Exception as e:
-        raise ValueError("%r while evaluating\n%r" % (e, expr))
+        raise ValueError("%r while evaluating\n%r" % (e, expr)) from e
 
     finally:
         if context is not None:
@@ -646,7 +646,7 @@ class wrap_module:
 
 
 # dateutil submodules are lazy so need to import them for them to "exist"
-import dateutil
+import dateutil  # noqa: E402
 
 mods = ["parser", "relativedelta", "rrule", "tz"]
 for mod in mods:
@@ -704,7 +704,7 @@ dateutil = wrap_module(
 json = wrap_module(__import__("json"), ["loads", "dumps"])
 time = wrap_module(__import__("time"), ["time", "strptime", "strftime", "sleep"])
 # Expose timezone utilities (pytz-compatible interface for server actions)
-from odoo.libs.datetime import tz as _tz_module
+from odoo.libs.datetime import tz as _tz_module  # noqa: E402
 
 pytz = wrap_module(_tz_module, ["utc", "timezone"])
 pytz.UTC = pytz.utc  # pytz.UTC is an alias for pytz.utc

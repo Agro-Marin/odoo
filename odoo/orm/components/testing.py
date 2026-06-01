@@ -96,6 +96,9 @@ from dataclasses import field as dataclass_field
 from typing import Any
 
 from .cache import FieldCache
+from .compute import ComputeEngine
+from .storage import DictBackend
+from .unit_of_work import UnitOfWork
 
 
 class _Sentinel(_enum.Enum):
@@ -105,9 +108,6 @@ class _Sentinel(_enum.Enum):
 
 
 PENDING = _Sentinel.PENDING
-from .compute import ComputeEngine
-from .storage import DictBackend
-from .unit_of_work import UnitOfWork
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable

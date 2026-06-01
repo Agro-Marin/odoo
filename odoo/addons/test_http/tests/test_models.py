@@ -99,7 +99,9 @@ class TestHttpModels(TestHttpBase):
         # No cursor ERROR log expected: pipeline mode defers SQL execution,
         # so ReadOnlySqlTransaction is raised during pipeline exit, not
         # during cursor.execute() where the ERROR would normally be logged.
-        with self.assertLogs("odoo.http.request_class", "WARNING") as capture_http:
+        # Logger moved from ``odoo.http.request_class`` to ``odoo.http._serve``
+        # in the http audit pass 6 module split.
+        with self.assertLogs("odoo.http._serve", "WARNING") as capture_http:
             res = self.url_open(
                 f"/test_http/{milky_way.id}/setname?readonly=1",
                 {

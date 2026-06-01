@@ -198,7 +198,7 @@ def resolve_date(value: str, env: Environment) -> date | datetime:
                 # note: '=Nw' is not supported
             dt += relativedelta(**{unit: number})
         except ValueError, TypeError, KeyError:
-            raise ValueError(f"Invalid term {term!r} in expression date: {value!r}")
+            raise ValueError(f"Invalid term {term!r} in expression date: {value!r}") from None
 
     # always return a naive date
     if isinstance(dt, datetime) and dt.tzinfo is not None:

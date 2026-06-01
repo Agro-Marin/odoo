@@ -1,11 +1,8 @@
 # ruff: noqa: F401
+import dataclasses
 from datetime import date, datetime
 
 from odoo.libs.func import lazy
-from odoo.libs.json import (
-    fast_clone,
-    scriptsafe,
-)
 from odoo.libs.json import (
     ScriptSafeJSON as JSON,
 )
@@ -14,6 +11,10 @@ from odoo.libs.json import (
 )
 from odoo.libs.json import (
     dumps_bytes as fast_dumps_bytes,
+)
+from odoo.libs.json import (
+    fast_clone,
+    scriptsafe,
 )
 from odoo.libs.json import (
     loads as fast_loads,
@@ -70,6 +71,19 @@ def orjson_default(obj: object) -> object:
         return obj.decode()
     if isinstance(obj, fields.Domain):
         return list(obj)
-    if (as_dict_func := getattr(obj, 'as_dict', None)) and callable(as_dict_func):
-        return as_dict_func()
+    # Support dataclasses (the original use case from
+    # ``[IMP] core: support JSON serialization of dataclasses``: accounting
+    # reports return dataclass instances for line/column rows so the web
+    # client receives them as plain dicts).  Keep the check narrow: a bare
+    # ``getattr(obj, 'as_dict', None)`` was too broad — ``unittest.mock``
+    # auto-generates *any* attribute, so a MagicMock returned by a patched
+    # method makes ``getattr`` return a callable, which orjson then invokes
+    # and recurses into the resulting MagicMock indefinitely (caught by
+    # ``test_http.test_webjson2_url_params_vs_body_params`` as
+    # ``TypeError: default serializer exceeds recursion limit``).
+    # ``dataclasses.is_dataclass`` is a structural type check that returns
+    # False on MagicMock; the ``not isinstance(obj, type)`` guard rejects
+    # the dataclass *class* itself (vs an instance).
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        return dataclasses.asdict(obj)
     return str(obj)
