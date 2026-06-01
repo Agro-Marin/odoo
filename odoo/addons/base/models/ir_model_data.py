@@ -149,6 +149,7 @@ class IrModelData(models.Model):
         return model, False
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
+        """Copy xmlids, suffixing ``name`` to avoid UniqueIndex collisions."""
         vals_list = super().copy_data(default=default)
         for model, vals in zip(self, vals_list, strict=True):
             rand = f"{random.getrandbits(16):04x}"
@@ -157,15 +158,26 @@ class IrModelData(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        """Create xmlids, busting the groups cache for res.groups rows."""
         res = super().create(vals_list)
         if any(vals.get("model") == "res.groups" for vals in vals_list):
             self.env.registry.clear_cache("groups")
         return res
 
     def write(self, vals: dict[str, Any]) -> bool:
+        """Update xmlids, busting the _xmlid_lookup cache and the groups cache for res.groups rows."""
         self.env.registry.clear_cache()  # _xmlid_lookup
+        # Clear the `groups` cache when either the pre-image or the post-image of
+        # the written rows points at res.groups: re-pointing or editing a
+        # res.groups xmlid (even without touching `model`, e.g. a `res_id` or
+        # `noupdate` change) must not leave group/ACL resolution stale. Mirrors
+        # the pre-image check already done in unlink(). Read `self` before
+        # super().write so the pre-image model is still accurate.
+        touch_groups = vals.get("model") == "res.groups" or any(
+            data.model == "res.groups" for data in self
+        )
         res = super().write(vals)
-        if vals.get("model") == "res.groups":
+        if touch_groups:
             self.env.registry.clear_cache("groups")
         return res
 
@@ -594,7 +606,6 @@ class IrModelData(models.Model):
         self.env["ir.ui.view"]._create_all_specific_views(modules)
 
         loaded_xmlids.clear()
-        return
 
     @api.model
     def toggle_noupdate(self, model: str, res_id: int) -> None:

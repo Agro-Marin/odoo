@@ -42,18 +42,26 @@ class ResPartnerCategory(models.Model):
         if self._has_cycle():
             raise ValidationError(_("You can not create recursive tags."))
 
-    @api.depends("parent_id")
+    @api.depends("name", "parent_id.name")
     def _compute_display_name(self) -> None:
-        """Return the categories' display name, including their direct
-        parent by default.
-        """
+        """Compute the slash-joined full ancestor path as display name."""
+        names = {category.id: [] for category in self}
+        # Walk the hierarchy one level at a time, advancing every category's
+        # cursor together. Reading name on the whole frontier prefetches the
+        # level in a single query instead of one read per category, while
+        # preserving the per-record walk semantics.
+        cursors = {category.id: category for category in self}
+        while cursors:
+            frontier = self.browse().union(*cursors.values())
+            frontier.fetch(["name", "parent_id"])
+            next_cursors = {}
+            for root_id, current in cursors.items():
+                names[root_id].append(current.name or "")
+                if current.parent_id:
+                    next_cursors[root_id] = current.parent_id
+            cursors = next_cursors
         for category in self:
-            names = []
-            current = category
-            while current:
-                names.append(current.name or "")
-                current = current.parent_id
-            category.display_name = " / ".join(reversed(names))
+            category.display_name = " / ".join(reversed(names[category.id]))
 
     @api.model
     def _search_display_name(self, operator: str, value: str) -> list:

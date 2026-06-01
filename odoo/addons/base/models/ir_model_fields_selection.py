@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Self
 
+import psycopg
 from psycopg.types.json import Json
 
 from odoo import _, api, fields, models
@@ -48,7 +49,7 @@ class IrModelFieldsSelection(models.Model):
         return self._get_selection_data(field_id)
 
     def _get_selection_data(self, field_id: int) -> list[tuple[str, str]]:
-        # return selection as expected on registry (no translations)
+        """Return the field's selection from the database without translations."""
         self.env.cr.execute(
             """
             SELECT value, name->>'en_US'
@@ -62,18 +63,18 @@ class IrModelFieldsSelection(models.Model):
 
     def _reflect_selections(self, model_names: list[str]) -> None:
         """Reflect the selections of the fields of the given models."""
-        fields = [
+        selection_fields = [
             field
             for model_name in model_names
             for field_name, field in self.env[model_name]._fields.items()
             if field.type in ("selection", "reference")
             if isinstance(field.selection, list)
         ]
-        if not fields:
+        if not selection_fields:
             return
         if invalid_fields := OrderedSet(
             field
-            for field in fields
+            for field in selection_fields
             for selection in field.selection
             for value_label in selection
             if not isinstance(value_label, str)
@@ -81,7 +82,9 @@ class IrModelFieldsSelection(models.Model):
             raise ValidationError(
                 _(
                     "Fields %s contain a non-str value/label in selection",
-                    invalid_fields,
+                    ", ".join(
+                        f"{field.model_name}.{field.name}" for field in invalid_fields
+                    ),
                 )
             )
 
@@ -89,7 +92,7 @@ class IrModelFieldsSelection(models.Model):
         IMF = self.env["ir.model.fields"]
         expected = {
             (field_id, value): (label, index)
-            for field in fields
+            for field in selection_fields
             for field_id in [IMF._get_ids(field.model_name)[field.name]]
             for index, (value, label) in enumerate(field.selection)
         }
@@ -124,7 +127,7 @@ class IrModelFieldsSelection(models.Model):
         selection_ids = {row[:3]: row[3] for row in cr.fetchall()}
 
         data_list = []
-        for field in fields:
+        for field in selection_fields:
             model = self.env[field.model_name]
             for value, modules in field._selection_modules(model).items():
                 for m in modules:
@@ -189,8 +192,10 @@ class IrModelFieldsSelection(models.Model):
     def _existing_selection_data(
         self, model_name: str, field_name: str
     ) -> dict[str, dict[str, Any]]:
-        """Return the selection data of the given model, by field and value, as
-        a dict {field_name: {value: row_values}}.
+        """Return the field's selection rows from the database, keyed by value.
+
+        :return: ``{value: row_values}`` for the given model/field.
+        :rtype: dict
         """
         query = """
             SELECT s.*, s.name->>'en_US' AS name
@@ -201,27 +206,42 @@ class IrModelFieldsSelection(models.Model):
         self.env.cr.execute(query, [model_name, field_name])
         return {row["value"]: row for row in self.env.cr.dictfetchall()}
 
+    def _raise_base_field_error(self) -> None:
+        """Raise the standard error forbidding edits to non-manual selections."""
+        raise UserError(
+            _(
+                "Properties of base fields cannot be altered in this manner! "
+                "Please modify them through Python code, "
+                "preferably through a custom addon!"
+            )
+        )
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        """Create selection rows and re-initialise the affected models in the registry."""
         field_ids = {vals["field_id"] for vals in vals_list}
         field_names = set()
         for field in self.env["ir.model.fields"].browse(field_ids):
             field_names.add((field.model, field.name))
             if field.state != "manual":
-                raise UserError(
-                    _(
-                        "Properties of base fields cannot be altered in this manner! "
-                        "Please modify them through Python code, "
-                        "preferably through a custom addon!"
-                    )
-                )
+                self._raise_base_field_error()
         recs = super().create(vals_list)
 
-        model_names = OrderedSet(
-            model
-            for model, name in field_names
-            if model in self.pool and name in self.pool[model]._fields
-        )
+        model_names = OrderedSet()
+        for model, name in field_names:
+            if model in self.pool and name in self.pool[model]._fields:
+                model_names.add(model)
+            else:
+                # The field is not (yet) in the registry -- e.g. a selection row
+                # created during module load before its field is set up. The
+                # registry refresh is skipped; log it so the silent path stays
+                # observable (SEL-C7).
+                _logger.debug(
+                    "Skipped registry setup for selection on %s.%s: "
+                    "field not in registry",
+                    model,
+                    name,
+                )
         if model_names:
             # setup models; this re-initializes model in registry
             self.env.flush_all()
@@ -229,22 +249,46 @@ class IrModelFieldsSelection(models.Model):
 
         return recs
 
+    def _is_jsonb_stored(self, field) -> bool:
+        """Whether the column backing a selection/reference field is jsonb.
+
+        ``company_dependent`` fields are stored as ``{company_id: value}`` jsonb
+        instead of a plain scalar column. :meth:`write` (value rename) and
+        :meth:`_get_records` (value match) must both branch on this predicate so
+        their stored-column SQL can never diverge (SEL-C1).
+
+        :param field: the selection/reference field -- an ``ir.model.fields``
+            record or an ORM field; only ``company_dependent`` is read.
+        :rtype: bool
+        """
+        return bool(field.company_dependent)
+
     def write(self, vals: dict[str, Any]) -> bool:
+        """Write selection rows; rewrite stored column data on value change and
+        refresh the registry or selection caches accordingly.
+        """
         if not self:
             return True
 
         if not self.env.user._is_admin() and any(
             record.field_id.state != "manual" for record in self
         ):
-            raise UserError(
-                _(
-                    "Properties of base fields cannot be altered in this manner! "
-                    "Please modify them through Python code, "
-                    "preferably through a custom addon!"
-                )
-            )
+            self._raise_base_field_error()
 
         if "value" in vals:
+            # Two selection rows of the same field cannot share a value
+            # (UNIQUE(field_id, value)); a batch renaming several rows of one
+            # field to the same value would only fail at flush -- after the
+            # destructive column rewrites below already ran. Reject it up front.
+            # len(self) > len(self.field_id) holds iff some field owns more than
+            # one row in self (SEL-C2).
+            if len(self) > len(self.field_id):
+                raise UserError(
+                    _(
+                        "Cannot set the same value on several selection options "
+                        "of one field; selection values must be unique per field."
+                    )
+                )
             for selection in self:
                 if selection.value == vals["value"]:
                     continue
@@ -254,23 +298,55 @@ class IrModelFieldsSelection(models.Model):
                     model = self.env[selection.field_id.model]
                     fname = selection.field_id.name
                     model.invalidate_model([fname])
-                    # replace the value by the new one in the field's corresponding column
-                    query = SQL(
-                        "UPDATE %s SET %s = %s WHERE %s = %s",
-                        SQL.identifier(model._table),
-                        SQL.identifier(fname),
-                        vals["value"],
-                        SQL.identifier(fname),
-                        selection.value,
-                    )
+                    # Replace the old value by the new one in the field's stored
+                    # column. company_dependent fields are jsonb keyed by company
+                    # ({company_id: value}); a value rename is global, so every
+                    # company key holding the old value must migrate. Mirror the
+                    # storage-shape branch in _get_records so the two cannot
+                    # diverge (SEL-C1).
+                    if self._is_jsonb_stored(selection.field_id):
+                        query = SQL(
+                            "UPDATE %s AS t SET %s = ("
+                            " SELECT jsonb_object_agg(e.key,"
+                            " CASE WHEN e.value = to_jsonb(%s::text)"
+                            " THEN to_jsonb(%s::text) ELSE e.value END)"
+                            " FROM jsonb_each(t.%s) AS e"
+                            ") WHERE EXISTS ("
+                            " SELECT 1 FROM jsonb_each(t.%s) AS e2"
+                            " WHERE e2.value = to_jsonb(%s::text)"
+                            ")",
+                            SQL.identifier(model._table),
+                            SQL.identifier(fname),
+                            selection.value,
+                            vals["value"],
+                            SQL.identifier(fname),
+                            SQL.identifier(fname),
+                            selection.value,
+                        )
+                    else:
+                        query = SQL(
+                            "UPDATE %s SET %s = %s WHERE %s = %s",
+                            SQL.identifier(model._table),
+                            SQL.identifier(fname),
+                            vals["value"],
+                            SQL.identifier(fname),
+                            selection.value,
+                        )
                     self.env.cr.execute(query)
 
         result = super().write(vals)
 
-        # setup models; this re-initializes model in registry
+        # Re-initialise the affected models in the registry only when the change
+        # can alter the selection SET or ORDER. A label-only (name) edit leaves
+        # the valid values and their order intact, so the sole stale artefact is
+        # the lang-keyed get_field_selection ormcache ("stable"); clearing that
+        # is far cheaper than a full _setup_models__ rebuild (SEL-C6).
         self.env.flush_all()
-        model_names = self.field_id.model_id.mapped("model")
-        self.pool._setup_models__(self.env.cr, model_names)
+        if {"value", "sequence", "field_id"} & vals.keys():
+            model_names = self.field_id.model_id.mapped("model")
+            self.pool._setup_models__(self.env.cr, model_names)
+        elif "name" in vals:
+            self.env.registry.clear_cache("stable")
 
         return result
 
@@ -280,15 +356,10 @@ class IrModelFieldsSelection(models.Model):
         if self.pool.ready and any(
             selection.field_id.state != "manual" for selection in self
         ):
-            raise UserError(
-                _(
-                    "Properties of base fields cannot be altered in this manner! "
-                    "Please modify them through Python code, "
-                    "preferably through a custom addon!"
-                )
-            )
+            self._raise_base_field_error()
 
     def unlink(self) -> bool:
+        """Unlink selection rows after applying each value's ondelete policy."""
         model_names = self.field_id.model_id.mapped("model")
         self._process_ondelete()
         result = super().unlink()
@@ -303,7 +374,14 @@ class IrModelFieldsSelection(models.Model):
         return result
 
     def _process_ondelete(self) -> None:
-        """Process the 'ondelete' of the given selection values."""
+        """Apply each deleted selection value's ondelete policy to its records.
+
+        Records are resolved once per ``(field, company)`` -- one flush and one
+        query for all of a field's deleted values -- rather than once per value
+        (SEL-P3). Resolution precedes any policy write, so each record is handled
+        according to the value it held at deletion time; a value whose policy
+        targets another value being deleted does not cascade into that bucket.
+        """
 
         def safe_write(records: Any, fname: str, value: Any) -> None:
             if not records:
@@ -311,13 +389,19 @@ class IrModelFieldsSelection(models.Model):
             try:
                 with self.env.cr.savepoint():
                     records.write({fname: value})
-            except Exception:
-                # going through the ORM failed, probably because of an exception
-                # in an override or possibly a constraint.
-                _logger.runbot(
-                    "Could not fulfill ondelete action for field %s.%s, attempting ORM bypass...",
+            except (UserError, psycopg.Error) as error:
+                # The ORM write was refused by an override or a constraint; fall
+                # back to a raw column update so module-uninstall cleanup of a
+                # removed selection value can still complete. The catch is
+                # narrowed to recoverable failures -- a programming error (e.g.
+                # TypeError in an override) now propagates instead of being
+                # masked by a silent data write (SEL-C4).
+                _logger.warning(
+                    "Could not fulfill ondelete action for field %s.%s (%s); "
+                    "attempting ORM bypass",
                     records._name,
                     fname,
+                    error,
                 )
                 # if this fails there is nothing we can do except fix on a case-by-case basis
                 self.env.execute_query(
@@ -331,16 +415,18 @@ class IrModelFieldsSelection(models.Model):
                 )
                 records.invalidate_recordset([fname])
 
-        for selection in self:
+        # Group the deleted rows by field so each field's model is resolved and
+        # flushed once, not once per value.
+        for field_record, selections in self.grouped("field_id").items():
             # The field may exist in database but not in registry. In this case
             # we allow the field to be skipped, but for production this should
             # be handled through a migration script. The ORM will take care of
             # the orphaned 'ir.model.fields' down the stack, and will log a
             # warning prompting the developer to write a migration script.
-            Model = self.env.get(selection.field_id.model)
+            Model = self.env.get(field_record.model)
             if Model is None:
                 continue
-            field = Model._fields.get(selection.field_id.name)
+            field = Model._fields.get(field_record.name)
             if not field or not field.store or not Model._auto:
                 continue
 
@@ -348,57 +434,114 @@ class IrModelFieldsSelection(models.Model):
             if field.type not in ("selection", "reference"):
                 continue
 
-            ondelete = (field.ondelete or {}).get(selection.value)
-            # special case for custom fields
-            if ondelete is None and field.manual and not field.required:
-                ondelete = "set null"
-
-            if ondelete is None:
-                # nothing to do, the selection does not come from a field extension
+            # resolve the ondelete policy of each deleted value, dropping values
+            # that carry none
+            policies = {}
+            for selection in selections:
+                ondelete = (field.ondelete or {}).get(selection.value)
+                # special case for custom fields
+                if ondelete is None and field.manual and not field.required:
+                    ondelete = "set null"
+                if ondelete is not None:
+                    policies[selection.value] = ondelete
+            if not policies:
+                # nothing to do, none of the values come from a field extension
                 continue
 
             companies = (
                 self.env.companies
-                if selection.field_id.company_dependent
+                if field_record.company_dependent
                 else [self.env.company]
             )
             for company in companies:
-                # make a company-specific env for the Model and selection
+                # make a company-specific env for the Model
                 company_model = Model.with_company(company.id)
-                company_selection = selection.with_company(company.id)
-                if callable(ondelete):
-                    ondelete(company_selection._get_records())
-                elif ondelete == "set null":
-                    safe_write(company_selection._get_records(), field.name, False)
-                elif ondelete == "set default":
-                    value = field.convert_to_write(
-                        field.default(company_model), company_model
-                    )
-                    safe_write(company_selection._get_records(), field.name, value)
-                elif ondelete.startswith("set "):
-                    safe_write(
-                        company_selection._get_records(),
-                        field.name,
-                        ondelete.removeprefix("set "),
-                    )
-                elif ondelete == "cascade":
-                    company_selection._get_records().unlink()
-                else:
-                    # this shouldn't happen... simply a sanity check
-                    raise ValueError(
-                        _(
-                            'The ondelete policy "%(policy)s" is not valid for field "%(field)s"',
-                            policy=ondelete,
-                            field=selection,
+                # one flush + one query resolves every value's records
+                records_by_value = self._get_records_by_value(
+                    company_model, field, list(policies)
+                )
+                for value, ondelete in policies.items():
+                    records = records_by_value.get(value, company_model.browse())
+                    if callable(ondelete):
+                        ondelete(records)
+                    elif ondelete == "set null":
+                        safe_write(records, field.name, False)
+                    elif ondelete == "set default":
+                        default = field.convert_to_write(
+                            field.default(company_model), company_model
                         )
-                    )
+                        safe_write(records, field.name, default)
+                    elif ondelete.startswith("set "):
+                        safe_write(records, field.name, ondelete.removeprefix("set "))
+                    elif ondelete == "cascade":
+                        records.unlink()
+                    else:
+                        # this shouldn't happen... simply a sanity check
+                        raise ValueError(
+                            _(
+                                'The ondelete policy "%(policy)s" is not valid for field "%(field)s"',
+                                policy=ondelete,
+                                field=f"{field_record.model}.{field.name}",
+                            )
+                        )
+
+    def _get_records_by_value(
+        self, company_model: Any, field: Any, values: list
+    ) -> dict:
+        """Return ``{value: recordset}`` for ``company_model`` records whose
+        stored ``field`` currently holds one of ``values``.
+
+        One flush and one query resolve the whole batch, scoped to the model's
+        company for a company-dependent (jsonb) field; the records are bound to
+        ``company_model`` so company-dependent writes land in the right context
+        (SEL-P3).
+
+        :param field: the ORM field backing the selection/reference column.
+        :rtype: dict
+        """
+        fname = field.name
+        company_model.flush_model([fname])
+        if self._is_jsonb_stored(field):
+            # company-dependent fields are stored as jsonb (e.g. {company_id: value})
+            company_key = str(company_model.env.company.id)
+            query = SQL(
+                "SELECT %s ->> %s AS value, array_agg(id) AS ids FROM %s "
+                "WHERE %s ->> %s = ANY(%s) GROUP BY 1",
+                SQL.identifier(fname),
+                company_key,
+                SQL.identifier(company_model._table),
+                SQL.identifier(fname),
+                company_key,
+                values,
+            )
+        else:
+            # normal selection fields are stored as a plain column
+            query = SQL(
+                "SELECT %s AS value, array_agg(id) AS ids FROM %s "
+                "WHERE %s = ANY(%s) GROUP BY 1",
+                SQL.identifier(fname),
+                SQL.identifier(company_model._table),
+                SQL.identifier(fname),
+                values,
+            )
+        self.env.cr.execute(query)
+        return {
+            value: company_model.browse(ids) for value, ids in self.env.cr.fetchall()
+        }
 
     def _get_records(self) -> Any:
-        """Return the records having 'self' as a value."""
+        """Return the records that currently hold this selection value.
+
+        For a company-dependent (jsonb) field the match is scoped to
+        ``self.env.company``; :meth:`_process_ondelete` therefore iterates on a
+        ``with_company`` recordset so each company is handled in its own context.
+        The coupling on the ambient company is intentional and documented here
+        rather than threaded through a parameter (SEL-C3).
+        """
         self.ensure_one()
         Model = self.env[self.field_id.model]
         Model.flush_model([self.field_id.name])
-        if self.field_id.company_dependent:
+        if self._is_jsonb_stored(self.field_id):
             # company-dependent fields are stored as jsonb (e.g; {company_id: value})
             query = SQL(
                 "SELECT id FROM %s WHERE %s ->> %s = %s",

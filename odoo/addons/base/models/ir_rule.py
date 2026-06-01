@@ -56,14 +56,12 @@ class IrRule(models.Model):
 
     @api.model
     def _eval_context(self) -> dict[str, Any]:
-        """Returns a dictionary to use as evaluation context for
-        ir.rule domains.
-        Note: company_ids contains the ids of the activated companies
-        by the user with the switch company menu. These companies are
-        filtered and trusted.
-        """
+        """Return the evaluation context (namespace) for ir.rule domains."""
         # use an empty context for 'user' to make the domain evaluation
-        # independent from the context
+        # independent from the context.
+        # Note: company_ids contains the ids of the activated companies by the
+        # user with the switch company menu. These companies are filtered and
+        # trusted.
         return {
             "user": self.env.user.with_context({}),
             "company_ids": self.env.companies.ids,
@@ -117,6 +115,10 @@ class IrRule(models.Model):
 
         # first check if the group rules fail for any record (aka if
         # searching on (records, group_rules) filters out some of the records)
+        # NOTE: the group source here (env.user.all_group_ids) must stay in
+        # lock-step with the SQL group filter used by _get_rules /
+        # _compute_domain (user._get_group_ids() == clean-context
+        # all_group_ids._ids); divergence would mis-blame rules.
         group_rules = all_rules.filtered(
             lambda r: r.groups and r.groups & self.env.user.all_group_ids
         )
@@ -124,10 +126,15 @@ class IrRule(models.Model):
             safe_eval(r.domain_force, eval_context) if r.domain_force else []
             for r in group_rules
         )
-        # if all records get returned, the group rules are not failing
-        if Model.search_count(
-            group_domains & Domain("id", "in", for_records.ids)
-        ) == len(for_records):
+        # if all records get returned, the group rules are not failing.
+        # Compare against the count of distinct ids (search_count counts
+        # distinct DB rows); a duplicated id in for_records would otherwise
+        # never match len(for_records) and mis-blame passing group rules.
+        distinct_count = len(set(for_records.ids))
+        if (
+            Model.search_count(group_domains & Domain("id", "in", for_records.ids))
+            == distinct_count
+        ):
             group_rules = self.browse(())
 
         # failing rules are previously selected group rules or any failing global rule
@@ -135,7 +142,7 @@ class IrRule(models.Model):
             dom = Domain(
                 safe_eval(r.domain_force, eval_context) if r.domain_force else []
             )
-            return Model.search_count(dom & Domain("id", "in", ids)) < len(ids)
+            return Model.search_count(dom & Domain("id", "in", ids)) < len(set(ids))
 
         return all_rules.filtered(
             lambda r: r in group_rules or (not r.groups and is_failing(r))
@@ -196,6 +203,9 @@ class IrRule(models.Model):
 
         # browse user and rules with sudo to avoid access errors!
         eval_context = self._eval_context()
+        # NOTE: this group source (env.user.all_group_ids) must stay in
+        # lock-step with the SQL group filter used by _get_rules
+        # (user._get_group_ids() == clean-context all_group_ids._ids).
         user_groups = self.env.user.all_group_ids
         group_domains: list[Domain] = []
         for rule in rules.sudo():
@@ -286,6 +296,8 @@ class IrRule(models.Model):
         rules = self._get_failing(records, mode=operation).sudo()
 
         display_records = records[:6].sudo()
+        # Heuristic: substring match on the domain source text, not a precise
+        # field check (only drives the optional multi-company hint below).
         company_related = any("company_id" in (r.domain_force or "") for r in rules)
 
         def get_record_description(rec):

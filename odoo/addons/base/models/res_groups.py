@@ -168,11 +168,16 @@ class ResGroups(models.Model):
     def _check_user_disjoint_groups(self) -> None:
         # Here we should check all the users in any group of 'self':
         #
-        #   self.user_ids._check_disjoint_groups()  # noqa: ERA001
+        #   self.user_ids._check_disjoint_groups()
         #
         # But that wouldn't scale at all for large groups, like more than 10K
         # users.  So instead we search for such a nasty user.
         gids = self._get_user_type_groups().ids
+        # Deliberately restricted to active users: an archived user holding two
+        # disjoint user-type groups cannot log in, so it is harmless, and
+        # re-validating dormant data on every group write would not scale. Note
+        # the asymmetry with _compute_all_user_ids, which uses active_test=False
+        # to count archived users in all_user_ids / all_users_count.
         domain = (
             Domain("active", "=", True)
             & Domain("group_ids", "in", self.ids)
@@ -294,8 +299,15 @@ class ResGroups(models.Model):
 
         res = super().write(vals)
 
-        if "implied_ids" in vals or "implied_by_ids" in vals:
-            # Invalidate the cache of groups and their relationships
+        # Any write to a group can affect the cached `groups` registry family:
+        # _get_view_group_hierarchy reads name/comment/privilege_id and the
+        # implication graph; _get_group_definitions reads the implication +
+        # membership graph. Previously only implied_ids/implied_by_ids busted it,
+        # so e.g. renaming a group left the settings / user-form hierarchy widget
+        # stale. Group writes are rare and config-time (stored-computed-field
+        # recomputation goes through low-level _write, not this override), so
+        # invalidate unconditionally.
+        if self.ids:
             self.env.registry.clear_cache("groups")
 
         return res
@@ -415,11 +427,23 @@ class ResGroups(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         groups = super().create(vals_list)
+        # Bust the `default` family too (via call_cache_clearing_methods, as
+        # write() does): res.users._get_group_ids and ir.ui.menu._visible_menu_ids
+        # are @ormcache in `default`, not `groups`. Clearing only `groups` would
+        # leave those stale. Defensive on create (a new group has no users yet);
+        # load-bearing on unlink (RG-L3).
+        self.env["ir.model.access"].call_cache_clearing_methods()
         self.env.registry.clear_cache("groups")
         return groups
 
     def unlink(self) -> bool:
         res = super().unlink()
+        # Symmetric with write()/create(): a deleted group's id stays in the
+        # `default`-family caches (res.users._get_group_ids,
+        # ir.ui.menu._visible_menu_ids) of users who held it until an unrelated
+        # default-flush. call_cache_clearing_methods() flushes `stable` -> `default`
+        # (RG-L3).
+        self.env["ir.model.access"].call_cache_clearing_methods()
         self.env.registry.clear_cache("groups")
         return res
 
@@ -431,7 +455,9 @@ class ResGroups(models.Model):
         groups.write({"implied_ids": [Command.link(implied_group.id)]})
 
     def _remove_group(self, implied_group: Self) -> None:
-        """Remove the given group from the implied groups of the current group
+        """Unlink ``implied_group`` from every group in ``self``'s transitive
+        implied closure that directly implies it (not just ``self``'s own
+        direct links), mirroring how settings toggle a group off everywhere.
         :param implied_group: the implied group to remove
         """
         groups = self.all_implied_ids.filtered(lambda g: implied_group in g.implied_ids)

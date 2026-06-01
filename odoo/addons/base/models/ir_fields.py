@@ -1,5 +1,6 @@
 import functools
 import itertools
+from datetime import datetime
 from typing import Any, NamedTuple
 
 from odoo import Command, api, fields, models
@@ -241,7 +242,14 @@ class IrFieldsConverter(models.AbstractModel):
     def _str_to_properties(
         self, model: Any, field: Any, value: str | list, savepoint: Any
     ) -> tuple[list, list]:
+        """Coerce an imported Properties field value into write-ready form.
 
+        :param field: the Properties field being imported into.
+        :param value: either the full JSON payload as a string, or the list of
+            per-property definition dicts to convert in place.
+        :return: a pair of the converted properties list and the warning list.
+        :rtype: tuple[list, list]
+        """
         # If we want to import the all properties at once (with the technical value)
         if isinstance(value, str):
             try:
@@ -442,7 +450,11 @@ class IrFieldsConverter(models.AbstractModel):
         if field.name in self.env.context.get("import_skip_records", []):
             return None, []
 
-        return True, [
+        # Return ``None`` (not ``True``) as the value on an unknown input: a
+        # caller that logs-but-continues must not silently coerce garbage to
+        # ``True``. The accompanying warning still aborts the row on the normal
+        # import path, and ``_str_to_properties`` checks the warning list.
+        return None, [
             self._format_import_error(
                 ValueError,
                 self.env._("Unknown value '%s' for boolean field '%%(field)s'"),
@@ -496,6 +508,12 @@ class IrFieldsConverter(models.AbstractModel):
         self, model: Any, field: Any, value: str, savepoint: Any
     ) -> tuple[str, list]:
         try:
+            # ``fields.Date.from_string`` slices to ``value[:DATE_LENGTH]`` and
+            # would silently accept trailing garbage ("2012-12-31xxx"). Reject any
+            # extra characters beyond the date portion so corrupt input fails
+            # loudly instead of importing a truncated value.
+            if isinstance(value, str) and value[10:].strip():
+                raise ValueError("trailing characters after date")
             parsed_value = fields.Date.from_string(value)
             return fields.Date.to_string(parsed_value), []
         except ValueError:
@@ -528,10 +546,32 @@ class IrFieldsConverter(models.AbstractModel):
                 {"moreinfo": self.env._("Use the format '%s'", "2012-12-31 23:59:59")},
             ) from None
 
+        # ``Datetime.from_string`` already converts an offset-bearing ISO string
+        # (e.g. Luxon's ``toISO()`` "2026-03-19T16:09:18-06:00") to naive UTC. In
+        # that case the offset has already been consumed, so re-stamping the input
+        # tz would double-apply timezone information and store the wrong instant.
+        # Only apply the input tz when the source value was tz-naive.
+        if isinstance(value, str) and self._iso_value_is_tz_aware(value):
+            return fields.Datetime.to_string(parsed_value), []
+
         input_tz = self._input_tz()  # Apply input tz to the parsed naive datetime
         dt = parsed_value.replace(tzinfo=input_tz)
         # And convert to UTC before reformatting for writing
         return fields.Datetime.to_string(dt.astimezone(utc)), []
+
+    @api.model
+    def _iso_value_is_tz_aware(self, value: str) -> bool:
+        """Return whether an ISO datetime string carries timezone information.
+
+        :param str value: an ISO-formatted datetime string already accepted by
+            :meth:`fields.Datetime.from_string`.
+        :return: ``True`` when the source string was tz-aware (offset or ``Z``).
+        :rtype: bool
+        """
+        try:
+            return datetime.fromisoformat(value).tzinfo is not None
+        except ValueError:
+            return False
 
     @api.model
     def _get_boolean_translations(self, src: str) -> list[str]:
@@ -636,9 +676,8 @@ class IrFieldsConverter(models.AbstractModel):
                          id
         :param value: value of the reference to match to an actual record
         :param savepoint: savepoint for rollback on errors
-        :return: a pair of the matched database identifier (if any), the
-                 translated user-readable name for the field and the list of
-                 warnings
+        :return: a pair of the matched database identifier (if any) and the
+                 list of warnings
         :rtype: tuple[int | None, list]
         """
         # the function 'flush' comes from BaseModel.load(), and forces the
@@ -666,11 +705,13 @@ class IrFieldsConverter(models.AbstractModel):
         RelatedModel = self.env[field.comodel_name]
         if subfield == ".id":
             field_type = self.env._("database id")
+            # Skip only on a recognized falsy boolean ("0", "", "false"); an
+            # unknown value now yields ``None`` (IFLD-03) and must fall through
+            # to the ``int(value)`` parse below rather than be treated as empty.
             if (
                 isinstance(value, str)
-                and not self._str_to_boolean(model, field, value, savepoint=savepoint)[
-                    0
-                ]
+                and self._str_to_boolean(model, field, value, savepoint=savepoint)[0]
+                is False
             ):
                 return False, warnings
             try:
@@ -686,7 +727,12 @@ class IrFieldsConverter(models.AbstractModel):
                 id = tentative_id
         elif subfield == "id":
             field_type = self.env._("external id")
-            if not self._str_to_boolean(model, field, value, savepoint=savepoint)[0]:
+            # Skip only on a recognized falsy boolean; an unknown value yields
+            # ``None`` (IFLD-03) and must be resolved as an external id below.
+            if (
+                self._str_to_boolean(model, field, value, savepoint=savepoint)[0]
+                is False
+            ):
                 return False, warnings
             if "." in value:
                 xmlid = value
@@ -754,10 +800,14 @@ class IrFieldsConverter(models.AbstractModel):
                 )
 
             error_info_dict = {"moreinfo": action}
+            # Limit to 50 chars to avoid too-long error messages. Use a dedicated
+            # local so the source ``value`` is not mutated in place (IFLD-06): the
+            # truncation is purely for display in the human/structured payloads.
+            display_value = value[:50] if isinstance(value, str) else value
             if self.env.context.get("import_file"):
-                # limit to 50 char to avoid too long error messages.
-                value = value[:50] if isinstance(value, str) else value
-                error_info_dict.update({"value": value, "field_type": field_type})
+                error_info_dict.update(
+                    {"value": display_value, "field_type": field_type}
+                )
                 if error_msg:
                     error_info_dict["error_message"] = error_msg
             raise self._format_import_error(
@@ -765,7 +815,7 @@ class IrFieldsConverter(models.AbstractModel):
                 message,
                 {
                     "field_type": field_type,
-                    "value": value,
+                    "value": display_value,
                     "error_message": error_msg,
                 },
                 error_info_dict,

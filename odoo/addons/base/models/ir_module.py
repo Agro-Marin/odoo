@@ -5,7 +5,7 @@ import platform
 from collections import OrderedDict, defaultdict
 from pathlib import Path
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, NamedTuple, Self
 
 import lxml.html
 import psycopg
@@ -44,6 +44,13 @@ ACTION_DICT = {
     "target": "new",
     "type": "ir.actions.act_window",
 }
+
+
+class UpdateListResult(NamedTuple):
+    """Outcome of ir.module.module.update_list(): module records changed."""
+
+    updated: int
+    added: int
 
 
 def assert_log_admin_access[T](method: T, /) -> T:
@@ -239,10 +246,10 @@ class IrModuleModule(models.Model):
                 module.description_html = _apply_description_images(output)
 
     @api.depends("name")
-    def _get_latest_version(self) -> None:
+    def _compute_manifest_version(self) -> None:
         default_version = modules.adapt_version("1.0")
         for module in self:
-            module.installed_version = self.get_module_info(module.name).get(
+            module.manifest_version = self.get_module_info(module.name).get(
                 "version", default_version
             )
 
@@ -303,6 +310,9 @@ class IrModuleModule(models.Model):
                 path = Manifest.for_addon("base").icon
             path = path.removeprefix("/")
             if path:
+                # module.icon is a user-writable Char; the filter_ext whitelist
+                # and file_open's addons-path sandbox are load-bearing security
+                # controls that prevent arbitrary file reads. Do not drop them.
                 try:
                     with tools.file_open(
                         path,
@@ -329,12 +339,14 @@ class IrModuleModule(models.Model):
     contributors = fields.Text("Contributors", readonly=True)
     website = fields.Char("Website", readonly=True)
 
-    # attention: Incorrect field names !!
-    #   installed_version refers the latest version (the one on disk)
-    #   latest_version refers the installed version (the one in database)
-    #   published_version refers the version available on the repository
-    installed_version = fields.Char("Latest Version", compute="_get_latest_version")
-    latest_version = fields.Char("Installed Version", readonly=True)
+    # `manifest_version` is the version declared in the module's __manifest__.py
+    # on disk; `db_version` is the version persisted on the last successful
+    # install/upgrade; `published_version` is the version available on the
+    # remote module repository.
+    manifest_version = fields.Char(
+        "Manifest Version", compute="_compute_manifest_version"
+    )
+    db_version = fields.Char("Installed Version", readonly=True)
     published_version = fields.Char("Published Version", readonly=True)
 
     url = fields.Char("URL", readonly=True)
@@ -478,7 +490,12 @@ class IrModuleModule(models.Model):
         self, newstate: str, states_to_update: list[str], level: int = 100
     ) -> None:
         if level < 1:
-            raise UserError(_("Recursion error in modules dependencies!"))
+            raise UserError(
+                _(
+                    "Recursion error in modules dependencies (while processing: %s)!",
+                    ", ".join(self.mapped("name")) or "?",
+                )
+            )
 
         for module in self:
             if module.state not in states_to_update:
@@ -648,7 +665,7 @@ class IrModuleModule(models.Model):
         self.env["ir.model.data"]._module_data_uninstall(modules_to_remove)
         # we deactivate prefetching to not try to read a column that has been deleted
         self.with_context(prefetch_fields=False).write(
-            {"state": "uninstalled", "latest_version": False}
+            {"state": "uninstalled", "db_version": False}
         )
         return True
 
@@ -952,7 +969,7 @@ class IrModuleModule(models.Model):
                 ):
                     todo.append(dep.module_id)
 
-        self.browse(module.id for module in todo).write({"state": "to upgrade"})
+        self.browse(m.id for m in todo).write({"state": "to upgrade"})
 
         uninstalled_dep_names = []
         for module in todo:
@@ -1007,13 +1024,24 @@ class IrModuleModule(models.Model):
             for module in modules
         ]
         self.env["ir.model.data"].create(module_metadata_list)
+        # New name->id entries change what _get_id/_installed resolve; mirror
+        # unlink and drop the "stable" cache so a previously cached negative
+        # _get_id result cannot go stale within the current registry.
+        self.env.registry.clear_cache("stable")
         return modules
 
     # update the list of available packages
     @assert_log_admin_access
     @api.model
-    def update_list(self) -> list[int]:
-        res = [0, 0]  # [update, add]
+    def update_list(self) -> UpdateListResult:
+        # Filesystem may have new addon directories since the last scan;
+        # drop the per-process esbuild addon-flag cache so newly
+        # discovered addons contribute their --alias on the next bundle.
+        from odoo.addons.base.models.assetsbundle import AssetsBundle
+
+        AssetsBundle.invalidate_addon_scan_cache()
+
+        updated = added = 0
 
         default_version = modules.adapt_version("1.0")
         known_mods = self.with_context(lang=None).search([])
@@ -1034,9 +1062,9 @@ class IrModuleModule(models.Model):
                 if terp.get("installable", True) and mod.state == "uninstallable":
                     updated_values["state"] = "uninstalled"
                 if parse_version(terp.get("version", default_version)) > parse_version(
-                    mod.latest_version or default_version
+                    mod.db_version or default_version
                 ):
-                    res[0] += 1
+                    updated += 1
                 if updated_values:
                     mod.write(updated_values)
             elif not manifest or not terp:
@@ -1046,11 +1074,11 @@ class IrModuleModule(models.Model):
                     "uninstalled" if terp.get("installable", True) else "uninstallable"
                 )
                 mod = self.create(dict(name=manifest.name, state=state, **values))
-                res[1] += 1
+                added += 1
 
             mod._update_from_terp(terp)
 
-        return res
+        return UpdateListResult(updated=updated, added=added)
 
     def _update_from_terp(self, terp: dict[str, Any] | Manifest) -> None:
         self._update_dependencies(terp.get("depends", []), terp.get("auto_install"))

@@ -185,10 +185,11 @@ class ResPartnerBank(models.Model):
     @api.depends("acc_number", "bank_id.name")
     def _compute_display_name(self) -> None:
         for acc in self:
+            # acc_number is required on persisted records but False on transient
+            # NewId/onchange records; fall back to "" to keep display_name a string.
+            acc_number = acc.acc_number or ""
             acc.display_name = (
-                f"{acc.acc_number} - {acc.bank_id.name}"
-                if acc.bank_id
-                else acc.acc_number
+                f"{acc_number} - {acc.bank_id.name}" if acc.bank_id else acc_number
             )
 
     @api.depends("allow_out_payment")
@@ -217,18 +218,16 @@ class ResPartnerBank(models.Model):
         return super().write(vals)
 
     def action_archive_bank(self) -> dict[str, str]:
-        """
-        Custom archive function because the basic action_archive don't trigger a re-rendering of the page, so
-        the archived value is still visible in the view.
-        """
+        """Archive the account and reload the client view."""
+        # The plain action_archive does not trigger a re-rendering of the page,
+        # so the archived record would stay visible; reload to refresh the view.
         self.ensure_one()
         self.action_archive()
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def unlink(self) -> bool:
-        """
-        Instead of deleting a bank account, we want to archive it since we cannot delete bank account that is linked
-        to any entries
-        """
+        """Archive instead of deleting; bank accounts may be linked to accounting entries."""
+        # A real delete would orphan/RESTRICT entries referencing this account,
+        # so we archive (active=False) and report success without calling super().
         self.action_archive()
         return True

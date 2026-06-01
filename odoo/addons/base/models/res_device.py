@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from odoo import api, fields, models, tools
+from odoo.exceptions import AccessError
 from odoo.http import (
     STORED_SESSION_BYTES,
     GeoIP,
@@ -50,8 +51,8 @@ class ResDeviceLog(models.Model):
     last_activity = fields.Datetime("Last Activity", index="btree")
     revoked = fields.Boolean(
         "Revoked",
-        help="""If True, the session file corresponding to this device
-                                    no longer exists on the filesystem.""",
+        help="If True, the session file corresponding to this device"
+        " no longer exists on the filesystem.",
     )
     is_current = fields.Boolean("Current Device", compute="_compute_is_current")
     linked_ip_addresses = fields.Text(
@@ -71,6 +72,7 @@ class ResDeviceLog(models.Model):
             device.display_name = f"{platform.capitalize()} {browser.capitalize()}"
 
     def _compute_is_current(self) -> None:
+        """Flag the device backing the current HTTP session."""
         for device in self:
             device.is_current = request and request.session.sid.startswith(
                 device.session_identifier
@@ -118,6 +120,7 @@ class ResDeviceLog(models.Model):
         return super()._order_field_to_sql(alias, field_name, direction, nulls, query)
 
     def _is_mobile(self, platform: str | None) -> bool:
+        """Return whether ``platform`` denotes a known mobile platform."""
         if not platform:
             return False
         return platform.lower() in _MOBILE_PLATFORMS
@@ -139,6 +142,11 @@ class ResDeviceLog(models.Model):
         session_identifier = request.session.sid[:STORED_SESSION_BYTES]
 
         if self.env.cr.readonly:
+            # RDEV-P1 (audit 2026-05-28, S3 robustness): rolling back the request
+            # transaction to obtain a RW cursor is safe only because device
+            # logging runs before any request-scoped writes (ir.http dispatch
+            # ordering). If this method were ever called after meaningful
+            # uncommitted work on the readonly cursor, that work would be lost.
             self.env.cr.rollback()
             cursor = self.env.registry.cursor(readonly=False)
         else:
@@ -195,6 +203,16 @@ class ResDeviceLog(models.Model):
         Set the field ``revoked`` to ``True`` for ``res.device.log``
         for which the session file no longer exists on the filesystem.
         """
+        # RDEV-P2 (audit 2026-05-28, S3 robustness, documented — no change):
+        # the candidate filter ("revoked", "=", False) shrinks the result window
+        # as rows are flagged, and the hand-rolled `offset -= len(to_revoke)`
+        # correction only compensates for rows revoked in the *current* batch.
+        # Under very large datasets some non-revoked candidates can be skipped in
+        # a single vacuum run, but they are caught on the next run; the session
+        # file is already gone, so only the audit `revoked` flag lags (no security
+        # impact). A keyset/seek scan (("id", ">", last_id)) would remove the
+        # write/cursor coupling, but is a behavioural change to a committing GC
+        # loop, intentionally left out of this minimal pass.
         batch_size = 100_000
         offset = 0
 
@@ -224,8 +242,9 @@ class ResDeviceLog(models.Model):
             )
             if revoked_session_identifiers:
                 to_revoke = candidate_device_log_ids.filtered(
-                    lambda candidate, revoked=revoked_session_identifiers: candidate.session_identifier
-                    in revoked
+                    lambda candidate, revoked=revoked_session_identifiers: (
+                        candidate.session_identifier in revoked
+                    )
                 )
                 to_revoke.write({"revoked": True})
                 self.env.cr.commit()
@@ -244,6 +263,23 @@ class ResDevice(models.Model):
         return self._revoke()
 
     def _revoke(self) -> None:
+        """Revoke the sessions of the devices in ``self`` (privileged action).
+
+        Deletes the matching session files, flags the device logs ``revoked``,
+        and logs out the current session if it is among them.
+
+        :raises AccessError: when a non-system caller passes a device that does
+            not belong to ``self.env.user``.
+        """
+        if not self:
+            return
+        # RDEV-L1 (audit 2026-05-28): self-scope the privileged revoke so the
+        # invariant lives inside the method that escalates to sudo(), instead of
+        # relying solely on the upstream record rule. Mirrors res.users.apikeys._remove.
+        # A non-system caller may only revoke their own devices; admins
+        # (group_system) retain full revoke by design.
+        if not self.env.is_system() and self.mapped("user_id") != self.env.user:
+            raise AccessError(_("You can only revoke your own devices."))
         ResDeviceLog = self.env["res.device.log"]
         session_identifiers = list(unique(device.session_identifier for device in self))
         root.session_store.delete_from_identifiers(session_identifiers)
@@ -263,14 +299,17 @@ class ResDevice(models.Model):
 
     @api.model
     def _select(self) -> str:
+        """Return the SELECT clause of the ``res.device`` view query."""
         return "SELECT D.*"
 
     @api.model
     def _from(self) -> str:
+        """Return the FROM clause of the ``res.device`` view query."""
         return "FROM res_device_log D"
 
     @api.model
     def _where(self) -> str:
+        """Return the WHERE clause keeping the latest non-revoked log per device."""
         return """
             WHERE
                 NOT EXISTS (

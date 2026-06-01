@@ -111,6 +111,23 @@ class ResUsersApikeys(models.Model):
         )
 
     def _check_credentials(self, *, scope: str, key: str) -> int | None:
+        """Return the user id whose API key matches ``key`` for ``scope``, else None.
+
+        :param str scope: the requested scope; a NULL-scope stored key matches any
+            scope, a scoped key matches only its own scope.
+        :param str key: the cleartext API key to verify.
+        :return: the owning user id, or None when no active, unexpired key matches.
+        :rtype: int | None
+        """
+        # AK-L1 (audit 2026-05-28, S3 latent, accepted): candidate rows are
+        # narrowed by `index = key[:INDEX_SIZE]`, the first 8 hex chars (32 bits)
+        # of the key stored in cleartext for lookup performance. This is a
+        # deliberate, documented trade-off — the full secret is only ever stored
+        # as a salted pbkdf2 hash, so an attacker with DB read access still faces
+        # the remaining 128 bits (2^128, infeasible); the cleartext prefix only
+        # shaves the nominal margin. The number of verify() calls scales with
+        # prefix collisions (content-dependent), not with the secret, so it is
+        # not a practical key-recovery timing oracle. No code change required.
         if not scope or not key:
             msg = "scope and key required"
             raise ValueError(msg)
@@ -139,9 +156,14 @@ class ResUsersApikeys(models.Model):
         return None
 
     def _check_expiration_date(self, date: datetime.datetime | None) -> None:
-        # To be in a sudoed environment or to be an administrator
-        # to create a persistent key (no expiration date) or
-        # to exceed the maximum duration determined by the user's privileges.
+        """Validate ``date`` against the caller's allowed API-key duration.
+
+        :param date: the requested expiration date, or None for a persistent key.
+        :raises ValidationError: when a non-system user omits the date or exceeds
+            the maximum duration allowed by their group privileges.
+        """
+        # A system (or sudoed) user may create a persistent key (no expiration
+        # date) or exceed the maximum duration determined by the user's privileges.
         if self.env.is_system():
             return
         if not date:
@@ -166,17 +188,23 @@ class ResUsersApikeys(models.Model):
         name: str,
         expiration_date: datetime.datetime | None,
     ) -> str:
-        """Generates an api key.
-        :param str scope: the scope of the key. If None, the key will give access to any rpc.
-        :param str name: the name of the key, mainly intended to be displayed in the UI.
-        :param date expiration_date: the expiration date of the key.
-        :return: str: the key.
+        """Generate an API key for ``self.env.user`` and return its cleartext value.
 
-        Note:
-        This method must be called in sudo to use a duration
-        greater than that allowed by the user's privileges.
-        For a persistent key (infinite duration), no value for expiration date.
+        :param str scope: the scope of the key. If None, the key gives access to any rpc.
+        :param str name: the name of the key, mainly intended to be displayed in the UI.
+        :param expiration_date: the expiration date of the key, or None for a
+            persistent (infinite-duration) key.
+        :return: the cleartext key.
+        :rtype: str
+        :raises AccessError: when ``self.env.user`` is not an internal user.
         """
+        # AK-P1 (audit 2026-05-28): enforce the "only internal users hold API
+        # keys" invariant at the minting primitive itself, not only at the
+        # make_key UI path, so any in-process caller of _generate is self-guarded.
+        # To use a duration greater than that allowed by the user's privileges
+        # this must be called in a sudoed environment (env.is_system()).
+        if not self.env.user._is_internal():
+            raise AccessError(_("Only internal users can create API keys"))
         self._check_expiration_date(expiration_date)
         # no need to clear the LRU when *adding* a key, only when removing
         k = binascii.hexlify(os.urandom(API_KEY_SIZE)).decode()

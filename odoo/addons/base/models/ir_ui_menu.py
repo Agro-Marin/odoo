@@ -55,8 +55,19 @@ class IrUiMenu(models.Model):
 
     @api.depends("name", "parent_id.complete_name")
     def _compute_complete_name(self) -> None:
+        self._set_full_name("complete_name")
+
+    def _set_full_name(self, fname: str) -> None:
+        """Assign each record's full hierarchical name to field ``fname``.
+
+        Shared by :meth:`_compute_complete_name` and
+        :meth:`_compute_display_name`, which differ only in their
+        ``@api.depends`` triggers.
+
+        :param str fname: the name of the Char field to populate
+        """
         for menu in self:
-            menu.complete_name = menu._get_full_name()
+            menu[fname] = menu._get_full_name()
 
     def _get_full_name(self, level: int = 6) -> str:
         """Return the full name of ``self`` (up to a certain level)."""
@@ -75,6 +86,10 @@ class IrUiMenu(models.Model):
         if not path:
             return False
         path_info = path.split(",")
+        # An image web icon is "module,path"; anything without exactly those two
+        # parts is not a readable image (e.g. a malformed value).
+        if len(path_info) != 2:
+            return False
         icon_path = str(Path(path_info[0]) / path_info[1])
         try:
             with tools.file_open(
@@ -193,15 +208,12 @@ class IrUiMenu(models.Model):
         the menu hierarchy of the current user.
         Uses a cache for speeding up the computation.
         """
-        visible_ids = self._visible_menu_ids(
-            request.session.debug if request else False
-        )
+        visible_ids = self._visible_menu_ids(self._get_session_debug())
         return self.filtered(lambda menu: menu.id in visible_ids)
 
     @api.depends("parent_id")
     def _compute_display_name(self) -> None:
-        for menu in self:
-            menu.display_name = menu._get_full_name()
+        self._set_full_name("display_name")
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -230,6 +242,11 @@ class IrUiMenu(models.Model):
         The ``web_icon_data`` computed field uses :meth:`_read_image` for image
         web icons, and is ``False`` for built icons.
         """
+        # A 2-part value is an image icon "module,path"; a built icon has 3
+        # parts ("class,color,bg"). A 2-part built icon ("class,color", no bg)
+        # is indistinguishable from an image here and is handled by _read_image
+        # returning False (no such file) — harmless, the JS rebuilds it from
+        # web_icon directly.
         if web_icon and len(web_icon.split(",")) == 2:
             return self._read_image(web_icon)
         return False
@@ -269,8 +286,20 @@ class IrUiMenu(models.Model):
     def _load_menus_blacklist(self) -> list[int]:
         return []
 
+    def _get_session_debug(self) -> str | bool:
+        """Return the current request debug flag, or ``False`` off-request.
+
+        Exposed so :meth:`load_menus_root` can include the debug state in its
+        ormcache key without taking a parameter (its callers invoke it with no
+        arguments).
+
+        :return: the ``request.session.debug`` value, or ``False`` off-request
+        :rtype: str | bool
+        """
+        return request.session.debug if request else False
+
     @api.model
-    @tools.ormcache("self.env.uid", "self.env.lang")
+    @tools.ormcache("self.env.uid", "self.env.lang", "self._get_session_debug()")
     def load_menus_root(self) -> dict[str, Any]:
         fields = ["name", "sequence", "parent_id", "action", "web_icon_data"]
         menu_roots = self.get_user_roots()
@@ -371,18 +400,21 @@ class IrUiMenu(models.Model):
                 "xmlid": xmlids.get(menu_id, ""),
             }
 
-        # prefetch action.path
+        # Batch-fetch action.path and build a (model, id) -> path map so the
+        # per-menu loop reads from memory instead of re-browsing one action at
+        # a time.
+        action_path_by_action = {}
         for model_name, action_ids in action_ids_by_type.items():
-            self.env[model_name].sudo().browse(action_ids).fetch(["path"])
+            actions = self.env[model_name].sudo().browse(action_ids)
+            actions.fetch(["path"])
+            for action in actions:
+                action_path_by_action[model_name, action.id] = action.path
 
         # set children + model_path
         for menu_dict in menus_dict.values():
             if menu_dict["action_model"]:
-                menu_dict["action_path"] = (
-                    self.env[menu_dict["action_model"]]
-                    .sudo()
-                    .browse(menu_dict["action_id"])
-                    .path
+                menu_dict["action_path"] = action_path_by_action.get(
+                    (menu_dict["action_model"], menu_dict["action_id"]), False
                 )
             else:
                 menu_dict["action_path"] = False

@@ -177,6 +177,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 continue  # no record
 
             if len(columns) <= 1:
+                if not columns:
+                    # A junction table whose only column is the FK has no other
+                    # column to deduplicate against, so there is nothing the
+                    # NOT EXISTS guard below could compare; skip it (BPM-L05).
+                    continue
                 # unique key treated
                 val = SQL.identifier(columns[0])
                 for record in src_records:
@@ -232,16 +237,37 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                             )
                         )
                 except psycopg.Error:
-                    # updating fails, most likely due to a violated unique constraint
-                    # keeping record with nonexistent partner_id is useless, better delete it
-                    self.env.cr.execute(
-                        SQL(
-                            "DELETE FROM %s WHERE %s = ANY(%s)",
-                            tbl,
-                            col,
-                            list(src_records.ids),
-                        )
-                    )
+                    # A unique/check constraint spanning this FK column was
+                    # violated by at least one repointed row. Retry source by
+                    # source so the non-clashing rows are still repointed and
+                    # only the offending row is dropped -- NOT a blanket delete
+                    # of every source row, which would also destroy the many
+                    # valid, non-clashing junction rows (BPM-L06, mirroring the
+                    # row-by-row reference-field recovery in BPM-L02 above).
+                    for record in src_records:
+                        try:
+                            with mute_logger("odoo.db"), self.env.cr.savepoint():
+                                self.env.cr.execute(
+                                    SQL(
+                                        "UPDATE %s SET %s = %s WHERE %s = ANY(%s)",
+                                        tbl,
+                                        col,
+                                        dst_record.id,
+                                        col,
+                                        [record.id],
+                                    )
+                                )
+                        except psycopg.Error:
+                            # keeping a row with a nonexistent partner_id is
+                            # useless, better delete just this offending row
+                            self.env.cr.execute(
+                                SQL(
+                                    "DELETE FROM %s WHERE %s = ANY(%s)",
+                                    tbl,
+                                    col,
+                                    [record.id],
+                                )
+                            )
 
     @api.model
     def _update_reference_fields_generic(
@@ -325,11 +351,31 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             records_ref = Model.sudo().search(  # noqa: E8507 — inherent: each reference field targets a different model
                 [(record.name, "in", src_values)]
             )
-            records_ref.sudo().write(
-                {record.name: f"{referenced_model},{dst_record.id}"}
-            )
+            if not records_ref:
+                continue
+            new_value = f"{referenced_model},{dst_record.id}"
+            try:
+                with mute_logger("odoo.db"), self.env.cr.savepoint():
+                    records_ref.sudo().write({record.name: new_value})
+                    records_ref.env.flush_all()
+            except psycopg.Error:
+                # A unique/check constraint spanning this stored reference column
+                # was violated by at least one repointed row. Retry row by row so
+                # the non-clashing rows are still repointed and only the offending
+                # row is dropped -- NOT a blanket unlink of the whole batch, which
+                # would discard the many valid, non-clashing references (BPM-L02).
+                for rec in records_ref:
+                    try:
+                        with mute_logger("odoo.db"), self.env.cr.savepoint():
+                            rec.sudo().write({record.name: new_value})
+                            rec.env.flush_all()
+                    except psycopg.Error:
+                        rec.sudo().unlink()
         # company_dependent fields referring the merged records
         for field in self.env.registry.many2one_company_dependents[dst_record._name]:
+            # The EXISTS filter restricts the rewrite to rows whose jsonb
+            # actually references a source id; without it every non-null row of
+            # the table is rewritten to byte-identical jsonb (BPM-P1).
             self.env.cr.execute(
                 SQL(
                     """
@@ -345,6 +391,10 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     FROM jsonb_each_text(%(field)s)
                 )
                 WHERE %(field)s IS NOT NULL
+                AND EXISTS (
+                    SELECT 1 FROM jsonb_each_text(%(field)s) AS each_val(k, v)
+                    WHERE v::int IN %(src_record_ids)s
+                )
                 """,
                     table=SQL.identifier(self.env[field.model_name]._table),
                     field=SQL.identifier(field.name),
@@ -589,7 +639,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             src_partners = ordered_partners[:-1]
         _logger.info("dst_partner: %s", dst_partner.id)
 
-        # Make the company of all related users consistent with destination partner company
+        # Make the company of all related users consistent with destination partner company.
+        # res.partner requires a partner's company_id to match its users' company
+        # (see res.partner.write), so the linked user must be re-homed to the
+        # destination's company -- "preserving" a different default would make the
+        # destination partner + its user inconsistent and abort the merge (BPM-L03
+        # investigated: the overwrite is required, not a bug).
         if dst_partner.company_id:
             partner_ids.mapped("user_ids").sudo().write(
                 {
@@ -858,7 +913,14 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             partner_ids = literal_eval(line.aggr_ids)
             self._merge(partner_ids)
             line.unlink()
-            self.env.cr.commit()  # TODO JEM : explain why
+            # Commit per group so that a failure on a later group does not roll
+            # back the groups already merged: this is a deliberate resumable
+            # batch (each _merge is atomic to its commit). Deferred BPM-L04
+            # robustness improvement: wrap the loop body in try/except, roll
+            # back and log the failing group, continue with the rest, then set
+            # state='finished' and report the skipped groups -- not implemented
+            # here because skip-and-continue is a pending behavior-policy choice.
+            self.env.cr.commit()
 
         self.write({"state": "finished"})
         return {
@@ -903,6 +965,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             partner_ids = literal_eval(line.aggr_ids)
             self._merge(partner_ids)
             line.unlink()
+            # Commit per group so that a failure on a later group does not roll
+            # back the groups already merged: this is a deliberate resumable
+            # batch (each _merge is atomic to its commit). Deferred BPM-L04
+            # robustness improvement: wrap the loop body in try/except, roll
+            # back and log the failing group, continue with the rest, then set
+            # state='finished' and report the skipped groups -- not implemented
+            # here because skip-and-continue is a pending behavior-policy choice.
             self.env.cr.commit()
 
         self.write({"state": "finished"})

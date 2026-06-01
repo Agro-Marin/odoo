@@ -103,7 +103,7 @@ def get_view_arch_from_file(filepath: str, xmlid: str) -> str | None:
     # xmlid has been suffixed by '_ir_ui_view'. We need to also search
     # for views without this prefix.
     if view_id.endswith("_ir_ui_view"):
-        # len('_ir_ui_view') == 11  # noqa: ERA001
+        # len('_ir_ui_view') == 11
         xpath = xpath[:-1] + f" or @id='{xmlid[:-11]}' or @id='{view_id[:-11]}']"
 
     document = etree.parse(filepath)
@@ -380,6 +380,7 @@ class IrUiView(models.Model):
         """
         for view in self:
             arch = False
+            write_dict = None
             if mode == "soft":
                 arch = view.arch_prev
                 write_dict = {"arch_db": arch}
@@ -390,7 +391,7 @@ class IrUiView(models.Model):
                     "arch_prev": False,
                     "arch_updated": False,
                 }
-            if arch:
+            if arch and write_dict:
                 # Don't save current arch in previous since we reset, this arch is probably broken
                 view.with_context(no_save_prev=True, lang=None).write(write_dict)
 
@@ -948,9 +949,9 @@ class IrUiView(models.Model):
         domain = self._get_inheriting_views_domain()
         query = self._search(domain)
         where_clause = query.where_clause
-        assert query.from_clause == SQL.identifier(
-            "ir_ui_view"
-        ), f"Unexpected from clause: {query.from_clause}"
+        assert query.from_clause == SQL.identifier("ir_ui_view"), (
+            f"Unexpected from clause: {query.from_clause}"
+        )
 
         field_names = [
             f.name for f in self._fields.values() if f.prefetch is True and not f.groups
@@ -1248,13 +1249,13 @@ class IrUiView(models.Model):
         #                           }  # noqa: ERA001, RUF100
         #
         # Tree traversal order (`view` and `queue` at the `while` stmt):
-        #   1 [2, 3]  # noqa: ERA001
-        #   2 [5, 3, 4]  # noqa: ERA001
-        #   5 [7, 8, 3, 4]  # noqa: ERA001
-        #   7 [8, 3, 4]  # noqa: ERA001
-        #   8 [3, 4]  # noqa: ERA001
-        #   3 [4]  # noqa: ERA001
-        #   4 [6]  # noqa: ERA001
+        #   1 [2, 3]
+        #   2 [5, 3, 4]
+        #   5 [7, 8, 3, 4]
+        #   7 [8, 3, 4]
+        #   8 [3, 4]
+        #   3 [4]
+        #   4 [6]
         #   6 []
         combined_arch = etree.fromstring(self.arch)
         if self.env.context.get("inherit_branding"):
@@ -2743,7 +2744,7 @@ class IrUiView(models.Model):
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        # ('calendar', 'form', 'graph', 'kanban', 'pivot', 'search', 'list', 'activity')  # noqa: ERA001
+        # ('calendar', 'form', 'graph', 'kanban', 'pivot', 'search', 'list', 'activity')
         if node_info["validate"] and any(
             "btn" in node.get(cl, "") for cl in att_names("class")
         ):
@@ -2776,7 +2777,7 @@ class IrUiView(models.Model):
     # ------------------------------------------------------
 
     def _check_dropdown_menu(self, node: _Element) -> None:
-        # ('calendar', 'form', 'graph', 'kanban', 'pivot', 'search', 'list', 'activity')  # noqa: ERA001
+        # ('calendar', 'form', 'graph', 'kanban', 'pivot', 'search', 'list', 'activity')
         if any("dropdown-menu" in node.get(cl, "") for cl in att_names("class")):
             if node.get("role") != "menu":
                 msg = "dropdown-menu class must have menu role"
@@ -2794,7 +2795,7 @@ class IrUiView(models.Model):
                 msg = "o_progressbar class must have aria-valuemin attribute"
                 self._log_view_warning(msg, node)
             if not any(node.get(at) for at in att_names("aria-valuemax")):
-                msg = "o_progressbar class must have aria-valuemaxattribute"
+                msg = "o_progressbar class must have aria-valuemax attribute"
                 self._log_view_warning(msg, node)
 
     def _is_qweb_based_view(self, view_type: str) -> bool:

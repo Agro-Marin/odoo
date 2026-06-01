@@ -105,6 +105,9 @@ class ResetViewArchWizard(models.TransientModel):
     def reset_view_button(self) -> dict[str, str]:
         self.ensure_one()
         if self.reset_mode == "other_view":
+            # Writing arch_db directly here bypasses reset_arch but NOT its
+            # validation: ir.ui.view.write runs the _check_xml constraint on any
+            # arch_db change, so the copied arch is still validated before commit.
             self.view_id.write({"arch_db": self.arch_to_compare})
         else:
             self.view_id.reset_arch(self.reset_mode)

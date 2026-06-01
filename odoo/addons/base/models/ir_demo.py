@@ -10,6 +10,11 @@ class IrDemo(models.TransientModel):
 
     @assert_log_admin_access
     def install_demo(self) -> dict[str, str]:
+        """Force demo-data installation on the entire database (admin-only, irreversible).
+
+        :return: an ``ir.actions.act_url`` reloading the web client at ``/odoo``.
+        :rtype: dict
+        """
         odoo.modules.loading.force_demo(self.env)
         return {
             "type": "ir.actions.act_url",
