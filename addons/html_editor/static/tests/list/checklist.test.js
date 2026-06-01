@@ -4,6 +4,21 @@ import { unformat } from "../_helpers/format.js";
 import { clickCheckbox, pasteHtml } from "../_helpers/user_actions.js";
 import { click, manuallyDispatchProgrammaticEvent } from "@odoo/hoot-dom";
 
+// TODO: 12 of 15 tests in this file fail with "Cannot translate string:
+// translations have not been loaded" because the checklist plugin calls
+// ``_t("Checked")`` / ``_t("Unchecked")`` lazily when rendering the
+// wrapper title.  Adding ``allowTranslations()`` or directly setting
+// ``translatedTerms[translationLoaded] = true`` in a ``beforeEach`` does
+// not unblock these tests — the ``valueOf()`` throw still fires, which
+// suggests either (a) the test bundle's ``translatedTerms`` is a
+// distinct copy from the module that calls ``_t()`` despite the
+// globalThis routing, or (b) the lazy TranslatedString instance is
+// created before the ``beforeEach`` runs and its ``lazy`` flag is
+// already set.  Either way the fix needs deeper investigation of
+// the ``TranslatedString`` lifecycle in cross-bundle test mode.
+// Tracked as a follow-up; the failing tests don't reflect a product
+// regression, only test-harness translation initialization.
+
 test("should do nothing if do not click on the checkbox", async () => {
     await testEditor({
         contentBefore: unformat(`

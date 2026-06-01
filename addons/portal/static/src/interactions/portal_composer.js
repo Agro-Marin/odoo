@@ -33,7 +33,7 @@ export class PortalComposer extends Interaction {
         }
         for (const name of ["res_id", "partner_id", "pid"]) {
             if (typeof options[name] === "string") {
-                options[name] = parseInt(options[name]);
+                options[name] = parseInt(options[name], 10);
             }
         }
         return Object.assign(
@@ -66,7 +66,7 @@ export class PortalComposer extends Interaction {
 
     start() {
         if (this.options.default_attachment_ids) {
-            this.attachments = this.options.default_attachment_ids || [];
+            this.attachments = this.options.default_attachment_ids;
             for (const attachment of this.attachments) {
                 attachment.state = "done";
             }
@@ -80,7 +80,8 @@ export class PortalComposer extends Interaction {
 
     async onAttachmentDeleteClick(ev, currentTargetEl) {
         const attachmentId = parseInt(
-            currentTargetEl.closest(".o_portal_chatter_attachment").dataset.id
+            currentTargetEl.closest(".o_portal_chatter_attachment").dataset.id,
+            10
         );
         const accessToken = this.attachments.find(
             (attachment) => attachment.id === attachmentId
@@ -111,46 +112,43 @@ export class PortalComposer extends Interaction {
 
     async onFileInputChange() {
         this.sendButtonEl.disabled = true;
-
-        await this.waitFor(
-            Promise.all(
-                [...this.fileInputEl.files].map(
-                    (file) =>
-                        new Promise((resolve, reject) => {
-                            const data = this.prepareAttachmentData(file);
-                            if (odoo.csrf_token) {
-                                data.csrf_token = odoo.csrf_token;
-                            }
-                            this.waitFor(post("/mail/attachment/upload", data))
-                                .then((res) => {
-                                    const attachmentId = res.data["attachment_id"];
-                                    const attachment = res.data["store_data"]["ir.attachment"].find(
-                                        (att) => att.id === attachmentId
-                                    );
-                                    attachment.state = "pending";
-                                    this.attachments.push(attachment);
-                                    this.updateAttachments();
-                                    resolve();
-                                })
-                                .catch((error) => {
-                                    if (error instanceof RPCError) {
-                                        this.services.notification.add(
-                                            _t(
-                                                "Could not save file %s",
-                                                markup`<strong>${file.name}</strong>`
-                                            ),
-                                            { type: "warning", sticky: true }
-                                        );
-                                        resolve();
-                                    }
-                                });
-                        })
+        try {
+            await this.waitFor(
+                Promise.all(
+                    [...this.fileInputEl.files].map((file) => this._uploadOne(file))
                 )
-            )
-        );
-        // ensures any selection triggers a change, even if the same files are selected again
-        this.fileInputEl.value = null;
-        this.sendButtonEl.disabled = false;
+            );
+        } finally {
+            // ensures any selection triggers a change, even if the same files are selected again
+            this.fileInputEl.value = null;
+            this.sendButtonEl.disabled = false;
+        }
+    }
+
+    async _uploadOne(file) {
+        const data = this.prepareAttachmentData(file);
+        if (odoo.csrf_token) {
+            data.csrf_token = odoo.csrf_token;
+        }
+        try {
+            const res = await this.waitFor(post("/mail/attachment/upload", data));
+            const attachmentId = res.data["attachment_id"];
+            const attachment = res.data["store_data"]["ir.attachment"].find(
+                (att) => att.id === attachmentId
+            );
+            attachment.state = "pending";
+            this.attachments.push(attachment);
+            this.updateAttachments();
+        } catch (error) {
+            // Surface RPC errors as toasts; swallow other errors so one bad
+            // file doesn't reject the whole Promise.all batch.
+            if (error instanceof RPCError) {
+                this.services.notification.add(
+                    _t("Could not save file %s", markup`<strong>${file.name}</strong>`),
+                    { type: "warning", sticky: true }
+                );
+            }
+        }
     }
 
     prepareMessageData() {

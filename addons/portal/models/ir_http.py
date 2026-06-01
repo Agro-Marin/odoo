@@ -1,12 +1,13 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import models
 
 
 class IrHttp(models.AbstractModel):
-    _inherit = 'ir.http'
+    """Register portal-owned JS modules with the frontend translation loader."""
+
+    _inherit = "ir.http"
 
     @classmethod
     def _get_translation_frontend_modules_name(cls):
+        """Append ``portal`` so its JS strings ship with frontend translation bundles."""
         mods = super()._get_translation_frontend_modules_name()
-        return mods + ['portal']
+        return [*mods, "portal"]

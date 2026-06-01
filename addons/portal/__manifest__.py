@@ -1,55 +1,64 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 {
-    'name': 'Customer Portal',
-    'summary': 'Customer Portal',
-    'sequence': 9000,
-    'category': 'Hidden',
-    'description': """
-This module adds required base code for a fully integrated customer portal.
-It contains the base controller class and base templates. Business addons
-will add their specific templates and controllers to extend the customer
-portal.
+    "name": "Customer Portal",
+    "summary": "Shared base for portal-user pages: templates, mixin, and controllers for external authenticated access",
+    "version": "19.0.1.0",
+    "sequence": 9000,
+    "category": "Hidden",
+    "description": """
+Portal Framework
+================
 
-This module contains most code coming from odoo v10 website_portal. Purpose
-of this module is to allow the display of a customer portal without having
-a dependency towards website editing and customization capabilities.""",
-    'depends': ['http_routing', 'auth_signup'],
-    'data': [
-        'security/ir.model.access.csv',
-        'data/mail_templates.xml',
-        'views/address_templates.xml',
-        'views/mail_templates_public.xml',
-        'views/portal_templates.xml',
-        'views/res_config_settings_views.xml',
-        'wizard/portal_share_views.xml',
-        'wizard/portal_wizard_views.xml',
+Base code for portal-authenticated pages: shared controller class, portal
+mixin, and templates used by business addons to expose records to external
+users (customers, vendors, signers, event attendees, mailing-list subscribers,
+resellers, ...). The display label is "Customer Portal" for historical reasons,
+but the technical scope covers any user with portal access rights.
+
+The module deliberately does not depend on website-editing or theming
+capabilities so portal pages can be rendered without the ``website`` module.
+""",
+    "depends": ["http_routing", "auth_signup"],
+    "data": [
+        "security/ir.model.access.csv",
+        "data/mail_templates.xml",
+        "views/address_templates.xml",
+        "views/mail_templates_public.xml",
+        "views/portal_templates.xml",
+        "views/res_config_settings_views.xml",
+        "wizard/portal_share_views.xml",
+        "wizard/portal_wizard_views.xml",
     ],
-    'assets': {
-        'web._assets_primary_variables': [
-            'portal/static/src/scss/primary_variables.scss',
+    "assets": {
+        "web._assets_primary_variables": [
+            "portal/static/src/scss/primary_variables.scss",
         ],
-        'web._assets_frontend_helpers': [
-            ('prepend', 'portal/static/src/scss/bootstrap_overridden.scss'),
+        "web._assets_frontend_helpers": [
+            ("prepend", "portal/static/src/scss/bootstrap_overridden.scss"),
         ],
-        'web.assets_backend': [
-            'portal/static/src/views/**/*',
+        # Backend-only widgets used by the portal-access wizard
+        # (portal.wizard.user Many2one + list controller). Lives in this module
+        # because the wizard is owned by portal, even though the bundle is backend.
+        "web.assets_backend": [
+            "portal/static/src/views/**/*",
         ],
-        'web.assets_frontend': [
-            'portal/static/src/interactions/**/*',
-            'portal/static/src/scss/portal.scss',
-            'portal/static/src/js/**/*',
-            'portal/static/src/xml/**/*',
-            'portal/static/src/signature_form/**/*',
-            'portal/static/src/chatter/boot/boot_service.js',
+        "web.assets_frontend": [
+            "portal/static/src/interactions/**/*",
+            "portal/static/src/scss/portal.scss",
+            "portal/static/src/js/**/*",
+            "portal/static/src/xml/**/*",
+            "portal/static/src/signature_form/**/*",
+            # Lazy-loader entry. Every other file under chatter/ lives in the
+            # custom portal.assets_chatter bundle (loaded on demand to keep
+            # portal pages light); only this boot_service ships eagerly.
+            "portal/static/src/chatter/boot/boot_service.js",
         ],
-        'web.assets_unit_tests_setup': [
-            'portal/static/src/interactions/**/*',
-            'portal/static/src/js/components/input_confirmation_dialog/*',
-            'portal/static/src/xml/**/*',
+        "web.assets_unit_tests_setup": [
+            "portal/static/src/interactions/**/*",
+            "portal/static/src/js/components/input_confirmation_dialog/*",
+            "portal/static/src/xml/**/*",
         ],
-        'web.assets_tests': [
-            'portal/static/tests/**/*',
+        "web.assets_tests": [
+            "portal/static/tests/**/*",
         ],
         "portal.assets_chatter_helpers": [
             "web/static/src/views/view_dialogs/form_view_dialog.js",
@@ -97,7 +106,7 @@ a dependency towards website editing and customization capabilities.""",
             "portal/static/src/chatter/scss/primary_variables.scss",  # to force interprise primary color
             ("include", "web._assets_bootstrap_backend"),
             "web/static/src/scss/mimetypes.scss",
-            'web/static/src/scss/ui.scss',
+            "web/static/src/scss/ui.scss",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
@@ -112,10 +121,13 @@ a dependency towards website editing and customization capabilities.""",
             ("remove", "mail/static/src/**/*.dark.scss"),
             "portal/static/src/chatter/scss/shadow.scss",
         ],
-        'website.assets_inside_builder_iframe': [
-            'portal/static/src/scss/portal.edit.*'
+        # Contributes to a website-owned bundle. The contribution is silently
+        # ignored when website is not installed, which is intentional: portal
+        # must remain installable without website. Do NOT add website to depends.
+        "website.assets_inside_builder_iframe": [
+            "portal/static/src/scss/portal.edit.*"
         ],
     },
-    'author': 'Odoo S.A.',
-    'license': 'LGPL-3',
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
 }

@@ -1,4 +1,5 @@
 from odoo import _, http
+from odoo.exceptions import UserError
 from odoo.http import request
 
 
@@ -8,7 +9,7 @@ class ImStatusController(http.Controller):
     )
     def set_manual_im_status(self, status):
         if status not in ["online", "away", "busy", "offline"]:
-            raise ValueError(_("Unexpected IM status %(status)s", status=status))
+            raise UserError(_("Unexpected IM status %(status)s", status=status))
         user = request.env.user
         user.manual_im_status = False if status == "online" else status
         user._bus_send(

@@ -81,16 +81,25 @@ class HTML_Editor(http.Controller):
         except FileNotFoundError:
             raise werkzeug.exceptions.NotFound()
 
+    # Hardcoded fallback palette used when a snippet requests an
+    # ``o-color-N`` reference that the active frontend bundle does not
+    # resolve to a literal hex/rgba (e.g. the variable is ``var(...)``
+    # chained through a theme we don't have installed, or the database
+    # has no frontend theme at all on a fresh install).  Serving the
+    # snippet with default colors is strictly better than a 400 that
+    # breaks the visual: the shape renders with reasonable contrast and
+    # the rest of the page keeps working.
+    _SVG_DEFAULT_PALETTE = {
+        '1': '#3AADAA',
+        '2': '#7C6576',
+        '3': '#F6F6F6',
+        '4': '#FFFFFF',
+        '5': '#383E45',
+    }
+
     def _update_svg_colors(self, options, svg):
         user_colors = []
         svg_options = {}
-        default_palette = {
-            '1': '#3AADAA',
-            '2': '#7C6576',
-            '3': '#F6F6F6',
-            '4': '#FFFFFF',
-            '5': '#383E45',
-        }
         bundle_css = None
         regex_hex = r'#[0-9A-F]{6,8}'
         regex_rgba = r'rgba?\(\d{1,3}, ?\d{1,3}, ?\d{1,3}(?:, ?[0-9.]{1,4})?\)'
@@ -100,22 +109,40 @@ class HTML_Editor(http.Controller):
                 css_color_value = value
                 # Check that color is hex or rgb(a) to prevent arbitrary injection
                 if not re.match(rf'(?i)^{regex_hex}$|^{regex_rgba}$', css_color_value.replace(' ', '')):
-                    if re.match('^o-color-([1-5])$', css_color_value):
-                        if not bundle_css:
+                    o_color_match = re.match('^o-color-([1-5])$', css_color_value)
+                    if o_color_match:
+                        if bundle_css is None:
                             bundle = 'web.assets_frontend'
                             asset = request.env["ir.qweb"]._get_asset_bundle(bundle)
                             bundle_css = asset.css().index_content
-                        color_search = re.search(rf'(?i)--{css_color_value}:\s+({regex_hex}|{regex_rgba})', bundle_css)
-                        if not color_search:
-                            raise werkzeug.exceptions.BadRequest()
-                        css_color_value = color_search.group(1)
+                        # ``\s*`` (not ``\s+``) so compressed CSS without
+                        # whitespace after the colon still matches.
+                        color_search = re.search(
+                            rf'(?i)--{css_color_value}:\s*({regex_hex}|{regex_rgba})',
+                            bundle_css,
+                        )
+                        if color_search:
+                            css_color_value = color_search.group(1)
+                        else:
+                            # Resolution miss — bundle doesn't hold a
+                            # literal hex/rgba for this palette slot
+                            # (theme variable chain, no theme, stale
+                            # attachment mid-rebuild, etc.).  Fall back
+                            # to the default palette so the snippet
+                            # still renders.
+                            css_color_value = self._SVG_DEFAULT_PALETTE[
+                                o_color_match.group(1)
+                            ]
                     else:
                         raise werkzeug.exceptions.BadRequest()
                 user_colors.append([tools.html_escape(css_color_value), colorMatch.group(1)])
             else:
                 svg_options[key] = value
 
-        color_mapping = {default_palette[palette_number]: color for color, palette_number in user_colors}
+        color_mapping = {
+            self._SVG_DEFAULT_PALETTE[palette_number]: color
+            for color, palette_number in user_colors
+        }
         # create a case-insensitive regex to match all the colors to replace, eg: '(?i)(#3AADAA)|(#7C6576)'
         regex = '(?i)' + '|'.join(f'({color})' for color in color_mapping)
 

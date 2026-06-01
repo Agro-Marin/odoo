@@ -33,7 +33,7 @@
             <field name="model">ir.module.module</field>
             <field name="inherit_id" ref="base.module_tree"/>
             <field name="arch" type="xml">
-                <field name="installed_version" position="after">
+                <field name="manifest_version" position="after">
                     <field name="module_type" column_invisible="1"/> <!-- Needed in js_class below -->
                     <field name="name" column_invisible="1"/> <!-- Needed in js_class below -->
                 </field>

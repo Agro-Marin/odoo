@@ -64,7 +64,7 @@ class AttachmentController(ThreadController):
             "res_id": int(thread_id),
             "res_model": thread_model,
         }
-        if is_pending and is_pending != "false":
+        if is_pending and str(is_pending).lower() not in ("false", "0", ""):
             # Add this point, the message related to the uploaded file does
             # not exist yet, so we use those placeholder values instead.
             vals.update(
@@ -147,7 +147,7 @@ class AttachmentController(ThreadController):
         type="jsonrpc",
     )
     @add_guest_to_context
-    def mail_attachement_update_thumbnail(
+    def mail_attachment_update_thumbnail(
         self, attachment_id, thumbnail=None, access_token=None
     ):
         """Updates the thumbnail of an attachment."""
@@ -178,7 +178,7 @@ class AttachmentController(ThreadController):
             raise UnsupportedMediaType
         content = page_stream.getvalue()
         headers = [
-            ("Content-Type", "attachment/pdf"),
+            ("Content-Type", "application/pdf"),
             ("X-Content-Type-Options", "nosniff"),
             ("Content-Length", len(content)),
         ]

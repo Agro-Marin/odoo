@@ -45,7 +45,7 @@ describe("ensureFocus", () => {
         }
     );
 
-    test.todo(
+    test(
         "should preserve the focus on the child of this.editable even if it is enclosed in a contenteditable=false",
         async () => {
             await testEditor({
@@ -56,20 +56,14 @@ describe("ensureFocus", () => {
                 <p><br></p>`),
                 stepFunction: async (editor) => {
                     ensureFocus(editor.editable);
-                    // TODO @phoenix still need it ?
-                    // await nextTickFrame();
                     let activeElement = document.activeElement;
                     editor.shared.selection.setCursorStart(activeElement.lastElementChild);
                     await insertText(editor, "focusWasConserved");
                     // Proof that a simple call to Element.focus would change
                     // the focus in this case.
                     editor.editable.focus();
-                    // TODO @phoenix still need it ?
-                    // await nextTickFrame();
                     activeElement = document.activeElement;
                     editor.shared.selection.setCursorStart(activeElement.lastElementChild);
-                    // TODO @phoenix still need it ?
-                    // await nextTickFrame();
                 },
                 contentAfter: unformat(`
                 <div contenteditable="false"><div contenteditable="true">
