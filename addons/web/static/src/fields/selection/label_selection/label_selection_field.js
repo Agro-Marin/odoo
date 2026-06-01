@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { formatSelection } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -49,4 +50,4 @@ export const labelSelectionField = {
     }),
 };
 
-registry.category("fields").add("label_selection", labelSelectionField);
+registerField("label_selection", labelSelectionField);

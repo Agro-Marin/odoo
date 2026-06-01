@@ -29,7 +29,15 @@ export function runClickTestItem({ env }) {
     };
 }
 
-const currentState = JSON.parse(browser.localStorage.getItem("running.clickbot"));
+// ``getItem`` returns ``null`` for missing keys in real localStorage,
+// which ``JSON.parse(null)`` accepts and resolves to ``null``. But
+// test patches occasionally return ``undefined`` (HOOT's
+// ``patchWithCleanup`` with an incomplete getter), which makes
+// ``JSON.parse(undefined)`` throw ``SyntaxError: "undefined" is not
+// valid JSON``. Guard with an explicit fall-back so module load
+// stays safe across both shapes.
+const rawClickbotState = browser.localStorage.getItem("running.clickbot");
+const currentState = rawClickbotState ? JSON.parse(rawClickbotState) : null;
 if (currentState) {
     startClickEverywhere(currentState.xmlId, currentState.light, currentState);
 }

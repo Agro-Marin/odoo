@@ -3,7 +3,6 @@
 
 /** @module @web/views/pivot/pivot_model - Pivot table data loading, group tree expansion, measure aggregation, and cell computation */
 
-import { Domain } from "@web/core/domain";
 import {
     cartesian,
     sections,
@@ -16,7 +15,6 @@ import { computeReportMeasures, processMeasure } from "@web/views/view_measureme
 
 import { formatPivotForExport } from "./pivot_export.js";
 import {
-    addGroup,
     findGroup,
     getLeafCounts,
     getTreeHeight,
@@ -24,19 +22,10 @@ import {
     pruneTree,
     sortTree,
 } from "./pivot_group_tree.js";
-import {
-    getCellValue,
-    getCurrencyIds,
-    getMeasurements,
-    getMeasureSpecs,
-} from "./pivot_measurements.js";
+import { getCellValue, getMeasureSpecs } from "./pivot_measurements.js";
+import { aggregateSubdivisions } from "./pivot_aggregation.js";
 import { getTableHeaders, getTableRows } from "./pivot_table.js";
-import {
-    getGroupBySpecs,
-    getGroupDomain,
-    getGroupLabels,
-    getGroupValues,
-} from "./pivot_value_utils.js";
+import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
 
 /**
  * Pivot Model
@@ -872,82 +861,9 @@ export class PivotModel extends Model {
      * @param {Config} config
      */
     _prepareData(group, groupSubdivisions, config) {
-        const { data, metaData } = config;
-        const groupRowValues = group.rowValues;
-        let groupRowLabels = [];
-        if (groupRowValues.length) {
-            const rowSubTree = findGroup(data.rowGroupTree, groupRowValues);
-            groupRowLabels = rowSubTree.root.labels;
-        }
-
-        const groupColValues = group.colValues;
-        let groupColLabels = [];
-        if (groupColValues.length) {
-            groupColLabels = findGroup(data.colGroupTree, groupColValues).root.labels;
-        }
-
-        groupSubdivisions.forEach((groupSubdivision) => {
-            groupSubdivision.subGroups.forEach((subGroup) => {
-                const rowValues = [
-                    ...groupRowValues,
-                    ...getGroupValues(
-                        subGroup,
-                        groupSubdivision.rowGroupBy,
-                        metaData.fields,
-                    ),
-                ];
-                const rowLabels = [
-                    ...groupRowLabels,
-                    ...getGroupLabels(
-                        subGroup,
-                        groupSubdivision.rowGroupBy,
-                        config,
-                        metaData.fields,
-                    ),
-                ];
-
-                const colValues = [
-                    ...groupColValues,
-                    ...getGroupValues(
-                        subGroup,
-                        groupSubdivision.colGroupBy,
-                        metaData.fields,
-                    ),
-                ];
-                const colLabels = [
-                    ...groupColLabels,
-                    ...getGroupLabels(
-                        subGroup,
-                        groupSubdivision.colGroupBy,
-                        config,
-                        metaData.fields,
-                    ),
-                ];
-
-                if (!colValues.length && rowValues.length) {
-                    addGroup(data.rowGroupTree, rowLabels, rowValues);
-                }
-                if (colValues.length && !rowValues.length) {
-                    addGroup(data.colGroupTree, colLabels, colValues);
-                }
-
-                const key = JSON.stringify([rowValues, colValues]);
-
-                data.measurements[key] = getMeasurements(subGroup, config);
-                data.currencyIds[key] = getCurrencyIds(subGroup, config);
-                data.counts[key] = subGroup.__count;
-
-                if (subGroup.__domain) {
-                    data.groupDomains[key] = subGroup.__domain;
-                } else {
-                    data.groupDomains[key] = Domain.FALSE.toList();
-                }
-            });
+        return aggregateSubdivisions(group, groupSubdivisions, config, {
+            sortRows: (sortedColumn, cfg) => this._sortRows(sortedColumn, cfg),
         });
-
-        if (metaData.sortedColumn) {
-            this._sortRows(metaData.sortedColumn, config);
-        }
     }
     /**
      * Get all partitions of a given group and enrich data structures.

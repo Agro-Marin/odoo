@@ -6,7 +6,8 @@
 import { Component } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class KanbanColorPickerField extends Component {
@@ -40,4 +41,4 @@ export const kanbanColorPickerField = {
     },
 };
 
-registry.category("fields").add("kanban_color_picker", kanbanColorPickerField);
+registerField("kanban_color_picker", kanbanColorPickerField);

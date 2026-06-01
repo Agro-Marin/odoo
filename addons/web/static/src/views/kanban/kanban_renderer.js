@@ -7,7 +7,6 @@ import {
     Component,
     onPatched,
     onWillDestroy,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -16,10 +15,9 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
-import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { MOVABLE_RECORD_TYPES } from "@web/model/relational_model/dynamic_group_list";
-import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { ActionHelper } from "@web/views/action_helper";
 import { useBounceButton } from "@web/views/view_hook";
@@ -32,6 +30,9 @@ import { KanbanColumnQuickCreate } from "./kanban_column_quick_create.js";
 import { KanbanHeader } from "./kanban_header.js";
 import { KanbanRecord } from "./kanban_record.js";
 import { KanbanRecordQuickCreate } from "./kanban_record_quick_create.js";
+import { useKanbanKeyboardNavigation } from "./kanban_keyboard_nav.js";
+import { useKanbanSelection } from "./kanban_selection_hook.js";
+import { useKanbanSortable } from "./kanban_sortable_hook.js";
 
 const DRAGGABLE_GROUP_TYPES = ["many2one"];
 
@@ -90,6 +91,7 @@ export class KanbanRenderer extends Component {
     };
 
     setup() {
+        useRenderCounter("kanban.KanbanRenderer");
         this.dialogClose = [];
         /**
          * @type {{ processedIds: string[], columnQuickCreateIsFolded: boolean }}
@@ -108,57 +110,25 @@ export class KanbanRenderer extends Component {
             validateColumnQuickCreateExamples(this.exampleData);
         }
         this.lastCheckedRecord = null;
-
-        // Sortable
-        let dataRecordId;
-        let dataGroupId;
         this.rootRef = useRef("root");
-        if (this.canUseSortable) {
-            useSortable({
-                enable: () => this.canResequenceRecords,
-                // Params
-                ref: this.rootRef,
-                elements: ".o_draggable",
-                ignore: ".dropdown,select",
-                groups: () => this.props.list.isGrouped && ".o_kanban_group",
-                connectGroups: () => this.canMoveRecords,
-                cursor: "move",
-                placeholderClasses: ["visible", "opacity-50", "my-2"],
-                // Hooks
-                onDragStart: (params) => {
-                    const { element, group } = params;
-                    dataRecordId = element.dataset.id;
-                    dataGroupId = group?.dataset.id;
-                    if (this.props.list.selection?.length) {
-                        this.props.list.selection.forEach((record) => {
-                            record.toggleSelection(false);
-                        });
-                    }
-                    return this.sortStart(params);
-                },
-                onDragEnd: (params) => this.sortStop(params),
-                onGroupEnter: (params) => this.sortRecordGroupEnter(params),
-                onGroupLeave: (params) => this.sortRecordGroupLeave(params),
-                onDrop: (params) =>
-                    this.sortRecordDrop(dataRecordId, dataGroupId, params),
-            });
-            useSortable({
-                enable: () => this.canResequenceGroups,
-                // Params
-                ref: this.rootRef,
-                elements: ".o_group_draggable",
-                handle: ".o_column_title",
-                cursor: "move",
-                // Hooks
-                onDragStart: (params) => {
-                    const { element } = params;
-                    dataGroupId = element.dataset.id;
-                    return this.sortStart(params);
-                },
-                onDragEnd: (params) => this.sortStop(params),
-                onDrop: (params) => this.sortGroupDrop(dataGroupId, params),
-            });
-        }
+
+        useKanbanSortable({
+            rootRef: this.rootRef,
+            getCanUseSortable: () => this.canUseSortable,
+            getCanResequenceRecords: () => this.canResequenceRecords,
+            getCanResequenceGroups: () => this.canResequenceGroups,
+            getCanMoveRecords: () => this.canMoveRecords,
+            getIsGrouped: () => this.props.list.isGrouped,
+            getSelection: () => this.props.list.selection,
+            onSortStart: (params) => this.sortStart(params),
+            onSortStop: (params) => this.sortStop(params),
+            onSortRecordGroupEnter: (params) => this.sortRecordGroupEnter(params),
+            onSortRecordGroupLeave: (params) => this.sortRecordGroupLeave(params),
+            onSortRecordDrop: (dataRecordId, dataGroupId, params) =>
+                this.sortRecordDrop(dataRecordId, dataGroupId, params),
+            onSortGroupDrop: (dataGroupId, params) =>
+                this.sortGroupDrop(dataGroupId, params),
+        });
 
         useBounceButton(this.rootRef, (clickedEl) => {
             if (
@@ -196,93 +166,16 @@ export class KanbanRenderer extends Component {
             });
         }
 
-        useHotkey(
-            "Enter",
-            ({ target: _target }) => {
-                const target = /** @type {HTMLElement} */ (_target);
-                if (target.closest(".o_kanban_selection_active") !== null) {
-                    return;
-                }
-
-                if (!target.classList.contains("o_kanban_record")) {
-                    return;
-                }
-
-                if (this.props.archInfo.canOpenRecords) {
-                    target.click();
-                    return;
-                }
-
-                // Open first link
-                const firstLink = target.querySelector("a, button");
-                if (firstLink) {
-                    firstLink.click();
-                }
-            },
-            { area: () => this.rootRef.el },
-        );
-
-        useHotkey("space", ({ target }) => this.onSpaceKeyPress(target), {
-            area: () => this.rootRef.el,
-            isAvailable: () => !this.props.quickCreateState.groupId,
+        useKanbanKeyboardNavigation({
+            rootRef: this.rootRef,
+            getCanOpenRecords: () => this.props.archInfo.canOpenRecords,
+            getQuickCreateActive: () => Boolean(this.props.quickCreateState.groupId),
+            onSpace: (target, isRange) => this.onSpaceKeyPress(target, isRange),
+            onArrowNav: (area, direction) => this.focusNextCard(area, direction),
+            searchModel: this.env.searchModel,
         });
 
-        useHotkey("shift+space", ({ target }) => this.onSpaceKeyPress(target, true), {
-            area: () => this.rootRef.el,
-            isAvailable: () => !this.props.quickCreateState.groupId,
-        });
-
-        const arrowsOptions = {
-            area: () => this.rootRef.el,
-            allowRepeat: true,
-        };
-        if (this.env.searchModel) {
-            useHotkey(
-                "ArrowUp",
-                ({ area }) => {
-                    if (!this.focusNextCard(area, "up")) {
-                        this.env.searchModel.trigger("focus-search");
-                    }
-                },
-                arrowsOptions,
-            );
-        }
-        useHotkey(
-            "ArrowDown",
-            ({ area }) => this.focusNextCard(area, "down"),
-            arrowsOptions,
-        );
-        useHotkey(
-            "ArrowLeft",
-            ({ area }) => this.focusNextCard(area, "left"),
-            arrowsOptions,
-        );
-        useHotkey(
-            "ArrowRight",
-            ({ area }) => this.focusNextCard(area, "right"),
-            arrowsOptions,
-        );
-        const handleAltKeyDown = (ev) => {
-            if (ev.key === "Alt") {
-                /** @type {any} */ (this.state).selectionAvailable = true;
-            }
-        };
-        const handleAltKeyUp = () => {
-            /** @type {any} */ (this.state).selectionAvailable = false;
-        };
-        useEffect(
-            () => {
-                window.addEventListener("keydown", handleAltKeyDown);
-                window.addEventListener("keyup", handleAltKeyUp);
-                window.addEventListener("blur", handleAltKeyUp);
-                return () => {
-                    window.removeEventListener("keydown", handleAltKeyDown);
-                    window.removeEventListener("keyup", handleAltKeyUp);
-                    window.removeEventListener("blur", handleAltKeyUp);
-                };
-            },
-            () => [],
-        );
+        useKanbanSelection(this.state);
 
         // After a group is unfolded through onGroupClick, we want to scroll towards
         // the next group if it exists and is folded, and to the unfolded group

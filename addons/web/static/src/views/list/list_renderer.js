@@ -19,13 +19,13 @@ import { CheckBox } from "@web/components/checkbox/checkbox";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
+import { AppEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
-import { registry } from "@web/core/registry";
-import { getClassNameFromDecoration } from "@web/core/utils/decorations";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { Field } from "@web/fields/field";
 import { getTooltipInfo } from "@web/fields/field_tooltip";
 import { MOVABLE_RECORD_TYPES } from "@web/model/relational_model/dynamic_group_list";
@@ -34,26 +34,20 @@ import { ActionHelper } from "@web/views/action_helper";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
 import { useBounceButton } from "@web/views/view_hook";
-import { getFormattedValue } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 import { useMagicColumnWidths } from "./column_width_hook.js";
 import { useListAggregates } from "./list_aggregates.js";
 import { ListAggregatesRow } from "./list_aggregates_row.js";
+import { listStylingMixin } from "./list_styling.js";
 import {
     getPropertyFieldColumns as getPropertyFieldColumnsUtil,
     processAllColumns,
 } from "./list_column_utils.js";
 import { ListGridState } from "./list_grid_state.js";
-import {
-    countRecordsInGroup,
-    getAggregateColumns as getAggregateColumnsUtil,
-    getFirstAggregateIndex as getFirstAggregateIndexUtil,
-    getGroupNameCellColSpan as getGroupNameCellColSpanUtil,
-    getGroupPagerCellColspan as getGroupPagerCellColspanUtil,
-    getLastAggregateIndex as getLastAggregateIndexUtil,
-} from "./list_group_layout.js";
+import { listGroupRenderingMixin } from "./list_group_rendering.js";
 import { containsActiveElement, useListKeyboardNavigation } from "./list_keyboard_nav.js";
+import { listSortingMixin } from "./list_sorting.js";
 import { useListOptionalFields } from "./list_optional_fields.js";
 import { useListSelection } from "./list_selection.js";
 import { useListVirtualization } from "./list_virtualization.js";
@@ -84,15 +78,6 @@ import { useListVirtualization } from "./list_virtualization.js";
  *  [key: string]: any;
  * }} ListRendererProps
  */
-
-const FIELD_CLASSES = {
-    char: "o_list_char",
-    float: "o_list_number",
-    integer: "o_list_number",
-    monetary: "o_list_number",
-    text: "o_list_text",
-    many2one: "o_list_many2one",
-};
 
 /** @extends Component */
 export class ListRenderer extends Component {
@@ -136,6 +121,7 @@ export class ListRenderer extends Component {
     ];
 
     setup() {
+        useRenderCounter("list.ListRenderer");
         this.actionService = useService("action");
         this.uiService = useService("ui");
         this.notificationService = useService("notification");
@@ -312,7 +298,7 @@ export class ListRenderer extends Component {
         useBounceButton(this.rootRef, () => this.showNoContentHelper);
 
         let isSmall = this.uiService.isSmall;
-        useBus(this.uiService.bus, "resize", () => {
+        useBus(this.uiService.bus, AppEvent.RESIZE, () => {
             if (isSmall !== this.uiService.isSmall) {
                 isSmall = this.uiService.isSmall;
                 this.render();
@@ -437,16 +423,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * @param {Group} group
-     */
-    async addInGroup(group) {
-        const left = await this.props.list.leaveEditMode({ canAbandon: false });
-        if (left) {
-            group.addNewRecord({}, this.props.editable === "top");
-        }
-    }
-
-    /**
      * @param {Column} column
      * @param {DynamicList | StaticList} list
      */
@@ -470,17 +446,6 @@ export class ListRenderer extends Component {
 
     get activeActions() {
         return this.props.activeActions || {};
-    }
-
-    get canCreateGroup() {
-        const { archInfo, list, readonly } = this.props;
-        const { activeActions, defaultGroupBy } = archInfo;
-        return (
-            !readonly &&
-            activeActions.createGroup &&
-            list.groupByField?.type === "many2one" &&
-            list.groupByField.name === defaultGroupBy?.[0]
-        );
     }
 
     get canResequenceRows() {
@@ -515,47 +480,6 @@ export class ListRenderer extends Component {
         return nbCols;
     }
 
-    /**
-     * @param {Column} column
-     * @param {RelationalRecord} record
-     */
-    canUseFormatter(column, record) {
-        if (column.widget) {
-            return false;
-        }
-        if (
-            record.isInEdition &&
-            (record.model.multiEdit || this.isInlineEditable(record))
-        ) {
-            // in a x2many non editable list, a record is in edition when it is opened in a dialog,
-            // but in the list we want it to still be displayed in readonly.
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * @param {RelationalRecord} record
-     */
-    isRecordReadonly(record) {
-        if (record.isNew) {
-            return false;
-        }
-        if (this.props.activeActions?.edit === false) {
-            return true;
-        }
-        if (
-            record.isInEdition &&
-            !this.isInlineEditable(record) &&
-            !record.model.multiEdit
-        ) {
-            // in a x2many non editable list, a record is in edition when it is opened in a dialog,
-            // but in the list we want it to still be displayed in readonly.
-            return true;
-        }
-        return false;
-    }
-
     focusCell(column, forward = true) {
         this.nav.focusCell(column, forward);
     }
@@ -565,19 +489,6 @@ export class ListRenderer extends Component {
      */
     focus(el) {
         this.nav.focus(el);
-    }
-
-    editGroupRecord(group) {
-        const { resId, resModel } = group.record;
-        this.actionService.doAction({
-            context: {
-                create: false,
-            },
-            res_model: resModel,
-            res_id: resId,
-            type: "ir.actions.act_window",
-            views: [[false, "form"]],
-        });
     }
 
     createViewKey() {
@@ -655,9 +566,6 @@ export class ListRenderer extends Component {
         return this.hasOptionalFields;
     }
 
-    nbRecordsInGroup(group) {
-        return countRecordsInGroup(group);
-    }
     get selectAll() {
         const list = this.props.list;
         const nbDisplayedRecords = list.records.length;
@@ -670,256 +578,12 @@ export class ListRenderer extends Component {
         }
     }
 
-    getGroupConfigMenuProps(group) {
-        return {
-            activeActions: this.props.activeActions,
-            configItems: registry.category("group_config_items").getEntries(),
-            deleteGroup: async () => await this.props.list.deleteGroups([group]),
-            dialogClose: this.dialogClose,
-            group,
-            list: this.props.list,
-        };
-    }
-
-    formatGroupAggregate(group, column) {
-        return this.agg.formatGroupAggregate(group, column);
-    }
-
-    getGroupLevel(group) {
-        return this.props.list.groupBy.length - group.list.groupBy.length - 1;
-    }
-
-    getColumnClass(column) {
-        const classNames = ["align-middle"];
-        if (this.isSortable(column)) {
-            classNames.push("o_column_sortable", "position-relative", "cursor-pointer");
-        } else {
-            classNames.push("cursor-default");
-        }
-        const orderBy = this.props.list.orderBy;
-        if (
-            orderBy.length &&
-            column.widget !== "handle" &&
-            orderBy[0].name === column.name &&
-            column.hasLabel
-        ) {
-            classNames.push("table-active");
-        }
-        if (this.isNumericColumn(column)) {
-            classNames.push("o_list_number_th");
-        }
-        if (column.type === "button_group") {
-            classNames.push("o_list_button");
-        }
-        if (column.widget) {
-            classNames.push(`o_${column.widget}_cell`);
-        }
-
-        return classNames.join(" ");
-    }
-
     /**
      *
      * @param {RelationalRecord} _record
      */
     getColumns(_record) {
         return this.columns;
-    }
-
-    isNumericColumn(column) {
-        const { type } = this.fields[column.name];
-        return ["float", "integer", "monetary"].includes(type);
-    }
-
-    isSortable(column) {
-        const { hasLabel, name, options } = column;
-        const { sortable } = this.fields[name];
-        return (sortable || options.allow_order) && hasLabel;
-    }
-
-    getSortableIconClass(column) {
-        const { orderBy } = this.props.list;
-        const classNames = this.isSortable(column) ? ["fa"] : ["d-none"];
-        if (orderBy.length && orderBy[0].name === column.name) {
-            classNames.push(orderBy[0].asc ? "fa-sort-asc" : "fa-sort-desc");
-        } else {
-            classNames.push("fa-sort", "opacity-0", "opacity-100-hover");
-        }
-
-        return classNames.join(" ");
-    }
-
-    /**
-     * Returns the classnames to apply to the row representing the given record.
-     * @param {RelationalRecord} record
-     */
-    getRowClass(record) {
-        /**
-         * Classnames coming from decorations
-         * @type {string[]}
-         */
-        const classNames = this.props.archInfo.decorations
-            .filter((decoration) =>
-                evaluateBooleanExpr(
-                    decoration.condition,
-                    record.evalContextWithVirtualIds,
-                ),
-            )
-            .map((decoration) => decoration.class);
-        if (record.selected) {
-            classNames.push("table-info");
-        }
-        // "o_selected_row" classname for the potential row in edition
-        if (record.isInEdition) {
-            classNames.push("o_selected_row");
-        }
-        if (record.selected) {
-            classNames.push("o_data_row_selected");
-        }
-        if (this.canResequenceRows) {
-            classNames.push("o_row_draggable");
-        }
-        return classNames.join(" ");
-    }
-
-    /**
-     * @param {Column} column
-     * @param {RelationalRecord} record
-     */
-    getCellClass(column, record) {
-        if (column.relatedPropertyField && !(column.name in record.data)) {
-            return "";
-        }
-
-        // Per-render cache for the full cell class string (column + record dependent)
-        const cacheKey = `cell:${column.id},${record.id}`;
-        const cached = this._readonlyCache?.get(cacheKey);
-        if (cached !== undefined) {
-            return cached;
-        }
-
-        if (!this.cellClassByColumn[column.id]) {
-            const classNames = ["o_data_cell"];
-            if (column.type === "button_group") {
-                classNames.push("o_list_button");
-            } else if (column.type === "field") {
-                classNames.push("o_field_cell");
-                if (column.attrs && column.attrs.class && !column.widget) {
-                    // When a widget is used, arch classes are delegated only to
-                    // the <Field> component (via getFieldClass) so that layout
-                    // classes like d-flex do not conflict with the cell layout.
-                    classNames.push(column.attrs.class);
-                }
-                const typeClass = FIELD_CLASSES[this.fields[column.name].type];
-                if (typeClass) {
-                    classNames.push(typeClass);
-                }
-                if (column.widget) {
-                    classNames.push(`o_${column.widget}_cell`);
-                }
-            }
-            this.cellClassByColumn[column.id] = classNames.join(" ");
-        }
-        let result = this.cellClassByColumn[column.id];
-        if (column.type === "field") {
-            const evalCtx = record.evalContextWithVirtualIds;
-            if (evaluateBooleanExpr(/** @type {any} */ (column.required), evalCtx)) {
-                result += " o_required_modifier";
-            }
-            if (record.isFieldInvalid(column.name)) {
-                result += " o_invalid_cell";
-            }
-            if (this.isCellReadonly(column, record)) {
-                result += " o_readonly_modifier";
-            }
-            if (this.canUseFormatter(column, record)) {
-                const decorations = /** @type {Record<string, string>} */ (
-                    column.decorations
-                );
-                for (const decoName of Object.keys(decorations)) {
-                    if (evaluateBooleanExpr(decorations[decoName], evalCtx)) {
-                        result += ` ${getClassNameFromDecoration(decoName)}`;
-                    }
-                }
-            }
-            if (
-                record.isInEdition &&
-                this.editedRecord &&
-                this.isCellReadonly(column, this.editedRecord)
-            ) {
-                result += " text-muted";
-            } else {
-                result += " cursor-pointer";
-            }
-        }
-        this._readonlyCache?.set(cacheKey, result);
-        return result;
-    }
-
-    /**
-     * @param {Column} column
-     * @param {RelationalRecord} record
-     */
-    isCellReadonly(column, record) {
-        const cacheKey = `${column.id},${record.id}`;
-        let result = this._readonlyCache?.get(cacheKey);
-        if (result !== undefined) {
-            return result;
-        }
-        result = !!(
-            this.isRecordReadonly(record) ||
-            (column.relatedPropertyField &&
-                record.selected &&
-                record.model.multiEdit) ||
-            evaluateBooleanExpr(
-                /** @type {string} */ (column.readonly),
-                record.evalContextWithVirtualIds,
-            )
-        );
-        this._readonlyCache?.set(cacheKey, result);
-        return result;
-    }
-
-    /**
-     * @param {Column} column
-     * @param {RelationalRecord} record
-     */
-    getCellTitle(column, record) {
-        // Because we freeze the column sizes, it may happen that we have to shorten field values.
-        // In order for the user to have access to the complete value in those situations, we put
-        // the value as title of the cells.
-        if (["many2one", "reference", "char"].includes(this.fields[column.name].type)) {
-            return this.getFormattedValue(column, record);
-        }
-    }
-
-    getFieldClass(column) {
-        return column.attrs && column.attrs.class;
-    }
-
-    /**
-     * @param {Column} column
-     * @param {RelationalRecord} record
-     */
-    getFormattedValue(column, record) {
-        const fieldName = column.name;
-        if (/** @type {any} */ (column.options)?.enable_formatting === false) {
-            const value = record.data[fieldName];
-            return value === false ? "" : value;
-        }
-        return getFormattedValue(record, fieldName, column);
-    }
-
-    /**
-     * @param {string} invisible
-     * @param {RelationalRecord} record
-     */
-    evalInvisible(invisible, record) {
-        return evaluateBooleanExpr(invisible, record.evalContextWithVirtualIds);
-    }
-
-    evalColumnInvisible(columnInvisible) {
-        return evaluateBooleanExpr(columnInvisible, this.props.list.evalContext);
     }
 
     get canCreate() {
@@ -951,105 +615,8 @@ export class ListRenderer extends Component {
         return !evaluateBooleanExpr(this.deleteControl.invisible, record.evalContext);
     }
 
-    // Group headers logic:
-    // if there are aggregates, the first th spans until the first
-    // aggregate column then all cells between aggregates are rendered
-    // a single cell is rendered after the last aggregated column to render the
-    // pager (with adequate colspan)
-    // ex:
-    // TH TH TH TH TH AGG AGG TH AGG AGG TH TH TH
-    // 0  1  2  3  4   5   6   7  8   9  10 11 12
-    // [    TH 5    ][TH][TH][TH][TH][TH][ TH 3 ]
-    // [ group name ][ aggregate cells  ][ pager]
-    getFirstAggregateIndex(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
-        return getFirstAggregateIndexUtil(
-            /** @type {any} */ (this.columns),
-            this.fields,
-            aggregates,
-        );
-    }
-    getLastAggregateIndex(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
-        return getLastAggregateIndexUtil(
-            /** @type {any} */ (this.columns),
-            this.fields,
-            aggregates,
-        );
-    }
-    getAggregateColumns(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
-        return getAggregateColumnsUtil(
-            /** @type {any} */ (this.columns),
-            this.fields,
-            aggregates,
-        );
-    }
-    getGroupNameCellColSpan(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
-        return getGroupNameCellColSpanUtil(
-            /** @type {any} */ (this.columns),
-            this.fields,
-            aggregates,
-            {
-                hasSelectors: this.hasSelectors,
-            },
-        );
-    }
-
-    getGroupPagerCellColspan(group) {
-        const aggregates = group
-            ? group.aggregates
-            : /** @type {any} */ (this).aggregates;
-        return getGroupPagerCellColspanUtil(
-            /** @type {any} */ (this.columns),
-            this.fields,
-            aggregates,
-            {
-                hasOpenFormViewColumn: this.hasOpenFormViewColumn,
-            },
-        );
-    }
-
-    getGroupPagerProps(group) {
-        const list = group.list;
-        return {
-            offset: list.offset,
-            limit: list.limit,
-            total: list.count,
-            onUpdate: async ({ offset, limit }) => {
-                await list.load({ limit, offset });
-                this.render(true);
-            },
-            withAccessKey: false,
-        };
-    }
-
     computeOptionalActiveFields() {
         return this.opt.computeOptionalActiveFields();
-    }
-
-    onClickSortColumn(column) {
-        if (this.preventReorder) {
-            this.preventReorder = false;
-            return;
-        }
-        if (this.editedRecord || this.props.list.model.useSampleModel) {
-            return;
-        }
-        const fieldName = column.name;
-        const list = this.props.list;
-        if (this.isSortable(column)) {
-            list.sortBy(fieldName);
-        }
     }
 
     /**
@@ -1221,21 +788,6 @@ export class ListRenderer extends Component {
         }
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     */
-    /**
-     * Called by ListAggregatesRow when the user confirms a new group name.
-     *
-     * @param {string} value
-     */
-    addNewGroup(value) {
-        this.state.showGroupInput = false;
-        if (value) {
-            this.props.list.createGroup(value);
-        }
-    }
-
     editNextRecord(record, group) {
         const list = this.props.list;
         const topReCreate = this.props.editable === "top" && record.isNew;
@@ -1296,40 +848,6 @@ export class ListRenderer extends Component {
     get showNoContentHelper() {
         const { model } = this.props.list;
         return this.props.noContentHelp && (model.useSampleModel || !model.hasData());
-    }
-
-    /**
-     * @param {Group} group
-     */
-    showGroupPager(group) {
-        return !group.isFolded && group.list.limit < group.list.count;
-    }
-
-    /**
-     * @param {Group} group
-     */
-    showGroupConfigMenu(group) {
-        return (
-            group.value && ["many2one", "many2many"].includes(group.groupByField.type)
-        );
-    }
-
-    /**
-     * @param {PointerEvent} _ev
-     * @param {Group} group
-     */
-    async onGroupHeaderClicked(_ev, group) {
-        const left = await this.props.list.leaveEditMode();
-        if (left) {
-            this.toggleGroup(group);
-        }
-    }
-
-    /**
-     * @param {Group} group
-     */
-    toggleGroup(group) {
-        group.toggle();
     }
 
     get canSelectRecord() {
@@ -1431,7 +949,11 @@ export class ListRenderer extends Component {
             viewMode: "list",
             resModel: this.props.list.resModel,
             field: this.fields[column.name],
-            fieldInfo: column,
+            // ``Column`` carries a ``widget`` (via ``optionalFields`` parsing)
+            // plus list-specific layout fields not declared on
+            // ``FieldInfo``. The downstream tooltip only reads the
+            // ``FieldInfo``-shaped subset.
+            fieldInfo: /** @type {any} */ (column),
         });
     }
 
@@ -1464,73 +986,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * @param {string} dataRowId
-     * @param {Object} params
-     * @param {HTMLElement} params.element
-     * @param {HTMLElement} [params.group]
-     * @param {HTMLElement} [params.next]
-     * @param {HTMLElement} [params.parent]
-     * @param {HTMLElement} [params.previous]
-     */
-    async sortDrop(dataRowId, dataGroupId, { element, previous }) {
-        element.classList.remove("o_row_draggable");
-        const refId = previous ? previous.dataset.id : null;
-        try {
-            if (dataGroupId) {
-                this.resequencePromise = this.props.list.moveRecord(
-                    dataRowId,
-                    dataGroupId,
-                    refId,
-                    previous.dataset.groupId,
-                );
-            } else {
-                this.resequencePromise = this.props.list.resequence(dataRowId, refId, {
-                    handleField: this.props.list.handleField,
-                });
-            }
-            await this.resequencePromise;
-        } finally {
-            element.classList.add("o_row_draggable");
-            await this.props.list.leaveEditMode();
-        }
-    }
-
-    /**
-     * @param {Object} params
-     * @param {HTMLElement} params.element
-     * @param {HTMLElement} [params.group]
-     */
-    sortStart({ element }) {
-        const table = this.tableRef.el;
-        const headers = [...table.querySelectorAll("thead th")];
-        const cells = /** @type {HTMLTableCellElement[]} */ ([
-            ...element.querySelectorAll("td"),
-        ]);
-        let headerIndex = 0;
-        for (const cell of cells) {
-            let width = 0;
-            for (let i = 0; i < cell.colSpan; i++) {
-                const header = headers[headerIndex + i];
-                const style = getComputedStyle(header);
-                width += parseFloat(style.width);
-            }
-            cell.style.width = `${width}px`;
-            headerIndex += cell.colSpan;
-        }
-    }
-
-    /**
-     * @param {Object} params
-     * @param {HTMLElement} params.element
-     * @param {HTMLElement} [params.group]
-     */
-    sortStop({ element }) {
-        for (const cell of element.querySelectorAll("td")) {
-            cell.style.width = null;
-        }
-    }
-
-    /**
      * @param {MouseEvent} ev
      */
     ignoreEventInSelectionMode(ev) {
@@ -1545,3 +1000,35 @@ export class ListRenderer extends Component {
         this.sel.onClickCapture(record, ev);
     }
 }
+
+// Apply the cohort mixins.  Methods land on ``ListRenderer.prototype``
+// so subclasses' ``super.<method>(...)`` continue to resolve to the
+// canonical implementations.  See each module for rationale.
+//
+// Two subtleties of the install path:
+//
+//   - ``Object.assign`` would invoke each getter on the source object
+//     at install time (where ``this.props`` is undefined) and copy the
+//     resulting value, not the getter itself.  Descriptor copying via
+//     ``Object.getOwnPropertyDescriptors`` preserves getters/setters as
+//     descriptors so the resolution happens at access time on the
+//     real instance.
+//
+//   - Object-literal property descriptors are ``enumerable: true`` by
+//     default, but class methods/getters are ``enumerable: false``.
+//     The OWL renderer's reactivity-capture path iterates enumerable
+//     own properties; if our getters are enumerable, OWL tries to
+//     ``capture[k] = obj[k]`` for each one, which throws on getter-only
+//     properties.  Forcing ``enumerable: false`` per descriptor matches
+//     the original class-getter behavior so OWL doesn't see them in
+//     enumeration loops.
+function installListRendererMixin(mixin) {
+    const descriptors = Object.getOwnPropertyDescriptors(mixin);
+    for (const key of Object.keys(descriptors)) {
+        descriptors[key].enumerable = false;
+    }
+    Object.defineProperties(ListRenderer.prototype, descriptors);
+}
+installListRendererMixin(listStylingMixin);
+installListRendererMixin(listGroupRenderingMixin);
+installListRendererMixin(listSortingMixin);

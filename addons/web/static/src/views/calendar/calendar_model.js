@@ -11,6 +11,7 @@ import {
     serializeDateTime,
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
+import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { groupBy, intersection } from "@web/core/utils/collections/arrays";
@@ -29,8 +30,6 @@ import {
     computeRangeDomain,
 } from "./calendar_date_range.js";
 import { normalizeCalendarRecord } from "./calendar_record.js";
-
-const { DateTime } = globalThis.luxon ?? {};
 
 /**
  * Data model for the calendar view.

@@ -3,8 +3,7 @@
 
 /** @module @web/fields/specialized/properties/card_properties_field - Kanban/hierarchy card read-only variant of the properties field */
 
-import { registry } from "@web/core/registry";
-
+import { registerField } from "@web/fields/_registry";
 import { PropertiesField, propertiesField } from "./properties_field.js";
 export class CardPropertiesField extends PropertiesField {
     static template = "web.CardPropertiesField";
@@ -20,5 +19,5 @@ export const cardPropertiesField = {
     component: CardPropertiesField,
 };
 
-registry.category("fields").add("kanban.properties", cardPropertiesField);
-registry.category("fields").add("hierarchy.properties", cardPropertiesField);
+registerField({ name: "properties", view: "kanban" }, cardPropertiesField);
+registerField({ name: "properties", view: "hierarchy" }, cardPropertiesField);

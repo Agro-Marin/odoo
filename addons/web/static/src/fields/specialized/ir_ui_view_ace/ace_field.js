@@ -5,7 +5,8 @@
 
 /** @odoo-module native */
 import { IrUiViewCodeEditor } from "@web/components/ir_ui_view_code_editor/code_editor";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { AceField, aceField } from "@web/fields/specialized/ace/ace_field";
 
 // @ts-expect-error OWL static props typing
@@ -20,4 +21,4 @@ export const irUiViewAceField = {
     additionalClasses: ["o_field_ace"],
 };
 
-registry.category("fields").add("code_ir_ui_view", irUiViewAceField);
+registerField("code_ir_ui_view", irUiViewAceField);

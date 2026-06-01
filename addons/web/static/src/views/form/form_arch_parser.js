@@ -5,7 +5,7 @@
 
 import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { Field } from "@web/fields/field";
+import { parseFieldNode } from "@web/views/field_arch";
 import { getActiveActions } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
@@ -35,7 +35,7 @@ export class FormArchParser {
         const autofocusFieldIds = [];
         visitXML(xmlDoc, (node) => {
             if (node.tagName === "field") {
-                const fieldInfo = Field.parseFieldNode(
+                const fieldInfo = parseFieldNode(
                     node,
                     models,
                     modelName,

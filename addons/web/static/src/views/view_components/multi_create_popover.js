@@ -5,6 +5,7 @@
 
 import { Component } from "@odoo/owl";
 import { TimePicker } from "@web/components/time_picker/time_picker";
+import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Record } from "@web/model/record";
@@ -38,20 +39,24 @@ export class MultiCreatePopover extends Component {
         this.multiCreateRecordProps = {
             ...this.props.multiCreateRecordProps,
             hooks: {
-                onRootLoaded: (record) => {
-                    this.multiCreateData.record = record;
+                lifecycle: {
+                    onRootLoaded: (record) => {
+                        this.multiCreateData.record = record;
+                    },
                 },
-                onDisplayInvalidFields: () =>
-                    this.notification.add(_t("Missing required fields"), {
-                        type: "danger",
-                    }),
+                ui: {
+                    onDisplayInvalidFields: () =>
+                        this.notification.add(_t("Missing required fields"), {
+                            type: "danger",
+                        }),
+                },
             },
         };
 
         useCallbackRecorder(this.props.callbackRecorder, () => this.multiCreateData);
     }
 
-    /** @param {{ start: Time, end: Time }} timeRange */
+    /** @param {{ start: any, end: any }} timeRange luxon DateTime instances */
     setMultiCreateTimeRange(timeRange) {
         Object.assign(this.multiCreateData.timeRange, timeRange);
     }
@@ -77,8 +82,8 @@ export class MultiCreatePopover extends Component {
                 return false;
             }
             if (
-                globalThis.luxon.DateTime.fromObject(start.toObject()) >
-                globalThis.luxon.DateTime.fromObject(end.toObject())
+                DateTime.fromObject(start.toObject()) >
+                DateTime.fromObject(end.toObject())
             ) {
                 this.notification.add(_t("Start time should be before end time"), {
                     title: "User Error",

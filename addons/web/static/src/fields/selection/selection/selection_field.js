@@ -6,7 +6,8 @@
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -103,4 +104,4 @@ export const selectionField = {
     },
 };
 
-registry.category("fields").add("selection", /** @type {any} */ (selectionField));
+registerField("selection", /** @type {any} */ (selectionField));

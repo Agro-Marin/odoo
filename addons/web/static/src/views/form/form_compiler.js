@@ -25,6 +25,14 @@ import { toStringExpression } from "@web/views/view_utils";
 
 const compilersRegistry = registry.category("form_compilers");
 
+// Form compilers transform a CSS-selected node in the arch into an OWL
+// template AST. `selector` matches by tag name (e.g. "chatter") and `fn`
+// receives the node and returns the compiled element.
+compilersRegistry.addValidation({
+    selector: String,
+    fn: Function,
+});
+
 function appendAttf(el, attr, string) {
     const attrKey = `t-attf-${attr}`;
     const attrVal = el.getAttribute(attrKey);
@@ -56,7 +64,7 @@ export class FormCompiler extends ViewCompiler {
         /** @type {Record<string, Element[]>} */
         this.labels = {};
         this.noteBookId = 0;
-        this.compilers.push(
+        /** @type {any} */ (this).compilers.push(
             ...compilersRegistry.getAll(),
             { selector: "div[name='button_box']", fn: this.compileButtonBox },
             { selector: "footer", fn: this.compileFooter },
@@ -265,14 +273,14 @@ export class FormCompiler extends ViewCompiler {
                 if (
                     /** @type {any} */ (child).attributes?.name?.value !== "button_box"
                 ) {
-                    append(form, this.compileNode(child, params));
+                    append(form, this.compileNode(/** @type {Element} */ (child), params));
                 }
             }
             form.classList.add("o_form_nosheet");
         } else {
             let compiledList = [];
             for (const child of el.childNodes) {
-                const compiled = this.compileNode(child, params);
+                const compiled = this.compileNode(/** @type {Element} */ (child), params);
                 if (getTag(child, true) === "sheet") {
                     append(form, compiled);
                     /** @type {Element} */ (compiled).prepend(...compiledList);
@@ -304,7 +312,7 @@ export class FormCompiler extends ViewCompiler {
         }
         copyAttributes(el, footer);
         for (const child of el.childNodes) {
-            const compiled = this.compileNode(child, params);
+            const compiled = this.compileNode(/** @type {Element} */ (child), params);
             if (compiled) {
                 footer.append(compiled);
             }
@@ -356,7 +364,7 @@ export class FormCompiler extends ViewCompiler {
                 sequence: sequence++,
                 "t-slot-scope": "scope",
             });
-            let itemSpan = Number.parseInt(child.getAttribute("colspan", 10) || "1", 10);
+            let itemSpan = Number.parseInt(child.getAttribute("colspan") || "1", 10);
 
             if (forceNewline) {
                 mainSlot.setAttribute("newline", "true");
@@ -364,11 +372,11 @@ export class FormCompiler extends ViewCompiler {
             }
 
             if (getTag(child, true) === "separator") {
-                itemSpan = Number.parseInt(formGroup.getAttribute("maxCols", 10) || "2", 10);
+                itemSpan = Number.parseInt(formGroup.getAttribute("maxCols") || "2", 10);
             }
 
             if (child.matches("div[class='clearfix']:empty")) {
-                itemSpan = Number.parseInt(formGroup.getAttribute("maxCols", 10) || "2", 10);
+                itemSpan = Number.parseInt(formGroup.getAttribute("maxCols") || "2", 10);
             }
 
             let slotContent;
@@ -504,7 +512,7 @@ export class FormCompiler extends ViewCompiler {
         const buttons = [];
         const others = [];
         for (const child of el.childNodes) {
-            const compiled = this.compileNode(child, params);
+            const compiled = this.compileNode(/** @type {Element} */ (child), params);
             if (!compiled || isTextNode(compiled)) {
                 continue;
             }
@@ -687,7 +695,7 @@ export class FormCompiler extends ViewCompiler {
                 const fieldSlot = createElement("t", {
                     "t-set-slot": "fieldSlot",
                 });
-                const field = this.compileNode(child, params);
+                const field = this.compileNode(/** @type {Element} */ (child), params);
                 if (field) {
                     append(fieldSlot, field);
                     setting.setAttribute(
@@ -710,7 +718,7 @@ export class FormCompiler extends ViewCompiler {
                 }
                 append(setting, fieldSlot);
             } else {
-                append(setting, this.compileNode(child, params));
+                append(setting, this.compileNode(/** @type {Element} */ (child), params));
             }
         });
         setting.setAttribute("string", string);
@@ -745,7 +753,7 @@ export class FormCompiler extends ViewCompiler {
 
         append(sheetBG, sheetFG);
         for (const child of el.childNodes) {
-            const compiled = this.compileNode(child, params);
+            const compiled = this.compileNode(/** @type {Element} */ (child), params);
             if (!compiled) {
                 continue;
             }

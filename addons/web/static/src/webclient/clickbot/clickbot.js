@@ -5,6 +5,7 @@
 
 import { App, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { AppEvent, RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { getPopoverForTarget } from "@web/ui/popover/popover";
 
@@ -47,9 +48,9 @@ function setup(light, currentState) {
     };
     document.body.appendChild(stopButton);
 
-    env.bus.addEventListener("ACTION_MANAGER:UI-UPDATED", uiUpdate);
-    rpcBus.addEventListener("RPC:REQUEST", /** @type {any} */ (onRPCRequest));
-    rpcBus.addEventListener("RPC:RESPONSE", /** @type {any} */ (onRPCResponse));
+    env.bus.addEventListener(AppEvent.ACTION_MANAGER_UI_UPDATED, uiUpdate);
+    rpcBus.addEventListener(RpcEvent.REQUEST, /** @type {any} */ (onRPCRequest));
+    rpcBus.addEventListener(RpcEvent.RESPONSE, /** @type {any} */ (onRPCResponse));
     isEnterprise = odoo.info && odoo.info.isEnterprise;
 
     state = reactive(
@@ -79,6 +80,12 @@ function onRPCRequest({ detail }) {
 }
 
 function onRPCResponse({ detail }) {
+    // Defensive: malformed events (null detail, missing data) can be
+    // dispatched to the global rpcBus by tests or synthetic fires. The
+    // clickbot subscriber should not surface those as exceptions.
+    if (!detail?.data) {
+        return;
+    }
     delete calledRPC[detail.data.id];
     if (detail.error) {
         errorRPC = { ...detail };
@@ -150,7 +157,7 @@ async function waitForCondition(stopCondition) {
     }
     function hasScheduledTask() {
         let size = 0;
-        for (const app of App.apps) {
+        for (const app of /** @type {any} */ (App).apps) {
             size += app.scheduler.tasks.size;
         }
         return size > 0;
@@ -181,7 +188,7 @@ async function waitForCondition(stopCondition) {
                 msg += ` * ${Object.values(calledRPC).join(", ")} RPC\n`;
             }
             let scheduleTasks = "";
-            for (const app of App.apps) {
+            for (const app of /** @type {any} */ (App).apps) {
                 for (const task of app.scheduler.tasks) {
                     scheduleTasks += `${task.node.name},`;
                 }

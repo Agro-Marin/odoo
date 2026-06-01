@@ -18,6 +18,7 @@ import { browser } from "@web/core/browser/browser";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { useService } from "@web/core/utils/hooks";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useDebounced, useThrottleForAnimation } from "@web/core/utils/timing";
 import { Field } from "@web/fields/field";
 import { ButtonBox } from "@web/views/form/button_box/button_box";
@@ -72,6 +73,7 @@ export class FormRenderer extends Component {
     };
 
     setup() {
+        useRenderCounter("form.FormRenderer");
         this.evaluateBooleanExpr = evaluateBooleanExpr;
         const { archInfo, Compiler, record } = this.props;
         const templates = { FormRenderer: archInfo.xmlDoc };

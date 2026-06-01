@@ -4,7 +4,8 @@
 /** @module @web/fields/basic/boolean_toggle/boolean_toggle_field - Toggle switch field widget for Boolean columns */
 
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { BooleanField, booleanField } from "@web/fields/basic/boolean/boolean_field";
 
 export class BooleanToggleField extends BooleanField {
@@ -45,4 +46,4 @@ export const booleanToggleField = {
     },
 };
 
-registry.category("fields").add("boolean_toggle", booleanToggleField);
+registerField("boolean_toggle", booleanToggleField);

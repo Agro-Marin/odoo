@@ -8,7 +8,8 @@
  * displayed on our selection field, this way we can have multiple views for the same model
  * that uses different possible sets of values on the same selection field.
  */
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import {
     SelectionField,
     selectionField,
@@ -81,4 +82,4 @@ export const filterableSelectionField = {
     },
 };
 
-registry.category("fields").add("filterable_selection", filterableSelectionField);
+registerField("filterable_selection", filterableSelectionField);

@@ -14,7 +14,8 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { throttleForAnimation } from "@web/core/utils/timing";
 import { useSpecialData } from "@web/fields/relational/special_data";
@@ -389,4 +390,4 @@ export const statusBarField = {
     }),
 };
 
-registry.category("fields").add("statusbar", statusBarField);
+registerField("statusbar", statusBarField);

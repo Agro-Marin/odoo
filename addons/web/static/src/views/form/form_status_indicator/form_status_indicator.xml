@@ -30,6 +30,15 @@
                 data-tooltip="Unable to save. Correct the issue or discard all changes">
                 <i class="fa-solid fa-triangle-exclamation" />
             </span>
+            <!--
+                Visually-hidden live region: announces "Unsaved changes" /
+                "Form has validation errors" to assistive technologies when
+                the form transitions between modes.  Empty for "saved" so
+                the initial load and post-save state do not produce noisy
+                announcements.  aria-atomic="true" so the full label is
+                re-spoken whenever it changes, not just the diff.
+            -->
+            <span class="visually-hidden" aria-live="polite" aria-atomic="true" t-esc="statusLabel"/>
         </div>
     </t>
 </templates>

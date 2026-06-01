@@ -42,7 +42,7 @@ const SPECIAL_TYPES = [
  */
 export class KanbanCompiler extends ViewCompiler {
     setup() {
-        this.compilers.push(
+        /** @type {any} */ (this).compilers.push(
             { selector: "t[t-call]", fn: this.compileTCall },
             { selector: "img", fn: this.compileImage },
         );
@@ -189,8 +189,8 @@ export class KanbanCompiler extends ViewCompiler {
         return compiled;
     }
 }
-KanbanCompiler.OWL_DIRECTIVE_WHITELIST = [
-    ...ViewCompiler.OWL_DIRECTIVE_WHITELIST,
+/** @type {any} */ (KanbanCompiler).OWL_DIRECTIVE_WHITELIST = [
+    .../** @type {any} */ (ViewCompiler).OWL_DIRECTIVE_WHITELIST,
     "t-name",
     "t-esc",
     "t-out",

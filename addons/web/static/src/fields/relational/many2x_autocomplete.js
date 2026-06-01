@@ -194,7 +194,7 @@ export class Many2XAutocomplete extends Component {
         return this.props.activeActions || {};
     }
 
-    /** @returns {typeof Component} Dialog component for record creation */
+    /** @returns {import("@odoo/owl").ComponentConstructor} Dialog component for record creation */
     get createDialog() {
         return registry.category("dialogs").get("form_view");
     }
@@ -376,9 +376,9 @@ export class Many2XAutocomplete extends Component {
      * @returns {boolean}
      */
     addCreateEditSuggestion({ records, request }) {
-        return (
+        return Boolean(
             (this.activeActions.createEdit ?? this.activeActions.create) &&
-            (request.length || records?.length === 0)
+                (request.length || records?.length === 0),
         );
     }
 
@@ -554,7 +554,7 @@ export class Many2XAutocomplete extends Component {
  * @param {Object} params.activeActions
  * @param {boolean} params.isToMany
  * @param {Function} [params.onClose]
- * @param {typeof Component} [params.component]
+ * @param {import("@odoo/owl").ComponentConstructor} [params.component]
  * @param {string} [params.size]
  * @returns {Function} openDialog
  */

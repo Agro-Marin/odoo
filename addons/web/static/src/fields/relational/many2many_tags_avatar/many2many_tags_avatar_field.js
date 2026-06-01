@@ -6,6 +6,7 @@
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { imageUrl } from "@web/core/utils/urls";
 import {
     Many2ManyTagsField,
@@ -46,7 +47,7 @@ export const many2ManyTagsAvatarField = {
     },
 };
 
-registry.category("fields").add("many2many_tags_avatar", many2ManyTagsAvatarField);
+registerField("many2many_tags_avatar", many2ManyTagsAvatarField);
 
 export class ListMany2ManyTagsAvatarField extends Many2ManyTagsAvatarField {
     visibleItemsLimit = 5;
@@ -127,7 +128,7 @@ export class KanbanMany2ManyTagsAvatarFieldTagsList extends TagsList {
         if (this.props.readonly) {
             return;
         }
-        this.popover.open(ev.currentTarget.parentElement, {
+        this.popover.open(/** @type {HTMLElement} */ (ev.currentTarget).parentElement, {
             ...this.props.popoverProps,
             readonly: false,
             canCreate: false,

@@ -9,6 +9,7 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -417,7 +418,7 @@ export class KanbanRecord extends Component {
         const renderingContext = {
             context: this.props.record.context,
             JSON,
-            luxon: globalThis.luxon,
+            luxon,
             record: this.dataState.record,
             selection_mode: this.props.forceGlobalClick,
             widget: this.dataState.widget,

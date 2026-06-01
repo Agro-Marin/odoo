@@ -7,7 +7,6 @@ import { Component } from "@odoo/owl";
 import { FileInput } from "@web/components/file_input/file_input";
 import { registry } from "@web/core/registry";
 import { checkFileSize } from "@web/core/utils/files";
-import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 /** Widget button that opens a file picker, uploads selected files as ir.attachment records, and optionally calls a model action. */
@@ -24,9 +23,15 @@ export class AttachDocumentWidget extends Component {
     };
 
     setup() {
-        this.http = useService("http");
-        this.notification = useService("notification");
-        this.orm = useService("orm");
+        // This widget uploads through a *detached* <input> whose change handler can
+        // fire AFTER the component is destroyed -- e.g. when the widget sits in a
+        // statusbar overflow dropdown that closes (tearing the component down) on
+        // click. useService() returns destroy-protected proxies that throw
+        // "Component is destroyed" in that window, aborting the in-flight upload. Use
+        // the raw env services, which outlive the component, so the upload completes.
+        this.http = this.env.services.http;
+        this.notification = this.env.services.notification;
+        this.orm = this.env.services.orm;
         this.fileInput = document.createElement("input");
         this.fileInput.type = "file";
         this.fileInput.accept = "*";

@@ -4,7 +4,8 @@
 /** @module @web/fields/basic/float/float_field - Numeric input field for Float columns with locale-aware formatting */
 
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { extractDigits, extractNumericOptions } from "@web/fields/field_utils";
 import { formatFloat } from "@web/fields/formatters";
 import { parseFloat } from "@web/fields/parsers";
@@ -35,12 +36,25 @@ export class FloatField extends NumericInputFieldBase {
 
     /** @param {string} value @returns {number} */
     parse(value) {
-        return this.props.inputType === "number"
-            ? Number(value)
-            : parseFloat(value, { allowOperation: true });
+        if (this.props.inputType === "number") {
+            const parsed = Number(value);
+            // A type=number input can still yield NaN (programmatic/garbage
+            // value). Fall back to the locale parser so it throws a ParseError
+            // and the field is flagged invalid, instead of persisting NaN.
+            // (Number("") === 0, so empty input still resolves to 0 as before.)
+            return Number.isNaN(parsed)
+                ? parseFloat(value, { allowOperation: true })
+                : parsed;
+        }
+        return parseFloat(value, { allowOperation: true });
     }
 
-    /** @returns {string | number} */
+    /**
+     * @returns {string | number | false} ``false`` is returned when the
+     *     ``!this.props.formatNumber`` branch passes through an unset value
+     *     unchanged; consumers (the input element's ``value`` attribute and
+     *     QWeb ``t-out``) already coerce ``false`` to an empty string.
+     */
     get formattedValue() {
         if (
             !this.props.formatNumber ||
@@ -138,4 +152,4 @@ export const floatField = {
     }),
 };
 
-registry.category("fields").add("float", floatField);
+registerField("float", floatField);

@@ -6,7 +6,8 @@
 /** @odoo-module native */
 
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 
@@ -60,4 +61,4 @@ export const googleSlideViewer = {
     displayName: _t("Google Slide Viewer"),
 };
 
-registry.category("fields").add("google_slide_viewer", googleSlideViewer);
+registerField("google_slide_viewer", googleSlideViewer);

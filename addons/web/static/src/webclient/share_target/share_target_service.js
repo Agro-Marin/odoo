@@ -4,6 +4,7 @@
 /** @module @web/webclient/share_target/share_target_service - Service receiving shared files from the PWA service worker (Web Share Target API) */
 
 import { browser } from "@web/core/browser/browser";
+import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 /**
  * Request shared file data from the PWA service worker via postMessage.
@@ -49,11 +50,11 @@ export const shareTargetService = {
                         await menu.selectMenu(app);
                     }
                     env.bus.removeEventListener(
-                        "WEB_CLIENT_READY",
+                        AppEvent.WEB_CLIENT_READY,
                         clientReadyListener,
                     );
                 };
-                env.bus.addEventListener("WEB_CLIENT_READY", clientReadyListener);
+                env.bus.addEventListener(AppEvent.WEB_CLIENT_READY, clientReadyListener);
             }
         }
         return {

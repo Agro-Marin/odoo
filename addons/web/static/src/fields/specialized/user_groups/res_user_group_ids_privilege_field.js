@@ -23,8 +23,7 @@ class ResUserGroupIdsPrivilegeField extends Component {
     static props = { ...standardFieldProps };
 
     setup() {
-        /** @type {boolean} */
-        this.isDebug = odoo.debug;
+        this.isDebug = Boolean(odoo.debug);
         this.popover = usePopover(ResUserGroupIdsPopover);
         this.groups = this.env.resUserGroupsInfo.groups;
     }
@@ -43,8 +42,21 @@ class ResUserGroupIdsPrivilegeField extends Component {
      * @returns {Object | false}
      */
     get group() {
-        const groups = this.groups;
-        return groups[this.findGroupId((gid) => groups[gid].selected)] || false;
+        // Read from record.data directly (source of truth, synchronously updated
+        // by the SelectionField / BooleanField on user change) rather than from
+        // ``env.resUserGroupsInfo.groups[gid].selected``, which is a derived
+        // flag the parent ResUserGroupIdsField only refreshes during its
+        // ``onWillRender``.  When the user picks a group in the dropdown and
+        // immediately clicks the info button (tour, fast user), that render
+        // has not yet committed and the derived flag still reads ``false``.
+        const value = this.props.record.data[this.props.name];
+        if (!value) {
+            return false;
+        }
+        const gid = this.type === "selection"
+            ? value
+            : this.env.resUserGroupsInfo.booleanFieldToGroupId[this.props.name];
+        return this.groups[gid] || false;
     }
 
     /**
@@ -53,10 +65,8 @@ class ResUserGroupIdsPrivilegeField extends Component {
      */
     get impliedGroup() {
         const groups = this.groups;
-        return (
-            groups[this.findGroupId((gid) => groups[gid].impliedByIds.length)] ||
-            false
-        );
+        const gid = this.findGroupId((gid) => groups[gid].impliedByIds.length);
+        return gid !== false ? groups[gid] || false : false;
     }
 
     /**
@@ -147,13 +157,26 @@ class ResUserGroupIdsPrivilegeField extends Component {
     onClickInfoButton(ev) {
         if (this.popover.isOpen) {
             this.popover.close();
-        } else {
-            this.popover.open(ev.currentTarget, {
-                groupId: this.group ? this.group.id : this.impliedGroup.id,
-                groups: this.env.resUserGroupsInfo.groups,
-                privileges: this.env.resUserGroupsInfo.privileges,
-            });
+            return;
         }
+        // Guard against opening with no group context: ``this.group`` and
+        // ``this.impliedGroup`` are getters that return ``false`` when the
+        // lookup fails, so the literal ternary ``this.group.id : this.impliedGroup.id``
+        // resolves to ``false.id`` → ``undefined``, which the popover's
+        // strict props (``groupId: [Number, Boolean]``) rejects, and its
+        // ``setup()`` would dereference ``this.privileges[this.group.privilege_id]``
+        // on an undefined group anyway.  The info button is ``invisible``
+        // in this state via CSS, but tests and edge timings can still reach
+        // the handler; refuse the open here instead of crashing downstream.
+        const groupId = (this.group && this.group.id) || (this.impliedGroup && this.impliedGroup.id);
+        if (!groupId) {
+            return;
+        }
+        this.popover.open(/** @type {HTMLElement} */ (ev.currentTarget), {
+            groupId,
+            groups: this.env.resUserGroupsInfo.groups,
+            privileges: this.env.resUserGroupsInfo.privileges,
+        });
     }
 }
 

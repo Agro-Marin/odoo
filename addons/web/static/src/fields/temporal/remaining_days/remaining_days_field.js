@@ -4,16 +4,16 @@
 /** @module @web/fields/temporal/remaining_days/remaining_days_field - Deadline countdown field showing remaining days with color-coded urgency */
 
 import { Component } from "@odoo/owl";
+import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
 import { capitalize } from "@web/core/utils/format/strings";
 import { formatDate } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
-
-const { DateTime } = globalThis.luxon ?? {};
 
 export class RemainingDaysField extends Component {
     static components = { DateTimeField };
@@ -107,4 +107,4 @@ export const remainingDaysField = {
     }),
 };
 
-registry.category("fields").add("remaining_days", remainingDaysField);
+registerField("remaining_days", remainingDaysField);

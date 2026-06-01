@@ -19,7 +19,10 @@ export class HighlightText extends Component {
         this.searchState = useState(this.env.searchState);
 
         onWillRender(() => {
-            /** @type {import("@odoo/owl").Markup} */
+            // ``highlightText`` returns the original string when no highlight
+            // anchors are inserted (search term empty) and a Markup instance
+            // otherwise. The template handles both via ``t-out``.
+            /** @type {string | import("@odoo/owl").Markup} */
             this.text = highlightText(
                 this.searchState.value,
                 this.props.originalText,

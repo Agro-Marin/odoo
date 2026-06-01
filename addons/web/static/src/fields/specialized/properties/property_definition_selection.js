@@ -5,6 +5,7 @@
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
+import { deepCopy } from "@web/core/utils/collections/objects";
 import { uuid } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 export class PropertyDefinitionSelection extends Component {
@@ -78,9 +79,7 @@ export class PropertyDefinitionSelection extends Component {
      * @returns {array}
      */
     get options() {
-        // JSON round-trip instead of structuredClone because props may be
-        // Owl reactive proxies, which structuredClone cannot handle.
-        return JSON.parse(JSON.stringify(this.props.options || []));
+        return deepCopy(this.props.options || []);
     }
 
     /**

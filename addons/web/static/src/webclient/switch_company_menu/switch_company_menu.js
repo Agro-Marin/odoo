@@ -9,6 +9,7 @@ import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { router } from "@web/core/browser/router";
+import { UserEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { symmetricalDifference } from "@web/core/utils/collections/arrays";
@@ -254,7 +255,7 @@ export class SwitchCompanyMenu extends Component {
         useCommand(_t("Switch Company"), () => this.dropdown.open(), {
             hotkey: "alt+shift+u",
         });
-        useBus(userBus, "ACTIVE_COMPANIES_CHANGED", () => {
+        useBus(userBus, UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
             this.companySelector.reset();
         });
 

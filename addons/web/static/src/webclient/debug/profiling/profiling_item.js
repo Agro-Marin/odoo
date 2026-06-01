@@ -14,6 +14,9 @@ export class ProfilingItem extends Component {
     };
     setup() {
         this.profiling = useService("profiling");
+        // The action service is absent in the frontend bundle, so we cannot
+        // useService() unconditionally — it would throw at setup time. Read
+        // the raw entry from env.services with optional chaining instead.
         useBus(this.props.bus, "UPDATE", /** @type {any} */ (this.render));
     }
 
@@ -25,9 +28,11 @@ export class ProfilingItem extends Component {
         this.profiling.setParam(param, !value);
     }
     openProfiles() {
-        if (this.env.services.action) {
+        // eslint-disable-next-line no-restricted-syntax -- action is optional (absent in frontend bundle); useService would throw on setup
+        const action = this.env.services.action;
+        if (action) {
             // using doAction in the backend to preserve breadcrumbs and stuff
-            this.env.services.action.doAction("base.action_menu_ir_profile");
+            action.doAction("base.action_menu_ir_profile");
         } else {
             // No action service means we are in the frontend.
             /** @type {any} */ (window).location =
