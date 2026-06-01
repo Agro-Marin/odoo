@@ -49,6 +49,7 @@
         <field name="name">res.company.scss</field>
         <field name="type">binary</field>
         <field name="url">web/static/asset_styles_company_report.scss</field>
+        <field name="public">True</field>
     </record>
 
 </odoo>

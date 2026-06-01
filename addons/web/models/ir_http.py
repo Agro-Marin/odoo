@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 import odoo
@@ -103,8 +104,24 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def lazy_session_info(self) -> dict[str, Any]:
-        """Return session fields that can be loaded lazily after page render."""
-        return {}
+        """Return session fields that can be loaded lazily after page render.
+
+        Fields returned here are fetched via a single
+        ``orm.call("ir.http", "lazy_session_info")`` RPC issued by the
+        ``lazy_session`` JS service after ``WEB_CLIENT_READY`` fires.  Use
+        this for data whose absence during boot does not degrade first
+        paint (debug tooling, effect flags, action-specific limits) —
+        anything read by a service at ``start()`` belongs in
+        :meth:`_base_session_info` instead.
+        """
+        return {
+            # Profiling state — consumed by ``@web/webclient/debug/profiling/profiling_service``
+            # which only activates in debug mode.  Null defaults fall back to ``false`` /
+            # the collector list defined JS-side.
+            "profile_session": request.session.get("profile_session"),
+            "profile_collectors": request.session.get("profile_collectors"),
+            "profile_params": request.session.get("profile_params"),
+        }
 
     def _base_session_info(self) -> dict[str, Any]:
         """Build the session fields shared by both backend and frontend.
@@ -117,6 +134,19 @@ class IrHttp(models.AbstractModel):
         session_uid = request.session.uid
         ir_config_sudo = self.env["ir.config_parameter"].sudo()
 
+        # ``web.cwv.sample_rate`` controls the share of sessions that emit
+        # Core Web Vitals beacons.  Default 1.0 (capture all) for dev; lower
+        # in prod (e.g. 0.1 = 10%) to bound traffic to /web/observability/cwv
+        # and ``web.cwv.metric`` row volume.  Decision is per-session; the
+        # JS service samples once at start, not per beacon.
+        try:
+            cwv_sample_rate = float(
+                ir_config_sudo.get_param("web.cwv.sample_rate", default="1.0"),
+            )
+        except ValueError, TypeError:
+            cwv_sample_rate = 1.0
+        cwv_sample_rate = max(0.0, min(1.0, cwv_sample_rate))
+
         info = {
             "uid": session_uid,
             "is_system": user._is_system() if session_uid else False,
@@ -128,9 +158,6 @@ class IrHttp(models.AbstractModel):
                 "webclient-cache",
                 self.env.registry.registry_sequence,
             ),
-            "profile_session": request.session.get("profile_session"),
-            "profile_collectors": request.session.get("profile_collectors"),
-            "profile_params": request.session.get("profile_params"),
             "show_effect": bool(ir_config_sudo.get_param("base.show_effect")),
             "currencies": self.env["res.currency"].get_all_currencies(),
             "quick_login": str2bool(
@@ -140,6 +167,8 @@ class IrHttp(models.AbstractModel):
                 "lang": request.session.context.get("lang", DEFAULT_LANG),
             },
             "test_mode": config["test_enable"],
+            "cwv_sample_rate": cwv_sample_rate,
+            "feature_flags": self._resolve_feature_flags(ir_config_sudo),
         }
         if request.session.debug:
             info["bundle_params"]["debug"] = request.session.debug
@@ -148,6 +177,67 @@ class IrHttp(models.AbstractModel):
             info["server_version"] = version_info.get("server_version")
             info["server_version_info"] = version_info.get("server_version_info")
         return info
+
+    _FEATURE_FLAG_PREFIX = "web.feature."
+
+    def _resolve_feature_flags(self, ir_config_sudo: Any) -> dict[str, Any]:
+        """Collect deployment-wide feature flags into a name -> typed-value dict.
+
+        Reads every ``ir.config_parameter`` row whose key starts with
+        ``web.feature.``, strips the prefix, and parses the raw value
+        with the same literal-set the JS resolver uses
+        (``services/feature_flags.js:_parseValue``): ``true`` / ``false``
+        / ``null`` literals, signed integers, floats, otherwise the
+        original string.  An empty dict is a valid return value — the
+        JS side falls through to call-site defaults when no key matches.
+
+        :param ir_config_sudo: sudoed ``ir.config_parameter`` recordset
+        :return: dict suitable for inclusion in session_info
+        :rtype: dict[str, Any]
+        """
+        rows = ir_config_sudo.search(
+            [("key", "=like", self._FEATURE_FLAG_PREFIX + "%")]
+        )
+        prefix_len = len(self._FEATURE_FLAG_PREFIX)
+        return {
+            row.key[prefix_len:]: self._parse_feature_flag_value(row.value)
+            for row in rows
+        }
+
+    # Numeric pattern intentionally mirrors the JS regex in
+    # ``feature_flags.js:_parseValue`` exactly: signed integer or decimal,
+    # NO scientific notation, NO inf/nan.  Python's float() would accept
+    # ``1.5e2`` / ``inf`` / ``nan`` and ``Number()`` in JS would too, but
+    # the JS regex gate blocks them — we replicate that gate here so a
+    # value set via ir.config_parameter resolves to the same type as the
+    # same string set via URL or localStorage.
+    _NUMERIC_RE = re.compile(r"^-?(\d+\.?\d*|\.\d+)$")
+
+    @classmethod
+    def _parse_feature_flag_value(cls, raw: str) -> Any:
+        """Parse an ``ir.config_parameter`` value into a JS-compatible type.
+
+        Mirrors ``services/feature_flags.js:_parseValue`` so a flag read
+        from URL / localStorage / server resolves to the same JS type
+        regardless of source.  Unparseable input is returned as the
+        original string, matching the JS fall-through.
+        """
+        if raw == "true":
+            return True
+        if raw == "false":
+            return False
+        if raw == "null":
+            return None
+        trimmed = raw.strip() if raw else ""
+        if not trimmed:
+            return True  # bare ``name:`` was treated as truthy on the JS side
+        if not cls._NUMERIC_RE.match(trimmed):
+            return raw
+        # Integer fast-path so ``1`` stays int not 1.0; the regex above
+        # already guarantees one of int() / float() succeeds.
+        if "." in trimmed:
+            return float(trimmed)
+        return int(trimmed)
 
     def _get_config_limits(self, ir_config_sudo: Any) -> dict[str, int]:
         """Read numeric config parameters with safe fallbacks.

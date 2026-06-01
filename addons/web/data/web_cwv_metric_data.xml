@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Daily retention cron.  Reads ``web.cwv.retention_days``
+        (ir.config_parameter, default 30) and deletes records older than
+        that.  Set the param to 0 to disable retention (useful when
+        beacons are piped to an external TSDB).
+
+        Schedule: 1×/day, priority 8 (matches the portal-users-deletion
+        cron in base — low-priority cleanup work that should not block
+        higher-value crons).
+    -->
+    <record id="ir_cron_web_cwv_metric_gc" model="ir.cron">
+        <field name="name">Web: Core Web Vitals Retention</field>
+        <field name="model_id" ref="model_web_cwv_metric" />
+        <field name="state">code</field>
+        <field name="code">model._gc_old_metrics()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="priority">8</field>
+        <field name="active" eval="True" />
+    </record>
+
+</odoo>

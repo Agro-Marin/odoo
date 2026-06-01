@@ -1,0 +1,200 @@
+"""Observability endpoints — Real User Monitoring (RUM) beacons.
+
+Receives Core Web Vitals beacons from ``services/web_vitals/web_vitals_service.js``
+and persists them to ``web.cwv.metric`` for dashboards (list/pivot/graph views
+under Settings → Technical → Core Web Vitals).  A short ``[cwv]`` INFO log line
+is also emitted per beacon as an ops-debug signal that does not require a DB
+query to inspect.
+
+Recommendation #9 in
+``knowledge/research/2026-04-28-web-module-js-architecture-assessment.md`` —
+Phase 1 (this controller, Phase 1) + Phase 2 (queryable model + dashboard).
+"""
+
+import logging
+
+from odoo.http import Controller, Response, request, route
+from odoo.libs.json import loads as json_loads
+
+_logger = logging.getLogger(__name__)
+
+# Sanity bounds — values outside these are dropped as garbage (typically from
+# bots, devtools-paused tabs, or buggy browsers).  The thresholds are well
+# above any reasonable real-user metric.
+_MAX_LATENCY_MS = 60_000  # 60 s — anything longer is a stuck page or bot
+_MAX_CLS = 5.0  # Lighthouse "poor" is 0.25; > 5 is wildly broken
+_MAX_URL_LEN = 500
+_MAX_UA_LEN = 500
+_MAX_ERROR_MSG_LEN = 1_000
+_MAX_ERROR_STACK_LEN = 4_096
+_MAX_ERROR_FILENAME_LEN = 500
+
+
+def _clamp_latency(value):
+    """Return ``value`` if it looks like a valid latency in ms, else ``None``."""
+    if not isinstance(value, (int, float)):
+        return None
+    if value < 0 or value > _MAX_LATENCY_MS:
+        return None
+    return float(value)
+
+
+def _clamp_cls(value):
+    """Return ``value`` if it looks like a valid CLS score, else ``None``."""
+    if not isinstance(value, (int, float)):
+        return None
+    if value < 0 or value > _MAX_CLS:
+        return None
+    return float(value)
+
+
+class Observability(Controller):
+    """Web client observability endpoints."""
+
+    @route(
+        "/web/observability/cwv",
+        type="http",
+        auth="public",
+        sitemap=False,
+        methods=["POST"],
+        csrf=False,
+    )
+    def cwv(self) -> Response:
+        """Receive a Core Web Vitals beacon and persist it.
+
+        Body is a JSON object with optional fields ``lcp``, ``fcp``, ``cls``,
+        ``ttfb``, ``inp`` (numbers in ms or unitless for CLS), plus ``url``
+        and ``user_agent`` strings for context.  The endpoint validates
+        ranges, drops garbage, emits a ``[cwv]``-tagged INFO log line per
+        beacon, and creates a row in ``web.cwv.metric``.
+
+        ``csrf=False`` because ``navigator.sendBeacon`` cannot carry a CSRF
+        token (no header control on the Blob path).  The endpoint is purely
+        write-only and the validation drops malformed input, so the lack of
+        CSRF here does not expand the attack surface meaningfully.
+
+        The model write goes through ``sudo()`` because beacons can arrive
+        from anonymous frontend visitors who don't have create access on
+        ``web.cwv.metric`` — this is a write-only endpoint by design.
+        """
+        try:
+            payload = json_loads(request.httprequest.data or b"{}")
+        except (ValueError, TypeError):
+            return Response("invalid json", status=400, mimetype="text/plain")
+
+        if not isinstance(payload, dict):
+            return Response("invalid payload", status=400, mimetype="text/plain")
+
+        lcp = _clamp_latency(payload.get("lcp"))
+        fcp = _clamp_latency(payload.get("fcp"))
+        ttfb = _clamp_latency(payload.get("ttfb"))
+        inp = _clamp_latency(payload.get("inp"))
+        cls = _clamp_cls(payload.get("cls"))
+        url = (payload.get("url") or "")[:_MAX_URL_LEN] if isinstance(payload.get("url"), str) else ""
+        user_agent = (payload.get("user_agent") or "")[:_MAX_UA_LEN] if isinstance(payload.get("user_agent"), str) else ""
+
+        # Drop completely empty beacons (no metric survived validation).
+        if lcp is None and fcp is None and ttfb is None and cls is None and inp is None:
+            return Response("", status=204)
+
+        # ``url`` is required by the model.  Drop a beacon without one — should
+        # never happen from our own service but cheap to guard against.
+        if not url:
+            return Response("", status=204)
+
+        uid = request.session.uid or False
+        _logger.info(
+            "[cwv] uid=%s url=%r lcp=%s fcp=%s cls=%s ttfb=%s inp=%s ua=%r",
+            uid or "anon",
+            url,
+            lcp,
+            fcp,
+            cls,
+            ttfb,
+            inp,
+            user_agent,
+        )
+        # sudo() — anonymous frontend traffic has no write access on
+        # web.cwv.metric.  RUM beacons should not be lost based on caller ACL.
+        request.env["web.cwv.metric"].sudo().create(
+            {
+                "url": url,
+                "user_id": uid,
+                "lcp": lcp,
+                "fcp": fcp,
+                "cls": cls,
+                "ttfb": ttfb,
+                "inp": inp,
+                "user_agent": user_agent or False,
+            }
+        )
+        return Response("", status=204)
+
+    @route(
+        "/web/observability/js_error",
+        type="http",
+        auth="public",
+        sitemap=False,
+        methods=["POST"],
+        csrf=False,
+    )
+    def js_error(self) -> Response:
+        """Receive a JS error beacon from ``module_loader.js``.
+
+        Payload fields (all optional, all clamped to per-field length caps):
+        ``phase`` (``"pre_boot"`` | ``"post_boot"``), ``kind`` (``"error"`` |
+        ``"unhandledrejection"``), ``message``, ``filename``, ``line``,
+        ``col``, ``stack``, ``url``, ``user_agent``.
+
+        Logs each beacon as ``[js_error]`` at WARNING.  Persistence
+        (``web.js.error`` model + queryable dashboard) is intentionally
+        deferred to a follow-up phase; the log is enough for operators to
+        spot post-deploy regressions via the existing log pipeline.
+
+        ``csrf=False`` because ``navigator.sendBeacon`` cannot carry a CSRF
+        token; the endpoint is purely write-only and rate-limited at the
+        JS side (one beacon per ``(message,line,col)`` per page lifetime).
+        """
+        try:
+            payload = json_loads(request.httprequest.data or b"{}")
+        except (ValueError, TypeError):
+            return Response("invalid json", status=400, mimetype="text/plain")
+
+        if not isinstance(payload, dict):
+            return Response("invalid payload", status=400, mimetype="text/plain")
+
+        def _str_field(raw, cap):
+            return (str(raw)[:cap]) if isinstance(raw, str) else ""
+
+        def _int_field(raw):
+            return int(raw) if isinstance(raw, (int, float)) and raw >= 0 else 0
+
+        message = _str_field(payload.get("message"), _MAX_ERROR_MSG_LEN)
+        if not message:
+            # Empty-message beacons carry no signal; drop silently.
+            return Response("", status=204)
+
+        kind = payload.get("kind") if payload.get("kind") in ("error", "unhandledrejection") else "error"
+        phase = payload.get("phase") if payload.get("phase") in ("pre_boot", "post_boot") else "unknown"
+        filename = _str_field(payload.get("filename"), _MAX_ERROR_FILENAME_LEN)
+        url = _str_field(payload.get("url"), _MAX_URL_LEN)
+        user_agent = _str_field(payload.get("user_agent"), _MAX_UA_LEN)
+        stack = _str_field(payload.get("stack"), _MAX_ERROR_STACK_LEN)
+        line = _int_field(payload.get("line"))
+        col = _int_field(payload.get("col"))
+
+        uid = request.session.uid or False
+        _logger.warning(
+            "[js_error] uid=%s phase=%s kind=%s msg=%r at %s:%d:%d url=%r ua=%r stack=%r",
+            uid or "anon",
+            phase,
+            kind,
+            message,
+            filename,
+            line,
+            col,
+            url,
+            user_agent,
+            stack,
+        )
+        return Response("", status=204)

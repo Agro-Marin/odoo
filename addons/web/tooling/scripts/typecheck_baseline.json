@@ -1,0 +1,1185 @@
+{
+  "_generated_at": "2026-05-11",
+  "_total_errors": 1970,
+  "_file_count": 303,
+  "_generator": "addons/web/tooling/scripts/typecheck_gate.mjs --update-baseline",
+  "files": {
+    "addons/spreadsheet/static/src/data_sources/data_source.js": {
+      "TS18042": 1,
+      "TS2693": 1
+    },
+    "addons/spreadsheet/static/src/helpers/helpers.js": {
+      "TS2694": 1
+    },
+    "addons/spreadsheet/static/src/helpers/model.js": {
+      "TS2339": 1
+    },
+    "addons/spreadsheet/static/src/helpers/odoo_functions_helpers.js": {
+      "TS2694": 1
+    },
+    "addons/spreadsheet/static/src/list/list_actions.js": {
+      "TS2694": 2
+    },
+    "addons/spreadsheet/static/src/list/list_helpers.js": {
+      "TS2694": 2
+    },
+    "addons/spreadsheet/static/src/pivot/odoo_pivot.js": {
+      "TS2345": 3,
+      "TS2554": 1,
+      "TS2694": 7
+    },
+    "addons/spreadsheet/static/src/pivot/odoo_pivot_loader.js": {
+      "TS18042": 1,
+      "TS2693": 1
+    },
+    "addons/spreadsheet/static/src/pivot/pivot_actions.js": {
+      "TS2694": 2
+    },
+    "addons/spreadsheet/static/src/pivot/pivot_functions.js": {
+      "TS2554": 6,
+      "TS2694": 1
+    },
+    "addons/spreadsheet/static/src/pivot/pivot_helpers.js": {
+      "TS2694": 2
+    },
+    "addons/spreadsheet/static/src/pivot/pivot_model.js": {
+      "TS2339": 22,
+      "TS2554": 2,
+      "TS2694": 5,
+      "TS4122": 7
+    },
+    "addons/spreadsheet/static/src/pivot/pivot_time_adapters.js": {
+      "TS2554": 1
+    },
+    "addons/spreadsheet/static/src/pivot/plugins/pivot_core_global_filter_plugin.js": {
+      "TS2339": 13,
+      "TS2694": 1
+    },
+    "addons/spreadsheet/static/tests/helpers/stores.js": {
+      "TS2694": 1
+    },
+    "addons/spreadsheet_account/static/src/utils.js": {
+      "TS2694": 2
+    },
+    "addons/web/static/src/components/code_editor/code_editor.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/components/color_picker/custom_color_picker/custom_color_picker.js": {
+      "TS2611": 1
+    },
+    "addons/web/static/src/components/emoji_picker/emoji_picker.js": {
+      "TS2322": 2
+    },
+    "addons/web/static/src/components/tree_editor/tree_editor_value_editors.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/core/browser/browser.js": {
+      "TS2556": 1
+    },
+    "addons/web/static/src/core/network/download.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/core/py_js/py_parser.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/core/tree/construct_tree_from_expression.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/core/tree/expression_from_tree.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/core/tree/in_range_options.js": {
+      "TS2694": 1
+    },
+    "addons/web/static/src/core/tree/operator_labels.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/core/utils/format/colors.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/fields/_registry.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/fields/basic/float/float_field.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/fields/field.js": {
+      "TS2322": 1,
+      "TS2741": 1
+    },
+    "addons/web/static/src/fields/media/signature/signature_field.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/fields/relational/many2x_autocomplete.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/fields/relational/reference/reference_field.js": {
+      "TS2556": 1
+    },
+    "addons/web/static/src/fields/relational/x2many/x2many_field.js": {
+      "TS2556": 1
+    },
+    "addons/web/static/src/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field.js": {
+      "TS2304": 1
+    },
+    "addons/web/static/src/fields/specialized/properties/properties_field.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/model/record.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/model/relational_model/command_builder.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/model/relational_model/record.js": {
+      "TS2339": 2,
+      "TS2739": 1,
+      "TS8024": 3
+    },
+    "addons/web/static/src/model/relational_model/record_save.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/public/colibri.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/public/interaction_service.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/search/cog_menu/cog_menu.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/search/control_panel/control_panel.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/search/custom_favorite_item/custom_favorite_item.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/search/search_bar/search_bar.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/search/search_bar_menu/search_bar_menu.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/search/search_model.js": {
+      "TS2769": 1
+    },
+    "addons/web/static/src/services/debug/debug_menu.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/services/tree_processor_service.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/services/web_vitals/web_vitals_service.js": {
+      "TS2769": 1
+    },
+    "addons/web/static/src/ui/overlay/overlay_service.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/ui/popover/popover.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/views/calendar/calendar_controller.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/views/calendar/hooks/calendar_popover_hook.js": {
+      "TS2304": 1
+    },
+    "addons/web/static/src/views/calendar/hooks/full_calendar_hook.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/views/form/form_label.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/views/form/form_save_coordinator.js": {
+      "TS2339": 2
+    },
+    "addons/web/static/src/views/graph/graph_chart_config.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/src/views/graph/graph_renderer.js": {
+      "TS2304": 1
+    },
+    "addons/web/static/src/views/kanban/kanban_arch_parser.js": {
+      "TS2740": 1
+    },
+    "addons/web/static/src/views/kanban/kanban_controller.js": {
+      "TS2305": 1
+    },
+    "addons/web/static/src/views/kanban/kanban_header.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/views/list/list_arch_parser.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/views/list/list_controller.js": {
+      "TS2305": 1
+    },
+    "addons/web/static/src/views/list/list_renderer.js": {
+      "TS2559": 1
+    },
+    "addons/web/static/src/views/list/list_view.js": {
+      "TS2694": 1
+    },
+    "addons/web/static/src/views/settings/highlight_text/highlight_text.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/src/views/settings/settings_form_controller.js": {
+      "TS2416": 1
+    },
+    "addons/web/static/src/views/view.js": {
+      "TS2739": 1
+    },
+    "addons/web/static/src/views/view_hook.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/views/widgets/signature/signature.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/webclient/actions/reports/report_action.js": {
+      "TS2305": 1
+    },
+    "addons/web/static/src/webclient/navbar/navbar.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/webclient/switch_company_menu/switch_company_menu.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/webclient/user_menu/user_menu.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/src/webclient/webclient.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/tests/_framework/component_test_helpers.js": {
+      "TS2322": 2,
+      "TS2339": 5
+    },
+    "addons/web/static/tests/_framework/dom_test_helpers.js": {
+      "TS2353": 1
+    },
+    "addons/web/static/tests/_framework/env_test_helpers.js": {
+      "TS2353": 2
+    },
+    "addons/web/static/tests/_framework/mock_server/mock_server.js": {
+      "TS2339": 3
+    },
+    "addons/web/static/tests/_framework/mock_server_state.hoot.js": {
+      "TS2554": 1,
+      "TS2769": 1
+    },
+    "addons/web/static/tests/_framework/mock_user.hoot.js": {
+      "TS2304": 1
+    },
+    "addons/web/static/tests/_framework/module_set.hoot.js": {
+      "TS2353": 2
+    },
+    "addons/web/static/tests/components/checkbox.test.js": {
+      "TS2353": 1
+    },
+    "addons/web/static/tests/components/code_editor.test.js": {
+      "TS2322": 2,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/components/components/copy_button.test.js": {
+      "TS2741": 1
+    },
+    "addons/web/static/tests/components/components/datetime/datetime_hook.test.js": {
+      "TS18048": 7,
+      "TS2322": 6
+    },
+    "addons/web/static/tests/components/components/datetime/datetime_input.test.js": {
+      "TS18048": 1,
+      "TS2322": 1
+    },
+    "addons/web/static/tests/components/components/datetime/datetime_picker.test.js": {
+      "TS2304": 1,
+      "TS2322": 21
+    },
+    "addons/web/static/tests/components/components/time_picker.test.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/tests/components/datetime/datetime_test_helpers.js": {
+      "TS2345": 2,
+      "TS2365": 1
+    },
+    "addons/web/static/tests/components/domain_selector/domain_selector.test.js": {
+      "TS2322": 1,
+      "TS2339": 4,
+      "TS2353": 1
+    },
+    "addons/web/static/tests/components/dropdown/dropdown.test.js": {
+      "TS18048": 4,
+      "TS2339": 5,
+      "TS2353": 1,
+      "TS2367": 1,
+      "TS2554": 2,
+      "TS2740": 5
+    },
+    "addons/web/static/tests/components/dropdown/dropdown_item.test.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/components/expression_editor/expression_editor.test.js": {
+      "TS2339": 6
+    },
+    "addons/web/static/tests/components/expression_editor/expression_editor_dialog.test.js": {
+      "TS2322": 1,
+      "TS2339": 1
+    },
+    "addons/web/static/tests/components/file_input.test.js": {
+      "TS2345": 6
+    },
+    "addons/web/static/tests/components/file_upload.test.js": {
+      "TS2322": 1,
+      "TS2339": 3
+    },
+    "addons/web/static/tests/components/model_field_selector.test.js": {
+      "TS2322": 4
+    },
+    "addons/web/static/tests/components/model_selector.test.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/tests/components/resizable_panel.test.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/tests/components/scroller.test.js": {
+      "TS2345": 4
+    },
+    "addons/web/static/tests/components/select_menu.test.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/tests/components/tree_editor/condition_tree_editor_test_helpers.js": {
+      "TS2322": 5,
+      "TS2339": 5
+    },
+    "addons/web/static/tests/core/context.test.js": {
+      "TS2345": 2
+    },
+    "addons/web/static/tests/core/domain.test.js": {
+      "TS2322": 5,
+      "TS2345": 6
+    },
+    "addons/web/static/tests/core/domain_field.test.js": {
+      "TS2322": 1,
+      "TS2464": 1
+    },
+    "addons/web/static/tests/core/errors/error_dialogs.test.js": {
+      "TS2322": 2,
+      "TS2339": 3
+    },
+    "addons/web/static/tests/core/errors/error_service.test.js": {
+      "TS2322": 5,
+      "TS2339": 21,
+      "TS2345": 4,
+      "TS2353": 2
+    },
+    "addons/web/static/tests/core/file_model.test.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/core/macro.test.js": {
+      "TS2322": 1,
+      "TS2554": 8
+    },
+    "addons/web/static/tests/core/network/download.test.js": {
+      "TS2345": 3,
+      "TS2739": 3
+    },
+    "addons/web/static/tests/core/network/http_service.test.js": {
+      "TS2322": 2,
+      "TS2345": 1,
+      "TS2739": 1
+    },
+    "addons/web/static/tests/core/network/rpc.test.js": {
+      "TS2345": 9,
+      "TS2554": 1,
+      "TS2739": 5
+    },
+    "addons/web/static/tests/core/network/rpc_cache.test.js": {
+      "TS2322": 1,
+      "TS2339": 16
+    },
+    "addons/web/static/tests/core/position/position_hook.test.js": {
+      "TS18047": 3,
+      "TS18048": 23,
+      "TS2322": 3,
+      "TS2339": 1,
+      "TS2554": 5
+    },
+    "addons/web/static/tests/core/py_js/py_date.test.js": {
+      "TS2739": 1
+    },
+    "addons/web/static/tests/core/py_js/py_utils.test.js": {
+      "TS2339": 12
+    },
+    "addons/web/static/tests/core/registry.test.js": {
+      "TS2339": 2,
+      "TS2353": 2
+    },
+    "addons/web/static/tests/core/router.test.js": {
+      "TS2345": 8
+    },
+    "addons/web/static/tests/core/template.test.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/tests/core/tree/in_range_operator.test.js": {
+      "TS2345": 4
+    },
+    "addons/web/static/tests/core/utils/arrays.test.js": {
+      "TS2345": 10
+    },
+    "addons/web/static/tests/core/utils/assets.test.js": {
+      "TS2322": 4,
+      "TS2339": 32
+    },
+    "addons/web/static/tests/core/utils/autoresize.test.js": {
+      "TS2345": 2
+    },
+    "addons/web/static/tests/core/utils/draggable.test.js": {
+      "TS2345": 3,
+      "TS2353": 3,
+      "TS2741": 1
+    },
+    "addons/web/static/tests/core/utils/functions.test.js": {
+      "TS2345": 2,
+      "TS2554": 2
+    },
+    "addons/web/static/tests/core/utils/hooks.test.js": {
+      "TS18048": 11,
+      "TS2322": 1,
+      "TS2339": 3,
+      "TS2345": 4,
+      "TS2353": 3,
+      "TS2532": 1,
+      "TS2722": 3
+    },
+    "addons/web/static/tests/core/utils/html.test.js": {
+      "TS2345": 5,
+      "TS2353": 1,
+      "TS2555": 1
+    },
+    "addons/web/static/tests/core/utils/nested_sortable.test.js": {
+      "TS2339": 17,
+      "TS2345": 4,
+      "TS2353": 13,
+      "TS2741": 1
+    },
+    "addons/web/static/tests/core/utils/numbers.test.js": {
+      "TS2322": 3,
+      "TS2345": 1
+    },
+    "addons/web/static/tests/core/utils/objects.test.js": {
+      "TS2345": 5,
+      "TS2353": 1
+    },
+    "addons/web/static/tests/core/utils/patch.test.js": {
+      "TS2339": 5,
+      "TS2353": 3
+    },
+    "addons/web/static/tests/core/utils/render.test.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/core/utils/sortable.test.js": {
+      "TS2345": 5,
+      "TS2353": 1,
+      "TS2741": 1
+    },
+    "addons/web/static/tests/core/utils/strings.test.js": {
+      "TS2556": 1
+    },
+    "addons/web/static/tests/core/utils/timing.test.js": {
+      "TS2339": 5,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/core/utils/urls.test.js": {
+      "TS2353": 2,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/core/virtual_grid_hook.test.js": {
+      "TS2314": 1,
+      "TS2419": 1
+    },
+    "addons/web/static/tests/env.test.js": {
+      "TS2339": 7,
+      "TS2345": 4,
+      "TS2353": 2
+    },
+    "addons/web/static/tests/helpers/cleanup.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/helpers/dom_test_helpers.test.js": {
+      "TS2339": 1,
+      "TS2345": 2,
+      "TS2349": 1,
+      "TS2769": 1
+    },
+    "addons/web/static/tests/helpers/utils.js": {
+      "TS2322": 18,
+      "TS2339": 7,
+      "TS2345": 3,
+      "TS2353": 2,
+      "TS2554": 1,
+      "TS2740": 1
+    },
+    "addons/web/static/tests/legacy/core/datetime/datetime_test_helpers.js": {
+      "TS2307": 2,
+      "TS2339": 1,
+      "TS2345": 1,
+      "TS2365": 1
+    },
+    "addons/web/static/tests/legacy/core/utils/nested_sortable_tests.js": {
+      "TS2307": 1
+    },
+    "addons/web/static/tests/legacy/helpers/mock_env.js": {
+      "TS2307": 2,
+      "TS2339": 3
+    },
+    "addons/web/static/tests/legacy/helpers/mock_server.js": {
+      "TS1005": 2,
+      "TS2304": 1,
+      "TS2307": 2,
+      "TS2322": 5,
+      "TS2339": 13,
+      "TS2345": 3,
+      "TS2367": 1,
+      "TS2488": 1,
+      "TS2538": 10,
+      "TS2554": 2
+    },
+    "addons/web/static/tests/legacy/helpers/mock_services.js": {
+      "TS2307": 1,
+      "TS2339": 1,
+      "TS2556": 1
+    },
+    "addons/web/static/tests/legacy/helpers/mount_in_fixture.js": {
+      "TS2307": 1,
+      "TS2339": 1,
+      "TS2419": 1,
+      "TS2739": 1
+    },
+    "addons/web/static/tests/legacy/ignore_missing_deps_start.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/legacy/ignore_missing_deps_stop.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/legacy/legacy_tests/core/class_tests.js": {
+      "TS2339": 6,
+      "TS2351": 9
+    },
+    "addons/web/static/tests/legacy/legacy_tests/helpers/test_utils.js": {
+      "TS1005": 2,
+      "TS2339": 2
+    },
+    "addons/web/static/tests/legacy/legacy_tests/helpers/test_utils_dom.js": {
+      "TS18047": 2,
+      "TS2339": 12,
+      "TS2488": 1,
+      "TS8032": 1
+    },
+    "addons/web/static/tests/legacy/legacy_tests/helpers/test_utils_fields.js": {
+      "TS2339": 1,
+      "TS2345": 1
+    },
+    "addons/web/static/tests/legacy/legacy_tests/helpers/test_utils_mock.js": {
+      "TS2304": 1,
+      "TS2307": 1
+    },
+    "addons/web/static/tests/legacy/public/minimal_dom.js": {
+      "TS2307": 2,
+      "TS2345": 1,
+      "TS2554": 1,
+      "TS2722": 2
+    },
+    "addons/web/static/tests/legacy/public/public_widget_tests.js": {
+      "TS2339": 22,
+      "TS2345": 3,
+      "TS2351": 1
+    },
+    "addons/web/static/tests/legacy/qunit.js": {
+      "TS2304": 6,
+      "TS2339": 1,
+      "TS2345": 3
+    },
+    "addons/web/static/tests/legacy/search/helpers.js": {
+      "TS2307": 1,
+      "TS2322": 1,
+      "TS2339": 1
+    },
+    "addons/web/static/tests/legacy/setup.js": {
+      "TS2307": 2,
+      "TS2339": 2,
+      "TS2556": 7
+    },
+    "addons/web/static/tests/legacy/views/calendar/helpers.js": {
+      "TS2307": 1
+    },
+    "addons/web/static/tests/legacy/views/graph_view_tests.js": {
+      "TS2307": 1
+    },
+    "addons/web/static/tests/legacy/views/helpers.js": {
+      "TS18048": 1,
+      "TS2307": 1,
+      "TS2339": 11,
+      "TS2559": 1
+    },
+    "addons/web/static/tests/legacy/views/kanban/helpers.js": {
+      "TS2307": 1
+    },
+    "addons/web/static/tests/legacy/webclient/helpers.js": {
+      "TS2307": 2,
+      "TS2339": 1,
+      "TS2345": 1
+    },
+    "addons/web/static/tests/mock_server/mock_model.test.js": {
+      "TS2339": 1,
+      "TS2345": 9
+    },
+    "addons/web/static/tests/mock_server/mock_server.test.js": {
+      "TS2322": 9,
+      "TS2345": 12,
+      "TS2353": 4,
+      "TS2538": 6
+    },
+    "addons/web/static/tests/mock_server/mock_server_state.test.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/tests/model/command_builder.test.js": {
+      "TS2322": 1,
+      "TS2345": 18
+    },
+    "addons/web/static/tests/model/record.test.js": {
+      "TS18048": 2,
+      "TS2322": 1,
+      "TS2350": 1,
+      "TS2416": 1
+    },
+    "addons/web/static/tests/model/relational_model/operation.test.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/tests/model/relational_model/record_preprocessors.test.js": {
+      "TS18047": 3,
+      "TS2345": 5
+    },
+    "addons/web/static/tests/model/relational_model/record_save.test.js": {
+      "TS18047": 4,
+      "TS2345": 1
+    },
+    "addons/web/static/tests/model/relational_model/static_list_command_engine.test.js": {
+      "TS2322": 18
+    },
+    "addons/web/static/tests/model/relational_model/static_list_sort.test.js": {
+      "TS2345": 9
+    },
+    "addons/web/static/tests/model/sample_server.test.js": {
+      "TS2556": 1
+    },
+    "addons/web/static/tests/public/helpers.js": {
+      "TS2339": 2
+    },
+    "addons/web/static/tests/public/interaction.test.js": {
+      "TS18047": 1,
+      "TS18048": 11,
+      "TS2322": 3,
+      "TS2339": 7,
+      "TS2345": 1,
+      "TS2416": 1,
+      "TS2551": 5,
+      "TS2554": 1,
+      "TS2722": 1
+    },
+    "addons/web/static/tests/public/utils.test.js": {
+      "TS2741": 1
+    },
+    "addons/web/static/tests/search/custom_favorite_item.test.js": {
+      "TS2322": 2
+    },
+    "addons/web/static/tests/search/pager_hook.test.js": {
+      "TS2554": 10
+    },
+    "addons/web/static/tests/search/search_bar_menu/favorite_menu.test.js": {
+      "TS2322": 2
+    },
+    "addons/web/static/tests/search/search_bar_menu/filter_menu.test.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/tests/search/search_panel_desktop.test.js": {
+      "TS2345": 1,
+      "TS2353": 1,
+      "TS2464": 2,
+      "TS2559": 2
+    },
+    "addons/web/static/tests/search/search_panel_state.test.js": {
+      "TS2339": 4,
+      "TS2345": 6,
+      "TS2769": 2
+    },
+    "addons/web/static/tests/search/with_search.test.js": {
+      "TS2464": 1
+    },
+    "addons/web/static/tests/services/commands/command_palette.test.js": {
+      "TS2322": 1,
+      "TS2345": 4
+    },
+    "addons/web/static/tests/services/commands/command_service.test.js": {
+      "TS2322": 2,
+      "TS2345": 1,
+      "TS2353": 2,
+      "TS2554": 6
+    },
+    "addons/web/static/tests/services/commands/menu_provider.test.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/tests/services/currency.test.js": {
+      "TS2741": 2
+    },
+    "addons/web/static/tests/services/debug/debug_manager.test.js": {
+      "TS2322": 1,
+      "TS2345": 2,
+      "TS2556": 1,
+      "TS2872": 1
+    },
+    "addons/web/static/tests/services/field_service.test.js": {
+      "TS2339": 2,
+      "TS2345": 37,
+      "TS2554": 2,
+      "TS2722": 2
+    },
+    "addons/web/static/tests/services/hotkey_sevice.test.js": {
+      "TS2339": 1,
+      "TS2345": 1,
+      "TS2554": 4,
+      "TS2555": 1
+    },
+    "addons/web/static/tests/services/install_scoped_app.test.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/services/name_service.test.js": {
+      "TS2769": 2
+    },
+    "addons/web/static/tests/services/orm_service.test.js": {
+      "TS2339": 1,
+      "TS2345": 3,
+      "TS2353": 5
+    },
+    "addons/web/static/tests/services/pwa_service.test.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/services/session_service.test.js": {
+      "TS2339": 2
+    },
+    "addons/web/static/tests/tours/user_switch_tour.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/ui/dialog.test.js": {
+      "TS2353": 1,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/ui/dialog_service.test.js": {
+      "TS2554": 3
+    },
+    "addons/web/static/tests/ui/effects/effect_service.test.js": {
+      "TS2353": 1
+    },
+    "addons/web/static/tests/ui/main_components_container.test.js": {
+      "TS18048": 2,
+      "TS2339": 4
+    },
+    "addons/web/static/tests/ui/notifications/notifications.test.js": {
+      "TS2345": 2
+    },
+    "addons/web/static/tests/ui/popover/popover.test.js": {
+      "TS18048": 1,
+      "TS2322": 1
+    },
+    "addons/web/static/tests/ui/tooltip/tooltip_service.test.js": {
+      "TS18048": 1,
+      "TS2353": 2
+    },
+    "addons/web/static/tests/utils.js": {
+      "TS2307": 4,
+      "TS2322": 2,
+      "TS2339": 17,
+      "TS2349": 1,
+      "TS8032": 2
+    },
+    "addons/web/static/tests/views/calendar/calendar_multi_create.test.js": {
+      "TS2322": 4,
+      "TS2339": 3
+    },
+    "addons/web/static/tests/views/calendar/calendar_test_helpers.js": {
+      "TS2339": 3
+    },
+    "addons/web/static/tests/views/calendar/calendar_view.test.js": {
+      "TS2322": 17,
+      "TS2339": 5,
+      "TS2345": 25,
+      "TS2741": 1
+    },
+    "addons/web/static/tests/views/fields/ace_field.test.js": {
+      "TS2554": 2
+    },
+    "addons/web/static/tests/views/fields/badge_selection_field.test.js": {
+      "TS2345": 2
+    },
+    "addons/web/static/tests/views/fields/badge_selection_with_filter_field.test.js": {
+      "TS2365": 3
+    },
+    "addons/web/static/tests/views/fields/binary_field.test.js": {
+      "TS2415": 1,
+      "TS2419": 1,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/fields/char_field.test.js": {
+      "TS2322": 6,
+      "TS2416": 1,
+      "TS2419": 1,
+      "TS2554": 22
+    },
+    "addons/web/static/tests/views/fields/color_field.test.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/fields/copy_clipboard_field.test.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/fields/date_field.test.js": {
+      "TS2339": 3,
+      "TS2345": 2,
+      "TS2554": 10
+    },
+    "addons/web/static/tests/views/fields/daterange_field.test.js": {
+      "TS2554": 1,
+      "TS2820": 1
+    },
+    "addons/web/static/tests/views/fields/datetime_field.test.js": {
+      "TS2820": 5
+    },
+    "addons/web/static/tests/views/fields/dynamic_placeholder.test.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/views/fields/email_field.test.js": {
+      "TS2554": 4
+    },
+    "addons/web/static/tests/views/fields/formatters.test.js": {
+      "TS2322": 3,
+      "TS2345": 5,
+      "TS2739": 1
+    },
+    "addons/web/static/tests/views/fields/gauge_field.test.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/views/fields/image_field.test.js": {
+      "TS2339": 6,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/fields/input_field_hook.test.js": {
+      "TS2416": 1,
+      "TS2419": 1,
+      "TS2554": 6
+    },
+    "addons/web/static/tests/views/fields/integer_field.test.js": {
+      "TS2554": 10,
+      "TS2820": 2
+    },
+    "addons/web/static/tests/views/fields/many2many_checkboxes_field.test.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/tests/views/fields/many2many_field.test.js": {
+      "TS2322": 6,
+      "TS2339": 3,
+      "TS2464": 1,
+      "TS2554": 2
+    },
+    "addons/web/static/tests/views/fields/many2many_tags_field.test.js": {
+      "TS2322": 1,
+      "TS2554": 2
+    },
+    "addons/web/static/tests/views/fields/many2one_barcode_field.test.js": {
+      "TS2322": 2
+    },
+    "addons/web/static/tests/views/fields/many2one_field.test.js": {
+      "TS2322": 17,
+      "TS2339": 3,
+      "TS2464": 2,
+      "TS2551": 1,
+      "TS2554": 4
+    },
+    "addons/web/static/tests/views/fields/many2one_reference_field.test.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/tests/views/fields/monetary_field.test.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/tests/views/fields/numeric_fields.test.js": {
+      "TS2339": 1,
+      "TS2345": 2,
+      "TS2551": 1,
+      "TS2740": 6
+    },
+    "addons/web/static/tests/views/fields/one2many_field.test.js": {
+      "TS2322": 17,
+      "TS2339": 6,
+      "TS2345": 5,
+      "TS2464": 8
+    },
+    "addons/web/static/tests/views/fields/parsers.test.js": {
+      "TS2322": 2
+    },
+    "addons/web/static/tests/views/fields/pdf_viewer_field.test.js": {
+      "TS2322": 1,
+      "TS2339": 1
+    },
+    "addons/web/static/tests/views/fields/priority_field.test.js": {
+      "TS2322": 2,
+      "TS2538": 1,
+      "TS2559": 2
+    },
+    "addons/web/static/tests/views/fields/properties_field.test.js": {
+      "TS2339": 1,
+      "TS2538": 7,
+      "TS2559": 4,
+      "TS2820": 2
+    },
+    "addons/web/static/tests/views/fields/reference_field.test.js": {
+      "TS2322": 2,
+      "TS2339": 3,
+      "TS2538": 8
+    },
+    "addons/web/static/tests/views/fields/signature_field.test.js": {
+      "TS2339": 3,
+      "TS2820": 2
+    },
+    "addons/web/static/tests/views/fields/state_selection_field.test.js": {
+      "TS2339": 1
+    },
+    "addons/web/static/tests/views/fields/statusbar_field.test.js": {
+      "TS2554": 4
+    },
+    "addons/web/static/tests/views/fields/text_field.test.js": {
+      "TS2339": 1,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/fields/timezone_mismatch_field.test.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/tests/views/fields/translation_dialog.test.js": {
+      "TS2339": 3,
+      "TS2416": 1,
+      "TS2419": 1,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/fields/url_field.test.js": {
+      "TS2554": 3
+    },
+    "addons/web/static/tests/views/fields/x2many_dialog.test.js": {
+      "TS2554": 2
+    },
+    "addons/web/static/tests/views/fields/x2many_field.test.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/form/auto_save.test.js": {
+      "TS2322": 7,
+      "TS2339": 5,
+      "TS2554": 8
+    },
+    "addons/web/static/tests/views/form/form_compiler.test.js": {
+      "TS2339": 1,
+      "TS2345": 1,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/form/form_save_coordinator.test.js": {
+      "TS18047": 2,
+      "TS2339": 3,
+      "TS2345": 1
+    },
+    "addons/web/static/tests/views/form/form_view.test.js": {
+      "TS2322": 48,
+      "TS2339": 15,
+      "TS2345": 2,
+      "TS2353": 6,
+      "TS2551": 2,
+      "TS2554": 37
+    },
+    "addons/web/static/tests/views/graph/graph_test_helpers.js": {
+      "TS2304": 1,
+      "TS2345": 1
+    },
+    "addons/web/static/tests/views/graph/graph_view.test.js": {
+      "TS2322": 5,
+      "TS2345": 4,
+      "TS2353": 1,
+      "TS2367": 1,
+      "TS2538": 4,
+      "TS2554": 5
+    },
+    "addons/web/static/tests/views/kanban/kanban_compiler.test.js": {
+      "TS2345": 1,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/kanban/kanban_view.test.js": {
+      "TS2322": 9,
+      "TS2339": 3,
+      "TS2345": 7,
+      "TS2353": 10,
+      "TS2554": 21
+    },
+    "addons/web/static/tests/views/list/column_widths.test.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/list/list_view.test.js": {
+      "TS2322": 27,
+      "TS2339": 11,
+      "TS2345": 2,
+      "TS2353": 1,
+      "TS2551": 3,
+      "TS2554": 42,
+      "TS2820": 1
+    },
+    "addons/web/static/tests/views/pivot/pivot_model.test.js": {
+      "TS2339": 2
+    },
+    "addons/web/static/tests/views/pivot_view.test.js": {
+      "TS2322": 3,
+      "TS2339": 2
+    },
+    "addons/web/static/tests/views/view.test.js": {
+      "TS2339": 23,
+      "TS2345": 2,
+      "TS2538": 3
+    },
+    "addons/web/static/tests/views/view_button_hook.test.js": {
+      "TS2322": 2,
+      "TS2554": 3
+    },
+    "addons/web/static/tests/views/view_compiler.test.js": {
+      "TS2322": 1
+    },
+    "addons/web/static/tests/views/view_dialogs/export_data_dialog.test.js": {
+      "TS18048": 1,
+      "TS2322": 8
+    },
+    "addons/web/static/tests/views/view_dialogs/form_view_dialog.test.js": {
+      "TS2322": 3,
+      "TS2339": 13,
+      "TS2554": 4
+    },
+    "addons/web/static/tests/views/view_dialogs/select_create_dialog.test.js": {
+      "TS2322": 1,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/view_service.test.js": {
+      "TS2345": 2
+    },
+    "addons/web/static/tests/views/view_utils.test.js": {
+      "TS2345": 1,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/views/widgets/attach_document.test.js": {
+      "TS2339": 2
+    },
+    "addons/web/static/tests/views/widgets/notification_alert.test.js": {
+      "TS2345": 4
+    },
+    "addons/web/static/tests/views/widgets/signature.test.js": {
+      "TS2339": 4
+    },
+    "addons/web/static/tests/web_test_helpers.js": {
+      "TS2315": 2,
+      "TS2339": 2,
+      "TS2345": 1
+    },
+    "addons/web/static/tests/webclient/actions/client_action.test.js": {
+      "TS2339": 2
+    },
+    "addons/web/static/tests/webclient/actions/concurrency.test.js": {
+      "TS2339": 1,
+      "TS2353": 1
+    },
+    "addons/web/static/tests/webclient/actions/effect.test.js": {
+      "TS2353": 2
+    },
+    "addons/web/static/tests/webclient/actions/embedded_action.test.js": {
+      "TS2694": 2,
+      "TS2698": 1
+    },
+    "addons/web/static/tests/webclient/actions/error_handling.test.js": {
+      "TS2345": 1
+    },
+    "addons/web/static/tests/webclient/actions/load_state.test.js": {
+      "TS2345": 3,
+      "TS2353": 2,
+      "TS2507": 2,
+      "TS2556": 1
+    },
+    "addons/web/static/tests/webclient/actions/misc.test.js": {
+      "TS18048": 1,
+      "TS2339": 1
+    },
+    "addons/web/static/tests/webclient/actions/new_window_action.test.js": {
+      "TS2322": 1,
+      "TS2554": 1
+    },
+    "addons/web/static/tests/webclient/actions/report_action.test.js": {
+      "TS2322": 1,
+      "TS2339": 5
+    },
+    "addons/web/static/tests/webclient/actions/target.test.js": {
+      "TS2322": 1,
+      "TS2345": 5
+    },
+    "addons/web/static/tests/webclient/actions/url_action.test.js": {
+      "TS2322": 3
+    },
+    "addons/web/static/tests/webclient/actions/window_action.test.js": {
+      "TS2339": 1,
+      "TS2341": 1,
+      "TS2554": 13
+    },
+    "addons/web/static/tests/webclient/barcode/barcode_scanner.test.js": {
+      "TS2322": 2,
+      "TS2740": 2
+    },
+    "addons/web/static/tests/webclient/clickbot.test.js": {
+      "TS2353": 7,
+      "TS2740": 7
+    },
+    "addons/web/static/tests/webclient/currency_service.test.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/tests/webclient/mobile/burger_menu.test.js": {
+      "TS2353": 2
+    },
+    "addons/web/static/tests/webclient/mobile/burger_user_menu.test.js": {
+      "TS2339": 2
+    },
+    "addons/web/static/tests/webclient/mobile/mobile_switch_company.test.js": {
+      "TS2339": 1,
+      "TS2353": 1
+    },
+    "addons/web/static/tests/webclient/navbar.test.js": {
+      "TS2353": 1,
+      "TS2554": 2
+    },
+    "addons/web/static/tests/webclient/reload_company_service.test.js": {
+      "TS2554": 1
+    },
+    "addons/web/static/tests/webclient/settings_form_view/settings_form_view.test.js": {
+      "TS18048": 1,
+      "TS2322": 3,
+      "TS2538": 6
+    },
+    "addons/web/static/tests/webclient/settings_form_view/settings_upgrade_boolean_field.test.js": {
+      "TS2322": 2
+    },
+    "addons/web/static/tests/webclient/switch_company_menu.test.js": {
+      "TS2339": 1,
+      "TS2353": 1,
+      "TS2739": 2
+    },
+    "addons/web/static/tests/webclient/user_menu.test.js": {
+      "TS2322": 1,
+      "TS2339": 2
+    },
+    "addons/website_sale/static/src/js/cart_service.js": {
+      "TS1014": 2
+    }
+  }
+}

@@ -1,6 +1,46 @@
 # JS File Index
 
-> **602 files** | **145,217 lines** | Auto-generated from `@module` JSDoc
+> **630 files** (4 at src/ root — env.js, session.js, module_loader.js, service_worker.js — counted in the total) | ~150,000 lines | Hand-maintained by Claude Code (not auto-generated — no generator script exists). Entries derived from each file's `@module` JSDoc header at the time the doc was written.
+>
+> **2026-04-20 patch**: totals, ESM-related entries, and 14 migrated tree-utility
+> paths were refreshed in place after the UMD→ESM + esbuild refactor.
+> **2026-05-03 patch**: refreshed `services/` actual count to reflect RUM
+> Phase 1 (`services/web_vitals/web_vitals_service.js`) plus the
+> `multi_company_recovery_service.js` and `form_dialog_stack_service.js`
+> additions; and removed the 9 stale `<layer>/index.js` rollup entries that
+> the ESM migration deleted. The three relocated `res_user_group_ids_*`
+> entries now live under `fields/specialized/user_groups/`.
+> **2026-05-09 patch**: refreshed top-line total (615 → 621) and the three
+> subtotals that drifted alongside the FormSaveCoordinator extraction
+> (views +4, model +1, services +1).
+> **2026-05-19 patch**: top-line bumped 621 → 630 after action-executors
+> extraction added 8 new files in `webclient/` and 1 in `core/`.
+> Per-section subtotals below now reflect the post-refactor file system;
+> sub-entry listings further down the doc still target the pre-refactor
+> snapshot and are **known stale**:
+>
+> | Section | Claimed | Actual | Δ |
+> |---|---:|---:|---:|
+> | `components/` | 89 | 74 | −15 |
+> | `core/` | 81 | 102 | +21 |
+> | `fields/` | 105 | 111 | +6 |
+> | `views/` | 119 | 144 | +25 |
+> | `webclient/` | 70 | 54 | **−16** (major refactor; partially reversed by 2026-05-19 action-executors extraction) |
+> | `model/` | 29 | 34 | +5 |
+> | `services/` | 32 | 35 | +3 |
+> | `ui/` | 21 | 20 | −1 |
+>
+> The 14 tree utilities at lines below have been **path-migrated** from
+> `components/tree_editor/` to `core/tree/`; the UI files (`tree_editor.js`,
+> `tree_editor_autocomplete.js`, etc.) remain in `components/tree_editor/`.
+> ~50+ files created after 2026-04-10 (e.g. `core/tree/in_range_options.js`,
+> `core/tree/operator_labels.js`, new views/fields/model files) are NOT listed;
+> full regeneration is required for complete coverage.
+>
+> **Per-row `Lines` values are also a point-in-time snapshot** and drift as
+> files are edited. Large deltas (>20%) are fixed opportunistically during
+> audits; treat exact values as advisory. Use `wc -l` for authoritative
+> counts when precision matters (e.g. measuring refactor impact).
 >
 > Search this file to answer "where is X implemented?"
 
@@ -11,7 +51,7 @@
 | `boot/main.js` | 14 | Entry point that launches the web client (replaced in enterprise) |
 | `boot/start.js` | 71 | Initializes session data, caches, and mounts the root web client component |
 
-## components/ (89 files, 50,383 lines)
+## components/ (74 files, ~50,000 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
@@ -63,7 +103,6 @@
 | `components/file_viewer/file_model.js` | 152 | FileModelMixin providing URL routing and type detection for viewable file attachments |
 | `components/file_viewer/file_viewer.js` | 272 | Full-screen image, PDF, video, and text file preview with navigation controls |
 | `components/file_viewer/file_viewer_hook.js` | 45 | Factory and hook for opening/closing a file viewer as a main component |
-| `components/index.js` | 88 | (generated/vendored — no description) |
 | `components/ir_ui_view_code_editor/code_editor.js` | 95 | Extended code editor that highlights invalid XPath locators in ir.ui.view arch |
 | `components/main_components_container.js` | 46 | Renders all dynamically registered main_components from the registry |
 | `components/model_field_selector/model_field_selector.js` | 111 | Field path selector with breadcrumb display and popover field browser |
@@ -84,28 +123,28 @@
 | `components/tags_list/tags_list.js` | 47 | Renders a list of colored tags with optional visibility limit and overflow counter |
 | `components/time_picker/time_picker.js` | 304 | Time input component with dropdown hour/minute selection and configurable rounding |
 | `components/transition.js` | 159 | CSS transition helpers for mount/unmount animations with configurable class names |
-| `components/tree_editor/ast_utils.js` | 39 | AST manipulation helpers for boolean wrapping, negation, and path validation |
-| `components/tree_editor/condition_tree.js` | 366 | Core tree data structures (conditions, connectors, expressions) and tree manipulation functions |
-| `components/tree_editor/construct_domain_from_tree.js` | 75 | Converts a condition tree into an Odoo domain string representation |
-| `components/tree_editor/construct_expression_from_tree.js` | 177 | Converts a condition tree into a Python expression string |
-| `components/tree_editor/construct_tree_from_domain.js` | 87 | Parses an Odoo domain string into a condition tree structure |
-| `components/tree_editor/construct_tree_from_expression.js` | 209 | Parses a Python expression string into a condition tree structure |
-| `components/tree_editor/domain_contains_expressions.js` | 37 | Checks whether a domain string contains dynamic Python expressions |
-| `components/tree_editor/domain_from_tree.js` | 11 | High-level tree-to-domain conversion with virtual operator elimination |
-| `components/tree_editor/expression_from_tree.js` | 11 | High-level tree-to-expression conversion with virtual operator elimination |
-| `components/tree_editor/operators.js` | 39 | Operator negation maps and comparator constants for domain/expression trees |
+| `core/tree/ast_utils.js` | 39 | AST manipulation helpers for boolean wrapping, negation, and path validation (migrated from `components/tree_editor/`) |
+| `core/tree/condition_tree.js` | 366 | Core tree data structures (conditions, connectors, expressions) and tree manipulation functions (migrated from `components/tree_editor/`) |
+| `core/tree/construct_domain_from_tree.js` | 75 | Converts a condition tree into an Odoo domain string representation (migrated from `components/tree_editor/`) |
+| `core/tree/construct_expression_from_tree.js` | 177 | Converts a condition tree into a Python expression string (migrated from `components/tree_editor/`) |
+| `core/tree/construct_tree_from_domain.js` | 87 | Parses an Odoo domain string into a condition tree structure (migrated from `components/tree_editor/`) |
+| `core/tree/construct_tree_from_expression.js` | 209 | Parses a Python expression string into a condition tree structure (migrated from `components/tree_editor/`) |
+| `core/tree/domain_contains_expressions.js` | 37 | Checks whether a domain string contains dynamic Python expressions (migrated from `components/tree_editor/`) |
+| `core/tree/domain_from_tree.js` | 11 | High-level tree-to-domain conversion with virtual operator elimination (migrated from `components/tree_editor/`) |
+| `core/tree/expression_from_tree.js` | 11 | High-level tree-to-expression conversion with virtual operator elimination (migrated from `components/tree_editor/`) |
+| `core/tree/operators.js` | 39 | Operator negation maps and comparator constants for domain/expression trees (migrated from `components/tree_editor/`) |
 | `components/tree_editor/tree_editor.js` | 261 | Recursive tree editor component for visually building domain and expression conditions |
 | `components/tree_editor/tree_editor_autocomplete.js` | 86 | Record autocomplete variants for single and multi-value domain/expression editors |
 | `components/tree_editor/tree_editor_components.js` | 100 | Shared input, select, range, and list sub-components for tree editor value entry |
 | `components/tree_editor/tree_editor_operator_editor.js` | 198 | Operator descriptions, labels, and editor info for domain/expression tree conditions |
 | `components/tree_editor/tree_editor_value_editors.js` | 436 | Field-type-specific value editor configurations for tree editor conditions |
-| `components/tree_editor/tree_from_domain.js` | 11 | High-level domain-to-tree conversion with virtual operator introduction |
-| `components/tree_editor/tree_from_expression.js` | 11 | High-level expression-to-tree conversion with virtual operator introduction |
-| `components/tree_editor/utils.js` | 55 | Shared helpers for value disambiguation, ID checking, model resolution, and default paths |
-| `components/tree_editor/virtual_operators.js` | 429 | Introduces and eliminates virtual operators (between, in range, any/all) in condition trees |
+| `core/tree/tree_from_domain.js` | 11 | High-level domain-to-tree conversion with virtual operator introduction (migrated from `components/tree_editor/`) |
+| `core/tree/tree_from_expression.js` | 11 | High-level expression-to-tree conversion with virtual operator introduction (migrated from `components/tree_editor/`) |
+| `core/tree/utils.js` | 55 | Shared helpers for value disambiguation, ID checking, model resolution, and default paths (migrated from `components/tree_editor/`) |
+| `core/tree/virtual_operators.js` | 429 | Introduces and eliminates virtual operators (between, in range, any/all) in condition trees (migrated from `components/tree_editor/`) |
 | `components/user_switch/user_switch.js` | 67 | Login page component for quick-switching between recently connected user accounts |
 
-## core/ (81 files, 16,921 lines)
+## core/ (102 files, ~17,000 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
@@ -119,7 +158,6 @@
 | `core/context.js` | 97 | Builds an evaluation context by merging and evaluating Python expressions |
 | `core/domain.js` | 475 | Domain expression AST: parsing, combining, evaluation, and conversion to string |
 | `core/errors/error_utils.js` | 215 | Traceback formatting, source-map annotation, and error chain utilities |
-| `core/index.js` | 10 | (generated/vendored — no description) |
 | `core/l10n/date_serialization.js` | 81 | Server-format date serialization and deserialization with WeakMap caching |
 | `core/l10n/date_utils.js` | 138 | Pure date comparison, clamping, range checks, and locale-aware week helpers |
 | `core/l10n/dates.js` | 433 | Luxon-based date/datetime parsing, formatting, and smart date input (delegates serialization to date_serialization.js, utilities to date_utils.js) |
@@ -149,6 +187,7 @@
 | `core/registry.js` | 293 | Hierarchical key-value store for services, components, fields, and actions |
 | `core/template_inheritance.js` | 423 | XPath-based QWeb template inheritance (apply, validate, deep clone) |
 | `core/templates.js` | 264 | Template registry: parses, inherits, caches, and retrieves QWeb templates |
+| `core/utils/asset_log.js` | 65 | Debug-gated logger for asset/ESM/bundle tracing (activated via `?debug=assets`, `localStorage["debug.assets"]`, or `window.__ODOO_ASSET_TRACE__`) |
 | `core/utils/collections/arrays.js` | 283 | Array helpers: groupBy, sortBy, unique, intersection, cartesian, zip |
 | `core/utils/collections/cache.js` | 72 | Generic key-path cache with lazy value computation |
 | `core/utils/collections/objects.js` | 150 | Object helpers: deepEqual, deepCopy, pick, omit, deepMerge |
@@ -183,14 +222,14 @@
 | `core/utils/order_by.js` | 42 | Converts between OrderTerm arrays and SQL-like "field ASC/DESC" strings |
 | `core/utils/patch.js` | 151 | Reversible monkey-patching for class prototypes and object properties |
 | `core/utils/pdfjs.js` | 80 | PDF.js viewer button visibility control and library lazy-loading |
-| `core/utils/reactive.js` | 70 | Reactive base class and side-effect helper for OWL reactivity system |
+| `core/utils/reactive.js` | 62 | `SignalStore` base class auto-wrapping `this` in `reactive()` at construction, plus `effect()` helper for reactive side-effects |
 | `core/utils/render.js` | 90 | Render QWeb templates to Element, DocumentFragment, Markup, or string |
 | `core/utils/search.js` | 170 | Fuzzy text search with consecutive-letter scoring and normalized matching |
 | `core/utils/timing.js` | 224 | Batched callbacks, debounce, throttle, and recurring animation frame scheduling |
 | `core/utils/urls.js` | 183 | URL construction, origin resolution, image URL generation, and redirect handling |
 | `core/utils/virtual_grid.js` | 198 | useVirtualGrid hook for windowed rendering of large row/column grids |
 
-## fields/ (105 files, 15,106 lines)
+## fields/ (111 files, ~15,000 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
@@ -207,7 +246,7 @@
 | `fields/basic/float_factor/float_factor_field.js` | 46 | Float field that applies a multiplication factor for display and storage |
 | `fields/basic/float_time/float_time_field.js` | 66 | Time duration input that stores hours as a float (e.g. 1.5 = 1h30) |
 | `fields/basic/float_toggle/float_toggle_field.js` | 106 | Cyclic button that steps through a list of float values on click |
-| `fields/basic/html/html_field.js` | 17 | Simple HTML field widget extending TextField for Html columns |
+| `fields/basic/html/html_field.js` | 29 | Deprecated compatibility re-export shim. Does NOT define a widget class and does NOT extend TextField. Real HTML field lives in the html_editor module; this file exists only to keep old imports resolving. |
 | `fields/basic/integer/integer_field.js` | 113 | Numeric input field for Integer columns with locale-aware formatting |
 | `fields/basic/json/json_field.js` | 28 | Read-only display field for JSON columns |
 | `fields/basic/json_checkboxes/json_checkboxes_field.js` | 64 | Checkbox group field backed by a JSON object of boolean flags |
@@ -224,9 +263,10 @@
 | `fields/display/handle/handle_field.js` | 31 | Drag handle icon for manual record reordering in list views |
 | `fields/display/percent_pie/percent_pie_field.js` | 37 | Pie chart visualization showing a percentage value |
 | `fields/display/progress_bar/kanban_progress_bar_field.js` | 19 | Kanban-view variant of the progress bar field |
-| `fields/display/progress_bar/progress_bar_field.js` | 178 | Editable progress bar displaying current/max numeric values |
+| `fields/display/progress_bar/progress_bar_field.js` | 213 | Editable progress bar displaying current/max numeric values |
 | `fields/display/stat_info/stat_info_field.js` | 77 | Stat button content showing a formatted value with a label |
 | `fields/display/statusbar/statusbar_field.js` | 405 | Horizontal pipeline status bar for Selection and Many2one columns |
+| `fields/hooks/record_observer.js` | — | `useRecordObserver(callback)` OWL hook for field components: runs the callback once during setup and again whenever a record value the callback reads changes. Reactive subscription via `effect` from `@web/core/utils/reactive`. |
 | `fields/dynamic_placeholder_hook.js` | 115 | OWL hook that opens a dynamic placeholder popover on trigger key |
 | `fields/dynamic_placeholder_popover.js` | 132 | Popover component for selecting dynamic placeholder field paths |
 | `fields/field.js` | 570 | Generic Field component that resolves and renders the appropriate field widget from the registry |
@@ -234,7 +274,6 @@
 | `fields/field_types.js` | 6 | Constants for x2many field type identification |
 | `fields/file_handler.js` | 129 | FileUploader component for handling file input, validation, and base64 conversion |
 | `fields/formatters.js` | 493 | Field value formatters for all ORM field types (date, float, monetary, selection, etc.) |
-| `fields/index.js` | 65 | (generated/vendored — no description) |
 | `fields/input_field_hook.js` | 214 | OWL hook that syncs an input element with the ORM record and handles dirty/parse/save lifecycle |
 | `fields/media/attachment_image/attachment_image_field.js` | 22 | Read-only image display field for Many2one attachment references |
 | `fields/media/binary/binary_field.js` | 114 | File upload/download field for Binary columns |
@@ -245,7 +284,7 @@
 | `fields/media/signature/signature_field.js` | 196 | Signature pad field for capturing and storing handwritten signatures |
 | `fields/numpad_decimal_hook.js` | 76 | OWL hook that replaces numpad decimal key with the locale decimal separator |
 | `fields/parsers.js` | 262 | Field value parsers for all ORM field types (date, float, integer, monetary, percentage, etc.) |
-| `fields/relational/many2many_binary/many2many_binary_field.js` | 106 | File attachment list field for Many2many relations to ir.attachment |
+| `fields/relational/many2many_binary/many2many_binary_field.js` | 122 | File attachment list field for Many2many relations to ir.attachment |
 | `fields/relational/many2many_checkboxes/many2many_checkboxes_field.js` | 109 | Checkbox group field for Many2many relations |
 | `fields/relational/many2many_tags/kanban_many2many_tags_field.js` | 29 | Kanban-view variant of Many2many tags showing only colored tags |
 | `fields/relational/many2many_tags/many2many_tags_field.js` | 399 | Colored tag list field with autocomplete for Many2many relations |
@@ -292,6 +331,9 @@
 | `fields/specialized/properties/property_tags.js` | 343 | Tag list component with color picker for property tag values |
 | `fields/specialized/properties/property_text.js` | 20 | Auto-resizing textarea component for property text values |
 | `fields/specialized/properties/property_value.js` | 443 | Polymorphic value editor component supporting all property field types |
+| `fields/specialized/user_groups/res_user_group_ids_field.js` | 303 | Field widget for visualizing and configuring res.users access rights (group_ids). Relocated from `webclient/res_user_group_ids_field/` in the FSD migration. |
+| `fields/specialized/user_groups/res_user_group_ids_popover.js` | 96 | Popover showing group implication details (implied-by, implies, disjoint). |
+| `fields/specialized/user_groups/res_user_group_ids_privilege_field.js` | 121 | Boolean/selection field for privilege toggles within the dynamically generated access rights form. |
 | `fields/standard_field_props.js` | 18 | Standard OWL props schema shared by all field widget components |
 | `fields/temporal/datetime/datetime_field.js` | 736 | Date and datetime field widget with inline editing and picker integration |
 | `fields/temporal/datetime/list_datetime_field.js` | 39 | List-view variant of datetime/date fields with auto-resizing input |
@@ -317,11 +359,10 @@
 |------|------:|---------|
 | `libs/bootstrap.js` | 117 | (generated/vendored — no description) |
 
-## model/ (29 files, 8,521 lines)
+## model/ (33 files, ~8,400 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| `model/index.js` | 14 | (generated/vendored — no description) |
 | `model/model.js` | 304 | Abstract base Model class with OWL lifecycle integration and sample data fallback |
 | `model/record.js` | 288 | Standalone OWL component for loading and displaying a single record |
 | `model/relational_model/command_builder.js` | 174 | x2many ORM command serialization and deduplication (CREATE, UPDATE, LINK, SET, DELETE, UNLINK) |
@@ -335,14 +376,12 @@
 | `model/relational_model/field_spec.js` | 122 | Builds server field specifications from active fields for data fetching |
 | `model/relational_model/field_values.js` | 339 | Server value parsing, aggregation constants, and default value helpers |
 | `model/relational_model/group.js` | 159 | Single group node within a grouped list, holding aggregates and a nested record list |
-| `model/relational_model/onchange_coalescer.js` | 104 | Debounce rapid field changes into a single coalesced onchange RPC call |
 | `model/relational_model/operation.js` | 33 | Arithmetic operation class for numeric field transformations |
-| `model/relational_model/record.js` | 1,458 | Field value management, change tracking, dirty state, and save/discard for individual records |
-| `model/relational_model/record_hooks.js` | 73 | OWL hooks for observing record value changes in field components |
+| `model/relational_model/record.js` | 1,043 | RelationalRecord class (exported as `RelationalRecord`, NOT `Record`). Field value management, change tracking, dirty state, save/discard for individual records. |
 | `model/relational_model/record_utils.js` | 151 | Pure utility functions for field attribute evaluation (invisible, readonly, required) |
 | `model/relational_model/record_validator.js` | 99 | Pure validation logic to find unset required fields in a record |
 | `model/relational_model/record_value_transforms.js` | 181 | Stateless value formatting, defaults, and eval context extraction |
-| `model/relational_model/relational_model.js` | 967 | Top-level data model orchestrating records, groups, and lists with ORM loading and onchange |
+| `model/relational_model/relational_model.js` | 934 | Top-level data model orchestrating records, groups, and lists with ORM loading and onchange. CLEAR-CACHES emission on unlink (line 132). |
 | `model/relational_model/resequence.js` | 108 | Reorders records by sequence field via drag-and-drop position changes |
 | `model/relational_model/static_list.js` | 1,257 | In-memory x2many list: add, remove, reorder records and generate ORM commands |
 | `model/relational_model/static_list_utils.js` | 148 | Sorting comparators, record duplication, and sort-direction cycling for StaticList |
@@ -384,7 +423,6 @@
 | `search/control_panel/control_panel.js` | 861 | Control panel UI with search bar, breadcrumbs, filter/groupby menus, and embedded actions |
 | `search/custom_favorite_item/custom_favorite_item.js` | 104 | Dropdown form for saving the current search as a named favorite filter |
 | `search/custom_group_by_item/custom_group_by_item.js` | 31 | Dropdown item for selecting a custom field to group by |
-| `search/index.js` | 9 | (generated/vendored — no description) |
 | `search/layout.js` | 45 | Top-level view layout assembling ControlPanel, SearchPanel, and content slots |
 | `search/pager_hook.js` | 39 | OWL hook that injects reactive pager props into the sub-environment |
 | `search/properties_group_by_item/properties_group_by_item.js` | 84 | Group-by dropdown item that lazily loads property definitions for grouping |
@@ -409,7 +447,7 @@
 | `search/utils/misc.js` | 32 | Shared constants for search facet icons, colors, and groupable field types |
 | `search/with_search/with_search.js` | 112 | Wrapper component that creates a SearchModel and injects it into the sub-environment |
 
-## services/ (32 files, 5,825 lines)
+## services/ (35 files)
 
 | File | Lines | Purpose |
 |------|------:|---------|
@@ -428,25 +466,28 @@
 | `services/error_service.js` | 241 | Global error/rejection interceptor with UncaughtError classification and handler pipeline |
 | `services/field_service.js` | 292 | Service for loading field definitions, paths, and property definitions from the ORM |
 | `services/file_upload_service.js` | 188 | XHR-based file upload service with progress tracking and event bus |
+| `services/form_dialog_stack_service.js` | — | Single global counter of currently-open form-in-dialog instances; subscribes once to `AppEvent.FORM_DIALOG_ADD/REMOVE` and exposes `count`/`isEmpty` getters. Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is open. |
 | `services/frequent_emoji_service.js` | 60 | Tracks and retrieves frequently used emojis from localStorage |
 | `services/hotkeys/hotkey_hook.js` | 23 | useHotkey hook to register/unregister keyboard shortcuts with component lifecycle |
 | `services/hotkeys/hotkey_service.js` | 529 | Keyboard shortcut registration, dispatch, and overlay access-key management |
 | `services/http_service.js` | 66 | Simple HTTP GET/POST helpers with status checking and FormData support |
-| `services/index.js` | 7 | (generated/vendored — no description) |
 | `services/install_scoped_app/install_scoped_app.js` | 63 | Public page component for installing scoped Progressive Web Apps |
 | `services/localization_service.js` | 151 | Fetches translations and configures Luxon locale, numbering system, and date/number formats |
+| `services/multi_company_recovery_service.js` | — | Recovers from `AccessError` when the server tags the error context with `suggested_company`. `recoverFromLifecycleError` reloads the page after activating; `recoverFromSaveError` mutates the model's context and activates with `reload:false` to preserve user input. Used by FormController in both onError paths. |
 | `services/name_service.js` | 135 | Batched and cached display_name lookups across arbitrary models |
 | `services/navigation/navigation.js` | 472 | Keyboard arrow-key navigation hook for selectable item lists |
 | `services/orm_service.js` | 451 | ORM RPC client for CRUD, read_group, and x2many command helpers |
 | `services/pwa/install_prompt.js` | 39 | Dialog showing Safari-specific PWA installation instructions (iOS and macOS) |
 | `services/pwa/pwa_service.js` | 256 | PWA install service: manages beforeinstallprompt, manifest fetch, and Safari fallback |
 | `services/scss_error_display.js` | 72 | Detects SCSS compilation errors in stylesheets and shows a sticky notification |
+| `services/slow_rpc_service.js` | — | Sticky toast when a non-silent RPC exceeds the patience threshold (`SLOW_RPC_CONFIG.thresholdMs`, default 5 s); auto-dismissed on `RPC:RESPONSE` (success/error/abort/timeout). Listens passively on `rpcBus`; respects the same `silent` opt-out as the error dialog system. Added 2026-05-04. |
 | `services/sortable_service.js` | 115 | Service for creating sortable drag-and-drop outside OWL component lifecycle |
 | `services/title_service.js` | 90 | Manages the document title with named parts and notification counters |
 | `services/tree_processor_service.js` | 608 | Converts domains to condition trees with human-readable descriptions and tooltips |
 | `services/user.js` | 381 | (generated/vendored — no description) |
+| `services/web_vitals/web_vitals_service.js` | — | RUM Phase 1: PerformanceObserver captures Core Web Vitals (LCP, FCP, CLS, TTFB) and beacons them via `navigator.sendBeacon` to `/web/observability/cwv` on `pagehide`. Sample rate is read from `session.cwv_sample_rate` (`ir.config_parameter` `web.cwv.sample_rate`, default 1.0). |
 
-## ui/ (21 files, 2,677 lines)
+## ui/ (20 files, ~2,700 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
@@ -459,7 +500,6 @@
 | `ui/dialog/dialog_service.js` | 117 | Service for programmatically opening, stacking, and closing modal dialogs |
 | `ui/effects/effect_service.js` | 92 | Service that triggers visual effects (rainbow man) via the effects registry |
 | `ui/effects/rainbow_man.js` | 82 | Animated rainbow celebration overlay with configurable message and fadeout |
-| `ui/index.js` | 53 | (generated/vendored — no description) |
 | `ui/notification/notification.js` | 101 | Individual notification toast with auto-close progress bar and action buttons |
 | `ui/notification/notification_container.js` | 29 | Renders all active notifications with fade-out transitions |
 | `ui/notification/notification_service.js` | 76 | Service that manages toast notifications displayed in the top-right corner |
@@ -472,7 +512,7 @@
 | `ui/tooltip/tooltip_hook.js` | 20 | useTooltip hook to attach tooltips to OWL component refs |
 | `ui/tooltip/tooltip_service.js` | 292 | Service for data-tooltip attribute-driven tooltips with hover/touch support |
 
-## views/ (119 files, 25,314 lines)
+## views/ (144 files, ~25,000 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
@@ -518,7 +558,6 @@
 | `views/graph/graph_renderer.js` | 1,006 | Chart.js integration for rendering bar, line, and pie charts with tooltips and legends |
 | `views/graph/graph_search_model.js` | 51 | SearchModel extension restoring graph_groupbys from saved favorites |
 | `views/graph/graph_view.js` | 67 | Graph view descriptor registered in the view registry |
-| `views/index.js` | 18 | (generated/vendored — no description) |
 | `views/kanban/kanban_arch_parser.js` | 292 | Parses kanban view XML arch into card templates, field nodes, progress bars, and quick-create config |
 | `views/kanban/kanban_cog_menu.js` | 24 | Kanban cog menu that hides registry items during multi-select operations |
 | `views/kanban/kanban_column_examples_dialog.js` | 87 | Dialog showcasing example column layouts for kanban board setup |
@@ -596,7 +635,7 @@
 | `views/widgets/week_days/week_days.js` | 62 | Widget rendering seven day-of-week checkboxes respecting the locale's week start day |
 | `views/widgets/widget.js` | 154 | Generic widget component resolving view_widgets registry entries with props extraction and validation |
 
-## webclient/ (70 files, 8,446 lines)
+## webclient/ (54 files, ~8,500 lines)
 
 | File | Lines | Purpose |
 |------|------:|---------|
@@ -632,39 +671,20 @@
 | `webclient/density/density_toggle.js` | 49 | Systray toggle that cycles through content density modes (default/compact/condensed) |
 | `webclient/errors/offline_fail_to_fetch_error_handler.js` | 39 | Error handler converting browser "Failed to fetch" TypeErrors into ConnectionLostError |
 | `webclient/errors/visitor_error_handler.js` | 33 | Error handler that swallows all tracebacks for non-internal (portal/public) users |
-| `webclient/index.js` | 28 | (generated/vendored — no description) |
 | `webclient/loading_indicator/loading_indicator.js` | 72 | Loading indicator counting active RPCs and blocking the UI after a 3s delay |
 | `webclient/menus/menu_helpers.js` | 95 | Utility functions to traverse the menu tree and compute flat app/menuItem lists for HomeMenu |
 | `webclient/menus/menu_providers.js` | 99 | Command palette providers for app and menu item fuzzy search |
 | `webclient/menus/menu_service.js` | 146 | Service that loads, caches, and navigates the Odoo menu tree |
 | `webclient/navbar/navbar.js` | 287 | Main navigation bar with app switcher, sub-menus, systray items, and mobile sidebar |
 | `webclient/reload_company_service.js` | 29 | Service that triggers a page reload when res.company records are modified |
-| `webclient/res_user_group_ids_field/res_user_group_ids_field.js` | 303 | Field widget for visualizing and configuring res.users access rights (group_ids) |
-| `webclient/res_user_group_ids_field/res_user_group_ids_popover.js` | 96 | Popover showing group implication details (implied-by, implies, disjoint) |
-| `webclient/res_user_group_ids_field/res_user_group_ids_privilege_field.js` | 121 | Boolean/selection field for privilege toggles within the dynamically generated access rights form |
 | `webclient/session_service.js` | 37 | Service that lazy-loads additional session info after the web client is ready |
-| `webclient/settings_form_view/fields/settings_binary_field/settings_binary_field.js` | 32 | BinaryField variant resolving download URLs via the related field's relation |
-| `webclient/settings_form_view/fields/upgrade_boolean_field.js` | 51 | Boolean field for settings that shows an Enterprise upgrade dialog when checked |
-| `webclient/settings_form_view/fields/upgrade_dialog.js` | 31 | Dialog prompting the user to upgrade to Odoo Enterprise |
-| `webclient/settings_form_view/highlight_text/form_label_highlight_text.js` | 23 | FormLabel variant with search-term highlighting and enterprise upgrade badge |
-| `webclient/settings_form_view/highlight_text/highlight_text.js` | 25 | Component rendering text with the current search term highlighted via markup |
-| `webclient/settings_form_view/highlight_text/settings_radio_field.js` | 26 | RadioField variant with search-term highlighting on option labels |
-| `webclient/settings_form_view/settings/searchable_setting.js` | 66 | Setting variant with search-based visibility filtering and URL hash highlighting |
-| `webclient/settings_form_view/settings/setting_header.js` | 36 | Setting variant for header-type fields displayed in the app header row |
-| `webclient/settings_form_view/settings/settings_app.js` | 39 | Container for a single app's settings tab content, hidden when search yields no matches |
-| `webclient/settings_form_view/settings/settings_block.js` | 79 | Collapsible group of settings within an app tab with search-based visibility toggling |
-| `webclient/settings_form_view/settings/settings_page.js` | 119 | Top-level settings page with app tabs, swipe navigation, and URL hash-based tab/anchor selection |
-| `webclient/settings_form_view/settings_confirmation_dialog.js` | 27 | Three-way dialog (Save/Discard/Stay) for unsaved settings changes |
-| `webclient/settings_form_view/settings_form_compiler.js` | 143 | Compiler transforming settings arch (app/block elements) into SettingsPage/SettingsApp components |
-| `webclient/settings_form_view/settings_form_controller.js` | 180 | Controller for res.config.settings with search filtering and save-via-Apply behavior |
-| `webclient/settings_form_view/settings_form_renderer.js` | 42 | FormRenderer subclass registering settings-specific sub-components (search highlight, tabs) |
-| `webclient/settings_form_view/settings_form_view.js` | 89 | View descriptor for the settings form view (base_setup) with custom record, model, and compiler |
-| `webclient/settings_form_view/widgets/demo_data_service.js` | 23 | Service that checks whether demo data is active in the current database |
-| `webclient/settings_form_view/widgets/res_config_dev_tool.js` | 58 | Developer Tools settings widget for toggling debug modes and installing demo data |
-| `webclient/settings_form_view/widgets/res_config_edition.js` | 40 | About section settings widget showing Odoo version, expiration date, and copyrights |
-| `webclient/settings_form_view/widgets/res_config_invite_users.js` | 164 | Settings widget for inviting users by email with validation and pending-invitation list |
-| `webclient/settings_form_view/widgets/user_invite_service.js` | 23 | Service that fetches and caches pending user invitation data from /base_setup/data |
 | `webclient/share_target/share_target_service.js` | 76 | Service receiving shared files from the PWA service worker (Web Share Target API) |
+
+> The entire `webclient/settings_form_view/` subtree listed here previously
+> was relocated to `views/settings/` during the settings-as-view refactor.
+> See the `views/` section for the current entries. Listed paths here are
+> obsolete and have been removed.
+
 | `webclient/switch_company_menu/switch_company_item.js` | 50 | Single company row in the switch-company dropdown with toggle and log-into actions |
 | `webclient/switch_company_menu/switch_company_menu.js` | 438 | Company switcher systray dropdown with multi-select, search, and access-rights verification |
 | `webclient/user_menu/user_menu.js` | 54 | Systray dropdown displaying current user avatar and menu items from the user_menuitems registry |
@@ -675,7 +695,7 @@
 
 | File | Lines | Purpose |
 |------|------:|---------|
-| `env.js` | 277 | OWL environment factory, service dependency resolution, and app mounting |
-| `module_loader.js` | 264 | Bootstrap module loader that resolves dependency graphs and defines odoo.loader |
+| `env.js` | 372 | OWL environment factory, service dependency resolution, and app mounting |
+| `module_loader.js` | 161 | Inline bootstrap shim (NOT bundled) — read by `ir.qweb._build_loader_shim_js()` and emitted as a `<script>` tag before any `<script type="module">` so esbuild ESM bundles can call `odoo.loader.registerNativeModules({...})` at evaluation time. Shrunk from 453→161 in the 2026-04-19 "shrink to ESM-native surface" refactor (removed AMD dep-resolver, cycle detector, and error reporter; current surface covered by `static/tests/modules/module_loader.test.js`) |
 | `service_worker.js` | 222 | PWA service worker handling Web Share Target file reception |
 | `session.js` | 11 | Server-injected session info singleton (user, db, context) captured at page load |
