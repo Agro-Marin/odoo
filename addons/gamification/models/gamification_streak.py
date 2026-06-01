@@ -253,9 +253,9 @@ class GamificationStreak(models.Model):
                     total,
                     source=streak,
                     reason=_(
-                        "Streak day %s: %s",
-                        streak.current_count,
-                        streak.streak_type_id.name,
+                        "Streak day %(day)s: %(streak)s",
+                        day=streak.current_count,
+                        streak=streak.streak_type_id.name,
                     ),
                 )
                 streak.total_karma_earned += total
@@ -267,9 +267,9 @@ class GamificationStreak(models.Model):
                         {
                             "title": _("Streak Milestone!"),
                             "message": _(
-                                "%s — %s days!",
-                                streak.streak_type_id.name,
-                                streak.current_count,
+                                "%(streak)s — %(days)s days!",
+                                streak=streak.streak_type_id.name,
+                                days=streak.current_count,
                             ),
                         },
                     )

@@ -33,7 +33,7 @@ const patchAvatarCardResourcePopover = {
         return this.record.employee_id?.length > 0;
     },
     async getProfileAction() {
-        return await this.orm.call("hr.employee", "get_formview_action", [
+        return await this.orm.call("hr.employee", "get_record_default_action", [
             this.record.employee_id[0],
         ]);
     },

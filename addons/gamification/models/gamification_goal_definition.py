@@ -1,7 +1,7 @@
 from typing import Literal, Self
 
 from odoo import _, api, exceptions, fields, models
-from odoo.orm.primitives import ValuesType
+from odoo.models import ValuesType
 from odoo.tools.safe_eval import safe_eval
 
 DOMAIN_TEMPLATE = "[('store', '=', True), '|', ('model_id', '=', model_id), ('model_id', 'in', model_inherited_ids)%s]"

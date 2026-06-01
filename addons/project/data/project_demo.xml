@@ -136,7 +136,7 @@
             <field name="privacy_visibility">portal</field>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project.project_tags_05'))]"/>
-            <field name="step_id" ref="project.project_phase_1"/>
+            <field name="phase_id" ref="project.project_phase_1"/>
             <field name="account_id" ref="project.analytic_office_design"/>
             <field name="allow_milestones" eval="True"/>
             <field name="allow_recurring_tasks" eval="True"/>
@@ -155,7 +155,7 @@
             <field name="workflow_step_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project.project_tags_04'))]"/>
-            <field name="step_id" ref="project.project_phase_1"/>
+            <field name="phase_id" ref="project.project_phase_1"/>
             <field name="account_id" ref="project.analytic_research_development"/>
             <field name="allow_milestones" eval="True"/>
             <field name="allow_dependencies" eval="True"/>
@@ -164,7 +164,7 @@
             <field name="res_id" ref="project_project_2"/>
             <field name="res_model_id" ref="project.model_project_project"/>
             <field name="activity_type_id" ref="mail.mail_activity_data_meeting"/>
-            <field name="date_end" eval="(DateTime.today() + relativedelta(days=13)).strftime('%Y-%m-%d %H:%M')"/>
+            <field name="date_deadline" eval="(DateTime.today() + relativedelta(days=13)).strftime('%Y-%m-%d %H:%M')"/>
             <field name="summary">Examine project status</field>
             <field name="create_uid" ref="base.user_admin"/>
             <field name="user_id" ref="base.user_admin"/>
@@ -180,7 +180,7 @@
             <field name="workflow_step_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project_tags_04')), Command.link(ref('project_tags_02'))]"/>
-            <field name="step_id" ref="project.project_phase_2"/>
+            <field name="phase_id" ref="project.project_phase_2"/>
             <field name="account_id" ref="project.analytic_renovations"/>
             <field name="privacy_visibility">employees</field>
             <field name="allow_milestones" eval="True"/>
@@ -202,7 +202,7 @@
             ]"/>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project_tags_04')), Command.link(ref('project_tags_02'))]"/>
-            <field name="step_id" ref="project.project_phase_2"/>
+            <field name="phase_id" ref="project.project_phase_2"/>
         </record>
 
         <record id="project_home_construction" model="project.project">
@@ -216,7 +216,7 @@
             <field name="workflow_step_ids" eval="[Command.link(ref('project_stage_0')), Command.link(ref('project_stage_1')), Command.link(ref('project_stage_2')), Command.link(ref('project_stage_3'))]"/>
             <field name="favorite_user_ids" eval="[Command.link(ref('base.user_admin'))]"/>
             <field name="tag_ids" eval="[Command.link(ref('project_tags_06')), Command.link(ref('project_tags_07')), Command.link(ref('project_tags_08')), Command.link(ref('project_tags_09'))]"/>
-            <field name="step_id" ref="project.project_phase_2"/>
+            <field name="phase_id" ref="project.project_phase_2"/>
             <field name="account_id" ref="project.analytic_construction"/>
             <field name="privacy_visibility">portal</field>
             <field name="allow_milestones" eval="True"/>
@@ -395,14 +395,14 @@
         <!-- Project Home Construction -->
         <record id="project_home_construction_milestone_1" model="project.milestone">
             <field name="is_reached" eval="True"/>
-            <field name="deadline" eval="time.strftime('%Y-%m-2')"/>
+            <field name="deadline" eval="time.strftime('%Y-%m-02')"/>
             <field name="name">Piping Installation</field>
-            <field name="reached_date" eval="time.strftime('%Y-%m-2')"/>
+            <field name="reached_date" eval="time.strftime('%Y-%m-02')"/>
             <field name="project_id" ref="project.project_home_construction"/>
         </record>
         <record id="project_home_construction_milestone_2" model="project.milestone">
             <field name="is_reached" eval="False"/>
-            <field name="deadline" eval="time.strftime('%Y-%m-5')"/>
+            <field name="deadline" eval="time.strftime('%Y-%m-05')"/>
             <field name="name">Door and Window Framing</field>
             <field name="project_id" ref="project.project_home_construction"/>
         </record>
@@ -594,7 +594,7 @@
             <field name="res_id" ref="project_1_task_5"/>
             <field name="res_model_id" ref="project.model_project_task"/>
             <field name="activity_type_id" ref="mail.mail_activity_data_email"/>
-            <field name="date_end" eval="(DateTime.today() + relativedelta(hours=3)).strftime('%Y-%m-%d %H:%M')"/>
+            <field name="date_deadline" eval="(DateTime.today() + relativedelta(hours=3)).strftime('%Y-%m-%d %H:%M')"/>
             <field name="summary">Follow-up email</field>
             <field name="create_uid" ref="base.user_admin"/>
             <field name="user_id" ref="base.user_admin"/>
@@ -635,7 +635,7 @@
             <field name="res_id" ref="project_1_task_6"/>
             <field name="res_model_id" ref="project.model_project_task"/>
             <field name="activity_type_id" ref="mail.mail_activity_data_call"/>
-            <field name="date_end" eval="(DateTime.today() + relativedelta(hours=2)).strftime('%Y-%m-%d %H:%M')"/>
+            <field name="date_deadline" eval="(DateTime.today() + relativedelta(hours=2)).strftime('%Y-%m-%d %H:%M')"/>
             <field name="summary">Call Joel Willis</field>
             <field name="create_uid" ref="base.user_admin"/>
             <field name="user_id" ref="base.user_admin"/>
@@ -736,7 +736,7 @@
             <field name="res_id" ref="project_1_task_9"/>
             <field name="res_model_id" ref="project.model_project_task"/>
             <field name="activity_type_id" ref="mail.mail_activity_data_todo"/>
-            <field name="date_end" eval="(DateTime.today() - relativedelta(days=2)).strftime('%Y-%m-%d %H:%M')"/>
+            <field name="date_deadline" eval="(DateTime.today() - relativedelta(days=2)).strftime('%Y-%m-%d %H:%M')"/>
             <field name="summary">Check furniture</field>
             <field name="create_uid" ref="base.user_demo"/>
             <field name="user_id" ref="base.user_demo"/>
@@ -1801,21 +1801,21 @@ Send it ASAP, its urgent.</field>
             <field name="user_id" eval="ref('base.user_admin')"/>
             <field name="progress" eval="65"/>
             <field name="status">on_track</field>
-            <field name="date" eval="time.strftime('%Y-%m-5')"/>
+            <field name="date" eval="time.strftime('%Y-%m-05')"/>
         </record>
         <record id="project_update_construction_2" model="project.update" context="{'default_project_id': ref('project.project_home_construction')}">
             <field name="name">Construction</field>
             <field name="user_id" eval="ref('base.user_admin')"/>
             <field name="progress" eval="30"/>
             <field name="status">on_track</field>
-            <field name="date" eval="time.strftime('%Y-%m-1')"/>
+            <field name="date" eval="time.strftime('%Y-%m-01')"/>
         </record>
         <!-- Scheduled activity for Todo Task   -->
         <record id="project_private_task_9_mail" model="mail.activity">
             <field name="res_id" ref="project_private_task_9"/>
             <field name="res_model_id" ref="project.model_project_task"/>
             <field name="activity_type_id" ref="mail.mail_activity_data_email"/>
-            <field name="date_end" eval="(DateTime.today() + relativedelta(days=20)).strftime('%Y-%m-%d %H:%M')"/>
+            <field name="date_deadline" eval="(DateTime.today() + relativedelta(days=20)).strftime('%Y-%m-%d %H:%M')"/>
             <field name="summary">Collect data regarding finances</field>
             <field name="create_uid" ref="base.user_admin"/>
             <field name="user_id" ref="base.user_admin"/>
@@ -1824,7 +1824,7 @@ Send it ASAP, its urgent.</field>
             <field name="res_id" ref="project_private_task_6"/>
             <field name="res_model_id" ref="project.model_project_task"/>
             <field name="activity_type_id" ref="mail.mail_activity_data_email"/>
-            <field name="date_end" eval="(DateTime.today() + relativedelta(hours=3)).strftime('%Y-%m-%d %H:%M')"/>
+            <field name="date_deadline" eval="(DateTime.today() + relativedelta(hours=3)).strftime('%Y-%m-%d %H:%M')"/>
             <field name="summary">Review Mark as Important Emails First</field>
             <field name="create_uid" ref="base.user_admin"/>
             <field name="user_id" ref="base.user_admin"/>

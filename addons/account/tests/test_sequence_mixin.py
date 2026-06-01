@@ -877,6 +877,28 @@ class TestSequenceMixinDeletion(TestSequenceMixinCommon):
         all_moves.action_draft()
         all_moves.unlink()
 
+    def test_sequence_chain_with_null_prefix(self):
+        """A move with a NULL stored sequence_prefix must not crash the chain check.
+
+        Legacy/migrated rows can have a real ``name`` but a NULL
+        ``sequence_prefix`` (the compute never ran). The ORM reads that NULL
+        back as ``False``, which ``_get_last_sequence`` used to bind as a SQL
+        boolean, raising ``operator does not exist: character varying =
+        boolean``. The ``with_prefix or ''`` coercion keeps the comparison
+        textual.
+        """
+        move = self.move_1_2
+        # Reproduce the data anomaly directly: clear the stored prefix without
+        # touching ``name`` (so the compute is not re-triggered on read).
+        self.env.cr.execute(
+            "UPDATE account_move SET sequence_prefix = NULL WHERE id = %s",
+            (move.id,),
+        )
+        move.invalidate_recordset(['sequence_prefix'])
+        self.assertIs(move.sequence_prefix, False, "A NULL Char must read back as False")
+        # Must not raise psycopg.errors.UndefinedFunction.
+        self.assertIsInstance(move.check_move_sequence_chain(), bool)
+
 
 @tagged('post_install', '-at_install')
 class TestSequenceMixinConcurrency(TransactionCase):

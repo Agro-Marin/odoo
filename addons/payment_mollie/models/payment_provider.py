@@ -59,7 +59,7 @@ class PaymentProvider(models.Model):
             return super()._build_request_headers(*args, **kwargs)
 
         odoo_version = service.common.exp_version()['server_version']
-        module_version = self.env.ref('base.module_payment_mollie').installed_version
+        module_version = self.env.ref('base.module_payment_mollie').manifest_version
         return {
             'Accept': 'application/json',
             'Authorization': f'Bearer {self.mollie_api_key}',

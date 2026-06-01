@@ -26,7 +26,7 @@ class BillToPoWizard(models.TransientModel):
                     "There are no products to add to the Purchase Order. Are these Down Payments?"
                 )
             )
-        line_vals = lines_to_add._prepare_line_values_for_purchase()
+        line_vals = lines_to_add._purchase_prepare_purchase_line_values()
         if self.purchase_order_id:
             new_po_lines = self.env["purchase.order.line"].create(
                 [

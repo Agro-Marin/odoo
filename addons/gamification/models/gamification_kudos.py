@@ -3,7 +3,7 @@ from typing import Self
 from markupsafe import Markup, escape
 
 from odoo import _, api, exceptions, fields, models
-from odoo.orm.primitives import ValuesType
+from odoo.models import ValuesType
 
 
 class GamificationKudosCategory(models.Model):

@@ -1016,7 +1016,8 @@ class SurveyQuestion(models.Model):
         if val < self.slider_min or val > self.slider_max:
             return {
                 self.id: _(
-                    "Value must be between %s and %s.", self.slider_min, self.slider_max
+                    "Value must be between %(min)s and %(max)s.",
+                    min=self.slider_min, max=self.slider_max,
                 )
             }
         return {}

@@ -286,7 +286,7 @@ $o-btns-bs-override: map-merge((
 
     @each $w in $width-utilities {
       .w-#{$context}-#{$w} {
-        width: #{$w}% !important;
+        width: $w * 1% !important;
       }
     }
 

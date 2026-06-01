@@ -180,14 +180,14 @@
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_project.sale_line_construction_1'))]"/>
             <value eval="{
                 'user_ids': [Command.link(ref('base.user_admin'))],
-                'state': '02_changes_requested',
+                'state': 'changes_requested',
             }"/>
         </function>
         <function model="project.task" name="write">
             <value model="project.task" search="[('sale_line_id', '=', ref('sale_project.sale_line_construction_2'))]"/>
             <value eval="{
                 'user_ids': [Command.link(ref('base.user_demo'))],
-                'state': '03_approved',
+                'state': 'approved',
             }"/>
         </function>
         <function model="project.task" name="write">

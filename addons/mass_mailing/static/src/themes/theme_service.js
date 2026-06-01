@@ -4,7 +4,7 @@ import { parseHTML } from "@html_editor/utils/html";
 import { markup } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
-import { Reactive } from "@web/core/utils/reactive";
+import { SignalStore } from "@web/core/utils/reactive";
 import { renderToMarkup } from "@web/core/utils/render";
 
 function hasDataOption(element, attribute) {
@@ -21,7 +21,7 @@ function getNameFromClass(className) {
     return match ? match[1] : undefined;
 }
 
-export class ThemeModel extends Reactive {
+export class ThemeModel extends SignalStore {
     constructor(services) {
         super();
         this.orm = services.orm;

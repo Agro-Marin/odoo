@@ -1021,8 +1021,7 @@ class HrExpense(models.Model):
             expenses_activity_unlink.activity_unlink(['hr_expense.mail_act_expense_approval'])
 
         # TODO: Remove in master
-        # Note: field latest_version of model ir.module.module is the installed version
-        installed_module_version = self.sudo().env.ref('base.module_hr_expense').latest_version
+        installed_module_version = self.sudo().env.ref('base.module_hr_expense').db_version
         if expenses_submitted_to_review and parse_version(installed_module_version)[2:] < parse_version('2.1'):
             self._send_submitted_expenses_mail()
 

@@ -1,7 +1,6 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import float_compare, float_is_zero
-from odoo.tools.translate import _
 
 
 class AccountMoveLine(models.Model):
@@ -38,7 +37,6 @@ class AccountMoveLine(models.Model):
 
     @api.depends("balance")
     def _compute_is_storno(self):
-        # EXTENDS 'account'
         super()._compute_is_storno()
         for line in self:
             if line.is_downpayment:
@@ -122,7 +120,7 @@ class AccountMoveLine(models.Model):
                         order=sale_order.name,
                     ),
                 )
-            elif sale_order.state == "cancel":
+            if sale_order.state == "cancel":
                 raise UserError(
                     _(
                         "The Sales Order %(order)s to be reinvoiced is cancelled."
@@ -130,7 +128,7 @@ class AccountMoveLine(models.Model):
                         order=sale_order.name,
                     ),
                 )
-            elif sale_order.locked:
+            if sale_order.locked:
                 raise UserError(
                     _(
                         "The Sales Order %(order)s to be reinvoiced is currently locked."
@@ -155,9 +153,7 @@ class AccountMoveLine(models.Model):
                     price,
                 )  # cache entry to limit the call to search
                 sale_line = existing_sale_line_cache.get(map_entry_key)
-                if (
-                    sale_line
-                ):  # already search, so reuse it. sale_line can be sale.order.line record or index of a "to create values" in `sale_line_values_to_create`
+                if sale_line:  # already search, so reuse it. sale_line can be sale.order.line record or index of a "to create values" in `sale_line_values_to_create`
                     map_move_sale_line[move_line.id] = sale_line
                     existing_sale_line_cache[map_entry_key] = sale_line
                 else:  # search for existing sale line
@@ -223,7 +219,6 @@ class AccountMoveLine(models.Model):
             [("order_id", "=", order.id)], order="sequence desc", limit=1
         )
         last_sequence = last_so_line.sequence + 1 if last_so_line else 100
-
         fpos = (
             order.fiscal_position_id
             or order.fiscal_position_id._get_fiscal_position(order.partner_id)
@@ -232,7 +227,6 @@ class AccountMoveLine(models.Model):
             order.company_id
         )
         taxes = fpos.map_tax(product_taxes)
-
         return {
             "order_id": order.id,
             "name": self.name,

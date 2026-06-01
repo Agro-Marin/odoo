@@ -1,8 +1,7 @@
 from datetime import timedelta
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools.translate import _
 
 
 class ProductProduct(models.Model):
@@ -28,31 +27,28 @@ class ProductProduct(models.Model):
     # ------------------------------------------------------------
 
     def _compute_sales_count(self):
-        r = {}
-        self.sales_count = 0
+        self.sales_count = 0.0
         if not self.env.user.has_group("sales_team.group_sale_salesman"):
-            return r
+            return
         date_from = fields.Date.today() - timedelta(days=365)
-
         done_states = self.env["sale.report"]._get_done_states()
-
         domain = [
             ("state", "in", done_states),
             ("product_id", "in", self.ids),
             ("date_order", ">=", date_from),
         ]
-        for product, product_uom_qty in self.env["sale.report"]._read_group(
-            domain,
-            ["product_id"],
-            ["product_uom_qty:sum"],
-        ):
-            r[product.id] = product_uom_qty
+        sales_data = {
+            product.id: qty
+            for product, qty in self.env["sale.report"]._read_group(
+                domain,
+                ["product_id"],
+                ["product_uom_qty:sum"],
+            )
+        }
         for product in self:
             if not product.id:
-                product.sales_count = 0.0
                 continue
-            product.sales_count = product.uom_id.round(r.get(product.id, 0))
-        return r
+            product.sales_count = product.uom_id.round(sales_data.get(product.id, 0))
 
     @api.depends_context("order_id")
     def _compute_is_in_sale_order(self):
@@ -126,6 +122,10 @@ class ProductProduct(models.Model):
             "search_default_filter_order_date": 1,
         }
         return action
+
+    # ------------------------------------------------------------
+    # HELPER METHODS
+    # ------------------------------------------------------------
 
     def _filter_to_unlink(self):
         domain = [("product_id", "in", self.ids)]
