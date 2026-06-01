@@ -19,7 +19,7 @@ Core web CRUD operations: the primary data interface between JS and Python.
 
 **Key Methods:**
 - `web_read(specification)` — Main frontend data fetcher. Recursively resolves relational fields (m2o, x2m, reference, properties) per a specification tree. Handles NewId, co-record prefetch, x2many ordering/limiting.
-- `web_save(vals, specification)` — Create or write + web_read in one call. Returns formatted record.
+- `web_save(vals, specification, next_id=None, last_write_date=None)` — Create or write + web_read in one call. Returns formatted record. The `last_write_date` kwarg enables optimistic concurrency checking — if provided and the server-side `write_date` has advanced, the save is rejected.
 - `web_save_multi(vals_list, specification)` — Batch write grouped by identical vals. Returns formatted records.
 - `web_search_read(domain, specification, ...)` — search + web_read. Reuses search query for count optimization.
 - `web_name_search(name, specification, ...)` — name_search + formatting per specification. Batches display_name fetches.
@@ -61,7 +61,7 @@ Client-side form processing.
 Dict subclass for snapshot-based form state tracking. Not an ORM model.
 
 **Key Methods:**
-- `__init__(record, fields_spec)` — Capture record state per form specification tree.
+- `__init__(record, fields_spec, fetch=True)` — Capture record state per form specification tree. `fetch=False` skips the initial `read()` (used when constructing snapshots from values already in hand).
 - `diff(other, force=False)` — Compare two snapshots, return dict of changed values + x2many commands (CREATE, UPDATE, LINK, DELETE/UNLINK). `force=True` includes all fields regardless of changes.
 - `has_changed(field_name)` — Check if specific field changed between snapshots.
 
@@ -93,9 +93,13 @@ Webclient context setup, session info, and request handling.
 - `CRAWLER_USER_AGENTS`: tuple of bot/crawler identifiers
 
 **Key Methods:**
-- `session_info()` — Main bootstrap RPC. Returns comprehensive dict: uid, is_system, is_admin, user_context, registry_hash, user_settings, server_version, company tree, currencies, groups, etc.
+- `session_info()` — Main bootstrap RPC. Returns dict built by `_base_session_info` + `session_info` additions. Full key list:
+  - From `_base_session_info`: `uid`, `is_system`, `is_admin`, `is_public`, `is_internal_user`, `user_context`, `registry_hash`, `show_effect`, `currencies`, `quick_login`, `bundle_params`, `test_mode`, optionally `server_version`, `server_version_info`
+  - Added by `session_info`: `max_file_upload_size`, `active_ids_limit`, `db`, `support_url`, `name`, `username`, `partner_write_date`, `partner_display_name`, `partner_id`, `home_action_id`, `view_info`, `user_settings`, `groups`, `web.base.url`, conditionally `user_companies` (company hierarchy, only for internal users)
+  - `groups` is a single-flag dict `{"base.group_allow_export": bool}`, NOT a full list of the user's groups
+  - `browser_cache_secret` is NOT part of `session_info()` — it is injected separately by `home.py:119-121` into the HTML template after `session_info()` returns
 - `get_frontend_session_info()` — Lightweight variant for public/website pages (no company hierarchy).
-- `lazy_session_info()` — Hook for expensive session data loaded after bootstrap (override point).
+- `lazy_session_info()` — Hook for expensive session data loaded after bootstrap. Currently returns `{profile_session, profile_collectors, profile_params}` (profiling keys moved here from `session_info()` in commit `77e466310ab`). Note: `max_profile_allowed` is NOT part of this response.
 - `webclient_rendering_context()` — Context dict for webclient HTML template.
 - `color_scheme()` — Returns `"light"` (override point for dark mode).
 - `content_density()` — Priority: cookie > user setting > `'default'`.
@@ -114,16 +118,16 @@ View type metadata for webclient.
 
 **Key Methods:**
 - `get_view_info()` — Returns cached dict of view types with `display_name`, `icon`, `multi_record` flag.
-- `_get_view_info()` — Hardcoded metadata for list, form, graph, pivot, kanban, calendar, search, etc.
+- `_get_view_info()` — Hardcoded metadata for EXACTLY seven view types: `list`, `form`, `graph`, `pivot`, `kanban`, `calendar`, `search`. No other types are defined here (extend this method to add a new view type).
 
 ### models/ir_model.py — IrModel (`_inherit = 'ir.model'`)
 
 Model metadata for webclient schema introspection.
 
 **Key Methods:**
-- `display_name_for(models)` — Display names for accessible models (hides access-denied vs nonexistent).
+- `display_name_for(model_names: list[str])` — Display names for accessible models (hides access-denied vs nonexistent).
 - `get_available_models()` — All accessible, non-transient, non-abstract models with display names.
-- `_get_definitions(model_names)` — Field/relation/inverse metadata for a set of models (used by field_service.js).
+- `_get_definitions(model_names)` — Field/relation/inverse metadata for a set of models. Used by `controllers/model.py:/web/model/get_definitions`. Note: `field_service.js` does NOT call this — it calls the standard ORM `fields_get` via `orm.cache({type:"disk"})`.
 
 ### models/ir_qweb_fields.py — IrQwebFieldImage (`_inherit = 'ir.qweb.field.image'`)
 
@@ -133,7 +137,7 @@ Enhanced image rendering for QWeb templates.
 - `record_to_html(record, field_name, options)` — Renders `<img>` tag with `/web/image/` URL, alt text, classes, responsive, zoom, itemprop.
 - `_get_src_urls(record, field_name, options)` — Builds image URL with max_size, unique hash, optional zoom URL.
 
-Also: **IrQwebFieldImageUrl** (`_inherit = 'ir.qweb.field.image_url'`) for URL-based image fields.
+Also: **IrQwebFieldImage_Url** (`_inherit = 'ir.qweb.field.image_url'`) for URL-based image fields.
 
 ## User Preferences
 
@@ -145,14 +149,15 @@ Web-specific user behavior.
 - `name_search(name, ...)` — Override: bubbles current user to top of search results.
 - `_on_webclient_bootstrap()` — Hook for webclient-specific initialization (override point).
 - `_should_captcha_login(credential)` — Check if CAPTCHA should block this credential (inspects `credential['type']`).
+- `web_create_users(emails)` — Batch-create internal users from a list of email addresses (used by invite-user UI).
 
 ### models/res_users_settings.py — ResUsersSettings (`_inherit = 'res.users.settings'`)
 
 Webclient user preferences.
 
 **Fields:**
-- `density` (Selection): UI density — `default` / `compact` / `condensed`
 - `embedded_actions_config_ids` (One2many → `res.users.settings.embedded.action`)
+- `density` (Selection, `default='default'`, `required=True`): UI density — `default` / `compact` / `condensed`
 
 **Key Methods:**
 - `get_embedded_actions_settings()` — Current user's embedded action config.
@@ -165,7 +170,7 @@ Per-user embedded action configuration storage.
 **Fields:**
 - `user_setting_id` (Many2one → res.users.settings)
 - `action_id` (Many2one → ir.actions.act_window, required)
-- `res_model` (Char): Model of the parent record
+- `res_model` (Char, required=True): Model of the parent record
 - `res_id` (Integer): Parent record ID
 - `embedded_actions_order` (Char): CSV action IDs for display order
 - `embedded_actions_visibility` (Char): CSV action IDs for visibility
@@ -179,19 +184,23 @@ Per-user embedded action configuration storage.
 
 Transient wizard for live-preview report customization (colors, fonts, logos).
 
-**Fields:**
-- `company_id`, `logo`, `report_header`, `report_footer`, `company_details` (all related to company)
-- `primary_color`, `secondary_color` (Char): Branding colors
-- `logo_primary_color`, `logo_secondary_color` (Char, computed): Auto-extracted from logo
-- `custom_colors` (Boolean, computed): True if user overrode auto-extracted colors
-- `font` (Selection, related): Font choice
-- `report_layout_id` (Many2one → report.layout): Selected layout template
-- `preview` (Html, computed): Live QWeb-rendered report preview
+**Fields** (not exhaustive — wizard includes many `related` fields from the company to enable live edit):
+- `company_id`, `logo`, `report_header`, `report_footer`, `company_details`, `paperformat_id`, `external_report_layout_id`, `partner_id`, `phone`, `email`, `website`, `vat`, `name`, `country_id` (all `related="company_id.<field>"`, mostly `readonly=False` for edit-through)
+- `preview_logo` (Binary): uploaded logo preview
+- `layout_background`, `layout_background_image` (Selection / Binary): background choice + image
+- `primary_color`, `secondary_color` (Char, `related="company_id.primary_color"` etc., `readonly=False`): Branding colors — edits propagate to the company
+- `logo_primary_color`, `logo_secondary_color` (Char, `compute="_compute_logo_colors"`): Auto-extracted from logo
+- `custom_colors` (Boolean, computed, `readonly=False`): True if user overrode auto-extracted colors
+- `font` (Selection, `related="company_id.font"`, `readonly=False`)
+- `report_layout_id` (Many2one → `report.layout`): Selected layout template
+- `preview` (Html, computed, **`sanitize=False`**): Live QWeb-rendered report preview. `sanitize=False` is intentional — preview is rendered server-side from trusted QWeb templates and displayed inside a wizard iframe.
+
+**Onchange methods:** `_onchange_company_id`, `_onchange_custom_colors`, `_onchange_report_layout_id`, `_onchange_logo` (propagate wizard changes back to company on save).
 
 **Key Methods:**
-- `extract_image_primary_secondary_colors(logo, white_threshold)` — PIL-based color extraction from base64 image.
+- `extract_image_primary_secondary_colors(logo, white_threshold=225, mitigate=175)` — PIL-based color extraction from base64 image. `mitigate` caps maximum channel value to avoid overly-saturated results.
 - `_compute_preview()` — Renders QWeb preview of selected layout.
-- `document_layout_save()` — Abstract hook (returns close action by default).
+- `document_layout_save()` — Returns `self.env.context.get("report_action")` if set, else a close action. Not abstract — subclasses can still override.
 
 ### models/res_company.py — ResCompany (`_inherit = 'res.company'`)
 
@@ -204,10 +213,12 @@ Auto-regenerate report stylesheet on style changes.
 
 ## Properties
 
-### models/properties_base_definition.py — PropertiesBaseDefinition (`_inherit`)
+### models/properties_base_definition.py — PropertiesBaseDefinition (`_inherit = 'properties.base.definition'`)
+
+Model is **defined upstream in `base`**; web only extends it. The `ir.model.access.csv` in `security/` correctly does not grant access here.
 
 **Key Methods:**
-- `get_properties_base_definition(model_name, field_name)` — ACL-checked retrieval of property field definitions via `web_search_read`.
+- `get_properties_base_definition(model_name, field_name)` — `@api.model`. ACL-checked retrieval of property field definitions. Returns `list[dict]` (the raw result of `web_search_read` on `properties.base.definition`), NOT a singular dict.
 
 ## Config
 
@@ -221,8 +232,40 @@ Auto-regenerate report stylesheet on style changes.
 vCard export for contact data.
 
 **Key Methods:**
-- `_build_vcard()` — Constructs vobject vCard from partner (name, address, email, phone, org, title, photo).
-- `_get_vcard_file()` — Returns serialized vCard bytes or False if vobject unavailable.
+- `_build_vcard()` — Constructs vobject vCard from partner. Sets: `n` (structured name), `fn` (formatted name), `adr` (with optional `region`/`country`), `email` (`type_param="INTERNET"`), `tel` (`type_param="work"`), `url` (website), `org`, `title`, `photo` (base64 with `encoding_param="B"`).
+- `_get_vcard_file()` — Returns serialized vCard bytes. Unconditional — `vobject` is a hard top-level import, so there is no fallback path. NOTE: `vobject` is **not declared in `__manifest__.py['external_dependencies']`** — the server fails at import time if missing rather than at first vcard request.
+
+## Observability
+
+### models/web_cwv_metric.py — WebCwvMetric (`_name = 'web.cwv.metric'`)
+
+Storage for Core Web Vitals beacons (RUM Phase 2). Records are written by
+`controllers/observability.py:cwv()` and pruned on a daily cron (`_gc_old_metrics`).
+
+`_log_access = False`: the four standard audit columns
+(`create_uid`/`create_date`/`write_uid`/`write_date`) are skipped — RUM is
+append-only and high-volume, and `recorded_at` already captures the moment
+the beacon was received.
+
+**Fields** (numeric vitals are server-clamped before persistence; see
+`controllers/observability.py:_clamp_latency`/`_clamp_cls`):
+- `recorded_at` (Datetime, required, indexed, readonly, default `now`) — beacon arrival timestamp; used as the retention partition key
+- `url` (Char, required, indexed, readonly) — browser path + query at beacon time
+- `user_id` (Many2one → res.users, indexed `btree_not_null`, ondelete=`set null`) — null for anonymous frontend traffic
+- `user_agent` (Char, readonly) — truncated to 500 chars at the controller
+- `lcp` (Float, ms, readonly) — Largest Contentful Paint
+- `fcp` (Float, ms, readonly) — First Contentful Paint
+- `ttfb` (Float, ms, readonly) — Time To First Byte
+- `inp` (Float, ms, readonly) — Interaction to Next Paint; reserved for a future phase that vendors the `web-vitals` library, currently always null
+- `cls` (Float, unitless, readonly) — Cumulative Layout Shift (0 is best; not capped at 1)
+
+**Key Methods:**
+- `_gc_old_metrics()` (`@api.model`) — Daily cron retention sweep. Reads `web.cwv.retention_days` (default `"30"`). `0` disables (cron no-op). Issues a single raw `DELETE FROM web_cwv_metric WHERE recorded_at < now() - INTERVAL ...` (no ORM iteration; table is append-only by design). Registered via `data/web_cwv_metric_data.xml`.
+
+> Phase 1 = beacon ingestion + log line (`controllers/observability.py`).
+> Phase 2 = persistent model + dashboard view (`views/web_cwv_metric_views.xml`).
+> Phase 3 = sampling + retention (`cwv_sample_rate` injected into `session_info`
+> for client-side sampling, plus `web.cwv.retention_days` driving daily GC).
 
 ## Model Index
 
@@ -241,7 +284,7 @@ Quick lookup — file → model → primary role:
 | `ir_ui_menu.py` | ir.ui.menu | Menu tree enrichment |
 | `ir_ui_view.py` | ir.ui.view | View type metadata |
 | `ir_model.py` | ir.model | Model schema introspection |
-| `ir_qweb_fields.py` | ir.qweb.field.image | QWeb image rendering |
+| `ir_qweb_fields.py` | ir.qweb.field.image + ir.qweb.field.image_url | QWeb image rendering (2 classes: `IrQwebFieldImage`, `IrQwebFieldImage_Url`) |
 | `res_users.py` | res.users | User search priority, bootstrap hook |
 | `res_users_settings.py` | res.users.settings | UI density, embedded actions |
 | `res_users_settings_embedded_action.py` | res.users.settings.embedded.action | Per-user action config storage |
@@ -250,3 +293,4 @@ Quick lookup — file → model → primary role:
 | `properties_base_definition.py` | properties.base.definition | Property field definitions |
 | `res_config_settings.py` | res.config.settings | web_app_name config |
 | `res_partner.py` | res.partner | vCard export |
+| `web_cwv_metric.py` | web.cwv.metric | Core Web Vitals beacon storage + retention |

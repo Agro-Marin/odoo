@@ -1,0 +1,1919 @@
+{
+  "_generated_at": "2026-05-10",
+  "_total_violations": 478,
+  "_generator": "addons/core/addons/web/tooling/scripts/doc_link_gate.py",
+  "violations": [
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "config/agents/dept/dept-X.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "config/agents/odoo/odoo-record-reader.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "config/profiles/architect.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "config/profiles/contributor.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "config/skills/setup-identity/SKILL.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "odoo-task-creator.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "odoo-task-reader.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "personal-context.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "personal-preferences.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "reference/architecture/4-layer-model.md"
+    },
+    {
+      "source_file": "CLAUDE.md",
+      "raw_path": "reference/dev/error-catalog.md"
+    },
+    {
+      "source_file": "addons/core/.github/workflows/lint.yml",
+      "raw_path": "knowledge/agromarin-knowledge/workspaces/workspace-LMMG/2026-05-03-web-js-architecture-audit.md"
+    },
+    {
+      "source_file": "addons/core/addons/web/machine_doc_v1/CONVENTIONS.md",
+      "raw_path": "research/2026-03-12-esm-native-migration-feasibility.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2025-12-12-t12526-add-picking-idle-time-kpi.md",
+      "raw_path": "12526_integration_diagram.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2025-12-12-t12526-add-picking-idle-time-kpi.md",
+      "raw_path": "12526_tech_analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2025-12-22-t14370-Migracion-KPI-facturacion-Vehicular.md",
+      "raw_path": "/home/sistemas/Odoo/knowledge/tasks/t12740/Documentacion_t12740.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2025-12-31-t14425-ventas-user-ReadOnly.md",
+      "raw_path": "decisions/004-modular-architecture.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2025-12-31-t14426-compras-user-ReadOnly.md",
+      "raw_path": "decisions/hook-vs-migration.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2025-12-31-t14565-flujosSprint-Manofactura.md",
+      "raw_path": "guia-rapida-presentacion.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2025-12-31-t14565-flujosSprint-Manofactura.md",
+      "raw_path": "plan-capacitacion-patricia-nicolas.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2025-12-31-t14565-flujosSprint-Manofactura.md",
+      "raw_path": "resumen-simulacion-tecnica.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2025-12-31-t9139-mcp-server-installation.md",
+      "raw_path": "reference/setup/mcp/mcp-installation-guide.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-09-t11253-product-asset-readme.md",
+      "raw_path": "product_asset/readme/CONFIGURE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-09-t11253-product-asset-readme.md",
+      "raw_path": "product_asset/readme/CONTRIBUTORS.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-09-t11253-product-asset-readme.md",
+      "raw_path": "product_asset/readme/DESCRIPTION.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-09-t11253-product-asset-readme.md",
+      "raw_path": "product_asset/readme/USAGE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-09-t11253-product-asset-readme.md",
+      "raw_path": "readme/CONFIGURE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-09-t11253-product-asset-readme.md",
+      "raw_path": "readme/CONTRIBUTORS.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-09-t11253-product-asset-readme.md",
+      "raw_path": "readme/DESCRIPTION.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-09-t11253-product-asset-readme.md",
+      "raw_path": "readme/USAGE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-09-t14596-kiss-user-id-refactor.md",
+      "raw_path": "thoughts/tasks/t14596.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-13-t15794-migration-production-types.md",
+      "raw_path": "research/2026-01-12-t15794-manufacturing-types-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-01-13-t15794-production-types-v2.md",
+      "raw_path": "workspaces/workspace-JEGM/2026-01-13-t15794-production-types-business-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-09-t16768-work-plan-pilot-mcp.md",
+      "raw_path": "research/2026-02-10-t16768-task-list.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-19-t17697-work-plan-operaciones-mcp.md",
+      "raw_path": "/home/marin/Downloads/Plan_Maestro_Operativo_2026_Marin_Agroinsumos.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-20-t17963-carga-compras-mcp.md",
+      "raw_path": "workspaces/workspace-LMMG/COMPRAS_STRATEGIC_BRIEF_2026.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-23-t15829-agromarin-guidelines-v2.md",
+      "raw_path": "agromarin-guidelines-v1.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-23-t15829-agromarin-guidelines-v2.md",
+      "raw_path": "agromarin-guidelines-v2.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-23-t15829-agromarin-guidelines-v2.md",
+      "raw_path": "archive/agromarin-guidelines-v1.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-23-t15829-agromarin-guidelines-v2.md",
+      "raw_path": "archive/odoo-conventions.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-23-t15829-agromarin-guidelines-v2.md",
+      "raw_path": "core/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-23-t15829-agromarin-guidelines-v2.md",
+      "raw_path": "odoo-19-dev-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-23-t15829-agromarin-guidelines-v2.md",
+      "raw_path": "odoo-19-development-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-02-23-t15829-agromarin-guidelines-v2.md",
+      "raw_path": "odoo-conventions.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-04-t17186-restore-test-mensual.md",
+      "raw_path": "knowledge/agromarin-knowledge/reference/disaster-recovery-s3-restore.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-11-t18043-cloud-storage-s3-plan.md",
+      "raw_path": "2026-03-11-t18043-cloud-storage-s3-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/agents/knowledge-analyzer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/agents/knowledge-locator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/agents/odoo-codebase-analyzer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/agents/odoo-codebase-locator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/agents/odoo-pattern-finder.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/agents/odoo-task-creator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/agents/odoo-task-reader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/agents/odoo-task-workflow.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/agents/web-search-researcher.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/commands/create_handoff.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/commands/resume_handoff.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/skills/create_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/skills/implement_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/skills/research_codebase/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "config/skills/validate_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "guia-claude-commands-agents.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "knowledge-analyzer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "knowledge-locator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "odoo-codebase-analyzer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "odoo-codebase-locator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "odoo-pattern-finder.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "odoo-task-creator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "odoo-task-reader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "odoo-task-workflow.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "reference/setup/claude-code/guia-instalacion-claude-code.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "reference/workflows/.../standard.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "reference/workflows/odoo-root-claude/standard.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-17-t16767-agent-optimization-plan.md",
+      "raw_path": "web-search-researcher.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-03-29-t19874-odometer-based-maintenance-plans.md",
+      "raw_path": "2026-03-29-t19874-gps-odometer-maintenance-plan-integration.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "../../knowledge/agromarin-knowledge/config/agents/odoo-ui-tester.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": ".claude/agents/odoo-ui-tester.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "agents/odoo-ui-tester.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "knowledge/agromarin-knowledge/config/agents/odoo-ui-tester.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "knowledge/agromarin-knowledge/config/skills/create_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "knowledge/agromarin-knowledge/config/skills/implement_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "knowledge/agromarin-knowledge/reference/setup/claude-code/guia-instalacion-claude-code.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "reference/setup/claude-code/guia-instalacion-claude-code.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "skills/create_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "skills/implement_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "skills/validate_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-06-t20374-odoo-ui-tester-agent.md",
+      "raw_path": "ui-tester.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20460-workspace-naming-standard.md",
+      "raw_path": "SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20460-workspace-naming-standard.md",
+      "raw_path": "knowledge/agromarin-knowledge/config/skills/activate_project/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20460-workspace-naming-standard.md",
+      "raw_path": "knowledge/agromarin-knowledge/reference/workflows/odoo-root-claude/standard.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20460-workspace-naming-standard.md",
+      "raw_path": "standard.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "../../reference/roles/systems-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": ".claude/skills/activate_project/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "accounting-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "accounting-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "accounting-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "administrator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "general-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "knowledge/agromarin-knowledge/config/skills/activate_project/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "knowledge/agromarin-knowledge/reference/roles/_TEMPLATE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "logistics-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "logistics-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "logistics-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "manufacturing-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "manufacturing-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "manufacturing-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "personal-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/_TEMPLATE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/accounting-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/accounting-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/accounting-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/administrator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/general-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/logistics-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/logistics-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/logistics-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/manufacturing-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/manufacturing-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/manufacturing-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/sales-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/sales-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/sales-operator-pos.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/sales-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/systems-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/systems-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "reference/roles/systems-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "sales-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "sales-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "sales-operator-pos.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "sales-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "systems-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "systems-officer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-07-t20486-role-profiles-plan.md",
+      "raw_path": "systems-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-09-t20487-bascula-pesaje-mqtt.md",
+      "raw_path": "tools/bascula-service/README.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-hybrid-expansion.md",
+      "raw_path": "PEOPLE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-hybrid-expansion.md",
+      "raw_path": "capital_humano.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-hybrid-expansion.md",
+      "raw_path": "config/departments/_TEMPLATE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-hybrid-expansion.md",
+      "raw_path": "config/departments/capital_humano.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-hybrid-expansion.md",
+      "raw_path": "config/departments/produccion.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-hybrid-expansion.md",
+      "raw_path": "direccion.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-hybrid-expansion.md",
+      "raw_path": "mercadotecnia.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-hybrid-expansion.md",
+      "raw_path": "plant-operator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-hybrid-expansion.md",
+      "raw_path": "produccion.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "administrator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "assistant-to-director.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "comercial.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "config/departments/README.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "config/departments/comercial.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "config/departments/direccion.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "config/departments/mercadotecnia.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "config/roles/assistant-to-director.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "config/roles/marketing-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "config/skills/activate_project/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "direccion.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-12-txxxxx-departments-mercadotecnia-fusion-direccion-expansion.md",
+      "raw_path": "mercadotecnia.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "agromarin-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/README.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/agents/dept/dept-X.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/agents/dept/dept-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/departments/X.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/departments/ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/profiles/architect.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/profiles/contributor.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/skills/decanonize/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/skills/deprecate_rule/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/skills/review-config-proposal/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/skills/review_config_proposal/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "dept-capital-humano.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "dept-comercial.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "dept-direccion.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "dept-finanzas.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "dept-mercadotecnia.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "dept-operaciones.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "dept-produccion.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "dept-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "governance/ti-stewardship.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "ti-stewardship.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-14-t20481-brainstorm-skill.md",
+      "raw_path": "config/README.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-14-t20481-brainstorm-skill.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-14-t20481-brainstorm-skill.md",
+      "raw_path": "config/skills/brainstorm/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-14-t20481-brainstorm-skill.md",
+      "raw_path": "research-codebase/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-14-t20481-brainstorm-skill.md",
+      "raw_path": "workspace-JMSS/brainstorms/2026-04-DD-test-topic.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-14-t20583-mcp-whitelist-permissions.md",
+      "raw_path": "general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-14-t20583-mcp-whitelist-permissions.md",
+      "raw_path": "knowledge/.../config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-15-t20807-audit-mcp_server.md",
+      "raw_path": "CHANGELOG.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-15-t20811-credit_management-w2-batch-tecnico.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-15-t20815-product_asset-audit-remediation.md",
+      "raw_path": "readme/CONFIGURE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-15-t20815-product_asset-audit-remediation.md",
+      "raw_path": "readme/DESCRIPTION.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-15-t20846-plan.md",
+      "raw_path": "t20806.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-16-t20812-ai_claude-wave3.md",
+      "raw_path": "knowledge/research/2026-04-16-t20812-audit-ai_claude.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-16-t20823-approval-purchase-plan.md",
+      "raw_path": "2026-04-16-t20823-audit-approval_purchase.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-16-t20851-apigateway-full-audit-remediation-4c6h12m.md",
+      "raw_path": "knowledge/research/2026-04-15-t20851-audit-api_gateway.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-16-t20881-apicommunication-audit-remediation-t20881-1c3h5m2l.md",
+      "raw_path": "https://github.com/Agro-Marin/agromarin-knowledge/blob/main/research/2026-04-16-t20881-audit-api_communication.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-16-t20888-apiwebhook-full-audit-remediation.md",
+      "raw_path": "ARCHITECTURE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-17-t20809-wave1-legal-security.md",
+      "raw_path": "migrations-gotchas.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-18-t20809-wave2-init-migrations.md",
+      "raw_path": "migrations-gotchas.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-20-agromarin-guidelines-consolidation.md",
+      "raw_path": "addons/.../CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-20-agromarin-guidelines-consolidation.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-20-agromarin-guidelines-consolidation.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-20-agromarin-guidelines-consolidation.md",
+      "raw_path": "core/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-20-agromarin-guidelines-consolidation.md",
+      "raw_path": "enterprise/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-20-agromarin-guidelines-consolidation.md",
+      "raw_path": "knowledge/.../CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-20-t20809-wave9-cleanup.md",
+      "raw_path": "research/2026-04-17-t00000-mcp-enabled-model-unique-constraint.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-20-t20809-wave9-cleanup.md",
+      "raw_path": "tasks/t00000.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-20-t21022-salegroupreadonly-menu-regression-hook-only-implication-deprecated.md",
+      "raw_path": "https://github.com/Agro-Marin/agromarin-knowledge/blob/main/research/2026-04-20-t21022-sale-group-readonly-audit.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-23-t21163-align-scheduling-mixin.md",
+      "raw_path": "2026-04-23-t20021-scheduling-architecture.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-23-t21163-align-scheduling-mixin.md",
+      "raw_path": "knowledge/research/2026-04-23-t20021-scheduling-architecture.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21289-pos-stock-lot-select-fix.md",
+      "raw_path": "2026-04-27-t21289-pos-stock-lot-select-silent-picking-failure.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "activate-project/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/agents/dept/dept-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/agents/odoo/odoo-record-reader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/agents/odoo/odoo-task-creator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/agents/odoo/odoo-task-reader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/glossary.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/profiles/architect.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/profiles/contributor.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/roles/systems-leader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/skills/activate-project/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/skills/deploy-config/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/skills/odoo-core-performance/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/skills/setup-identity/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/skills/validate-plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/skills/worktree-down/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "config/skills/worktree-up/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "deploy-config/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "dept-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "glossary.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "personal-preferences.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-27-t21302-context-loading-optimization.md",
+      "raw_path": "systems-leader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-28-t21332-pos-data-remediation.md",
+      "raw_path": "/tmp/t21332-negatives-report.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-28-teltonika-fmc150-command-dispatch-plan.md",
+      "raw_path": "knowledge/reference/business/flows/operaciones/gps-command-usage.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-28-teltonika-fmc150-command-dispatch-plan.md",
+      "raw_path": "knowledge/reference/dev/teltonika-codec12-commands.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-28-teltonika-fmc150-command-dispatch-plan.md",
+      "raw_path": "knowledge/reference/infrastructure/aws-gps-bridge.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-28-teltonika-fmc150-command-dispatch-plan.md",
+      "raw_path": "knowledge/reference/runbooks/aws-gps-things-migration.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-28-teltonika-fmc150-command-dispatch-plan.md",
+      "raw_path": "knowledge/reference/runbooks/gps-emergency-commands.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-28-teltonika-fmc150-command-dispatch-plan.md",
+      "raw_path": "knowledge/research/2026-04-17-remote-gps-investigation.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-04-28-teltonika-fmc150-command-dispatch-plan.md",
+      "raw_path": "knowledge/research/2026-04-28-teltonika-fmc150-command-dispatch-architecture.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "2026-05-XX-t21292-baseline-der.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "knowledge/agromarin-knowledge/meets/2026-04-24-lideres.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "knowledge/agromarin-knowledge/meets/2026-05-XX-lideres.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "knowledge/agromarin-knowledge/research/2026-05-XX-t21292-baseline-der.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "knowledge/meets/2026-04-24-lideres.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "knowledge/meets/2026-05-XX-lideres.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "knowledge/research/2026-05-XX-t21292-baseline-der.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "meets/2026-04-24-lideres.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "meets/2026-05-XX-lideres.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-04-t21292-pipeline-implementation-owl.md",
+      "raw_path": "transcript.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-09-t21850-chart-esm-plan.md",
+      "raw_path": "README-vendoring.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-09-t21850-chart-esm-plan.md",
+      "raw_path": "addons/core/addons/spreadsheet/static/src/o_spreadsheet/PATCH.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/plans/2026-05-09-t21850-chart-esm-plan.md",
+      "raw_path": "addons/core/addons/web/static/lib/Chart/README-vendoring.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/api_gateway/ARCHITECTURE.md",
+      "raw_path": "../ARCHITECTURE_INVESTIGATION.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/api_gateway/ARCHITECTURE.md",
+      "raw_path": "../api_webhook/ARCHITECTURE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/api_gateway/ARCHITECTURE.md",
+      "raw_path": "../base_credential_manager/ARCHITECTURE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/architecture/4-layer-model.md",
+      "raw_path": "config/agents/dept/dept-X.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/architecture/4-layer-model.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/architecture/4-layer-model.md",
+      "raw_path": "config/glossary.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/architecture/4-layer-model.md",
+      "raw_path": "config/skills/deploy-config/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/architecture/4-layer-model.md",
+      "raw_path": "general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/architecture/4-layer-model.md",
+      "raw_path": "glossary.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/architecture/4-layer-model.md",
+      "raw_path": "personal-preferences.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/business/flows/comercial/tpv-seleccion-lote.md",
+      "raw_path": "knowledge/plans/2026-04-27-t21289-pos-stock-lot-select-fix.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/business/ia-strategy/project-por-area.md",
+      "raw_path": "checklist-cierre.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/business/ia-strategy/project-por-area.md",
+      "raw_path": "checklist-cumplimiento.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/business/ia-strategy/project-por-area.md",
+      "raw_path": "estructura-modulos.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/business/ia-strategy/project-por-area.md",
+      "raw_path": "guia-reporte-bugs.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/business/ia-strategy/project-por-area.md",
+      "raw_path": "procedimiento-entrega.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/business/ia-strategy/project-por-area.md",
+      "raw_path": "temporadas-agricolas.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/dev/canonical-style-enforcement.md",
+      "raw_path": "config/agents/dept/dept-X.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/dev/canonical-style-enforcement.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/dev/canonical-style-enforcement.md",
+      "raw_path": "config/skills/odoo-docstrings/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/dev/canonical-style-enforcement.md",
+      "raw_path": "knowledge/agromarin-knowledge/config/agents/dept/dept-X.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/guides/odoo/automated-setup-guide.md",
+      "raw_path": "owl3-premigration-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md",
+      "raw_path": "core/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md",
+      "raw_path": "enterprise/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md",
+      "raw_path": "knowledge/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/releases/v19.0.1.md",
+      "raw_path": "ai_project/README.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/releases/v19.0.1.md",
+      "raw_path": "claude-todo/blocked-state-kiss-solution.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/releases/v19.0.1.md",
+      "raw_path": "claude-todo/final-summary.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/releases/v19.0.1.md",
+      "raw_path": "claude-todo/workflow-correction-design.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/releases/v19.0.1.md",
+      "raw_path": "claude-todo/workflow-correction-summary.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/releases/v19.0.7.md",
+      "raw_path": "owl-framework-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/roles/systems-leader.md",
+      "raw_path": "config/agents/dept/dept-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/ti/modules-owned.md",
+      "raw_path": "config/agents/dept/dept-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/ti/process.md",
+      "raw_path": "config/agents/dept/dept-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/ti/process.md",
+      "raw_path": "general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/training/guides/agentes-y-habilidades-claude-code.md",
+      "raw_path": "SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/training/guides/agentes-y-habilidades-claude-code.md",
+      "raw_path": "config/skills/cobranza-vencida/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/training/python-odoo/PLAN-REESTRUCTURACION.md",
+      "raw_path": "02-fundamentos-python.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/training/python-odoo/PLAN-REESTRUCTURACION.md",
+      "raw_path": "03-estructuras-control.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/training/python-odoo/PLAN-REESTRUCTURACION.md",
+      "raw_path": "04-estructuras-datos.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/training/python-odoo/PLAN-REESTRUCTURACION.md",
+      "raw_path": "05-funciones.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/training/python-odoo/PLAN-REESTRUCTURACION.md",
+      "raw_path": "08-poo-clases.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/training/python-odoo/PLAN-REESTRUCTURACION.md",
+      "raw_path": "09-modulos-importaciones.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/vcp/README.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/vcp/vcp-robust.md",
+      "raw_path": ".github/pull_request_template.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/vcp/vcp-robust.md",
+      "raw_path": "CORE_CUSTOMIZATIONS.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/vcp/vcp-robust.md",
+      "raw_path": "https://github.com/OCA/maintainer-tools/blob/master/CONTRIBUTING.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/reference/vcp/vcp-simple.md",
+      "raw_path": ".github/pull_request_template.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2025-12-15-t13274-T13274_Technical_Documentation.md",
+      "raw_path": "./T13274.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2025-12-18-t14421-analysis-marin-privileges.md",
+      "raw_path": "analysis-odoo19-privilege-system.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2025-12-22-t14370-architecture-mapping.md",
+      "raw_path": "t12740/Documentacion_t12740.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2025-12-31-t9139-mcp-server-analysis.md",
+      "raw_path": "research/2025-12-15-t14114-07_CLI_vs_API_Integration_Analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2025-12-31-t9139-mcp-server-analysis.md",
+      "raw_path": "workspaces/.../ai-support/.../agromarin-ai-automation-plan.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2025-12-31-t9139-mcp-server-analysis.md",
+      "raw_path": "workspaces/.../model-context-protocol/FIX-MCP-ODOO.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2025-12-31-t9139-mcp-server-analysis.md",
+      "raw_path": "workspaces/.../model-context-protocol/MODULE_ODOO_MCP_SERVER.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-01-06-t15591-regenerar-picking-ruta-2-pasos.md",
+      "raw_path": "thoughts/tasks/t15591.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-01-08-t14664-cfdi-discount-calculation.md",
+      "raw_path": "thoughts/tasks/t14664.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-01-12-t9139-mcp-validation-report.md",
+      "raw_path": "reference/setup/mcp/mcp-installation-guide.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-01-21-maintenance-ok-visibility-fix.md",
+      "raw_path": "research/2026-01-21-t16378-approvals-maintenance-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-01-21-t0-maintenance-ok-visibility-fix.md",
+      "raw_path": "research/2026-01-21-t16378-approvals-maintenance-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-01-30-t0-task-setup-workflow-integration.md",
+      "raw_path": ".claude/skills/task_setup.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-01-30-t16661-mcp-validation-hook.md",
+      "raw_path": "/home/sistemas/Odoo/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-01-30-t16661-mcp-validation-hook.md",
+      "raw_path": "reference/workflows/odoo-root-claude/standard.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-01-30-task-setup-workflow-integration.md",
+      "raw_path": ".claude/skills/task_setup.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-02-09-t16843-manufacturing-visit-equipment.md",
+      "raw_path": "plans/2026-02-XX-t16843-iot-integration-plan.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-02-09-t16861-opciones-descarga-sat.md",
+      "raw_path": "plans/2026-02-09-t16861-fix-get-available-package.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-02-18-invoicing-module-patterns.md",
+      "raw_path": "wiki/ec2-playwright-cfdi-deployment.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-02-18-t0-invoicing-module-patterns.md",
+      "raw_path": "reference/ec2-playwright-cfdi-deployment.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-02-18-t17295-mejoras-metodologia.md",
+      "raw_path": "research/2026-02-05-t16768-work-plan-methodology.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-02-18-t17295-mejoras-metodologia.md",
+      "raw_path": "task-list.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-02-18-t17348-task-list.md",
+      "raw_path": "/home/itzahu/Escritorio/plan-logistica-2026-2027.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-02-20-t17963-task-list.md",
+      "raw_path": "../workspaces/workspace-LMMG/COMPRAS_STRATEGIC_BRIEF_2026.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-02-t18742-faq-stage-vs-state.md",
+      "raw_path": "research/2026-03-02-project-task-stage-vs-state-architecture.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-03-t18770-plan-review-context.md",
+      "raw_path": "plans/2026-03-02-t18770-sync-product-analytic-production.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-05-t19065-hotfixes-produccion-fork-orm.md",
+      "raw_path": "tmp/fixes_2026-03-05.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-09-t19303-mcp-playwright-visual-debug.md",
+      "raw_path": ".claude/agents/visual-debugger.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": ".claude/agents/knowledge-analyzer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": ".claude/agents/knowledge-locator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": ".claude/agents/odoo-codebase-analyzer.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": ".claude/agents/odoo-codebase-locator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": ".claude/agents/odoo-pattern-finder.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": ".claude/agents/odoo-task-creator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": ".claude/agents/odoo-task-reader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": ".claude/agents/web-search-researcher.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": "agents/odoo-task-creator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": "commands/research_codebase.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t16767-agent-architecture-audit.md",
+      "raw_path": "https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-17-t18989-sales-roles-followup-research.md",
+      "raw_path": "research/2025-12-15-t14172-ROLES_PERMISOS_AGROMARIN.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-23-commit-audit-19.0-marin-mar19-mar23.md",
+      "raw_path": "addons/project/doc/pm_excellence_investigation.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-23-commit-audit-19.0-marin-mar19-mar23.md",
+      "raw_path": "pmi-alignment-plan.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-23-t0-commit-audit-19.0-marin-mar19-mar23.md",
+      "raw_path": "addons/project/doc/pm_excellence_investigation.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-23-t0-commit-audit-19.0-marin-mar19-mar23.md",
+      "raw_path": "pmi-alignment-plan.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-24-approvals-maintenance-bridge-research.md",
+      "raw_path": "research/2026-01-21-t16378-approvals-maintenance-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-24-approvals-maintenance-bridge-research.md",
+      "raw_path": "research/2026-01-21-t16378-fleet-vs-product-asset-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-24-t0-approvals-maintenance-bridge-research.md",
+      "raw_path": "research/2026-01-21-t16378-approvals-maintenance-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-24-t0-approvals-maintenance-bridge-research.md",
+      "raw_path": "research/2026-01-21-t16378-fleet-vs-product-asset-analysis.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "agents/odoo-task-creator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "agents/odoo-task-reader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "claude-md-architecture.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "commands/implement_plan.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "commands/validate_plan.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "config/claude-md-architecture.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "odoo-task-creator.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "odoo-task-reader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "odoo-task-workflow.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "project_switch_project.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "skills/activate_project/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "skills/implement_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-25-t19926-claude-md-personal-standardization.md",
+      "raw_path": "standard.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-03-27-t20074-is-immediate-codebase-analysis.md",
+      "raw_path": "../research/2026-03-13-t19289-credit-validation-flow-diagram.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": ".claude/agents/odoo-ui-tester.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": "/home/suniagajose/Descargas/ui-tester.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": "knowledge/.../skills/create_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": "knowledge/.../skills/implement_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": "knowledge/.../skills/validate_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": "knowledge/agromarin-knowledge/config/agents/odoo-ui-tester.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": "skills/create_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": "skills/implement_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": "skills/validate_plan/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-01-t20374-odoo-ui-tester-agent-integration.md",
+      "raw_path": "ui-tester.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-06-t20460-workspace-naming-standard.md",
+      "raw_path": "SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-06-t20460-workspace-naming-standard.md",
+      "raw_path": "config/skills/activate_project/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-06-t20460-workspace-naming-standard.md",
+      "raw_path": "reference/workflows/odoo-root-claude/standard.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-06-t20460-workspace-naming-standard.md",
+      "raw_path": "standard.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-08-t20481-brainstorm-skill-design.md",
+      "raw_path": ".claude/skills/research_codebase/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-08-t20481-brainstorm-skill-design.md",
+      "raw_path": "SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "agromarin-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/agents/dept/dept-X.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/agents/dept/dept-finanzas.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/agents/dept/dept-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/departments/X.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/departments/ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/roles/systems-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/skills/deprecate_rule/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/skills/promote_workspace_rule/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/skills/propose_config_change/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "config/skills/review_config_proposal/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "deprecate_rule/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "governance/ti-stewardship.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "reference/roles/systems-manager.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "review_config_proposal/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-13-t20731-claude-config-refactor.md",
+      "raw_path": "ti-stewardship.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-14-t20583-mcp-permission-architecture.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-14-t20583-mcp-permission-architecture.md",
+      "raw_path": "general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20804-account-product-asset-audit.md",
+      "raw_path": "agromarin_addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20806-telegrambot-audit-remediation-security-correctness-cleanup.md",
+      "raw_path": "https://github.com/Agro-Marin/agromarin-knowledge/blob/main/plans/2026-04-15-t20806-plan.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20806-telegrambot-audit-remediation-security-correctness-cleanup.md",
+      "raw_path": "https://github.com/Agro-Marin/agromarin-knowledge/blob/main/research/2026-04-15-t20803-audit-telegram_bot.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20811-audit-credit_management.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20815-audit-product_asset.md",
+      "raw_path": "readme/LICENSE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20815-audit-product_asset.md",
+      "raw_path": "readme/USAGE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20820-audit-approval-linter.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20821-audit-approval_account-exhaustive.md",
+      "raw_path": "agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20821-audit-approval_account-exhaustive.md",
+      "raw_path": "knowledge/research/2026-04-15-t20821-audit-approval_account-exhaustive.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20821-audit-approval_account-exhaustive.md",
+      "raw_path": "knowledge/tasks/t20821.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20821-audit-approval_account.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20821-audit-approval_account.md",
+      "raw_path": "knowledge/research/2026-04-15-t20821-audit-approval_account.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20821-audit-approval_account.md",
+      "raw_path": "knowledge/tasks/t20821.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20831-audit-telegram_bot_approval_automation_account.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20834-audit-telegram_bot_financial.md",
+      "raw_path": "agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20851-audit-api_gateway.md",
+      "raw_path": "ARCHITECTURE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20851-audit-api_gateway.md",
+      "raw_path": "AWS_WAF_COMPARISON.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20851-audit-api_gateway.md",
+      "raw_path": "SECURITY_SETUP.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-15-t20851-audit-api_gateway.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20803-skill-audit-module-creation.md",
+      "raw_path": "config/README.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20803-skill-audit-module-creation.md",
+      "raw_path": "config/skills/audit-module/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20814-audit-delivery_tracking_product_asset.md",
+      "raw_path": "agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20817-audit-l10n_mx_edi_fiscal_regime.md",
+      "raw_path": "knowledge/plans/2026-04-16-t20817-l10n_mx_edi_fiscal_regime-plan.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20818-audit-base_edi.md",
+      "raw_path": "ANALYSIS.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20818-audit-base_edi.md",
+      "raw_path": "docs/ROADMAP.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20818-audit-base_edi.md",
+      "raw_path": "marin/docs/PYTHON_TYPING_GUIDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20819-audit-credit_management_approval.md",
+      "raw_path": "reparticion-modulos-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20820-audit-approval.md",
+      "raw_path": "IMPROVEMENTS_PROPOSAL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20824-audit-approval_stock.md",
+      "raw_path": "agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20881-audit-api_communication.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-16-t20888-apiwebhook-full-audit-remediation.md",
+      "raw_path": "ARCHITECTURE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-17-mcp-stdio-disconnect-root-cause.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-17-mcp-stdio-disconnect-root-cause.md",
+      "raw_path": "odoo-task-reader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-17-t20938-review-account_move_template.md",
+      "raw_path": "reparticion-modulos-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-19-t20944-audit-documents_product_asset.md",
+      "raw_path": "reparticion-modulos-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-19-t20944-plan-documents_product_asset.md",
+      "raw_path": "reparticion-modulos-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-19-t20945-audit-documents_product_asset_compliance.md",
+      "raw_path": "reparticion-modulos-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-19-t20948-audit-aws_integration.md",
+      "raw_path": "ARCHITECTURE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-20-guidelines-v1-vs-v2-comparative.md",
+      "raw_path": "wiki/odoo-19/agromarin-guidelines-v1.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-20-t20955-audit-planning.md",
+      "raw_path": "knowledge/agromarin-knowledge/research/2025-10-23-t0-web-map-enterprise-feature-comparison.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-20-t20955-audit-planning.md",
+      "raw_path": "knowledge/workspaces/workspace-JMSS/web_map_enterprise_feature_comparison.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-20-t20955-audit-planning.md",
+      "raw_path": "web_map_enterprise_feature_comparison.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-20-t21028-audit-documents_expiry.md",
+      "raw_path": "reparticion-modulos-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-20-t21039-audit-hr_payroll_dual_period.md",
+      "raw_path": "agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-20-t21047-audit-project_workflow_step_state.md",
+      "raw_path": "knowledge/plans/2026-04-20-t21047-project_workflow_step_state-plan.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-21-t20957-research-product_abc_classification.md",
+      "raw_path": "reparticion-modulos-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-21-t20959-audit-stock_blocked_location.md",
+      "raw_path": "project_marin190_schema_drift.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-21-t21048-webflowdemo-remove-demo-module-from-production.md",
+      "raw_path": "knowledge/research/2026-04-20-t21038-web-flow-demo-removal.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-21-t21064-audit-marin_digest_intelligence.md",
+      "raw_path": "addons/agromarin-addons/CLAUDE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-21-t21065-agromarin-addons-align-toolchain-with-canonical-coding.md",
+      "raw_path": "agromarin-guidelines.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-23-t20609-pr724-technical-review.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-23-t20609-pr724-technical-review.md",
+      "raw_path": "config/skills/odoo-core-python/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-23-t20609-pr724-technical-review.md",
+      "raw_path": "general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-23-t21118-pos-edit-existing-lines.md",
+      "raw_path": "config/roles/sales-operator-pos.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "activate-project/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "architect.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "config/agents/dept/dept-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "config/general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "config/glossary.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "config/roles/systems-leader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "config/skills/deploy-config/SKILL.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "config/templates/personal-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "contributor.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "general-context.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "lider-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "reference/glossary.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "reference/roles/lider-ti.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-27-t21302-context-loading-current-state.md",
+      "raw_path": "systems-leader.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-28-teltonika-fmc150-command-dispatch-architecture.md",
+      "raw_path": "knowledge/research/2026-04-17-remote-gps-investigation.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-29-t21292-pipeline-design.md",
+      "raw_path": "knowledge/research/2026-04-27-t21291-meeting-owl-3-vendor-decision.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-04-30-t20609-mqtt-integration-smoke-test.md",
+      "raw_path": "2026-04-14-t20609-bascula-station-embedded.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-05-03-t20609-validation-session.md",
+      "raw_path": "2026-04-14-t20609-bascula-station-embedded.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-05-03-t20609-validation-session.md",
+      "raw_path": "2026-04-28-t20609-stock-scale-refactor.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-05-09-t21850-chart-esm-migration.md",
+      "raw_path": "LICENSE.md"
+    },
+    {
+      "source_file": "knowledge/agromarin-knowledge/research/2026-05-09-t21850-chart-esm-migration.md",
+      "raw_path": "README-vendoring.md"
+    }
+  ]
+}

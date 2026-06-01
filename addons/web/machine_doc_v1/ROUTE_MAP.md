@@ -44,7 +44,7 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 
 | Method | Route | Auth | Handler | Purpose |
 |--------|-------|------|---------|---------|
-| JSONRPC | `/web/domain/validate` | user | `validate()` | Validate domain expression against model schema |
+| JSONRPC | `/web/domain/validate` | user (readonly) | `validate()` | Validate domain expression against model schema |
 
 ### controllers/view.py — View
 
@@ -79,7 +79,9 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | HTTP | `/web/login` | none (readonly=False) | `web_login()` | Login page (GET = form, POST = authenticate) |
 | HTTP | `/web/login_successful` | user | `login_successful_external_user()` | External user landing page |
 | HTTP | `/web/become` | user (readonly) | `switch_to_admin()` | Switch session to admin (debug) |
-| HTTP | `/web/health` | none | `health()` | Health check (DB status optional) |
+| HTTP | `/web/health` | none (save_session=False) | `health()` | Legacy health check (DB status optional). Prefer `/web/healthz` + `/web/readyz` for K8s probes. |
+| HTTP | `/web/healthz` | none (save_session=False) | `healthz()` | Kubernetes-style liveness probe (no I/O, returns 200 if the process is up) |
+| HTTP | `/web/readyz` | none (save_session=False) | `readyz()` | Kubernetes-style readiness probe (checks DB + data_dir, returns 503 on failure) |
 | HTTP | `/robots.txt` | none | `robots()` | Search engine robots file |
 
 ### controllers/webclient.py — WebClient
@@ -100,7 +102,7 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | Method | Route | Auth | Handler | JS Caller | Purpose |
 |--------|-------|------|---------|-----------|---------|
 | HTTP | `/web/content/<variants>` | public (readonly) | `content_common()` | `useFileViewer`, direct links | Serve attachment/binary by xmlid, id, or model/id/field (7 URL variants) |
-| HTTP | `/web/image/<variants>` | public (readonly) | `content_image()` | `<img>` tags, `image_service.js` | Serve resized/cropped image (17 URL variants) |
+| HTTP | `/web/image/<variants>` | public (readonly, save_session=False) | `content_image()` | `<img>` tags, `image_service.js` | Serve resized/cropped image (17 URL variants). `save_session=False` prevents session writes on image requests. |
 | HTTP | `/web/assets/<unique>/<filename>` | public (readonly) | `content_assets()` | Asset loader | Compiled CSS/JS bundles with cache headers |
 | HTTP | `/web/binary/upload_attachment` | user | `upload_attachment()` | `file_input.js`, `attach_document.js` | Upload file(s), create attachment records |
 | HTTP | `/web/binary/company_logo`, `/logo`, `/logo.png` | none (CORS) | `company_logo()` | Login page, emails | Company logo or default Odoo logo |
@@ -148,12 +150,16 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 |--------|-------|------|---------|---------|
 | HTTP | `/web/database/selector` | none | `selector()` | Database selector page |
 | HTTP | `/web/database/manager` | none | `manager()` | Database manager page |
-| HTTP POST | `/web/database/create` | none | `create()` | Create new database |
-| HTTP POST | `/web/database/duplicate` | none | `duplicate()` | Duplicate database |
-| HTTP POST | `/web/database/drop` | none | `drop()` | Delete database |
-| HTTP POST | `/web/database/backup` | none | `backup()` | Export database (ZIP/SQL) |
-| HTTP POST | `/web/database/restore` | none | `restore()` | Import database backup |
-| HTTP POST | `/web/database/change_password` | none | `change_password()` | Change master password |
+| HTTP POST | `/web/database/create` | none (csrf=False) | `create()` | Create new database |
+| HTTP POST | `/web/database/duplicate` | none (csrf=False) | `duplicate()` | Duplicate database |
+| HTTP POST | `/web/database/drop` | none (csrf=False) | `drop()` | Delete database |
+| HTTP POST | `/web/database/backup` | none (csrf=False) | `backup()` | Export database (ZIP/SQL) |
+| HTTP POST | `/web/database/restore` | none (csrf=False, max_content_length=None) | `restore()` | Import database backup. `max_content_length=None` means uploads are unbounded — relies on reverse proxy to cap request size. |
+| HTTP POST | `/web/database/change_password` | none (csrf=False) | `change_password()` | Change master password |
+
+> **Database POST footgun** (`database.py:_handle_insecure_password`, lines 28-31): on first successful POST with a non-"admin" `master_pwd`, the helper auto-upgrades the stored master password to whatever was submitted — browser autofill of the form can silently replace the default. The helper is invoked from five POST handlers (`create` line 94, `duplicate` line 148, `drop` line 177, `backup` line 205, `restore` line 241), so any of those routes is a trigger surface. Any refactor hardening master-pwd handling should remove this auto-upgrade.
+
+> **Restore / upload safety gaps** — `/web/database/restore` has `max_content_length=None` (unbounded upload) and no MIME/magic-byte check; `/web/binary/upload_attachment` has no size cap beyond the framework default and no MIME validation; `/report/barcode` accepts arbitrary `width`/`height`/`value` (reportlab can allocate large images). All three are known limitations — consumers must enforce limits at the reverse proxy.
 | JSONRPC | `/web/database/list` | none | `list()` | List databases (mobile API) |
 
 ## PWA and Manifest
@@ -206,20 +212,33 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | JSONRPC | `/base_setup/data` | user | `base_setup_data()` | Base setup configuration data |
 | JSONRPC | `/base_setup/demo_active` | user | `base_setup_is_demo()` | Check if demo data is active |
 
+## Observability
+
+### controllers/observability.py — Observability
+
+| Method | Route | Auth | Handler | Purpose |
+|--------|-------|------|---------|---------|
+| HTTP POST | `/web/observability/cwv` | public (csrf=False, sitemap=False) | `cwv()` | Core Web Vitals beacon (LCP/FCP/CLS/TTFB) sent via `navigator.sendBeacon` from `web_vitals_service.js` on `pagehide`. Validates and clamps payload, persists to `web.cwv.metric`, emits `[cwv]`-tagged INFO log. |
+| HTTP POST | `/web/observability/js_error` | public (csrf=False, sitemap=False) | `js_error()` | JS error beacon sent via `navigator.sendBeacon` from the inline `module_loader.js` shim's pre-bundle error handler. Throttled JS-side to one beacon per `(message,line,col)` per page lifetime. Clamps payload fields to length caps, emits a `[js_error]` WARNING log. No model persistence in Phase 1 — operators triage from the log. |
+
 ## Route Count Summary
 
-| Category | Routes | Controller |
-|----------|--------|------------|
-| RPC/Data | 9 | dataset, action, domain, view, model |
-| Session | 10 | session |
-| Bootstrap | 10 | home, webclient |
-| Binary/Assets | ~28 | binary (17 image + 7 content + uploads + fonts + logo + filestore) |
-| Export | 7 | export, pivot |
-| Reports | 6 | report |
-| Database | 9 | database |
-| PWA | 6 | webmanifest |
-| Profiling | 3 | profiling |
-| JSON API | 2 | json |
-| vCard | 2 | vcard |
-| Settings | 2 | settings |
-| **Total** | **~94 unique handlers** | **20 controller classes** |
+Counts are in **(handler functions) / (URL-pattern variants)**.
+A single `@http.route(routes=[...])` counts as one handler but several URL variants.
+
+| Category | Handlers / URLs | Controller |
+|----------|-----------------|------------|
+| RPC/Data | 8 / 10 | dataset, action, domain, view, model |
+| Session | 8 / 8 | session |
+| Bootstrap | 16 / 19 | home (10 handlers; web_client has 4 URLs), webclient (6) |
+| Binary/Assets | 7 / 32 | binary (17 image + 7 content + 3 logo + 2 fonts + upload + assets + filestore) |
+| Export | 6 / 6 | export (5), pivot (1) |
+| Reports | 3 / 5 | report |
+| Database | 9 / 9 | database |
+| PWA | 6 / 6 | webmanifest |
+| Profiling | 3 / 3 | profiling |
+| JSON API | 2 / 2 | json |
+| vCard | 1 / 2 | vcard (one handler, two URLs) |
+| Settings | 2 / 2 | settings |
+| Observability | 2 / 2 | observability (CWV beacon + JS error beacon) |
+| **Total** | **73 handlers / ~105 URL variants** | **21 controller classes** (across 23 files; export.py contains 3: Export, CSVExport, ExcelExport. `json_helpers.py`, `export_writers.py`, `utils.py`, `__init__.py` have no routes.) |

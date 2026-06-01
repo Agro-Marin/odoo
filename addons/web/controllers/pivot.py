@@ -18,7 +18,11 @@ class TableExporter(http.Controller):
         if not jdata:
             raise UnprocessableEntity(_("No data to export"))
         output = io.BytesIO()
-        with xlsxwriter.Workbook(output, {"in_memory": True}) as workbook:
+        # strings_to_formulas=False: pivot labels/values are client-supplied;
+        # never let a leading "=" be interpreted as a formula (injection).
+        with xlsxwriter.Workbook(
+            output, {"in_memory": True, "strings_to_formulas": False}
+        ) as workbook:
             worksheet = workbook.add_worksheet(jdata["title"])
 
             header_bold = workbook.add_format(

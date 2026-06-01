@@ -5,7 +5,9 @@ from . import test_base_document_layout
 from . import test_click_everywhere
 from . import test_db_manager
 from . import test_domain
+from . import test_esm_pipeline
 from . import test_favorite
+from . import test_feature_flags
 from . import test_health
 from . import test_image
 from . import test_ir_model
@@ -22,10 +24,13 @@ from . import test_res_partner_properties
 from . import test_res_users
 from . import test_res_users_settings
 from . import test_router
+from . import test_search_panel_version
 from . import test_session_info
 from . import test_translate
+from . import test_typed_services_consistency
 from . import test_web_redirect
 from . import test_web_benchmark
+from . import test_web_bundle_size
 from . import test_web_perf_regression
 from . import test_web_read_group
 from . import test_web_save

@@ -14,6 +14,8 @@ from odoo.exceptions import AccessError, ConcurrencyError
 from odoo.fields import Datetime as FieldsDatetime
 from odoo.tools import OrderedSet
 
+from odoo.tools.cache_version import versioned, versioned_envelope
+
 
 class lazymapping(defaultdict):
     """defaultdict whose factory receives the missing *key* as argument."""
@@ -59,6 +61,7 @@ class Base(models.AbstractModel):
 
     @api.model
     @api.readonly
+    @versioned
     def web_search_read(
         self,
         domain: DomainType,
@@ -215,6 +218,7 @@ class Base(models.AbstractModel):
         return self.with_context(bin_size=True).web_read(specification)
 
     @api.readonly
+    @versioned_envelope
     def web_read(self, specification: dict[str, dict]) -> list[dict]:
         """Read records and recursively resolve sub-specifications.
 
