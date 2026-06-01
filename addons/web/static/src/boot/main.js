@@ -3,6 +3,7 @@
 
 /** @module @web/boot/main - Entry point that launches the web client (replaced in enterprise) */
 
+import { assetLog } from "@web/core/utils/asset_log";
 import { startWebClient } from "@web/boot/start";
 import { WebClient } from "@web/webclient/webclient";
 /**
@@ -11,4 +12,5 @@ import { WebClient } from "@web/webclient/webclient";
  * which is a subclass of the above Webclient.
  */
 
+assetLog("boot", "main.js module evaluated — calling startWebClient(WebClient)");
 startWebClient(/** @type {any} */ (WebClient));

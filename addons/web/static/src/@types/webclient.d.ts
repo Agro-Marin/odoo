@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 declare module "@web/webclient/actions/action_service" {
-    import { Component, EventBus } from "@odoo/owl";
+    import { Component, ComponentConstructor, EventBus } from "@odoo/owl";
 
     export type ActionId = number | false;
     export type ActionMode = "current" | "fullscreen" | "new" | "main" | "self";
@@ -36,6 +36,103 @@ declare module "@web/webclient/actions/action_service" {
         [key: string]: any;
     }
 
+    // -----------------------------------------------------------------------
+    // Discriminated union over `ir.actions.*` (opt-in tightening)
+    // -----------------------------------------------------------------------
+    //
+    // ``ActionDescription`` above is the loose, index-signature bag every
+    // caller historically used. The union below narrows it per ``type`` so
+    // that code switching on ``action.type`` gets compile-time field
+    // checking and switch-exhaustiveness. Both coexist deliberately:
+    //
+    //   - Functions that handle ONE action type take the specific variant
+    //     (``ActWindowAction``, ``ClientAction``, …) — the executors do this.
+    //   - Functions that handle ANY action and branch on ``type`` take
+    //     ``Action``; the discriminator narrows each branch.
+    //   - Code not yet migrated keeps ``ActionDescription`` — no forced churn.
+    //
+    // ``target`` is intentionally NOT on ``ActionFields`` because
+    // ``ir.actions.act_url`` permits a different value set (it adds
+    // ``"download"`` and lacks ``"main"``/``"fullscreen"``). Cross-variant
+    // reads of ``action.target`` must narrow on ``type`` first.
+
+    interface ActionFields {
+        id?: ActionId;
+        name?: string;
+        display_name?: string;
+        context?: Record<string, any>;
+        xml_id?: string;
+        path?: string;
+        // ``domain`` and ``help`` are semantically act_window-centric, but
+        // ``preprocessAction`` reads/normalizes them on every action type
+        // (string-domain eval, empty-help stripping), so they live on the
+        // shared base rather than only on ActWindowAction.
+        domain?: any[];
+        help?: string;
+        // Stamped by preprocessAction (action_loader.js) at normalization.
+        jsId?: string;
+        _originalAction?: string;
+        _noBreadcrumbs?: boolean;
+    }
+
+    export interface ActWindowAction extends ActionFields {
+        type: "ir.actions.act_window";
+        res_model: string;
+        views: [number | false, string][];
+        view_mode?: string;
+        res_id?: number | false;
+        search_view_id?: [number, string] | false;
+        mobile_view_mode?: string;
+        limit?: number;
+        target?: ActionMode;
+        flags?: Record<string, any>;
+        // Per-view controller cache populated by preprocessAction +
+        // executeActWindowAction. act_window only.
+        controllers?: Record<string, any>;
+    }
+
+    export interface ClientAction extends ActionFields {
+        type: "ir.actions.client";
+        tag: string;
+        params?: Record<string, any>;
+        target?: ActionMode;
+    }
+
+    export interface ActURLAction extends ActionFields {
+        type: "ir.actions.act_url";
+        url: string;
+        target?: "new" | "self" | "download";
+        close?: boolean;
+    }
+
+    export interface CloseAction extends ActionFields {
+        type: "ir.actions.act_window_close";
+        infos?: any;
+        effect?: Record<string, any>;
+    }
+
+    export interface ServerAction extends ActionFields {
+        type: "ir.actions.server";
+        id: number;
+    }
+
+    export interface ReportAction extends ActionFields {
+        type: "ir.actions.report";
+        report_name: string;
+        report_type: "qweb-pdf" | "qweb-html" | "qweb-text";
+        report_file?: string;
+        data?: Record<string, any>;
+        close_on_report_download?: boolean;
+    }
+
+    export type Action =
+        | ActWindowAction
+        | ClientAction
+        | ActURLAction
+        | CloseAction
+        | ServerAction
+        | ReportAction;
+
     export type ActionRequest = ActionId | ActionXMLId | ActionTag | ActionDescription;
 
     export interface ActionOptions {
@@ -51,11 +148,15 @@ declare module "@web/webclient/actions/action_service" {
         newStack?: any[];
         noEmptyTransition?: boolean;
         onActionReady?: (action: ActionDescription) => void;
+        // Internal — set by `action_service.js` while recursing through
+        // `target: 'new'` action chains to detect runaway depth. Tests
+        // that drive doActionButton sometimes seed this directly.
+        _actionDepth?: number;
     }
 
     export interface Controller {
         jsId: string;
-        Component: typeof Component;
+        Component: ComponentConstructor;
         action: ActionDescription;
         props: Record<string, any>;
         config: Record<string, any>;
@@ -72,13 +173,19 @@ declare module "@web/webclient/actions/action_service" {
             actionRequest: ActionRequest,
             options?: ActionOptions,
         ): Promise<any>;
+        doActionButton(
+            params: Record<string, any>,
+            options?: ActionOptions,
+        ): Promise<any>;
         loadAction(
             actionRequest: ActionRequest,
             context?: Record<string, any>,
         ): Promise<ActionDescription>;
+        loadState(state?: Record<string, any>): Promise<any>;
         switchView(viewType: ViewType, props?: Record<string, any>): void;
         restore(jsId?: string): void;
         currentController: Controller | null;
+        currentAction: ActionDescription | null;
     }
 
     export function clearUncommittedChanges(
@@ -211,6 +318,10 @@ declare module "@web/webclient/actions/reports/report_hook" {
     export function useReportActions(): {
         print: () => Promise<void>;
     };
+    export function useEnrichWithActionLinks(
+        ref: { el: Element | null },
+        selector?: string | null,
+    ): void;
 }
 
 declare module "@web/webclient/actions/reports/utils" {

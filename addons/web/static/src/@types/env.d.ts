@@ -19,4 +19,13 @@ declare module "@web/env" {
         target: HTMLElement,
         appConfig?: Record<string, any>,
     ): Promise<import("@odoo/owl").App>;
+
+    // Custom OWL directives + global values registered by env.js (`t-custom-click`
+    // with stop/prevent/middle-click semantics) — re-exported for tests that
+    // build a custom App with the same wiring.
+    export const customDirectives: Record<
+        string,
+        (node: Element, value: string, modifiers: string[]) => void
+    >;
+    export const globalValues: Record<string, (...args: any[]) => any>;
 }

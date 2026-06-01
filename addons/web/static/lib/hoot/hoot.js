@@ -82,8 +82,16 @@ export const globals = copyAndBind(globalThis);
 // side-effect fires on every page — including the webclient —
 // overlaying the test runner UI on top of the actual app. Gate the
 // call so the UI only appears when the page explicitly requested it.
+//
+// Two distinct pages legitimately host Hoot and need both the UI AND the
+// global API mocks (patchWindow): the integrated Odoo JS runner at
+// /web/tests, and the standalone Hoot self-test harness served from
+// /web/static/lib/hoot/tests/. The latter was wrongly excluded by a
+// /web/tests-only check, leaving its mock-dependent suites (network,
+// timers, navigator) running against the real browser APIs.
 const _inTestPage = typeof window !== "undefined"
-    && window.location.pathname.startsWith("/web/tests");
+    && (window.location.pathname.startsWith("/web/tests")
+        || window.location.pathname.startsWith("/web/static/lib/hoot/tests/"));
 export const isHootReady = _inTestPage ? setupHootUI() : Promise.resolve();
 
 // Mock
@@ -91,7 +99,14 @@ export { disableAnimations, enableTransitions } from "./mock/animation.js";
 export { mockDate, mockLocale, mockTimeZone, onTimeZoneChange } from "./mock/date.js";
 export { makeSeededRandom } from "./mock/math.js";
 export { mockPermission, mockSendBeacon, mockUserAgent, mockVibrate } from "./mock/navigator.js";
-export { mockFetch, mockLocation, mockWebSocket, mockWorker, withFetch } from "./mock/network.js";
+export {
+    mockFetch,
+    mockHistory,
+    mockLocation,
+    mockWebSocket,
+    mockWorker,
+    withFetch,
+} from "./mock/network.js";
 export { flushNotifications } from "./mock/notification.js";
 export {
     mockMatchMedia,
