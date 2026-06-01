@@ -242,9 +242,18 @@ class Database(http.Controller):
         tmp_path = None
         try:
             db.check_super(master_pwd)
+            if not re.match(DBNAME_PATTERN, name):
+                raise ValueError(
+                    _(
+                        "Houston, we have a database naming issue! Make sure you only use letters, numbers, underscores, hyphens, or dots in the database name, and you'll be golden."
+                    )
+                )
             with tempfile.NamedTemporaryFile(delete=False) as tmp:
-                backup_file.save(tmp)
+                # Capture the path BEFORE save() so a failed upload is still
+                # cleaned up in the finally block: NamedTemporaryFile is created
+                # with delete=False, so it is not removed automatically on error.
                 tmp_path = pathlib.Path(tmp.name)
+                backup_file.save(tmp)
             db.restore_db(
                 name,
                 str(tmp_path),
@@ -258,7 +267,7 @@ class Database(http.Controller):
             return self._render_template(error=error)
         finally:
             if tmp_path:
-                tmp_path.unlink()
+                tmp_path.unlink(missing_ok=True)
 
     @http.route(
         "/web/database/change_password",
@@ -276,7 +285,11 @@ class Database(http.Controller):
             return self._render_template(error=error)
 
     @http.route("/web/database/list", type="jsonrpc", auth="none")
-    def list(self) -> list[str]:
+    # Stringified return annotation: the method name ``list`` shadows the
+    # builtin in the class scope where PEP 649 evaluates ``__annotate__``,
+    # so an unquoted ``list[str]`` resolves to the method and raises
+    # ``TypeError: 'function' object is not subscriptable`` on Python 3.14.
+    def list(self) -> "list[str]":
         """
         Used by Mobile application for listing database
         :return: List of databases

@@ -14,6 +14,7 @@ from odoo.exceptions import UserError
 from odoo.libs.json import dumps as json_dumps
 from odoo.tools.translate import LazyTranslate
 
+from odoo.tools.cache_version import versioned
 from .web_read_group_helpers import AND
 
 _lt = LazyTranslate(__name__)
@@ -24,6 +25,8 @@ class Base(models.AbstractModel):
     _inherit = "base"
 
     @api.model
+    @api.readonly
+    @versioned
     def search_panel_select_range(
         self, field_name: str, **kwargs: Any
     ) -> dict[str, Any]:
@@ -185,6 +188,8 @@ class Base(models.AbstractModel):
         }
 
     @api.model
+    @api.readonly
+    @versioned
     def search_panel_select_multi_range(
         self, field_name: str, **kwargs: Any
     ) -> dict[str, Any]:

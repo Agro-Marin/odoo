@@ -17,6 +17,7 @@ from . import webclient
 # Utilities & assets
 from . import action
 from . import binary
+from . import observability
 from . import profiling
 from . import report
 from . import utils

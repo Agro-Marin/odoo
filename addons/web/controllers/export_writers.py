@@ -207,8 +207,13 @@ class ExportXlsxWriter:
         self.fields = fields
         self.columns_headers = columns_headers
         self.output = io.BytesIO()
+        # strings_to_formulas=False: a cell whose text starts with "=" must be
+        # written as a literal string, never interpreted as a formula. Exported
+        # record values are user data, so formula interpretation is a
+        # CSV/spreadsheet-injection vector (e.g. =WEBSERVICE(...)).
         self.workbook = xlsxwriter.Workbook(
-            self.output, {"in_memory": True, "constant_memory": True}
+            self.output,
+            {"in_memory": True, "constant_memory": True, "strings_to_formulas": False},
         )
         self.header_style = self.workbook.add_format({"bold": True})
         self.date_style = self.workbook.add_format(

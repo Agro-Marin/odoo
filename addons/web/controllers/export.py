@@ -33,7 +33,7 @@ class Export(http.Controller):
         :rtype: list[dict]
         """
         try:
-            import xlsxwriter  # noqa: F401
+            import xlsxwriter  # noqa: F401 — availability probe (try/except gates xlsx export)
 
             xlsx_error = None
         except ModuleNotFoundError:

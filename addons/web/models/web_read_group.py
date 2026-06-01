@@ -18,6 +18,7 @@ from odoo.models import BaseModel, regex_order
 from odoo.api import DomainType
 from odoo.tools import unique
 
+from odoo.tools.cache_version import versioned
 from .web_read_group_helpers import AND
 
 MAX_NUMBER_OPENED_GROUPS = 10
@@ -28,6 +29,7 @@ class Base(models.AbstractModel):
 
     @api.model
     @api.readonly
+    @versioned
     def web_read_group(
         self,
         domain: DomainType,

@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Call this template instead of "web.assets_tests" to have the proper conditional check -->
+    <!-- Call this template instead of "web.assets_tests" to have the proper conditional check.
+         ``ignore_missing_deps`` is accepted for backwards compatibility with frontend-layout
+         callers but no longer branches: with ESM the legacy
+         ``window.__odooIgnoreMissingDependencies`` flag (set by ``web.__assets_tests_call__``)
+         is moot — there's no AMD-era "missing dep" tracking for the runtime to ignore.  Both
+         backend and frontend pages now load the same ``web.assets_tests`` bundle, which is a
+         DYNAMIC_ESM_BUNDLES child of ``web.assets_web`` AND ``web.assets_frontend`` so the
+         page-specific import map carries the bridge entries that preserve singleton identity
+         (Registry, TourHelpers, …) across the test bundle and the parent. -->
     <template id="web.conditional_assets_tests" name="Tests Assets Bundle">
         <t t-if="'tests' in debug or test_mode_enabled">
-            <t t-if="ignore_missing_deps">
-                <!-- FIXME: This is only to ignore the errors for the lazy loading. To allow all
-                tests assets and tours to be in the same bundle, the assets_tests bundle ignores
-                missing dependencies -->
-                <t t-call-assets="web.__assets_tests_call__" defer_load="True" />
-            </t>
-            <t t-else="">
-                <t t-call-assets="web.assets_tests" defer_load="True" />
-            </t>
+            <t t-call-assets="web.assets_tests" defer_load="True" />
         </t>
     </template>
 
@@ -45,7 +45,18 @@ debug: "<t t-out="debug" />",
             <meta name="viewport" content="width=device-width, initial-scale=1" />
         </xpath>
         <xpath expr="//head/link[last()]" position="after">
-            <link rel="preload" href="/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2" as="font" crossorigin="anonymous" />
+            <!-- Intentionally no <link rel="preload"> for fa-solid-900.woff2:
+                 the bundled web.assets_frontend stylesheet already declares the
+                 @font-face with font-display: block, so the browser fetches the
+                 font as soon as it parses the CSS and the UI stays usable
+                 thanks to the block display strategy.  A speculative preload
+                 added a handful of milliseconds at best but produced persistent
+                 "resource was preloaded but not used" warnings whenever the
+                 initial layout happened to not render an FA-solid glyph within
+                 the ~3s grace window (conditional login screens, QR-code
+                 toggles, language picker dropdowns).  The tradeoff isn't
+                 worth the console noise; revisit if a First-Contentful-Paint
+                 profile on a public page shows FA glyphs blocking paint. -->
             <t t-call-assets="web.assets_frontend" t-js="false" />
         </xpath>
         <xpath expr="//head/script[@id='web.layout.odooscript']" position="after">
@@ -55,9 +66,20 @@ debug: "<t t-out="debug" />",
                     document.cookie = `tz=${userTZ}; path=/; SameSite=Lax`;
                 }
             </script>
+            <!-- ``web.assets_frontend_lazy`` is rendered FIRST so its
+                 ``<script type="importmap">`` wins (the first ESM bundle's
+                 import map is the only one honoured per document — see
+                 ``ir_qweb.py``'s ``_esm_import_map_rendered`` guard).
+                 ``web.assets_tests`` is a DYNAMIC_ESM_BUNDLES child of
+                 ``web.assets_frontend_lazy``, so the served import map
+                 carries the bridge entries (``@web/core/registry`` →
+                 ``odoo.loader.modules``-reading shim) needed for the
+                 test bundle to share singleton identity with the parent.
+                 Symmetric with ``web.webclient`` (backend) which renders
+                 ``web.assets_web`` first for the same reason. -->
+            <t t-call-assets="web.assets_frontend_lazy" t-css="false" defer_load="True" />
             <t t-call-assets="web.assets_frontend_minimal" t-css="false" defer_load="True" />
             <t t-call="web.conditional_assets_tests" ignore_missing_deps="True" />
-            <t t-call-assets="web.assets_frontend_lazy" t-css="false" defer_load="True" />
         </xpath>
         <xpath expr="//t[@t-out='0']" position="replace">
             <div id="wrapwrap" t-attf-class="#{pageName or ''}">

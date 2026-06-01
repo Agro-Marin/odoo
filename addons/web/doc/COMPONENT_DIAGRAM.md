@@ -40,7 +40,7 @@
 │           ▼                        ▼                                        │
 │  ┌──────────────────┐  ┌───────────────────┐  ┌──────────────────────────┐  │
 │  │   FIELD WIDGETS  │  │   DATA MODEL      │  │   UI SYSTEM              │  │
-│  │  (67 types)      │  │  (RelationalModel │  │  (Dialog, Notification,  │  │
+│  │  (68 dirs)       │  │  (RelationalModel │  │  (Dialog, Notification,  │  │
 │  │                  │  │   Record, Lists)  │  │   Popover, Tooltip,      │  │
 │  └──────────────────┘  └────────┬──────────┘  │   Overlay, Effects)      │  │
 │                                 │             └──────────────────────────┘  │
@@ -153,10 +153,10 @@ Files are listed with approximate line counts.
 | JS | `static/src/boot/start.js` | ~60 | `startWebClient()` — RPC cache, mount, SW |
 | JS | `static/src/env.js` | ~280 | `makeEnv()`, `startServices()`, `mountComponent()`, `customDirectives`, `globalValues` |
 | JS | `static/src/session.js` | ~2 | Capture and delete `__session_info__` from HTML at module load |
-| JS | `static/src/module_loader.js` | ~200 | ES module loader / dynamic imports |
+| JS | `static/src/module_loader.js` | ~161 | Post-ESM shim — installs `globalThis.odoo.loader` as `OdooModuleLoader` with only 3 members (`bus`, `modules`, `registerNativeModules`). NOT an ES module loader anymore (legacy AMD loader removed after the 2026 ESM migration); it exists solely so sibling esbuild bundles share the same singleton module instances via the `modules` Map. |
 | PY | `controllers/home.py` | ~295 | `/`, `/web`, `/odoo`, `/web/webclient/load_menus`, `/web/login`, `/web/login_successful`, `/web/become`, `/web/health`, `/robots.txt` |
 | PY | `models/ir_http.py` | ~280 | `session_info()`, `webclient_rendering_context()` |
-| XML | `views/webclient_templates.xml` | ~300 | HTML shell, `t-call-assets`, inline session JSON |
+| XML | `views/webclient_templates.xml` | ~385 | HTML shell, `t-call-assets`, inline session JSON. Contains `web.layout` (line 19) with `<!DOCTYPE html>`, `<meta>`, `<link rel="icon">`, and inline `<script id="web.layout.odooscript">` that writes `window.odoo = {csrf_token, debug}`. Frontend layout injects `odoo.__session_info__` via `json.dumps(get_frontend_session_info())` at line ~63. |
 
 **Key invariants to check**:
 - Service dependency order is acyclic
@@ -198,14 +198,22 @@ Files are listed with approximate line counts.
 | PY | `controllers/utils.py` | ~285 | `clean_action()`, `ensure_db()`, `generate_views()`, `get_action()`, `get_action_triples()`, `_get_login_redirect_url()`, `is_user_internal()`, `_local_web_translations()` |
 | JS | `static/src/services/orm_service.js` | ~395 | `ORM.call()`, `read()`, `write()`, etc. |
 | JS | `static/src/core/network/rpc.js` | ~180 | JSON-RPC envelope, error handling |
-| JS | `static/src/core/network/rpc_cache.js` | ~310 | Dual-layer (RAM + IndexedDB) RPC cache with AES-GCM encryption and pending-request deduplication |
+| JS | `static/src/core/network/rpc_cache.js` | ~338 | Dual-layer (RAM Map + IndexedDB) RPC cache with AES-GCM encryption (no HMAC — relies on GCM auth tag). Per-table `pendingRequests` Map dedups concurrent fetches of the same cache key. For general concurrent-RPC deduplication (same URL+params across all callers), see `core/network/rpc_dedup.js`. |
+| JS | `static/src/core/network/rpc_dedup.js` | ~63 | Shares a single promise across identical concurrent RPC requests (URL+params key). Wraps any `rpcFn` with a `Map<string, Promise>`. |
 
 **Key invariants to check**:
 - `_call_kw_readonly()` correctly inspects `_readonly` attribute
 - `call_button()` always passes result through `clean_action()`
 - Model/method names validated before dispatch
 - RPC cache invalidation triggered on write/unlink/create
-- JSON-RPC error envelope never exposes stack traces in production
+
+> **Security note (documented behavior, not an invariant):**
+> `serialize_exception()` in `core/odoo/http/helpers.py:161-176` unconditionally
+> puts the full Python traceback into `error.data.debug` of every JSON-RPC
+> error response — **regardless of debug mode**. Any refactor that aims to
+> suppress traces in production must change `serialize_exception` and audit
+> every caller (`dispatcher.py:281, 347, 350, 359`). The rpc_cache client
+> does NOT filter this, so traces reach the browser verbatim.
 
 ---
 
@@ -215,11 +223,11 @@ Files are listed with approximate line counts.
 
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
-| PY | `models/web_read.py` | ~525 | `web_read()`, `web_save()`, `web_search_read()`, `web_name_search()`, `web_resequence()` |
-| PY | `models/web_read_group.py` | ~775 | `web_read_group()`, `formatted_read_group()`, `formatted_read_grouping_sets()`, `read_progress_bar()` |
-| PY | `models/web_read_group_helpers.py` | ~555 | Temporal fill, formatters |
-| PY | `models/web_search_panel.py` | ~430 | `search_panel_select_range/multi_range` |
-| PY | `models/web_search_panel_helpers.py` | ~280 | Panel filter formatters |
+| PY | `models/web_read.py` | ~560 | `web_read()`, `web_save()`, `web_search_read()`, `web_name_search()`, `web_resequence()` |
+| PY | `models/web_read_group.py` | ~773 | `web_read_group()`, `formatted_read_group()`, `formatted_read_grouping_sets()`, `read_progress_bar()` |
+| PY | `models/web_read_group_helpers.py` | ~581 | Temporal fill, formatters |
+| PY | `models/web_search_panel.py` | ~432 | `search_panel_select_range/multi_range` |
+| PY | `models/web_search_panel_helpers.py` | ~281 | Panel filter formatters |
 
 **Key invariants to check**:
 - `web_read()` respects ACLs on nested relational traversals
@@ -269,6 +277,57 @@ Files are listed with approximate line counts.
 - Controller stack properly cleaned on navigation
 - `clean_action()` strips all internal fields
 
+> **Refactor hazards worth knowing before touching this area**:
+>
+> - **Dispatch covers 6 types**, not the 5 listed in most textbook examples:
+>   `act_window`, `act_window_close`, `client`, `server`, `act_url`, `report`.
+>   Extensions plug in via `registry.category("action_handlers")`.
+> - **Controller stack is a plain array**, NOT reactive. But each controller's
+>   `config.breadcrumbs` IS wrapped in `reactive()`. `nextStack` commits only
+>   after `onMounted` — don't assume state settles synchronously.
+> - **`stackPosition` values**: `replaceCurrentAction` | `replacePreviousAction`.
+>   Plus orthogonal options: `clearBreadcrumbs`, `index`, `newStack` (the
+>   last wholesale-replaces `controllerStack` before `_computeStackIndex`).
+> - **Non-component client actions** are invoked as functions `(env, action, options)`
+>   with a **20-deep recursion guard**. Return value feeds back into `doAction`.
+> - **`/web/action/load` caches on disk** (`orm.cache({type:"disk"})`). RPC
+>   bus listener on `ir.actions.act_window` write/unlink invalidates the cache
+>   — any refactor that changes load semantics must update this invalidation.
+> - **`call_button` sentinel**: server returning `{"type": ""}` means "no
+>   action"; the client returns `False`. Absent `type` gets defaulted to
+>   `act_window_close` by `clean_action`. Normalizing falsy returns will
+>   break Python buttons that rely on these sentinels.
+> - **`sessionStorage` side-channels**: `current_action`, `current_state`,
+>   `current_lang` are written on every stack commit. Used to restore the
+>   same action on reload. A refactor moving state to the router alone
+>   would break cross-tab-open behavior (`_openActionInNewWindow`).
+> - **Breadcrumb filter**: `buildBreadcrumbs` silently drops controllers with
+>   `action.tag === "menu"`. `loadBreadcrumbs` drops controllers whose
+>   server-side `load_breadcrumbs` returns an error (ACL/missing record).
+> - **Context propagation ordering** on button actions:
+>   `currentCtx + buttonContext + activeCtx + action.context` — `action.context`
+>   wins last. `CTX_KEY_REGEX` strips `default_*`, `search_default_*`, `show_*`,
+>   `*_view_ref`, `group_by`, `active_id`, `active_ids`, `orderedBy` from
+>   forwarded context. **Applied only in `action_button_executor.js:171-175`** —
+>   NOT in `_preprocessAction`. Direct `doAction(actionRequest)` calls do NOT
+>   get their context scrubbed.
+> - **`_preprocessAction` cached-object mutation** (`action_service.js:299-342`):
+>   lines 301-316 mutate the CACHED action (delete/re-add `_originalAction`,
+>   merge `context`, coerce `domain`, drop empty `help`) **before** the shallow
+>   copy at line 317. So `_originalAction` snapshots only the pre-mutation
+>   state for the current call; subsequent mutations DO persist on the cached
+>   object. A re-preprocess of the same cached action re-runs `makeContext`
+>   on already-merged context. `action.views` is rebuilt on the copy at line
+>   326, so view-array changes are safe, but top-level action fields aren't.
+> - **`call_button` sentinel** (`dataset.py:62-66`): server returning
+>   `{type: ""}` → JS receives `False` (no action). Absent `type` →
+>   `setdefault("type", "ir.actions.act_window_close")` at `utils.py:35`.
+>   Normalizing falsy returns will break Python buttons that rely on this.
+> - **`action_handlers` registry extension point** (`action_service.js:1034`):
+>   zero registrations in core web — pure addon hook. Shape:
+>   `(params: {env, action, options}) => void | Promise<void>`. Register with
+>   `registry.category("action_handlers").add("my.type", handler)`.
+
 ---
 
 ### AREA 7: View System (Form, List, Kanban, Calendar)
@@ -279,23 +338,61 @@ Files are listed with approximate line counts.
 |-------|------|-------|------|
 | JS | `static/src/views/view.js` | ~525 | Base View component + arch loading |
 | JS | `static/src/views/view_compiler.js` | ~480 | XML arch → OWL template |
-| JS | `static/src/views/form/` | ~15 files | Form controller, renderer, compiler |
-| JS | `static/src/views/list/` | ~15 files | List controller, renderer, group |
-| JS | `static/src/views/kanban/` | ~12 files | Kanban controller, renderer, column |
-| JS | `static/src/views/calendar/` | ~10 files | Calendar view (FullCalendar) |
-| JS | `static/src/views/graph/` | ~8 files | Graph/chart view (lazy-loaded) |
-| JS | `static/src/views/pivot/` | ~8 files | Pivot table view (lazy-loaded) |
+| JS | `static/src/views/form/` | 7 direct + 8 subdir files | Form controller, renderer, compiler |
+| JS | `static/src/views/list/` | 17 direct + 1 subdir file | List controller, renderer, group |
+| JS | `static/src/views/kanban/` | 14 direct + 2 subdir files | Kanban controller, renderer, column |
+| JS | `static/src/views/calendar/` | 8 direct + 7 subdir files | Calendar view (FullCalendar). NOTE: Chart.js lazy — see Flow 10. Calendar + graph + pivot view code all ship in `assets_backend`. |
+| JS | `static/src/views/graph/` | 6 files | Graph/chart view. Chart.js library is lazy-loaded via `loadBundle("web.chartjs_lib")`, but view code itself ships in `assets_backend`. |
+| JS | `static/src/views/pivot/` | 11 files | Pivot table view. XLSX export uses lazy-loaded library; pivot view code ships in `assets_backend`. |
 
 **Key invariants to check**:
 - Arch compiler handles all XML node types (field, button, group, notebook, page)
-- `attrs` evaluation correctly resolves modifiers (invisible, readonly, required)
+- `invisible`/`readonly`/`required` bracket-free expressions evaluate at render time via `evaluateBooleanExpr(expr, record.evalContextWithVirtualIds)` — NOT the legacy `attrs="{'invisible': [...]}"` format
 - List view selection state consistent across page navigation
 - Kanban drag-drop correctly generates resequence commands
 - Calendar event creation maps dates correctly to record fields
 
+> **Compiler asymmetry**: Form and Kanban views have dedicated compilers
+> (`form_compiler.js`, `kanban_compiler.js`). **List views do NOT** — they
+> skip the compiler entirely; `list_view.js` parses arch via `ListArchParser`
+> and hands `archInfo` directly to `ListRenderer`. Any refactor that tries
+> to unify compiler behavior needs to account for this deliberate divergence.
+
+> **View registry entries are objects, not components**:
+> `{ type, Controller, Renderer, ArchParser, Model, buttonTemplate, ... }`
+> See `list_view.js:22-57` for the canonical shape.
+
+> **Form compiler extension point**: `registry.category("form_compilers")`
+> is how other addons plug in node handlers (e.g., mail registers `<chatter>`
+> and `<attachment>` there). The `form_compiler.js` file itself handles
+> only: `div[name='button_box']`, `footer`, `form`, `group`, `header`,
+> `label`, `notebook`, `setting`, `separator`, `sheet`, `<field>`, `<widget>`,
+> `<button>`, `<a[type]>`. Anything else (chatter, attachment viewer,
+> web_studio widgets) comes in through the registry.
+
+> **Kanban button SPECIAL_TYPES** (`kanban_compiler.js`):
+> `["action", "object", "open", "delete", "url", "set_cover", "archive", "unarchive"]`.
+> `action`/`object` route to ViewButton with `debounce=300`; the rest become
+> direct `__comp__.triggerAction({...})` calls. `set_cover` extracts
+> `auto-open` + `data-field` attributes for the cover-image picker.
+
+> **Modifier evaluation context**: `invisible`/`readonly`/`required`/`column_invisible`
+> expressions evaluate against `record.evalContextWithVirtualIds` (form
+> and render-time) or `record.evalContext` (field-attr helpers in
+> `record_utils.js`). `evalContextWithVirtualIds` substitutes virtual IDs
+> for unsaved x2many rows and exposes `parent` as a getter that walks up
+> the nesting chain. A refactor that changes how virtual IDs are generated
+> must preserve this substitution or modifiers silently break on new rows.
+
+> **`<header>` / `<sheet>` / `<footer>` rendering**:
+> `<header>` → `o_form_statusbar` wrapping `StatusBarButtons`.
+> `<sheet>` → `o_form_sheet_bg > o_form_sheet`.
+> `<footer>` with `replace="false"` uses `web.DefaultButtonsSlot`.
+> `<notebook>` tracks `defaultPage` via `__comp__.props.activeNotebookPages`.
+
 ---
 
-### AREA 8: Field Widgets (67 types)
+### AREA 8: Field Widgets (68 directories)
 
 **Risk**: Parser/formatter mismatches, type coercion bugs, relational field binding.
 
@@ -326,15 +423,21 @@ Files are listed with approximate line counts.
 
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
-| JS | `static/src/search/search_model.js` | ~1050 | Core search state machine |
-| JS | `static/src/search/search_arch_parser.js` | ~200 | Parse search view XML |
-| JS | `static/src/search/search_domain.js` | ~100 | Domain from facets |
-| JS | `static/src/search/search_group_by.js` | ~80 | GroupBy from selections |
-| JS | `static/src/search/search_context.js` | ~60 | Context dict builder |
-| JS | `static/src/search/search_favorites.js` | ~150 | Save/load filters |
-| JS | `static/src/search/control_panel/` | ~5 files | ControlPanel component |
-| JS | `static/src/search/search_bar/` | ~3 files | Search input + suggestions |
-| JS | `static/src/search/search_panel/` | ~3 files | Sidebar filter panel |
+| JS | `static/src/search/search_model.js` | ~1045 | Core search state machine |
+| JS | `static/src/search/search_arch_parser.js` | ~523 | Parse search view XML |
+| JS | `static/src/search/search_domain.js` | ~288 | Domain from facets |
+| JS | `static/src/search/search_group_by.js` | ~186 | GroupBy from selections |
+| JS | `static/src/search/search_context.js` | ~70 | Context dict builder |
+| JS | `static/src/search/search_favorites.js` | ~182 | Save/load filters |
+| JS | `static/src/search/search_enrichment.js` | ~ | Apply dynamic context/domain enrichment to raw search items |
+| JS | `static/src/search/search_facets.js` | ~ | Facet data structures + render helpers |
+| JS | `static/src/search/search_query_mutations.js` | ~ | URL ↔ search state round-trip + CLEAR-CACHES emission on saved-favorite mutations |
+| JS | `static/src/search/search_split_domain.js` | ~ | Split composite domains back into atomic facets |
+| JS | `static/src/search/search_state.js` | ~ | Reactive shared state consumed by ControlPanel + WithSearch |
+| JS | `static/src/search/search_properties.js` | ~ | Lazy property-field support in search model |
+| JS | `static/src/search/control_panel/` | 6 files | ControlPanel component (top-level search UI) |
+| JS | `static/src/search/search_bar/` | 6 files | Search input + suggestions |
+| JS | `static/src/search/search_panel/` | 7 files | Sidebar filter panel |
 
 **Key invariants to check**:
 - Domain ANDs/ORs nest correctly with multiple active facets
@@ -372,11 +475,9 @@ Files are listed with approximate line counts.
 | JS | `static/src/model/relational_model/record_value_transforms.js` | ~180 | Field value coercion before save |
 | JS | `static/src/model/relational_model/record_validator.js` | ~100 | Required/constraint validation |
 | JS | `static/src/model/relational_model/record_utils.js` | ~150 | Shared record helpers |
-| JS | `static/src/model/relational_model/record_hooks.js` | ~10 | OWL hooks for record reactivity |
 | JS | `static/src/model/relational_model/command_builder.js` | ~170 | Write command construction |
 | JS | `static/src/model/relational_model/commands.js` | ~55 | ORM command constants |
 | JS | `static/src/model/relational_model/operation.js` | ~35 | Pending-operation queue |
-| JS | `static/src/model/relational_model/onchange_coalescer.js` | ~105 | Debounce/merge onchange calls |
 | JS | `static/src/model/relational_model/resequence.js` | ~105 | Handle field resequencing |
 | JS | `static/src/model/relational_model/errors.js` | ~40 | Model-specific error classes |
 | JS | `static/src/model/relational_model/utils.js` | ~35 | Internal utility functions |
@@ -386,7 +487,6 @@ Files are listed with approximate line counts.
 - Record dirty state tracked correctly across relational edits
 - x2many record ordering preserved across save/reload
 - `rpcBus.trigger("CLEAR-CACHES")` truly clears all stale data in `rpc_cache.js`
-- `onchange_coalescer` debounce does not swallow concurrent field changes
 - `static_list_command_engine` generates minimal correct ORM commands (no spurious UPDATE)
 - Sample server mock responses match real ORM structure
 
@@ -471,14 +571,14 @@ Files are listed with approximate line counts.
 
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
-| JS | `static/src/ui/dialog/` | ~5 files | Modal dialog service |
-| JS | `static/src/ui/notification/` | ~3 files | Toast notification service |
-| JS | `static/src/ui/overlay/` | ~3 files | Overlay layer manager |
-| JS | `static/src/ui/popover/` | ~3 files | Positioned popover |
-| JS | `static/src/ui/tooltip/` | ~3 files | Data-attribute tooltip |
-| JS | `static/src/ui/block/` | ~2 files | Block UI overlay |
-| JS | `static/src/ui/effects/` | ~2 files | Visual effects |
-| JS | `static/src/ui/bottom_sheet/` | ~2 files | Mobile bottom sheet |
+| JS | `static/src/ui/dialog/` | 6 files | Modal dialog service |
+| JS | `static/src/ui/notification/` | 6 files | Toast notification service |
+| JS | `static/src/ui/overlay/` | 4 files | Overlay layer manager |
+| JS | `static/src/ui/popover/` | 5 files | Positioned popover |
+| JS | `static/src/ui/tooltip/` | 5 files | Data-attribute tooltip |
+| JS | `static/src/ui/block/` | 4 files | Block UI overlay |
+| JS | `static/src/ui/effects/` | 5 files | Visual effects |
+| JS | `static/src/ui/bottom_sheet/` | 4 files | Mobile bottom sheet |
 
 **Key invariants to check**:
 - Dialog close always unblocks UI (no phantom overlays)

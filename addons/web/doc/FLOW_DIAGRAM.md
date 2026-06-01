@@ -44,14 +44,19 @@ Browser                          Server (Python)                    Database
   │                                  │  │  └─ Expired? → SessionExpiredException
   │                                  │  ├─ ir_http.webclient_rendering_context()
   │                                  │  │  ├─ session_info()            │
-  │                                  │  │  │  ├─ uid, name, groups      │
+  │                                  │  │  │  ├─ uid, name              │
+  │                                  │  │  │  ├─ groups: {"base.group_allow_export": bool}
+  │                                  │  │  │  │  (flag dict, NOT full group list)
   │                                  │  │  │  ├─ user_context           ├──▶ SELECT
   │                                  │  │  │  ├─ allowed_companies      ├──▶ SELECT
   │                                  │  │  │  ├─ currencies             ├──▶ SELECT
-  │                                  │  │  │  ├─ registry_hash (HMAC)   │
-  │                                  │  │  │  └─ browser_cache_secret   │
+  │                                  │  │  │  └─ registry_hash (HMAC)   │
   │                                  │  │  ├─ color_scheme: "light"     │
-  │                                  │  │  └─ content_density           │
+  │                                  │  │  ├─ content_density           │
+  │                                  │  │  └─ (AFTER session_info())    │
+  │                                  │  │     browser_cache_secret      │
+  │                                  │  │     (injected by home.py,     │
+  │                                  │  │      NOT by session_info())   │
   │                                  │  └─ Render webclient_templates.xml
   │                                  │     ├─ <script>odoo.__session_info__={...}</script>
   │                                  │     ├─ <script>odoo.loadMenusPromise=fetch(menus)</script>
@@ -188,7 +193,7 @@ OWL Component                    JS Services              Server (Python)       
   │                                │     │  │  {jsonrpc:"2.0", id:N,                  │
   │                                │     │  │   method:"call",                        │
   │                                │     │  │   params:{model, method, args, kwargs}} │
-  │                                │     │  ├─ rpcBus.trigger("RPC:REQUEST")          │
+  │                                │     │  ├─ rpcBus.trigger(RpcEvent.REQUEST)       │
   │                                │     │  └─ XHR POST     │                         │
   │                                │     │     │            │                         │
   │                                │     │     ├───────────▶│                         │
@@ -209,7 +214,7 @@ OWL Component                    JS Services              Server (Python)       
   │                                │     │     │            │      result: [...]}     │
   │                                │     │     │◀───────────│                         │
   │                                │     │  ├─ Parse response│                        │
-  │                                │     │  ├─ rpcBus.trigger("RPC:RESPONSE")         │
+  │                                │     │  ├─ rpcBus.trigger(RpcEvent.RESPONSE)      │
   │                                │     │  ├─ Cache result (if cacheable)            │
   │                                │     │  └─ Return result│                         │
   │                                │     │                  │                         │
@@ -220,11 +225,20 @@ OWL Component                    JS Services              Server (Python)       
   ERROR PATH:
   │                                │     │                  │                         │
   │                                │     │  ◀── HTTP 200 ───│  {error: {              │
-  │                                │     │     with error   │    code: -32098,        │
+  │                                │     │     with error   │    code: 0 | 100 | 404, │
+  │                                │     │                  │    message: "...",      │
   │                                │     │                  │    data: {              │
   │                                │     │                  │      name: "odoo...AccessError",
-  │                                │     │                  │      arguments: [...] } │
-  │                                │     │                  │  }}                     │
+  │                                │     │                  │      debug: "<full py   │
+  │                                │     │                  │              traceback>",│
+  │                                │     │                  │      arguments: [...],  │
+  │                                │     │                  │      context: {...} } } │
+  │                                │     │                  │  Server code values:    │
+  │                                │     │                  │   0   = generic (default)│
+  │                                │     │                  │   100 = SessionExpired   │
+  │                                │     │                  │   404 = NotFound         │
+  │                                │     │                  │  (no -32xxx JSON-RPC    │
+  │                                │     │                  │   spec codes are used)  │
   │                                │     │  ├─ Create RPCError                        │
   │                                │     │  └─ Promise.reject(error)                  │
   │                                │     │                  │                         │
@@ -267,10 +281,22 @@ Action Service                   View Component              Server
   │     ▼                          │                          │
   │     View.setup()               │                          │
   │     ├─ RPC: get_views()        │                          │
-  │     │  (arch, fields, filters) │                          ├──▶ ir.ui.view
-  │     │  ◀── {arch_xml, fields,  │──────────────────────────│
-  │     │       search_arch, ...}  │                          │
-  │     │                          │                          │
+  │     │  (via orm.cache({type:   │                          │
+  │     │    "disk"}) — see        │                          │
+  │     │   view_service.js:106)   │                          ├──▶ ir.ui.view
+  │     │  ◀── {                   │──────────────────────────│
+  │     │    models: {<resModel>:  │                          │
+  │     │      {fields: {...}}},   │                          │
+  │     │    views: {<type>: {     │                          │
+  │     │      arch, toolbar, id,  │                          │
+  │     │      filters,            │                          │
+  │     │      custom_view_id}}    │                          │
+  │     │  }                       │                          │
+  │     │  — NO top-level          │                          │
+  │     │    arch_xml or           │                          │
+  │     │    search_arch key.      │                          │
+  │     │    Search arch appears   │                          │
+  │     │    as views.search.arch. │                          │
   │     ├─ Compile arch_xml → OWL template                    │
   │     │  (view_compiler.js)      │                          │
   │     │  ├─ Parse XML nodes      │                          │
@@ -280,8 +306,15 @@ Action Service                   View Component              Server
   │     │                          │                          │
   │     ├─ Parse search arch → SearchModel                    │
   │     │  (search_arch_parser.js) │                          │
-  │     │  ├─ Extract filters, groupby, favorites             │
-  │     │  └─ Initialize facet state                          │
+  │     │  Produces {labels,       │                          │
+  │     │    preSearchItems,       │                          │
+  │     │    searchPanelInfo,      │                          │
+  │     │    sections} — NOT       │                          │
+  │     │    {filters, groupBys,   │                          │
+  │     │    searchDefaults}.      │                          │
+  │     │  `labels` holds async    │                          │
+  │     │    callbacks for many2one│                          │
+  │     │    default labels.       │                          │
   │     │                          │                          │
   │     ├─ Create Model instance   │                          │
   │     │  (relational_model.js)   │                          │
@@ -413,9 +446,12 @@ Form Controller                  RelationalModel                 Server
   │                                │  ├─ Update in-memory record  │
   │                                │  │  with server response     │
   │                                │  ├─ Clear dirty state        │
-  │                                │  ├─ Trigger CLEAR-CACHES     │
-  │                                │  │  (for related models)     │
   │                                │  └─ Notify OWL re-render     │
+  │                                │                              │
+  │                                │  NOTE: save() does NOT emit  │
+  │                                │  CLEAR-CACHES. Only unlink() │
+  │                                │  triggers cache invalidation │
+  │                                │  (see Flow 14).              │
   │  ◀─── Re-render with saved ────│                              │
   │        data from server        │                              │
 ```
@@ -433,11 +469,19 @@ List Controller                  SearchModel             Server
   │  filter/sort/page change         │                     │
   │                                  │                     │
   │  1. Get domain from search       │                     │
-  │  ├─ searchModel.domain ────────▶ │                     │
-  │  │                               │  Compose:           │
-  │  │                               │  ├─ Action domain   │
-  │  │                               │  ├─ + Filter facets │
-  │  │                               │  ├─ + Search bar    │
+  │  ├─ searchModel.domain (getter) ▶│                     │
+  │  │  (search_model.js:350)        │                     │
+  │  │                               │  _getDomain() (:777-792)
+  │  │                               │  composes:          │
+  │  │                               │  ├─ globalDomain    │
+  │  │                               │  │  (= action domain)
+  │  │                               │  ├─ + filter facets │
+  │  │                               │  ├─ + dateFilter    │
+  │  │                               │  ├─ + field facets  │
+  │  │                               │  │  (search bar)    │
+  │  │                               │  ├─ + favorite      │
+  │  │                               │  ├─ + search panel  │
+  │  │                               │  │  (if list/kanban)│
   │  │                               │  └─ = Final domain  │
   │  │  ◀── [['active','=',True],    │                     │
   │  │       ['type','=','contact']] │                     │
@@ -528,7 +572,8 @@ User Interaction                 Action Service               Server
   │  │  ├─ options.clearBreadcrumbs│                            │
   │  │  │  → clear stack           │                            │
   │  │  ├─ options.stackPosition   │                            │
-  │  │  │  → replace at index      │                            │
+  │  │  │  Enum: "replaceCurrentAction"
+  │  │  │       | "replacePreviousAction"
   │  │  └─ default → push new      │                            │
   │  ├─ Update router URL          │                            │
   │  │  (?action=ID&view_type=...) │                            │
@@ -554,8 +599,22 @@ User Interaction                 Action Service               Server
   │  TYPE: ir.actions.server       │                            │
   │  ├─ RPC: /web/action/run       │                            │
   │  │  ├──────────────────────────▶│ Execute server code       │
-  │  │  ◀── next_action ───────────│                            │
+  │  │  ◀── next_action ───────────│ (already cleaned via      │
+  │  │                             │  clean_action on server)  │
   │  └─ Recursively doAction(next) │                            │
+  │                                │                            │
+  │  TYPE: ir.actions.act_window_close                          │
+  │  └─ Close current dialog or    │                            │
+  │     pop controller off stack   │                            │
+  │     (dispatched to             │                            │
+  │      _executeCloseAction)      │                            │
+  │                                │                            │
+  │  REGISTRY EXTENSION:            │                            │
+  │  └─ registry.category(          │                            │
+  │      "action_handlers") lets    │                            │
+  │     other addons plug in        │                            │
+  │     additional action types     │                            │
+  │     (looked up by type name).   │                            │
   │                                │                            │
   │  BREADCRUMB BACK:              │                            │
   │  ├─ Pop controller from stack  │                            │
@@ -593,7 +652,10 @@ Browser                          Server (Python)                       Disk/DB
   │                                │  ├─ Set headers:                    │
   │                                │  │  Content-Type: image/png         │
   │                                │  │  Cache-Control: public,          │
-  │                                │  │    max-age=604800                │
+  │                                │  │    max-age=31536000 (1 year)     │
+  │                                │  │    via http.STATIC_CACHE_LONG    │
+  │                                │  │    — only set when `unique`      │
+  │                                │  │    query param is present        │
   │                                │  │  ETag: checksum                  │
   │                                │  └─ Return image bytes              │
   │  ◀─── Image response ──────────│                                     │
@@ -659,18 +721,27 @@ Browser                          Server (Python)                       Cache/Dis
   │  ◀─── JS/CSS bundle ───────────│                                     │
   │                                │                                     │
 
-  LAZY BUNDLE (Graph/Pivot):
+  LAZY LIBRARY (Chart.js / FullCalendar / ACE):
   │                                │                                     │
-  │  (User opens graph view)       │                                     │
-  │  ├─ JS checks bundle registry │                                      │
-  │  ├─ loadBundle("web.assets_backend_lazy")                            │
-  │  │  GET /web/bundle/web.assets_backend_lazy                          │
+  │  (User opens graph view — the  │                                     │
+  │   view code lives in           │                                     │
+  │   assets_backend; only the     │                                     │
+  │   heavy library is lazy)       │                                     │
+  │  ├─ graph_renderer calls      │                                      │
+  │  │   loadBundle("web.chartjs_lib")                                   │
+  │  │  GET /web/bundle/web.chartjs_lib                                  │
   │  ├───────────────────────────▶│                                      │
   │  │                             │  webclient.py:bundle()              │
   │  │                             │  └─ Return file list as JSON        │
-  │  │  ◀── [{url, type}, ...]  ──│                                      │
+  │  │  ◀── [{src, type}, ...] ───│                                      │
   │  ├─ Dynamically inject <script>/<link> tags                          │
   │  └─ Resolve when all loaded   │                                      │
+  │                                │                                     │
+  │  NOTE: there is NO             │                                     │
+  │  `web.assets_backend_lazy`     │                                     │
+  │  bundle — the full backend +   │                                     │
+  │  all view types ships in       │                                     │
+  │  `web.assets_backend`.         │                                     │
 ```
 
 ---
@@ -702,7 +773,8 @@ Export Dialog                    Server                                  Respons
   │   ids (if selection),          │                                         │
   │   import_compat}}              │                                         │
   ├───────────────────────────────▶│                                         │
-  │                                │  ExcelExport.base()                     │
+  │                                │  ExportFormat.base() — inherited by     │
+  │                                │  CSVExport and ExcelExport (export.py:318) │
   │                                │  ├─ Resolve export fields               │
   │                                │  │  (expand paths: partner_id/name)     │
   │                                │  ├─ If ids: browse(ids)                 │
@@ -750,8 +822,12 @@ User                             SearchModel                 ORM Service
   │                                │  │  ├─ Field search → domain
   │                                │  │  │  e.g. [("name","ilike","foo")]
   │                                │  │  ├─ Date filter → range
-  │                                │  │  │  e.g. [("date",">=","2026-01-01"),
-  │                                │  │  │        ("date","<","2026-02-01")]
+  │                                │  │  │  e.g. ['&',
+  │                                │  │  │    ("date",">=","2026-01-01"),
+  │                                │  │  │    ("date","<=","2026-01-31")]
+  │                                │  │  │  Both bounds INCLUSIVE
+  │                                │  │  │  (constructDateRange in
+  │                                │  │  │   search/utils/dates.js:152)
   │                                │  │  └─ Custom domain → as-is
   │                                │  ├─ AND all filter domains
   │                                │  ├─ AND action domain
@@ -817,16 +893,24 @@ PAGE LOAD (Flow 1)
   ▼
 NORMAL OPERATION
   │
-  ├─ Periodic: /web/session/check (keepalive)
-  │  └─ Extends session lifetime
+  ├─ /web/session/check (no-op auth probe, NOT a keepalive)
+  │  └─ Returns None; session refresh happens implicitly
+  │     via `_authenticate` + `_save_session` on every
+  │     authenticated RPC (session.py:83-85)
   │
   ├─ On company switch:
   │  └─ /web/session/get_session_info (full refresh)
   │     └─ Webclient reloads with new context
   │
-  ├─ On registry change (module install/update):
-  │  └─ registry_hash changes → client detects mismatch
-  │     └─ Full page reload (window.location.reload)
+  ├─ `registry_hash` is a cache version key, NOT a reload
+  │  trigger. On registry change:
+  │    ├─ The new hash becomes the cache DB name for
+  │    │  localization, menus, RPC cache (IndexedDB "name"
+  │    │  includes registry_hash → new DBs created,
+  │    │  old DBs orphaned)
+  │    └─ Explicit full reloads only occur on:
+  │        * module install/uninstall (module_views.js:24)
+  │        * unrecoverable error handlers (error_notifications.js)
   │
   ▼
 LOGOUT
@@ -847,8 +931,9 @@ LOGOUT
 ```
 Write Operation                  Cache Layers                    State
   │                                │                               │
-  │  orm.write("res.partner",      │                               │
-  │    [1], {name: "New"})         │                               │
+  │  orm.unlink("res.partner", [1])│                               │
+  │  (write / create do NOT emit   │                               │
+  │   CLEAR-CACHES — only unlink)  │                               │
   ├───────────────────────────────▶│                               │
   │                                │                               │
   │  1. RPC completes              │                               │
@@ -856,18 +941,29 @@ Write Operation                  Cache Layers                    State
   │                                │                               │
   │  2. ORM service triggers       │                               │
   │     CLEAR-CACHES event         │                               │
+  │  │  (ONLY on unlink — write/   │                               │
+  │  │   create do not emit it)    │                               │
   │  ├─ rpcBus.trigger(            │                               │
   │  │   "CLEAR-CACHES",           │                               │
-  │  │   {model: "res.partner",    │                               │
-  │  │    tables: ["res_partner"]})│                               │
+  │  │   {model: <unlinked model>, │                               │
+  │  │    tables: ["web_read",     │                               │
+  │  │             "web_search_read",                              │
+  │  │             "web_read_group"]})                             │
+  │  │  (relational_model.js:132) │                                │
   │  │                             │                               │
-  │  │  ┌─ IndexedDB RPC Cache ───▶│  Purge entries matching       │
-  │  │  │                          │  model "res.partner"          │
+  │  │  ┌─ RAM cache (Map) ───────▶│  Purge entries matching       │
+  │  │  │                          │  model=<unlinked model>       │
+  │  │  │                          │  AND key ∈ {web_read,         │
+  │  │  │                          │   web_search_read,            │
+  │  │  │                          │   web_read_group}             │
   │  │  │                          │                               │
-  │  │  ┌─ Field Service Cache ───▶│  Mark "res.partner" stale     │
-  │  │  │                          │                               │
-  │  │  ┌─ Name Service Cache ────▶│  Clear display_name cache     │
-  │  │  │                          │  for res.partner              │
+  │  │  ┌─ IndexedDB RPC Cache ───▶│  FULL table clear for the     │
+  │  │  │                          │  three keys — NOT model-      │
+  │  │  │                          │  scoped (rpc_cache.js:320-322).│
+  │  │  │                          │  Code comment acknowledges    │
+  │  │  │                          │  the over-invalidation as a   │
+  │  │  │                          │  deliberate trade-off to      │
+  │  │  │                          │  avoid async key iteration.   │
   │  │  │                          │                               │
   │  │  ┌─ RelationalModel ───────▶│  Mark related records dirty   │
   │  │  │  (view data layer)       │  Trigger re-fetch on next     │
@@ -876,14 +972,29 @@ Write Operation                  Cache Layers                    State
   │  │  └─ Any listening           │                               │
   │  │     component re-renders    │                               │
   │                                │                               │
-  │  SPECIAL CASE: unlink()        │                               │
-  │  └─ Triggers global CLEAR-CACHES (all models)                  │
-  │     because cascading deletes may affect anything              │
+  │  IMPORTANT: partially model-   │                               │
+  │  scoped. RAM cache filters by  │                               │
+  │  model; IndexedDB clears the   │                               │
+  │  whole web_read/web_search_    │                               │
+  │  read/web_read_group tables    │                               │
+  │  (affecting all models cached  │                               │
+  │  in those tables). The model   │                               │
+  │  field on the event is passed  │                               │
+  │  but IndexedDB implementation  │                               │
+  │  chooses to over-invalidate.   │                               │
   │                                │                               │
   │  SPECIAL CASE: registry change │                               │
-  │  └─ registry_hash mismatch     │                               │
-  │     → Full page reload         │                               │
-  │     → All caches rebuilt       │                               │
+  │  └─ registry_hash is embedded  │                               │
+  │     in the IndexedDB name, so  │                               │
+  │     when it changes, new DBs   │                               │
+  │     are created on next use    │                               │
+  │     and old DBs are orphaned.  │                               │
+  │     There is NO `registry_hash │                               │
+  │     mismatch → reload` logic.  │                               │
+  │     Explicit reloads only      │                               │
+  │     happen on module install/  │                               │
+  │     uninstall and on some      │                               │
+  │     error handlers.            │                               │
 ```
 
 ---
