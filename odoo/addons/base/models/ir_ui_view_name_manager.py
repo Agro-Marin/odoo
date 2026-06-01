@@ -96,11 +96,17 @@ class NameManager:
                 self.used_fields[name][access_groups] = (use, node)
             elif self.parent:
                 self.parent.must_have_fields(node, {name[7:]}, node_info, use)
-            else:
-                # A `parent.`-prefixed reference in a root view (no parent) cannot
-                # resolve; route it through used_names so check() flags it as
-                # "does not exist" instead of silently dropping it.
-                self.used_names[name] = use
+            # A `parent.`-prefixed reference in a ROOT view (no parent) cannot be
+            # resolved at standalone-validation time, but it is NOT necessarily a
+            # typo. Dual-use forms legitimately reference the embedding parent:
+            # e.g. mail.activity.plan.template's form is validated standalone yet
+            # is embedded as a one2many in mail.activity.plan, where its
+            # activity_type_id python domain ('res_model', '=', parent.res_model)
+            # resolves correctly. Silently skip such references (matching upstream)
+            # rather than raising "does not exist" — the strict `else` that routed
+            # them to used_names (commit 07a900d51f8) broke installation of mail and
+            # every module depending on it. Catching genuine `parent.` typos needs
+            # embedded-context validation, not a blanket root-view error.
 
     def must_have_name(self, name: str, use: str) -> None:
         """Record a name that must be present in the view (e.g. a label ``for=`` target)."""
