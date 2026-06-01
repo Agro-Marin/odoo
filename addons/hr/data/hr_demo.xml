@@ -546,7 +546,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="create_date">2010-01-01 00:00:00</field>
             <field name="date_version" eval="(DateTime.today() - relativedelta(months=2)).strftime('%Y-%m')+'-01'"/>
             <field name="contract_date_start" eval="(DateTime.today() - relativedelta(months=2)).strftime('%Y-%m')+'-01'"/>
-            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-1'"/>
+            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-01'"/>
             <field name="contract_type_id" ref="contract_type_permanent"/>
             <field name="structure_type_id" ref="structure_type_employee"/>
             <field name="wage">4200.00</field>
@@ -605,7 +605,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="create_date">2010-01-01 00:00:00</field>
             <field name="date_version" eval="(DateTime.today() - relativedelta(months=2)).strftime('%Y-%m')+'-01'"/>
             <field name="contract_date_start" eval="(DateTime.today() - relativedelta(months=2)).strftime('%Y-%m')+'-01'"/>
-            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-1'"/>
+            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-01'"/>
             <field name="contract_type_id" ref="contract_type_full_time"/>
             <field name="structure_type_id" ref="structure_type_employee"/>
             <field name="wage">4000.00</field>
@@ -633,7 +633,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="create_date">2010-01-01 00:00:00</field>
             <field name="date_version" eval="time.strftime('%Y')+'-02-01'"/>
             <field name="contract_date_start" eval="time.strftime('%Y')+'-02-01'"/>
-            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-1'"/>
+            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-01'"/>
             <field name="contract_type_id" ref="contract_type_full_time"/>
             <field name="structure_type_id" ref="structure_type_employee"/>
             <field name="wage">4500.00</field>
@@ -661,7 +661,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="create_date">2010-01-01 00:00:00</field>
             <field name="date_version" eval="(DateTime.today() - relativedelta(months=2)).strftime('%Y-%m')+'-01'"/>
             <field name="contract_date_start" eval="(DateTime.today() - relativedelta(months=2)).strftime('%Y-%m')+'-01'"/>
-            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-1'"/>
+            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-01'"/>
             <field name="contract_type_id" ref="contract_type_permanent"/>
             <field name="structure_type_id" ref="structure_type_employee"/>
             <field name="wage">3750.00</field>
@@ -688,7 +688,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="create_date">2010-01-01 00:00:00</field>
             <field name="date_version" eval="(DateTime.today() - relativedelta(months=2)).strftime('%Y-%m')+'-01'"/>
             <field name="contract_date_start" eval="(DateTime.today() - relativedelta(months=2)).strftime('%Y-%m')+'-01'"/>
-            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-1'"/>
+            <field name="contract_date_end" eval="time.strftime('%Y')+'-12-01'"/>
             <field name="contract_type_id" ref="contract_type_permanent"/>
             <field name="structure_type_id" ref="structure_type_employee"/>
             <field name="wage">3950.00</field>

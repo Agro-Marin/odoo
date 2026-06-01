@@ -526,6 +526,18 @@ class SaleOrder(models.Model):
         string="Is Expired",
         compute="_compute_is_expired",
     )
+    is_late = fields.Boolean(
+        string="Is Late",
+        store=False,
+        search="_search_is_late",
+        help="True when the order is confirmed and its planned date has passed.",
+    )
+    acknowledged = fields.Boolean(
+        string="Acknowledged",
+        copy=False,
+        tracking=True,
+        help="It indicates that the customer has acknowledged the receipt of the sales order.",
+    )
     has_archived_products = fields.Boolean(
         compute="_compute_has_archived_products",
     )
@@ -1334,6 +1346,21 @@ class SaleOrder(models.Model):
             ),
         ]
 
+    def _search_is_late(self, operator, value):
+        if operator not in ("=", "!="):
+            raise ValidationError(_("Unsupported operator."))
+        domain = self._get_domain_is_late(operator, value)
+        if (operator == "=" and value) or (operator == "!=" and not value):
+            return domain
+        return ~domain
+
+    def _get_domain_is_late(self, operator, value):
+        return Domain([
+            ("state", "=", "done"),
+            ("date_planned", "!=", False),
+            ("date_planned", "<=", fields.Datetime.now()),
+        ])
+
     # ------------------------------------------------------------
     # ONCHANGE METHODS
     # ------------------------------------------------------------
@@ -1560,6 +1587,10 @@ class SaleOrder(models.Model):
         :return: None
         """
         self.with_context(send_email=True).action_confirm()
+
+    def action_acknowledge(self):
+        """Mark the sales order as acknowledged by the customer."""
+        self.write({"acknowledged": True})
 
     def action_lock(self):
         """Lock sale orders to prevent modifications."""

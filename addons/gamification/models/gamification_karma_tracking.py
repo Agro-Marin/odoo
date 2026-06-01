@@ -4,7 +4,7 @@ from typing import Self
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
-from odoo.orm.primitives import ValuesType
+from odoo.models import ValuesType
 from odoo.tools import date_utils
 
 

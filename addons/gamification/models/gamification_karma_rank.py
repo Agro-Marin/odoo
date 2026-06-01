@@ -1,7 +1,7 @@
 from typing import Literal, Self
 
 from odoo import api, fields, models
-from odoo.orm.primitives import ValuesType
+from odoo.models import ValuesType
 from odoo.tools.translate import html_translate
 
 

@@ -7,7 +7,7 @@ import { _t } from "@web/core/l10n/translation";
 import { ConnectionLostError, RPCError, rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
-import { Reactive } from "@web/core/utils/reactive";
+import { SignalStore } from "@web/core/utils/reactive";
 import { debounce } from "@web/core/utils/timing";
 import { DataServiceOptions } from "../models/data_service_options.js";
 import IndexedDB from "../models/utils/indexed_db.js";
@@ -16,7 +16,7 @@ import { logPosMessage } from "../utils/pretty_console_log.js";
 const { DateTime } = luxon;
 const CONSOLE_COLOR = "#28ffeb";
 
-export class PosData extends Reactive {
+export class PosData extends SignalStore {
     static modelToLoad = []; // When empty all models are loaded
     static serviceDependencies = ["orm", "bus_service"];
 

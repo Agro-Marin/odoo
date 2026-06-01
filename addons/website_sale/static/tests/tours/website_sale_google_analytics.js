@@ -22,10 +22,6 @@ function patchTracking() {
 
 if (odoo.loader.modules.has('@website_sale/interactions/tracking')) {
     patchTracking();
-} else {
-    odoo.loader.bus.addEventListener('module-started', (e) => {
-        if (e.detail.moduleName === '@website_sale/interactions/tracking') patchTracking();
-    });
 }
 
 let itemId;

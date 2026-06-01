@@ -8,6 +8,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
 from odoo.libs.numbers import float_utils
 from odoo.tools import SQL, LazyTranslate, formatLang, get_lang
+from odoo.tools.cache_version import versioned_envelope
 from odoo.tools.misc import unquote
 from odoo.tools.translate import _
 
@@ -1934,6 +1935,7 @@ class ProjectProject(models.Model):
                     )
                 )
 
+    @versioned_envelope
     def get_template_tasks(self) -> list:
         self.ensure_one()
         return self.env["project.task"].search_read(

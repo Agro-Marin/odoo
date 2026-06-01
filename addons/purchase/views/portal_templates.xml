@@ -213,6 +213,14 @@
  </template>
 
  <template id="purchase_order_portal_content" name="Purchase Order Portal Content">
+ <!-- status messages -->
+ <div t-if="message == 'ack_ok'"
+  class="alert alert-success alert-dismissible d-print-none" role="status">
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"/>
+  <strong>Thank You!</strong>
+  <br/>
+  Your acknowledgement has been recorded.
+ </div>
  <!-- Intro -->
  <div id="introduction" class="mt-5 mt-lg-0 pb-2 pt-0">
  <h2 class="my-0">

@@ -1,4 +1,5 @@
 import binascii
+from collections import OrderedDict
 
 from odoo import SUPERUSER_ID, _, fields, http
 from odoo.exceptions import AccessError, MissingError, ValidationError
@@ -10,122 +11,200 @@ from odoo.addons.portal.controllers.portal import pager as portal_pager
 
 
 class CustomerPortal(payment_portal.PaymentPortal):
+    # ------------------------------------------------------------------
+    # Module-prefixed hooks (Phase 1).
+    # Names are sale-scoped to avoid MRO collision with purchase's
+    # CustomerPortal in the combined dispatcher built by
+    # odoo.http.routing.build_controllers.  Phase 2 will move these
+    # to base_order and strip the prefix.
+    # ------------------------------------------------------------------
+
+    def _sale_get_order_model(self):
+        """Return the order model name handled by this controller."""
+        return "sale.order"
+
+    def _sale_get_portal_counters(self):
+        """Return the list of ``(counter_key, domain)`` for home-page counters."""
+        return [
+            ("quotation_count", self._sale_get_page_state_domain("quote")),
+            ("order_count", self._sale_get_page_state_domain("order")),
+        ]
+
+    def _sale_get_page_config(self, page_key):
+        """Return per-page metadata used by the list-page helper."""
+        if page_key == "quote":
+            return {
+                "url": "/my/quotes",
+                "template": "sale.portal_my_quotations",
+                "session_key": "my_quotations_history",
+                "page_name": "quote",
+                "values_key": "quotations",
+            }
+        return {
+            "url": "/my/orders",
+            "template": "sale.portal_my_orders",
+            "session_key": "my_orders_history",
+            "page_name": "order",
+            "values_key": "orders",
+            "default_filter": "all",
+        }
+
+    def _sale_get_page_state_domain(self, page_key):
+        """Return the state-filter domain for the given list page."""
+        if page_key == "quote":
+            return [("state", "=", "draft"), ("sent", "=", True)]
+        return [("state", "in", ("done", "cancel"))]
+
+    def _sale_get_order_searchbar_sortings(self):
+        """Return the sort options offered on the order list pages."""
+        return {
+            "date": {"label": _("Newest"), "order": "create_date desc, id desc"},
+            "name": {"label": _("Name"), "order": "name asc, id asc"},
+            "amount_total": {
+                "label": _("Total"),
+                "order": "amount_total desc, id desc",
+            },
+        }
+
+    def _sale_get_order_searchbar_filters(self, page_key):
+        """Return the filter options offered on the given list page."""
+        if page_key != "order":
+            return {}
+        return {
+            "all": {
+                "label": _("All"),
+                "domain": [("state", "in", ("done", "cancel"))],
+            },
+            "order": {
+                "label": _("Sales Order"),
+                "domain": [("state", "=", "done")],
+            },
+            "cancel": {
+                "label": _("Cancelled"),
+                "domain": [("state", "=", "cancel")],
+            },
+        }
+
+    def _sale_get_detail_history_session_key(self, order):
+        """Return the session-history key for the single-order detail page."""
+        if order.state in ("draft", "cancel"):
+            return "my_quotations_history"
+        return "my_orders_history"
+
+    def _sale_prepare_orders_domain(self, partner, page_key):
+        """Return the search domain for a portal order list.
+
+        Partner-scoping is enforced by ``sale.sale_order_rule_portal`` for
+        ``base.group_portal`` users, so it is not re-applied here.
+
+        :param res.partner partner: The portal user's partner record.
+        :param str page_key: Identifier of the list page.
+        :rtype: list
+        """
+        return list(self._sale_get_page_state_domain(page_key))
+
+    # ------------------------------------------------------------------
+    # Home portal counters: kept unprefixed because the override cooperates
+    # via ``super()`` with the upstream chain and purchase's override.
+    # ------------------------------------------------------------------
 
     def _prepare_home_portal_values(self, counters):
         values = super()._prepare_home_portal_values(counters)
-        partner = request.env.user.partner_id
-
-        SaleOrder = request.env["sale.order"]
-        if "quotation_count" in counters:
-            values["quotation_count"] = (
-                SaleOrder.search_count(self._prepare_quotations_domain(partner))
-                if SaleOrder.has_access("read")
-                else 0
-            )
-        if "order_count" in counters:
-            values["order_count"] = (
-                SaleOrder.search_count(self._prepare_orders_domain(partner), limit=1)
-                if SaleOrder.has_access("read")
-                else 0
-            )
-
+        Order = request.env[self._sale_get_order_model()]
+        can_read = Order.has_access("read")
+        for counter_key, domain in self._sale_get_portal_counters():
+            if counter_key in counters:
+                values[counter_key] = Order.search_count(domain) if can_read else 0
         return values
 
-    def _prepare_quotations_domain(self, partner):
-        return [
-            ("partner_id", "child_of", [partner.commercial_partner_id.id]),
-            ("state", "=", "draft"),
-            ("sent", "=", True),
-        ]
+    # ------------------------------------------------------------------
+    # List page rendering values
+    # ------------------------------------------------------------------
 
-    def _prepare_orders_domain(self, partner):
-        return [
-            ("partner_id", "child_of", [partner.commercial_partner_id.id]),
-            ("state", "=", "done"),
-        ]
-
-    def _get_sale_searchbar_sortings(self):
-        return {
-            "date": {"label": _("Order Date"), "order": "date_order desc"},
-        }
-
-    def _prepare_sale_portal_rendering_values(
+    def _sale_prepare_order_portal_rendering_values(
         self,
+        page_key,
         page=1,
         date_begin=None,
         date_end=None,
         sortby=None,
-        quotation_page=False,
+        filterby=None,
         **kwargs,
     ):
-        SaleOrder = request.env["sale.order"]
+        """Build the QWeb context dict shared by both list pages.
 
-        if not sortby:
-            sortby = "date"
-
+        :param str page_key: Identifier passed to ``_sale_get_page_config`` and
+                             ``_sale_get_page_state_domain``.
+        :rtype: dict
+        """
+        Order = request.env[self._sale_get_order_model()]
         partner = request.env.user.partner_id
+        cfg = self._sale_get_page_config(page_key)
         values = self._prepare_portal_layout_values()
 
-        if quotation_page:
-            url = "/my/quotes"
-            domain = self._prepare_quotations_domain(partner)
-        else:
-            url = "/my/orders"
-            domain = self._prepare_orders_domain(partner)
-
-        searchbar_sortings = self._get_sale_searchbar_sortings()
-
-        sort_order = searchbar_sortings[sortby]["order"]
-
+        domain = self._sale_prepare_orders_domain(partner, page_key)
         if date_begin and date_end:
             domain += [
                 ("create_date", ">", date_begin),
                 ("create_date", "<=", date_end),
             ]
 
-        url_args = {"date_begin": date_begin, "date_end": date_end}
+        searchbar_sortings = self._sale_get_order_searchbar_sortings()
+        if not sortby:
+            sortby = "date"
+        order = searchbar_sortings[sortby]["order"]
 
-        if len(searchbar_sortings) > 1:
-            url_args["sortby"] = sortby
+        searchbar_filters = self._sale_get_order_searchbar_filters(page_key)
+        if searchbar_filters:
+            if not filterby:
+                filterby = cfg.get("default_filter")
+            if filterby in searchbar_filters:
+                domain += searchbar_filters[filterby]["domain"]
 
-        pager_values = portal_pager(
-            url=url,
-            total=SaleOrder.search_count(domain) if SaleOrder.has_access("read") else 0,
+        can_read = Order.has_access("read")
+        total = Order.search_count(domain) if can_read else 0
+        pager = portal_pager(
+            url=cfg["url"],
+            url_args={
+                "date_begin": date_begin,
+                "date_end": date_end,
+                "sortby": sortby,
+                "filterby": filterby,
+            },
+            total=total,
             page=page,
             step=self._items_per_page,
-            url_args=url_args,
         )
+
         orders = (
-            SaleOrder.search(
+            Order.search(
                 domain,
-                order=sort_order,
+                order=order,
                 limit=self._items_per_page,
-                offset=pager_values["offset"],
+                offset=pager["offset"],
             )
-            if SaleOrder.has_access("read")
-            else SaleOrder
+            if can_read
+            else Order
         )
 
-        values.update(
-            {
-                "date": date_begin,
-                "quotations": orders.sudo() if quotation_page else SaleOrder,
-                "orders": orders.sudo() if not quotation_page else SaleOrder,
-                "page_name": "quote" if quotation_page else "order",
-                "pager": pager_values,
-                "default_url": url,
-            }
-        )
+        request.session[cfg["session_key"]] = orders.ids[:100]
 
-        if len(searchbar_sortings) > 1:
-            values.update(
-                {
-                    "sortby": sortby,
-                    "searchbar_sortings": searchbar_sortings,
-                }
-            )
-
+        values.update({
+            "date": date_begin,
+            cfg["values_key"]: orders,
+            "page_name": cfg["page_name"],
+            "pager": pager,
+            "default_url": cfg["url"],
+            "searchbar_sortings": searchbar_sortings,
+            "sortby": sortby,
+            "searchbar_filters": OrderedDict(sorted(searchbar_filters.items())),
+            "filterby": filterby,
+        })
         return values
+
+    # ------------------------------------------------------------------
+    # List routes
+    # ------------------------------------------------------------------
 
     # Two following routes cannot be readonly because of the call to `_portal_ensure_token` on all
     # displayed orders, to assign an access token (triggering a sql update on flush)
@@ -135,11 +214,8 @@ class CustomerPortal(payment_portal.PaymentPortal):
         auth="user",
         website=True,
     )
-    def portal_my_quotes(self, **kwargs):
-        values = self._prepare_sale_portal_rendering_values(
-            quotation_page=True, **kwargs
-        )
-        request.session["my_quotations_history"] = values["quotations"].ids[:100]
+    def portal_my_quotes(self, **kw):
+        values = self._sale_prepare_order_portal_rendering_values("quote", **kw)
         return request.render("sale.portal_my_quotations", values)
 
     @http.route(
@@ -148,15 +224,21 @@ class CustomerPortal(payment_portal.PaymentPortal):
         auth="user",
         website=True,
     )
-    def portal_my_orders(self, **kwargs):
-        values = self._prepare_sale_portal_rendering_values(
-            quotation_page=False, **kwargs
-        )
-        request.session["my_orders_history"] = values["orders"].ids[:100]
+    def portal_my_orders(self, **kw):
+        values = self._sale_prepare_order_portal_rendering_values("order", **kw)
         return request.render("sale.portal_my_orders", values)
 
-    @http.route(["/my/orders/<int:order_id>"], type="http", auth="public", website=True)
-    def portal_order_page(
+    # ------------------------------------------------------------------
+    # Detail route
+    # ------------------------------------------------------------------
+
+    @http.route(
+        ["/my/orders/<int:order_id>"],
+        type="http",
+        auth="public",
+        website=True,
+    )
+    def portal_my_order(
         self,
         order_id,
         report_type=None,
@@ -171,7 +253,7 @@ class CustomerPortal(payment_portal.PaymentPortal):
             order_sudo = self._document_check_access(
                 "sale.order", order_id, access_token=access_token
             )
-        except (AccessError, MissingError):
+        except AccessError, MissingError:
             return request.redirect("/my")
 
         payment_amount = self._cast_as_float(payment_amount)
@@ -252,16 +334,11 @@ class CustomerPortal(payment_portal.PaymentPortal):
         else:
             values["payment_amount"] = None
 
-        if order_sudo.state in ("draft", "cancel"):
-            history_session_key = "my_quotations_history"
-        else:
-            history_session_key = "my_orders_history"
-
         values = self._get_page_view_values(
             order_sudo,
             access_token,
             values,
-            history_session_key,
+            self._sale_get_detail_history_session_key(order_sudo),
             False,
             **kw,
         )
@@ -390,13 +467,17 @@ class CustomerPortal(payment_portal.PaymentPortal):
             **self._get_extra_payment_form_values(**kwargs),
         }
 
+    # ------------------------------------------------------------------
+    # Action routes
+    # ------------------------------------------------------------------
+
     @http.route(
         ["/my/orders/<int:order_id>/accept"],
         type="jsonrpc",
         auth="public",
         website=True,
     )
-    def portal_quote_accept(
+    def portal_my_order_accept(
         self, order_id, access_token=None, name=None, signature=None
     ):
         # get from query string if not on json param
@@ -405,7 +486,7 @@ class CustomerPortal(payment_portal.PaymentPortal):
             order_sudo = self._document_check_access(
                 "sale.order", order_id, access_token=access_token
             )
-        except (AccessError, MissingError):
+        except AccessError, MissingError:
             return {"error": _("Invalid order.")}
 
         if not order_sudo._has_to_be_signed():
@@ -425,7 +506,7 @@ class CustomerPortal(payment_portal.PaymentPortal):
             )
             # flush now to make signature data available to PDF render request
             request.env.cr.flush()
-        except (TypeError, binascii.Error) as e:
+        except TypeError, binascii.Error:
             return {"error": _("Invalid signature data.")}
 
         if not order_sudo._has_to_be_paid():
@@ -464,14 +545,14 @@ class CustomerPortal(payment_portal.PaymentPortal):
         methods=["POST"],
         website=True,
     )
-    def portal_quote_decline(
-        self, order_id, access_token=None, decline_message=None, **kwargs
+    def portal_my_order_decline(
+        self, order_id, access_token=None, decline_message=None, **kw
     ):
         try:
             order_sudo = self._document_check_access(
                 "sale.order", order_id, access_token=access_token
             )
-        except (AccessError, MissingError):
+        except AccessError, MissingError:
             return request.redirect("/my")
 
         if order_sudo._has_to_be_signed() and decline_message:
@@ -507,12 +588,12 @@ class CustomerPortal(payment_portal.PaymentPortal):
         auth="public",
         readonly=True,
     )
-    def portal_quote_document(self, order_id, document_id, access_token):
+    def portal_my_order_document(self, order_id, document_id, access_token):
         try:
             order_sudo = self._document_check_access(
                 "sale.order", order_id, access_token=access_token
             )
-        except (AccessError, MissingError):
+        except AccessError, MissingError:
             return request.redirect("/my")
 
         document = request.env["product.document"].browse(document_id).sudo().exists()
@@ -530,14 +611,18 @@ class CustomerPortal(payment_portal.PaymentPortal):
             .get_response(as_attachment=True)
         )
 
-    @http.route(["/my/orders/<int:order_id>/download_edi"], auth="public", website=True)
-    def portal_my_sale_order_download_edi(self, order_id=None, access_token=None, **kw):
-        """An endpoint to download EDI file representation."""
+    @http.route(
+        ["/my/orders/<int:order_id>/download_edi"],
+        auth="public",
+        website=True,
+    )
+    def portal_my_order_download_edi(self, order_id=None, access_token=None, **kw):
+        """Download the EDI XML representation of a sales order."""
         try:
             order_sudo = self._document_check_access(
                 "sale.order", order_id, access_token=access_token
             )
-        except (AccessError, MissingError):
+        except AccessError, MissingError:
             return request.redirect("/my")
 
         builders = order_sudo._get_edi_builders()
@@ -563,8 +648,11 @@ class CustomerPortal(payment_portal.PaymentPortal):
 
 
 class PaymentPortal(payment_portal.PaymentPortal):
-
-    @http.route("/my/orders/<int:order_id>/transaction", type="jsonrpc", auth="public")
+    @http.route(
+        "/my/orders/<int:order_id>/transaction",
+        type="jsonrpc",
+        auth="public",
+    )
     def portal_order_transaction(self, order_id, access_token, **kwargs):
         """Create a draft transaction and return its processing values.
 
