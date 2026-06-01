@@ -8,8 +8,8 @@ import {
     toRaw,
     useState,
 } from "@odoo/owl";
-import { isNode, toSelector } from "@web/../lib/hoot-dom/helpers/dom";
-import { isInstanceOf, isIterable } from "@web/../lib/hoot-dom/hoot_dom_utils";
+import { isNode, toSelector } from "@odoo/hoot-dom-helpers-dom";
+import { isInstanceOf, isIterable } from "@odoo/hoot-dom-utils";
 import { logger } from "../core/logger.js";
 import {
     getTypeOf,

@@ -5,6 +5,25 @@ const cacheName = "odoo-sw-cache";
 const homepageURL = "/odoo";
 const offLineURL = `${homepageURL}/offline`;
 
+// Separate cache for long-lived static responses.  Distinct from
+// ``cacheName`` above so a ``caches.delete`` on logout purges user-scoped
+// data without nuking the offline page.  Holds translations, asset
+// bundles, and ``/web/image/`` responses — all content-addressable (the
+// URL changes when the content changes), so stale-while-revalidate is
+// safe.
+const staticCacheName = "odoo-static-cache";
+
+// URL patterns eligible for stale-while-revalidate.  The regex matches
+// path-only (``url.pathname``) to avoid query-string false positives.
+//   /web/webclient/translations/<hash>   — translation bundles per lang + modules
+//   /web/assets/<hash>/<bundle>.js       — content-addressable asset bundles
+//   /web/image/<record_id>/...           — hash-prefixed image URLs
+// All three are keyed by a cache-busting component in the URL, so
+// reusing a cached entry for a matching URL is always correct.  When
+// the URL changes (new hash / new id) we just miss and populate.
+const STALE_WHILE_REVALIDATE_RE =
+    /^\/web\/(webclient\/translations|assets|image)(\/|$)/;
+
 let sessionInfo = null;
 
 self.addEventListener("install", (event) => {
@@ -105,6 +124,37 @@ const fetchErrorMessages = [
 ];
 
 /**
+ * Serve ``request`` using stale-while-revalidate: if a cached entry
+ * exists, return it immediately while kicking off a background fetch
+ * to refresh the cache; otherwise go to the network.  Errors during the
+ * background refresh are swallowed — the already-served cached response
+ * is still valid, and the next request will retry.
+ *
+ * Only GET requests with 2xx responses are stored.  Opaque responses
+ * and non-OK statuses are never cached.
+ *
+ * @param {Request} request
+ * @returns {Promise<Response>}
+ */
+const staleWhileRevalidate = async (request) => {
+    const cache = await caches.open(staticCacheName);
+    const cached = await cache.match(request);
+    const networkPromise = fetch(request)
+        .then((response) => {
+            if (response.ok) {
+                // ``response.clone()`` because putting the original would
+                // lock the body stream before we return it to the caller.
+                cache.put(request, response.clone()).catch(() => {
+                    // Quota exceeded or storage disabled — drop silently.
+                });
+            }
+            return response;
+        })
+        .catch(() => cached);
+    return cached || networkPromise;
+};
+
+/**
  * Fetches the request and falls back to cached or offline page on network failure.
  *
  * @param {Request} request
@@ -173,6 +223,16 @@ self.addEventListener("fetch", (event) => {
     ) {
         return serveShareTarget(event);
     }
+    // Stale-while-revalidate for static, content-addressable resources.
+    // Fires before the navigation branch because the URL patterns here
+    // never match ``destination === "document"`` or ``accept: text/html``.
+    if (event.request.method === "GET") {
+        const pathname = new URL(event.request.url).pathname;
+        if (STALE_WHILE_REVALIDATE_RE.test(pathname)) {
+            event.respondWith(staleWhileRevalidate(event.request));
+            return;
+        }
+    }
     if (
         (event.request.mode === "navigate" &&
             event.request.destination === "document") ||
@@ -210,6 +270,16 @@ self.addEventListener("message", (event) => {
     }
     if (event.data === "user_logout") {
         sessionInfo = null;
+        // Drop the static cache too — a different user might land on
+        // this browser and any lingering hash-keyed responses that
+        // depended on the prior user's ACLs (``/web/image/`` with a
+        // non-public record) would be wrong.  The cache will rebuild
+        // on first access after the next login.
+        caches.delete(staticCacheName).catch(() => {
+            // Storage unavailable (private mode, quota exceeded
+            // during delete, ...) — nothing to do; entries are
+            // harmless if they stay.
+        });
     }
 });
 

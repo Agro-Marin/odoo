@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
-import { isInstanceOf, isIterable } from "@web/../lib/hoot-dom/hoot_dom_utils";
+import { isInstanceOf, isIterable } from "@odoo/hoot-dom-utils";
 import {
     deepCopy,
     deepEqual,

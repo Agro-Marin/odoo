@@ -1,7 +1,7 @@
 /** @odoo-module */
 
 import { EventBus } from "@odoo/owl";
-import { getCurrentDimensions, getDocument, getWindow } from "@web/../lib/hoot-dom/helpers/dom";
+import { getCurrentDimensions, getDocument, getWindow } from "@odoo/hoot-dom-helpers-dom";
 import {
     mockedCancelAnimationFrame,
     mockedClearInterval,
@@ -9,7 +9,7 @@ import {
     mockedRequestAnimationFrame,
     mockedSetInterval,
     mockedSetTimeout,
-} from "@web/../lib/hoot-dom/helpers/time";
+} from "@odoo/hoot-dom-helpers-time";
 import { interactor } from "../../hoot-dom/hoot_dom_utils.js";
 import { MockEventTarget, strictEqual, waitForDocument } from "../hoot_utils.js";
 import { ensureTest, getRunner } from "../main_runner.js";

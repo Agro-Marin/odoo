@@ -75,7 +75,7 @@ declare module "@web/views/view_service" {
 // ---------------------------------------------------------------------------
 
 declare module "@web/views/view" {
-    import { Component } from "@odoo/owl";
+    import { Component, ComponentConstructor } from "@odoo/owl";
 
     export type ViewType =
         | "activity"
@@ -123,8 +123,8 @@ declare module "@web/views/view" {
 
     export interface ViewRegistryEntry {
         type: ViewType;
-        Controller: typeof Component;
-        Renderer?: typeof Component;
+        Controller: ComponentConstructor;
+        Renderer?: ComponentConstructor;
         ArchParser?: new () => { parse(...args: any[]): any };
         Model?: any;
         Compiler?: any;
@@ -187,6 +187,15 @@ declare module "@web/views/view_utils" {
         env: any,
         display: Record<string, any>,
     ): { lazy: boolean };
+
+    export function buildMultiRecordModelParams(args: {
+        archInfo: any;
+        props: any;
+        uiHooks: Record<string, Function>;
+        config: Record<string, any>;
+        hooks?: { lifecycle?: any; ui?: any };
+        extras?: Record<string, any>;
+    }): Record<string, any>;
 
     export function useControllerServices(): {
         action: any;

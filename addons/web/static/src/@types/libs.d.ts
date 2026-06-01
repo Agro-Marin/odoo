@@ -23,6 +23,12 @@ declare const ace: any;
 declare const ZXing: any;
 declare const FullCalendar: any;
 declare const SignaturePad: any;
+// Chart.js — loaded lazily via ``loadBundle("web.chartjs_lib")`` by
+// ``views/graph/graph_renderer.js`` and
+// ``fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field.js``.
+// Typed as ``any`` because the chart.js npm types are not installed in this
+// fork; tighten to ``typeof import("chart.js").Chart`` when those types land.
+declare const Chart: any;
 declare const StackTrace: {
     fromError(error: Error): Promise<Array<{ fileName: string; lineNumber: number; columnNumber: number; functionName: string }>>;
 };
@@ -40,6 +46,7 @@ interface Window {
     ZXing: any;
     FullCalendar: any;
     SignaturePad: any;
+    Chart: any;
     MozBlob: typeof Blob | undefined;
     WebKitBlob: typeof Blob | undefined;
     clickEverywhere: ((xmlId?: string) => Promise<void>) | undefined;

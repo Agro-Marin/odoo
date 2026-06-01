@@ -1,6 +1,6 @@
 /** @odoo-module */
 
-import { getTimeOffset, isTimeFrozen, resetTimeOffset } from "@web/../lib/hoot-dom/helpers/time";
+import { getTimeOffset, isTimeFrozen, resetTimeOffset } from "@odoo/hoot-dom-helpers-time";
 import { createMock, HootError, isNil } from "../hoot_utils.js";
 import { ensureTest } from "../main_runner.js";
 

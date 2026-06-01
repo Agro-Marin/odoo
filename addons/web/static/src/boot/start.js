@@ -11,6 +11,7 @@ import { RPCCache } from "@web/core/network/rpc_cache";
 import { mountComponent } from "@web/env";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
+import { assetLog } from "@web/core/utils/asset_log";
 
 // Chrome iOS wraps some text nodes (like measures, email...)
 // with a `<chrome_annotation>` tag, which breaks OWL rendering.
@@ -29,6 +30,11 @@ document.head.appendChild(chromeMetaTag);
  * @param {Component} Webclient
  */
 export async function startWebClient(Webclient) {
+    assetLog("boot", "startWebClient:enter", {
+        db: session.db,
+        version: session.server_version,
+        enterprise: (session.server_version_info ?? []).at(-1) === "e",
+    });
     /** @type {any} */ (odoo).info = {
         db: session.db,
         server_version: session.server_version,
@@ -41,9 +47,11 @@ export async function startWebClient(Webclient) {
         rpc.setCache(
             new RPCCache("rpc", session.registry_hash, session.browser_cache_secret),
         );
+        assetLog("boot", "RPC cache enabled (secure context + browser_cache_secret)");
     }
 
     await whenReady();
+    assetLog("boot", "document ready — mounting WebClient");
     const app = await mountComponent(Webclient, document.body, {
         name: "Odoo Web Client",
     });
@@ -65,4 +73,5 @@ export async function startWebClient(Webclient) {
     }
     // delete odoo.debug; // FIXME: some legacy code rely on this
     /** @type {any} */ (odoo).isReady = true;
+    assetLog("boot", "startWebClient:ready — app mounted, odoo.isReady=true");
 }

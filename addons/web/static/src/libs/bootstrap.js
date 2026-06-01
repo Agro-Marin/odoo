@@ -58,14 +58,16 @@ bsSanitizeAllowList.section = [];
 bsSanitizeAllowList.button = ["type"];
 bsSanitizeAllowList.del = [];
 
-/* Bootstrap tooltip defaults overwrite */
-Tooltip.Default.placement = "auto";
-Tooltip.Default.fallbackPlacement = ["bottom", "right", "left", "top"];
-Tooltip.Default.html = true;
-Tooltip.Default.trigger = "hover";
-Tooltip.Default.container = "body";
-Tooltip.Default.boundary = "window";
-Tooltip.Default.delay = { show: 1000, hide: 0 };
+/* Bootstrap tooltip defaults overwrite (Bootstrap.Default has no upstream
+ * types in this fork, so widen via cast). */
+const TooltipDefault = /** @type {any} */ (Tooltip.Default);
+TooltipDefault.placement = "auto";
+TooltipDefault.fallbackPlacement = ["bottom", "right", "left", "top"];
+TooltipDefault.html = true;
+TooltipDefault.trigger = "hover";
+TooltipDefault.container = "body";
+TooltipDefault.boundary = "window";
+TooltipDefault.delay = { show: 1000, hide: 0 };
 
 const bootstrapShowFunction = Tooltip.prototype.show;
 /**
@@ -97,6 +99,42 @@ Dropdown.prototype._detectNavbar = function () {
     return false;
 };
 
+// Bootstrap's document-level data-API keydown listener (registered at bundle
+// init via EventHandler.on(document, "keydown.bs.dropdown", SELECTOR_MENU,
+// Dropdown.dataApiKeydownHandler)) invokes `Dropdown.getOrCreateInstance`
+// when the keydown's target is inside any element matching `.dropdown-menu`.
+// Odoo's OWL <Dropdown> renders its menu with classes
+// `o-dropdown--menu dropdown-menu` (so layout/CSS reuse Bootstrap), which
+// inadvertently puts those menus in Bootstrap's listener path. Bootstrap's
+// constructor reads `element.parentNode` unguarded and crashes on
+// undefined/detached toggles (test fixtures, or `SelectorEngine.prev()`
+// returning nothing).
+//
+// The handler reference is captured by EventHandler.on at module load, so we
+// cannot replace it retroactively — but `getOrCreateInstance` is looked up
+// on the class at each call, so we can intercept it. Returning a no-op stub
+// (rather than null) keeps the handler's subsequent `instance.show()` /
+// `instance._isShown()` / `instance._selectMenuItem()` / `getToggleButton.focus()`
+// calls safe. Odoo's component owns its keynav independently; the stub
+// honors the contract documented by `dropdown.test.js`'s
+// `"dropdowns keynav is not impacted by bootstrap"` test.
+const _origDropdownGetOrCreateInstance = Dropdown.getOrCreateInstance;
+const NO_OP_DROPDOWN = Object.freeze({
+    show() {},
+    hide() {},
+    toggle() {},
+    dispose() {},
+    focus() {},
+    _isShown() { return false; },
+    _selectMenuItem() {},
+});
+Dropdown.getOrCreateInstance = function (element, config) {
+    if (!element || !element.parentNode || (element.closest && element.closest(".o-dropdown--menu"))) {
+        return NO_OP_DROPDOWN;
+    }
+    return _origDropdownGetOrCreateInstance.call(this, element, config);
+};
+
 /* Bootstrap modal scrollbar compensation on non-body */
 const bsAdjustDialogFunction = Modal.prototype._adjustDialog;
 /**
@@ -118,7 +156,7 @@ Modal.prototype._adjustDialog = function () {
     this._scrollBar.hide();
     document.body.classList.add("modal-open");
 
-    return bsAdjustDialogFunction.apply(this, arguments);
+    return bsAdjustDialogFunction.apply(this, /** @type {any} */ (arguments));
 };
 
 const bsResetAdjustmentsFunction = Modal.prototype._resetAdjustments;
@@ -137,5 +175,5 @@ Modal.prototype._resetAdjustments = function () {
     if (document.body.contains(scrollable)) {
         compensateScrollbar(scrollable, false);
     }
-    return bsResetAdjustmentsFunction.apply(this, arguments);
+    return bsResetAdjustmentsFunction.apply(this, /** @type {any} */ (arguments));
 };

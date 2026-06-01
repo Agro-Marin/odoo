@@ -2,12 +2,12 @@
 
 import { on, setFrameRate } from "@odoo/hoot-dom";
 import { markRaw, reactive, toRaw } from "@odoo/owl";
-import { cleanupDOM, defineRootNode } from "@web/../lib/hoot-dom/helpers/dom";
-import { cleanupEvents, enableEventLogs } from "@web/../lib/hoot-dom/helpers/events";
+import { cleanupDOM, defineRootNode } from "@odoo/hoot-dom-helpers-dom";
+import { cleanupEvents, enableEventLogs } from "@odoo/hoot-dom-helpers-events";
 import {
     cleanupTime,
     setupTime,
-} from "@web/../lib/hoot-dom/helpers/time";
+} from "@odoo/hoot-dom-helpers-time";
 
 // Read the REAL (un-mocked) setTimeout/clearTimeout captured by
 // module_loader.js — the very first synchronous script in the bundle,
@@ -18,9 +18,9 @@ import {
 // The native module_loader.js file was removed during the ESM native
 // migration but the reference here was left dangling, crashing any
 // page that imports @odoo/hoot outside a test bundle.
-const __nativeTimers = odoo.__nativeTimers ?? globalThis;
+const __nativeTimers = globalThis.odoo?.__nativeTimers ?? globalThis;
 const { setTimeout: nativeSetTimeout, clearTimeout: nativeClearTimeout } = __nativeTimers;
-import { exposeHelpers, isInstanceOf, isIterable } from "@web/../lib/hoot-dom/hoot_dom_utils";
+import { exposeHelpers, isInstanceOf, isIterable } from "@odoo/hoot-dom-utils";
 import {
     CASE_EVENT_TYPES,
     Callbacks,
