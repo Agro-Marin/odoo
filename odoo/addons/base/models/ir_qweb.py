@@ -709,6 +709,16 @@ class QwebJSON(json.JSON):
 qwebJSON = QwebJSON()
 
 
+class _EsmFallbackError(Exception):
+    """Internal control-flow signal: a production native-ESM render declined
+    (esbuild circuit open, lock contention, or build failure). Raised by
+    ``IrQweb._get_native_module_nodes_cached`` so the ``assets`` ormcache never
+    stores the degraded debug-mode fallback (ormcache does not cache
+    exceptions); caught by ``_get_native_module_nodes``, which then renders the
+    fallback uncached.
+    """
+
+
 class IrQweb(models.AbstractModel):
     """Base QWeb rendering engine
     * to customize ``t-field`` rendering, subclass ``ir.qweb.field`` and
@@ -3934,6 +3944,22 @@ class IrQweb(models.AbstractModel):
             )
             return default
 
+    def _esbuild_forced_fallback_bundles(self) -> set[str]:
+        """Bundle names an admin has forced to the debug-mode fallback.
+
+        Read from ``web.esbuild.force_fallback_bundles`` (comma-separated,
+        ir.config_parameter — its ``get_param`` is itself ormcached). Consulted
+        both by the production esbuild path and by ``_get_native_module_nodes``,
+        which bypasses the node cache for these so a freshly added override
+        silences a bundle without a server restart or cache clear.
+        """
+        forced_raw = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("web.esbuild.force_fallback_bundles", "")
+        )
+        return {s.strip() for s in forced_raw.split(",") if s.strip()}
+
     def _esbuild_circuit_state(self, bundle: str) -> tuple[bool, str]:
         """Check the circuit-breaker state for a bundle.
 
@@ -4126,11 +4152,90 @@ class IrQweb(models.AbstractModel):
         )
         return minified
 
+    @tools.conditional(
+        # Mirror the links/native-data caches: cache "forever" in non-xml-debug
+        # mode, cleared by ir.asset writes (clear_cache("assets")) and module
+        # update, or a manual server-cache clear.
+        "xml" not in tools.config["dev_mode"],
+        tools.ormcache(
+            "bundle",
+            "tuple(sorted(assets_params.items()))",
+            cache="assets",
+        ),
+    )
+    def _get_native_module_nodes_cached(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None = None,
+    ) -> tuple[
+        list[tuple[str, dict[str, Any]]],
+        list[tuple[str, dict[str, Any]]],
+    ]:
+        """Cached production native-ESM nodes (non-debug, read-write only).
+
+        Runs the full assembly via ``_get_native_module_nodes_impl`` and caches
+        the resulting nodes, so warm renders skip bundle construction, the
+        esbuild subprocess, and the template parse entirely. A production
+        attempt that declines (esbuild circuit open, lock contention, or build
+        failure) raises ``_EsmFallbackError`` instead of returning the degraded
+        debug rendering — ormcache never stores an exception, so the fallback
+        is never cached.
+        """
+        return self._get_native_module_nodes_impl(
+            bundle,
+            debug=False,
+            assets_params=assets_params,
+            _raise_on_decline=True,
+        )
+
     def _get_native_module_nodes(
         self,
         bundle: str,
         debug: str | bool = False,
         assets_params: dict[str, Any] | None = None,
+    ) -> tuple[
+        list[tuple[str, dict[str, Any]]],
+        list[tuple[str, dict[str, Any]]],
+    ]:
+        """Dispatch native-ESM node generation through the assets cache.
+
+        Production (non-debug, read-write) renders go through the ormcached
+        ``_get_native_module_nodes_cached``. ``?debug=assets``, read-only
+        cursors (which inline the bundle rather than persist an attachment),
+        and the esbuild-declined fallback all render uncached via
+        ``_get_native_module_nodes_impl``.
+        """
+        debug_assets = debug and "assets" in debug
+        if assets_params is None:
+            assets_params = self.env["ir.asset"]._get_asset_params()
+        if (
+            not debug_assets
+            and not self.env.cr.readonly
+            and bundle not in self._esbuild_forced_fallback_bundles()
+        ):
+            try:
+                return self._get_native_module_nodes_cached(
+                    bundle, assets_params=assets_params
+                )
+            except _EsmFallbackError:
+                # Production esbuild declined (circuit open, admin override,
+                # lock contention, or build failure) → render the uncached
+                # debug fallback. The re-run re-evaluates those conditions
+                # (cheap; no second subprocess once the circuit has opened) and
+                # constructs the asset_bundle the debug branch needs.
+                return self._get_native_module_nodes_impl(
+                    bundle, debug=debug, assets_params=assets_params
+                )
+        return self._get_native_module_nodes_impl(
+            bundle, debug=debug, assets_params=assets_params
+        )
+
+    def _get_native_module_nodes_impl(
+        self,
+        bundle: str,
+        debug: str | bool = False,
+        assets_params: dict[str, Any] | None = None,
+        _raise_on_decline: bool = False,
     ) -> tuple[
         list[tuple[str, dict[str, Any]]],
         list[tuple[str, dict[str, Any]]],
@@ -4212,17 +4317,10 @@ class IrQweb(models.AbstractModel):
                 assets_params=assets_params,
             )
 
-            # Admin override.  Read once per request; overrides are
-            # expected to be rare so no caching of the parameter itself.
-            forced_raw = (
-                self.env["ir.config_parameter"]
-                .sudo()
-                .get_param(
-                    "web.esbuild.force_fallback_bundles",
-                    "",
-                )
-            )
-            forced_bundles = {s.strip() for s in forced_raw.split(",") if s.strip()}
+            # Admin override (``web.esbuild.force_fallback_bundles``). The node
+            # cache is bypassed for these in the dispatcher, so reaching here
+            # for a forced bundle means an uncached (debug / fallback) render.
+            forced_bundles = self._esbuild_forced_fallback_bundles()
 
             allow, circuit_reason = self._esbuild_circuit_state(bundle)
             esbuild_code = ""
@@ -4684,6 +4782,13 @@ class IrQweb(models.AbstractModel):
                     includes=len(include_names) if include_names else 0,
                 )
                 return pre, post
+
+            # Production attempt declined (circuit open, lock contention, or an
+            # esbuild failure left esbuild_code empty). When invoked for the
+            # ormcache, signal a fallback so the degraded debug rendering below
+            # is NOT cached; otherwise fall through and render it inline.
+            if _raise_on_decline:
+                raise _EsmFallbackError
 
         # ── Debug mode: individual files + import map ──
         pre_nodes = []
