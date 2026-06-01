@@ -4,6 +4,13 @@ import { Deferred, describe, expect, microTick, test, tick } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { RPCCache } from "@web/core/network/rpc_cache";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
+import { mockIndexedDBForTests } from "@web/../tests/_framework/mock_indexed_db.hoot";
+
+// rpc_cache asserts against `instance.mockIndexedDB.<table>.<key>` —
+// the in-memory store provided by the prototype mock below.  Scoped via
+// beforeEach/afterEach so `core/utils/indexed_db.test.js` (which exercises
+// the real class) is unaffected.
+mockIndexedDBForTests();
 
 const S_PENDING = Symbol("Promise");
 
@@ -1074,4 +1081,455 @@ test("DiskCache: write throws an IDBQuotaExceededError", async () => {
     await rpcCache.read("table", "key", fallback, { type: "disk" });
 
     await expect.waitForSteps(["fallback", "write", "delete db"]);
+});
+
+// ----------------------------------------------------------------------------
+// immutable contract
+// ----------------------------------------------------------------------------
+//
+// Three guarantees the cache must keep when ``immutable: true`` is passed:
+//   1. The returned value is deep-frozen (mutation throws synchronously).
+//   2. Two consecutive immutable reads of the same key return the SAME
+//      reference (skip the structuredClone done by the default path).
+//   3. A mutable caller (no ``immutable`` flag) on the same key keeps
+//      receiving an unfrozen clone — mixing immutable and mutable callers
+//      is safe.
+//
+// Together these unlock the freeze-once-on-write pattern for boot-path reads
+// (fields_get, get_views, ir.actions.act_window, currency rates) that are
+// known never to be mutated by their consumers but otherwise pay a
+// ``structuredClone`` on every cache hit (see the perf rationale in the
+// ``shape`` comment in ``rpc_cache.js``).
+
+test("immutable: returned value is deep-frozen", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    const fallback = () =>
+        Promise.resolve({ id: 1, sub: { name: "alpha", tags: ["a", "b"] } });
+
+    const result = await rpcCache.read("t", "k", fallback, { immutable: true });
+
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.sub)).toBe(true);
+    expect(Object.isFrozen(result.sub.tags)).toBe(true);
+});
+
+test("immutable: mutation on returned value throws (strict mode)", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    const result = await rpcCache.read(
+        "t",
+        "k",
+        () => Promise.resolve({ id: 1, sub: { name: "alpha" } }),
+        { immutable: true },
+    );
+
+    // ESM modules run in strict mode — frozen property assignment throws.
+    expect(() => {
+        result.id = 999;
+    }).toThrow(TypeError);
+    expect(() => {
+        result.sub.name = "beta";
+    }).toThrow(TypeError);
+});
+
+test("immutable: consecutive reads return the same reference", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    const fallback = () => Promise.resolve({ id: 1 });
+
+    const a = await rpcCache.read("t", "k", fallback, { immutable: true });
+    const b = await rpcCache.read("t", "k", fallback, { immutable: true });
+    expect(a).toBe(b);
+});
+
+test("immutable: mutable caller after immutable still gets an unfrozen clone", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    const fallback = () => Promise.resolve({ id: 1, sub: { name: "alpha" } });
+
+    // First caller opts in to immutable — freezes the cached value.
+    const frozen = await rpcCache.read("t", "k", fallback, { immutable: true });
+    expect(Object.isFrozen(frozen)).toBe(true);
+
+    // Second caller does NOT pass immutable — must receive a fresh clone.
+    const clone = await rpcCache.read("t", "k", fallback);
+    expect(clone).not.toBe(frozen);
+    expect(Object.isFrozen(clone)).toBe(false);
+    expect(Object.isFrozen(clone.sub)).toBe(false);
+
+    // The clone is independently mutable; mutating it must not touch the
+    // shared frozen cache entry.
+    clone.id = 999;
+    clone.sub.name = "beta";
+    expect(frozen.id).toBe(1);
+    expect(frozen.sub.name).toBe("alpha");
+});
+
+// ----------------------------------------------------------------------------
+// __version contract (Plan C — server-emitted content hash compare)
+// ----------------------------------------------------------------------------
+//
+// Endpoints that opt in (currently: search_panel_select_range,
+// search_panel_select_multi_range) inject a ``__version`` sha256 hash into
+// their dict return value.  The cache's ``payloadChanged`` helper uses the
+// version compare when present on both sides, falls back to ``jsonEqual``
+// otherwise.  These tests pin the three branches.
+
+test("__version: hasChanged=false when both sides carry the same version", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    // First call writes the cached value with __version=v1.
+    await rpcCache.read("t", "kv1", () => Promise.resolve({
+        values: [{ id: 1 }, { id: 2 }],
+        __version: "abc",
+    }));
+    // Second call (update:always) returns SAME __version even though we
+    // intentionally vary an interior field — payload contract is "version
+    // is authoritative".
+    await rpcCache.read("t", "kv1", () => Promise.resolve({
+        values: [{ id: 1 }, { id: 2 }, { id: 999 }],  // would diff via jsonEqual!
+        __version: "abc",                              // …but version says equal
+    }), {
+        update: "always",
+        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+    });
+    expect.verifySteps(["changed=false"]);
+});
+
+test("__version: hasChanged=true when versions differ", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    await rpcCache.read("t", "kv2", () => Promise.resolve({
+        values: [{ id: 1 }],
+        __version: "old",
+    }));
+    await rpcCache.read("t", "kv2", () => Promise.resolve({
+        values: [{ id: 1 }],
+        __version: "new",
+    }), {
+        update: "always",
+        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+    });
+    expect.verifySteps(["changed=true"]);
+});
+
+test("__version: fallback to jsonEqual when one side lacks the field", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    // Legacy cached value WITHOUT __version (pre-migration state).
+    await rpcCache.read("t", "kv3", () => Promise.resolve({
+        values: [{ id: 1 }],
+    }));
+    // New response carries __version — but old side doesn't, so we fall back
+    // to deep-compare.  Contents are identical except for the new __version
+    // key, so jsonEqual returns false ⇒ hasChanged=true (the new field counts
+    // as a real diff on this transitional call).  Next refresh will be on
+    // the version fast path.
+    await rpcCache.read("t", "kv3", () => Promise.resolve({
+        values: [{ id: 1 }],
+        __version: "v1",
+    }), {
+        update: "always",
+        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+    });
+    expect.verifySteps(["changed=true"]);
+});
+
+// ----------------------------------------------------------------------------
+// Shape fast-path (N1-A)
+// ----------------------------------------------------------------------------
+//
+// Endpoints without ``__version`` (list-returning ``web_read``, template
+// dropdowns, m2o special data) fall through to the layered jsonEqual path.
+// The shape disqualifier catches the common "row appended / row removed"
+// case in O(1), skipping the full deep compare.  These tests pin the
+// shape-check branches.
+
+test("shape fast-path: list with different length → changed without jsonEqual", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    await rpcCache.read("t", "kshape1", () => Promise.resolve([{ id: 1 }]));
+    await rpcCache.read("t", "kshape1", () => Promise.resolve(
+        [{ id: 1 }, { id: 2 }],  // length 1 → 2: shape disqualifier fires
+    ), {
+        update: "always",
+        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+    });
+    expect.verifySteps(["changed=true"]);
+});
+
+test("shape fast-path: same length identical content → falls through to jsonEqual → unchanged", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    await rpcCache.read("t", "kshape2", () => Promise.resolve([{ id: 1 }, { id: 2 }]));
+    await rpcCache.read("t", "kshape2", () => Promise.resolve(
+        [{ id: 1 }, { id: 2 }],
+    ), {
+        update: "always",
+        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+    });
+    expect.verifySteps(["changed=false"]);
+});
+
+test("shape fast-path: same length different content → falls through to jsonEqual → changed", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    await rpcCache.read("t", "kshape3", () => Promise.resolve([{ id: 1 }, { id: 2 }]));
+    await rpcCache.read("t", "kshape3", () => Promise.resolve(
+        [{ id: 1 }, { id: 99 }],  // same length, different id: jsonEqual must catch it
+    ), {
+        update: "always",
+        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+    });
+    expect.verifySteps(["changed=true"]);
+});
+
+test("shape fast-path: array vs object → disqualified without jsonEqual", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    await rpcCache.read("t", "kshape4", () => Promise.resolve([{ id: 1 }]));
+    // Different top-level shape — extremely defensive but cheap to guarantee.
+    await rpcCache.read("t", "kshape4", () => Promise.resolve({ id: 1 }), {
+        update: "always",
+        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+    });
+    expect.verifySteps(["changed=true"]);
+});
+
+// ---------------------------------------------------------------------------
+// Model-scoped invalidation (RAM index + IDB value-shape contract)
+// ---------------------------------------------------------------------------
+//
+// The cache maintains a per-table model→keys reverse index in RAM and stores
+// the model name plaintext alongside the encrypted IDB value, so
+// ``invalidateByModel`` is O(1) on the RAM side and cursor-based with a
+// fixed object-property check on the IDB side.  Entries written without a
+// ``model`` in their cache settings are not indexed (correct: they are not
+// model-scoped) and survive ``invalidateByModel``; the regular
+// ``invalidate(table)`` is the only path that touches them.
+
+test("invalidateByModel: only matching-model entries removed from IndexedDB", async () => {
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    // Seed three disk entries: two res.partner, one res.users — same table.
+    // Callers pass ``model`` in cache settings so the entries join the
+    // RAM model index and carry ``model`` on the encrypted IDB value.
+    const keyPartner1 = JSON.stringify({
+        url: "/web/dataset/call_kw/res.partner/web_read",
+        params: { model: "res.partner", method: "web_read", args: [[1]] },
+    });
+    const keyPartner2 = JSON.stringify({
+        url: "/web/dataset/call_kw/res.partner/web_read",
+        params: { model: "res.partner", method: "web_read", args: [[2]] },
+    });
+    const keyUser = JSON.stringify({
+        url: "/web/dataset/call_kw/res.users/web_read",
+        params: { model: "res.users", method: "web_read", args: [[7]] },
+    });
+    await rpcCache.read("web_read", keyPartner1, () => Promise.resolve({ id: 1 }), {
+        type: "disk",
+        model: "res.partner",
+    });
+    await rpcCache.read("web_read", keyPartner2, () => Promise.resolve({ id: 2 }), {
+        type: "disk",
+        model: "res.partner",
+    });
+    await rpcCache.read("web_read", keyUser, () => Promise.resolve({ id: 7 }), {
+        type: "disk",
+        model: "res.users",
+    });
+    await tick();
+
+    // Sanity: all three present on the mocked disk before invalidation.
+    expect(Object.keys(rpcCache.indexedDB.mockIndexedDB.web_read).sort()).toEqual(
+        [keyPartner1, keyPartner2, keyUser].sort(),
+    );
+
+    rpcCache.invalidateByModel(["web_read"], "res.partner");
+    await tick();
+
+    // Only res.users entry survives — partner entries were cursor-deleted.
+    expect(Object.keys(rpcCache.indexedDB.mockIndexedDB.web_read)).toEqual([keyUser]);
+});
+
+test("invalidateByModel: entries lacking a model property are skipped", async () => {
+    // Pre-migration IDB entries (and any other consumer that writes
+    // values without a ``model`` property) must survive
+    // ``invalidateByModel`` rather than being treated as matches.
+    // The cursor walks every value and checks ``value.model === <model>``;
+    // values that are strings, numbers, or objects without a ``model``
+    // property simply do not match and stay put.
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    // Inject pre-migration / foreign entries directly into the mock —
+    // a stringified-then-stored value, a plain object without ``model``,
+    // and a malformed key.  All three should survive.
+    rpcCache.indexedDB.mockIndexedDB = {
+        web_read: {
+            "<not-json>": "stale-string",
+            "no-model": { ciphertext: new ArrayBuffer(0), iv: new Uint8Array() },
+            "wrong-model": {
+                ciphertext: new ArrayBuffer(0),
+                iv: new Uint8Array(),
+                model: "res.users",
+            },
+        },
+    };
+
+    rpcCache.invalidateByModel(["web_read"], "res.partner");
+    await tick();
+
+    // None of the three were targeted: two have no model, one has the
+    // wrong model.  Pre-fix the JSON.parse predicate would have crashed
+    // on the malformed key (try/catch swallowed it) and incorrectly
+    // matched the wrong-model entry only if its key parsed to the right
+    // model — drift between key and value content was undefined behaviour.
+    expect(Object.keys(rpcCache.indexedDB.mockIndexedDB.web_read).sort()).toEqual([
+        "<not-json>",
+        "no-model",
+        "wrong-model",
+    ]);
+});
+
+test("RAM model-index: write+invalidateByModel is O(1) lookup, no JSON.parse", async () => {
+    // The reverse index lets ``invalidateByModel`` skip iterating every
+    // key in the table.  Pin behaviour by writing entries for several
+    // models, invalidating one, and asserting the index is also cleaned.
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    await rpcCache.read("web_read", "k1", () => Promise.resolve(1), {
+        model: "res.partner",
+    });
+    await rpcCache.read("web_read", "k2", () => Promise.resolve(2), {
+        model: "res.partner",
+    });
+    await rpcCache.read("web_read", "k3", () => Promise.resolve(3), {
+        model: "res.users",
+    });
+
+    // Inspect the RAM index directly.
+    expect(rpcCache.ramCache.modelIndex.web_read.get("res.partner").size).toBe(2);
+    expect(rpcCache.ramCache.modelIndex.web_read.get("res.users").size).toBe(1);
+
+    rpcCache.invalidateByModel(["web_read"], "res.partner");
+
+    // res.partner entries gone from both the cache and the index;
+    // res.users untouched.
+    expect(rpcCache.ramCache.read("web_read", "k1")).toBe(undefined);
+    expect(rpcCache.ramCache.read("web_read", "k2")).toBe(undefined);
+    expect(await rpcCache.ramCache.read("web_read", "k3")).toBe(3);
+    expect(rpcCache.ramCache.modelIndex.web_read.has("res.partner")).toBe(false);
+    expect(rpcCache.ramCache.modelIndex.web_read.get("res.users").size).toBe(1);
+});
+
+test("RAM model-index: delete() removes key from the model set", async () => {
+    // The cache rarely calls ``delete`` directly (only on rejected
+    // requests) but when it does, the index must stay consistent or
+    // ``invalidateByModel`` would later try to delete a missing key
+    // (harmless) and leak the model→Set entry (memory drift).
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    await rpcCache.read("web_read", "k1", () => Promise.resolve(1), {
+        model: "res.partner",
+    });
+    expect(rpcCache.ramCache.modelIndex.web_read.get("res.partner").size).toBe(1);
+
+    rpcCache.ramCache.delete("web_read", "k1");
+
+    // The empty set is also pruned (we delete the map key when its set
+    // hits zero) so ``has(model)`` reports ``false`` instead of a stale
+    // empty set sticking around.
+    expect(rpcCache.ramCache.modelIndex.web_read.has("res.partner")).toBe(false);
+});
+
+test("RAM model-index: invalidate(table) clears the per-table index", async () => {
+    // Whole-table invalidation must reset the per-table model index, not
+    // just the value map.  Otherwise a subsequent write to the same
+    // table would find a stale model→Set entry from before the clear.
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    await rpcCache.read("web_read", "k1", () => Promise.resolve(1), {
+        model: "res.partner",
+    });
+    await rpcCache.read("web_read_group", "k2", () => Promise.resolve(2), {
+        model: "res.partner",
+    });
+
+    rpcCache.invalidate(["web_read"]);
+
+    expect(rpcCache.ramCache.modelIndex.web_read.size).toBe(0);
+    // Other tables untouched.
+    expect(rpcCache.ramCache.modelIndex.web_read_group.get("res.partner").size).toBe(1);
+});
+
+test("RAM model-index: overwriting same key with a different model rebalances the index", async () => {
+    // Rare but legitimate: two callers hit the same URL+params (so same
+    // cache key) but the second supplies a different model name.  The
+    // first model's Set must drop the key; the second must gain it,
+    // otherwise ``invalidateByModel(firstModel)`` would later wrongly
+    // delete the second caller's entry.
+    const rpcCache = new RPCCache(
+        "mockRpc",
+        1,
+        "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+    );
+    rpcCache.ramCache.write("web_read", "k", Promise.resolve(1), "res.partner");
+    rpcCache.ramCache.write("web_read", "k", Promise.resolve(2), "res.users");
+
+    expect(rpcCache.ramCache.modelIndex.web_read.has("res.partner")).toBe(false);
+    expect(rpcCache.ramCache.modelIndex.web_read.get("res.users").has("k")).toBe(true);
+
+    rpcCache.invalidateByModel(["web_read"], "res.partner");
+
+    // Entry survives — it now belongs to res.users.
+    expect(await rpcCache.ramCache.read("web_read", "k")).toBe(2);
 });

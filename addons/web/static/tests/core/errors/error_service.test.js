@@ -205,7 +205,7 @@ test("handle CONNECTION_LOST_ERROR", async () => {
         "create (Connection restored. You are back online.)",
     ]);
     expect.verifyErrors([
-        `Error: Connection to "/fake_url" couldn't be established or was interrupted`,
+        `ConnectionLostError: Connection to "/fake_url" couldn't be established or was interrupted`,
     ]);
 });
 

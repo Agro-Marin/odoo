@@ -12,8 +12,12 @@ import {
     models,
     mountWithCleanup,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { useService } from "@web/core/utils/hooks";
+import {
+    useService,
+    useServiceProtectMethodHandling,
+} from "@web/core/utils/hooks";
 
 /**
  * @param {string} resModel
@@ -378,6 +382,16 @@ test("does not store loadFields calls in cache when failed", async () => {
 });
 
 test("async method loadFields is protected", async () => {
+    // The default ``useServiceProtectMethodHandling.fn`` in tests is
+    // ``.mocked`` (returns an unresolved promise so post-teardown RPCs
+    // don't crash other tests).  This test specifically verifies the
+    // production behavior — a rejected ``Component is destroyed``
+    // promise — so swap to ``.original`` for the duration.  Without
+    // this, the second ``await callFieldService()`` below hangs
+    // forever and the test times out.
+    patchWithCleanup(useServiceProtectMethodHandling, {
+        fn: useServiceProtectMethodHandling.original,
+    });
     let callFieldService;
     class Child extends Component {
         static template = xml`

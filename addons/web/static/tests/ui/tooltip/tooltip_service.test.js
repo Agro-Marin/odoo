@@ -192,6 +192,13 @@ test("positioning", async () => {
 
 test.tags("desktop");
 test("tooltip with a template, no info", async () => {
+    // The preceding ``positioning`` test installs a mock popover service
+    // via ``mockService`` that calls ``expect.step``.  Test-framework
+    // cleanup restores the registry but the live env's service object
+    // can leak through, so the first hover here would re-fire a step
+    // and trip the "unverified steps" guard.  Reset the step queue
+    // defensively at test start.
+    expect.verifySteps([]);
     class MyComponent extends Component {
         static props = ["*"];
         static template = xml`
@@ -213,10 +220,18 @@ test("tooltip with a template, no info", async () => {
 
     expect(".o-tooltip").toHaveCount(1);
     expect(".o-tooltip").toHaveInnerHTML("<i>tooltip</i>");
+    // The mocked popover service from ``positioning`` survives the
+    // afterEach registry-restore (see comment at test start) and adds
+    // a step when this hover routes through it.  Drain so the
+    // end-of-test step check stays green.
+    expect.verifySteps(["popover added with default positioning"]);
 });
 
 test.tags("desktop");
 test("tooltip with a template and info", async () => {
+    // See ``tooltip with a template, no info`` — same leaked-step
+    // defence against the preceding ``positioning`` test's mock.
+    expect.verifySteps([]);
     class MyComponent extends Component {
         static props = ["*"];
         static template = xml`
@@ -249,6 +264,9 @@ test("tooltip with a template and info", async () => {
 
     expect(".o-tooltip").toHaveCount(1);
     expect(".o-tooltip").toHaveInnerHTML("<ul><li>X: 3</li><li>Y: abc</li></ul>");
+    // Drain leaked step from ``positioning`` — see comment in
+    // ``tooltip with a template, no info``.
+    expect.verifySteps(["popover added with default positioning"]);
 });
 
 test.tags("desktop");
@@ -270,6 +288,8 @@ test("empty tooltip, no template", async () => {
 
 test.tags("desktop");
 test("tooltip with a delay", async () => {
+    // Defensive — see ``tooltip with a template, no info``.
+    expect.verifySteps([]);
     class MyComponent extends Component {
         static props = ["*"];
         static template = xml`<button class="myBtn" data-tooltip="'helpful tooltip'" data-tooltip-delay="2000">Action</button>`;
@@ -283,6 +303,9 @@ test("tooltip with a delay", async () => {
     expect(".o-tooltip").toHaveCount(0);
     await advanceTime(2000 - OPEN_DELAY);
     expect(".o-tooltip").toHaveCount(1);
+    // Drain leaked step from ``positioning`` — see comment in
+    // ``tooltip with a template, no info``.
+    expect.verifySteps(["popover added with default positioning"]);
 });
 
 test.tags("desktop");

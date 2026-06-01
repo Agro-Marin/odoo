@@ -322,7 +322,7 @@ test(`button box rendering on small screen`, async () => {
 test.tags("desktop");
 test(`button box rendering on big screen`, async () => {
     const bus = new EventBus();
-    mockService("ui", (env) => {
+    (/** @type {any} */ (mockService))("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             value: false,
         });
@@ -371,7 +371,7 @@ test(`button box rendering invisible`, async () => {
 test(`form view gets size class on small and big screens`, async () => {
     let uiSize = SIZES.MD;
     const bus = new EventBus();
-    mockService("ui", (env) => {
+    (/** @type {any} */ (mockService))("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             value: false,
         });
@@ -1001,8 +1001,8 @@ test(`Form and subview with _view_ref contexts`, async () => {
         expect(context.list_view_ref).toBe("some_other_tree_view");
         // "The correct _view_ref should have been sent to the server for the subview"
     });
-    onRpc("get_formview_action", ({ model, kwargs }) => {
-        expect.step("get_formview_action");
+    onRpc("get_record_default_action", ({ model, kwargs }) => {
+        expect.step("get_record_default_action");
         return {
             res_id: 1,
             type: "ir.actions.act_window",
@@ -1027,7 +1027,7 @@ test(`Form and subview with _view_ref contexts`, async () => {
         visible: false,
     }).click();
     expect.verifySteps([
-        "get_formview_action",
+        "get_record_default_action",
         "product get_views",
         "partner.type get_views",
     ]);
@@ -2382,7 +2382,7 @@ test(`mutually exclusive required fields in form view`, async () => {
 test(`twice same field with different required attributes`, async () => {
     Partner._fields.foo = fields.Char();
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -2455,7 +2455,7 @@ test(`twice same field with different readonly attributes`, async () => {
 test(`twice same field with different invisible attributes`, async () => {
     Partner._fields.foo = fields.Char();
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -2880,7 +2880,7 @@ test(`required fields should have o_required_modifier`, async () => {
 test(`required float fields works as expected`, async () => {
     Partner._fields.float_field = fields.Float({ required: true });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -3046,7 +3046,7 @@ test(`form views in dialogs closes on discard on existing record`, async () => {
 
 test(`form views in dialogs do not have class o_xxl_form_view`, async () => {
     const bus = new EventBus();
-    mockService("ui", (env) => {
+    (/** @type {any} */ (mockService))("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             value: false,
         });
@@ -3172,7 +3172,7 @@ test(`buttons in form view`, async () => {
         },
     });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -3374,7 +3374,7 @@ test(`buttons in form view, new record`, async () => {
         resId = result[0].id;
         return result;
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -3419,7 +3419,7 @@ test(`buttons in form view, new record, with field id in view`, async () => {
         resId = result[0].id;
         return result;
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -3988,7 +3988,7 @@ test(`there is an Actions menu when creating a new record`, async () => {
 test(`basic default record`, async () => {
     Partner._fields.foo = fields.Char({ default: "default foo value" });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -4077,7 +4077,7 @@ test(`archive/unarchive a record`, async () => {
     // add active field on partner model to have archive option
     Partner._fields.active = fields.Boolean();
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -4440,7 +4440,7 @@ test(`clicking on stat buttons in edit mode on desktop`, async () => {
     onRpc("web_save", ({ args }) => {
         expect(args[1].foo).toBe("tralala");
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -4483,7 +4483,7 @@ test(`clicking on stat buttons in edit mode on mobile`, async () => {
     onRpc("web_save", ({ args }) => {
         expect(args[1].foo).toBe("tralala");
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -4628,7 +4628,7 @@ test(`buttons with attr "special=save" save`, async () => {
         },
     });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -5408,7 +5408,7 @@ test("switching to another record from a dirty record but wo changes (add and re
 });
 
 test(`do not reload after save when using pager`, async () => {
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -6140,7 +6140,7 @@ test(`deleting a record on desktop`, async () => {
 });
 
 test(`deleting the last record`, async () => {
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -6550,7 +6550,7 @@ test(`properly apply onchange on many2many fields`, async () => {
         },
     };
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     onRpc("web_save", ({ args }) => {
         expect(args[1].type_ids).toEqual([
             [4, 12, false],
@@ -6738,7 +6738,7 @@ test(`onchanges are not sent for invalid values`, async () => {
         },
     };
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -7384,7 +7384,7 @@ test(`invisible fields are not considered as visible in a buttonbox on mobile`, 
 });
 
 test(`display correctly buttonbox, in large size class`, async () => {
-    mockService("ui", (env) => {
+    (/** @type {any} */ (mockService))("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             get() {
                 return false;
@@ -7852,7 +7852,7 @@ test(`open one2many form containing one2many`, async () => {
         `,
     };
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -8048,7 +8048,7 @@ test(`check scroll on small height screens`, async () => {
 
 test(`correct amount of buttons`, async () => {
     let screenSize = SIZES.XXL;
-    mockService("ui", (env) => {
+    (/** @type {any} */ (mockService))("ui", (env) => {
         Object.defineProperty(env, "isSmall", {
             get() {
                 return false;
@@ -8133,7 +8133,7 @@ test(`open one2many form containing many2many_tags`, async () => {
     Product._fields.type_ids = fields.Many2many({ relation: "partner.type" });
     Product._records[0].type_ids = [12, 14];
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         type: "form",
         resModel: "partner",
@@ -8210,7 +8210,7 @@ test(`execute ActionMenus actions`, async () => {
         },
     });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -8258,7 +8258,7 @@ test(`execute ActionMenus actions (create)`, async () => {
         },
     });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -8874,7 +8874,7 @@ test(`custom open record dialog title`, async () => {
 test(`can save without any dirty translatable fields`, async () => {
     serverState.multiLang = true;
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         type: "form",
         resModel: "partner",
@@ -8939,7 +8939,7 @@ test(`save new record before opening translate dialog`, async () => {
         ],
         { translation_type: "char", translation_show_source: false },
     ]);
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -9076,7 +9076,7 @@ test(`buttons with "confirm" attribute save before calling the method`, async ()
         },
     });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -9109,7 +9109,7 @@ test(`buttons with "confirm" attribute save before calling the method`, async ()
 });
 
 test(`buttons with "confirm-title" and "confirm-label" attributes`, async () => {
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -9138,7 +9138,7 @@ test(`buttons with "confirm" attribute: click twice on "Ok"`, async () => {
         },
     });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -9165,7 +9165,7 @@ test(`multiple clicks on save should reload only once`, async () => {
     const deferred = new Deferred();
 
     onRpc("web_save", () => deferred);
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -9190,7 +9190,7 @@ test(`form view is not broken if save operation fails`, async () => {
             throw makeServerError();
         }
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -9234,7 +9234,7 @@ test(`form view is not broken if save operation fails with redirect warning`, as
             });
         }
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -9562,7 +9562,7 @@ test(`reload event is handled only once`, async () => {
     };
 
     onRpc("get_formview_id", () => false);
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountViewInDialog({
         resModel: "partner",
         type: "form",
@@ -10153,7 +10153,7 @@ test(`no deadlock when saving with uncommitted changes`, async () => {
     // In this test, we try to reproduce the deadlock situation by forcing the field widget to
     // commit changes before the save. We thus manually call 'saveRecord', instead of clicking
     // on 'Save'.
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -10169,7 +10169,7 @@ test(`no deadlock when saving with uncommitted changes`, async () => {
 });
 
 test(`saving with invalid uncommitted changes`, async () => {
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -10742,7 +10742,7 @@ test(`reload company when creating records of model res.company`, async () => {
         },
     });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "res.company",
         type: "form",
@@ -10766,7 +10766,7 @@ test(`reload company when writing on records of model res.company`, async () => 
 
     ResCompany._records = [{ id: 1, name: "Test Company" }];
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "res.company",
         type: "form",
@@ -10855,7 +10855,7 @@ test(`no 'oh snap' error when clicking on a save button`, async () => {
     onRpc("web_save", () => {
         throw makeServerError({ message: "Some business message" });
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -10882,7 +10882,7 @@ test(`no 'oh snap' error when clicking on a view button`, async () => {
     onRpc("web_save", () => {
         throw makeServerError({ message: "Some business message" });
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -11035,7 +11035,7 @@ test(`fieldDependencies support for fields: dependence on a relational field`, a
         ],
     });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -11161,7 +11161,7 @@ test(`save a form view with an invisible required field`, async () => {
     onRpc("web_save", ({ args }) => {
         expect(args[1]).toEqual({ int_field: 0, text: false });
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -11206,7 +11206,7 @@ test(`save a form view with an invisible required field in a x2many`, async () =
     onRpc("web_save", ({ args }) => {
         expect(args[1].child_ids[0][2]).toEqual({ int_field: 1, text: false });
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -11480,10 +11480,16 @@ test(`status indicator: invalid state`, async () => {
         arch: `<form><field name="foo" required="1"/></form>`,
         resId: 1,
     });
-    expect(`.o_form_status_indicator`).toHaveText("");
+    // Assert on the visible danger icon, not the indicator's full text
+    // content: the visually-hidden ``aria-live`` span (added for screen-
+    // reader announcements) populates the indicator with status text in
+    // dirty/invalid modes by design.  ``toHaveText("")`` on the parent
+    // would conflate that intentional announcement with the visual
+    // "error icon present" condition this test actually means to check.
+    expect(`.o_form_status_indicator .text-danger`).toHaveCount(0);
 
     await contains(`.o_field_widget input`).edit("");
-    expect(`.o_form_status_indicator`).toHaveText("");
+    expect(`.o_form_status_indicator .text-danger`).toHaveCount(0);
 
     await contains(`.o_form_button_save`).click();
     expect.verifySteps([]);
@@ -13119,7 +13125,7 @@ test("attach_document widget also works inside a dropdown", async () => {
             fileInput = this.fileInput;
         },
     });
-    mockService("http", {
+    (/** @type {any} */ (mockService))("http", {
         post: (route, params) => {
             expect.step("post");
             expect(route).toBe("/web/binary/upload_attachment");
@@ -13255,7 +13261,7 @@ test(`open x2many with non inline form view, delayed get_views, form destroyed`,
 
 test.tags("desktop");
 test("executing new action, closes dialog, and avoid reload previous view", async () => {
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     defineActions([
         {
             id: 1,

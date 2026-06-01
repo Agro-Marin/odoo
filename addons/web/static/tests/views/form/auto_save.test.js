@@ -427,7 +427,7 @@ test("save on closing tab/browser (not dirty but trailing spaces)", async () => 
     mockSendBeacon(() => {
         throw new Error("no write should be done");
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
 
     await mountView({
         resModel: "partner",
@@ -622,7 +622,7 @@ test("save on closing tab/browser (pending change)", async () => {
         return true;
     });
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
         type: "form",
@@ -672,7 +672,7 @@ test("save on closing tab/browser (onchanges + pending change)", async () => {
 
     const onchangeDeferred = new Deferred();
     onRpc("partner", "onchange", () => onchangeDeferred);
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
 
     await mountView({
         type: "form",
@@ -716,7 +716,7 @@ test("save on closing tab/browser (invalid pending change)", async () => {
     Partner._fields.age = fields.Integer();
 
     mockSendBeacon(() => expect.step("sendBeacon"));
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
 
     await mountView({
         resModel: "partner",
@@ -746,7 +746,7 @@ test("save on closing tab/browser (onchanges + invalid field)", async () => {
     mockSendBeacon(() => expect.step("sendBeacon"));
     const onchangeDeferred = new Deferred();
     onRpc("partner", "onchange", () => onchangeDeferred);
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
 
     await mountView({
         resModel: "partner",

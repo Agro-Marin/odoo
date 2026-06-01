@@ -13,7 +13,7 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import * as BarcodeScanner from "@web/components/barcode/barcode_dialog";
+import { BarcodeScanner } from "@web/components/barcode/barcode_dialog";
 
 class Product extends models.Model {
     _name = "product.product";

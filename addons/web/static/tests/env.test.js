@@ -7,9 +7,15 @@ import {
     allowTranslations,
     clearRegistry,
     makeMockEnv,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
-import { makeEnv, mountComponent, startServices } from "@web/env";
+import {
+    _resetCascadeWarningCache,
+    makeEnv,
+    mountComponent,
+    startServices,
+} from "@web/env";
 
 describe.current.tags("headless");
 
@@ -17,6 +23,11 @@ const servicesRegistry = registry.category("services");
 
 beforeEach(() => {
     clearRegistry(servicesRegistry);
+    // env.js dedupes cascade-skip warnings by (skipped, missing) tuple
+    // for the page's lifetime; clear that between tests so each test
+    // starts with a clean dedup cache and the existing test assertions
+    // on warning count remain deterministic regardless of test order.
+    _resetCascadeWarningCache();
 });
 
 /**
@@ -156,23 +167,189 @@ test(`can start two independant asynchronous services in parallel`, async () => 
     await envCreationPromise;
 });
 
-test(`startServices: throws if all dependencies are not met in the same microtick as the call`, async () => {
+test(`startServices: skips services with unreachable deps and warns (no throw)`, async () => {
+    // Behavior change (2026-05-22): previously this branch threw
+    // "Some services could not be started: ... Missing dependencies: ...".
+    // In production (web.assets_web) the branch is structurally
+    // unreachable because esbuild eager-evaluates every file in the
+    // bundle, so every service registers alongside its declared deps.
+    // The only environment where the branch fires is the lazy-loaded
+    // test bundle (web.assets_unit_tests), where a test file's static
+    // import can register a consumer without the provider being
+    // transitively imported.  Skipping with a warning lets unrelated
+    // tests still run; consumers of the skipped service fail at the
+    // precise use site instead of cascading a global startup error.
     const env = makeEnv();
+    after(() => env.disposeServiceRegistryListener?.());
     registerService("b", ["a"], () => "b");
 
-    const serviceStartingPromise = startServices(env);
-    await expect(serviceStartingPromise).rejects.toThrow(
-        "Some services could not be started: b. Missing dependencies: a",
-    );
-    expect(env.services).toEqual({});
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => warnings.push(args);
+    after(() => {
+        console.warn = originalWarn;
+    });
 
+    await startServices(env);
+    // "b" was skipped because "a" was never registered.
+    expect(env.services).toEqual({});
+    expect(warnings.length).toBe(1);
+    expect(warnings[0][0]).toMatch(/Skipped 1 service\(s\)/);
+    expect(warnings[0][0]).toMatch(/\bb\b/);
+
+    // Registering the missing dep and re-calling startServices recovers:
+    // both services start.
     registerService("a", [], () => "a");
     await startServices(env);
     expect(env.services).toEqual({ a: "a", b: "b" });
 });
 
+test(`startServices: cascade-skips transitive consumers when a dep is missing`, async () => {
+    // If "a" is missing, "b" (needs a) is skipped, and "c" (needs b)
+    // is also skipped — the cascade iterates to a fixpoint so the
+    // circular-dep check below the cascade is not falsely tripped.
+    const env = makeEnv();
+    after(() => env.disposeServiceRegistryListener?.());
+    registerService("c", ["b"], () => "c");
+    registerService("b", ["a"], () => "b");
+
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => warnings.push(args);
+    after(() => {
+        console.warn = originalWarn;
+    });
+
+    await startServices(env);
+    expect(env.services).toEqual({});
+    expect(warnings.length).toBe(1);
+    expect(warnings[0][0]).toMatch(/Skipped 2 service\(s\)/);
+});
+
+test(`startServices: still throws on genuine circular dependency`, async () => {
+    // Cascade-skip removes services with truly missing deps; anything
+    // remaining in toStart must have all deps registered yet failed to
+    // make progress — that's a circular dependency, which stays a hard
+    // error in all environments (programming bug).
+    const env = makeEnv();
+    after(() => env.disposeServiceRegistryListener?.());
+    registerService("x", ["y"], () => "x");
+    registerService("y", ["x"], () => "y");
+
+    await expect(startServices(env)).rejects.toThrow(
+        /Circular service dependency detected/,
+    );
+});
+
+/**
+ * Capture console.warn calls during ``body`` and return them.  Restores
+ * the original function on completion.  Async-aware via try/finally.
+ */
+async function captureWarns(body) {
+    const captured = [];
+    const original = console.warn;
+    console.warn = (...args) => captured.push(args);
+    try {
+        await body();
+    } finally {
+        console.warn = original;
+    }
+    return captured;
+}
+
+test(`debug-mode dep validator: warns when a service is added with a missing dep`, async () => {
+    // Early-detection sibling to the env.js cascade-skip: instead of
+    // waiting until startServices to surface a missing-dep, the
+    // dev-mode validator fires a console.warn at registration time
+    // so the developer sees the bug at the point of their edit.
+    // The check is microtask-deferred so sibling synchronous adds
+    // can land first (matches the convention in _startServices).
+    patchWithCleanup(odoo, { debug: "1" });
+
+    const warns = await captureWarns(async () => {
+        registerService("orphan", ["never-registered"], () => "orphan");
+        await tick();
+    });
+    expect(warns.length).toBe(1);
+    expect(warns[0][0]).toMatch(
+        /Service "orphan" declares missing dependencies/,
+    );
+    expect(warns[0][0]).toMatch(/never-registered/);
+});
+
+test(`debug-mode dep validator: silent when provider registers in same microtask`, async () => {
+    // Sibling synchronous registrations land before the microtask-
+    // deferred check fires.  This is the common case in production
+    // bundles where esbuild concatenates module evaluation order, so
+    // the validator must not warn.
+    patchWithCleanup(odoo, { debug: "1" });
+
+    const warns = await captureWarns(async () => {
+        registerService("consumer", ["provider"], () => "consumer");
+        registerService("provider", [], () => "provider");
+        await tick();
+    });
+    expect(warns.length).toBe(0);
+});
+
+test(`debug-mode dep validator: silent in production (odoo.debug is empty)`, async () => {
+    // Production deliberately stays quiet: the cascade-skip in
+    // _startServices is the source of truth for runtime behavior,
+    // and a per-add warning would generate noise in user environments
+    // where third-party addons may legitimately load deps later.
+    patchWithCleanup(odoo, { debug: "" });
+
+    const warns = await captureWarns(async () => {
+        registerService("orphan", ["never-registered"], () => "orphan");
+        await tick();
+    });
+    expect(warns.length).toBe(0);
+});
+
+test(`cascade-skip warning: deduped across startServices calls with the same shape`, async () => {
+    // The dedup keys on (sorted-skipped, sorted-missing) so 327
+    // identical misconfigurations across @web/core tests collapse to
+    // one warning per page lifetime, not one per test.
+    registerService("dedup_b", ["dedup_a"], () => "dedup_b");
+
+    const env1 = makeEnv();
+    after(() => env1.disposeServiceRegistryListener?.());
+    const env2 = makeEnv();
+    after(() => env2.disposeServiceRegistryListener?.());
+
+    const warns = await captureWarns(async () => {
+        await startServices(env1); // 1st call: warns
+        await startServices(env2); // 2nd call, same shape: silent
+    });
+    expect(warns.length).toBe(1);
+    expect(warns[0][0]).toMatch(/dedup_b/);
+});
+
+test(`cascade-skip warning: re-fires when the shape changes`, async () => {
+    // A genuinely new misconfiguration (different skipped service or
+    // different missing dep) gets its own warning, so the dedup never
+    // silences a NEW bug.
+    registerService("shape_b", ["shape_a"], () => "shape_b");
+
+    const env1 = makeEnv();
+    after(() => env1.disposeServiceRegistryListener?.());
+    const warns = await captureWarns(async () => {
+        await startServices(env1); // 1st shape: warns
+
+        // Now register a *different* missing-dep relationship.
+        registerService("shape_d", ["shape_c"], () => "shape_d");
+        const env2 = makeEnv();
+        after(() => env2.disposeServiceRegistryListener?.());
+        await startServices(env2); // 2nd shape: warns (different skipped+missing)
+    });
+    expect(warns.length).toBe(2);
+    expect(warns[0][0]).toMatch(/shape_b/);
+    expect(warns[1][0]).toMatch(/shape_d/);
+});
+
 test(`startServices: waits for all synchronous code before attempting to start services`, async () => {
     const env = makeEnv();
+    after(() => env.disposeServiceRegistryListener?.());
     registerService("b", ["a"], () => "b");
 
     const serviceStartingPromise = startServices(env);
@@ -195,6 +372,13 @@ test(`mountComponent creates an env and sets the application as root when no env
     const app = await mountComponent(Root, getFixture());
     after(() => {
         delete odoo.__WOWL_DEBUG__;
+        // mountComponent created its own env (isRoot=true) and called
+        // startServices on it, which attaches a UPDATE listener to the
+        // singleton service registry. The env bypasses makeMockEnv so the
+        // global afterEach cleanup in env_test_helpers does not see it —
+        // dispose explicitly to keep listeners from leaking into the next
+        // test.
+        app.env.disposeServiceRegistryListener?.();
     });
     const { env } = app;
     expect(env.services).toEqual({ my_service: "a" });
@@ -212,6 +396,7 @@ test(`mountComponent uses the env when provided and doesn't start the services`,
     const env = makeEnv();
     expect.verifySteps([]);
     await startServices(env);
+    after(() => env.disposeServiceRegistryListener?.());
     expect.verifySteps(["starting myService"]);
 
     class Root extends Component {
@@ -232,9 +417,12 @@ test(`mountComponent: can pass props to the root component`, async () => {
         static props = ["*"];
     }
 
-    await mountComponent(Root, getFixture(), { props: { text: "text from props" } });
+    const app = await mountComponent(Root, getFixture(), {
+        props: { text: "text from props" },
+    });
     after(() => {
         delete odoo.__WOWL_DEBUG__;
+        app.env.disposeServiceRegistryListener?.();
     });
     expect(getFixture()).toHaveText("text from props");
 });

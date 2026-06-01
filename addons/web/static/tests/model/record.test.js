@@ -179,7 +179,9 @@ test(`Record with onRootLoaded props`, async () => {
                 },
             };
             this.hooks = {
-                onRootLoaded: this.onRootLoaded.bind(this),
+                lifecycle: {
+                    onRootLoaded: this.onRootLoaded.bind(this),
+                },
             };
         }
 
@@ -222,7 +224,9 @@ test(`Record with onRecordChanged props`, async () => {
                 bar: true,
             };
             this.hooks = {
-                onRecordChanged: this.onRecordChanged.bind(this),
+                lifecycle: {
+                    onRecordChanged: this.onRecordChanged.bind(this),
+                },
             };
         }
 
@@ -255,8 +259,10 @@ test(`Record with onWillSaveRecord and onRecordSavedProps`, async () => {
 
         setup() {
             this.hooks = {
-                onRecordSaved: this.onRecordSaved.bind(this),
-                onWillSaveRecord: this.onWillSaveRecord.bind(this),
+                lifecycle: {
+                    onRecordSaved: this.onRecordSaved.bind(this),
+                    onWillSaveRecord: this.onWillSaveRecord.bind(this),
+                },
             };
         }
 
@@ -269,7 +275,7 @@ test(`Record with onWillSaveRecord and onRecordSavedProps`, async () => {
         }
     }
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountWithCleanup(Parent);
 
     await contains(`[name='foo'] input`).edit("abc");
@@ -346,7 +352,9 @@ test(`handles many2one fields: value is an object`, async () => {
                 foo: { id: 1, display_name: "bar1" },
             };
             this.hooks = {
-                onRecordChanged: this.onRecordChanged.bind(this),
+                lifecycle: {
+                    onRecordChanged: this.onRecordChanged.bind(this),
+                },
             };
         }
 
@@ -406,7 +414,9 @@ test(`handles many2one fields: value is a pair id, display_name`, async () => {
                 foo: { id: 1, display_name: "bar1" },
             };
             this.hooks = {
-                onRecordChanged: this.onRecordChanged.bind(this),
+                lifecycle: {
+                    onRecordChanged: this.onRecordChanged.bind(this),
+                },
             };
         }
 
@@ -591,7 +601,9 @@ test(`supports passing dynamic values -- full control to the user of Record`, as
                 bar: true,
             });
             this.hooks = {
-                onRecordChanged: this.onRecordChanged.bind(this),
+                lifecycle: {
+                    onRecordChanged: this.onRecordChanged.bind(this),
+                },
             };
         }
 

@@ -1,7 +1,5 @@
 // @ts-check
 
-/** @odoo-module alias=@web/../tests/helpers/utils default=false */
-
 import { getTemplate } from "@web/core/templates";
 import { browser } from "@web/core/browser/browser";
 import { isMacOS } from "@web/core/browser/feature_detection";

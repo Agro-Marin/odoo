@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { Component } from "@odoo/owl";
-import { serverState } from "@web/../tests/web_test_helpers";
+import { patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
 import { Registry } from "@web/core/registry";
 
 describe.current.tags("headless");
@@ -236,7 +236,12 @@ test("can validate the values from a schema", () => {
     expect(() =>
         friendsRegistry.add("chris", { name: "chris", city: "Namur" }),
     ).toThrow();
-    expect(() => friendsRegistry.addValidation({ something: Number })).toThrow();
+    // addValidation is idempotent (first-schema-wins): with the
+    // ``globalThis``-anchored shared registry, multiple bundles each inline
+    // and re-evaluate the source file that declares the schema, so a second
+    // call must be a silent no-op. See registry.js::addValidation.
+    expect(() => friendsRegistry.addValidation({ something: Number })).not.toThrow();
+    expect(friendsRegistry.validationSchema).toBe(schema);
 });
 
 test("can validate by adding a schema after the registry is filled", async () => {
@@ -258,11 +263,63 @@ test("can validate subclassess", async () => {
     });
 });
 
-test("only validate in debug", async () => {
+test("function predicate accepts and rejects values", async () => {
+    serverState.debug = "1";
+    const fnRegistry = new Registry();
+    fnRegistry.addValidation((v) => typeof v === "function");
+
+    expect(() => fnRegistry.add("ok", () => 1)).not.toThrow();
+    expect(() => fnRegistry.add("bad", { not: "a function" })).toThrow();
+
+    // Only ``=== false`` rejects; truthy / undefined accept.
+    /** @type {any} */
+    const lenientReg = new Registry();
+    lenientReg.addValidation(() => undefined);
+    expect(() => lenientReg.add("x", "anything")).not.toThrow();
+    expect(() => lenientReg.add("y", null)).not.toThrow();
+});
+
+test("function predicate validates existing entries on addValidation", async () => {
+    serverState.debug = "1";
+    const fnRegistry = new Registry();
+    expect(() => fnRegistry.add("good", () => 1)).not.toThrow();
+    expect(() => fnRegistry.add("bad", 42)).not.toThrow({
+        message: "no schema yet, anything goes",
+    });
+    // Adding the predicate now retroactively validates the bad entry.
+    expect(() =>
+        fnRegistry.addValidation((v) => typeof v === "function"),
+    ).toThrow();
+});
+
+// NOTE: The debug-mode collision warning added to ``Registry.add`` (the
+// branch at registry.js:168-176 that fires ``console.warn(...)`` when a
+// duplicate key is added with a different value in debug mode) cannot be
+// covered here. The Hoot test framework patches
+// ``Registry.prototype.add`` in ``static/tests/_framework/module_set.hoot.js``
+// to inject ``force: true`` for every call so fixture overrides work;
+// that patch bypasses the entire ``if (!force && key in this.content)``
+// branch the warning lives in. Out-of-tree verification of the branch:
+// ``/tmp/registry_warn_test.mjs`` (inlines the production class and
+// exercises the branch under Node).
+
+test("non-debug: warns via console.warn instead of throwing", async () => {
+    // 2026-05-07 onward: validation runs in production too, but a failed
+    // schema check logs a warning rather than throwing, so a single bad
+    // registration cannot crash the page. Throwing remains the dev behavior
+    // (covered by the "can validate the values from a schema" test above).
     const schema = { name: String };
     const registry = new Registry();
     registry.addValidation(schema);
-    expect(() => registry.add("jean", { name: 50 })).not.toThrow({
-        message: "There is no validation if not in debug mode",
+
+    /** @type {any[][]} */
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (...args) => warnings.push(args),
     });
+
+    expect(() => registry.add("jean", { name: 50 })).not.toThrow();
+    expect(warnings.length).toBe(1);
+    expect(warnings[0][0]).toInclude("[registry]");
+    expect(warnings[0][0]).toInclude(`Validation error for key "jean"`);
 });

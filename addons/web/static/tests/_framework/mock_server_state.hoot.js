@@ -5,8 +5,11 @@
 import { after, before, beforeEach, createJobScopedGetter } from "@odoo/hoot";
 import { validateType } from "@odoo/owl";
 
+// Read but DO NOT delete: ``@web/session`` reads the same global and
+// either consumer deleting first would give the other one ``{}`` (the
+// test-helper harness then hits "Cannot convert undefined or null to
+// object" when it tries ``patchWithCleanup(serverState.view_info,…)``).
 const { view_info } = /** @type {any} */ (odoo).__session_info__ || {};
-delete (/** @type {any} */ (odoo).__session_info__);
 
 const { Settings } = luxon;
 
