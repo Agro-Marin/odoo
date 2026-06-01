@@ -1,0 +1,110 @@
+name: TypeScript Check
+
+# Phase 1 of the type-check CI gate (plan: 2026-04-28-typecheck-ci-gate-plan.md).
+#
+# WARN-ONLY MODE. The job uses `continue-on-error: true` so type errors
+# surface in the PR summary and as workflow notices, but do NOT block
+# merges yet. The gate flips to blocking in Phase 3 once the baseline
+# (~6,575 errors as of 2026-04-29) has been driven to zero in Phase 2.
+
+on:
+  pull_request:
+    branches: ['*']
+    paths:
+      - '**/*.js'
+      - '**/*.ts'
+      - '**/*.d.ts'
+      - 'tsconfig.json'
+      - 'jsconfig.json'
+      - 'package.json'
+      - 'package-lock.json'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  typecheck:
+    name: tsc --noEmit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true  # Phase 1 warn-only — flip to false in Phase 3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tsc
+        id: tsc
+        run: |
+          set +e
+          npx tsc --project tsconfig.json --noEmit 2>&1 | tee /tmp/tsc-output.log
+          TSC_EXIT=${PIPESTATUS[0]}
+          set -e
+          ERR_COUNT=$(grep -c "error TS" /tmp/tsc-output.log || echo 0)
+          echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "exit_code=${TSC_EXIT}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarise
+        if: always()
+        run: |
+          ERR_COUNT="${{ steps.tsc.outputs.error_count }}"
+          BASELINE=6575
+          DRIFT=$((ERR_COUNT - BASELINE))
+          if [ "$DRIFT" -ge 0 ]; then
+            DRIFT_STR="+${DRIFT}"
+          else
+            DRIFT_STR="${DRIFT}"
+          fi
+          {
+            echo "## TypeScript check"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|------:|"
+            echo "| Errors found | ${ERR_COUNT} |"
+            echo "| Phase 0 baseline | ${BASELINE} |"
+            echo "| Drift vs baseline | ${DRIFT_STR} |"
+            echo ""
+            if [ "$DRIFT" -gt 0 ]; then
+              echo "> :warning: Error count **increased** by ${DRIFT} since the Phase 0 baseline."
+              echo "> This PR may introduce new type errors. Check the workflow log for details."
+            elif [ "$DRIFT" -lt 0 ]; then
+              echo "> :white_check_mark: Error count **decreased** by $((-DRIFT)) — thanks for the cleanup."
+            else
+              echo "> :information_source: Error count unchanged — within the expected baseline."
+            fi
+            echo ""
+            echo "Plan: \`knowledge/agromarin-knowledge/plans/2026-04-28-typecheck-ci-gate-plan.md\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Annotate PR (warn-only)
+        if: always() && steps.tsc.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const errorCount = parseInt('${{ steps.tsc.outputs.error_count }}', 10) || 0;
+            const baseline = 6575;
+            const drift = errorCount - baseline;
+            const sign = drift >= 0 ? '+' : '';
+            core.notice(
+              `TypeScript: ${errorCount} errors (${sign}${drift} vs Phase 0 baseline ${baseline}). ` +
+              `Warn-only mode — does not block merge. See workflow Summary tab.`
+            );
+            if (drift > 0) {
+              core.warning(
+                `Type error count increased by ${drift} compared to baseline. ` +
+                `Review the workflow log to verify no new errors were introduced.`
+              );
+            }

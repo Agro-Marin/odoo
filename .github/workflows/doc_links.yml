@@ -1,0 +1,130 @@
+name: Doc Link Check
+
+# Phase 1 of the doc-link CI gate (companion to typecheck.yml + lint.yml).
+#
+# WARN-ONLY MODE. The job uses `continue-on-error: true` so broken
+# .md references surface in the PR summary and as workflow notices,
+# but do NOT block merges yet. The gate flips to blocking in Phase 3
+# once the baseline (~493 violations as of 2026-05-09) has been driven
+# down in Phase 2.
+#
+# What the gate catches: dangling references to `*.md` files in
+# CI workflows, machine_doc_v1, CLAUDE.md surfaces, and the knowledge
+# tree. Three real instances motivated this gate (the
+# 2026-04-19-web-module-architecture-review.md ref in CONVENTIONS.md
+# and STATE_MANAGEMENT.md, the 2026-04-28-typecheck-ci-gate-plan.md
+# ref in this very file's sibling typecheck.yml, and the
+# 2026-05-03-web-js-architecture-audit.md ref in lint.yml line 17 —
+# all referenced docs that were never written or were renamed/deleted
+# without updating the citing file).
+#
+# Why Python (not Node like the sibling gates): the script scans
+# source files directly — no upstream tool to consume output from.
+# Python's pathlib/regex/json stdlib is enough; adding a node_modules
+# dependency just to match language would be net negative.
+
+on:
+  pull_request:
+    branches: ['*']
+    paths:
+      # .md changes are the most direct trigger — the file content
+      # itself may add or remove references.
+      - '**/*.md'
+      # Workflow / config changes can introduce or remove references
+      # in their YAML comments.
+      - '**/*.yml'
+      - '**/*.yaml'
+      # The gate script itself, the baseline, or the next-target ranker.
+      - 'addons/core/addons/web/tooling/scripts/doc_link_*'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  doc_links:
+    name: doc_link_gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true  # Phase 1 warn-only — flip to false in Phase 3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # 3.12 is sufficient (the gate uses dataclasses, pathlib, re,
+          # json — all stdlib since 3.10).  Keeping below the 3.14
+          # production target avoids waiting on the 3.14 setup-python
+          # runner image once it lands.  No third-party dependencies.
+          python-version: '3.12'
+
+      - name: Run doc_link_gate.py
+        id: gate
+        run: |
+          set +e
+          python addons/core/addons/web/tooling/scripts/doc_link_gate.py 2>&1 \
+            | tee /tmp/doc-link-output.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          # Count `✗` lines as the new-violation indicator (mirrors
+          # typecheck.yml's `error TS` grep approach).  A clean run
+          # has zero `✗` lines and prints `✓ No new violations`.
+          NEW_COUNT=$(grep -c "^✗" /tmp/doc-link-output.log || echo 0)
+          echo "new_count=${NEW_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarise
+        if: always()
+        run: |
+          NEW_COUNT="${{ steps.gate.outputs.new_count }}"
+          # Baseline value drifts as the team cleans up — reading it from
+          # the JSON keeps the summary self-consistent.
+          BASELINE=$(python -c "
+          import json, sys
+          try:
+              data = json.load(open('addons/core/addons/web/tooling/scripts/doc_link_baseline.json'))
+              print(data.get('_total_violations', 0))
+          except Exception:
+              print(0)
+          ")
+          {
+            echo "## Doc link check"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|------:|"
+            echo "| New violations | ${NEW_COUNT} |"
+            echo "| Baseline (allowed) | ${BASELINE} |"
+            echo ""
+            if [ "$NEW_COUNT" -gt 0 ]; then
+              echo "> :warning: This PR introduces ${NEW_COUNT} new broken \`.md\` reference(s)."
+              echo "> Either fix the reference path or, if intentional, run"
+              echo "> \`python addons/core/addons/web/tooling/scripts/doc_link_gate.py --update-baseline\`"
+              echo "> and commit the baseline diff."
+            else
+              echo "> :white_check_mark: No new broken doc references."
+            fi
+            echo ""
+            echo "Phase 1 warn-only — gate flips to blocking in Phase 3 once baseline is driven down."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Annotate PR (warn-only)
+        if: always() && steps.gate.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const newCount = parseInt('${{ steps.gate.outputs.new_count }}', 10) || 0;
+            core.notice(
+              `Doc-link gate: ${newCount} new broken .md reference(s). ` +
+              `Warn-only mode — does not block merge. See workflow Summary tab.`
+            );
+            if (newCount > 0) {
+              core.warning(
+                `New broken doc references introduced by this PR. ` +
+                `Either fix the path, or run --update-baseline if intentional.`
+              );
+            }

@@ -254,7 +254,12 @@ class TestRetrying:
         mock_env.registry.signal_changes.assert_called_once()
 
     def test_closed_cursor_skips_flush_and_commit(self, mod, mock_env) -> None:
-        """When cr._closed is True after func(), skip flush; when cr.closed, skip commit."""
+        """When cr.closed is True after func(), both flush and commit are skipped.
+
+        ``closed`` is the property that ORs the wrapper-only ``_closed`` with the
+        underlying connection's ``_cnx.closed``, so this covers wrapper close,
+        connection death, and both.
+        """
         mock_env.cr._closed = True
         mock_env.cr.closed = True
 
@@ -274,7 +279,7 @@ class TestRetrying:
             calls += 1
             raise exc
 
-        with patch("odoo.service.model.http") as mock_http:
+        with patch("odoo.http") as mock_http:
             mock_http.request = None
             with pytest.raises(psycopg.OperationalError):
                 mod.retrying(func, mock_env)
@@ -294,9 +299,9 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.service.model.http") as mock_http, \
-             patch("odoo.service.model.time") as mock_time, \
-             patch("odoo.service.model.random") as mock_random:
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.service.transaction.time") as mock_time, \
+             patch("odoo.service.transaction.random") as mock_random:
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
@@ -317,9 +322,9 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.service.model.http") as mock_http, \
-             patch("odoo.service.model.time") as mock_time, \
-             patch("odoo.service.model.random") as mock_random:
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.service.transaction.time") as mock_time, \
+             patch("odoo.service.transaction.random") as mock_random:
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
@@ -340,9 +345,9 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.service.model.http") as mock_http, \
-             patch("odoo.service.model.time") as mock_time, \
-             patch("odoo.service.model.random") as mock_random:
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.service.transaction.time") as mock_time, \
+             patch("odoo.service.transaction.random") as mock_random:
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
@@ -358,9 +363,9 @@ class TestRetrying:
         def func():
             raise exc
 
-        with patch("odoo.service.model.http") as mock_http, \
-             patch("odoo.service.model.time"), \
-             patch("odoo.service.model.random") as mock_random:
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.service.transaction.time"), \
+             patch("odoo.service.transaction.random") as mock_random:
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             with pytest.raises(psycopg.errors.SerializationFailure):
@@ -375,9 +380,9 @@ class TestRetrying:
         def func():
             raise exc
 
-        with patch("odoo.service.model.http") as mock_http, \
-             patch("odoo.service.model.time") as mock_time, \
-             patch("odoo.service.model.random") as mock_random:
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.service.transaction.time") as mock_time, \
+             patch("odoo.service.transaction.random") as mock_random:
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             with suppress(psycopg.errors.SerializationFailure):
@@ -403,29 +408,54 @@ class TestRetrying:
         def func():
             raise exc
 
-        with patch("odoo.service.model.http") as mock_http:
+        with patch("odoo.http") as mock_http:
             mock_http.request = None
             with pytest.raises(ValidationError, match="The operation cannot be completed"):
                 mod.retrying(func, mock_env)
 
     def test_integrity_error_with_closed_connection_reraises(self, mod, mock_env) -> None:
-        """IntegrityError + closed connection re-raises without ValidationError conversion."""
+        """IntegrityError + closed cursor re-raises without ValidationError conversion.
+
+        With ``closed=True`` the inner-except short-circuits at the unusable-cursor
+        check (model.py line 241) before ever reaching the IntegrityError-specific
+        constraint-name lookup, which would itself need a live connection.
+        """
         exc = _FakeIntegrityError()
-        # cr._closed=False so rollback path runs; cr.closed=True so IntegrityError path re-raises
         mock_env.cr._closed = False
         mock_env.cr.closed = True
 
         def func():
             raise exc
 
-        with patch("odoo.service.model.http") as mock_http:
+        with patch("odoo.http") as mock_http:
             mock_http.request = None
             with pytest.raises(_FakeIntegrityError):
                 mod.retrying(func, mock_env)
 
-    def test_closed_cursor_in_inner_except_reraises_immediately(self, mod, mock_env) -> None:
-        """If cr._closed when catching concurrency error, re-raise without retry."""
-        mock_env.cr._closed = True
+    @pytest.mark.parametrize(
+        "wrapper_closed,conn_dead",
+        [
+            pytest.param(True, False, id="wrapper-explicitly-closed"),
+            pytest.param(False, True, id="underlying-connection-dead"),
+            pytest.param(True, True, id="both"),
+        ],
+    )
+    def test_closed_cursor_in_inner_except_reraises_immediately(
+        self, mod, mock_env, wrapper_closed, conn_dead
+    ) -> None:
+        """If the cursor is unusable when catching a concurrency error, re-raise without retry.
+
+        Regression: the prior implementation checked ``cr._closed`` (the wrapper-only flag)
+        which missed the case where the underlying psycopg connection had died (e.g. after
+        DB drop, idle timeout, network partition).  The fix checks ``cr.closed`` (the
+        property that ORs wrapper-close with ``_cnx.closed``), so connection death also
+        short-circuits the retry loop instead of burning the random-backoff budget on
+        a connection that will never recover.
+        """
+        # The cursor.closed property is `_closed or bool(_cnx.closed)`.  Reproduce
+        # both inputs so the parametrized cases cover the full truth table.
+        mock_env.cr._closed = wrapper_closed
+        mock_env.cr.closed = wrapper_closed or conn_dead
         exc = psycopg.errors.SerializationFailure()
         exc.sqlstate = "40001"
         calls = 0
@@ -454,9 +484,9 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.service.model.http") as mock_http, \
-             patch("odoo.service.model.time"), \
-             patch("odoo.service.model.random") as mock_random:
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.service.transaction.time"), \
+             patch("odoo.service.transaction.random") as mock_random:
             mock_http.request = None
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
@@ -512,9 +542,9 @@ class TestRetrying:
                 raise exc
             return "ok"
 
-        with patch("odoo.service.model.http") as mock_http, \
-             patch("odoo.service.model.time"), \
-             patch("odoo.service.model.random") as mock_random:
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.service.transaction.time"), \
+             patch("odoo.service.transaction.random") as mock_random:
             mock_http.request = mock_request
             mock_random.uniform.return_value = 0.0
             result = mod.retrying(func, mock_env)
@@ -538,9 +568,9 @@ class TestRetrying:
         def func():
             raise exc
 
-        with patch("odoo.service.model.http") as mock_http, \
-             patch("odoo.service.model.time"), \
-             patch("odoo.service.model.random") as mock_random:
+        with patch("odoo.http") as mock_http, \
+             patch("odoo.service.transaction.time"), \
+             patch("odoo.service.transaction.random") as mock_random:
             mock_http.request = mock_request
             mock_random.uniform.return_value = 0.0
             with pytest.raises(RuntimeError, match="Cannot retry request on input file 'upload'"):
