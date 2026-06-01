@@ -351,21 +351,29 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         from odoo.exceptions import UserError
 
         with self.assertRaises(UserError) as cm:
-            self.Attachment.create_unique([{
-                "name": "bad.txt",
-                "datas": "NOT_VALID_BASE64!!!",
-                "mimetype": "text/plain",
-            }])
+            self.Attachment.create_unique(
+                [
+                    {
+                        "name": "bad.txt",
+                        "datas": "NOT_VALID_BASE64!!!",
+                        "mimetype": "text/plain",
+                    }
+                ]
+            )
         # Verify the exception chain is preserved (from exc)
-        self.assertIsNotNone(cm.exception.__cause__, "Exception chain should be preserved")
+        self.assertIsNotNone(
+            cm.exception.__cause__, "Exception chain should be preserved"
+        )
 
     def test_create_unique_dedup(self):
         """create_unique deduplicates by checksum/size/mimetype."""
         data = base64.b64encode(b"hello dedup").decode()
-        ids = self.Attachment.create_unique([
-            {"name": "a.txt", "datas": data, "mimetype": "text/plain"},
-            {"name": "b.txt", "datas": data, "mimetype": "text/plain"},
-        ])
+        ids = self.Attachment.create_unique(
+            [
+                {"name": "a.txt", "datas": data, "mimetype": "text/plain"},
+                {"name": "b.txt", "datas": data, "mimetype": "text/plain"},
+            ]
+        )
         self.assertEqual(len(ids), 2)
         self.assertEqual(ids[0], ids[1], "Same content should deduplicate")
 
@@ -373,10 +381,12 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_to_http_stream_missing_file(self):
         """_to_http_stream gracefully handles missing filestore file."""
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
-        att = self.Attachment.create({
-            "name": "test.txt",
-            "raw": b"test content",
-        })
+        att = self.Attachment.create(
+            {
+                "name": "test.txt",
+                "raw": b"test content",
+            }
+        )
         self.assertTrue(att.store_fname, "Attachment should be stored in filestore")
 
         # Delete the filestore file to simulate missing file
@@ -415,12 +425,59 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 "base.image_autoresize_max_px", bad_val
             )
             # Should NOT raise ValueError — just skip the resize
-            att = self.Attachment.create({
-                "name": "test.png",
-                "raw": png_data,
-            })
+            att = self.Attachment.create(
+                {
+                    "name": "test.png",
+                    "raw": png_data,
+                }
+            )
             # Attachment was created successfully (content may or may not be resized)
             self.assertTrue(att.id)
+
+    def test_audit_url_attachments_warns_on_suspicious(self):
+        """``_audit_url_attachments`` must flag non-public binary attachments
+        with ``url`` set.
+
+        Defense-in-depth for ``ir.http._serve_fallback``: any such record
+        is publicly servable at ``url``. The autovacuum pass logs a
+        WARNING so ops can review before a real exposure occurs.
+        """
+        # Bypass `_check_serving_attachments` by creating as admin (sudo).
+        # This mirrors the real concern: a future ``controller.sudo().create(
+        # {'url': user_input})`` pattern would create a record that slips
+        # past the write-time gate.
+        suspicious = self.Attachment.sudo().create(
+            {
+                "name": "probe.bin",
+                "type": "binary",
+                "url": "/suspicious/probe",
+                "raw": b"x",
+                "public": False,
+            }
+        )
+        self.assertTrue(suspicious.id)
+
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_attachment", level="WARNING"
+        ) as logs:
+            self.env["ir.attachment"]._audit_url_attachments()
+
+        self.assertTrue(
+            any("non-public binary attachment" in msg for msg in logs.output),
+            f"expected audit warning, got: {logs.output!r}",
+        )
+
+    def test_audit_url_attachments_silent_on_clean_fleet(self):
+        """No suspicious rows → no WARNING emitted."""
+        # Ensure any pre-existing rows are public=True (usual safe case).
+        self.env.cr.execute(
+            "UPDATE ir_attachment SET public = TRUE "
+            "WHERE type = 'binary' AND url IS NOT NULL"
+        )
+        with self.assertNoLogs(
+            "odoo.addons.base.models.ir_attachment", level="WARNING"
+        ):
+            self.env["ir.attachment"]._audit_url_attachments()
 
 
 class TestPermissions(TransactionCaseWithUserDemo):
@@ -560,6 +617,132 @@ class TestPermissions(TransactionCaseWithUserDemo):
         # Assert the attachment related to the field can't be read
         with self.assertRaises(AccessError):
             _ = attachment.datas
+
+    @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
+    def test_search_unbounded_model_fallback(self):
+        """The unbounded ``_search`` fallback filters inaccessible rows (IRA-T1).
+
+        A broad ``('id', 'in', [...])`` domain has no ``res_model`` constraint,
+        so ``_search`` takes the ``sudo()`` batched-fetch + ``_filtered_access``
+        post-filter branch instead of the ≤5-model branch. Assert that an
+        attachment the demo user must not see is still excluded.
+        """
+        # public attachment: always visible
+        public_att = self.Attachments.sudo().create({"name": "public", "public": True})
+        # orphan attachment owned by the superuser: a non-system user must
+        # not see it (res_id is False and create_uid != demo)
+        admin_orphan = self.Attachments.with_user(SUPERUSER_ID).create(
+            {"name": "admin-orphan"}
+        )
+        # demo's own orphan: visible to its creator
+        own_orphan = self.Attachments.create({"name": "demo-orphan"})
+
+        probe_ids = (public_att + admin_orphan + own_orphan).ids
+        found = self.Attachments.search([("id", "in", probe_ids)])
+        self.assertIn(public_att.id, found.ids)
+        self.assertIn(own_orphan.id, found.ids)
+        self.assertNotIn(
+            admin_orphan.id,
+            found.ids,
+            "the superuser-owned orphan attachment must not leak to the demo user",
+        )
+
+    @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
+    def test_res_field_write_access(self):
+        """A new ``res_field`` must pass the comodel field's ACL (IRA-L2).
+
+        Without this, a non-system user could re-point an attachment's
+        ``res_field`` at a field they cannot access, since the plain
+        ``res_field`` Char has no ``groups``.
+        """
+        partner = self.user_demo.partner_id
+        # Restrict a writable partner field to system users only.
+        self.patch(
+            self.env.registry["res.partner"]._fields["comment"],
+            "groups",
+            "base.group_system",
+        )
+
+        # create: pointing res_field at the inaccessible field is forbidden
+        with self.assertRaises(AccessError):
+            self.Attachments.create(
+                {
+                    "name": "field-attach",
+                    "res_model": "res.partner",
+                    "res_id": partner.id,
+                    "res_field": "comment",
+                }
+            )
+
+        # write: re-pointing an existing attachment's res_field is forbidden
+        existing = self.Attachments.create(
+            {
+                "name": "field-attach",
+                "res_model": "res.partner",
+                "res_id": partner.id,
+            }
+        )
+        with self.assertRaises(AccessError):
+            existing.write({"res_field": "comment"})
+
+    def test_from_request_file_mimetype_modes(self):
+        """``_from_request_file`` honours the three mimetype modes (IRA-T2).
+
+        Also pins the XSS-neuter contract: a ``TRUST``-ed ``text/html`` /
+        ``image/svg+xml`` upload is forced to ``text/plain`` for a non-view
+        writer (the demo user), so the upload path is not a stored-XSS vector.
+        """
+
+        class _FakeFile:
+            def __init__(self, content, content_type, filename):
+                self._buf = io.BytesIO(content)
+                self.content_type = content_type
+                self.filename = filename
+
+            def read(self, size=-1):
+                return self._buf.read(size)
+
+            def seek(self, offset, whence=0):
+                return self._buf.seek(offset, whence)
+
+        # explicit mimetype mode
+        explicit = self.Attachments._from_request_file(
+            _FakeFile(b"hello", "application/octet-stream", "note.txt"),
+            mimetype="text/plain",
+        )
+        self.assertEqual(explicit.mimetype, "text/plain")
+
+        # GUESS mode: content sniffed (a real PNG header)
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+            b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+        )
+        guessed = self.Attachments._from_request_file(
+            _FakeFile(png, "application/octet-stream", "img"),
+            mimetype="GUESS",
+        )
+        self.assertEqual(guessed.mimetype, "image/png")
+
+        # TRUST mode: a malicious html upload is neutered to text/plain for a
+        # non-view writer (XSS regression pin)
+        trusted_html = self.Attachments._from_request_file(
+            _FakeFile(b"<script>alert(1)</script>", "text/html", "evil.html"),
+            mimetype="TRUST",
+        )
+        self.assertEqual(
+            trusted_html.mimetype,
+            "text/plain",
+            "TRUST-ed text/html must be neutered for a non-view writer",
+        )
+        trusted_svg = self.Attachments._from_request_file(
+            _FakeFile(b"<svg/>", "image/svg+xml", "evil.svg"),
+            mimetype="TRUST",
+        )
+        self.assertEqual(
+            trusted_svg.mimetype,
+            "text/plain",
+            "TRUST-ed image/svg+xml must be neutered for a non-view writer",
+        )
 
     def test_with_write_permissions(self):
         """With write permissions to the linked record, attachment can be

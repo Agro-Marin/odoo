@@ -1,5 +1,7 @@
 from base64 import b64decode
 
+from lxml import etree
+
 from odoo.tests.common import TransactionCase
 
 
@@ -85,3 +87,31 @@ class TestAvatarMixin(TransactionCase):
             self.user_without_image.partner_id.avatar_1920,
             self.user_without_image.avatar_1920,
         )
+
+    def test_hostile_name_avatar_is_escaped_well_formed_svg(self):
+        """A hostile name renders as escaped entities in a well-formed SVG,
+        with no markup breakout (locks the html_escape injection guard)."""
+        partner = self.env["res.partner"].create(
+            {
+                "name": '"><script>alert(1)</script>',
+                "image_1920": False,
+                "create_date": "2015-11-12 00:00:00",
+            }
+        )
+        svg = b64decode(partner.avatar_1920).decode("utf-8")
+
+        # The decoded payload parses as well-formed XML: no element/attribute
+        # breakout from the interpolated initial.
+        root = etree.fromstring(svg.encode("utf-8"))
+        self.assertEqual(etree.QName(root.tag).localname, "svg")
+
+        # First char of the name is '"'; html_escape yields the entity, and the
+        # injected markup must not appear verbatim in the serialized SVG.
+        self.assertIn("&#34;", svg)
+        self.assertNotIn("<script>", svg)
+
+        # The rendered text node carries only the escaped initial, not the raw
+        # double-quote nor any injected element.
+        text_node = root.find(".//{http://www.w3.org/2000/svg}text")
+        self.assertEqual(text_node.text, '"')
+        self.assertEqual(len(text_node), 0)

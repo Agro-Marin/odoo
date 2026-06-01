@@ -514,10 +514,14 @@ class test_search(TransactionCase):
 
         # there is just one query for the first search as it matches all
         # the second search does not run, because the domain is False
-        with self.assertQueries(["""
+        with self.assertQueries(
+            [
+                """
             SELECT "res_country"."id"
             FROM "res_country"
             ORDER BY "res_country"."name"->>%s, "res_country"."id"
-        """]):
+        """
+            ]
+        ):
             Model.search([("code", "ilike", "")])
             Model.search([("code", "not ilike", "")])

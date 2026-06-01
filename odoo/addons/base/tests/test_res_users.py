@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.api import SUPERUSER_ID
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessDenied, AccessError, UserError, ValidationError
 from odoo.fields import Command
 from odoo.http import _request_stack
 from odoo.tests import (
@@ -806,3 +806,278 @@ class TestUsersIdentitycheck(HttpCase):
 
         # In addition, the password must have been emptied from the wizard
         self.assertFalse(user_identity_check.password)
+
+
+@tagged("post_install", "-at_install")
+class TestContextGetPartnerInvalidation(TransactionCase):
+    """Regression test for audit finding RU-L01: context_get (an ormcache keyed
+    on uid that reads the user's lang/tz, which live on res.partner via
+    _inherits) must be invalidated when lang/tz is written directly on the
+    user's partner, bypassing res.users.write's own invalidation.
+    """
+
+    def test_partner_lang_write_invalidates_context_get(self):
+        self.env["res.lang"].with_context(active_test=False).search(
+            [("code", "in", ["fr_FR", "en_US"])]
+        ).write({"active": True})
+        self.addCleanup(self.env.registry.clear_cache)
+
+        user = new_test_user(self.env, "rul01_lang_user", lang="en_US")
+        user = user.with_user(user)
+        self.assertEqual(user.context_get()["lang"], "en_US")
+
+        # Write lang directly on the partner (does not route through
+        # res.users.write, so only the partner-side invalidation can catch it).
+        user.partner_id.sudo().write({"lang": "fr_FR"})
+
+        self.assertEqual(
+            user.context_get()["lang"],
+            "fr_FR",
+            "context_get cache was not invalidated by a direct partner lang write",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestLoginCooldown(TransactionCase):
+    """Coverage for the brute-force login cooldown (audit RU-T01).
+
+    _assert_can_auth records failures per source IP and, after
+    base.login_cooldown_after failures within base.login_cooldown_duration,
+    refuses further attempts at the context-manager entry; a success resets the
+    counter; cooldown_after=0 disables the feature; and with no request the
+    guard is a no-op.
+    """
+
+    _REQUEST = "odoo.addons.base.models.res_users.request"
+
+    def setUp(self):
+        super().setUp()
+        icp = self.env["ir.config_parameter"].sudo()
+        icp.set_param("base.login_cooldown_after", "2")
+        icp.set_param("base.login_cooldown_duration", "60")
+        # _login_failures lives on the registry singleton, not rolled back with
+        # the test transaction; drop it so tests do not leak into each other.
+        self.addCleanup(self.env.registry.__dict__.pop, "_login_failures", None)
+
+    @staticmethod
+    def _request(addr):
+        return SimpleNamespace(httprequest=SimpleNamespace(remote_addr=addr))
+
+    def _fail_once(self, users):
+        with self.assertRaises(AccessDenied), users._assert_can_auth(user=self.env.uid):
+            raise AccessDenied
+
+    @mute_logger("odoo.addons.base.models.res_users")
+    def test_cooldown_after_threshold(self):
+        users = self.env["res.users"]
+        with patch(self._REQUEST, self._request("8.8.8.8")):
+            self._fail_once(users)  # failures = 1
+            self._fail_once(users)  # failures = 2 (== threshold)
+            # now on cooldown: entry raises even with a clean body
+            with (
+                self.assertRaises(AccessDenied),
+                users._assert_can_auth(user=self.env.uid),
+            ):
+                pass
+
+    def test_success_resets_counter(self):
+        users = self.env["res.users"]
+        with patch(self._REQUEST, self._request("8.8.4.4")):
+            self._fail_once(users)  # failures = 1 (below threshold)
+            with users._assert_can_auth(user=self.env.uid):  # success pops the counter
+                pass
+            self._fail_once(users)  # back to failures = 1, still below threshold
+            with users._assert_can_auth(user=self.env.uid):  # not on cooldown
+                pass
+
+    def test_disabled_when_cooldown_after_zero(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base.login_cooldown_after", "0"
+        )
+        users = self.env["res.users"]
+        with patch(self._REQUEST, self._request("1.1.1.1")):
+            for _ in range(5):
+                self._fail_once(users)
+            with users._assert_can_auth(user=self.env.uid):  # cooldown disabled
+                pass
+
+    def test_no_request_is_noop(self):
+        users = self.env["res.users"]
+        with patch(self._REQUEST, None):
+            with users._assert_can_auth(user=self.env.uid):
+                pass
+
+    @mute_logger("odoo.addons.base.models.res_users")
+    def test_cooldown_with_non_numeric_login(self):
+        # NEW-2: a triggered cooldown for a non-numeric login (e.g. an email)
+        # must raise AccessDenied, not ValueError from the i18n uid frame-walker
+        # (_get_uid does int(frame_local 'user') when rendering the _() message).
+        users = self.env["res.users"]
+        login = "bob@example.com"
+        with patch(self._REQUEST, self._request("9.9.9.9")):
+            for _ in range(2):
+                with (
+                    self.assertRaises(AccessDenied),
+                    users._assert_can_auth(user=login),
+                ):
+                    raise AccessDenied
+            with (
+                self.assertRaises(AccessDenied),
+                users._assert_can_auth(user=login),
+            ):
+                pass
+
+
+@tagged("post_install", "-at_install")
+class TestResUsersInitPasswordMigration(TransactionCase):
+    """Coverage for res.users.init plaintext-password migration (audit RU-L09).
+
+    init() hashes any plaintext password and must invalidate the cached
+    `password` for EVERY migrated user, not just the last one (the bug was a
+    `uid` loop variable leaked from a comprehension that browsed only the last
+    migrated row).
+    """
+
+    def test_init_invalidates_all_migrated_passwords(self):
+        User = self.env["res.users"]
+        password_field = User._fields["password"]
+        user_a = new_test_user(self.env, login="rul09_a")
+        user_b = new_test_user(self.env, login="rul09_b")
+
+        # Plant plaintext passwords directly in the DB (bypassing the ORM hashing)
+        # so init() treats them as not-yet-MCF and migrates them.
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_users SET password=%s WHERE id = ANY(%s)",
+            ("plaintext-secret", [user_a.id, user_b.id]),
+        )
+        # Warm the ORM cache so BOTH users hold a cached `password` entry that
+        # init() must invalidate. `password` is blanked on read, so we assert on
+        # cache *presence* (env.cache.contains), not value. invalidate first so the
+        # access re-fetches the column into the cache.
+        (user_a + user_b).invalidate_recordset(["password"])
+        _ = user_a.sudo().password
+        _ = user_b.sudo().password
+        self.assertTrue(self.env.cache.contains(user_a, password_field))
+        self.assertTrue(self.env.cache.contains(user_b, password_field))
+
+        User.init()
+
+        # RU-L09: init() must invalidate EVERY migrated user's cached password,
+        # not just the last. The old code leaked the comprehension variable, so
+        # only user_b's cache was evicted and user_a kept its stale entry.
+        self.assertFalse(
+            self.env.cache.contains(user_a, password_field),
+            "init() must invalidate every migrated user's cached password (RU-L09)",
+        )
+        self.assertFalse(self.env.cache.contains(user_b, password_field))
+
+        # And both stored hashes are now real MCF hashes that verify the secret.
+        ctx = User._crypt_context()
+        self.env.cr.execute(
+            "SELECT password FROM res_users WHERE id = ANY(%s)",
+            ([user_a.id, user_b.id],),
+        )
+        for (stored,) in self.env.cr.fetchall():
+            self.assertTrue(stored.startswith("$"), "stored hash must be MCF")
+            self.assertTrue(ctx.verify("plaintext-secret", stored))
+
+
+@tagged("post_install", "-at_install")
+class TestCheckUidPasswdCacheContract(TransactionCase):
+    """Pins the _check_uid_passwd_cached invalidation contract (audit RU-T3).
+
+    The cache is keyed on (uid, sha256(passwd)) and only memoises successes.
+    The security-critical contract:
+      - an ORM password change MUST invalidate the cache (old password stops
+        authenticating);
+      - a raw-SQL password change WITHOUT registry.clear_cache() leaves the
+        cache stale (old password keeps authenticating) -- documenting why any
+        raw-SQL mutation must clear the cache.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # The ormcache lives on the registry singleton, not rolled back with the
+        # test transaction; clear it so a stale entry cannot leak across tests.
+        self.addCleanup(self.env.registry.clear_cache)
+        self.env.registry.clear_cache()
+
+    def test_orm_password_change_invalidates_cache(self):
+        Users = self.env["res.users"]
+        user = new_test_user(self.env, login="rut3_orm", password="old-password")
+
+        # Warm the cache: old password is valid -> memoised.
+        Users._check_uid_passwd(user.id, "old-password")
+
+        # ORM write carries `password` in vals -> registry.clear_cache().
+        user.password = "new-password"
+
+        # Old password must no longer authenticate (cache was invalidated).
+        with self.assertRaises(AccessDenied):
+            Users._check_uid_passwd(user.id, "old-password")
+        # And the new password works.
+        Users._check_uid_passwd(user.id, "new-password")
+
+    def test_raw_sql_change_without_clear_keeps_cache_stale(self):
+        Users = self.env["res.users"]
+        user = new_test_user(self.env, login="rut3_rawsql", password="old-password")
+
+        # Warm the cache with the old password.
+        Users._check_uid_passwd(user.id, "old-password")
+
+        # Mutate the hash directly in the DB WITHOUT clearing the cache.
+        new_hash = Users._crypt_context().hash("new-password")
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_users SET password=%s WHERE id=%s", (new_hash, user.id)
+        )
+        self.env.invalidate_all()  # ORM record cache, NOT the ormcache
+
+        # Documented contract: the (uid, sha256('old-password')) ormcache entry
+        # survives, so the OLD password still authenticates from cache.
+        Users._check_uid_passwd(user.id, "old-password")
+        # Clearing the registry cache restores correctness.
+        self.env.registry.clear_cache()
+        with self.assertRaises(AccessDenied):
+            Users._check_uid_passwd(user.id, "old-password")
+
+
+@tagged("post_install", "-at_install")
+class TestSelfWriteCompanyGuard(UsersCommonCase):
+    """Self-write company_id range guard + api_key_ids blanket-sudo (audit RU-T4).
+
+    res.users.write drops a self-written company_id that is not in the user's
+    own company_ids (silently, not an error), and applies one that is.
+    """
+
+    def test_self_write_company_id_non_member_is_dropped(self):
+        user = new_test_user(self.env, login="rut4_company", groups="base.group_user")
+        other_company = self.env["res.company"].create({"name": "RU-T4 Other Co"})
+        self.assertNotIn(other_company.id, user.company_ids.ids)
+        original_company = user.company_id
+
+        me = user.with_user(user)
+        # Writing only a non-member company_id -> dropped; vals becomes empty so
+        # write short-circuits (RU-C2) and the company is unchanged.
+        self.assertTrue(me.write({"company_id": other_company.id}))
+        self.assertEqual(
+            user.company_id,
+            original_company,
+            "a self-written company_id outside company_ids must be dropped, "
+            "not applied (RU-T4)",
+        )
+
+    def test_self_write_company_id_member_is_applied(self):
+        company_b = self.env["res.company"].create({"name": "RU-T4 Co B"})
+        user = new_test_user(self.env, login="rut4_member", groups="base.group_user")
+        user.sudo().write({"company_ids": [Command.link(company_b.id)]})
+        self.assertIn(company_b.id, user.company_ids.ids)
+
+        me = user.with_user(user)
+        me.write({"company_id": company_b.id})
+        self.assertEqual(
+            user.company_id,
+            company_b,
+            "a self-written company_id that IS a member company must be applied",
+        )
