@@ -148,10 +148,10 @@ class IrFieldsConverter(models.AbstractModel):
                     if import_file_context:
                         # if the error is linked to a matching error, the error is a tuple
                         # E.g.:("Value X cannot be found for field Y at row 1", {
-                        #   'more_info': {},  # noqa: ERA001
-                        #   'value': 'X',  # noqa: ERA001
-                        #   'field': 'Y',  # noqa: ERA001
-                        #   'field_path': child_id/Y,  # noqa: ERA001
+                        #   'more_info': {},
+                        #   'value': 'X',
+                        #   'field': 'Y',
+                        #   'field_path': child_id/Y,
                         # })  # noqa: ERA001, RUF100
                         # In order to link the error to the correct header-field couple in the import UI, we need to add
                         # the field path to the additional error info.
@@ -952,7 +952,7 @@ class IrFieldsConverter(models.AbstractModel):
             subfield, ws = self._referencing_subfield(record)
             warnings.extend(ws)
             # transform [{subfield:ref1,ref2,ref3}] into
-            # [{subfield:ref1},{subfield:ref2},{subfield:ref3}]  # noqa: ERA001
+            # [{subfield:ref1},{subfield:ref2},{subfield:ref3}]
             records = ({subfield: item} for item in record[subfield].split(","))
 
         def log(f: str, exception: Exception | Warning) -> None:
