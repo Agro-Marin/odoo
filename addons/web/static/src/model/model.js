@@ -13,17 +13,22 @@ import {
 } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
+import { ModelEvent } from "@web/core/events";
 import { RPCError } from "@web/core/network/rpc";
 import { Deferred, Race } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { SignalStore } from "@web/core/utils/reactive";
+import { featureFlag } from "@web/services/feature_flags";
 
 import { buildSampleORM } from "./sample_server.js";
+import { SampleDataCoordinator } from "./sample_data_coordinator.js";
+import { validateSearchParams } from "./search_params_schema.js";
 
 /** @import { OdooEnv } from "@web/env" */
 /** @import { SearchParams } from "@web/model/types" */
 /** @import { ServiceFactories as Services } from "services" */
 
-export class Model {
+export class Model extends SignalStore {
     static services = [];
 
     /**
@@ -32,12 +37,34 @@ export class Model {
      * @param {Object} services
      */
     constructor(env, params, services) {
+        // ``super()`` returns ``reactive(this)`` (SignalStore semantics), so
+        // every assignment below — including ``this.bus``, ``this.data``,
+        // ``this.config``, and the ``this.root`` set by subclass ``load()``
+        // implementations — goes through the OWL reactive Proxy and notifies
+        // observers automatically. Consumers that wrap the model with
+        // ``useState(...)`` (form, list, kanban, calendar, graph, pivot)
+        // therefore re-render on any mutation without needing an explicit
+        // ``model.notify()`` call. The bus + ``notify()`` API is preserved
+        // for legacy and cross-addon consumers (FIELD_IS_DIRTY,
+        // WILL_SAVE_URGENTLY, NEED_LOCAL_CHANGES, PROPERTY_FIELD:EDIT,
+        // SCROLL_TO_CURRENT_HOUR, and the ModelEvent.UPDATE listeners in
+        // ``x2many_dialog`` and ``calendar_controller``) but is no longer
+        // load-bearing for the local re-render path.
+        super();
         this.env = env;
         this.orm = services.orm;
         this.bus = new EventBus();
         this.isReady = false;
-        /** @type {boolean} */
-        this.useSampleModel = false;
+        /**
+         * Observable sample-data state. Read via {@link useSampleModel}
+         * getter for backward-compat across the 11 historical reader
+         * sites; write via ``this.sampleData.enter()`` / ``.exit()``
+         * (or the legacy ``this.useSampleModel = bool`` setter for the
+         * two existing PivotModel / GraphModel write sites).
+         *
+         * @type {SampleDataCoordinator}
+         */
+        this.sampleData = new SampleDataCoordinator();
         /**
          * The root data point, set by subclass `load()` implementations
          * (e.g. a Record, DynamicRecordList, or DynamicGroupList).
@@ -65,8 +92,22 @@ export class Model {
         /** @type {Deferred} */
         this.whenReady = new Deferred();
         this.whenReady.then(() => {
+            // Idempotent: ``RelationalModel.load`` already sets
+            // ``isReady = true`` in the SAME synchronous block as its
+            // ``root`` / ``config`` writes (so OWL batches all three
+            // reactive invalidations into a single render — the previous
+            // out-of-band write in this ``.then()`` callback fired in a
+            // later microtask separated by ``await onRootLoaded`` and
+            // produced an extra render visible to ``onRendered`` step
+            // assertions).  For subclasses that DON'T set ``isReady`` in
+            // ``load`` (PivotModel, GraphModel, CalendarModel), this is
+            // still the only place that flips the flag, so the search-
+            // panel/pivot integration in test_search keeps working.
+            // ``notify()`` is intentionally NOT called here — the
+            // reactive write to ``isReady`` and the subclass-emitted
+            // writes during ``load`` already invalidate every consumer
+            // that wraps the model in ``useState``.
             this.isReady = true;
-            this.notify();
         });
         this.setup(params, services);
     }
@@ -76,6 +117,30 @@ export class Model {
      * @param {Object} _services
      */
     setup(_params, _services) {}
+
+    /**
+     * Backward-compat alias for ``sampleData.isActive``. The 11
+     * historical readers across views/ (pivot_controller, list_renderer,
+     * list_keyboard_nav, list_controller, list_styling, kanban
+     * renderer, etc.) continue to work unchanged via this getter; new
+     * code should prefer ``model.sampleData.isActive``.
+     *
+     * @returns {boolean}
+     */
+    get useSampleModel() {
+        return this.sampleData.isActive;
+    }
+
+    /**
+     * Backward-compat alias for ``sampleData.set(value)``. Used by the
+     * two write sites in {@link PivotModel} and {@link GraphModel}
+     * that historically did ``this.useSampleModel = false``.
+     *
+     * @param {boolean} value
+     */
+    set useSampleModel(value) {
+        this.sampleData.set(value);
+    }
 
     /**
      * @param {Partial<SearchParams>} [_params]
@@ -106,7 +171,7 @@ export class Model {
     }
 
     notify() {
-        this.bus.trigger("update");
+        this.bus.trigger(ModelEvent.UPDATE);
     }
 }
 
@@ -119,7 +184,59 @@ function getSearchParams(props) {
     for (const key of SEARCH_KEYS) {
         params[key] = props[key];
     }
+    if (_isSearchParamsValidationEnabled()) {
+        const issues = validateSearchParams(params);
+        if (issues.length) {
+            // Warn-only: a contract drift never blocks the load. The
+            // warning surfaces in dev / when the feature flag is on so
+            // we get a signal long before the silent ride-along becomes
+            // load-bearing in production.
+            console.warn(
+                `[search-params] ${issues.length} issue(s) at useModel boundary:\n  - ` +
+                    issues.join("\n  - "),
+            );
+        }
+    }
     return params;
+}
+
+/**
+ * Cached one-shot check.  Validation is opt-in (off in production by
+ * default to keep the boundary path free of allocation overhead on
+ * every load).  Three activation sources, in order:
+ *
+ *   1. ``odoo.debug`` mode — any debug truthy value auto-enables so
+ *      developers don't need to remember the flag.
+ *   2. ``featureFlag("search_params_validation")`` — explicit opt-in
+ *      for staged rollout. Resolution honors the URL > localStorage >
+ *      server cascade documented in ``services/feature_flags``.
+ *   3. Both ``false`` → validator skipped entirely.
+ *
+ * Cached because the answer never changes within a session — URL and
+ * localStorage are read once by the feature-flags resolver, and
+ * ``odoo.debug`` is fixed for the page lifetime.
+ *
+ * @returns {boolean}
+ */
+let _searchParamsValidationCache = null;
+function _isSearchParamsValidationEnabled() {
+    if (_searchParamsValidationCache !== null) {
+        return _searchParamsValidationCache;
+    }
+    _searchParamsValidationCache = Boolean(
+        odoo.debug ||
+            featureFlag("search_params_validation", { default: false }),
+    );
+    return _searchParamsValidationCache;
+}
+
+/**
+ * Test-only: reset the validation-cache so a stubbed feature flag /
+ * debug mode is re-read on the next call.  Production code never
+ * needs this (the answer is fixed for the page lifetime).
+ */
+export function _resetSearchParamsValidationCache() {
+    _searchParamsValidationCache = null;
 }
 
 /**
@@ -137,7 +254,7 @@ export function useModel(ModelClass, params, options = {}) {
         services[key] = useService(key);
     }
     services.orm = services.orm || useService("orm");
-    const model = new ModelClass(component.env, params, services);
+    const model = new ModelClass(/** @type {any} */ (component.env), params, services);
     onWillStart(async () => {
         await options.beforeFirstLoad?.();
         await model.load(getSearchParams(component.props));
@@ -170,11 +287,25 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         params.isAlive = () => status(component) !== "destroyed";
     }
 
-    const model = new ModelClass(component.env, params, services);
+    const model = new ModelClass(/** @type {any} */ (component.env), params, services);
 
+    // Manual re-render listener — retained for backward compatibility with
+    // consumers that do NOT wrap the model with ``useState(...)`` (in
+    // particular several enterprise addons: ``web_map``, ``web_cohort``,
+    // ``web_grid``, ``web_gantt``, ``social``).
+    //
+    // As of 2026-05-25, ``Model extends SignalStore`` (see ``model.js``
+    // class declaration), so consumers that DO wrap with ``useState(...)``
+    // — calendar, graph, pivot, plus form/list/kanban via their own
+    // controllers — already receive proxy-based reactive renders on every
+    // mutation. The bus listener below then schedules a redundant
+    // ``render(true)`` on each ``notify()`` call; OWL batches both into
+    // one render per tick, so there is no observable double-render. If a
+    // future audit confirms every consumer wraps with ``useState`` (or
+    // an equivalent reactive subscription path), this listener can go.
     const onUpdate = () => component.render(true);
-    model.bus.addEventListener("update", onUpdate);
-    onWillUnmount(() => model.bus.removeEventListener("update", onUpdate));
+    model.bus.addEventListener(ModelEvent.UPDATE, onUpdate);
+    onWillUnmount(() => model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate));
 
     const globalState = component.props.globalState || {};
     const localState = component.props.state || {};

@@ -34,16 +34,19 @@ import {
  * @param {UseResizableParams} params
  */
 function useResizable({
-    containerRef,
-    handleRef,
+    containerRef: _containerRef,
+    handleRef: _handleRef,
     initialWidth = 400,
     getMinWidth = (_props) => 400,
     onResize = (_width) => {},
     getResizeSide = (_props) => "end",
 }) {
-    containerRef =
-        typeof containerRef == "string" ? useRef(containerRef) : containerRef;
-    handleRef = typeof handleRef == "string" ? useRef(handleRef) : handleRef;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    const containerRef =
+        typeof _containerRef == "string" ? useRef(_containerRef) : _containerRef;
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    const handleRef =
+        typeof _handleRef == "string" ? useRef(_handleRef) : _handleRef;
     const props = useComponent().props;
 
     let minWidth = getMinWidth(props);
@@ -162,7 +165,7 @@ function useResizable({
      * @returns {number} maximum width in pixels
      */
     function getLimitWidth() {
-        const offsetParent = containerRef.el.offsetParent;
+        const offsetParent = /** @type {HTMLElement | null} */ (containerRef.el.offsetParent);
         return offsetParent ? offsetParent.offsetWidth : window.innerWidth;
     }
 

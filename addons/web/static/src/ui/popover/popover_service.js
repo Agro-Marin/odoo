@@ -38,7 +38,7 @@ export const popoverService = {
          * Signals the manager to add a popover.
          *
          * @param {HTMLElement} target
-         * @param {typeof import("@odoo/owl").Component} component
+         * @param {import("@odoo/owl").ComponentConstructor} component
          * @param {object} [props]
          * @param {PopoverServiceAddOptions} [options]
          * @returns {() => void}

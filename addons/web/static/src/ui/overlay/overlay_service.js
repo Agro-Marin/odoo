@@ -50,7 +50,7 @@ export const overlayService = {
         };
 
         /**
-         * @param {typeof Component} component
+         * @param {import("@odoo/owl").ComponentConstructor} component
          * @param {object} props
          * @param {OverlayServiceAddOptions} [options]
          * @returns {() => void}

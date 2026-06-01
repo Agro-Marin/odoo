@@ -3,7 +3,14 @@
 
 /** @module @web/services/navigation/navigation - Keyboard arrow-key navigation hook for selectable item lists */
 
-import { onWillUnmount, useEffect, useExternalListener, useRef } from "@odoo/owl";
+import {
+    onWillUnmount,
+    reactive,
+    useEffect,
+    useExternalListener,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { deepMerge } from "@web/core/utils/collections/objects";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
@@ -74,10 +81,18 @@ class NavigationItem {
     }
 
     setActive(focus = true) {
+        const tag = this._tag();
         scrollTo(this.target);
         this._navigator._setActiveItem(this.index);
         this.target.classList.add(ACTIVE_ELEMENT_CLASS);
         this.target.ariaSelected = "true";
+        console.debug(
+            "[debug:nav] ITEM.setActive(focus=%s) idx=%s tag=%s classes=%s",
+            focus,
+            this.index,
+            tag,
+            this.target.className,
+        );
 
         if (focus && !this._options.virtualFocus) {
             throttledFocus.cancel();
@@ -86,11 +101,31 @@ class NavigationItem {
     }
 
     setInactive(blur = true) {
+        const before = this.target.className;
         this.target.classList.remove(ACTIVE_ELEMENT_CLASS);
         this.target.ariaSelected = "false";
+        console.debug(
+            "[debug:nav] ITEM.setInactive(blur=%s) idx=%s tag=%s before=%s after=%s",
+            blur,
+            this.index,
+            this._tag(),
+            before,
+            this.target.className,
+        );
         if (blur && !this._options.virtualFocus) {
             this.target.blur();
         }
+    }
+
+    /**@private*/
+    _tag() {
+        // Single short identifier that survives the items list being
+        // rebuilt — useful when class-based logs are too noisy.
+        return (
+            this.el?.dataset?.navTag ||
+            this.el?.className?.split(/\s+/)?.find((c) => /^item\d+|nav-/.test(c)) ||
+            "?"
+        );
     }
 
     /**
@@ -107,13 +142,9 @@ class NavigationItem {
     }
 }
 
+let _navigatorInstanceCounter = 0;
+
 export class Navigator {
-    /**@type {NavigationItem|undefined}*/
-    activeItem = undefined;
-
-    /**@type {number}*/
-    activeItemIndex = -1;
-
     /**@type {Array<NavigationItem>}*/
     items = [];
 
@@ -125,7 +156,33 @@ export class Navigator {
      * @param {import("@web/services/hotkeys/hotkey_service").HotkeyService} hotkeyService
      */
     constructor(options, hotkeyService) {
+        this._id = ++_navigatorInstanceCounter;
+        console.debug("[debug:nav] Navigator#%s constructed", this._id);
         this._hotkeyService = hotkeyService;
+        // OWL-reactive view of the navigator's active state. Components
+        // can subscribe through `useNavigatorActive(navigator, el)` and
+        // declaratively bind the focus class via `t-att-class` rather
+        // than depend on the imperative `classList.add/remove` in
+        // ``NavigationItem``. That decoupling fixes the long-standing
+        // race where an OWL re-render of the consumer wipes the focus
+        // class added by the navigator (manual writes through
+        // `target.classList` are invisible to OWL's vdom diff, so when
+        // a parent re-render rewrites the ``class`` attribute via
+        // ``t-att-class``, the navigator-applied ``focus`` is lost).
+        //
+        // The imperative writes are still performed below for backward
+        // compatibility with non-OWL consumers (CSS-only ``.focus``
+        // styles, e.g. legacy search-bar entries) and so existing tests
+        // that query ``.focus`` directly keep working.  Reactive state
+        // and imperative class stay in lockstep through the setters.
+        this.state = reactive({
+            /**@type {number}*/
+            activeItemIndex: -1,
+            /**@type {HTMLElement | null}*/
+            activeItemEl: null,
+            /**Bumped whenever {@link items} is rebuilt.*/
+            itemsRevision: 0,
+        });
 
         /**@private*/
         this._options = deepMerge(
@@ -174,6 +231,33 @@ export class Navigator {
         }
     }
 
+    // ---- Reactive-backed accessors ----
+    //
+    // These preserve the public API (`navigator.activeItem`,
+    // `navigator.activeItemIndex`) while persisting the values inside the
+    // reactive `state` object so OWL subscribers see every change.
+
+    /**@type {number}*/
+    get activeItemIndex() {
+        return this.state.activeItemIndex;
+    }
+    set activeItemIndex(value) {
+        this.state.activeItemIndex = value;
+    }
+
+    /**@type {NavigationItem | null}*/
+    get activeItem() {
+        const idx = this.state.activeItemIndex;
+        return idx >= 0 ? this.items[idx] ?? null : null;
+    }
+    set activeItem(item) {
+        // Store the element rather than the NavigationItem wrapper so
+        // consumers can match against a known DOM reference without
+        // depending on the internal NavigationItem identity (which gets
+        // rebuilt on every `update()`).
+        this.state.activeItemEl = item?.el ?? null;
+    }
+
     /**
      * Returns true if the current active item is not null and still inside the DOM
      * @type {boolean}
@@ -191,20 +275,39 @@ export class Navigator {
     }
 
     next() {
-        if (!this.hasActiveItem) {
+        const fromIndex = this.activeItemIndex;
+        const hasActive = this.hasActiveItem;
+        if (!hasActive) {
             this.items[0]?.setActive();
         } else {
             this.items[(this.activeItemIndex + 1) % this.items.length]?.setActive();
         }
+        console.debug(
+            "[debug:nav] Navigator#%s next from=%s hasActive=%s items=%s newIndex=%s",
+            this._id,
+            fromIndex,
+            hasActive,
+            this.items.length,
+            this.activeItemIndex,
+        );
     }
 
     previous() {
+        const fromIndex = this.activeItemIndex;
+        const hasActive = this.hasActiveItem;
         const index = this.activeItemIndex - 1;
-        if (!this.hasActiveItem || index < 0) {
+        if (!hasActive || index < 0) {
             this.items.at(-1)?.setActive();
         } else {
             this.items[index % this.items.length]?.setActive();
         }
+        console.debug(
+            "[debug:nav] previous from=%s hasActive=%s items=%s newIndex=%s",
+            fromIndex,
+            hasActive,
+            this.items.length,
+            this.activeItemIndex,
+        );
     }
 
     update() {
@@ -248,6 +351,14 @@ export class Navigator {
             const focusedElementIndex = this.items.findIndex(
                 (item) => item.el === document.activeElement,
             );
+            console.debug(
+                "[debug:nav] Navigator#%s update items=%s activeItemIndex=%s focusedIdx=%s currentIdx=%s",
+                this._id,
+                elements.length,
+                activeItemIndex,
+                focusedElementIndex,
+                this.activeItemIndex,
+            );
             if (activeItemIndex > -1) {
                 this._updateActiveItemIndex(activeItemIndex);
             } else if (this.activeItemIndex >= 0) {
@@ -264,6 +375,13 @@ export class Navigator {
             if (this._options.shouldFocusFirstItem) {
                 this.items[0]?.setActive();
             }
+            // Wake any subscribers that derive from the items list (e.g.
+            // an OWL component using `useNavigatorActive` whose el was
+            // just added or removed).  Reactive primitive properties
+            // notify only when reassigned, so we use a monotonic counter
+            // rather than re-assigning `this.items` (which would force a
+            // re-render even when membership didn't change).
+            this.state.itemsRevision++;
         }
     }
 
@@ -321,10 +439,14 @@ export class Navigator {
             item._removeListeners();
         }
         this.items = [];
+        this.state.activeItemIndex = -1;
+        this.state.activeItemEl = null;
+        this.state.itemsRevision++;
         this.unregisterHotkeys();
     }
 
     _setActiveItem(index) {
+        const prevIndex = this.activeItemIndex;
         this.activeItem?.setInactive(false);
         this.activeItemIndex = index;
         if (index >= 0) {
@@ -333,6 +455,28 @@ export class Navigator {
         } else {
             this.activeItem = null;
         }
+        console.debug(
+            "[debug:nav] Navigator#%s _setActiveItem %s -> %s (items=%s)",
+            this._id,
+            prevIndex,
+            index,
+            this.items.length,
+        );
+    }
+
+    /**
+     * True when ``el`` is the currently-active navigable item.
+     *
+     * Reads through the reactive `state` so callers wrapped in
+     * `useState(navigator.state)` will re-render when the active item
+     * changes.  Used internally by {@link useNavigatorActive} — most
+     * consumers should not need to call this directly.
+     *
+     * @param {HTMLElement | undefined | null} el
+     * @returns {boolean}
+     */
+    isActiveEl(el) {
+        return Boolean(el) && this.state.activeItemEl === el;
     }
 
     /**
@@ -342,8 +486,14 @@ export class Navigator {
         if (this.items[index]) {
             this.items[index].setActive();
         } else {
-            this.activeItemIndex = -1;
-            this.activeItem = null;
+            // Route through _setActiveItem so the transition is observable
+            // and consistent (setInactive on previous + same logging path
+            // as every other index change).  Prior implementations mutated
+            // ``activeItemIndex`` directly here, which made the keyboard
+            // navigation "stuck on item 1" bug invisible to instrumentation:
+            // ``next()`` would observe ``activeItemIndex === -1`` even
+            // though no logged path had reset it.
+            this._setActiveItem(-1);
         }
     }
 
@@ -352,7 +502,15 @@ export class Navigator {
     }
 
     _checkFocus(target) {
-        if (!(target instanceof HTMLElement) || !this._isNavigationAvailable(target)) {
+        const isEl = target instanceof HTMLElement;
+        const navOK = isEl && this._isNavigationAvailable(target);
+        if (!isEl || !navOK) {
+            console.debug(
+                "[debug:nav] _checkFocus RESET activeItem (isEl=%s, navOK=%s, target=%s)",
+                isEl,
+                navOK,
+                isEl ? (target.className || target.tagName) : String(target),
+            );
             this._setActiveItem(-1);
         }
     }
@@ -443,4 +601,64 @@ export function useNavigation(containerRef, options = {}) {
     onWillUnmount(() => navigator._destroy());
 
     return navigator;
+}
+
+/**
+ * Subscribe an OWL component to a navigator's active-item state.
+ *
+ * Returns an object whose ``isActive`` getter is OWL-reactive: any
+ * template that reads it re-renders when ``elGetter()`` becomes the
+ * navigator's active element or stops being it.  Use this when the
+ * focus styling has to be co-managed by OWL (``t-att-class``) — the
+ * declarative path survives parent re-renders that would otherwise
+ * wipe the imperative ``classList.add("focus")`` performed by
+ * {@link NavigationItem.setActive}.
+ *
+ * Example — DropdownItem template:
+ * ```xml
+ * <span t-att-class="{ focus: nav.isActive }">…</span>
+ * ```
+ * setup:
+ * ```js
+ * this.itemRef = useRef("root");
+ * this.nav = useNavigatorActive(this.env.navigation, () => this.itemRef.el);
+ * ```
+ *
+ * The hook is opt-in.  Consumers that don't call it continue to rely
+ * on the imperative class management in ``NavigationItem`` exactly as
+ * before — this refactor is additive.
+ *
+ * @param {Navigator | undefined} navigator
+ * @param {() => HTMLElement | null | undefined} elGetter
+ * @returns {{ readonly isActive: boolean }}
+ */
+export function useNavigatorActive(navigator, elGetter) {
+    if (!navigator) {
+        // No navigator (e.g. component used outside a navigable container)
+        // — return a stable, non-reactive stub so callers can still bind
+        // safely.  Avoids forcing every consumer to add a null check.
+        return { isActive: false };
+    }
+    const state = useState(navigator.state);
+    return {
+        get isActive() {
+            // Read both ``activeItemEl`` (changes on every active-item
+            // transition) and ``itemsRevision`` (changes when items[] is
+            // rebuilt — covers the edge case where the same DOM element
+            // is removed and re-added).  Both reads register the
+            // subscription with OWL's reactive proxy.
+            void state.itemsRevision;
+            const activeEl = state.activeItemEl;
+            // Short-circuit when no item is active.  Without this, the
+            // first render (before any item is selected) would compute
+            // ``null === null`` as TRUE for every consumer and apply
+            // the focus class to every item simultaneously — a render-
+            // order surprise that also makes the OWL diff resolve to
+            // the wrong active item on the next state change.
+            if (activeEl === null || activeEl === undefined) {
+                return false;
+            }
+            return activeEl === elGetter();
+        },
+    };
 }

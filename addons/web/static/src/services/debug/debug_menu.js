@@ -28,7 +28,9 @@ export class DebugMenu extends DebugMenuBasic {
             _t("Debug tools..."),
             /** @type {any} */ (
                 async () => {
-                    const items = await debugContext.getItems(this.env);
+                    const items = await debugContext.getItems(
+                        /** @type {import("@web/env").OdooEnv} */ (this.env),
+                    );
                     let index = 0;
                     const defaultCategories = items
                         .filter((/** @type {any} */ item) => item.type === "separator")

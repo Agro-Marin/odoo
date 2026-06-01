@@ -297,7 +297,7 @@ function parseInfix(left, current, cur) {
                     chainedOperators.has(current.value) &&
                     cur.peek() &&
                     cur.peek().type === 2 /* Symbol */ &&
-                    chainedOperators.has(cur.peek().value)
+                    chainedOperators.has(/** @type {string} */ (cur.peek().value))
                 ) {
                     const nextToken = cur.next();
                     /** @type {ASTBinaryOperator} */

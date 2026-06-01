@@ -26,8 +26,9 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makePopover } from "@web/ui/popover/popover_hook";
 
 /**
- * @typedef {globalThis.luxon["DateTime"]["prototype"]} DateTime
- *
+ * @typedef {any} DateTime luxon DateTime instance — typed loosely because @types/luxon is not installed in this fork
+ */
+/**
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
  * @typedef {import("@web/ui/popover/popover_hook").PopoverHookReturnType} PopoverHookReturnType
  * @typedef {import("@web/ui/popover/popover_service").PopoverServiceAddOptions} PopoverServiceAddOptions
@@ -121,7 +122,7 @@ export const datetimePickerService = {
                 }
 
                 function enable() {
-                    /** @type {Array<[HTMLElement, string, EventListener]>} */
+                    /** @type {Array<[Element, string, (ev: any) => void]>} */
                     const addedListeners = [];
                     for (const [el, value] of zip(
                         getInputs(),
@@ -230,7 +231,7 @@ export const datetimePickerService = {
                  */
                 function getTarget() {
                     return targetRef
-                        ? targetRef.el
+                        ? /** @type {HTMLElement | null} */ (targetRef.el)
                         : /** @type {HTMLElement} */ (params.target);
                 }
 

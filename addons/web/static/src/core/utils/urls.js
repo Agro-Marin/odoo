@@ -4,6 +4,7 @@
 /** @module @web/core/utils/urls - URL construction, origin resolution, image URL generation, and redirect handling */
 
 import { browser } from "@web/core/browser/browser";
+import { DateTime } from "@web/core/l10n/luxon";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
 
@@ -96,7 +97,6 @@ export function imageUrl(
         urlParams.crop = crop;
     }
     if (unique) {
-        const { DateTime } = /** @type {any} */ (globalThis.luxon ?? {});
         if (DateTime && unique instanceof DateTime) {
             urlParams.unique = unique.ts;
         } else if (DateTime) {
@@ -139,6 +139,38 @@ export function getDataURLFromFile(file) {
         reader.addEventListener("error", reject);
         reader.readAsDataURL(file);
     });
+}
+
+/**
+ * Schemes accepted as a hyperlink / navigation target. Anything else
+ * (``javascript:``, ``data:``, ``vbscript:``, ``file:``, ...) can execute
+ * script or exfiltrate and must be rejected.
+ */
+export const SAFE_URL_SCHEMES = ["http", "https", "ftp", "ftps", "mailto", "tel"];
+
+/**
+ * Returns whether ``href`` is safe to use as a hyperlink or navigation target.
+ * A value carrying an explicit scheme is allowed only when that scheme is in
+ * {@link SAFE_URL_SCHEMES}; a protocol-relative ``//host`` is rejected (open
+ * redirect / mixed content); scheme-less values (relative paths, queries,
+ * fragments) are allowed. Leading whitespace is ignored so e.g. " javascript:"
+ * cannot slip through.
+ *
+ * @param {string} href
+ * @returns {boolean}
+ */
+export function isSafeUrlScheme(href) {
+    if (typeof href !== "string") {
+        return false;
+    }
+    if (/^\s*\/\//.test(href)) {
+        return false;
+    }
+    const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(href);
+    if (scheme) {
+        return SAFE_URL_SCHEMES.includes(scheme[1].toLowerCase());
+    }
+    return true;
 }
 
 /**

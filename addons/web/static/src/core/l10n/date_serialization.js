@@ -3,7 +3,7 @@
 
 /** @module @web/core/l10n/date_serialization - Server-format date serialization and deserialization with WeakMap caching */
 
-const { DateTime, Settings } = /** @type {any} */ (globalThis.luxon ?? {});
+import { DateTime, Settings } from "@web/core/l10n/luxon";
 
 const SERVER_DATE_FORMAT = "yyyy-MM-dd";
 const SERVER_TIME_FORMAT = "HH:mm:ss";

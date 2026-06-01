@@ -4,9 +4,8 @@
 /** @module @web/core/l10n/date_utils - Pure date comparison, clamping, range checks, and locale-aware week helpers */
 
 import { localization } from "@web/core/l10n/localization";
+import { DateTime } from "@web/core/l10n/luxon";
 import { ensureArray } from "@web/core/utils/collections/arrays";
-
-const { DateTime } = globalThis.luxon ?? {};
 
 /**
  * Checks whether 2 given dates or date ranges are equal. Both values are allowed

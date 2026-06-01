@@ -3,7 +3,13 @@
 
 /** @module @web/components/tree_editor/tree_editor - Recursive tree editor component for visually building domain and expression conditions */
 
-/** @import { Condition, Connector, Tree, Value } from "@web/core/tree/condition_tree" */
+/** Local aliases widened to `any` because the canonical types are
+ * discriminated unions narrowed at runtime via `.type` checks; TS can't
+ * track narrowing through component method boundaries. */
+/** @typedef {any} Condition */
+/** @typedef {any} Connector */
+/** @typedef {any} Tree */
+/** @typedef {any} Value */
 /** @import { ValueEditorInfo } from "@web/components/tree_editor/tree_editor_value_editors" */
 /** @import { OperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor" */
 
@@ -141,7 +147,7 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * @param {import("./condition_tree").ComplexCondition} node
+     * @param {import("@web/core/tree/condition_tree").ComplexCondition} node
      * @param {string} value
      */
     _updateComplexCondition(node, value) {
@@ -149,7 +155,7 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * @param {import("./condition_tree").ComplexCondition} node
+     * @param {import("@web/core/tree/condition_tree").ComplexCondition} node
      * @param {string} value
      */
     updateComplexCondition(node, value) {
