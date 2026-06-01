@@ -9,6 +9,7 @@ docutils==0.22.4
 freezegun==1.5.5
 geoip2==5.2.0
 idna==3.11
+inotify==0.2.10 ; sys_platform == 'linux'  # (Noble) autoreload backend for --dev=reload; preferred over watchdog on Linux
 Jinja2==3.1.6
 lxml==6.0.2
 lxml-html-clean  # (Noble - removed from lxml, unpinned for future security patches)

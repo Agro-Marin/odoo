@@ -15,6 +15,8 @@ from . import test_naming
 from . import test_onchange_domains
 from . import test_orm_import
 from . import test_override_signatures
+from . import test_pep649
 from . import test_routes
 from . import test_i18n
+from . import test_noqa_rationale
 from . import test_test_holes

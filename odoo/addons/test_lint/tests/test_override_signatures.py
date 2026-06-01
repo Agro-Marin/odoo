@@ -1,5 +1,6 @@
 import annotationlib
 import inspect
+import typing
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -14,6 +15,39 @@ VAR_POSITIONAL = inspect.Parameter.VAR_POSITIONAL
 KEYWORD_ONLY = inspect.Parameter.KEYWORD_ONLY
 VAR_KEYWORD = inspect.Parameter.VAR_KEYWORD
 EMPTY = inspect.Parameter.empty
+
+
+def _stringify_annotation(ann: object) -> str:
+    """Return a comparable string form of an annotation.
+
+    With ``annotationlib.Format.FORWARDREF``, names that fail to resolve at
+    runtime become ``ForwardRef('Name')`` while names that resolve return the
+    actual class object.  Two overrides referencing the SAME source symbol
+    therefore produce different annotation OBJECTS depending on whether the
+    runtime namespace happened to contain the symbol — typically because a
+    parent module guards the import behind ``if TYPE_CHECKING:`` while a
+    child imports it directly.
+
+    Stringifying both sides through this helper normalises the difference:
+    ``list[ForwardRef('ValuesType')]`` and ``list[ValuesType]`` collapse to
+    the identical string ``'list[ValuesType]'`` and compare equal.
+    """
+    if ann is EMPTY:
+        return ""
+    if isinstance(ann, typing.ForwardRef):
+        return ann.__forward_arg__
+    if isinstance(ann, str):
+        return ann
+    origin = getattr(ann, "__origin__", None)
+    if origin is not None:
+        args = getattr(ann, "__args__", ())
+        origin_name = getattr(origin, "__qualname__", None) or getattr(
+            origin, "_name", None
+        ) or repr(origin)
+        return f"{origin_name}[{', '.join(_stringify_annotation(a) for a in args)}]"
+    if isinstance(ann, type):
+        return ann.__qualname__
+    return repr(ann)
 
 
 failure_message = """\
@@ -90,6 +124,11 @@ def check_parameter(
             # accept annotations of different types as valid to keep logic simple
             # for example, typing can be a str or the class
             or pann.__class__ != cann.__class__
+            # ForwardRef('X') vs resolved X collapse to the same string —
+            # the source code referenced the same symbol; the only divergence
+            # is whether one of the two modules guarded the import behind
+            # ``if TYPE_CHECKING:`` (so the runtime namespace was empty).
+            or _stringify_annotation(pann) == _stringify_annotation(cann)
         )
     )
 

@@ -38,7 +38,10 @@ setup/win32/static/postgresql*.exe
 # js tooling
 node_modules
 jsconfig.json
-tsconfig.json
+# tsconfig.json — intentionally tracked (canonical config used by CI typecheck workflow,
+# see knowledge/agromarin-knowledge/plans/2026-04-28-typecheck-ci-gate-plan.md). Diverges
+# from upstream convention which gitignores both; jsconfig.json stays ignored so devs
+# can keep personal IDE configs that `extends: ./tsconfig.json`.
 .husky
 
 # Rust build artifacts (platform-specific, must be compiled per environment)
