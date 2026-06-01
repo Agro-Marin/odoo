@@ -6,9 +6,11 @@
 import { Component } from "@odoo/owl";
 import { Pager } from "@web/components/pager/pager";
 import { makeContext } from "@web/core/context";
+import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { symmetricalDifference } from "@web/core/utils/collections/arrays";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -85,7 +87,12 @@ export class X2ManyField extends Component {
         });
 
         this.addInLine = useAddInlineRecord({
-            addNew: (...args) => this.list.addNewRecord(...args),
+            // ``useAddInlineRecord`` always calls ``addNew`` with a single
+            // params object (``{ context, mode, position }``). The previous
+            // ``...args`` rest passthrough was over-general — the spread
+            // can't be type-checked against StaticList.addNewRecord's
+            // single-argument signature.
+            addNew: (params) => this.list.addNewRecord(params),
         });
 
         const openRecord = useOpenX2ManyRecord(
@@ -347,8 +354,8 @@ export class X2ManyField extends Component {
             const editedRecord = this.list.editedRecord;
             if (editedRecord) {
                 const proms = [];
-                this.list.model.bus.trigger("NEED_LOCAL_CHANGES", { proms });
-                await Promise.all([...proms, editedRecord._updatePromise]);
+                this.list.model.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
+                await Promise.all([...proms, /** @type {any} */ (editedRecord)._updatePromise]);
                 await this.list.leaveEditMode({ canAbandon: false });
             }
             if (!this.list.editedRecord) {
@@ -398,5 +405,4 @@ export const x2ManyField = {
     },
 };
 
-registry.category("fields").add("one2many", x2ManyField);
-registry.category("fields").add("many2many", x2ManyField);
+registerField({ name: "one2many", aliases: ["many2many"] }, x2ManyField);

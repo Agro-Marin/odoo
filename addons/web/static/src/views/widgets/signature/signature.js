@@ -69,6 +69,7 @@ export class SignatureWidget extends Component {
         // rejects or hangs when the widget is destroyed. On mobile the widget
         // lives inside a dropdown that closes on re-render, but the write
         // must still complete (the dialog outlives the widget).
+        // eslint-disable-next-line no-restricted-syntax -- deliberate raw access; see comment above
         const orm = this.env.services.orm;
 
         await orm.write(resModel, [resId], { [signatureField]: file });

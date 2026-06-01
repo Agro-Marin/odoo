@@ -11,9 +11,11 @@ import { TagsList } from "@web/components/tags_list/tags_list";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -70,6 +72,7 @@ export class Many2ManyTagsField extends Component {
     static SEARCH_MORE_LIMIT = 320;
 
     setup() {
+        useRenderCounter("fields.Many2ManyTagsField");
         this.orm = useService("orm");
         this.previousColorsMap = {};
         this.popover = usePopover(
@@ -280,9 +283,13 @@ export const many2ManyTagsField = {
     },
 };
 
-registry.category("fields").add("many2many_tags", many2ManyTagsField);
-registry.category("fields").add("calendar.one2many", many2ManyTagsField);
-registry.category("fields").add("calendar.many2many", many2ManyTagsField);
+registerField({
+    name: "many2many_tags",
+    aliases: [
+        { name: "one2many", view: "calendar" },
+        { name: "many2many", view: "calendar" },
+    ],
+}, many2ManyTagsField);
 
 /**
  * A specialization that allows to edit the color with the colorpicker.
@@ -306,7 +313,7 @@ export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
 
     /** @override */
     getTagProps(record) {
-        const props = super.getTagProps(record);
+        const props = /** @type {any} */ (super.getTagProps(record));
         props.onClick = (ev) => this.onTagClick(ev, record);
         return props;
     }
@@ -329,7 +336,7 @@ export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
         if (this.popover.isOpen) {
             this.popover.close();
         } else {
-            this.popover.open(ev.currentTarget, {
+            this.popover.open(/** @type {HTMLElement} */ (ev.currentTarget), {
                 colors: /** @type {any} */ (this.constructor).RECORD_COLORS,
                 tag: {
                     id: record.id,
@@ -408,4 +415,4 @@ export const many2ManyTagsFieldColorEditable = {
     },
 };
 
-registry.category("fields").add("form.many2many_tags", many2ManyTagsFieldColorEditable);
+registerField({ name: "many2many_tags", view: "form" }, many2ManyTagsFieldColorEditable);

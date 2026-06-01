@@ -9,10 +9,28 @@ import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_ow
 import { closest } from "@web/core/utils/dom/ui";
 import { useCallbackRecorder } from "@web/core/action_hook";
 
+// v7 dropped the ``<table><tbody><tr><td>`` skeleton in favour of
+// ``<div role="row"><div role="gridcell">``.  ``.fc-day`` is layered onto
+// both body day cells (via ``dayCellClass``) and header cells (via
+// ``dayHeaderClass``) by our renderer, so explicitly exclude header
+// cells.  Rows used to be ``<tr role="row">``; in v7 they're plain
+// ``<div role="row">`` so the row selector is just the role attribute.
 const CELL_SELECTOR = `.fc-day:not(.fc-col-header-cell)`;
-const ROW_SELECTOR = `tr[role="row"]`;
+const ROW_SELECTOR = `[role="row"]`;
 const EVENT_CONTAINER_SELECTOR = ".fc-daygrid-event-harness";
-const IGNORE_SELECTOR = [".fc-event", ".fc-more-cell", ".fc-more-popover"].join(",");
+// v7 dropped ``.fc-more-cell`` (wrapper class) and ``.fc-more-popover``
+// (now ``.fc-popover``). Clicks on the "+N more" link in multi-create
+// mode must be ignored by the square-selection handler so FC's own
+// ``moreLinkClick`` can open the popover instead of being intercepted
+// as a date-range selection. Keep the v6 names for backward
+// compatibility — closest() returns falsy if no ancestor matches.
+const IGNORE_SELECTOR = [
+    ".fc-event",
+    ".fc-more-cell",
+    ".fc-more-popover",
+    ".fc-more-link",
+    ".fc-popover",
+].join(",");
 
 /** @param {Object} ctx - drag context with pointer position and ref element */
 function getClosestCell(ctx) {
@@ -49,7 +67,7 @@ function getSelectedCellsInBlock(ctx) {
     const { startColIndex, endColIndex, startRowIndex, endRowIndex } =
         getBlockBounds(current);
     const selectedCells = [];
-    for (const cell of ref.el.querySelectorAll(`tbody tr[role="row"] .fc-day`)) {
+    for (const cell of ref.el.querySelectorAll(`${ROW_SELECTOR} ${CELL_SELECTOR}`)) {
         const { colIndex, rowIndex } = getCoordinates(cell);
         if (
             startColIndex <= colIndex &&
@@ -67,7 +85,7 @@ function getSelectedCellsInBlock(ctx) {
 /** Select all cells in linear order between two cells (for Shift+click ranges). */
 function getSelectedCellsBetween2Cells(ctx, prevCell, cellClicked) {
     const { cellIsSelectable, ref } = ctx;
-    const cells = [...ref.el.querySelectorAll(`tbody tr[role="row"] .fc-day`)];
+    const cells = [...ref.el.querySelectorAll(`${ROW_SELECTOR} ${CELL_SELECTOR}`)];
     const index1 = cells.indexOf(prevCell);
     if (index1 === -1) {
         return new Set([cellClicked]);

@@ -6,6 +6,7 @@
 import { Component, useState } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
+import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
@@ -31,8 +32,8 @@ export class LoadingIndicator extends Component {
         });
         this.rpcIds = new Set();
         this.startShowTimer = null;
-        useBus(rpcBus, "RPC:REQUEST", /** @type {any} */ (this.requestCall));
-        useBus(rpcBus, "RPC:RESPONSE", /** @type {any} */ (this.responseCall));
+        useBus(rpcBus, RpcEvent.REQUEST, /** @type {any} */ (this.requestCall));
+        useBus(rpcBus, RpcEvent.RESPONSE, /** @type {any} */ (this.responseCall));
     }
 
     /** @param {{ detail: { settings: Object, data: { id: number } } }} ev */

@@ -12,10 +12,10 @@ import {
     useState,
 } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
-import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
 import { useDebounced } from "@web/core/utils/timing";
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 class MenuItem extends Component {
@@ -364,4 +364,4 @@ export const profilingQwebView = {
     component: ProfilingQwebView,
 };
 
-registry.category("fields").add("profiling_qweb_view", profilingQwebView);
+registerField("profiling_qweb_view", profilingQwebView);

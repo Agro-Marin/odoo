@@ -6,7 +6,7 @@
 import { extractAttributes, visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { stringToOrderBy } from "@web/core/utils/order_by";
-import { Field } from "@web/fields/field";
+import { parseFieldNode } from "@web/views/field_arch";
 import { processButton } from "@web/views/view_buttons";
 import { getActiveActions } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
@@ -25,7 +25,7 @@ export class KanbanArchParser {
     /**
      * Parse a kanban arch XML document into a structured archInfo object.
      *
-     * @param {XMLDocument} xmlDoc - Root `<kanban>` XML element.
+     * @param {Element} xmlDoc - Root `<kanban>` XML element (named `xmlDoc` historically; actually a root Element).
      * @param {Object} models - Map of model name to `{ fields }` definitions.
      * @param {string} modelName - Technical name of the primary model.
      * @returns {{
@@ -52,7 +52,7 @@ export class KanbanArchParser {
      *   templateDocs: Object,
      *   tooltipInfo: Object,
      *   examples: string | null,
-     *   xmlDoc: XMLDocument,
+     *   xmlDoc: Element,
      * }}
      */
     parse(xmlDoc, models, modelName) {
@@ -162,7 +162,7 @@ export class KanbanArchParser {
                 ) {
                     node.setAttribute("widget", "many2many_tags");
                 }
-                const fieldInfo = Field.parseFieldNode(
+                const fieldInfo = parseFieldNode(
                     node,
                     models,
                     modelName,

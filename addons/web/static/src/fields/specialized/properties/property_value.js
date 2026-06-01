@@ -4,6 +4,7 @@
 /** @module @web/fields/specialized/properties/property_value - Polymorphic value editor component supporting all property field types */
 
 import { Component } from "@odoo/owl";
+import { deepCopy } from "@web/core/utils/collections/objects";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -361,8 +362,7 @@ export class PropertyValue extends Component {
      * @param {integer} many2manyId
      */
     onMany2manyDelete(many2manyId) {
-        // deep copy
-        const currentValue = JSON.parse(JSON.stringify(this.props.value || []));
+        const currentValue = deepCopy(this.props.value || []);
         const newValue = currentValue.filter((value) => value[0] !== many2manyId);
         this.props.onChange(newValue);
     }
@@ -392,7 +392,7 @@ export class PropertyValue extends Component {
     async _openRecord(recordModel, recordId) {
         const action = await this.orm.call(
             recordModel,
-            "get_formview_action",
+            "get_record_default_action",
             [[recordId]],
             {
                 context: this.props.context,

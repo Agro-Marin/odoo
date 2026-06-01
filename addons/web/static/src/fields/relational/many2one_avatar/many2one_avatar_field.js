@@ -3,7 +3,7 @@
 
 /** @module @web/fields/relational/many2one_avatar/many2one_avatar_field - Many2one field variant that displays the related record avatar */
 
-import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import {
     buildM2OFieldDescription,
     extractM2OFieldProps,
@@ -27,4 +27,4 @@ export const many2OneAvatarField = {
     },
 };
 
-registry.category("fields").add("many2one_avatar", many2OneAvatarField);
+registerField("many2one_avatar", many2OneAvatarField);

@@ -6,7 +6,8 @@
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { computeM2OProps, Many2One } from "./many2one.js";
@@ -61,7 +62,7 @@ export const m2oSupportedOptions = [
 export const m2oSupportedTypes = ["many2one"];
 
 /**
- * @param {typeof Component} component
+ * @param {import("@odoo/owl").ComponentConstructor} component
  * @returns {import("registries").FieldsRegistryItemShape}
  */
 export function buildM2OFieldDescription(component) {
@@ -138,9 +139,9 @@ export class Many2OneField extends Component {
 export const many2OneField = {
     ...buildM2OFieldDescription(Many2OneField),
 };
-registry.category("fields").add("many2one", many2OneField);
+registerField("many2one", many2OneField);
 
 // Fallback for res_partner_many2one — enhanced by partner_autocomplete when installed
-registry.category("fields").add("res_partner_many2one", {
+registerField("res_partner_many2one", {
     ...buildM2OFieldDescription(Many2OneField),
 });

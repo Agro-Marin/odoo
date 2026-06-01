@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class ColorPickerField extends Component {
@@ -39,4 +40,4 @@ export const colorPickerField = {
     }),
 };
 
-registry.category("fields").add("color_picker", colorPickerField);
+registerField("color_picker", colorPickerField);

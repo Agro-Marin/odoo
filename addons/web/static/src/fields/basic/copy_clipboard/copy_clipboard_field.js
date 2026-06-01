@@ -7,7 +7,8 @@ import { Component } from "@odoo/owl";
 import { CopyButton } from "@web/components/copy_button/copy_button";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { CharField } from "@web/fields/basic/char/char_field";
 import { UrlField } from "@web/fields/basic/url/url_field";
@@ -107,7 +108,7 @@ export const copyClipboardButtonField = {
     }),
 };
 
-registry.category("fields").add("CopyClipboardButton", copyClipboardButtonField);
+registerField("CopyClipboardButton", copyClipboardButtonField);
 
 export const copyClipboardCharField = {
     component: CopyClipboardCharField,
@@ -116,7 +117,7 @@ export const copyClipboardCharField = {
     extractProps,
 };
 
-registry.category("fields").add("CopyClipboardChar", copyClipboardCharField);
+registerField("CopyClipboardChar", copyClipboardCharField);
 
 export const copyClipboardURLField = {
     component: CopyClipboardURLField,
@@ -125,4 +126,4 @@ export const copyClipboardURLField = {
     extractProps,
 };
 
-registry.category("fields").add("CopyClipboardURL", copyClipboardURLField);
+registerField("CopyClipboardURL", copyClipboardURLField);

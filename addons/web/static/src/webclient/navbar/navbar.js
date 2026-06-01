@@ -16,11 +16,21 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Transition } from "@web/components/transition";
+import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { ErrorHandler } from "@web/core/utils/components";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 const systrayRegistry = registry.category("systray");
+
+// Schema for systray items. Consumers (this navbar's template) read
+// `Component`, `props`, and `isDisplayed`; everything else is forwarded.
+systrayRegistry.addValidation({
+    Component: { validate: (c) => c?.prototype instanceof Component },
+    props: { type: Object, optional: true },
+    isDisplayed: { type: Function, optional: true },
+    "*": true,
+});
 
 const getBoundingClientRect = Element.prototype.getBoundingClientRect;
 
@@ -65,11 +75,11 @@ export class NavBar extends Component {
         };
 
         systrayRegistry.addEventListener("UPDATE", renderAndAdapt);
-        this.env.bus.addEventListener("MENUS:APP-CHANGED", renderAndAdapt);
+        this.env.bus.addEventListener(AppEvent.MENUS_APP_CHANGED, renderAndAdapt);
 
         onWillUnmount(() => {
             systrayRegistry.removeEventListener("UPDATE", renderAndAdapt);
-            this.env.bus.removeEventListener("MENUS:APP-CHANGED", renderAndAdapt);
+            this.env.bus.removeEventListener(AppEvent.MENUS_APP_CHANGED, renderAndAdapt);
         });
 
         // We don't want to adapt every time we are patched
@@ -129,7 +139,9 @@ export class NavBar extends Component {
             .getEntries()
             .map(([key, value]) => ({ key, ...value }))
             .filter((item) =>
-                "isDisplayed" in item ? item.isDisplayed(this.env) : true,
+                "isDisplayed" in item
+                    ? item.isDisplayed(/** @type {import("@web/env").OdooEnv} */ (this.env))
+                    : true,
             )
             .reverse();
     }

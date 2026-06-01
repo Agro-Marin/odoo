@@ -5,9 +5,11 @@
 
 import { useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
 import { useSpellCheck } from "@web/core/utils/hooks";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useDynamicPlaceholder } from "@web/fields/dynamic_placeholder_hook";
 import { useInputField } from "@web/fields/input_field_hook";
 import { parseInteger } from "@web/fields/parsers";
@@ -37,10 +39,11 @@ export class TextField extends TextInputFieldBase {
 
     /** @returns {HTMLTextAreaElement | null} */
     get inputEl() {
-        return this.textareaRef.el;
+        return /** @type {HTMLTextAreaElement | null} */ (this.textareaRef.el);
     }
 
     setup() {
+        useRenderCounter("fields.TextField");
         this.divRef = useRef("div");
         this.textareaRef = useRef("textarea");
         if (this.props.dynamicPlaceholder) {
@@ -100,6 +103,14 @@ export class TextField extends TextInputFieldBase {
 export const textField = {
     component: TextField,
     displayName: _t("Multiline Text"),
+    // ``html``, ``text`` and ``char`` all render in this widget's
+    // textarea.  ``text`` is the canonical fit (multi-line free-form);
+    // ``char`` is supported for short-string columns the arch-author
+    // wants to give more visual room; ``html`` renders as plain text
+    // (HTML markup is shown literally), useful for source-editing or
+    // debug views.  Overlap with ``charField.supportedTypes`` is
+    // intentional polymorphism — see the comment there.
+    supportedTypes: ["html", "text", "char"],
     supportedOptions: [
         {
             label: _t("Enable line breaks"),
@@ -111,10 +122,18 @@ export const textField = {
             label: _t("Dynamic Placeholder"),
             name: "placeholder_field",
             type: "field",
-            availableTypes: ["char"],
+            // Mirrors ``charField``'s placeholder option: both ``char``
+            // and ``text`` server types are valid sources for a
+            // dynamic placeholder string.  The historical ``["char"]``
+            // here was an asymmetry — text widgets render the same
+            // placeholder string regardless of whether the source
+            // field is char or text.
+            availableTypes: ["char", "text"],
+            help: _t(
+                "Displays the value of the selected field as a textual hint. If the selected field is empty, the static placeholder attribute is displayed instead.",
+            ),
         },
     ],
-    supportedTypes: ["html", "text", "char"],
     extractProps: ({ attrs, options, placeholder }) => ({
         placeholder,
         dynamicPlaceholder: options?.dynamic_placeholder || false,
@@ -126,7 +145,7 @@ export const textField = {
     }),
 };
 
-registry.category("fields").add("text", textField);
+registerField("text", textField);
 
 export class ListTextField extends TextField {
     static defaultProps = {
@@ -150,4 +169,4 @@ export const listTextField = {
     component: ListTextField,
 };
 
-registry.category("fields").add("list.text", listTextField);
+registerField({ name: "text", view: "list" }, listTextField);

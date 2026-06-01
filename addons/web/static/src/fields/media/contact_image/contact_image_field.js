@@ -3,7 +3,7 @@
 
 /** @module @web/fields/media/contact_image/contact_image_field - Image field variant with fallback to a preview image when empty */
 
-import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { imageUrl } from "@web/core/utils/urls";
 import { ImageField, imageField } from "@web/fields/media/image/image_field";
@@ -55,4 +55,4 @@ export const contactImageField = {
     component: ContactImageField,
 };
 
-registry.category("fields").add("contact_image", contactImageField);
+registerField("contact_image", contactImageField);

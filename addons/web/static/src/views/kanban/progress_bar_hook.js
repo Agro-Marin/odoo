@@ -12,7 +12,6 @@ import {
 } from "@web/model/relational_model/utils";
 
 /** @import { Group } from "@web/model/relational_model/group" */
-/** @*/
 
 const FALSE = Symbol("False");
 
@@ -135,8 +134,14 @@ class ProgressBarState {
                 };
             });
             bars.push({
-                count:
+                // Clamp to >= 0: when ``_pbCounts`` is stale relative to a freshly
+                // reloaded (smaller) ``group.count`` -- e.g. during a slow
+                // ``read_progress_bar`` after a filter toggle -- the naive remainder
+                // goes negative, which is nonsensical and would corrupt ``total``.
+                count: Math.max(
+                    0,
                     group.count - bars.map((r) => r.count).reduce((a, b) => a + b, 0),
+                ),
                 value: /** @type {any} */ (FALSE),
                 string: _t("Other"),
                 color: "200",
@@ -172,6 +177,14 @@ class ProgressBarState {
                     return self.activeBars[group.serverValue]?.value || null;
                 },
                 bars,
+                // Width denominator for the segments: the sum of the bar counts, NOT
+                // the live ``group.count``. In a consistent state the two are equal
+                // (the "Other" bar absorbs the remainder), but using the bar sum keeps
+                // the rendered widths coherent with the bar counts during the window
+                // where records have reloaded but ``read_progress_bar`` has not yet
+                // resolved -- otherwise a stale count over a smaller denominator
+                // overflows each bar to its ``maxWidth`` cap.
+                total: bars.reduce((sum, bar) => sum + bar.count, 0),
                 isReady: true,
             };
 
@@ -215,6 +228,7 @@ class ProgressBarState {
             const currencies = aggValues?.[aggregateField.currency_field];
             if (currencies?.length > 1) {
                 return {
+                    title,
                     value,
                     currencies,
                 };
@@ -371,24 +385,45 @@ class ProgressBarState {
                 return;
             }
             this._pbCounts = res;
-            for (const group of this.model.root.groups) {
-                if (!group.isFolded) {
-                    const groupInfo = this.getGroupInfo(group);
-                    const groupValue = this._getGroupValue(group);
-                    const counts = res[groupValue];
-                    for (const bar of groupInfo.bars) {
-                        bar.count = (counts && counts[bar.value]) || 0;
-                    }
-                    groupInfo.bars.find((b) => b.value === FALSE).count = counts
-                        ? group.count - Object.values(counts).reduce((a, b) => a + b, 0)
-                        : group.count;
+            this._refreshBars();
+        }
+    }
 
-                    if (this.activeBars[group.serverValue]) {
-                        this.activeBars[group.serverValue].count = groupInfo.bars.find(
-                            (x) => x.value === this.activeBars[group.serverValue].value,
-                        ).count;
-                    }
-                }
+    /**
+     * Re-sync every visible group's bar counts and snapshot ``total`` from the current
+     * ``_pbCounts``, mutating the cached bar objects in place.
+     *
+     * Mutating in place (rather than discarding ``_groupsInfo``) preserves each
+     * group's progress-bar object identity and active-bar/filter state, so this is
+     * safe to call after a (re)load to reconcile bars that an intermediate render may
+     * have produced from a half-loaded epoch (one of read_progress_bar / web_read_group
+     * resolved but not the other).
+     */
+    _refreshBars() {
+        if (this._pbCounts === null) {
+            return;
+        }
+        for (const group of this.model.root.groups) {
+            if (group.isFolded) {
+                continue;
+            }
+            const groupInfo = this.getGroupInfo(group);
+            const counts = this._pbCounts[this._getGroupValue(group)];
+            for (const bar of groupInfo.bars) {
+                bar.count = (counts && counts[bar.value]) || 0;
+            }
+            groupInfo.bars.find((b) => b.value === FALSE).count = counts
+                ? Math.max(
+                      0,
+                      group.count - Object.values(counts).reduce((a, b) => a + b, 0),
+                  )
+                : group.count;
+            // Keep the snapshot denominator in sync with the refreshed counts.
+            groupInfo.total = groupInfo.bars.reduce((sum, bar) => sum + bar.count, 0);
+            if (this.activeBars[group.serverValue]) {
+                this.activeBars[group.serverValue].count = groupInfo.bars.find(
+                    (x) => x.value === this.activeBars[group.serverValue].value,
+                ).count;
             }
         }
     }
@@ -464,9 +499,9 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
         new ProgressBarState(progressAttributes, model, aggregateFields, activeBars),
     );
 
-    const onWillLoadRoot = model.hooks.onWillLoadRoot;
+    const onWillLoadRoot = model.hooks.lifecycle.onWillLoadRoot;
     let prom;
-    model.hooks.onWillLoadRoot = (config) => {
+    model.hooks.lifecycle.onWillLoadRoot = (config) => {
         onWillLoadRoot();
         prom = progressBarState.loadProgressBar({
             context: config.context,
@@ -475,12 +510,18 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
             resModel: config.resModel,
         });
     };
-    const onRootLoaded = model.hooks.onRootLoaded;
-    model.hooks.onRootLoaded = async (root) => {
+    const onRootLoaded = model.hooks.lifecycle.onRootLoaded;
+    model.hooks.lifecycle.onRootLoaded = async (root) => {
         await onRootLoaded(root);
         if (model.isReady) {
-            // do not wait for the progressbar on first load, to show the kanban view asap
-            return prom;
+            // On a reload, the groups are now loaded; once read_progress_bar also
+            // resolves, re-sync the bars so their segments/total reflect the same epoch
+            // as the freshly loaded groups. A render taken while only one of the two
+            // RPCs had resolved (e.g. a slow read_progress_bar after a filter toggle,
+            // or a slow web_read_group after archiving) otherwise leaves stale counts.
+            // On the first load this branch is skipped, so the progressbar loads async
+            // and the view paints asap.
+            return prom.then(() => progressBarState._refreshBars());
         }
     };
 

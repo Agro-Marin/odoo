@@ -11,6 +11,7 @@ import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 import { X2M_TYPES } from "@web/fields/field_types";
 import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_menus";
+import { session } from "@web/session";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 const NUMERIC_TYPES = ["integer", "float", "monetary"];
@@ -154,6 +155,75 @@ export function computeModelOptions(env, display) {
             !env.config.isReloadingController &&
             !env.inDialog &&
             !!display.controlPanel,
+    };
+}
+
+/**
+ * Compose the standard params object that multi-record view controllers
+ * (list, kanban, plus future view types built on the same data shape)
+ * pass to the relational model constructor.
+ *
+ * Centralizes the boilerplate every multi-record view applies:
+ *
+ *   - **state restoration** — ``state = props.state?.modelState``
+ *   - **config restoration** — ``config = props.state?.modelState?.config || config``
+ *     so that returning to a view via the action manager replays the
+ *     previous load instead of re-querying.
+ *   - ``countLimit = archInfo.countLimit``
+ *   - ``defaultOrderBy = archInfo.defaultOrder``
+ *   - ``activeIdsLimit = session.active_ids_limit``
+ *   - ``hooks = { lifecycle, ui: { ...uiHooks, ...callerHooks.ui } }`` —
+ *     every controller starts from the model UI hooks
+ *     (dialog/notification/action) and layers its own lifecycle and
+ *     (optionally) UI overrides on top of the split contract enforced by
+ *     ``RelationalModel``.
+ *
+ * The caller still owns its own ``config`` (extracted from arch with
+ * any view-specific dependencies wired in via
+ * ``addFieldDependencies``) and any view-specific extras
+ * (``groupByInfo``, ``multiEdit``, ``groupsLimit``, ``maxGroupByDepth``,
+ * ``limit``, etc.).  Those go through ``extras`` and are spread last so
+ * a controller can override any default this function provides.
+ *
+ * Mono-record views (form) intentionally do not use this helper — their
+ * config shape is different (``isMonoRecord``, ``resId``/``resIds``,
+ * ``mode``) and they don't read most of the multi-record fields.
+ *
+ * @param {Object} args
+ * @param {any} args.archInfo - parsed view arch
+ * @param {any} args.props    - controller props (must include state)
+ * @param {any} args.uiHooks  - the ``_uiHooks`` from
+ *                              ``useControllerServices()``
+ * @param {Object} args.config - view-specific config object (used when
+ *     no prior modelState is being restored)
+ * @param {{ lifecycle?: Object, ui?: Object }} [args.hooks={}] -
+ *     Controller-supplied hook overrides in the split shape.
+ *     ``lifecycle`` is taken as-is; ``ui`` is merged on top of the
+ *     ``uiHooks`` defaults so a controller can replace specific
+ *     UI hooks without losing the rest.
+ * @param {Object} [args.extras={}] - view-specific extras
+ *     (``groupByInfo``, ``limit``, ``multiEdit``, ...) spread last
+ * @returns {Object} the params object accepted by ``RelationalModel``
+ */
+export function buildMultiRecordModelParams({
+    archInfo,
+    props,
+    uiHooks,
+    config,
+    hooks = {},
+    extras = {},
+}) {
+    return {
+        config: props.state?.modelState?.config || config,
+        state: props.state?.modelState,
+        countLimit: archInfo.countLimit,
+        defaultOrderBy: archInfo.defaultOrder,
+        activeIdsLimit: session.active_ids_limit,
+        hooks: {
+            lifecycle: hooks.lifecycle,
+            ui: { ...uiHooks, ...hooks.ui },
+        },
+        ...extras,
     };
 }
 
@@ -303,3 +373,16 @@ export function makeModelUIHooks({ action, dialog, notification }) {
 registry
     .category("shared_components")
     .add("computeViewClassName", computeViewClassName);
+
+// Validation contract for the shared_components registry. Its entries are
+// intentionally heterogeneous — OWL component classes (ViewButton) AND bare
+// hooks/utilities (useViewButtons, executeButtonCallback, loadSubViews,
+// useFormViewInDialog, computeViewClassName) — registered here so lower layers
+// (e.g. fields/x2many) resolve them without an upward import. The only contract
+// expressible registry-wide is therefore "must be callable": it catches a
+// non-callable mis-registration (object/undefined) at add time, while per-key
+// type contracts (ViewButton is a Component, useViewButtons is a hook) remain
+// the consumers' responsibility.
+registry
+    .category("shared_components")
+    .addValidation((entry) => typeof entry === "function");

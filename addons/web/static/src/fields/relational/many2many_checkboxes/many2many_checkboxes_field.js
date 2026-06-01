@@ -5,8 +5,10 @@
 
 import { Component, onWillUnmount } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
+import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { useBus } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -37,7 +39,7 @@ export class Many2ManyCheckboxesField extends Component {
         this.idsToAdd = new Set();
         this.idsToRemove = new Set();
         this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 500);
-        useBus(this.props.record.model.bus, "NEED_LOCAL_CHANGES", (ev) => {
+        useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) => {
             const result = this.commitChanges();
             if (result) {
                 ev.detail.proms.push(result);
@@ -108,4 +110,4 @@ export const many2ManyCheckboxesField = {
     },
 };
 
-registry.category("fields").add("many2many_checkboxes", many2ManyCheckboxesField);
+registerField("many2many_checkboxes", many2ManyCheckboxesField);
