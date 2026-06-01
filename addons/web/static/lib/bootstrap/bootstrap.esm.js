@@ -2035,8 +2035,21 @@ class Dropdown extends BaseComponent {
  * Data API implementation
  */
 
-EventHandler.on(document, EVENT_KEYDOWN_DATA_API, SELECTOR_DATA_TOGGLE$3, Dropdown.dataApiKeydownHandler);
-EventHandler.on(document, EVENT_KEYDOWN_DATA_API, SELECTOR_MENU, Dropdown.dataApiKeydownHandler);
+// Fork modification — the two delegated keydown handlers below are
+// disabled. Bootstrap's ``dataApiKeydownHandler`` calls
+// ``event.stopPropagation()`` on ArrowUp/ArrowDown for any descendant
+// of ``.dropdown-menu`` (and on the toggle itself for the data-toggle
+// variant), then tries to drive Bootstrap's own keyboard menu
+// navigation. We use ``@web/services/navigation/navigation``
+// (registered through ``@web/services/hotkeys/hotkey_service``) and
+// the Bootstrap handler ATE arrow keys before they could reach the
+// hotkey service when focus was inside one of our popovers — it was
+// the root cause of the ``dropdowns keynav`` / ``multi-level
+// dropdown: keynav`` / accordion-keynav test failures.
+// Re-enable both lines if Bootstrap-native keyboard navigation is
+// ever required for non-Odoo dropdowns embedded in the page.
+// EventHandler.on(document, EVENT_KEYDOWN_DATA_API, SELECTOR_DATA_TOGGLE$3, Dropdown.dataApiKeydownHandler);
+// EventHandler.on(document, EVENT_KEYDOWN_DATA_API, SELECTOR_MENU, Dropdown.dataApiKeydownHandler);
 EventHandler.on(document, EVENT_CLICK_DATA_API$3, Dropdown.clearMenus);
 EventHandler.on(document, EVENT_KEYUP_DATA_API, Dropdown.clearMenus);
 EventHandler.on(document, EVENT_CLICK_DATA_API$3, SELECTOR_DATA_TOGGLE$3, function (event) {

@@ -2,14 +2,14 @@
 
 import { on, queryAll } from "@odoo/hoot-dom";
 import { reactive, useComponent, useEffect, useExternalListener } from "@odoo/owl";
-import { isNode } from "@web/../lib/hoot-dom/helpers/dom";
+import { isNode } from "@odoo/hoot-dom-helpers-dom";
 import {
     isInstanceOf,
     isIterable,
     parseRegExp,
     R_WHITE_SPACE,
     toSelector,
-} from "@web/../lib/hoot-dom/hoot_dom_utils";
+} from "@odoo/hoot-dom-utils";
 import { getRunner } from "./main_runner.js";
 
 /**
@@ -1321,10 +1321,12 @@ export function makeRuntimeHook(name) {
                 return;
             }
             let valid = Boolean(runner.suiteStack.length);
+            let isGlobal = false;
             const last = callbacks.at(-1);
             if (last && typeof last === "object") {
                 callbacks.pop();
-                valid ||= Boolean(last.global);
+                isGlobal = Boolean(last.global);
+                valid ||= isGlobal;
             }
             // During module initialization (before the runner starts),
             // hooks called outside a suite are treated as global.
@@ -1338,6 +1340,23 @@ export function makeRuntimeHook(name) {
                 throw new HootError(`cannot call "${name}" callback outside of a suite`, {
                     level: "critical",
                 });
+            }
+            // ``{ global: true }`` hooks must register against the runner's
+            // top-level callback list so they apply to every test, not just
+            // the tests in whichever suite happened to be on top of the
+            // stack at registration time. Without this, framework helpers
+            // imported transitively (e.g. env_test_helpers via web_test_helpers)
+            // get scoped to the first test file that pulls them in, and
+            // every other file's tests silently lose their cleanup hooks —
+            // observable as cross-file state leakage (registries, services,
+            // mock routes, etc.).
+            if (isGlobal && runner.suiteStack.length) {
+                const saved = runner.suiteStack.splice(0);
+                try {
+                    return runner[name](...callbacks);
+                } finally {
+                    runner.suiteStack.push(...saved);
+                }
             }
             return runner[name](...callbacks);
         },

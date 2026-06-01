@@ -27,6 +27,13 @@ declare module "registries" {
         type: string;
         viewType: string;
         widget?: string;
+        // Dynamic-side flags also surface on Partial<StaticFieldInfo>
+        // because the `fieldDependencies` mock APIs let tests construct
+        // an info shape that combines static metadata with the readonly
+        // / required / invisible decoration markers from a parent view.
+        readonly?: boolean;
+        required?: boolean;
+        invisible?: boolean | string;
     }
 
     type OptionType = "boolean" | "field" | "number" | "selection" | "string";

@@ -27,7 +27,7 @@ import {
     waitFor,
     waitForNone,
 } from "@odoo/hoot";
-import { getParentFrame } from "@web/../lib/hoot-dom/helpers/dom";
+import { getParentFrame } from "@odoo/hoot-dom-helpers-dom";
 import { mountForTest, parseUrl } from "../local_helpers.js";
 
 const $ = queryFirst;

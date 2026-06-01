@@ -1,5 +1,5 @@
 declare module "registries" {
-    import { Component } from "@odoo/owl";
+    import { Component, ComponentConstructor } from "@odoo/owl";
 
     interface DynamicWidgetInfo {
         readonly: boolean;
@@ -10,11 +10,15 @@ declare module "registries" {
         name: string;
         options: object;
         widget: ViewWidgetsRegistryItemShape;
+        // The widget XML node carries `type="..."` for the underlying
+        // arch-emitted renderer; tests that build a `Partial<StaticWidgetInfo>`
+        // mock typically include it.
+        type?: string;
     }
 
     export interface ViewWidgetsRegistryItemShape {
         additionalClasses?: string[];
-        component: typeof Component;
+        component: ComponentConstructor;
         extractProps?(options: object, dynamicInfo: DynamicWidgetInfo): object;
         fieldDependencies?: Partial<StaticWidgetInfo>[] | ((baseInfo: StaticWidgetInfo) => Partial<StaticWidgetInfo>[]);
     }
