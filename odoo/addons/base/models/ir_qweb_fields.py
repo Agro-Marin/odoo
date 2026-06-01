@@ -268,7 +268,12 @@ class IrQwebFieldFloat(models.AbstractModel):
         field = record._fields[field_name]
         if "precision" not in options and "decimal_precision" not in options:
             _, precision = field.get_digits(record.env) or (None, None)
-            options = dict(options, precision=precision)
+            # Only inject ``precision`` when the field actually declares digits.
+            # A ``None`` precision would otherwise reach ``f"%.{precision}f"`` as
+            # the literal ``"%.Nonef"`` if the min-precision auto-branch is ever
+            # bypassed; leaving it out lets ``value_to_html`` derive precision.
+            if precision is not None:
+                options = dict(options, precision=precision)
         if "min_precision" not in options and hasattr(field, "get_min_display_digits"):
             min_precision = field.get_min_display_digits(record.env)
             options = dict(options, min_precision=min_precision)
@@ -444,12 +449,25 @@ class IrQwebFieldOne2many(models.AbstractModel):
 
 
 class IrQwebFieldHtml(models.AbstractModel):
+    """``html`` converter, emits the stored markup as-is (no sanitization here)."""
+
+    # This converter does NOT sanitize: it re-serializes the stored HTML and only
+    # runs attribute post-processing (e.g. asset rewriting). Safety relies on the
+    # ``Html`` field sanitizing on write (sanitize=True by default,
+    # sanitize_overridable gated by base.group_sanitize_override). Do not point
+    # it at sanitize=False content originating from untrusted sources.
     _name = "ir.qweb.field.html"
     _description = "Qweb Field HTML"
     _inherit = ["ir.qweb.field"]
 
     @api.model
     def value_to_html(self, value: Any, options: dict[str, Any]) -> Markup:
+        if not value:
+            # The widget path (t-out widget='html') reaches this converter with
+            # the ORM falsy value (False/None) for an unset html field. Without
+            # this guard the f-string below interpolates the literal text,
+            # rendering "False"/"None"; the t-field path is guarded upstream.
+            return Markup("")
         irQweb = self.env["ir.qweb"]
         # wrap value inside a body and parse it as HTML
         body = etree.fromstring(
@@ -942,9 +960,9 @@ class IrQwebFieldBarcode(models.AbstractModel):
             barcode_symbology,
             value,
             **{
-                key: value
-                for key, value in options.items()
-                if key in ["width", "height", "humanreadable", "quiet", "mask"]
+                k: v
+                for k, v in options.items()
+                if k in ["width", "height", "humanreadable", "quiet", "mask"]
             },
         )
 

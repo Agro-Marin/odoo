@@ -783,7 +783,8 @@ Module lifecycle management.
 - `category_id` (Many2one → ir.module.category)
 - `dependencies_id` (One2many → ir.module.module.dependency)
 - `application` (Boolean), `installable` (Boolean), `auto_install` (Boolean)
-- `installed_version` (Char), `latest_version` (Char, computed)
+- `db_version` (Char) — version persisted at last install/upgrade
+- `manifest_version` (Char, computed) — version in manifest on disk
 - `license` (Selection)
 
 **Key Methods:**
