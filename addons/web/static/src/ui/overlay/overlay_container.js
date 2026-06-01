@@ -62,9 +62,10 @@ class OverlayItem extends Component {
      * @returns {boolean} whether target is inside this overlay or any sub-overlay
      */
     contains(target) {
+        const node = /** @type {Node} */ (target);
         return (
-            this.rootRef.el?.contains(target) ||
-            this.subOverlays.some((oi) => oi.rootRef.el?.contains(target))
+            this.rootRef.el?.contains(node) ||
+            this.subOverlays.some((oi) => oi.rootRef.el?.contains(node))
         );
     }
 }

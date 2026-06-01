@@ -11,6 +11,15 @@ import { ActionMenus } from "@web/search/action_menus/action_menus";
 
 const cogMenuRegistry = registry.category("cogMenu");
 
+// Cog-menu items appear in the controller's gear menu.
+// Same shape as favoriteMenu: a Component plus optional grouping/visibility.
+cogMenuRegistry.addValidation({
+    Component: Function,
+    groupNumber: { type: Number, optional: true },
+    isDisplayed: { type: Function, optional: true },
+    "*": true,
+});
+
 /**
  * Combined Action menus (or Action/Print bar, previously called 'Sidebar')
  *
@@ -60,13 +69,15 @@ export class CogMenu extends ActionMenus {
 
     /**
      * Collect visible items from the cogMenu registry.
-     * @returns {Promise<Array<{Component: typeof Component, groupNumber: number, key: string}>>}
+     * @returns {Promise<Array<{Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}>>}
      */
     async _registryItems() {
         const registryItems = cogMenuRegistry.getAll();
         const areDisplayed = await Promise.all(
             registryItems.map((item) =>
-                "isDisplayed" in item ? item.isDisplayed(this.env) : true,
+                "isDisplayed" in item
+                    ? item.isDisplayed(/** @type {import("@web/env").OdooEnv} */ (this.env))
+                    : true,
             ),
         );
         const items = [];
@@ -83,7 +94,12 @@ export class CogMenu extends ActionMenus {
         return items;
     }
 
-    /** @returns {Array<{Component: typeof Component, groupNumber: number, key: string}>} all cog items sorted by group */
+    /**
+     * @returns {Array<
+     *   | {Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}
+     *   | {key: string, groupNumber: number, description?: string, action?: any, callback?: Function}
+     * >} merged cog + action items, sorted by group
+     */
     get cogItems() {
         return [...this.registryItems, ...this.actionItems].toSorted(
             (item1, item2) => (item1.groupNumber || 0) - (item2.groupNumber || 0),

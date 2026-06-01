@@ -40,12 +40,18 @@ export function useAutoresize(ref, options = {}) {
                 const inputHandler = () => resize(true);
                 el.addEventListener("input", inputHandler);
                 const resizeObserver = new ResizeObserver(() => {
-                    // This ensures that the resize function is not called twice on input or page load
+                    // Suppress the observer fire that follows our own style
+                    // mutations, so we do not loop on a resize we just made.
                     if (wasProgrammaticallyResized) {
                         wasProgrammaticallyResized = false;
                         return;
                     }
-                    resize();
+                    // The resize() call below mutates styles and will itself
+                    // trigger another observer fire — pass ``true`` so that
+                    // follow-up fire is suppressed, otherwise the observer
+                    // re-enters resize indefinitely (textareas in flex/grid
+                    // parents oscillate by 1px and the loop never terminates).
+                    resize(true);
                 });
                 resizeObserver.observe(el);
                 return () => {

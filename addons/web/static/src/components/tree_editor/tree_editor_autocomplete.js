@@ -13,7 +13,7 @@ import { toPyValue } from "@web/core/py_js/py_utils";
 import { imageUrl } from "@web/core/utils/urls";
 /**
  * Formats a record value for display as a tag, with color coding for validity.
- * @param {number|import("./condition_tree").Expression|any} val
+ * @param {number|import("@web/core/tree/condition_tree").Expression|any} val
  * @param {Record<number, string>} displayNames
  * @returns {{text: string, colorIndex: number}} display text and color (0=grey, 1=red, 2=orange)
  */

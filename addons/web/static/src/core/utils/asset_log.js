@@ -1,0 +1,145 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/core/utils/asset_log - Debug-gated namespaced logger (asset/rpc/action/model) */
+
+/**
+ * Build a namespaced ``console.debug`` logger with its own activation toggle.
+ *
+ * The asset/esm/boot tracing surface has been generalised: any subsystem can
+ * carve its own observability namespace (RPC, action, model, ...) without
+ * inventing its own opt-in mechanism. Every namespace shares the same three-
+ * channel activation:
+ *
+ *   • ``?debug=<flagSubstring>`` (substring match against ``odoo.debug``)
+ *   • ``localStorage.setItem("debug.<flagSubstring>", "1")``
+ *   • ``globalThis[extraGlobalFlag]`` (optional legacy escape hatch)
+ *
+ * The returned function is shaped like ``log(category, ...parts)`` and exposes
+ * ``.enabled()`` for the rare callers that want to skip expensive payload
+ * construction before logging.
+ *
+ * @param {string} prefix          Log-line prefix, e.g. ``"asset"`` → ``[asset.boot] ...``.
+ * @param {string} flagSubstring   Token matched in ``odoo.debug`` and used as
+ *                                 the ``debug.<flagSubstring>`` localStorage key.
+ *                                 Often equal to ``prefix``; the asset namespace
+ *                                 historically uses ``"asset"`` for the prefix
+ *                                 but ``"assets"`` for the flag — preserved
+ *                                 for back-compat.
+ * @param {string} [extraGlobalFlag] Optional ``globalThis`` property name that
+ *                                 also activates the namespace when truthy.
+ * @returns {((category: string, ...parts: any[]) => void) & { enabled: () => boolean }}
+ */
+function _makeNamespacedLog(prefix, flagSubstring, extraGlobalFlag) {
+    const flagKey = `debug.${flagSubstring}`;
+    const enabled = () => {
+        // The result is not cached: debug flag can flip at runtime (e.g.
+        // the debug menu toggle, or DevTools localStorage edits). The
+        // check is O(1) string ops and runs only when something tries
+        // to log.
+        try {
+            const o = /** @type {any} */ (globalThis).odoo;
+            if (o && typeof o.debug === "string" && o.debug.includes(flagSubstring)) {
+                return true;
+            }
+            if (globalThis.localStorage?.getItem?.(flagKey)) {
+                return true;
+            }
+            if (extraGlobalFlag && /** @type {any} */ (globalThis)[extraGlobalFlag]) {
+                return true;
+            }
+        } catch {
+            // localStorage may throw in sandboxed iframes — treat as disabled.
+        }
+        return false;
+    };
+    /** @type {any} */
+    const log = (/** @type {string} */ category, /** @type {any[]} */ ...parts) => {
+        if (!enabled()) {
+            return;
+        }
+        // Use console.debug so devtools hides this behind "Verbose".
+        // The prefix makes logs greppable; console does its own formatting.
+        console.debug(`[${prefix}.${category}]`, ...parts);
+    };
+    log.enabled = enabled;
+    return log;
+}
+
+// ---------------------------------------------------------------------------
+// Public namespace logs
+// ---------------------------------------------------------------------------
+
+/**
+ * Asset / bundle / ESM tracing — the historical surface.
+ *
+ * Activation:
+ *   • ``?debug=assets`` (or any debug mode containing the substring ``"assets"``)
+ *   • ``localStorage.setItem("debug.assets", "1")``
+ *   • ``window.__ODOO_ASSET_TRACE__ = true``
+ */
+export const assetLog = _makeNamespacedLog("asset", "assets", "__ODOO_ASSET_TRACE__");
+
+/**
+ * RPC lifecycle tracing — request / response / error / abort / timeout.
+ *
+ * Activation:
+ *   • ``?debug=rpc``
+ *   • ``localStorage.setItem("debug.rpc", "1")``
+ */
+export const rpcLog = _makeNamespacedLog("rpc", "rpc");
+
+/**
+ * Action manager tracing — doAction dispatch, executor routing, breadcrumb
+ * stack mutations.
+ *
+ * Activation:
+ *   • ``?debug=action``
+ *   • ``localStorage.setItem("debug.action", "1")``
+ */
+export const actionLog = _makeNamespacedLog("action", "action");
+
+/**
+ * Relational-model tracing — root load, save, discard, onchange.
+ *
+ * Activation:
+ *   • ``?debug=model``
+ *   • ``localStorage.setItem("debug.model", "1")``
+ */
+export const modelLog = _makeNamespacedLog("model", "model");
+
+// ---------------------------------------------------------------------------
+// Scoped logger factories (partial application by category)
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {string} category
+ * @returns {(...parts: any[]) => void}
+ */
+export function makeAssetLog(category) {
+    return (...parts) => assetLog(category, ...parts);
+}
+
+/**
+ * @param {string} category
+ * @returns {(...parts: any[]) => void}
+ */
+export function makeRpcLog(category) {
+    return (...parts) => rpcLog(category, ...parts);
+}
+
+/**
+ * @param {string} category
+ * @returns {(...parts: any[]) => void}
+ */
+export function makeActionLog(category) {
+    return (...parts) => actionLog(category, ...parts);
+}
+
+/**
+ * @param {string} category
+ * @returns {(...parts: any[]) => void}
+ */
+export function makeModelLog(category) {
+    return (...parts) => modelLog(category, ...parts);
+}

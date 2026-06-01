@@ -108,11 +108,11 @@ export function useSetupAction(params = {}) {
     } = params;
 
     if (beforeVisibilityChange) {
-        useExternalListener(document, "visibilitychange", beforeVisibilityChange);
+        useExternalListener(document, "visibilitychange", /** @type {EventListener} */ (beforeVisibilityChange));
     }
 
     if (beforeUnload) {
-        useExternalListener(window, "beforeunload", beforeUnload);
+        useExternalListener(window, "beforeunload", /** @type {EventListener} */ (beforeUnload));
     }
     if (__beforeLeave__ && beforeLeave) {
         useCallbackRecorder(__beforeLeave__, beforeLeave);

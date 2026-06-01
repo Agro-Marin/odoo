@@ -1,0 +1,223 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/model/relational_model/group_postprocessor - Recursive postprocessor for web_read_group responses */
+
+import { Domain } from "@web/core/domain";
+
+import { makeActiveField } from "./field_metadata.js";
+import { extractInfoFromGroupData } from "./field_values.js";
+
+/** @import { RelationalModelConfig } from "./relational_model" */
+
+/**
+ * @typedef {object} PostprocessReadGroupDeps
+ * @property {(config: RelationalModelConfig, propertyFullName: string) => Promise<void>}
+ *   getPropertyDefinition Async loader for property field
+ *   definitions. Forwarded straight to ``RelationalModel._getPropertyDefinition``
+ *   so the property arch can be lazily fetched the first time the
+ *   user groups by a property.
+ * @property {Record<string, { activeFields: Record<string, any>; fields: Record<string, any> }>} groupByInfo
+ *   Per-groupBy record-spec overrides. Same shape used by
+ *   {@link buildWebReadGroupParams}; passed in so the postprocessor
+ *   stays decoupled from the model class.
+ * @property {number} initialLimit Per-group default record limit at
+ *   the deepest groupBy level.
+ * @property {number} initialGroupsLimit Per-group default group limit
+ *   when there are still nested groupBy axes below this level.
+ * @property {number} defaultGroupLimit Fallback when
+ *   ``initialGroupsLimit`` is unset; mirrors
+ *   ``RelationalModel.DEFAULT_GROUP_LIMIT``.
+ */
+
+/**
+ * Postprocess a ``web_read_group`` response into the shape the
+ * client model expects.
+ *
+ * Two responsibilities:
+ *
+ *   1. **Per-group config seeding** — every server group is mapped
+ *      back to a cached ``config.groups[<value>]`` entry. New entries
+ *      get a full ``commonConfig`` seed with the right limit
+ *      (records vs groups) for their depth. Existing entries are
+ *      patched in place so reload doesn't reset pagination state
+ *      that the user opened manually.
+ *
+ *   2. **Sticky-empty insertion** — when the same query is re-run
+ *      and a group disappears from the server response (e.g. all
+ *      records moved out via a kanban drag), the previous group is
+ *      re-inserted with empty records / zeroed aggregates so the
+ *      column doesn't vanish mid-flow. This is gated on the
+ *      ``params`` hash matching — a fresh filter / sort starts
+ *      clean.
+ *
+ * The function MUTATES ``config.groups`` and ``config.currentGroups``
+ * — same contract as the original method. It returns the public
+ * ``{ groups, length }`` shape that controllers consume.
+ *
+ * @param {RelationalModelConfig} config
+ * @param {{ groups: any[]; length: number }} response
+ * @param {PostprocessReadGroupDeps} deps
+ * @returns {Promise<{ groups: any[]; length: number }>}
+ */
+export async function postprocessReadGroup(config, response, deps) {
+    const {
+        getPropertyDefinition,
+        groupByInfo,
+        initialLimit,
+        initialGroupsLimit,
+        defaultGroupLimit,
+    } = deps;
+    let { groups, length } = response;
+
+    const commonConfig = {
+        resModel: config.resModel,
+        fields: config.fields,
+        activeFields: config.activeFields,
+        fieldsToAggregate: config.fieldsToAggregate,
+        offset: 0,
+    };
+
+    const extractGroups = async (currentConfig, groupsData) => {
+        const groupByFieldName = currentConfig.groupBy[0].split(":")[0];
+        if (groupByFieldName.includes(".")) {
+            // Property-field groupby — load the dynamic definition
+            // (and add the parent properties field to activeFields so
+            // a drag-and-drop doesn't need to refetch the value).
+            if (!config.fields[groupByFieldName]) {
+                await getPropertyDefinition(config, groupByFieldName);
+            }
+            const propertiesFieldName = groupByFieldName.split(".")[0];
+            if (!config.activeFields[propertiesFieldName]) {
+                config.activeFields[propertiesFieldName] = makeActiveField();
+            }
+        }
+        const nextLevelGroupBy = currentConfig.groupBy.slice(1);
+        const out = [];
+
+        let groupRecordConfig;
+        if (groupByInfo[groupByFieldName]) {
+            groupRecordConfig = {
+                ...groupByInfo[groupByFieldName],
+                resModel: currentConfig.fields[groupByFieldName].relation,
+                context: {},
+            };
+        }
+
+        for (const groupData of groupsData) {
+            const group = extractInfoFromGroupData(
+                groupData,
+                currentConfig.groupBy,
+                currentConfig.fields,
+                currentConfig.domain,
+            );
+            if (!currentConfig.groups[group.value]) {
+                currentConfig.groups[group.value] = {
+                    ...commonConfig,
+                    groupByFieldName,
+                    extraDomain: false,
+                    value: group.value,
+                    list: {
+                        ...commonConfig,
+                        groupBy: nextLevelGroupBy,
+                        groups: {},
+                        limit:
+                            !nextLevelGroupBy.length
+                                ? initialLimit
+                                : initialGroupsLimit || defaultGroupLimit,
+                    },
+                };
+            }
+
+            const groupConfig = currentConfig.groups[group.value];
+            groupConfig.list.orderBy = currentConfig.orderBy;
+            groupConfig.initialDomain = group.domain;
+            if (groupConfig.extraDomain) {
+                groupConfig.list.domain = Domain.and([
+                    group.domain,
+                    groupConfig.extraDomain,
+                ]).toList();
+            } else {
+                groupConfig.list.domain = group.domain;
+            }
+            const context = {
+                ...currentConfig.context,
+                [`default_${groupByFieldName}`]: group.serverValue,
+            };
+            groupConfig.list.context = context;
+            groupConfig.context = context;
+            if (nextLevelGroupBy.length) {
+                groupConfig.isFolded = !("__groups" in groupData);
+                if (!groupConfig.isFolded) {
+                    const { groups: nested, length: nestedLength } = groupData.__groups;
+                    group.groups = await extractGroups(groupConfig.list, nested);
+                    group.length = nestedLength;
+                } else {
+                    group.groups = [];
+                }
+            } else {
+                groupConfig.isFolded = !("__records" in groupData);
+                if (!groupConfig.isFolded) {
+                    group.records = groupData.__records;
+                    group.length = groupData.__count;
+                } else {
+                    group.records = [];
+                }
+            }
+            if (Object.hasOwn(groupData, "__offset")) {
+                groupConfig.list.offset = groupData.__offset;
+            }
+            if (groupRecordConfig) {
+                groupConfig.record = {
+                    ...groupRecordConfig,
+                    resId: group.value ?? false,
+                };
+            }
+            out.push(group);
+        }
+
+        return out;
+    };
+
+    groups = await extractGroups(config, groups);
+
+    // Sticky-empty pass: when the same (domain, groupBy, offset,
+    // limit, orderBy) tuple is reloaded and a group dropped out of
+    // the server response, re-inject it with empty records so the
+    // UI doesn't lose the column mid-flow (kanban drag, list group
+    // toggle). A different params hash starts clean.
+    const params = JSON.stringify([
+        config.domain,
+        config.groupBy,
+        config.offset,
+        config.limit,
+        config.orderBy,
+    ]);
+    if (config.currentGroups && config.currentGroups.params === params) {
+        const currentGroups = config.currentGroups.groups;
+        const newGroupValues = new Set(groups.map((g) => JSON.stringify(g.value)));
+        currentGroups.forEach((group, index) => {
+            if (
+                config.groups[group.value] &&
+                !newGroupValues.has(JSON.stringify(group.value))
+            ) {
+                const aggregates = { ...group.aggregates };
+                for (const key of Object.keys(aggregates)) {
+                    // ``array_agg_distinct`` returns an array; everything else
+                    // collapses to a numeric zero.
+                    aggregates[key] = Array.isArray(aggregates[key]) ? [] : 0;
+                }
+                groups.splice(index, 0, {
+                    ...group,
+                    count: 0,
+                    length: 0,
+                    records: [],
+                    aggregates,
+                });
+            }
+        });
+    }
+    config.currentGroups = { params, groups };
+
+    return { groups, length };
+}

@@ -35,7 +35,7 @@ export class UserSwitch extends Component {
 
     toggleFormDisplay() {
         this.state.displayUserChoice =
-            !this.state.displayUserChoice && this.state.users.length;
+            !this.state.displayUserChoice && this.state.users.length > 0;
         this.form.classList.toggle("d-none", this.state.displayUserChoice);
         this.form.querySelector(":placeholder-shown")?.focus();
     }

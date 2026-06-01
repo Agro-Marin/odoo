@@ -5,6 +5,7 @@
 
 /** Sentinel value indicating a record ID that is inaccessible or does not exist. */
 
+import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { unique, zip } from "@web/core/utils/collections/arrays";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -48,7 +49,7 @@ export const nameService = {
             cache = Object.create(null);
         }
 
-        env.bus.addEventListener("ACTION_MANAGER:UPDATE", clearCache);
+        env.bus.addEventListener(AppEvent.ACTION_MANAGER_UPDATE, clearCache);
 
         /**
          * Get or create the id→Deferred mapping for a model.

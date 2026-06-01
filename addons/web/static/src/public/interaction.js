@@ -482,7 +482,7 @@ export class Interaction {
      * Mounts an Owl component.
      *
      * @param {HTMLElement} el
-     * @param {typeof import("@odoo/owl").Component} C
+     * @param {import("@odoo/owl").ComponentConstructor} C
      * @param {Object|null} [props]
      * @returns {Function} destroy function for early removal
      */

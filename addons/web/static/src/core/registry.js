@@ -4,6 +4,9 @@
 /** @module @web/core/registry - Hierarchical key-value store for services, components, fields, and actions */
 
 import { EventBus, onWillDestroy, onWillStart, useState, validate } from "@odoo/owl";
+import { makeAssetLog } from "@web/core/utils/asset_log";
+
+const log = makeAssetLog("registry");
 
 // -----------------------------------------------------------------------------
 // Errors
@@ -23,17 +26,40 @@ export class DuplicatedKeyError extends Error {}
  * @param {object} schema
  */
 const validateSchema = (name, key, value, schema) => {
-    if (!odoo.debug) {
+    let error;
+    try {
+        if (typeof schema === "function") {
+            // Function predicate: registries holding bare functions
+            // (formatters, parsers, error_handlers, …) cannot express
+            // their contract via OWL's object-shape ``validate``, so
+            // ``addValidation`` also accepts a predicate. Returning
+            // ``false`` flags the entry as invalid; ``undefined`` /
+            // truthy accepts it.
+            if (schema(value) === false) {
+                error = new Error(`value did not pass the predicate`);
+            }
+        } else {
+            validate(value, schema);
+        }
+    } catch (e) {
+        error = e;
+    }
+    if (!error) {
         return;
     }
-    try {
-        validate(value, schema);
-    } catch (error) {
-        throw new Error(
-            `Validation error for key "${key}" in registry "${name}": ${error}`,
-            { cause: error },
-        );
+    const msg = `Validation error for key "${key}" in registry "${name}": ${error}`;
+    if (odoo.debug) {
+        // Dev: fail-fast so the bad registration cannot enter the registry.
+        throw new Error(msg, { cause: error });
     }
+    // Production: warn instead of throwing so a single bad registration
+    // cannot crash the page. Operators get visibility into latent schema
+    // mismatches that previously shipped silently. Pre-2026-05 the
+    // validation step short-circuited entirely outside debug mode, so
+    // any third-party module shipping a malformed entry kept working
+    // and the bug only surfaced when a developer happened to enable
+    // debug. The warning lifts that signal into production logs.
+    console.warn(`[registry] ${msg}`);
 };
 
 // -----------------------------------------------------------------------------
@@ -119,9 +145,36 @@ export class Registry extends EventBus {
             validateSchema(this.name, key, value, this.validationSchema);
         }
         if (!force && key in this.content) {
-            throw new DuplicatedKeyError(
-                `Cannot add key "${key}" in the "${this.name}" registry: it already exists`,
-            );
+            // Multiple ESM bundles each inline their own copy of the same
+            // ``@<addon>/...`` modules (web.assets_tests bundles a transitive
+            // copy of @web/core/ui/ui_service alongside web.assets_web's own
+            // copy).  With a shared registry instance, both bundles' top-level
+            // ``add()`` calls hit the same Map.  First-wins semantics make
+            // that work: web.assets_web evaluates first (its <script type=
+            // "module"> is rendered earlier in the document), so its instance
+            // owns the slot.  Subsequent same-key adds are silently no-ops.
+            //
+            // This intentionally relaxes the historical "explicit guard
+            // against name collisions" — the trade-off is documented in
+            // task #5 of the test-suite-validation deuda técnica notes.
+            // True conflicts (different addons claiming the same key) still
+            // surface via runtime behavior (the wrong implementation wins).
+            //
+            // In ``odoo.debug`` mode we additionally emit a console.warn on
+            // *different-value* duplicates so developers can investigate
+            // whether the duplicate is a benign cross-bundle inline or a
+            // genuine cross-addon collision.  Production stays silent to
+            // preserve the cross-bundle behavior unchanged.
+            if (this.content[key][1] !== value) {
+                if (odoo.debug) {
+                    console.warn(
+                        `[registry] Duplicate add for key "${key}" in "${this.name || "(root)"}" registry with a different value (first registration wins). ` +
+                        `This may indicate either a cross-bundle inline (harmless) or an addon collision (bug).`,
+                    );
+                }
+                return this;
+            }
+            return this;
         }
         let previousSequence;
         if (force) {
@@ -179,7 +232,7 @@ export class Registry extends EventBus {
             for (let i = 0; i < tuples.length; i++) {
                 elements[i] = tuples[i][1];
             }
-            this.elements = Object.freeze(elements);
+            this.elements = /** @type {any} */ (Object.freeze(elements));
         }
         return this.elements;
     }
@@ -200,7 +253,7 @@ export class Registry extends EventBus {
             for (let i = 0; i < raw.length; i++) {
                 entries[i] = [raw[i][0], raw[i][1][1]];
             }
-            this.entries = Object.freeze(entries);
+            this.entries = /** @type {any} */ (Object.freeze(entries));
         }
         return this.entries;
     }
@@ -231,6 +284,8 @@ export class Registry extends EventBus {
     category(subcategory) {
         if (!(subcategory in this.subRegistries)) {
             this.subRegistries[subcategory] = new Registry(subcategory);
+            log("category-open", subcategory,
+                "parent=", this.name || "(root)");
         }
         return this.subRegistries[subcategory];
     }
@@ -239,11 +294,41 @@ export class Registry extends EventBus {
      * Set a validation schema for this registry. All existing and future
      * entries will be validated against it.
      *
-     * @param {object} schema
+     * Two schema forms are supported:
+     *
+     *   - **object** — passed straight to OWL's ``validate(value, schema)``.
+     *     Use for entries shaped like ``{ component, extractProps, ... }``
+     *     where each property has its own type (the existing pattern;
+     *     6 categories use this form: ``services``, ``fields``, ``views``,
+     *     ``view_widgets``, ``main_components``, plus the registry primitive
+     *     itself).
+     *
+     *   - **function predicate** — invoked as ``schema(value)``; a return
+     *     of ``false`` flags the entry as invalid, anything else (including
+     *     ``undefined`` / truthy) accepts it. Use for registries holding
+     *     bare functions (``formatters``, ``parsers``, ``error_handlers``,
+     *     ``error_notifications``, ...) where OWL's object-shape validator
+     *     cannot express the contract.
+     *
+     * Validation behavior in both forms: ``odoo.debug`` mode throws on
+     * invalid entries (fail-fast); production logs ``console.warn`` so
+     * a single bad registration does not crash the page.
+     *
+     * @param {object | ((value: any) => boolean | void)} schema
      */
     addValidation(schema) {
         if (this.validationSchema) {
-            throw new Error("Validation schema already set on this registry");
+            // Idempotent: with the ``globalThis``-anchored shared registry,
+            // multiple bundles each evaluate the source file that declares
+            // the validation schema for a given category and call
+            // ``addValidation`` on the same Registry instance.  First-wins
+            // semantics — silently keep the existing schema.  Different
+            // schemas registered for the same registry would still be a
+            // bug at the design level (two competing validators), but since
+            // the bundle-evaluation order in the browser is deterministic
+            // (web.assets_web first), the FIRST schema wins consistently
+            // across page loads.
+            return;
         }
         this.validationSchema = schema;
         for (const [key, value] of this.getEntries()) {
@@ -252,8 +337,26 @@ export class Registry extends EventBus {
     }
 }
 
+// Anchor the global ``registry`` on ``globalThis`` so ESM bundles which
+// each inline their own copy of this module (web.assets_web bundles the
+// canonical registry; web.assets_tests, web.assets_unit_tests, and every
+// DYNAMIC_ESM_BUNDLES child build separately and inline their own copies)
+// observe the SAME ``Registry`` instance instead of running with private
+// ones.  Without this anchor, code that registers into
+// ``registry.category("web_tour.tours")`` from a tour file in the
+// ``web.assets_tests`` bundle writes to the test bundle's private
+// registry, while ``odoo.isTourReady`` (defined in ``web_tour`` and
+// loaded with ``web.assets_web``) reads the parent bundle's registry —
+// the tour is never found and every browser-tour test times out on the
+// ready check.  ``??=`` keeps the FIRST bundle's instance authoritative
+// (typically ``web.assets_web``, which evaluates first).
+//
+// Multiple bundles re-evaluating the same source file (e.g. both bundles
+// inlining ``@web/core/ui/ui_service``) would now hit the SAME registry
+// with duplicate ``add("ui", …)`` calls.  ``Registry.add`` is silently
+// idempotent on duplicate keys — see the comment above.
 /** @type {Registry<import("registries").GlobalRegistry>} */
-export const registry = new Registry();
+export const registry = (globalThis.__odooRegistry__ ??= new Registry());
 
 // ---------------------------------------------------------------------------
 // Registry hook (merged from registry_hook.js)

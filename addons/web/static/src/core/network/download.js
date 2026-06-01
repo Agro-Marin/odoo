@@ -77,10 +77,13 @@ function _download(data, filename, mimetype) {
  * @param {Object} data
  * @param {String} filename
  * @param {String} mimetype
- * @returns {Boolean}
+ * @returns {boolean | Promise<any>}
  *
  * Note: the actual implementation is certainly unconventional, but sadly
- * necessary to be able to test code using the download function
+ * necessary to be able to test code using the download function (the
+ * indirection through ``downloadFile._download`` lets tests patch the
+ * implementation; ``_download`` returns ``Promise<any>`` and test patches
+ * historically return ``true``).
  */
 export function downloadFile(data, filename, mimetype) {
     return downloadFile._download(data, filename, mimetype);

@@ -10,13 +10,16 @@
  * preserving subclass polymorphism for all internal method calls.
  */
 
+import { RpcEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { rpcBus } from "@web/core/network/rpc";
 
 import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP, SPECIAL } from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
 
-/** @import { SearchModel } from "@web/search/search_model" */
+/** SearchModel widened so this delegate module can read instance state
+ * set across SearchModel's many methods. */
+/** @typedef {any} SearchModel */
 
 /**
  * Deactivate the order-by-count flag when no active groupBy/dateGroupBy exists.
@@ -45,7 +48,7 @@ export async function createIrFilters(searchModel, irFilter) {
     const serverSideIds = await searchModel.orm.call("ir.filters", "create_filter", [
         irFilter,
     ]);
-    rpcBus.trigger("CLEAR-CACHES", "get_views");
+    rpcBus.trigger(RpcEvent.CLEAR_CACHES, "get_views");
     return serverSideIds[0];
 }
 

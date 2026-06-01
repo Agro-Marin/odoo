@@ -347,7 +347,7 @@ export class ModelFieldSelectorPopover extends Component {
             case "Enter": {
                 ev.preventDefault();
                 ev.stopPropagation();
-                this.loadNewPath(ev.currentTarget.value);
+                this.loadNewPath(/** @type {HTMLInputElement} */ (ev.currentTarget).value);
                 break;
             }
         }
@@ -361,27 +361,28 @@ export class ModelFieldSelectorPopover extends Component {
     // @TODO should rework/improve this and maybe use hotkeys
     async onInputKeydown(ev) {
         const { page } = this.state;
+        const target = /** @type {HTMLInputElement} */ (ev.target);
         switch (ev.key) {
             case "ArrowUp": {
-                if (ev.target.selectionStart === 0) {
+                if (target.selectionStart === 0) {
                     page.focus("previous");
                 }
                 break;
             }
             case "ArrowDown": {
-                if (ev.target.selectionStart === page.query.length) {
+                if (target.selectionStart === page.query.length) {
                     page.focus("next");
                 }
                 break;
             }
             case "ArrowLeft": {
-                if (ev.target.selectionStart === 0 && page.previousPage) {
+                if (target.selectionStart === 0 && page.previousPage) {
                     this.goToPreviousPage();
                 }
                 break;
             }
             case "ArrowRight": {
-                if (ev.target.selectionStart === page.query.length) {
+                if (target.selectionStart === page.query.length) {
                     const focusedFieldName = this.state.page.focusedFieldName;
                     if (focusedFieldName) {
                         const fieldDef = this.state.page.fieldDefs[focusedFieldName];

@@ -33,7 +33,7 @@ const effectRegistry = registry.category("effects");
  *    'fast' will make rainbowman dissapear quickly
  *    'medium' and 'slow' will wait little longer before disappearing (can be used when options.message is longer)
  *    'no' will keep rainbowman on screen until user clicks anywhere outside rainbowman
- * @param {typeof import("@odoo/owl").Component} [params.Component]
+ * @param {import("@odoo/owl").ComponentConstructor} [params.Component]
  *    Custom Component class to instantiate inside the Rainbow Man
  * @param {Object} [params.props]
  *    If params.Component is given, its props can be passed with this argument
@@ -62,6 +62,13 @@ function rainbowMan(env, params = {}) {
     env.services.notification.add(message);
 }
 effectRegistry.add("rainbow_man", rainbowMan);
+
+// Effects are bare functions called as ``effect(env, params)`` by the service
+// at line 81. A non-function entry would surface there as a downstream
+// ``TypeError: effect is not a function``; the predicate catches the bad
+// registration earlier with a more specific message. Throws in debug, warns
+// in production (see ``core/registry.js validateSchema``).
+effectRegistry.addValidation((v) => typeof v === "function");
 
 // -----------------------------------------------------------------------------
 // Effect service

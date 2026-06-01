@@ -122,7 +122,7 @@ export const errorService = {
                 }
             }
             // Don't display error dialogs for third party script errors unless we are in debug mode
-            if (isThirdPartyScriptError && !odoo.debug) {
+            if (isThirdPartyScriptError && !env.debug) {
                 return;
             }
             let uncaughtError;
@@ -177,7 +177,7 @@ export const errorService = {
                 // to have extension's errors in the main business page.
                 // We want to ignore those errors as they are not produced by us, and are parasiting
                 // the navigation. We do this according to the heuristic expressed in the if.
-                if (!odoo.debug) {
+                if (!env.debug) {
                     return;
                 }
                 traceback =

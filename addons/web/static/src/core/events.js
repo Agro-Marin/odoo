@@ -34,6 +34,12 @@ export const AppEvent = Object.freeze({
     // ── Menu ────────────────────────────────────────────────────────────────
     /** Current app changed in the menu service. */
     MENUS_APP_CHANGED: "MENUS:APP-CHANGED",
+    /** Home-menu visibility toggled. Emitted by the enterprise
+     *  `home_menu_service`; consumed by the web burger menu and the
+     *  enterprise navbar / studio navbar. Lives in `AppEvent` (not in an
+     *  enterprise-only enum) so the community burger menu can subscribe
+     *  without taking a hard dep on enterprise. */
+    HOME_MENU_TOGGLED: "HOME-MENU:TOGGLED",
 
     // ── UI ──────────────────────────────────────────────────────────────────
     /** Block the UI (show loading overlay). */
@@ -44,12 +50,6 @@ export const AppEvent = Object.freeze({
     ACTIVE_ELEMENT_CHANGED: "active-element-changed",
     /** Window resized. */
     RESIZE: "resize",
-
-    // ── Form ────────────────────────────────────────────────────────────────
-    /** A form-in-dialog was opened. */
-    FORM_DIALOG_ADD: "FORM-CONTROLLER:FORM-IN-DIALOG:ADD",
-    /** A form-in-dialog was closed. */
-    FORM_DIALOG_REMOVE: "FORM-CONTROLLER:FORM-IN-DIALOG:REMOVE",
 });
 
 /**
@@ -80,4 +80,106 @@ export const RpcEvent = Object.freeze({
 export const RouterEvent = Object.freeze({
     /** URL hash/search changed. */
     ROUTE_CHANGE: "ROUTE_CHANGE",
+});
+
+/**
+ * Events dispatched on a model's local bus (``model.bus``).
+ *
+ * Each ``Model`` instance owns its own ``EventBus``; these constants
+ * name the cross-component contract that field widgets and view
+ * controllers rely on. They are NOT for ``env.bus`` — model events are
+ * scoped to one model lifecycle (one form view, one list view, etc.).
+ *
+ * Usage:
+ *   import { ModelEvent } from "@web/core/events";
+ *   useBus(this.props.record.model.bus, ModelEvent.WILL_SAVE_URGENTLY, () => ...);
+ *
+ * **Convention for addons**: Addons that maintain their own model-like
+ * bus (e.g. web_studio's ``reportEditorModel.bus``) and want to
+ * participate in the same contracts (urgent-save coordination, etc.)
+ * should reuse these constants on their own bus. The events are
+ * identified by string value, so the constant is just typed sugar —
+ * untyped emitters / listeners that use the literal string keep
+ * working alongside the typed sites.
+ */
+export const ModelEvent = Object.freeze({
+    /** Model finished loading/notifying — consumers should re-render. */
+    UPDATE: "update",
+    /** Tab-close save path is starting; field widgets must flush pending
+     *  edits synchronously (sendBeacon can't await microtasks). */
+    WILL_SAVE_URGENTLY: "WILL_SAVE_URGENTLY",
+    /** A save / discard / dirty-check is about to read the record's
+     *  ``data``; field widgets with debounced/local pending edits must
+     *  commit them before the read. Detail is ``{ proms: Promise[] }``;
+     *  listeners push a promise into ``proms`` and the emitter awaits
+     *  ``Promise.all(proms)`` before proceeding. */
+    NEED_LOCAL_CHANGES: "NEED_LOCAL_CHANGES",
+    /** Per-field "I have unsaved local edits" signal. Detail is a boolean.
+     *  Consumed by the form status indicator and list keyboard navigator
+     *  to know that a debounced input is in-flight even though the record
+     *  hasn't been committed yet. Emitted by input-bearing field widgets
+     *  (Char/Text/Datetime/Domain/Ace) on focus/blur/typing transitions. */
+    FIELD_IS_DIRTY: "FIELD_IS_DIRTY",
+    /** A property-field cell wants to switch to edit mode. Detail is empty;
+     *  the properties_field listener computes the appropriate UX (typically
+     *  prompts the user to save first if the parent record is dirty). */
+    PROPERTY_FIELD_EDIT: "PROPERTY_FIELD:EDIT",
+    /** Calendar model asks the renderer to scroll the visible viewport to
+     *  the current hour line. Detail is a boolean (smooth scroll flag).
+     *  Calendar-view scoped — not used by other model types. */
+    SCROLL_TO_CURRENT_HOUR: "SCROLL_TO_CURRENT_HOUR",
+});
+
+/**
+ * Events dispatched on the `user` service's public `userBus`
+ * (`import { userBus } from "@web/services/user"`).
+ *
+ * Consumed by the switch-company menu, the user-menu, and the reload-
+ * company service. Scoped to identity/authorization state changes.
+ *
+ * Usage:
+ *   import { UserEvent } from "@web/core/events";
+ *   import { userBus } from "@web/services/user";
+ *   useBus(userBus, UserEvent.ACTIVE_COMPANIES_CHANGED, () => ...);
+ */
+export const UserEvent = Object.freeze({
+    /** The set of active companies (multi-company selector) changed. */
+    ACTIVE_COMPANIES_CHANGED: "ACTIVE_COMPANIES_CHANGED",
+});
+
+/**
+ * Events dispatched on the `file_upload` service's public bus
+ * (`useService("file_upload").bus`).
+ *
+ * Consumed cross-addon (mail, hr_fleet, product, enterprise/documents).
+ * String values are the public contract — addons that have not yet
+ * migrated to the typed constants keep working unchanged.
+ *
+ * Usage:
+ *   import { FileUploadEvent } from "@web/core/events";
+ *   useBus(fileUpload.bus, FileUploadEvent.LOADED, (ev) => ...);
+ */
+export const FileUploadEvent = Object.freeze({
+    /** A new upload has been registered (XHR not started yet). */
+    ADDED: "FILE_UPLOAD_ADDED",
+    /** Upload completed successfully (HTTP 2xx). */
+    LOADED: "FILE_UPLOAD_LOADED",
+    /** Upload failed (HTTP non-2xx, network error, or aborted). */
+    ERROR: "FILE_UPLOAD_ERROR",
+});
+
+/**
+ * Events dispatched on a command-palette `bus` instance.
+ *
+ * Scoped to one palette lifetime (the palette owns a bus passed to its
+ * content components); consumed only inside `services/commands/`. Typed
+ * for refactor safety even though the consumer set is small.
+ *
+ * Usage:
+ *   import { CommandPaletteEvent } from "@web/core/events";
+ *   bus.addEventListener(CommandPaletteEvent.SET_CONFIG, handler);
+ */
+export const CommandPaletteEvent = Object.freeze({
+    /** Palette config changed (placeholder, debounce, footer, etc.). */
+    SET_CONFIG: "SET-CONFIG",
 });

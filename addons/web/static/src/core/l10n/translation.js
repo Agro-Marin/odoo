@@ -3,6 +3,7 @@
 
 /** @module @web/core/l10n/translation - Runtime i18n: _t() tagged-template translator with markup-safe interpolation */
 
+import { localization } from "@web/core/l10n/localization";
 import { formatList } from "@web/core/l10n/utils";
 import { isIterable } from "@web/core/utils/collections/arrays";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -100,6 +101,68 @@ export function _t(source, ...substitutions) {
     return appTranslateFn(source, odoo.translationContext, ...substitutions);
 }
 
+// ── Plural-aware form selector ───────────────────────────────────────────
+//
+// Each form is expected to be a translated string (typically a `_t(...)`
+// result), with its own substitutions baked in. `_pl` only chooses which
+// form to return for the given count under the current locale's CLDR
+// plural rules; it does NOT translate or substitute.  This means each
+// form participates in normal `_t` extraction and lookup independently —
+// translators see "1 record" and "%s records" as separate msgids.  Real
+// gettext-style msgid_plural support (one msgid + N msgstr[N]) needs
+// matching extractor work in core/odoo/tools/translate.py and is tracked
+// as follow-up; the present helper covers the common one/other case
+// (en, es, fr, …) and degrades gracefully on richer-plural locales by
+// falling back to "other" when the matched category is not provided.
+
+/** @type {Map<string, Intl.PluralRules>} */
+const _pluralRulesCache = new Map();
+
+/**
+ * Pick the right singular/plural form for `count` under the current
+ * locale's CLDR plural rules.
+ *
+ * Pre-condition: `localization.code` must be populated (the Proxy in
+ * `@web/core/l10n/localization` throws otherwise).  Practically this
+ * means the consumer must run after `localization_service` has started —
+ * the same constraint that `_t()` carries via `translatedTerms`.
+ *
+ * @example
+ * _pl(count, {
+ *   zero: _t("No records"),
+ *   one: _t("1 record"),
+ *   other: _t("%s records", count),
+ * })
+ *
+ * @template {string | TranslatedString | Markup} T
+ * @param {number} count
+ * @param {Partial<Record<Intl.LDMLPluralRule, T>> & { other: T }} forms
+ *   plural-form map keyed by CLDR category — zero, one, two, few, many, other.
+ *   `other` is required as the fallback for any category the caller did
+ *   not provide.
+ * @returns {T}
+ */
+export function _pl(count, forms) {
+    // ``localization.code`` is the Python locale form (``en_US``) — the
+    // ``localization`` service runs ``jsToPyLocale(navigator.language)``
+    // before populating it.  ``Intl.PluralRules`` requires the BCP-47
+    // form (``en-US``); calling ``new Intl.PluralRules("en_US")`` throws
+    // ``RangeError: Invalid language tag: en_US`` and bubbles out
+    // through ``onWillStart`` as an ``OwlError`` that fails any
+    // component using ``_pl`` (formatX2many is a notable caller —
+    // every ``"x records"`` aggregate row in a list view triggers it).
+    // Underscore-to-hyphen substitution is the round-trip back to
+    // BCP-47 and is what ``Intl.PluralRules`` actually accepts.
+    const code = localization.code.replace(/_/g, "-");
+    let rules = _pluralRulesCache.get(code);
+    if (!rules) {
+        rules = new Intl.PluralRules(code);
+        _pluralRulesCache.set(code, rules);
+    }
+    const category = rules.select(count);
+    return forms[category] ?? forms.other;
+}
+
 /**
  * This is a wrapper for _t that the transpiler injects in its place
  * to provide the knowledge of the module from which it was called.
@@ -195,18 +258,52 @@ export class TranslatedString extends String {
     }
 }
 
+// ── Cross-bundle singleton state ─────────────────────────────────────────
+//
+// Translation state MUST be a single object shared by every ESM bundle in
+// the document.  Native ESM gives each bundle its own copy of the module's
+// top-level bindings (one ``translatedTerms`` per bundle, one
+// ``translationIsReady`` per bundle, etc.).  When ``translation.js`` is
+// loaded by both ``web.assets_web`` (parent) and ``web.assets_tests`` (test
+// satellite) — as is the case any time ``--test-enable`` is on — the
+// ``localization`` service running in the parent flips ITS copy of
+// ``translatedTerms[translationLoaded] = true`` and resolves ITS copy of
+// ``translationIsReady``, leaving the satellite's copies still in their
+// initial state.  ``_t(...)`` calls inside satellite-bundled code (notably
+// tour ``steps()`` functions in test_main_flows / test_orm) then check the
+// satellite's still-``false`` flag and throw
+// ``"Cannot translate string: translations have not been loaded"`` —
+// failing tour tests that worked correctly on upstream's amd-style loader.
+//
+// Routing the three pieces of state through ``globalThis`` makes them a
+// genuine process-wide singleton: any bundle that imports them ends up
+// with the same object reference, so a write by one bundle is visible to
+// every other bundle's reads.
+//
+// ``Symbol.for(...)`` (registry symbol) is the symbol counterpart: it is
+// the same value regardless of which realm or module instance creates it,
+// so ``translatedTerms[translationLoaded]`` reads and writes always agree
+// on the key even across bundle boundaries.
+
 /** @type {symbol} */
-export const translationLoaded = Symbol("translationLoaded");
+export const translationLoaded = Symbol.for("@web/core/l10n/translationLoaded");
+
+const _STATE_KEY = "__odoo_l10n_state__";
+/** @type {{ translatedTerms: Record<string | symbol, any>, translatedTermsGlobal: Record<string, string>, translationIsReady: Deferred }} */
+const _state = (/** @type {any} */ (globalThis)[_STATE_KEY] ??= {
+    translatedTerms: { [translationLoaded]: false },
+    translatedTermsGlobal: Object.create(null),
+    translationIsReady: new Deferred(),
+});
+
 /** @type {Record<string | symbol, any>} */
-export const translatedTerms = {
-    [translationLoaded]: false,
-};
+export const translatedTerms = _state.translatedTerms;
 /**
  * Contains all the translated terms. Unlike "translatedTerms", there is no
  * "namespacing" by module. It is used as a fallback when no translation is
  * found within the module's context, or when the context is not known.
  */
 /** @type {Record<string, string>} */
-export const translatedTermsGlobal = Object.create(null);
+export const translatedTermsGlobal = _state.translatedTermsGlobal;
 /** @type {Deferred} */
-export const translationIsReady = new Deferred();
+export const translationIsReady = _state.translationIsReady;

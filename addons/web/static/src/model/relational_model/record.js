@@ -4,13 +4,18 @@
 /** @module @web/model/relational_model/record - Field value management, change tracking, dirty state, and save/discard for individual records */
 
 import { markRaw, toRaw } from "@odoo/owl";
-import { _t } from "@web/core/l10n/translation";
 
+import { ChangeSet } from "./change_set.js";
 import { DataPoint } from "./datapoint.js";
 import { getBasicEvalContext, getFieldContext } from "./field_context.js";
-import { createPropertyActiveField } from "./field_metadata.js";
-import { parseServerValue } from "./field_values.js";
 import { Operation } from "./operation.js";
+import { processProperties } from "./record_properties.js";
+import {
+    archive,
+    deleteRecord,
+    duplicateRecord,
+    unarchive,
+} from "./record_lifecycle.js";
 import {
     preprocessMany2oneChanges,
     preprocessMany2OneReferenceChanges,
@@ -20,13 +25,21 @@ import {
     preprocessHtmlChanges,
 } from "./record_preprocessors.js";
 import { save } from "./record_save.js";
+import { addSavePoint, discard } from "./record_savepoint.js";
 import { isFieldInvisible, isFieldReadonly, isFieldRequired } from "./record_utils.js";
-import { findUnsetRequiredFields } from "./record_validator.js";
+import {
+    checkValidity,
+    displayInvalidFieldNotification,
+    removeInvalidFields,
+    resetFieldValidity,
+    setInvalidField,
+} from "./record_validator.js";
 import {
     computeDataContext,
     formatServerValue,
     getDefaultValues,
     getTextValues,
+    parseServerValues,
 } from "./record_value_transforms.js";
 
 /**
@@ -66,8 +79,36 @@ export class RelationalRecord extends DataPoint {
         this._virtualId = options.virtualId || false;
         this._isEvalContextReady = false;
 
-        // Be careful that pending changes might not have been notified yet, so the "dirty" flag may
-        // be false even though there are changes in a field. Consider calling "isDirty()" instead.
+        // Pending-edit accumulator. ``markRaw`` keeps the ChangeSet itself
+        // out of OWL's reactivity graph (its internal ``_changes`` bag is
+        // already ``markRaw`` for the same reason — see ``change_set.js``
+        // for the full rationale). The Record exposes the underlying bag
+        // via the ``_changes`` getter/setter below so existing consumers
+        // that iterate ``Object.keys(record._changes)`` keep working.
+        this._changeSet = markRaw(new ChangeSet());
+
+        // Reactive signal indicating whether the record has unsaved edits.
+        //
+        // Invariants enforced by paired helpers:
+        //   1. ``dirty`` is true after ``_update()`` is called, even before
+        //      async preprocessors have populated ``_changes`` (race
+        //      protection — set via ``_markDirty()`` at the top of
+        //      ``_update`` so UI bindings reflect "modified" the moment a
+        //      field update is dispatched, not after a network round-trip).
+        //   2. ``setInvalidField()`` sets dirty=true even when ``_changes``
+        //      is empty (invalid user input is not in the change log but
+        //      the record is still considered modified — also routed
+        //      through ``_markDirty()``).
+        //   3. Whenever ``_changes`` is cleared, ``dirty`` MUST be reset
+        //      on the same atomic step. Use ``_clearChanges()`` (drops
+        //      the bag and resets the flag) or ``_resetDirty()`` (resets
+        //      the flag only — for the ``keepChanges`` reload path).
+        //
+        // Field components debounce typing locally; ``isDirty()`` (async)
+        // first calls ``model._askChanges()`` to flush pending field-level
+        // edits before reading this signal. Sync reads are safe in code
+        // paths that have already drained pending changes (post-mutex
+        // critical sections, post-flush callbacks).
         this.dirty = false;
         this.selected = false;
 
@@ -121,9 +162,14 @@ export class RelationalRecord extends DataPoint {
             Object.assign(this._textValues, this._getTextValues(allVals));
         }
         if (!keepChanges) {
-            this._changes = markRaw({});
+            this._clearChanges();
+        } else {
+            // ``keepChanges`` preserves ``_changes`` across a server reload
+            // but resets the reactive ``dirty`` signal — callers that pass
+            // ``keepChanges`` are expected to re-flag dirtiness explicitly
+            // if needed. See callers in ``relational_model._reload()``.
+            this._resetDirty();
         }
-        this.dirty = false;
         this.data = { ...this._values, ...this._changes };
         this._setEvalContext();
         this._initialTextValues = { ...this._textValues };
@@ -186,47 +232,17 @@ export class RelationalRecord extends DataPoint {
     // -------------------------------------------------------------------------
 
     archive() {
-        return this.model.mutex.exec(() => this._toggleArchive(true));
+        return this.model.mutex.exec(() => archive(this));
     }
 
     /** @param {{ displayNotification?: boolean }} [options] */
     async checkValidity({ displayNotification } = {}) {
-        if (!this.model._urgentSave) {
-            await this.model._askChanges();
-        }
+        await this.model.urgentSave.awaitUnlessUrgent(this.model._askChanges());
         return this._checkValidity({ displayNotification });
     }
 
     delete() {
-        return this.model.mutex.exec(async () => {
-            const unlinked = await this.model.orm.unlink(this.resModel, [this.resId], {
-                context: this.context,
-            });
-            if (!unlinked) {
-                return false;
-            }
-            const resIds = this.resIds.slice();
-            const index = resIds.indexOf(/** @type {number} */ (this.resId));
-            resIds.splice(index, 1);
-            const resId = resIds[Math.min(index, resIds.length - 1)] || false;
-            if (resId) {
-                await this.model.load({ resId, resIds });
-            } else {
-                this.model._updateConfig(
-                    this.config,
-                    { resId: false },
-                    { reload: false },
-                );
-                this.dirty = false;
-                this._changes = markRaw({});
-                this._values = markRaw(
-                    this._parseServerValues(this._getDefaultValues()),
-                );
-                this._textValues = markRaw({});
-                this.data = { ...this._values };
-                this._setEvalContext();
-            }
-        });
+        return this.model.mutex.exec(() => deleteRecord(this));
     }
 
     async discard() {
@@ -238,19 +254,7 @@ export class RelationalRecord extends DataPoint {
     }
 
     duplicate() {
-        return this.model.mutex.exec(async () => {
-            const kwargs = { context: this.context };
-            const index = this.resIds.indexOf(/** @type {number} */ (this.resId));
-            const [resId] = await this.model.orm.call(
-                this.resModel,
-                "copy",
-                [[this.resId]],
-                kwargs,
-            );
-            const resIds = this.resIds.slice();
-            resIds.splice(index + 1, 0, resId);
-            await this.model.load({ resId, resIds, mode: "edit" });
-        });
+        return this.model.mutex.exec(() => duplicateRecord(this));
     }
 
     /**
@@ -294,7 +298,11 @@ export class RelationalRecord extends DataPoint {
      * @param {string} fieldName
      */
     async setInvalidField(fieldName) {
-        this.dirty = true;
+        // Invariant 2: invalid input never reaches ``_changes`` (the user's
+        // value failed type validation), but the record is still considered
+        // modified — the form should show "Unsaved changes" and block
+        // navigation. Standalone dirty mark, no ``_changes`` reset.
+        this._markDirty();
         return this._setInvalidField(fieldName);
     }
 
@@ -319,12 +327,12 @@ export class RelationalRecord extends DataPoint {
     }
 
     unarchive() {
-        return this.model.mutex.exec(() => this._toggleArchive(false));
+        return this.model.mutex.exec(() => unarchive(this));
     }
 
     /** @param {Object} changes @param {{ save?: boolean }} [options] */
     update(changes, { save } = {}) {
-        if (this.model._urgentSave) {
+        if (this.model.urgentSave.isActive) {
             return this._update(changes);
         }
         return this.model.mutex.exec(async () => {
@@ -335,32 +343,129 @@ export class RelationalRecord extends DataPoint {
         });
     }
 
-    async urgentSave() {
-        this.model._urgentSave = true;
-        this.model.bus.trigger("WILL_SAVE_URGENTLY");
-        try {
-            const succeeded = await this._save({ reload: false });
-            return succeeded;
-        } finally {
-            this.model._urgentSave = false;
-        }
+    urgentSave() {
+        return this.model.urgentSave.run(() => this._save({ reload: false }));
     }
 
     // -------------------------------------------------------------------------
     // Protected
     // -------------------------------------------------------------------------
 
-    _addSavePoint() {
-        this._savePoint = markRaw({
-            dirty: this.dirty,
-            textValues: { ...this._textValues },
-            changes: { ...this._changes },
-        });
-        for (const fieldName of Object.keys(this._changes)) {
-            if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
-                this._changes[fieldName]._addSavePoint();
-            }
+    /**
+     * Read-accessor for the pending-edit bag, delegating to the internal
+     * {@link ChangeSet}. Returns the underlying ``markRaw`` object by
+     * reference so existing consumers (``Object.keys(record._changes)``,
+     * ``record._changes[fieldName] = value`` inside ``_applyChanges``,
+     * ``_getChanges(this._changes, ...)`` in the save flow) keep working.
+     *
+     * @returns {Record<string, any>}
+     */
+    get _changes() {
+        return this._changeSet.raw;
+    }
+
+    /**
+     * Write-accessor for wholesale bag replacement (the undo path in
+     * ``_applyChanges`` and the savepoint-restore path each capture and
+     * later reinstall a snapshot). Delegates to {@link ChangeSet#replace}
+     * to preserve the ``markRaw`` invariant. Single-field writes
+     * (``record._changes[fieldName] = value``) still go through the
+     * setter on the underlying bag, which is the markRaw object.
+     */
+    set _changes(initial) {
+        this._changeSet.replace(initial);
+    }
+
+    /**
+     * Atomically clear pending changes and reset the reactive ``dirty``
+     * signal. The two assignments MUST happen as a pair: ``_changes`` is
+     * ``markRaw`` (intentionally non-reactive, see ``ChangeSet``), so a
+     * caller that only clears ``_changes`` would leave bindings on
+     * ``record.dirty`` showing "modified" until the next mutation hits.
+     *
+     * Use this whenever ``_changes`` is being emptied. Callers that need
+     * to also rebuild ``data`` or replace ``_values`` keep that logic at
+     * the call site — the helper covers only the invariant that pairs
+     * the two fields.
+     */
+    _clearChanges() {
+        this._changeSet.clear();
+        this.dirty = false;
+        this._assertChangeSetInvariant();
+    }
+
+    /**
+     * Reset the reactive ``dirty`` signal without touching ``_changes``.
+     * Used by the ``_setData(..., { keepChanges: true })`` reload path
+     * which preserves pending edits across a server-side refresh and
+     * leaves it to the caller to re-flag dirtiness if needed.
+     */
+    _resetDirty() {
+        this.dirty = false;
+    }
+
+    /**
+     * Set the reactive ``dirty`` signal without touching ``_changes``.
+     * Used by paths that consider the record modified before the change
+     * bag is populated — ``setInvalidField()`` (invariant 2; invalid
+     * input never reaches ``_changes``) and ``_update()`` (invariant 1;
+     * race protection — UI binds to "modified" the moment a field update
+     * is dispatched, before async preprocessors land).
+     */
+    _markDirty() {
+        this.dirty = true;
+    }
+
+    /**
+     * Debug-only invariant check on the (``_changes``, ``dirty``) pair.
+     *
+     * The contract (see the field-level docstring in ``setup()`` lines
+     * ~95-110): three legitimate states exist —
+     *
+     *   - ``(dirty=false, _changes empty)``    — clean record
+     *   - ``(dirty=true,  _changes non-empty)``— modified record
+     *   - ``(dirty=true,  _changes empty)``    — invalid input (Invariant 2)
+     *     OR race window after _markDirty before preprocessors land (Invariant 1)
+     *
+     * The state that MUST NEVER persist past an atomic checkpoint is
+     * ``(dirty=false, _changes non-empty)`` — the desync this assertion
+     * exists to catch.  Call sites are restricted to checkpoints where
+     * the invariant must strictly hold (after ``_clearChanges``, after
+     * ``_setData({keepChanges: false})``).  The intentional asymmetry of
+     * the ``keepChanges: true`` reload path skips the call.
+     *
+     * Production: silent (assertion skipped entirely).  Debug: emits
+     * ``console.warn`` with a structured payload so the offending
+     * mutation can be traced.  Chosen over ``throw`` because crashing
+     * the page on a desync is worse UX than the desync itself; the
+     * warning surfaces the bug to the developer without losing user data.
+     *
+     * @param {{ allowKeepChanges?: boolean }} [options]
+     */
+    _assertChangeSetInvariant({ allowKeepChanges = false } = {}) {
+        if (!odoo.debug) {
+            return;
         }
+        if (allowKeepChanges) {
+            return;
+        }
+        if (!this.dirty && !this._changeSet.isEmpty) {
+            console.warn(
+                `[record] ChangeSet invariant violated on ${this.resModel}` +
+                    `${this.resId ? `/${this.resId}` : "/new"}: ` +
+                    `dirty=false but _changes is non-empty ` +
+                    `(keys: ${Object.keys(this._changes).join(", ")}). ` +
+                    `This pair must be cleared atomically — see ` +
+                    `record.js _clearChanges() and the field-level ` +
+                    `docstring in setup(). Likely cause: a new code path ` +
+                    `mutated _changes through the ChangeSet.raw getter ` +
+                    `without going through _update() (which calls _markDirty).`,
+            );
+        }
+    }
+
+    _addSavePoint() {
+        addSavePoint(this);
     }
 
     _applyChanges(changes, serverChanges = {}) {
@@ -447,49 +552,8 @@ export class RelationalRecord extends DataPoint {
     }
 
     /** @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean }} [options] */
-    _checkValidity({ silent, displayNotification, removeInvalidOnly } = {}) {
-        const unsetRequiredFields = findUnsetRequiredFields(
-            this.activeFields,
-            this.fields,
-            this.data,
-            {
-                isInvisible: (fieldName) => this._isInvisible(fieldName),
-                isRequired: (fieldName) => this._isRequired(fieldName),
-                isChildListValid: (_fieldName, list) =>
-                    list.records.every(
-                        (r) =>
-                            !r.dirty || r._checkValidity({ silent, removeInvalidOnly }),
-                    ),
-            },
-        );
-
-        if (silent) {
-            return !unsetRequiredFields.size;
-        }
-
-        if (removeInvalidOnly) {
-            for (const fieldName of Array.from(this._unsetRequiredFields)) {
-                if (!unsetRequiredFields.has(fieldName)) {
-                    this._unsetRequiredFields.delete(fieldName);
-                    this._invalidFields.delete(fieldName);
-                }
-            }
-        } else {
-            for (const fieldName of Array.from(this._unsetRequiredFields)) {
-                this._invalidFields.delete(fieldName);
-            }
-            this._unsetRequiredFields.clear();
-            for (const fieldName of unsetRequiredFields) {
-                this._unsetRequiredFields.add(fieldName);
-                this._invalidFields.add(fieldName);
-            }
-        }
-        const isValid = !this._invalidFields.size;
-        if (!isValid && displayNotification) {
-            this._closeInvalidFieldsNotification =
-                this._displayInvalidFieldNotification();
-        }
-        return isValid;
+    _checkValidity(options) {
+        return checkValidity(this, options);
     }
 
     /**
@@ -543,41 +607,18 @@ export class RelationalRecord extends DataPoint {
         };
         return new this.model.Class.StaticList(
             this.model,
-            /** @type {any} */ (config),
-            /** @type {any} */ (data),
+            config,
+            data,
             options,
         );
     }
 
     _discard() {
-        for (const fieldName of Object.keys(this._changes)) {
-            if (["one2many", "many2many"].includes(this.fields[fieldName].type)) {
-                this._changes[fieldName]._discard();
-            }
-        }
-        if (this._savePoint) {
-            this.dirty = this._savePoint.dirty;
-            this._changes = markRaw({ ...this._savePoint.changes });
-            this._textValues = markRaw({ ...this._savePoint.textValues });
-        } else {
-            this.dirty = false;
-            this._changes = markRaw({});
-            this._textValues = markRaw({ ...this._initialTextValues });
-        }
-        this.data = { ...this._values, ...this._changes };
-        this._savePoint = undefined;
-        this._setEvalContext();
-        this._invalidFields.clear();
-        if (!this.isNew) {
-            this._checkValidity();
-        }
-        this._closeInvalidFieldsNotification();
-        this._closeInvalidFieldsNotification = () => {};
-        this._restoreActiveFields();
+        return discard(this);
     }
 
     _displayInvalidFieldNotification() {
-        return this.model.hooks.onDisplayInvalidFields();
+        return displayInvalidFieldNotification(this);
     }
 
     _formatServerValue(fieldType, value) {
@@ -683,148 +724,28 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * This function extracts all properties and adds them to fields and activeFields.
-     *
-     * @param {Object[]} properties the list of properties to be extracted
-     * @param {string} fieldName name of the field containing the properties
-     * @param {any} parent m2o value {id, display_name} or false
-     * @param {Object} currentValues current values of the record
-     * @returns An object containing as key `${fieldName}.${property.name}` and as value the value of the property
+     * @param {Object[]} properties
+     * @param {string} fieldName
+     * @param {any} parent
+     * @param {Object} [currentValues]
      */
-    _processProperties(properties, fieldName, parent, currentValues = {}) {
-        const data = {};
-
-        const hasCurrentValues = Object.keys(currentValues).length > 0;
-        for (const property of properties) {
-            const propertyFieldName = `${fieldName}.${property.name}`;
-
-            // Add Unknown Property Field and ActiveField
-            if (hasCurrentValues || !this.fields[propertyFieldName]) {
-                this.fields[propertyFieldName] = {
-                    ...property,
-                    name: propertyFieldName,
-                    relatedPropertyField: {
-                        name: fieldName,
-                    },
-                    propertyName: property.name,
-                    relation: property.comodel,
-                    sortable: !["many2one", "many2many", "tags"].includes(
-                        property.type,
-                    ),
-                };
-            }
-            if (hasCurrentValues || !this.activeFields[propertyFieldName]) {
-                this.activeFields[propertyFieldName] =
-                    createPropertyActiveField(property);
-            }
-
-            if (!this.activeFields[propertyFieldName].relatedPropertyField) {
-                this.activeFields[propertyFieldName].relatedPropertyField =
-                    /** @type {any} */ ({
-                        name: fieldName,
-                        id: parent?.id,
-                        displayName: parent?.display_name,
-                    });
-            }
-
-            // Extract property data
-            if (property.type === "many2many") {
-                let staticList = currentValues[propertyFieldName];
-                if (!staticList) {
-                    staticList = this._createStaticListDatapoint(
-                        (property.value || []).map((record) => ({
-                            id: record[0],
-                            display_name: record[1],
-                        })),
-                        propertyFieldName,
-                    );
-                }
-                data[propertyFieldName] = staticList;
-            } else if (property.type === "many2one") {
-                data[propertyFieldName] =
-                    property.value && property.value.display_name === null
-                        ? {
-                              id: property.value.id,
-                              display_name: _t("No Access"),
-                          }
-                        : property.value;
-            } else {
-                data[propertyFieldName] = property.value ?? false;
-            }
-        }
-
-        return data;
+    _processProperties(properties, fieldName, parent, currentValues) {
+        return processProperties(this, properties, fieldName, parent, currentValues);
     }
 
     /**
      * @param {RecordType<string, unknown>} serverValues
      * @param {FieldSpecifications} [params]
      */
-    _parseServerValues(serverValues, { currentValues, orderBys } = {}) {
-        const parsedValues = {};
-        if (!serverValues) {
-            return parsedValues;
-        }
-        for (const fieldName of Object.keys(serverValues)) {
-            const value = serverValues[fieldName];
-            if (!this.activeFields[fieldName]) {
-                continue;
-            }
-            const field = this.fields[fieldName];
-            if (field.type === "one2many" || field.type === "many2many") {
-                let staticList =
-                    /** @type {import("./static_list").StaticList | undefined} */ (
-                        currentValues?.[fieldName]
-                    );
-                const listValue = /** @type {any[]} */ (value);
-                // value can be a list of records or a list of commands (new record)
-                const valueIsCommandList =
-                    listValue.length && Array.isArray(listValue[0]);
-                if (!staticList) {
-                    let data = valueIsCommandList ? [] : listValue;
-                    if (data.length && typeof data[0] === "number") {
-                        data = data.map((resId) => ({ id: resId }));
-                    }
-                    staticList = this._createStaticListDatapoint(
-                        /** @type {any} */ (data),
-                        fieldName,
-                        { orderBys },
-                    );
-                    if (valueIsCommandList) {
-                        staticList._applyInitialCommands(listValue);
-                    }
-                } else if (valueIsCommandList) {
-                    staticList._applyCommands(listValue);
-                }
-                parsedValues[fieldName] = staticList;
-            } else {
-                parsedValues[fieldName] = parseServerValue(field, value);
-                if (field.type === "properties") {
-                    const parent = /** @type {any} */ (
-                        serverValues[field.definition_record]
-                    );
-                    Object.assign(
-                        parsedValues,
-                        this._processProperties(
-                            parsedValues[fieldName],
-                            fieldName,
-                            parent,
-                            currentValues,
-                        ),
-                    );
-                }
-            }
-        }
-        return parsedValues;
+    _parseServerValues(serverValues, options) {
+        return parseServerValues(this, serverValues, options);
     }
 
     /**
      * @param {...string} fieldNames
      */
     _removeInvalidFields(...fieldNames) {
-        for (const fieldName of fieldNames) {
-            this._invalidFields.delete(fieldName);
-        }
+        return removeInvalidFields(this, ...fieldNames);
     }
 
     _restoreActiveFields() {
@@ -876,27 +797,11 @@ export class RelationalRecord extends DataPoint {
      * @param {string} fieldName
      */
     async _setInvalidField(fieldName) {
-        const canProceed = this.model.hooks.onWillSetInvalidField(this, fieldName);
-        if (canProceed === false) {
-            return;
-        }
-        if (toRaw(this._invalidFields).has(fieldName)) {
-            return;
-        }
-        this._invalidFields.add(fieldName);
-        if (
-            this.selected &&
-            this.model.multiEdit &&
-            this.model.root._recordToDiscard !== this
-        ) {
-            this._displayInvalidFieldNotification();
-            await this.discard();
-            this.switchMode("readonly");
-        }
+        return setInvalidField(this, fieldName);
     }
 
     _resetFieldValidity(fieldName) {
-        this._invalidFields.delete(fieldName);
+        return resetFieldValidity(this, fieldName);
     }
 
     /**
@@ -908,23 +813,6 @@ export class RelationalRecord extends DataPoint {
             this._noUpdateParent = false;
             this._invalidFields.clear();
         }
-    }
-
-    /**
-     * @param {boolean} state archive the records if true, otherwise unarchive them
-     */
-    async _toggleArchive(state) {
-        const method = state ? "action_archive" : "action_unarchive";
-        const action = await this.model.orm.call(
-            this.resModel,
-            method,
-            [[this.resId]],
-            {
-                context: this.context,
-            },
-        );
-        const reload = () => this._load();
-        return this.model.hooks.onDisplayArchiveAction(action, reload);
     }
 
     _toggleSelection(selected) {
@@ -990,7 +878,12 @@ export class RelationalRecord extends DataPoint {
             withoutParentUpdate,
         } = {},
     ) {
-        this.dirty = true;
+        // Invariant 1: race-protection. ``_changes`` is populated by
+        // ``_applyChanges`` further below, after async preprocessors and
+        // (optional) onchange RPC complete. Setting ``dirty`` synchronously
+        // here means UI bindings reflect "modified" the moment a field
+        // update is dispatched, not after a network round-trip.
+        this._markDirty();
         const prom = Promise.all([
             preprocessMany2oneChanges(this, changes),
             preprocessMany2OneReferenceChanges(this, changes),
@@ -999,15 +892,23 @@ export class RelationalRecord extends DataPoint {
             preprocessPropertiesChanges(this, changes),
             preprocessHtmlChanges(this, changes),
         ]);
-        if (!this.model._urgentSave) {
-            await prom;
-        }
+        // The preprocessors are kicked off above so their fire-and-forget
+        // bookkeeping happens; on the tab-close path we skip awaiting them
+        // because the browser may kill us before they settle.
+        await this.model.urgentSave.awaitUnlessUrgent(prom);
         if (this.selected && this.model.multiEdit) {
             return this.model.root._multiSave(this, changes);
         }
         let onchangeServerValues = {};
-        if (!this.model._urgentSave && !withoutOnchange) {
-            onchangeServerValues = await this._getOnchangeValues(changes);
+        if (!withoutOnchange) {
+            // ``unlessUrgent`` (not ``awaitUnlessUrgent``): the onchange
+            // RPC must NOT fire on tab close — sending it would race the
+            // sendBeacon save, queueing a server-side computation against
+            // a session that is about to disappear.
+            onchangeServerValues =
+                (await this.model.urgentSave.unlessUrgent(() =>
+                    this._getOnchangeValues(changes),
+                )) ?? {};
         }
         // changes inside the record set as value for a many2one field must trigger the onchange,
         // but can't be considered as changes on the parent record, so here we detect if many2one
@@ -1037,7 +938,7 @@ export class RelationalRecord extends DataPoint {
                 undoChanges();
                 throw e;
             }
-            await this.model.hooks.onRecordChanged(this, this._getChanges());
+            await this.model.hooks.lifecycle.onRecordChanged(this, this._getChanges());
         }
     }
 }

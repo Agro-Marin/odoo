@@ -64,22 +64,59 @@ export function debounce(func, delay, options) {
     }
 
     let lastSelf;
+    // Deferreds of the calls waiting for the trailing execution. Every debounced
+    // call (i.e. not run on the leading edge) is queued here so the trailing
+    // execution settles them all: superseded calls resolve/reject with the
+    // trailing result instead of hanging forever, and a thrown or rejected func
+    // propagates to every awaiter (so `await debounced()` and `.catch()` work).
+    let pending = [];
+
+    // Run `func`, then settle the given awaiters with its result (or error).
+    function execute(self, args, awaiters) {
+        let result;
+        try {
+            result = func.apply(self, args);
+        } catch (error) {
+            for (const { reject } of awaiters) {
+                reject(error);
+            }
+            return;
+        }
+        Promise.resolve(result).then(
+            (value) => {
+                for (const { resolve } of awaiters) {
+                    resolve(value);
+                }
+            },
+            (error) => {
+                for (const { reject } of awaiters) {
+                    reject(error);
+                }
+            },
+        );
+    }
+
     return Object.assign(
         {
             /** @type {any} */
             [funcName](...args) {
                 lastSelf = this;
-                return new Promise((resolve) => {
+                return new Promise((resolve, reject) => {
                     if (leading && !handle) {
-                        Promise.resolve(func.apply(this, args)).then(resolve);
+                        // Leading edge: run now and settle only this call.
+                        execute(this, args, [{ resolve, reject }]);
                     } else {
+                        // Defer to the trailing execution, queued with the others.
+                        pending.push({ resolve, reject });
                         lastArgs = args;
                     }
                     browser[clearFnName](handle);
                     handle = /** @type {any} */ (browser)[setFnName](() => {
                         handle = null;
                         if (trailing && lastArgs) {
-                            Promise.resolve(func.apply(lastSelf, lastArgs)).then(resolve);
+                            const awaiters = pending;
+                            pending = [];
+                            execute(lastSelf, lastArgs, awaiters);
                             lastArgs = null;
                         }
                     }, delay);
@@ -91,7 +128,17 @@ export function debounce(func, delay, options) {
                 browser[clearFnName](handle);
                 handle = null;
                 if (execNow && lastArgs) {
-                    func.apply(lastSelf, lastArgs);
+                    const awaiters = pending;
+                    pending = [];
+                    execute(lastSelf, lastArgs, awaiters);
+                } else if (pending.length) {
+                    // Release awaiters that will now never run so a caller that
+                    // `await`s the debounced fn (e.g. on willUnmount) doesn't hang.
+                    const awaiters = pending;
+                    pending = [];
+                    for (const { resolve } of awaiters) {
+                        resolve(undefined);
+                    }
                 }
                 lastArgs = null;
             },

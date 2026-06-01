@@ -90,7 +90,7 @@ export function serializeCommands(commands, params) {
         }
     }
 
-    return result;
+    return /** @type {[number, string | number, any?][]} */ (result);
 }
 
 // ---------------------------------------------------------------------------

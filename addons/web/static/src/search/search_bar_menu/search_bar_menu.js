@@ -17,6 +17,15 @@ import { FACET_ICONS, GROUPABLE_TYPES } from "@web/search/utils/misc";
 
 const favoriteMenuRegistry = registry.category("favoriteMenu");
 
+// Favorite-menu items are mounted under the search-bar's Favorites dropdown.
+// `groupNumber` clusters items visually; `isDisplayed` filters by env/config.
+favoriteMenuRegistry.addValidation({
+    Component: Function,
+    groupNumber: { type: Number, optional: true },
+    isDisplayed: { type: Function, optional: true },
+    "*": true,
+});
+
 /**
  * Dropdown menu that groups Filter, Group By, and Favorites panels.
  *
@@ -166,7 +175,11 @@ export class SearchBarMenu extends Component {
     get otherItems() {
         const registryMenus = [];
         for (const item of favoriteMenuRegistry.getAll()) {
-            if ("isDisplayed" in item ? item.isDisplayed(this.env) : true) {
+            if (
+                "isDisplayed" in item
+                    ? item.isDisplayed(/** @type {import("@web/env").OdooEnv} */ (this.env))
+                    : true
+            ) {
                 registryMenus.push({
                     Component: item.Component,
                     groupNumber: item.groupNumber,

@@ -4,6 +4,7 @@
 /** @module @web/model/sample_field_generators - Pure functions generating realistic fake field values by type */
 
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
+import { DateTime } from "@web/core/l10n/luxon";
 
 import {
     DATE_DELTA,
@@ -39,7 +40,7 @@ export function getRandomBool() {
 /** @returns {any} Luxon DateTime near today (±60 days) */
 export function getRandomDate() {
     const delta = Math.floor((Math.random() - Math.random()) * DATE_DELTA);
-    return globalThis.luxon.DateTime.local().plus({ hours: delta });
+    return DateTime.local().plus({ hours: delta });
 }
 
 /**

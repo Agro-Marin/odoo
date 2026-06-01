@@ -124,13 +124,14 @@ export function getColors(colorScheme, paletteName) {
  */
 export function getColor(index, colorScheme, paletteSizeOrName) {
     let paletteName;
+    const sizeAsNumber = /** @type {number} */ (paletteSizeOrName);
     if (paletteSizeOrName === "odoo") {
         paletteName = "odoo";
-    } else if (paletteSizeOrName <= 6 || paletteSizeOrName === "sm") {
+    } else if (sizeAsNumber <= 6 || paletteSizeOrName === "sm") {
         paletteName = "sm";
-    } else if (paletteSizeOrName <= 12 || paletteSizeOrName === "md") {
+    } else if (sizeAsNumber <= 12 || paletteSizeOrName === "md") {
         paletteName = "md";
-    } else if (paletteSizeOrName <= 24 || paletteSizeOrName === "lg") {
+    } else if (sizeAsNumber <= 24 || paletteSizeOrName === "lg") {
         paletteName = "lg";
     } else {
         paletteName = "xl";

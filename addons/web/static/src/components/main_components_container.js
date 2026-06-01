@@ -6,7 +6,6 @@
 import { Component, xml } from "@odoo/owl";
 import { registry, useRegistry } from "@web/core/registry";
 import { ErrorHandler } from "@web/core/utils/components";
-/** @type {import("@web/core").Registry} */
 const mainComponents = registry.category("main_components");
 
 mainComponents.addValidation({

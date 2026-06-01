@@ -92,7 +92,7 @@ export function useDropdownNesting(state) {
     useEffect(
         () => {
             queueMicrotask(() => {
-                current.activeEl = uiService.activeElement;
+                current.activeEl = /** @type {any} */ (uiService.activeElement);
             });
         },
         () => [],

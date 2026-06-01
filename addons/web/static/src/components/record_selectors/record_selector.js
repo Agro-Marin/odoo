@@ -37,11 +37,12 @@ export class RecordSelector extends BaseRecordSelector {
 
     /**
      * Resolve the display name for the selected record.
-     * @param {Object} [props]
+     * @param {Object} props
      * @param {Record<number, string>} displayNames
      * @returns {string} display name or empty string if no record selected
      */
-    getDisplayName(props = this.props, displayNames) {
+    getDisplayName(props, displayNames) {
+        props ??= this.props;
         const { resId } = props;
         if (resId === false) {
             return "";

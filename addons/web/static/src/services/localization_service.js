@@ -13,13 +13,12 @@ import {
     translationLoaded,
 } from "@web/core/l10n/translation";
 import { jsToPyLocale } from "@web/core/l10n/utils";
+import { Settings } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { IndexedDB } from "@web/core/utils/indexed_db";
 import { objectToUrlEncodedString } from "@web/core/utils/urls";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
-
-const { Settings } = globalThis.luxon ?? {};
 
 /** @type {[RegExp, string][]} */
 const NUMBERING_SYSTEMS = [
@@ -58,9 +57,16 @@ export const localizationService = {
         const fetchTranslations = async (hash) => {
             let queryString = objectToUrlEncodedString({ hash, lang });
             queryString = queryString.length ? `?${queryString}` : queryString;
-            const response = await browser.fetch(`${translationURL}${queryString}`, {
+            const url = `${translationURL}${queryString}`;
+            console.debug("[debug:l10n] fetchTranslations begin url=%s", url);
+            const response = await browser.fetch(url, {
                 cache: "no-store",
             });
+            console.debug(
+                "[debug:l10n] fetchTranslations response status=%s ok=%s",
+                response.status,
+                response.ok,
+            );
             if (!response.ok) {
                 throw new Error("Error while fetching translations");
             }
@@ -68,6 +74,10 @@ export const localizationService = {
             if (result.hash !== hash) {
                 localizationDB.write(translationURL, JSON.stringify({ lang }), result);
                 updateTranslations(result);
+                console.debug(
+                    "[debug:l10n] fetchTranslations cached + applied hash=%s",
+                    result.hash,
+                );
             }
         };
 
@@ -115,6 +125,12 @@ export const localizationService = {
             translationURL,
             JSON.stringify({ lang }),
         );
+        console.debug(
+            "[debug:l10n] storedTranslations hit=%s hash=%s lang=%s",
+            Boolean(storedTranslations),
+            storedTranslations?.hash,
+            lang,
+        );
 
         const translationProm = fetchTranslations(storedTranslations?.hash).catch(
             (e) => console.warn("Background translation fetch failed:", e),
@@ -122,6 +138,7 @@ export const localizationService = {
         if (storedTranslations) {
             updateTranslations(storedTranslations);
         } else {
+            console.debug("[debug:l10n] no cache, awaiting fetch");
             await translationProm;
         }
 
