@@ -572,6 +572,12 @@ SPECIAL_DIRECTIVES = {"t-translation", "t-ignore", "t-title"}
 # The slot will be replaced by the `t-call` tag content of the caller.
 T_CALL_SLOT = "0"
 
+# Maximum depth of the explicit render stack in ``_render_iterall`` (t-call
+# nesting). Exceeding it signals unbounded recursion (e.g. a template that
+# t-calls itself) rather than a legitimately deep page, and aborts with a
+# RecursionError instead of exhausting memory.
+QWEB_MAX_RENDER_DEPTH = 50
+
 ETREE_TEMPLATE_REF = count()
 
 # Only allow a javascript scheme if it is followed by [ ][window.]history.back()
@@ -590,6 +596,20 @@ def _id_or_xmlid(ref: str | int) -> str | int:
 def indent_code(code: str, level: int) -> str:
     """Indent the code to respect the python syntax."""
     return textwrap.indent(textwrap.dedent(code).strip(), " " * 4 * level)
+
+
+def _group_caches_by_prefix(caches: Mapping[str, Any]) -> dict[str, list]:
+    """Group cache objects by the prefix before the first dot in their name.
+
+    A module-level helper rather than a class-body loop: building this inside a
+    ``class`` block with a bare ``for`` leaks the loop variables as class
+    attributes, and a comprehension can't see the class-level cache dict (class
+    scope is not visible to nested comprehensions).
+    """
+    groups: dict[str, list] = {}
+    for name, cache in caches.items():
+        groups.setdefault(name.split(".")[0], []).append(cache)
+    return groups
 
 
 class QwebCallParameters(NamedTuple):
@@ -768,11 +788,18 @@ class IrQweb(models.AbstractModel):
             options["profile"] = True
 
         values = values.copy() if values else {}
-        if T_CALL_SLOT in values:
+        # The t-call content slot is keyed by the *integer* 0 at render time:
+        # ``T_CALL_SLOT`` ("0") interpolated bare into the generated f-strings
+        # becomes an int literal (``values.get(0, '')``). A caller must not
+        # pre-occupy the slot, so strip both spellings — guarding only the str
+        # form (the historical behaviour) silently let an int-0 value leak into
+        # the slot.
+        if T_CALL_SLOT in values or 0 in values:
             _logger.warning(
                 "values[0] should be unset when call the _render method and only set into the template."
             )
-            values.pop(T_CALL_SLOT)
+            values.pop(T_CALL_SLOT, None)
+            values.pop(0, None)
 
         irQweb = self.with_context(**options)._prepare_environment(values)
         irQweb = irQweb.with_context(
@@ -819,7 +846,7 @@ class IrQweb(models.AbstractModel):
 
         try:
             while stack:
-                if len(stack) > 50:
+                if len(stack) > QWEB_MAX_RENDER_DEPTH:
                     msg = "Qweb template infinite recursion"
                     raise RecursionError(msg)
 
@@ -3557,7 +3584,7 @@ class IrQweb(models.AbstractModel):
         debug: str | bool | None = None,
         autoprefix: bool = False,
     ) -> list[str]:
-        """Generates asset nodes.
+        """Generates asset links (URLs), not nodes.
         If debug=assets, the assets will be regenerated when a file which composes them has been modified.
         Else, the assets will be generated only once and then stored in cache.
         """
@@ -3675,13 +3702,26 @@ class IrQweb(models.AbstractModel):
         defer_load: bool = False,
         lazy_load: bool = False,
         media: str | None = None,
-    ) -> list[tuple[str, dict[str, Any]] | None]:
-        return [
-            self._link_to_node(
+    ) -> list[tuple[str, dict[str, Any]]]:
+        # ``_link_to_node`` returns None for a path whose extension is not a
+        # known script/style/template type (e.g. an external URL with a query
+        # string). Drop those: downstream consumers (the generated
+        # ``t-call-assets`` loop) unpack ``(tagName, attrs)`` directly and would
+        # raise TypeError on a None. Log dropped paths so a misclassified asset
+        # is visible instead of silently missing from the page.
+        nodes = []
+        for path in paths:
+            node = self._link_to_node(
                 path, defer_load=defer_load, lazy_load=lazy_load, media=media
             )
-            for path in paths
-        ]
+            if node is None:
+                _logger.warning(
+                    "Asset path %r has no renderable node (unrecognized extension); skipped.",
+                    path,
+                )
+                continue
+            nodes.append(node)
+        return nodes
 
     def _link_to_node(
         self,
@@ -3873,7 +3913,13 @@ class IrQweb(models.AbstractModel):
     # admin override below (``web.esbuild.force_fallback_bundles``
     # system parameter) provides the same effect without waiting for a
     # failure, e.g. to force debug-mode for a bundle after an incident.
-    _esbuild_cooldowns: dict[str, tuple[float, str, int]] = {}
+    # Keyed by ``(db_name, bundle)`` via ``_esbuild_cooldown_key``. This is a
+    # single process-global class attribute shared by every registry in the
+    # worker (plain class attributes are inherited, not copied per registry —
+    # see orm/registration.py), so it MUST be namespaced by database; otherwise
+    # an esbuild failure for a bundle in one tenant opens the breaker for the
+    # same bundle name in every other tenant.
+    _esbuild_cooldowns: dict[tuple[str, str], tuple[float, str, int]] = {}
     # Hardcoded defaults — overridable via ir.config_parameter without a
     # code change.  Names mirror the parameter keys (see
     # ``_get_esbuild_setting``).  Keep the class attributes so existing
@@ -3970,13 +4016,25 @@ class IrQweb(models.AbstractModel):
         )
         return {s.strip() for s in forced_raw.split(",") if s.strip()}
 
+    def _esbuild_cooldown_key(self, bundle: str) -> tuple[str, str]:
+        """Database-scoped key for ``_esbuild_cooldowns``.
+
+        The cooldown dict is a single process-global class attribute shared by
+        every registry in the worker, so an unscoped (bundle-only) key would let
+        an esbuild failure in one database open the breaker for the same bundle
+        name in every other database. Namespacing by ``cr.dbname`` isolates
+        tenants while keeping the shared-dict design.
+        """
+        return (self.env.cr.dbname, bundle)
+
     def _esbuild_circuit_state(self, bundle: str) -> tuple[bool, str]:
         """Check the circuit-breaker state for a bundle.
 
         Returns ``(allow, reason)``.  When ``allow`` is False, callers
         should skip esbuild and go straight to the debug-mode fallback.
         """
-        entry = type(self)._esbuild_cooldowns.get(bundle)
+        key = self._esbuild_cooldown_key(bundle)
+        entry = type(self)._esbuild_cooldowns.get(key)
         if not entry:
             return True, ""
         expiry, reason, _fails = entry
@@ -3985,7 +4043,7 @@ class IrQweb(models.AbstractModel):
         # Cooldown expired — clear the block so we try again.  Keep the
         # failure count so a second consecutive failure escalates to the
         # extended cooldown.
-        type(self)._esbuild_cooldowns[bundle] = (0.0, reason, _fails)
+        type(self)._esbuild_cooldowns[key] = (0.0, reason, _fails)
         return True, ""
 
     def _esbuild_circuit_record_failure(self, bundle: str, reason: str) -> None:
@@ -3996,7 +4054,8 @@ class IrQweb(models.AbstractModel):
         come from ``web.esbuild.cooldown_s`` / ``extended_cooldown_s``,
         falling back to the class-level defaults if unset.
         """
-        prev = type(self)._esbuild_cooldowns.get(bundle)
+        key = self._esbuild_cooldown_key(bundle)
+        prev = type(self)._esbuild_cooldowns.get(key)
         fails = (prev[2] + 1) if prev else 1
         if fails >= 2:
             cooldown = self._get_esbuild_setting(
@@ -4010,7 +4069,7 @@ class IrQweb(models.AbstractModel):
                 default=self._ESBUILD_COOLDOWN_S,
                 cast=float,
             )
-        type(self)._esbuild_cooldowns[bundle] = (
+        type(self)._esbuild_cooldowns[key] = (
             time.monotonic() + cooldown,
             reason,
             fails,
@@ -4028,8 +4087,9 @@ class IrQweb(models.AbstractModel):
     def _esbuild_circuit_record_success(self, bundle: str) -> None:
         """Close the circuit for ``bundle`` after a successful build."""
         cooldowns = type(self)._esbuild_cooldowns
-        if bundle in cooldowns:
-            cooldowns.pop(bundle, None)
+        key = self._esbuild_cooldown_key(bundle)
+        if key in cooldowns:
+            cooldowns.pop(key, None)
             log_event(
                 _fallback_log,
                 logging.INFO,
@@ -4296,10 +4356,6 @@ class IrQweb(models.AbstractModel):
                 bundle=bundle,
             )
             return [], []
-
-        bridge_specifiers = sorted(
-            set(native_data["import_map"]) | set(self._ODOO_EXTERNAL_LIBS)
-        )
 
         # ── Production: esbuild bundling ──
         # Single minified <script type="module"> replaces 600+ individual
@@ -5363,11 +5419,7 @@ def render(
             cache_name: LRU(cache_size)
             for cache_name, cache_size in _REGISTRY_CACHES.items()
         }
-        _Registry__caches_groups = {}
-        for cache_name, cache in _Registry__caches.items():
-            _Registry__caches_groups.setdefault(cache_name.split(".")[0], []).append(
-                cache
-            )
+        _Registry__caches_groups = _group_caches_by_prefix(_Registry__caches)
 
     class MockIrQWeb(IrQweb):
         _register = False  # not visible in real registry
