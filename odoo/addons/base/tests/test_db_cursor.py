@@ -1,5 +1,10 @@
+import inspect
 import json
 import logging
+import os
+import threading
+import time
+import warnings
 from datetime import datetime
 from functools import partial
 from unittest.mock import MagicMock, patch
@@ -10,15 +15,18 @@ from psycopg_pool import PoolTimeout
 
 from odoo import api
 from odoo.db import db_connect
-from odoo.db.cursor import _id_sequence_cache
+from odoo.db import utils as _db_utils
+from odoo.db.cursor import Cursor, _FlushingSavepoint, _id_sequence_cache
 from odoo.db.pool import (
     ConnectionPool,
     PoolError,
     _normalize_dsn_key,
+    _reset_connection,
     _SuppressKnownPoolWarnings,
 )
 from odoo.db.utils import categorize_query, connection_info_for
 from odoo.modules.registry import Registry
+from odoo.service.db import exp_drop
 from odoo.tests import common
 from odoo.tests.common import BaseCase, HttpCase
 from odoo.tests.test_cursor import TestCursor
@@ -274,8 +282,8 @@ class TestTestCursor(common.TransactionCase):
             # The 2nd cursor must not use the connection of the 1st cursor as it's used (not closed).
             cursors.extend((connection.cursor(), connection.cursor()))
             # Check that both cursors got different underlying connections.
-            pid0 = cursors[0]._cnx.info.backend_pid
-            pid1 = cursors[1]._cnx.info.backend_pid
+            pid0 = cursors[0].connection.info.backend_pid
+            pid1 = cursors[1].connection.info.backend_pid
             self.assertNotEqual(pid0, pid1)
 
             # Case #2: Close 1st cursor, open 3rd cursor, must recycle/borrow.
@@ -283,7 +291,7 @@ class TestTestCursor(common.TransactionCase):
             cursors[0].close()
             cursors.append(connection.cursor())
             # Check the 3rd cursor reuses the backend connection from the 1st.
-            pid2 = cursors[2]._cnx.info.backend_pid
+            pid2 = cursors[2].connection.info.backend_pid
             self.assertEqual(pid0, pid2)
 
         finally:
@@ -714,7 +722,8 @@ class TestMerge(BaseCase):
             cr.execute(
                 "CREATE TEMP TABLE _test_mg_ins (id serial PRIMARY KEY, key text UNIQUE, val text)"
             )
-            result = _merge(cr,
+            result = _merge(
+                cr,
                 "_test_mg_ins",
                 ["key", "val"],
                 [("a", "v1"), ("b", "v2")],
@@ -731,7 +740,8 @@ class TestMerge(BaseCase):
                 "CREATE TEMP TABLE _test_mg_upd (id serial PRIMARY KEY, key text UNIQUE, val text)"
             )
             cr.execute("INSERT INTO _test_mg_upd (key, val) VALUES ('a', 'old')")
-            _merge(cr,
+            _merge(
+                cr,
                 "_test_mg_upd",
                 ["key", "val"],
                 [("a", "new")],
@@ -747,7 +757,8 @@ class TestMerge(BaseCase):
                 "CREATE TEMP TABLE _test_mg_mix (id serial PRIMARY KEY, key text UNIQUE, val int)"
             )
             cr.execute("INSERT INTO _test_mg_mix (key, val) VALUES ('existing', 10)")
-            result = _merge(cr,
+            result = _merge(
+                cr,
                 "_test_mg_mix",
                 ["key", "val"],
                 [("existing", 20), ("new_key", 30)],
@@ -764,7 +775,8 @@ class TestMerge(BaseCase):
                 "CREATE TEMP TABLE _test_mg_ret (id serial PRIMARY KEY, key text UNIQUE, val text)"
             )
             cr.execute("INSERT INTO _test_mg_ret (key, val) VALUES ('a', 'old')")
-            result = _merge(cr,
+            result = _merge(
+                cr,
                 "_test_mg_ret",
                 ["key", "val"],
                 [("a", "new"), ("b", "fresh")],
@@ -786,7 +798,9 @@ class TestMerge(BaseCase):
             cr.execute(
                 "CREATE TEMP TABLE _test_mg_empty (id serial PRIMARY KEY, key text UNIQUE, val text)"
             )
-            result = _merge(cr,"_test_mg_empty", ["key", "val"], [], on_columns=["key"])
+            result = _merge(
+                cr, "_test_mg_empty", ["key", "val"], [], on_columns=["key"]
+            )
             self.assertEqual(result, [])
 
 
@@ -964,8 +978,16 @@ class TestConnectionInfoFor(BaseCase):
         self.assertEqual(db, "admin")
 
     def test_uri_no_path_no_user_uses_hostname(self):
-        """When URI has no path and no username, use hostname."""
-        db, _ = connection_info_for("postgresql://localhost/")
+        """When URI has no path and no username, use hostname.
+
+        This fallback emits a RuntimeWarning by design (see
+        ``TestURIMalformedWarning.test_hostname_fallback_emits_warning``
+        for the assertion).  Suppress it here so the test log stays
+        clean — the warning is expected and already verified elsewhere.
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            db, _ = connection_info_for("postgresql://localhost/")
         self.assertEqual(db, "localhost")
 
     def test_plain_dbname(self):
@@ -1033,11 +1055,17 @@ class TestPoolBasics(BaseCase):
         self.assertEqual(stats, {})
         pool.close_all()
 
-    def test_pool_maxconn_clamp(self):
-        """Pool maxconn is clamped to at least 1."""
-        pool = ConnectionPool(maxconn=0)
-        self.assertEqual(pool._maxconn, 1)
-        pool.close_all()
+    def test_pool_maxconn_rejects_non_positive(self):
+        """Pool maxconn <= 0 raises instead of silently coercing to 1.
+
+        The old max(maxconn, 1) clamp turned a misconfigured db_maxconn=0
+        (or an empty db_maxconn_gevent override) into a single-slot pool
+        that wedged the server under trivial load.  Fail fast instead.
+        """
+        with self.assertRaises(ValueError):
+            ConnectionPool(maxconn=0)
+        with self.assertRaises(ValueError):
+            ConnectionPool(maxconn=-1)
 
 
 class TestSuppressKnownPoolWarnings(BaseCase):
@@ -1214,3 +1242,506 @@ class TestDroppedDBRecovery(BaseCase):
         # Registry should still be in the LRU — caller-provided cursor
         # failure is not necessarily a dropped DB.
         self.assertIn(self.DB_NAME, Registry.registries)
+
+
+class TestPoolDrainConcurrency(BaseCase):
+    """drain() must not race concurrent pool creation / close_all.
+
+    drain_all() fires on every `update_module` while the RPC layer keeps
+    calling db_connect() — both paths touch ConnectionPool._pools.
+    Before the fix, the unlocked `for key, pool in self._pools.items()`
+    loop could raise ``RuntimeError: dictionary changed size during
+    iteration``.
+    """
+
+    def test_drain_does_not_race_churn(self):
+        pool = ConnectionPool(maxconn=4)
+        # Seed with throwaway entries — the real per-DB pools never get
+        # borrowed because we exercise only the bookkeeping dict, not the
+        # underlying psycopg_pool.
+        for i in range(500):
+            pool._pools[f"fake-{i}"] = MagicMock(closed=False)
+
+        errors = []
+        stop = threading.Event()
+
+        def drain_loop():
+            while not stop.is_set():
+                try:
+                    pool.drain()
+                except RuntimeError as e:
+                    errors.append(str(e))
+                    return
+
+        def churn_loop():
+            while not stop.is_set():
+                with pool._lock:
+                    snapshot = list(pool._pools.values())
+                    pool._pools.clear()
+                    for i, v in enumerate(snapshot):
+                        pool._pools[f"fake-{i}"] = v
+
+        threads = [
+            threading.Thread(target=drain_loop),
+            threading.Thread(target=churn_loop),
+        ]
+        for t in threads:
+            t.start()
+        time.sleep(1.0)
+        stop.set()
+        for t in threads:
+            t.join()
+
+        pool.close_all()
+        self.assertEqual(
+            errors, [], "drain() raced the pools dict — fix in pool.py regressed"
+        )
+
+
+class TestExecuteValuesTripwire(BaseCase):
+    """execute_values requires exactly one '%s' marker — anything else
+    silently mis-expands with ``query.replace('%s', ..., 1)``.
+    """
+
+    def test_rejects_zero_markers(self):
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr.execute_values("INSERT INTO t DEFAULT VALUES", [(1,)])
+
+    def test_rejects_multiple_markers(self):
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr.execute_values(
+                    "UPDATE t SET col=%s FROM (VALUES %s) s WHERE id=s.x",
+                    [(1, 2), (3, 4)],
+                )
+
+    def test_accepts_single_marker(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_evt_tw (v int)")
+            cr.execute_values(
+                "INSERT INTO _test_evt_tw (v) VALUES %s",
+                [(1,), (2,)],
+            )
+            cr.execute("SELECT count(*) FROM _test_evt_tw")
+            self.assertEqual(cr.fetchone()[0], 2)
+
+
+class TestExecutemanyTripwire(BaseCase):
+    """executemany cannot use SQL objects with embedded params — the per-row
+    params come from params_seq. Silently dropping SQL.params would mask
+    caller bugs.
+    """
+
+    def test_rejects_sql_with_embedded_params(self):
+        """Reject SQL("tpl %s", value) — executemany can't merge per-row
+        params_seq with the SQL's own embedded params."""
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr.executemany(
+                    SQL("INSERT INTO t(a,b) VALUES (%s, %s)", 1, 2),
+                    [(3, 4)],
+                )
+
+    def test_plain_str_query_still_works(self):
+        """The normal path (plain str with %s placeholders) is unaffected."""
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_em_tw (a int, b int)")
+            cr.executemany(
+                "INSERT INTO _test_em_tw(a, b) VALUES (%s, %s)",
+                [(1, 2), (3, 4)],
+            )
+            cr.execute("SELECT count(*) FROM _test_em_tw")
+            self.assertEqual(cr.fetchone()[0], 2)
+
+
+class TestFlushingSavepointDepthOnFailure(BaseCase):
+    """_FlushingSavepoint must not leak savepoint_depth if the SAVEPOINT SQL
+    raises — otherwise the next commit/rollback hits the ``savepoint_depth
+    == 0`` assertion and wedges the transaction.
+    """
+
+    def test_savepoint_depth_unchanged_on_sql_failure(self):
+        class BrokenCursor(MagicMock):
+            pass
+
+        txn = MagicMock()
+        txn.savepoint_depth = 0
+        txn.default_env = "env"
+        txn.registry.registry_sequence = 0
+
+        cr = MagicMock()
+        cr.transaction = txn
+        cr.flush = MagicMock()
+        cr.execute = MagicMock(
+            side_effect=psycopg.OperationalError("simulated broken connection")
+        )
+
+        with self.assertRaises(psycopg.OperationalError):
+            _FlushingSavepoint(cr)
+
+        # Depth must remain at 0 — no leaked counter for a savepoint that
+        # never actually made it to the server.
+        self.assertEqual(
+            txn.savepoint_depth, 0, "savepoint_depth leaked after SAVEPOINT SQL failure"
+        )
+
+
+class TestURIMalformedWarning(BaseCase):
+    """URIs without a path AND without a username fall back to using the
+    hostname as the database name — almost always a misconfiguration.
+    The fallback stays for backward compatibility but must warn."""
+
+    def test_hostname_fallback_emits_warning(self):
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            db, _info = connection_info_for("postgresql://localhost/")
+        self.assertEqual(db, "localhost")
+        matched = [w for w in captured if issubclass(w.category, RuntimeWarning)]
+        self.assertTrue(
+            matched, "Expected a RuntimeWarning for URI without path/username"
+        )
+
+    def test_well_formed_uri_no_warning(self):
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            db, _info = connection_info_for("postgresql://localhost/mydb")
+        self.assertEqual(db, "mydb")
+        matched = [w for w in captured if issubclass(w.category, RuntimeWarning)]
+        self.assertFalse(
+            matched, "Well-formed URI should not trigger the hostname-fallback warning"
+        )
+
+
+class TestClosedCursorAttributeAccess(BaseCase):
+    """Accessing ANY attribute on a closed cursor should raise InterfaceError
+    cleanly, without emitting a misleading DeprecationWarning about the
+    attribute name en route."""
+
+    def test_unknown_attr_on_closed_cursor_raises_cleanly(self):
+        cr = registry().cursor()
+        cr.close()
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            with self.assertRaises(psycopg.InterfaceError):
+                cr.some_nonexistent_attr  # noqa: B018
+        dep_warnings = [
+            w for w in captured if issubclass(w.category, DeprecationWarning)
+        ]
+        self.assertEqual(
+            dep_warnings,
+            [],
+            "Closed-cursor attribute access should not emit DeprecationWarning",
+        )
+
+
+class TestCursorCloseWithDeadConnection(BaseCase):
+    """Regression: cr.close() must release the pool slot and clean up _obj
+    even when the underlying connection died externally (network failure,
+    peer drop).  The old close() guarded on the ``closed`` property which
+    flips True as soon as _cnx.closed becomes True, silently skipping
+    _close() and leaking both the psycopg Cursor object and the
+    semaphore slot.
+    """
+
+    def test_close_releases_slot_when_cnx_dies_externally(self):
+        cr = registry().cursor()
+        pool = cr._Cursor__pool
+        sem_before = pool._pool_sem._value
+        # Simulate the connection dying underneath us.
+        cr.connection.close()
+        self.assertTrue(cr.closed, "closed property should reflect dead _cnx")
+        self.assertFalse(cr._closed, "internal _closed flag must not be set yet")
+        cr.close()
+        self.assertGreater(
+            pool._pool_sem._value,
+            sem_before,
+            "close() must release the semaphore slot even when _cnx is dead",
+        )
+        self.assertNotIn(
+            "_obj",
+            cr.__dict__,
+            "close() must delete _obj even when _cnx is dead",
+        )
+
+
+class TestCopyFromIncompatibleOptions(BaseCase):
+    """copy_from rejects option combinations that would silently produce
+    wrong results:
+
+    - binary=True with on_error='ignore' silently drops on_error because
+      binary COPY has no ON_ERROR clause.
+    - returning_ids=True with on_error='ignore' returns pre-allocated
+      sequence IDs that do NOT correspond to inserted rows.
+    """
+
+    def test_binary_with_on_error_raises(self):
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr.copy_from("t", ["c"], [(1,)], binary=True, on_error="ignore")
+
+    def test_returning_ids_with_ignore_raises(self):
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr.copy_from("t", ["c"], [(1,)], returning_ids=True, on_error="ignore")
+
+
+class TestDictFetchoneNoAssert(BaseCase):
+    """dictfetchone must not rely on ``assert desc`` — ``python -O``
+    strips asserts and a missing description would then blow up with
+    AttributeError on None rather than a diagnosable error.
+    """
+
+    def test_uses_explicit_raise_not_assert(self):
+        src = inspect.getsource(Cursor.dictfetchone)
+        self.assertNotIn(
+            "assert desc",
+            src,
+            "dictfetchone must not use `assert` (stripped by python -O)",
+        )
+
+
+class TestReadonlyPropertyCached(BaseCase):
+    """Cursor.readonly must return a cached value bound to the cursor, not
+    read through ``_cnx.read_only`` post-close — after _close() returns
+    the connection to the pool, another cursor may own it and flip the
+    state.
+    """
+
+    def test_readonly_stable_across_close(self):
+        for ro in (False, True):
+            with self.subTest(readonly=ro):
+                cr = registry().cursor(readonly=ro)
+                before = cr.readonly
+                cr.close()
+                after = cr.readonly
+                self.assertEqual(
+                    before, after, "readonly must not change after close()"
+                )
+                self.assertEqual(bool(ro), before)
+
+
+class TestGetStatsLocked(BaseCase):
+    """get_stats must snapshot _pools under the lock to avoid
+    ``RuntimeError: dictionary changed size during iteration`` when a
+    concurrent borrow() creates a new per-DB pool mid-iteration.
+    """
+
+    def test_get_stats_safe_under_churn(self):
+        src = inspect.getsource(ConnectionPool.get_stats)
+        self.assertIn(
+            "with self._lock",
+            src,
+            "get_stats must snapshot _pools under the lock",
+        )
+
+
+class TestNormalizeDsnKeyPassword(BaseCase):
+    """_normalize_dsn_key must differentiate pools by password (via
+    fingerprint) so rotating a database password invalidates the
+    cached pool and forces a reconnect with the new credentials.
+    """
+
+    def test_password_rotation_yields_different_key(self):
+        base = {"dbname": "x", "host": "h", "user": "u"}
+        k0 = _normalize_dsn_key({**base, "password": "old"})
+        k1 = _normalize_dsn_key({**base, "password": "new"})
+        self.assertNotEqual(
+            k0, k1, "different passwords must yield different pool keys"
+        )
+
+    def test_password_not_leaked_in_key(self):
+        key = _normalize_dsn_key(
+            {"dbname": "x", "host": "h", "user": "u", "password": "s3cr3t"}
+        )
+        for _k, v in key:
+            self.assertNotIn(
+                "s3cr3t", v, "raw password must not appear in the pool key"
+            )
+
+
+class TestSuppressKnownPoolWarningsNarrow(BaseCase):
+    """The warning filter must only swallow ``database "..." does not
+    exist`` FATAL lines — role / tablespace / schema errors must reach
+    the log so operators can diagnose misconfiguration.
+    """
+
+    def test_does_not_swallow_role_does_not_exist(self):
+        f = _SuppressKnownPoolWarnings()
+        rec = logging.LogRecord(
+            "test",
+            logging.WARNING,
+            "",
+            0,
+            'FATAL: role "nobody" does not exist',
+            (),
+            None,
+        )
+        self.assertTrue(
+            f.filter(rec),
+            "role-does-not-exist must NOT be suppressed (misconfiguration signal)",
+        )
+
+
+class TestPGAppNameWarningOnce(BaseCase):
+    """The ODOO_PGAPPNAME deprecation warning must fire at most once per
+    process — it was previously emitted on every connection_info_for call,
+    producing thousands of duplicates per request.
+    """
+
+    def test_deprecation_warning_is_one_shot(self):
+        os.environ["ODOO_PGAPPNAME"] = "test"
+        saved = _db_utils._ODOO_PGAPPNAME_WARNED
+        _db_utils._ODOO_PGAPPNAME_WARNED = False
+        try:
+            with warnings.catch_warnings(record=True) as captured:
+                warnings.simplefilter("always")
+                for _ in range(5):
+                    connection_info_for("mydb")
+            pg = [w for w in captured if "ODOO_PGAPPNAME" in str(w.message)]
+            self.assertEqual(
+                len(pg),
+                1,
+                f"expected exactly one warning across 5 calls, got {len(pg)}",
+            )
+        finally:
+            del os.environ["ODOO_PGAPPNAME"]
+            _db_utils._ODOO_PGAPPNAME_WARNED = saved
+
+
+class TestExecuteValuesPageSize(BaseCase):
+    """execute_values must reject non-positive page_size at the API
+    boundary.  The old loop used ``range(0, len(argslist), page_size)``,
+    which:
+
+    - Crashes with a cryptic ``ValueError: range() arg 3 must not be
+      zero`` for page_size=0.
+    - Produces an empty range for page_size<0, silently dropping every
+      row the caller asked to insert (confirmed data-loss path).
+    """
+
+    def test_zero_page_size_raises(self):
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr.execute_values("INSERT INTO t VALUES %s", [(1,)], page_size=0)
+
+    def test_negative_page_size_raises(self):
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr.execute_values("INSERT INTO t VALUES %s", [(1,)], page_size=-1)
+
+
+class TestResetConnectionRestoresPrepare(BaseCase):
+    """_reset_connection must restore the prepared-statement tuning set
+    by _configure_connection.  Cursor.execute() sets prepare_threshold
+    to None in the DDL-fallback path; without this restore the next
+    borrower of the connection inherits disabled auto-prepare for up
+    to max_lifetime (3600s).
+    """
+
+    def test_reset_restores_prepare_threshold(self):
+        with registry().cursor() as cr:
+            cr.connection.prepare_threshold = None
+            cr.connection.prepared_max = 1
+            _reset_connection(cr.connection)
+            self.assertEqual(cr.connection.prepare_threshold, 2)
+            self.assertEqual(cr.connection.prepared_max, 500)
+
+
+class TestURIHealthParamsMerge(BaseCase):
+    """_HEALTH_PARAMS defaults must NOT override user-specified values
+    already present in the URI query string.  Operators who set
+    ``?connect_timeout=60`` expect their value to survive.
+    """
+
+    def test_uri_connect_timeout_preserved(self):
+        uri = "postgresql://u:p@h:5432/db?connect_timeout=60&keepalives_idle=300"
+        _, info = connection_info_for(uri)
+        # The user's values are in the DSN string and MUST NOT be shadowed
+        # by a kwarg at our default.  Presence of a kwarg would override
+        # the DSN value per psycopg's precedence rules.
+        self.assertNotIn("connect_timeout", info)
+        self.assertNotIn("keepalives_idle", info)
+        # Other health params we did not specify are still injected.
+        self.assertEqual(info.get("keepalives"), "1")
+
+
+class TestExpDropClosesPoolTwice(BaseCase):
+    """``exp_drop`` must call ``odoo.db.close_db`` twice — once to flush
+    pools before ``DROP DATABASE`` and once after, because cron and
+    HTTP threads can re-create a pool for the target database in the
+    brief window between the first close and the DROP statement.
+    Without the second close, those new pools would later try to
+    reconnect to a database that no longer exists.
+
+    This invariant is load-bearing (inherited from upstream) and had
+    no regression coverage — any refactor of ``exp_drop`` that collapsed
+    the two close_db calls into one would silently break production
+    under concurrent load.
+    """
+
+    def test_close_db_called_before_and_after_drop(self):
+        events: list[tuple[str, str]] = []
+        fake_db = "_t_exp_drop_fake"
+
+        def fake_close_db(name: str) -> None:
+            events.append(("close_db", name))
+
+        fake_cursor = MagicMock()
+
+        def cursor_execute(query, *_args, **_kwargs):
+            if "DROP DATABASE" in str(query):
+                events.append(("drop_database", fake_db))
+
+        fake_cursor.execute.side_effect = cursor_execute
+
+        # Shape the context-manager protocol for `with closing(db.cursor())`.
+        fake_conn = MagicMock()
+        fake_conn.cursor.return_value = fake_cursor
+        # `closing(cursor)` calls cursor.close() on exit; the MagicMock
+        # already satisfies that.
+
+        # Note: not patching odoo.tools.config.filestore — exp_drop guards
+        # the rmtree with ``if Path(fs).exists()`` and the fake_db name
+        # was never used by any real Odoo, so the path doesn't exist and
+        # the rmtree branch is skipped harmlessly.
+        # database_identifier() requires a real psycopg connection to
+        # quote names, so stub it with a static SQL fragment for the test.
+        with (
+            patch("odoo.service.db.list_dbs", return_value=[fake_db]),
+            patch("odoo.modules.registry.Registry.delete"),
+            patch("odoo.service.db._drop_conn"),
+            patch("odoo.db.close_db", side_effect=fake_close_db),
+            patch("odoo.db.db_connect", return_value=fake_conn),
+            patch(
+                "odoo.service.db.database_identifier",
+                return_value=SQL(f'"{fake_db}"'),
+            ),
+        ):
+            result = exp_drop(fake_db)
+
+        self.assertTrue(result, f"exp_drop should return True; events={events}")
+
+        close_indices = [i for i, (k, _) in enumerate(events) if k == "close_db"]
+        drop_indices = [i for i, (k, _) in enumerate(events) if k == "drop_database"]
+
+        self.assertEqual(
+            len(close_indices),
+            2,
+            f"close_db must be called exactly twice; events={events}",
+        )
+        self.assertEqual(
+            len(drop_indices),
+            1,
+            f"DROP DATABASE must be executed exactly once; events={events}",
+        )
+        self.assertLess(
+            close_indices[0],
+            drop_indices[0],
+            "first close_db must precede DROP DATABASE",
+        )
+        self.assertGreater(
+            close_indices[1],
+            drop_indices[0],
+            "second close_db must follow DROP DATABASE",
+        )

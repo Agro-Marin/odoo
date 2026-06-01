@@ -47,17 +47,17 @@ def test_isolated_install(env):
     assert cron, "The cron 'test_install_auto_cron' has not been created"
 
     # check the states of the modules
-    assert (
-        modules["test_install_base"].state == "installed"
-    ), "Module 'test_install_base' not installed"
-    assert (
-        modules["test_install_auto"].state == "installed"
-    ), "Module 'test_install_auto' not installed"
-    assert (
-        modules["test_install_fail"].state == "uninstalled"
-    ), "Module 'test_install_fail' should be uninstalled"
+    assert modules["test_install_base"].state == "installed", (
+        "Module 'test_install_base' not installed"
+    )
+    assert modules["test_install_auto"].state == "installed", (
+        "Module 'test_install_auto' not installed"
+    )
+    assert modules["test_install_fail"].state == "uninstalled", (
+        "Module 'test_install_fail' should be uninstalled"
+    )
 
     # check that test_install_auto's code is present
-    assert (
-        env["res.currency"]._test_install_auto_cron() is True
-    ), "Cron code not working"
+    assert env["res.currency"]._test_install_auto_cron() is True, (
+        "Cron code not working"
+    )

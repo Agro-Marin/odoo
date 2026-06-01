@@ -1,6 +1,6 @@
 from odoo import Command
 from odoo.exceptions import AccessError
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 
 
 class TestMergePartner(TransactionCase):
@@ -272,4 +272,146 @@ class TestMergePartner(TransactionCase):
             self.attachment_bank3.res_id,
             self.bank1.id,
             "Bank attachment should be reassigned to the correct bank account",
+        )
+
+    def test_merge_aligns_user_company_to_destination(self):
+        """The merge keeps a linked user's company consistent with the
+        destination partner's company. res.partner requires its company_id to
+        match its users' company, so the user is re-homed to the destination's
+        company. Covers the previously-untested company-sync; also documents that
+        BPM-L03's proposed "preserve the user's own default" is NOT viable -- it
+        would leave the destination partner and its user inconsistent and abort
+        the merge."""
+        Company = self.env["res.company"]
+        company_a, company_b = Company.create(
+            [{"name": "Merge A"}, {"name": "Merge B"}]
+        )
+        src = self.Partner.create(
+            {"name": "merge src", "email": "m@example.com", "company_id": company_a.id}
+        )
+        dst = self.Partner.create(
+            {"name": "merge dst", "email": "m@example.com", "company_id": company_b.id}
+        )
+        user = self.env["res.users"].create(
+            {
+                "login": "merge_company_user",
+                "partner_id": src.id,
+                "company_id": company_a.id,
+                "company_ids": [Command.set([company_a.id, company_b.id])],
+            }
+        )
+        self.env["base.partner.merge.automatic.wizard"].create({})._merge(
+            [src.id, dst.id], dst
+        )
+        self.assertEqual(user.company_id, company_b)
+        self.assertIn(company_b, user.company_ids)
+
+
+@tagged("post_install", "-at_install")
+class TestMergePartnerForeignKeyClash(TransactionCase):
+    """BPM-L06: when repointing source FK rows to the destination violates a
+    multi-column UNIQUE/CHECK constraint, the FK-update helper must repoint the
+    non-clashing source rows and drop only the offending row -- not blanket
+    delete every source row.
+
+    res_partner_bank carries a real ``unique(sanitized_acc_number, partner_id)``
+    constraint over its res.partner FK column, so re-pointing a source bank row
+    whose account number already exists on the destination drives the savepoint
+    ``else`` branch of ``_update_foreign_keys_generic``. The helper is invoked
+    directly (not via the full ``_merge``) because ``_merge`` re-points bank
+    accounts in ``_merge_bank_accounts`` before the generic FK pass runs.
+    """
+
+    def test_clashing_row_dropped_non_clashing_repointed(self):
+        Partner = self.env["res.partner"]
+        Bank = self.env["res.partner.bank"]
+        dst = Partner.create({"name": "fk dst", "email": "fk@example.com"})
+        src_clash = Partner.create({"name": "fk src clash", "email": "fk@example.com"})
+        src_keep = Partner.create({"name": "fk src keep", "email": "fk@example.com"})
+
+        # Destination already owns account "CLASH"; the clashing source owns the
+        # same number, so re-pointing it to dst collides on
+        # (sanitized_acc_number, partner_id). The other source's number is
+        # unique and must survive the re-point.
+        Bank.create({"acc_number": "CLASH", "partner_id": dst.id})
+        bank_clash = Bank.create({"acc_number": "CLASH", "partner_id": src_clash.id})
+        bank_keep = Bank.create({"acc_number": "UNIQUE-B", "partner_id": src_keep.id})
+
+        wizard = self.env["base.partner.merge.automatic.wizard"].create({})
+        wizard._update_foreign_keys_generic("res.partner", src_clash + src_keep, dst)
+        # The helper works in raw SQL; drop stale ORM cache before re-reading.
+        self.env.invalidate_all()
+
+        self.assertTrue(
+            bank_keep.exists(),
+            "the non-clashing source bank row must survive the re-point",
+        )
+        self.assertEqual(
+            bank_keep.partner_id,
+            dst,
+            "the non-clashing source bank row must be repointed to dst, not deleted",
+        )
+        self.assertFalse(
+            bank_clash.exists(),
+            "only the clashing source bank row must be dropped",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestMergePartnerCompanyDependent(TransactionCase):
+    """BPM-P1: company-dependent references carried by merged partners must
+    still resolve correctly after the EXISTS row-filter optimisation of the
+    company-dependent jsonb rewrite.
+
+    NOTE: a dedicated functional test for the BPM-P1 jsonb-m2o code path (the
+    ``many2one_company_dependents[dst._name]`` loop) is NOT feasible in the
+    base test harness: no base model declares a ``company_dependent=True``
+    Many2one pointing at res.partner, so that loop never iterates in the base
+    DB, and adding a throwaway model with a real jsonb-backed company-dependent
+    m2one column would require runtime table creation (init_models) plus
+    removal of a brand-new model from the shared registry on teardown -- a
+    pattern with no precedent in the suite that risks polluting the registry
+    for subsequent tests. This test instead exercises the adjacent
+    company-dependent merge path through the real ``res.partner.barcode``
+    company-dependent field to confirm per-company references resolve after the
+    merge.
+    """
+
+    def test_company_dependent_reference_resolves_after_merge(self):
+        Company = self.env["res.company"]
+        company_a, company_b = Company.create(
+            [{"name": "BPM-P1 A"}, {"name": "BPM-P1 B"}]
+        )
+        Partner = self.env["res.partner"]
+        src = Partner.create({"name": "cd src", "email": "cd@example.com"})
+        dst = Partner.create({"name": "cd dst", "email": "cd@example.com"})
+        # An unrelated partner whose per-company value must stay untouched.
+        bystander = Partner.create({"name": "cd bystander"})
+        bystander.with_company(company_a).barcode = "BYSTANDER-A"
+
+        # The source carries a per-company barcode; the destination has none in
+        # company_a, so the merge must surface the source's value on dst.
+        src.with_company(company_a).barcode = "SRC-A"
+        src.with_company(company_b).barcode = "SRC-B"
+
+        self.env["base.partner.merge.automatic.wizard"].create({})._merge(
+            [src.id, dst.id], dst
+        )
+        self.env.invalidate_all()
+
+        self.assertFalse(src.exists(), "source partner must be deleted after merge")
+        self.assertEqual(
+            dst.with_company(company_a).barcode,
+            "SRC-A",
+            "the source's per-company value must be carried onto the destination",
+        )
+        self.assertEqual(
+            dst.with_company(company_b).barcode,
+            "SRC-B",
+            "each company slot must resolve independently after the merge",
+        )
+        self.assertEqual(
+            bystander.with_company(company_a).barcode,
+            "BYSTANDER-A",
+            "an unrelated partner's per-company value must be left untouched",
         )

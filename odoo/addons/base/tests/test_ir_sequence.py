@@ -301,3 +301,46 @@ class TestIrSequenceInit(common.TransactionCase):
         self.assertEqual(
             n, "0001", "The actual sequence value must be 1. reading : %s" % n
         )
+
+
+class TestIrSequencePredictNextval(common.TransactionCase):
+    """Regression coverage for the schema-scoped ``_predict_nextval`` query
+    behind ``number_next_actual`` (ISEQ-02).
+
+    The ``increment_by`` subquery now filters ``pg_sequences`` on
+    ``schemaname = current_schema``; these tests pin that ``number_next_actual``
+    still computes the correct value in the standard single-schema case.
+    """
+
+    def test_number_next_actual_reflects_increment(self):
+        """``number_next_actual`` predicts the next value honouring the step."""
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-predict",
+                "implementation": "standard",
+                "number_next": 1,
+                "number_increment": 5,
+            }
+        )
+        # Before any draw, the prediction is the starting value.
+        self.assertEqual(seq.number_next_actual, 1)
+        # After one draw, the prediction advances by the increment.
+        seq.next_by_id()
+        seq.invalidate_recordset(["number_next_actual"])
+        self.assertEqual(seq.number_next_actual, 1 + 5)
+
+    def test_number_next_actual_after_restart(self):
+        """After a ``number_next`` reset, the prediction tracks the restart."""
+        seq = self.env["ir.sequence"].create(
+            {
+                "name": "test-sequence-predict-restart",
+                "implementation": "standard",
+                "number_next": 1,
+                "number_increment": 1,
+            }
+        )
+        seq.next_by_id()
+        seq.write({"number_next": 10})
+        seq.invalidate_recordset(["number_next_actual"])
+        # The PG sequence was RESTARTed; the next value to be drawn is 10.
+        self.assertEqual(seq.number_next_actual, 10)

@@ -1711,6 +1711,39 @@ class TestPartnerAddressCompany(TransactionCase):
         )
         self.assertEqual(record.id, partner.id)
 
+    def test_children_sync_skips_walk_without_commercial_fields(self):
+        """A non-commercial write to a commercial entity must not trigger the
+        recursive descendant walk (RP-P1 no-op guard)."""
+        company = self.env["res.partner"].create(
+            {"name": "company", "is_company": True, "vat": "BE013456789"}
+        )
+        self.env["res.partner"].create(
+            {"name": "child", "is_company": False, "parent_id": company.id}
+        )
+        with patch.object(
+            type(company),
+            "_commercial_sync_to_descendants",
+            autospec=True,
+        ) as sync_mock:
+            # phone is not a commercial field: no descendant sync expected
+            company.write({"phone": "123456"})
+        self.assertFalse(
+            sync_mock.called,
+            "Writing a non-commercial field must not walk the descendant subtree",
+        )
+
+        with patch.object(
+            type(company),
+            "_commercial_sync_to_descendants",
+            autospec=True,
+        ) as sync_mock:
+            # vat is a commercial field: descendant sync must still run
+            company.write({"vat": "BE9876543210"})
+        self.assertTrue(
+            sync_mock.called,
+            "Writing a commercial field must still sync descendants",
+        )
+
 
 @tagged("res_partner", "post_install", "-at_install")
 class TestPartnerForm(TransactionCase):
@@ -1905,3 +1938,54 @@ class TestPartnerCategory(TransactionCase):
         result = self.env["res.partner.category"].name_search("buggy_test")
         self.assertEqual(len(result), 1)
         self.assertEqual(result, [(category.id, category.display_name)])
+
+    def test_recursion_rejected(self):
+        """A parent_id forming a cycle must raise (RPC cycle guard)."""
+        Category = self.env["res.partner.category"]
+        a = Category.create({"name": "A"})
+        b = Category.create({"name": "B", "parent_id": a.id})
+        c = Category.create({"name": "C", "parent_id": b.id})
+        # the recursive-cycle guard raises UserError("Recursion Detected.")
+        with self.assertRaises(UserError):
+            a.write({"parent_id": c.id})
+        with self.assertRaises(UserError):
+            a.write({"parent_id": a.id})
+
+    def test_display_name_full_ancestor_path(self):
+        """display_name is the slash-joined full ancestor chain, not just the
+        direct parent, and tolerates an empty name."""
+        Category = self.env["res.partner.category"]
+        a = Category.create({"name": "A"})
+        b = Category.create({"name": "B", "parent_id": a.id})
+        c = Category.create({"name": "C", "parent_id": b.id})
+        self.assertEqual(c.display_name, "A / B / C")
+        # empty name renders as an empty segment via the `or ""` branch
+        a.name = ""
+        a.invalidate_recordset(["name"])
+        c.invalidate_recordset(["display_name"])
+        self.assertEqual(c.display_name, " / B / C")
+
+    def test_display_name_invalidated_on_parent_rename(self):
+        """Renaming a direct parent invalidates the child display_name
+        (RPC-C1 dependency)."""
+        Category = self.env["res.partner.category"]
+        a = Category.create({"name": "A"})
+        b = Category.create({"name": "B", "parent_id": a.id})
+        self.assertEqual(b.display_name, "A / B")
+        a.name = "A2"
+        self.assertEqual(b.display_name, "A2 / B")
+
+    def test_search_display_name_child_of(self):
+        """A positive like search matches descendants (child_of rewrite); the
+        negative form returns no error (NotImplemented fallback)."""
+        Category = self.env["res.partner.category"]
+        parent = Category.create({"name": "Furniture"})
+        child = Category.create({"name": "Chairs", "parent_id": parent.id})
+        # searching for the parent name must also return its descendants
+        result = Category.search([("display_name", "like", "Furniture")])
+        self.assertIn(parent, result)
+        self.assertIn(child, result)
+        # the negative form must not raise (ORM negates the positive result)
+        not_result = Category.search([("display_name", "not like", "Furniture")])
+        self.assertNotIn(parent, not_result)
+        self.assertNotIn(child, not_result)

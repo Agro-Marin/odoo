@@ -1,9 +1,14 @@
+from unittest.mock import patch
+
 from psycopg import IntegrityError
 from psycopg.errors import NotNullViolation
+from psycopg.types.json import Json
 
 from odoo import Command
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import Form, HttpCase, TransactionCase, tagged
-from odoo.tools import mute_logger
+from odoo.tests.common import new_test_user
+from odoo.tools import SQL, mute_logger
 
 
 class TestXMLID(TransactionCase):
@@ -384,6 +389,23 @@ class TestIrModelEdition(TransactionCase):
             default_ttype="char",
         ).name_create("field_name")
 
+    def test_reflect_models_empty_no_raise(self):
+        """IMOD-L1: _reflect_models([]) is a clean no-op (no IndexError)."""
+        # the guard lives in the method now, not only in the init_models caller
+        self.assertIsNone(self.env["ir.model"]._reflect_models([]))
+
+    def test_reflect_models_prewarms_get_id_cache(self):
+        """IMOD-P1: after reflecting a model, _get_id resolves its id without a
+        round-trip (the cache was pre-warmed from the model->id map)."""
+        IrModel = self.env["ir.model"]
+        model = IrModel.create({"model": "x_prewarm", "name": "Prewarm test"})
+        # drop any cached entry so the assertion below proves the pre-warm,
+        # not a leftover from create()
+        self.env.registry.clear_cache("stable")
+        IrModel._reflect_models(["x_prewarm"])
+        with self.assertQueryCount(0):
+            self.assertEqual(IrModel._get_id("x_prewarm"), model.id)
+
 
 @tagged("test_eval_context")
 class TestEvalContext(TransactionCase):
@@ -449,6 +471,71 @@ class TestIrModelFieldsTranslation(HttpCase):
         self.start_tour("/odoo", "ir_model_fields_translation_fr_tour2", login="admin")
 
 
+@tagged("-at_install", "post_install")
+class TestIrModelFields(TransactionCase):
+    """ir.model.fields write/constraint paths: translate-only optimisation and
+    the relation-table name guard."""
+
+    def _make_manual_field(self, stem, **vals):
+        """Create a manual model with one manual char field; return ``(Model, field)``."""
+        model = self.env["ir.model"].create(
+            {"model": f"x_imf_{stem}", "name": f"IMF test {stem}"}
+        )
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": f"x_{stem}",
+                "field_description": f"Field {stem}",
+                "model_id": model.id,
+                "ttype": "char",
+                **vals,
+            }
+        )
+        return self.env[model.model], field
+
+    def test_empty_write_skips_registry_setup(self):
+        """IMF-P1: write({}) is a no-op and does not rebuild the registry."""
+        _model, field = self._make_manual_field("empty")
+        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+            self.assertTrue(field.write({}))
+        mock_setup.assert_not_called()
+
+    def test_label_translate_write_skips_registry_setup(self):
+        """IMF-P2: a label-only (translatable field_description) write refreshes
+        the label cache via a targeted 'stable' clear, without a full rebuild.
+
+        Mirrors test_selection_label_rename_skips_registry_setup. Proves the
+        optimisation is safe: translation still resolves after the cheap clear.
+        """
+        Model, field = self._make_manual_field("label")
+        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+            field.write({"field_description": "Renamed Label"})
+        mock_setup.assert_not_called()
+        self.assertEqual(
+            self.env["ir.model.fields"].get_field_string(Model._name)[field.name],
+            "Renamed Label",
+        )
+
+    def test_check_relation_table_invalid_name(self):
+        """IMF-C2: an invalid relation_table raises a translated, relation-table
+        specific ValidationError (not the raw 'table name' message)."""
+        model = self.env["ir.model"].create(
+            {"model": "x_imf_m2m", "name": "IMF m2m test"}
+        )
+        comodel = self.env["ir.model"].search([("model", "=", "res.partner")])
+        with self.assertRaises(ValidationError) as cm:
+            self.env["ir.model.fields"].create(
+                {
+                    "name": "x_partner_ids",
+                    "field_description": "Partners",
+                    "model_id": model.id,
+                    "ttype": "many2many",
+                    "relation": comodel.model,
+                    "relation_table": "bad-name!",
+                }
+            )
+        self.assertIn("Relation table names", str(cm.exception))
+
+
 class TestIrModelInherit(TransactionCase):
     def test_inherit(self):
         # Filter for the base inheritance (ir.actions.actions) - other modules may add more
@@ -472,3 +559,413 @@ class TestIrModelInherit(TransactionCase):
         self.assertEqual(len(imi), 1)
         self.assertEqual(imi.parent_id.model, "res.partner")
         self.assertEqual(imi.parent_field_id.name, "partner_id")
+
+
+@tagged("-at_install", "post_install")
+class TestIrModelFieldsSelection(TransactionCase):
+    """Selection-row write: value rename on stored columns + uniqueness guard.
+
+    Pins SEL-C1 (company-dependent jsonb rename corruption) and SEL-C2 (batch
+    rename to a duplicate value) -- neither had any direct coverage.
+    """
+
+    def _make_selection_field(self, stem, *, company_dependent=False, values=None):
+        """Create a manual model with one stored selection field and return
+        ``(Model, field)``. Defaults to the values ``draft``/``done``.
+
+        :param str stem: unique suffix for the generated model/field names.
+        :param bool company_dependent: store the column as per-company jsonb.
+        :param values: optional ``[(value, label), ...]`` selection options.
+        :return: the manual model recordset and its ``ir.model.fields`` record.
+        """
+        values = values or [("draft", "Draft"), ("done", "Done")]
+        model = self.env["ir.model"].create(
+            {"model": f"x_sel_{stem}", "name": f"Selection test {stem}"}
+        )
+        field = self.env["ir.model.fields"].create(
+            {
+                "name": f"x_{stem}",
+                "field_description": f"Sel {stem}",
+                "model_id": model.id,
+                "ttype": "selection",
+                "company_dependent": company_dependent,
+                "selection_ids": [
+                    Command.create({"value": value, "name": label, "sequence": index})
+                    for index, (value, label) in enumerate(values)
+                ],
+            }
+        )
+        return self.env[model.model], field
+
+    def _set_jsonb(self, model, field, record, mapping):
+        """Seed a company-dependent jsonb column with ``{company_id: value}``.
+
+        Company-dependent ORM writes for a company outside the user's allowed
+        set fall back instead of storing a distinct key, so tests set the
+        per-company column state directly to get genuinely distinct values.
+        """
+        self.env.cr.execute(
+            SQL(
+                "UPDATE %s SET %s = %s WHERE id = %s",
+                SQL.identifier(model._table),
+                SQL.identifier(field.name),
+                Json({str(cid): value for cid, value in mapping.items()}),
+                record.id,
+            )
+        )
+        record.invalidate_recordset([field.name])
+
+    def _read_jsonb(self, model, field, record):
+        """Return the raw per-company jsonb stored for ``record``."""
+        self.env.cr.execute(
+            SQL(
+                "SELECT %s FROM %s WHERE id = %s",
+                SQL.identifier(field.name),
+                SQL.identifier(model._table),
+                record.id,
+            )
+        )
+        return self.env.cr.fetchone()[0]
+
+    def test_selection_value_rename_normal(self):
+        """Renaming a value on a plain selection column migrates stored data."""
+        Model, field = self._make_selection_field("plain")
+        record = Model.create({"x_plain": "draft"})
+        record.flush_recordset()
+
+        field.selection_ids.filtered(lambda s: s.value == "draft").write(
+            {"value": "pending"}
+        )
+
+        record.invalidate_recordset(["x_plain"])
+        self.assertEqual(record.x_plain, "pending")
+
+    def test_selection_value_rename_company_dependent(self):
+        """SEL-C1: a value rename migrates EVERY company's jsonb key.
+
+        The pre-fix ``UPDATE col = new WHERE col = old`` errors on a jsonb
+        (company-dependent) column / matches nothing, orphaning stored values.
+        """
+        company_a = self.env.company
+        company_b = self.env["res.company"].create({"name": "SEL Co B"})
+        Model, field = self._make_selection_field("cdep", company_dependent=True)
+        record = Model.create({})
+        record.flush_recordset()
+        self._set_jsonb(
+            Model, field, record, {company_a.id: "draft", company_b.id: "draft"}
+        )
+
+        field.selection_ids.filtered(lambda s: s.value == "draft").write(
+            {"value": "pending"}
+        )
+
+        self.assertEqual(
+            self._read_jsonb(Model, field, record),
+            {str(company_a.id): "pending", str(company_b.id): "pending"},
+        )
+
+    def test_selection_value_rename_company_dependent_other_value_untouched(self):
+        """SEL-C1: only jsonb keys holding the renamed value migrate; siblings stay."""
+        company_a = self.env.company
+        company_b = self.env["res.company"].create({"name": "SEL Co C"})
+        Model, field = self._make_selection_field("keep", company_dependent=True)
+        record = Model.create({})
+        record.flush_recordset()
+        self._set_jsonb(
+            Model, field, record, {company_a.id: "draft", company_b.id: "done"}
+        )
+
+        field.selection_ids.filtered(lambda s: s.value == "draft").write(
+            {"value": "pending"}
+        )
+
+        self.assertEqual(
+            self._read_jsonb(Model, field, record),
+            {str(company_a.id): "pending", str(company_b.id): "done"},
+        )
+
+    def test_selection_value_rename_same_value_batch_rejected(self):
+        """SEL-C2: renaming several rows of one field to the same value is
+        rejected up front, not aborted mid-write on the UNIQUE constraint."""
+        _model, field = self._make_selection_field("batch")
+        self.assertEqual(len(field.selection_ids), 2)
+        with self.assertRaises(UserError):
+            field.selection_ids.write({"value": "merged"})
+
+    def test_selection_label_rename_skips_registry_setup(self):
+        """SEL-C6: a label-only edit refreshes the selection label cache via a
+        targeted 'stable' clear, without a full registry rebuild."""
+        Model, field = self._make_selection_field("label")
+        draft = field.selection_ids.filtered(lambda s: s.value == "draft")
+        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+            draft.write({"name": "Brouillon"})
+        mock_setup.assert_not_called()
+        self.assertIn(
+            ("draft", "Brouillon"),
+            self.env["ir.model.fields"].get_field_selection(Model._name, field.name),
+        )
+
+    def test_selection_value_rename_triggers_registry_setup(self):
+        """SEL-C6: a value change still rebuilds the registry (the valid-value
+        set changed, so live-read fields and validation must be refreshed)."""
+        _model, field = self._make_selection_field("setup")
+        draft = field.selection_ids.filtered(lambda s: s.value == "draft")
+        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+            draft.write({"value": "pending"})
+        mock_setup.assert_called()
+
+    def test_selection_ondelete_bypass_on_recoverable_error(self):
+        """SEL-C4: a recoverable ORM-write failure during ondelete cleanup falls
+        back to the raw column update (the documented module-uninstall path)."""
+        Model, field = self._make_selection_field("ondok")
+        record = Model.create({"x_ondok": "draft"})
+        record.flush_recordset()
+        draft = field.selection_ids.filtered(lambda s: s.value == "draft")
+
+        original_write = type(record).write
+
+        def refusing_write(self, vals):
+            if "x_ondok" in vals:
+                raise ValidationError("ondelete write refused by a constraint")
+            return original_write(self, vals)
+
+        # Deleting the value runs the 'set null' ondelete -> safe_write; the
+        # refused ORM write must fall back to the raw column update.
+        with patch.object(type(record), "write", refusing_write):
+            draft.unlink()
+
+        record.invalidate_recordset(["x_ondok"])
+        self.assertFalse(record.x_ondok)
+
+    def test_selection_ondelete_propagates_programming_error(self):
+        """SEL-C4: a non-recoverable programming error during ondelete cleanup is
+        no longer masked by a silent ORM bypass -- it propagates."""
+        Model, field = self._make_selection_field("ondbug")
+        record = Model.create({"x_ondbug": "draft"})
+        record.flush_recordset()
+        draft = field.selection_ids.filtered(lambda s: s.value == "draft")
+
+        original_write = type(record).write
+
+        def buggy_write(self, vals):
+            if "x_ondbug" in vals:
+                raise TypeError("programming error in an override")
+            return original_write(self, vals)
+
+        with patch.object(type(record), "write", buggy_write):
+            with self.assertRaises(TypeError):
+                draft.unlink()
+
+    # --- ondelete policy branches (SEL-T1: previously untested) ---
+
+    def _field_obj(self, model, stem):
+        """Return the live ORM field object for a manual selection field."""
+        return self.env[model._name]._fields[f"x_{stem}"]
+
+    def test_ondelete_set_null(self):
+        """The implicit 'set null' policy (manual field) clears holders."""
+        Model, field = self._make_selection_field("pnull")
+        record = Model.create({"x_pnull": "draft"})
+        record.flush_recordset()
+        field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
+        record.invalidate_recordset(["x_pnull"])
+        self.assertFalse(record.x_pnull)
+
+    def test_ondelete_set_constant(self):
+        """'set X' rewrites holders to the constant value X."""
+        Model, field = self._make_selection_field("pset")
+        record = Model.create({"x_pset": "draft"})
+        record.flush_recordset()
+        with patch.object(
+            self._field_obj(Model, "pset"), "ondelete", {"draft": "set done"}
+        ):
+            field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
+        record.invalidate_recordset(["x_pset"])
+        self.assertEqual(record.x_pset, "done")
+
+    def test_ondelete_set_default(self):
+        """'set default' rewrites holders to the field default."""
+        Model, field = self._make_selection_field("pdef")
+        record = Model.create({"x_pdef": "draft"})
+        record.flush_recordset()
+        field_obj = self._field_obj(Model, "pdef")
+        with (
+            patch.object(field_obj, "ondelete", {"draft": "set default"}),
+            patch.object(field_obj, "default", lambda model: "done"),
+        ):
+            field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
+        record.invalidate_recordset(["x_pdef"])
+        self.assertEqual(record.x_pdef, "done")
+
+    def test_ondelete_cascade(self):
+        """'cascade' unlinks the records holding the deleted value."""
+        Model, field = self._make_selection_field("pcasc")
+        record = Model.create({"x_pcasc": "draft"})
+        record.flush_recordset()
+        with patch.object(
+            self._field_obj(Model, "pcasc"), "ondelete", {"draft": "cascade"}
+        ):
+            field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
+        self.assertFalse(record.exists())
+
+    def test_ondelete_callable(self):
+        """A callable ondelete policy receives the recordset holding the value."""
+        Model, field = self._make_selection_field("pcall")
+        record = Model.create({"x_pcall": "draft"})
+        record.flush_recordset()
+        seen = []
+
+        def policy(records):
+            seen.extend(records.ids)
+            records.write({"x_pcall": "done"})
+
+        with patch.object(
+            self._field_obj(Model, "pcall"), "ondelete", {"draft": policy}
+        ):
+            field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
+        record.invalidate_recordset(["x_pcall"])
+        self.assertEqual(seen, record.ids)
+        self.assertEqual(record.x_pcall, "done")
+
+    def test_ondelete_resolves_values_in_one_batch(self):
+        """SEL-P3: a field's deleted values are resolved in a single batched
+        query per company, and every value's holders are still processed."""
+        Model, field = self._make_selection_field(
+            "pbatch", values=[("a", "A"), ("b", "B"), ("c", "C")]
+        )
+        records = Model.create([{"x_pbatch": v} for v in ("a", "b", "c")])
+        records.flush_recordset()
+
+        sel_cls = type(self.env["ir.model.fields.selection"])
+        original = sel_cls._get_records_by_value
+        calls = []
+
+        def counting(self2, *args, **kwargs):
+            calls.append(1)
+            return original(self2, *args, **kwargs)
+
+        with patch.object(sel_cls, "_get_records_by_value", counting):
+            field.selection_ids.unlink()  # delete all three values at once
+
+        # one company -> one batched resolve for all three values, not three
+        self.assertEqual(len(calls), 1)
+        records.invalidate_recordset(["x_pbatch"])
+        self.assertEqual(records.mapped("x_pbatch"), [False, False, False])
+
+    def test_ondelete_set_null_company_dependent(self):
+        """SEL-P3: the jsonb (company-dependent) resolve branch finds and clears
+        the per-company holders of the deleted value."""
+        company = self.env.company
+        Model, field = self._make_selection_field("pcd", company_dependent=True)
+        record = Model.create({})
+        record.flush_recordset()
+        self._set_jsonb(Model, field, record, {company.id: "draft"})
+
+        field.selection_ids.filtered(lambda s: s.value == "draft").unlink()
+
+        record.invalidate_recordset(["x_pcd"])
+        self.assertFalse(record.with_company(company).x_pcd)
+
+
+class TestIrModelDataCacheInvalidation(TransactionCase):
+    """IMD-T2: the symmetric `groups`-cache clears on the create/unlink/
+    _update_xmlids res.groups paths, plus the _xmlid_lookup cache population."""
+
+    def _groups_cleared(self, mock):
+        """True if the patched clear_cache was called with the 'groups' bucket."""
+        return any(call.args == ("groups",) for call in mock.call_args_list)
+
+    def test_create_groups_xmlid_clears_groups_cache(self):
+        """create() of a res.groups xmlid busts the groups cache."""
+        group = self.env["res.groups"].create({"name": "IMD cache group create"})
+        with patch.object(
+            self.env.registry, "clear_cache", wraps=self.env.registry.clear_cache
+        ) as mock_clear:
+            self.env["ir.model.data"].create(
+                {
+                    "module": "base",
+                    "name": "imd_cache_group_create",
+                    "model": "res.groups",
+                    "res_id": group.id,
+                }
+            )
+        self.assertTrue(self._groups_cleared(mock_clear))
+
+    def test_unlink_groups_xmlid_clears_groups_cache(self):
+        """unlink() of a surviving res.groups xmlid busts the groups cache."""
+        group = self.env["res.groups"].create({"name": "IMD cache group unlink"})
+        data = self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "imd_cache_group_unlink",
+                "model": "res.groups",
+                "res_id": group.id,
+            }
+        )
+        with patch.object(
+            self.env.registry, "clear_cache", wraps=self.env.registry.clear_cache
+        ) as mock_clear:
+            data.unlink()
+        self.assertTrue(self._groups_cleared(mock_clear))
+
+    def test_update_xmlids_populates_lookup_cache_and_clears_groups(self):
+        """_update_xmlids busts the groups cache for a res.groups row and
+        pre-populates _xmlid_lookup with the freshly upserted value."""
+        group = self.env["res.groups"].create({"name": "IMD cache group update"})
+        xmlid = "base.imd_cache_group_update"
+        with patch.object(
+            self.env.registry, "clear_cache", wraps=self.env.registry.clear_cache
+        ) as mock_clear:
+            self.env["ir.model.data"]._update_xmlids(
+                [{"xml_id": xmlid, "record": group}]
+            )
+        self.assertTrue(self._groups_cleared(mock_clear))
+        # add_value populated the lookup cache: no query needed to resolve it
+        with self.assertQueryCount(0):
+            self.assertEqual(
+                self.env["ir.model.data"]._xmlid_lookup(xmlid),
+                ("res.groups", group.id),
+            )
+
+
+class TestIrModelData(TransactionCase):
+    """IMD-T3: toggle_noupdate access gate and multi-xid flip semantics."""
+
+    def test_toggle_noupdate_access_and_flip(self):
+        """A user lacking write access on the target is rejected; with access,
+        every xid of the record flips its noupdate flag."""
+        # ir.config_parameter is writable only by group_system; a plain
+        # internal user therefore fails the write-access gate.
+        param = self.env["ir.config_parameter"].create(
+            {"key": "imd.toggle.test", "value": "x"}
+        )
+        xid1 = self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "imd_toggle_a",
+                "model": "ir.config_parameter",
+                "res_id": param.id,
+                "noupdate": False,
+            }
+        )
+        xid2 = self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "imd_toggle_b",
+                "model": "ir.config_parameter",
+                "res_id": param.id,
+                "noupdate": True,
+            }
+        )
+
+        # access gate: non-system user cannot write ir.config_parameter
+        user = new_test_user(self.env, login="imd_toggle_user")
+        with self.assertRaises(AccessError):
+            self.env["ir.model.data"].with_user(user).toggle_noupdate(
+                "ir.config_parameter", param.id
+            )
+
+        # with access: each xid's noupdate flips
+        self.env["ir.model.data"].toggle_noupdate("ir.config_parameter", param.id)
+        self.assertTrue(xid1.noupdate)
+        self.assertFalse(xid2.noupdate)

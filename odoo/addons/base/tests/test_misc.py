@@ -590,7 +590,9 @@ class TestFormatLang(TransactionCase):
         )
 
     def test_decimal_precision(self):
-        decimal_precision = self.env["decimal.precision"].create(
+        decimal_precision = self.env[
+            "decimal.precision"
+        ].create(
             {
                 "name": "formatLang Decimal Precision",
                 "digits": 3,  # We want .001 decimals to make sure the decimal precision parameter 'dp' is chosen.
@@ -602,7 +604,9 @@ class TestFormatLang(TransactionCase):
         )
 
     def test_currency_object(self):
-        currency_object = self.env["res.currency"].create(
+        currency_object = self.env[
+            "res.currency"
+        ].create(
             {
                 "name": "formatLang Currency",
                 "symbol": "fL",
