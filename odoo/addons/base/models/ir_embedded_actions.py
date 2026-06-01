@@ -76,6 +76,14 @@ class IrEmbeddedActions(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        """Create embedded actions, deriving a name and coercing the action XOR.
+
+        When ``name`` is omitted it defaults to the linked ``action_id`` name.
+        When a vals dict supplies both ``action_id`` and ``python_method``, the
+        pair is silently coerced (not rejected) to satisfy the SQL CHECK:
+        ``python_method`` wins when truthy, otherwise the falsy ``python_method``
+        is dropped.
+        """
         # The name by default is computed based on the triggered action if a action_id is defined.
         action_ids = [
             v["action_id"] for v in vals_list if "name" not in v and "action_id" in v
@@ -96,8 +104,10 @@ class IrEmbeddedActions(models.Model):
                     del vals["python_method"]
         return super().create(vals_list)
 
-    # The record is deletable if it hasn't been created from a xml record (i.e. is not a default embedded action)
     def _compute_is_deletable(self) -> None:
+        """Mark records not seeded from a data file as user-deletable."""
+        # A record is deletable only if it has no external id, or all of its
+        # external ids are __export__/__custom__ (i.e. not a seeded default).
         external_ids = self._get_external_ids()
         for record in self:
             record_external_ids = external_ids[record.id]
@@ -106,8 +116,6 @@ class IrEmbeddedActions(models.Model):
                 for ex_id in record_external_ids
             )
 
-    # Compute if the record should be visible to the user based on the domain applied to the active id of the parent
-    # model and based on the groups allowed to access the record.
     @api.depends(
         "domain",
         "groups_ids",
@@ -118,6 +126,10 @@ class IrEmbeddedActions(models.Model):
     )
     @api.depends_context("active_id", "uid")
     def _compute_is_visible(self) -> None:
+        """Compute per-user read-time visibility of each embedded action."""
+        # Visibility is gated by the parent record matching the domain on the
+        # active id, by the user belonging to one of groups_ids (if any), and by
+        # owner-or-shared scoping on user_id.
         active_id = self.env.context.get("active_id", False)
         if not active_id:
             self.is_visible = False
@@ -127,15 +139,14 @@ class IrEmbeddedActions(models.Model):
             if parent_res_model not in self.env:
                 records.is_visible = False
                 continue
-            active_model_record = self.env[
-                parent_res_model
-            ].search(  # noqa: E8507 — bounded: one per distinct parent_res_model
+            parent_model = self.env[parent_res_model]
+            active_model_record = parent_model.search(  # noqa: E8507 — bounded: one per distinct parent_res_model
                 domain_id, order="id"
             )
             for record in records:
                 action_groups = record.groups_ids
                 is_valid_method = not record.python_method or hasattr(
-                    self.env[parent_res_model], record.python_method
+                    parent_model, record.python_method
                 )
                 if is_valid_method and (
                     not action_groups or (action_groups & self.env.user.all_group_ids)
@@ -154,9 +165,9 @@ class IrEmbeddedActions(models.Model):
                 else:
                     record.is_visible = False
 
-    # Delete the filters linked to a embedded action.
     @api.ondelete(at_uninstall=False)
     def _unlink_if_action_deletable(self) -> None:
+        """Prevent unlinking seeded (non-deletable) default embedded actions."""
         for record in self:
             if not record.is_deletable:
                 raise UserError(

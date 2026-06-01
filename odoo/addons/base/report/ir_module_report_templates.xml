@@ -36,7 +36,7 @@
                                         <span t-field="o.shortdesc" />
                                     </td>
                                     <td>
-                                        <span t-field="o.latest_version" />
+                                        <span t-field="o.db_version" />
                                     </td>
                                     <td>
                                         <span t-field="o.name" />

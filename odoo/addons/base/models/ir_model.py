@@ -70,8 +70,8 @@ def make_compute(text: str, deps: str | None) -> Any:
 def mark_modified(records: Any, fnames: list[str]) -> None:
     """Mark the given fields as modified on records."""
     # protect all modified fields, to avoid them being recomputed
-    fields = [records._fields[fname] for fname in fnames]
-    with records.env.protecting(fields, records):
+    field_objs = [records._fields[fname] for fname in fnames]
+    with records.env.protecting(field_objs, records):
         records.modified(fnames)
 
 
@@ -399,7 +399,7 @@ class IrModel(models.Model):
             [("state", "=", "installed")]
         )
         installed_names = set(installed_modules.mapped("name"))
-        xml_ids = models.Model._get_external_ids(self)
+        xml_ids = self._get_external_ids()
         for model in self:
             module_names = {xml_id.split(".")[0] for xml_id in xml_ids[model.id]}
             model.modules = ", ".join(sorted(installed_names & module_names))
@@ -669,6 +669,8 @@ class IrModel(models.Model):
 
     def _reflect_models(self, model_names: list[str]) -> None:
         """Reflect the given models."""
+        if not model_names:
+            return
         # determine expected and existing rows
         rows = [
             self._reflect_model_params(self.env[model_name])
@@ -690,6 +692,13 @@ class IrModel(models.Model):
             for row, id_ in zip(rows, ids, strict=True):
                 model_ids[row[0]] = id_
             self.pool.post_init(mark_modified, self.browse(ids), cols[1:])
+
+        # pre-warm the _get_id ormcache with the (model, id) pairs just
+        # computed, so the subsequent _reflect_inherits/_reflect_fields passes
+        # do not cold-miss one SELECT per distinct model/parent name
+        add_value = self._get_id.__cache__.add_value
+        for name, id_ in model_ids.items():
+            add_value(self, name, cache_value=id_)
 
         # update their XML id
         module = self.env.context.get("module")

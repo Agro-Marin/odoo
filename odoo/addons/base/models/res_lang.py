@@ -1,4 +1,5 @@
 import ast
+import functools
 import locale
 import logging
 import re
@@ -11,6 +12,17 @@ from odoo.tools import OrderedSet
 from odoo.tools.misc import ReadonlyDict
 
 _logger = logging.getLogger(__name__)
+
+
+@functools.lru_cache(maxsize=128)
+def _parse_grouping(grouping: str) -> tuple[int, ...]:
+    """Parse a locale grouping spec (e.g. ``"[3,0]"``) to a tuple, cached.
+
+    ``res.lang.grouping`` is a 2-value Selection, so the input is one of a tiny
+    bounded set of constant strings. Caching avoids an ``ast.literal_eval`` per
+    formatted value on the QWeb number/currency rendering hot path (RL-P1).
+    """
+    return tuple(ast.literal_eval(grouping))
 
 
 class LangData(ReadonlyDict):
@@ -220,22 +232,35 @@ class ResLang(models.Model):
         if not self.search_count([]):
             _logger.error("No language is active.")
 
-    def _activate_lang(self, code: str) -> Self:
-        """Activate languages
-        :param code: code of the language to activate
-        :return: the language matching 'code' activated
+    def _find_lang_by_code(self, code: str) -> Self:
+        """Return the (possibly inactive) language record matching ``code``.
+
+        :param str code: code of the language to look up
+        :return: the language record, or an empty recordset
         """
-        lang = self.with_context(active_test=False).search([("code", "=", code)])
+        return self.with_context(active_test=False).search([("code", "=", code)])
+
+    def _activate_lang(self, code: str) -> Self:
+        """Activate the language matching ``code`` without loading translations.
+
+        :param str code: code of the language to activate
+        :return: the language matching ``code``
+        """
+        lang = self._find_lang_by_code(code)
         if lang and not lang.active:
             lang.active = True
         return lang
 
     def _activate_and_install_lang(self, code: str) -> Self:
-        """Activate languages and update their translations
-        :param code: code of the language to activate
-        :return: the language matching 'code' activated
+        """Activate the language matching ``code`` and load its translations.
+
+        Unlike :meth:`_activate_lang`, this routes through
+        :meth:`action_unarchive`, which also triggers ``_update_translations``.
+
+        :param str code: code of the language to activate
+        :return: the language matching ``code``
         """
-        lang = self.with_context(active_test=False).search([("code", "=", code)])
+        lang = self._find_lang_by_code(code)
         if lang and not lang.active:
             lang.action_unarchive()
         return lang
@@ -297,15 +322,11 @@ class ResLang(models.Model):
 
     @api.model
     def install_lang(self) -> bool:
-        """
-
-        This method is called from odoo/addons/base/data/res_lang_data.xml to load
-        some language and set it as the default for every partners. The
-        language is set via tools.config by the '_initialize_db' method on the
-        'db' object. This is a fragile solution and something else should be
-        found.
-
-        """
+        """Load the default language and set it as the default partner language."""
+        # Called from odoo/addons/base/data/res_lang_data.xml to load a language
+        # and set it as the default for every partner. The language is set via
+        # tools.config by the '_initialize_db' method on the 'db' object.
+        # This is a fragile solution and something else should be found.
         # config['load_language'] is a comma-separated list or None
         lang_code = (tools.config.get("load_language") or "en_US").split(",")[0]
         self._activate_lang(lang_code) or self._create_lang(lang_code)
@@ -533,7 +554,18 @@ class ResLang(models.Model):
         return vals_list
 
     def format(self, percent: str, value, grouping: bool = False) -> str:
-        """Format() will return the language-specific output for float values"""
+        """Format ``value`` using ``percent`` with this language's locale.
+
+        Handles float specs (``%e``/``%f``/``%g``) and integer specs
+        (``%d``/``%i``/``%u``); the latter are used by callers such as
+        ``ir_qweb_fields``. Scientific-notation output is never grouped.
+
+        :param str percent: a single ``%char`` format specifier
+        :param value: the numeric value to format
+        :param bool grouping: whether to insert the locale thousands separator
+        :return: the locale-formatted string
+        :rtype: str
+        """
         self.ensure_one()
         if not percent or percent[0] != "%":
             raise ValueError(
@@ -552,11 +584,19 @@ class ResLang(models.Model):
                 data.grouping,
                 data.thousands_sep or "",
             )
-            eval_lang_grouping = ast.literal_eval(lang_grouping)
+            eval_lang_grouping = _parse_grouping(lang_grouping)
 
             if percent[-1] in "eEfFgG":
                 parts = formatted.split(".")
-                parts[0] = intersperse(parts[0], eval_lang_grouping, thousands_sep)[0]
+                # Scientific-notation output (e.g. ``%g % 1e20`` → ``"1e+20"``)
+                # must NOT be grouped: ``parts[0]`` then holds the mantissa plus
+                # the ``e+NN`` exponent, and interspersing would inject the
+                # thousands separator into the exponent (RL-L2: ``"1e,+20"``).
+                # Only group the integer part of plain decimal output.
+                if "e" not in formatted and "E" not in formatted:
+                    parts[0] = intersperse(parts[0], eval_lang_grouping, thousands_sep)[
+                        0
+                    ]
 
                 formatted = decimal_point.join(parts)
 

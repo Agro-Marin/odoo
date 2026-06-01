@@ -115,6 +115,11 @@ class ResCountry(models.Model):
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[tuple[int, str]]:
+        """Search countries, matching a 2-char ``name`` against ``code`` first.
+
+        :return: list of (id, display_name) tuples, code matches before name matches.
+        :rtype: list[tuple[int, str]]
+        """
         result = []
         domain = Domain(domain or Domain.TRUE)
         # first search by code
@@ -169,8 +174,11 @@ class ResCountry(models.Model):
         return super().unlink()
 
     def get_address_fields(self) -> list[str]:
+        """Return the address placeholder names parsed from ``address_format``."""
         self.ensure_one()
-        return re.findall(r"\((.+?)\)", self.address_format)
+        # ``address_format`` is not required and may be cleared to False; guard
+        # re.findall against a non-string value so callers do not raise TypeError.
+        return re.findall(r"\((.+?)\)", self.address_format or "")
 
     @api.depends("code")
     def _compute_image_url(self) -> None:
@@ -195,15 +203,21 @@ class ResCountry(models.Model):
             if record.address_format:
                 try:
                     record.address_format % test_values
+                # Reject TypeError here too (e.g. numeric %d against string values):
+                # string-only test_values surface conversion mismatches at write time.
+                # The runtime consumer res.partner._display_address only catches
+                # KeyError/ValueError, so this constraint must stay strict to avoid
+                # exposing an uncaught TypeError at render.
                 except ValueError, KeyError, TypeError:
-                    raise UserError(_("The layout contains an invalid format key")) from None
+                    raise UserError(
+                        _("The layout contains an invalid format key")
+                    ) from None
 
     @api.depends("country_group_ids")
     def _compute_country_group_codes(self) -> None:
-        """If a country has no associated country groups, assign [''] to country_group_codes.
-        This prevents storing [] as False, which helps avoid iteration over a False value and
-        maintains a valid structure.
-        """
+        """Compute the JSON list of country group codes for this country."""
+        # Fall back to [""] rather than [] so the stored Json is never coerced to
+        # False; this keeps the value a valid iterable for downstream consumers.
         for country in self:
             country.country_group_codes = [
                 g.code for g in country.country_group_ids if g.code
@@ -271,6 +285,13 @@ class ResCountryState(models.Model):
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[tuple[int, str]]:
+        """Search states, matching ``name`` against ``code`` (=ilike) first.
+
+        Also accepts the ``in`` operator by fanning out one search per item.
+
+        :return: list of (id, display_name) tuples, code matches before name matches.
+        :rtype: list[tuple[int, str]]
+        """
         result = []
         domain = Domain(domain or Domain.TRUE)
         # accepting 'in' as operator (see odoo/addons/base/tests/test_res_country.py)

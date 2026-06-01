@@ -36,7 +36,7 @@ class Base(models.AbstractModel):
             on self. Used in overrides, notably with portal / website addons.
         """
         self.ensure_one()
-        return self.get_formview_action(access_uid=access_uid)
+        return self.get_record_default_action(access_uid=access_uid)
 
     @api.model
     def get_empty_list_help(self, help_message: str) -> str:
@@ -50,11 +50,12 @@ class Base(models.AbstractModel):
         """
         return help_message
 
-    #
-    # Override this method if you need a window title that depends on the context
-    #
     @api.model
     def view_header_get(self, view_id: int | None, view_type: str) -> str | bool:
+        """Return the window title for the given view, or False.
+
+        Override this method if you need a window title that depends on the context.
+        """
         return False
 
     @api.model
@@ -258,14 +259,14 @@ class Base(models.AbstractModel):
             v_type: self.get_view(v_id, v_type, **options) for [v_id, v_type] in views
         }
 
-        models = {}
+        view_models = {}
         for view in result["views"].values():
             for model, model_fields in view.pop("models").items():
-                models.setdefault(model, set()).update(model_fields)
+                view_models.setdefault(model, set()).update(model_fields)
 
         result["models"] = {}
 
-        for model, model_fields in models.items():
+        for model, model_fields in view_models.items():
             result["models"][model] = {
                 "fields": self.env[model].fields_get(
                     allfields=model_fields,
@@ -326,7 +327,7 @@ class Base(models.AbstractModel):
         :return: architecture of the view as an etree node, and the browse
             record of the view used
         :rtype: tuple[_Element, Any]
-        :raise AttributeError: if no view exists for that model, and no method
+        :raise UserError: if no view exists for that model, and no method
             ``_get_default_<view_type>_view`` exists for the view type
         """
         IrUiView = self.env["ir.ui.view"].sudo()
@@ -479,8 +480,8 @@ class Base(models.AbstractModel):
         arch, view = self._get_view(view_id, view_type, **options)
 
         # Apply post processing, groups and modifiers etc...
-        arch, models = self._get_view_postprocessed(view, arch, **options)
-        models = self._get_view_fields(view_type or view.type, models)
+        arch, view_models = self._get_view_postprocessed(view, arch, **options)
+        view_models = self._get_view_fields(view_type or view.type, view_models)
         result = {
             "arch": arch,
             # TODO: only `web_studio` seems to require this. I guess this is acceptable to keep it.
@@ -490,13 +491,14 @@ class Base(models.AbstractModel):
             "model": self._name,
             # Set a frozendict and tuple for the field list to make sure the value in cache cannot be updated.
             "models": frozendict(
-                {model: tuple(fields) for model, fields in models.items()}
+                {model: tuple(fields) for model, fields in view_models.items()}
             ),
         }
 
         return frozendict(result)
 
     @api.model
+    @api.readonly
     def get_view(
         self,
         view_id: int | None = None,
@@ -544,7 +546,7 @@ class Base(models.AbstractModel):
 
     @api.model
     def _get_view_fields(
-        self, view_type: str, models: dict[str, Any]
+        self, view_type: str, view_models: dict[str, Any]
     ) -> dict[str, Any]:
         """Returns the field names required by the web client to load the views according to the view type.
 
@@ -552,31 +554,31 @@ class Base(models.AbstractModel):
         fields.
 
         :param str view_type: type of the view
-        :param dict[str, Any] models: dict holding the models and fields used in the view architecture.
+        :param dict[str, Any] view_models: dict holding the models and fields used in the view architecture.
         :return: dict holding the models and field required by the web client given the view type.
         :rtype: dict[str, Any]
         """
         match view_type:
             case "kanban" | "list" | "form":
-                for model, model_fields in models.items():
+                for model, model_fields in view_models.items():
                     model_fields.add("id")
                     if "write_date" in self.env[model]._fields:
                         model_fields.add("write_date")
             case "search":
-                models[self._name] = list(self._fields.keys())
+                view_models[self._name] = list(self._fields.keys())
             case "graph":
-                models[self._name].update(
+                view_models[self._name].update(
                     fname
                     for fname, field in self._fields.items()
                     if field.type in ("integer", "float", "monetary")
                 )
             case "pivot":
-                models[self._name].update(
+                view_models[self._name].update(
                     fname
                     for fname, field in self._fields.items()
                     if field._description_groupable(self.env)
                 )
-        return models
+        return view_models
 
     @api.model
     def _get_view_field_attributes(self) -> list[str]:
@@ -632,7 +634,9 @@ class Base(models.AbstractModel):
         return False
 
     @api.readonly
-    def get_formview_action(self, access_uid: int | None = None) -> dict[str, Any]:
+    def get_record_default_action(
+        self, access_uid: int | None = None
+    ) -> dict[str, Any]:
         """Return an action to open the document ``self``. This method is meant
             to be overridden in addons that want to give specific view ids for
             example.

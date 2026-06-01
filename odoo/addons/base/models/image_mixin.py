@@ -5,6 +5,10 @@ class ImageMixin(models.AbstractModel):
     _name = "image.mixin"
     _description = "Image Mixin"
 
+    # Concrete models mixing this in must keep ``_log_access = True``: the
+    # ``Image`` field descriptor warns at registry build (binary.py ``setup``)
+    # when an Image field lives on a model with ``_log_access = False``.
+
     # all image fields are base64 encoded and PIL-supported
 
     image_1920 = fields.Image("Image", max_width=1920, max_height=1920)

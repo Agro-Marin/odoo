@@ -509,13 +509,14 @@ class ResPartner(models.Model):
     @api.depends("parent_id")
     def _compute_lang(self) -> None:
         """While creating / updating child contact, take the parent lang by
-        default if any. 0therwise, fallback to default context / DB lang"""
-        for partner in self.filtered("parent_id"):
-            partner.lang = (
-                partner.parent_id.lang
-                or self.default_get(["lang"]).get("lang")
-                or self.env.lang
-            )
+        default if any. Otherwise, fallback to default context / DB lang"""
+        partners = self.filtered("parent_id")
+        if not partners:
+            return
+        # default_get does not depend on the partner; compute it once.
+        default_lang = self.default_get(["lang"]).get("lang")
+        for partner in partners:
+            partner.lang = partner.parent_id.lang or default_lang or self.env.lang
 
     @api.depends("lang")
     def _compute_active_lang_count(self) -> None:
@@ -772,15 +773,15 @@ class ResPartner(models.Model):
 
     def _compute_company_registry(self) -> None:
         # exists to allow overrides
-        for company in self:
-            company.company_registry = company.company_registry
+        for partner in self:
+            partner.company_registry = partner.company_registry
 
     @api.depends("country_id.code")
     def _compute_company_registry_label(self) -> None:
         label_by_country = self._get_company_registry_labels()
-        for company in self:
-            country_code = company.country_id.code
-            company.company_registry_label = label_by_country.get(
+        for partner in self:
+            country_code = partner.country_id.code
+            partner.company_registry_label = label_by_country.get(
                 country_code, _("Company ID")
             )
 
@@ -894,23 +895,34 @@ class ResPartner(models.Model):
 
     @api.constrains("barcode")
     def _check_barcode_unicity(self) -> None:
-        """Check barcode uniqueness with a single search instead of N search_counts.
+        """Check barcode uniqueness within the current company.
 
-        Note: barcode is company_dependent (JSONB), so _read_group groupby
-        is not supported — we use search_fetch + Python counting instead.
+        barcode is company_dependent (JSONB ``{company_id: value}``), so
+        uniqueness is per company. The check reads the EXPLICIT per-company slot
+        via raw SQL rather than an ORM domain: a domain term on a
+        company_dependent field resolves through ``COALESCE(slot, ir.default)``,
+        so a non-empty barcode ir.default would make fallback-only partners look
+        like duplicates of that default value and raise spuriously (RP-L1).
         """
-        barcodes = [p.barcode for p in self if p.barcode]
-        if not barcodes:
-            return
-        partners_with_barcodes = self.env["res.partner"].search_fetch(
-            [("barcode", "in", barcodes)],
-            ["barcode"],
+        # Flush pending barcode writes so the freshly-written jsonb slots are
+        # visible to the raw query below.
+        self.flush_model(["barcode"])
+        cid = str(self.env.company.id)
+        self.env.cr.execute(
+            tools.SQL(
+                "SELECT 1 FROM res_partner"
+                " WHERE barcode ->> %(cid)s IN ("
+                "    SELECT barcode ->> %(cid)s FROM res_partner"
+                "    WHERE id = ANY(%(ids)s) AND barcode ->> %(cid)s IS NOT NULL"
+                " )"
+                " GROUP BY barcode ->> %(cid)s HAVING count(*) > 1"
+                " LIMIT 1",
+                cid=cid,
+                ids=list(self.ids),
+            )
         )
-        seen = set()
-        for partner in partners_with_barcodes:
-            if partner.barcode in seen:
-                raise ValidationError(_("Another partner already has this barcode"))
-            seen.add(partner.barcode)
+        if self.env.cr.fetchone():
+            raise ValidationError(_("Another partner already has this barcode"))
 
     def _convert_fields_to_values(self, field_names: list[str]) -> dict[str, Any]:
         """Returns dict of write() values for synchronizing ``field_names``"""
@@ -1101,14 +1113,18 @@ class ResPartner(models.Model):
     def _children_sync(self, values: dict[str, Any]) -> None:
         if not self.child_ids:
             return
-        # 2a. Commercial Fields: sync if commercial entity
+        # 3a. Commercial Fields: sync if commercial entity
         if self.commercial_partner_id == self:
             fields_to_sync = values.keys() & self._commercial_fields()
-            # Sudo required: descendants may belong to other companies where
-            # the current user lacks write access. Commercial field consistency
-            # must be enforced system-wide across company boundaries.
-            self.sudo()._commercial_sync_to_descendants(fields_to_sync)
-        # 2b. Address fields: sync if address changed
+            # Skip the recursive descendant walk when no commercial field
+            # changed: _commercial_sync_to_descendants would otherwise traverse
+            # the whole subtree and issue no-op write({}) calls at every level.
+            if fields_to_sync:
+                # Sudo required: descendants may belong to other companies where
+                # the current user lacks write access. Commercial field consistency
+                # must be enforced system-wide across company boundaries.
+                self.sudo()._commercial_sync_to_descendants(fields_to_sync)
+        # 3b. Address fields: sync if address changed
         address_fields = self._address_fields()
         if any(field in values for field in address_fields):
             contacts = self.child_ids.filtered(lambda c: c.type == "contact")
@@ -1248,6 +1264,16 @@ class ResPartner(models.Model):
             )
             del vals["is_company"]
         result = result and super().write(vals)
+        # context_get (a res.users ormcache keyed on uid) reads lang/tz, which
+        # physically live on res.partner via _inherits. A write performed
+        # directly on the partner bypasses res.users.write's invalidation, so
+        # clear the cache here when lang/tz changes on a partner that backs a
+        # user. The `{"lang", "tz"} & vals` guard keeps the common partner write
+        # to a single cheap set-intersection.
+        if {"lang", "tz"} & vals.keys() and self.sudo().with_context(
+            active_test=False
+        ).user_ids:
+            self.env.registry.clear_cache()
         for partner, pre_values in zip(self, pre_values_list, strict=True):
             if internal_users := partner.user_ids.filtered(
                 lambda u: u._is_internal() and u != self.env.user
