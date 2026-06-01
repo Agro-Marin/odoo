@@ -6,6 +6,7 @@
 import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 const cogMenuRegistry = registry.category("cogMenu");
 
 /** Cog-menu item that resets module installation state (only on ir.module.module list views). */
@@ -14,8 +15,12 @@ export class ResetModuleStateCogMenu extends Component {
     static components = { DropdownItem };
     static props = {};
 
+    setup() {
+        this.orm = useService("orm");
+    }
+
     async resetModuleState() {
-        await this.env.services.orm.call(
+        await this.orm.call(
             "ir.module.module",
             "button_reset_state",
             [],

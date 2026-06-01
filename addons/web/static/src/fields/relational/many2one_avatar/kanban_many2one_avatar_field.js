@@ -4,7 +4,7 @@
 /** @module @web/fields/relational/many2one_avatar/kanban_many2one_avatar_field - Kanban-view Many2one field displaying an avatar image */
 
 import { Component } from "@odoo/owl";
-import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import {
     computeM2OProps,
     KanbanMany2One,
@@ -26,7 +26,7 @@ export class KanbanMany2OneAvatarField extends Component {
     }
 }
 
-registry.category("fields").add("kanban.many2one_avatar", {
+registerField({ name: "many2one_avatar", view: "kanban" }, {
     ...buildM2OFieldDescription(KanbanMany2OneAvatarField),
     additionalClasses: ["o_field_many2one_avatar_kanban"],
     extractProps(staticInfo, dynamicInfo) {

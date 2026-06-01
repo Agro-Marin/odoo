@@ -13,6 +13,7 @@ import {
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
+import { AppEvent, RouterEvent, RpcEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -58,7 +59,7 @@ export class WebClient extends Component {
         this.state = useState({
             fullscreen: false,
         });
-        useBus(routerBus, "ROUTE_CHANGE", async () => {
+        useBus(routerBus, RouterEvent.ROUTE_CHANGE, async () => {
             document.body.style.pointerEvents = "none";
             try {
                 await this.loadRouterState();
@@ -77,12 +78,12 @@ export class WebClient extends Component {
                 }
             ),
         );
-        useBus(this.env.bus, "WEBCLIENT:LOAD_DEFAULT_APP", this._loadDefaultApp);
+        useBus(this.env.bus, AppEvent.WEBCLIENT_LOAD_DEFAULT_APP, this._loadDefaultApp);
         onMounted(() => {
             this.loadRouterState();
             // the chat window and dialog services listen to 'web_client_ready' event in
             // order to initialize themselves:
-            this.env.bus.trigger("WEB_CLIENT_READY");
+            this.env.bus.trigger(AppEvent.WEB_CLIENT_READY);
         });
         useExternalListener(window, "click", /** @type {any} */ (this.onGlobalClick), {
             capture: true,
@@ -177,7 +178,10 @@ export class WebClient extends Component {
         const root = this.menuService.getMenu("root");
         const firstApp = root.children[0];
         if (firstApp) {
-            return this.menuService.selectMenu(firstApp);
+            // ``children`` is ``(number | string)[]``; ``selectMenu`` accepts
+            // ``MenuItem | number``. Resolve through ``getMenu`` so the call
+            // is type-clean regardless of which form the id takes.
+            return this.menuService.selectMenu(this.menuService.getMenu(firstApp));
         }
     }
 
@@ -227,7 +231,7 @@ export class WebClient extends Component {
                 await navigator.serviceWorker.ready;
                 if (!navigator.serviceWorker.controller) {
                     // https://stackoverflow.com/questions/51597231/register-service-worker-after-hard-refresh
-                    rpcBus.trigger("CLEAR-CACHES");
+                    rpcBus.trigger(RpcEvent.CLEAR_CACHES);
                 }
             } catch (error) {
                 console.error("Service worker registration failed, error:", error);

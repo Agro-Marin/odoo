@@ -13,10 +13,11 @@ import {
 } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { reposition } from "@web/core/position/utils";
-import { registry } from "@web/core/registry";
-import { useSortable } from "@web/core/utils/dnd/sortable_owl";
+
+import { registerField } from "@web/fields/_registry";
 import { exprToBoolean, uuid } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -27,6 +28,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
 
 import { PropertyDefinition } from "./property_definition.js";
 import { PropertyValue } from "./property_value.js";
+import { usePropertiesSortable } from "./properties_sortable_hook.js";
 
 export class PropertiesField extends Component {
     static template = "web.PropertiesField";
@@ -81,7 +83,7 @@ export class PropertiesField extends Component {
 
         // Properties can be added from the cog menu of the form controller
         if (this.env.config?.viewType === "form") {
-            useBus(this.env.model.bus, "PROPERTY_FIELD:EDIT", async () => {
+            useBus(this.env.model.bus, ModelEvent.PROPERTY_FIELD_EDIT, async () => {
                 if (this.props.readonly || this.state.isInEditMode) {
                     return;
                 }
@@ -171,101 +173,17 @@ export class PropertiesField extends Component {
 
         useEffect(() => this._movePopoverIfNeeded());
 
-        // sort properties
-        useSortable({
-            enable: () => !this.props.readonly && this.state.canChangeDefinition,
-            ref: this.propertiesRef,
-            handle: ".o_field_property_label .oi-draggable",
-            // on mono-column layout, allow to move before a separator to make the usage more fluid
-            elements:
-                this.renderedColumnsCount === 1
-                    ? "*:is(.o_property_field, .o_field_property_group_label)"
-                    : ".o_property_field",
-            groups: ".o_property_group",
-            connectGroups: true,
-            cursor: "grabbing",
-            onDragStart: ({ element, group }) => {
-                this.propertiesRef.el.classList.add("o_property_dragging");
-                element.classList.add("o_property_drag_item");
-                group.classList.add("o_property_drag_group");
-                // without this, if we edit a char property, move it,
-                // the change will be reset when we drop the property
-                /** @type {HTMLElement} */ (document.activeElement).blur();
-            },
-            onDrop: async ({ parent, element, next, previous }) => {
-                const from = element.getAttribute("property-name");
-                let to = previous?.getAttribute("property-name");
-                let moveBefore = false;
-                if (!to && next) {
-                    // we move the element at the first position inside a group
-                    // or at the first position of a column
-                    if (next.classList.contains("o_field_property_group_label")) {
-                        // mono-column layout, move before the separator
-                        next = next.closest(".o_property_group");
-                    }
-                    to = next.getAttribute("property-name");
-                    moveBefore = !!to;
-                }
-                if (!to) {
-                    // we move in an empty group or outside of the DOM element
-                    // move the element at the end of the group
-                    const groupName = parent.getAttribute("property-name");
-                    const group = /** @type {any} */ (
-                        this.groupedPropertiesList.find(
-                            (group) => group.name === groupName,
-                        )
-                    );
-                    if (!group) {
-                        to = null;
-                        moveBefore = false;
-                    } else {
-                        to = group.elements.length
-                            ? group.elements.at(-1).name
-                            : groupName;
-                    }
-                }
-                await this.onPropertyMoveTo(from, to, moveBefore);
-            },
-            onDragEnd: ({ element }) => {
-                this.propertiesRef.el.classList.remove("o_property_dragging");
-                element.classList.remove("o_property_drag_item");
-                const targetGroup = this.propertiesRef.el.querySelector(
-                    ".o_property_drag_group",
-                );
-                if (targetGroup) {
-                    targetGroup.classList.remove("o_property_drag_group");
-                }
-            },
-            onGroupEnter: ({ group }) => {
-                group.classList.add("o_property_drag_group");
-                this._toggleSeparators([group.getAttribute("property-name")], false);
-            },
-            onGroupLeave: ({ group }) => {
-                group.classList.remove("o_property_drag_group");
-            },
-        });
-
-        // sort group of properties
-        useSortable({
-            enable: () => !this.props.readonly && this.state.canChangeDefinition,
-            ref: this.propertiesRef,
-            handle: ".o_field_property_group_label .oi-draggable",
-            elements: ".o_property_group:not([property-name=''])",
-            cursor: "grabbing",
-            onDragStart: ({ element }) => {
-                this.propertiesRef.el.classList.add("o_property_dragging");
-                element.classList.add("o_property_drag_item");
-                /** @type {HTMLElement} */ (document.activeElement).blur();
-            },
-            onDrop: async ({ element, previous }) => {
-                const from = element.getAttribute("property-name");
-                const to = previous?.getAttribute("property-name");
-                await this.onGroupMoveTo(from, to);
-            },
-            onDragEnd: ({ element }) => {
-                this.propertiesRef.el.classList.remove("o_property_dragging");
-                element.classList.remove("o_property_drag_item");
-            },
+        usePropertiesSortable({
+            propertiesRef: this.propertiesRef,
+            getEnabled: () =>
+                !this.props.readonly && this.state.canChangeDefinition,
+            getRenderedColumnsCount: () => this.renderedColumnsCount,
+            getGroupedPropertiesList: () => this.groupedPropertiesList,
+            onPropertyMoveTo: (from, to, moveBefore) =>
+                this.onPropertyMoveTo(from, to, moveBefore),
+            onGroupMoveTo: (from, to) => this.onGroupMoveTo(from, to),
+            onToggleSeparators: (names, force) =>
+                this._toggleSeparators(names, force),
         });
     }
 
@@ -1095,4 +1013,4 @@ export const propertiesField = {
     },
 };
 
-registry.category("fields").add("properties", propertiesField);
+registerField("properties", propertiesField);

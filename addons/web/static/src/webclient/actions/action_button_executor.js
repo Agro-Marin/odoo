@@ -6,13 +6,11 @@
 /**
  * Extracted action-button execution logic.
  *
- * Receives a context object from action_service.js with the closure
- * dependencies it needs, following the same context-passing pattern
- * as report_executor.js and breadcrumb_manager.js.
+ * Takes an {@link ActionManager} instance and accesses the service's
+ * methods/state through it.
  */
 
 import { markup } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";
 import { evaluateExpr } from "@web/core/py_js/py";
@@ -21,10 +19,62 @@ import { user } from "@web/services/user";
 
 import { CTX_KEY_REGEX, EMBEDDED_ACTIONS_CTX_KEYS } from "./action_constants.js";
 
-/** @typedef {import("@web/core/utils/concurrency").KeepLast} KeepLast */
 /** @typedef {Object} DoActionButtonParams */
+/** @import { ActionManager } from "./action_service.js" */
 
 export class InvalidButtonParamsError extends Error {}
+
+/**
+ * Build the positional ``args`` for a ``call_button`` RPC: the record id(s)
+ * followed by any explicit ``args`` arch attribute (a Python-literal list).
+ *
+ * @param {DoActionButtonParams} params
+ * @returns {any[]}
+ * @throws {InvalidButtonParamsError} if ``args`` is unparseable or not a list
+ */
+export function buildCallButtonArgs(params) {
+    let args = params.resId ? [[params.resId]] : [params.resIds];
+    if (params.args) {
+        let additionalArgs;
+        try {
+            // arch `args` is a Python-literal list (e.g. args="[1, 'foo']").
+            // evaluateExpr parses Python literals natively, so single-quoted
+            // strings and apostrophes inside strings round-trip correctly.
+            additionalArgs = evaluateExpr(params.args);
+        } catch (error) {
+            throw new InvalidButtonParamsError(
+                `Could not evaluate the "args" attribute of button "${params.name}": ${params.args}`,
+                { cause: error },
+            );
+        }
+        if (!Array.isArray(additionalArgs)) {
+            throw new InvalidButtonParamsError(
+                `The "args" attribute of button "${params.name}" must evaluate to a list, got: ${params.args}`,
+            );
+        }
+        args = [...args, ...additionalArgs];
+    }
+    return args;
+}
+
+/**
+ * Strip context keys that must not leak from the originating action into the
+ * destination action's context — wrong ``default_*`` / ``search_default_*``
+ * values, or a ``group_by`` the destination view can't satisfy. The stripped
+ * set is defined by {@link CTX_KEY_REGEX}.
+ *
+ * @param {Object} [context]
+ * @returns {Object} a new context with the action-specific keys removed
+ */
+export function filterActionContext(context) {
+    const filtered = {};
+    for (const [key, value] of Object.entries(context || {})) {
+        if (key.match(CTX_KEY_REGEX) === null) {
+            filtered[key] = value;
+        }
+    }
+    return filtered;
+}
 
 /**
  * Execute an action button (type="object", type="action", or special).
@@ -32,24 +82,18 @@ export class InvalidButtonParamsError extends Error {}
  * Handles RPC calls, embedded-action recursion, context filtering,
  * UI blocking, and effect triggering.
  *
+ * @param {ActionManager} am
  * @param {DoActionButtonParams} params
  * @param {Object} [options={}]
  * @param {boolean} [options.isEmbeddedAction] set to true if the action
  *   request is an embedded action (avoids infinite recursion).
  * @param {boolean} [options.newWindow] set to true to open in a new tab.
- * @param {Object} [ctx] - closure dependencies from the action service
- * @param {Object} [ctx.env]
- * @param {KeepLast} [ctx.keepLast]
- * @param {Function} [ctx.loadAction]
- * @param {Function} [ctx.doAction]
- * @param {Function} [ctx.doActionButton] - for recursive embedded-action calls
- * @param {Function} [ctx.executeCloseAction]
  * @returns {Promise<void>}
  */
 export async function executeActionButton(
+    am,
     params,
     { isEmbeddedAction, newWindow } = {},
-    ctx,
 ) {
     if (!params.name) {
         return;
@@ -64,146 +108,135 @@ export async function executeActionButton(
     const context = makeContext([params.context, params.buttonContext]);
     const blockUi = exprToBoolean(params["block-ui"]);
     if (blockUi) {
-        ctx.env.services.ui.block();
+        am.env.services.ui.block();
     }
-    if (params.special) {
-        action = {
-            type: "ir.actions.act_window_close",
-            infos: { special: true },
-        };
-    } else if (params.type === "object") {
-        // call a Python Object method, which may return an action to execute
-        let args = params.resId ? [[params.resId]] : [params.resIds];
-        if (params.args) {
-            let additionalArgs = [];
-            try {
-                // warning: quotes and double quotes problem due to json and xml clash
-                // maybe we should force escaping in xml or do a better parse of the args array
-                additionalArgs = JSON.parse(params.args.replaceAll("'", '"'));
-            } catch {
-                browser.console.error("Could not JSON.parse arguments", params.args);
-            }
-            args = [...args, ...additionalArgs];
-        }
-        const callProm = rpc(
-            `/web/dataset/call_button/${params.resModel}/${params.name}`,
-            {
-                args,
-                kwargs: { context },
-                method: params.name,
-                model: params.resModel,
-            },
-        );
-        action = await ctx.keepLast.add(callProm);
-        action =
-            action && typeof action === "object"
-                ? action
-                : { type: "ir.actions.act_window_close" };
-        if (action.help) {
-            action.help = markup(action.help);
-        }
-    } else if (params.type === "action") {
-        // execute a given action, so load it first
-        context.active_id = params.resId ?? null;
-        context.active_ids = params.resIds;
-        context.active_model = params.resModel;
-        action = await ctx.keepLast.add(ctx.loadAction(params.name, context));
-    } else {
-        if (blockUi) {
-            ctx.env.services.ui.unblock();
-        }
-        throw new InvalidButtonParamsError("Missing type for doActionButton request");
-    }
-    if (!isEmbeddedAction && action.embedded_action_ids?.length) {
-        const embeddedActionsKey = `${action.id}+${params.resId || ""}`;
-        const embeddedActionsOrder =
-            user.settings.embedded_actions_config_ids?.[embeddedActionsKey]
-                ?.embedded_actions_order;
-        const embeddedActionId = embeddedActionsOrder?.[0];
-        const embeddedAction = action.embedded_action_ids?.find(
-            (embeddedAction) => embeddedAction.id === embeddedActionId,
-        );
-        if (embeddedAction) {
-            const embeddedActions = [
-                ...action.embedded_action_ids,
-                {
-                    id: false,
-                    name: action.name,
-                    parent_action_id: action.id,
-                    parent_res_model: action.res_model,
-                    action_id: action.id,
-                    user_id: false,
-                    context: {},
-                },
-            ];
-            const embeddedContext = {
-                ...action.context,
-                ...(embeddedAction.context
-                    ? makeContext([embeddedAction.context])
-                    : {}),
-                active_id: params.resId,
-                active_model: params.resModel,
-                current_embedded_action_id: embeddedActionId,
-                parent_action_embedded_actions: embeddedActions,
-                parent_action_id: action.id,
-            };
-            await ctx.doActionButton(
-                {
-                    name:
-                        embeddedAction.python_method ||
-                        embeddedAction.action_id[0] ||
-                        embeddedAction.action_id,
-                    resId: params.resId,
-                    context: embeddedContext,
-                    type: embeddedAction.python_method ? "object" : "action",
-                    resModel: embeddedAction.parent_res_model,
-                    viewType: embeddedAction.default_view_mode,
-                },
-                { isEmbeddedAction: true },
-            );
-            return;
-        }
-    }
-    // filter out context keys that are specific to the current action, because:
-    //  - wrong default_* and search_default_* values won't give the expected result
-    //  - wrong group_by values will fail and forbid rendering of the destination view
-    const currentCtx = {};
-    for (const [key, value] of Object.entries(params.context || {})) {
-        if (key.match(CTX_KEY_REGEX) === null) {
-            currentCtx[key] = value;
-        }
-    }
-    const activeCtx = { active_model: params.resModel };
-    if (params.resId) {
-        activeCtx.active_id = params.resId;
-        activeCtx.active_ids = [params.resId];
-    }
-    action.context = makeContext([
-        currentCtx,
-        params.buttonContext,
-        activeCtx,
-        action.context,
-    ]);
-    // in case an effect is returned from python and there is already an effect
-    // attribute on the button, the priority is given to the button attribute
-    const effect = params.effect ? evaluateExpr(params.effect) : action.effect;
-    const { onClose, stackPosition, viewType } = params;
+    // Everything below runs inside a single try/finally so a `block-ui` overlay
+    // is always released, whatever exit path is taken: a rejected
+    // call_button/_loadAction RPC, an invalid-args or missing-type throw, or the
+    // embedded-action early return. Without it, those paths stranded the
+    // full-screen overlay (blockCount stuck at 1) until a page reload. `effect`
+    // is declared here and triggered after the finally so the spinner is removed
+    // before the effect plays.
+    let effect;
     try {
-        await ctx.doAction(action, {
+        if (params.special) {
+            action = {
+                type: "ir.actions.act_window_close",
+                infos: { special: true },
+            };
+        } else if (params.type === "object") {
+            // call a Python Object method, which may return an action to execute
+            const args = buildCallButtonArgs(params);
+            const callProm = rpc(
+                `/web/dataset/call_button/${params.resModel}/${params.name}`,
+                {
+                    args,
+                    kwargs: { context },
+                    method: params.name,
+                    model: params.resModel,
+                },
+            );
+            action = await am.keepLast.add(callProm);
+            action =
+                action && typeof action === "object"
+                    ? action
+                    : { type: "ir.actions.act_window_close" };
+            if (action.help) {
+                action.help = markup(action.help);
+            }
+        } else if (params.type === "action") {
+            // execute a given action, so load it first
+            context.active_id = params.resId ?? null;
+            context.active_ids = params.resIds;
+            context.active_model = params.resModel;
+            action = await am.keepLast.add(am._loadAction(params.name, context));
+        } else {
+            throw new InvalidButtonParamsError("Missing type for doActionButton request");
+        }
+        if (!isEmbeddedAction && action.embedded_action_ids?.length) {
+            const embeddedActionsKey = `${action.id}+${params.resId || ""}`;
+            const embeddedActionsOrder =
+                user.settings.embedded_actions_config_ids?.[embeddedActionsKey]
+                    ?.embedded_actions_order;
+            const embeddedActionId = embeddedActionsOrder?.[0];
+            const embeddedAction = action.embedded_action_ids?.find(
+                (embeddedAction) => embeddedAction.id === embeddedActionId,
+            );
+            if (embeddedAction) {
+                const embeddedActions = [
+                    ...action.embedded_action_ids,
+                    {
+                        id: false,
+                        name: action.name,
+                        parent_action_id: action.id,
+                        parent_res_model: action.res_model,
+                        action_id: action.id,
+                        user_id: false,
+                        context: {},
+                    },
+                ];
+                const embeddedContext = {
+                    ...action.context,
+                    ...(embeddedAction.context
+                        ? makeContext([embeddedAction.context])
+                        : {}),
+                    active_id: params.resId,
+                    active_model: params.resModel,
+                    current_embedded_action_id: embeddedActionId,
+                    parent_action_embedded_actions: embeddedActions,
+                    parent_action_id: action.id,
+                };
+                await am.doActionButton(
+                    {
+                        name:
+                            embeddedAction.python_method ||
+                            embeddedAction.action_id[0] ||
+                            embeddedAction.action_id,
+                        resId: params.resId,
+                        context: embeddedContext,
+                        type: embeddedAction.python_method ? "object" : "action",
+                        resModel: embeddedAction.parent_res_model,
+                        viewType: embeddedAction.default_view_mode,
+                    },
+                    { isEmbeddedAction: true },
+                );
+                return;
+            }
+        }
+        // filter out context keys that are specific to the current action, because:
+        //  - wrong default_* and search_default_* values won't give the expected result
+        //  - wrong group_by values will fail and forbid rendering of the destination view
+        const currentCtx = filterActionContext(params.context);
+        const activeCtx = { active_model: params.resModel };
+        if (params.resId) {
+            activeCtx.active_id = params.resId;
+            activeCtx.active_ids = [params.resId];
+        }
+        action.context = makeContext([
+            currentCtx,
+            params.buttonContext,
+            activeCtx,
+            action.context,
+        ]);
+        // in case an effect is returned from python and there is already an effect
+        // attribute on the button, the priority is given to the button attribute
+        effect = params.effect ? evaluateExpr(params.effect) : action.effect;
+        const { onClose, stackPosition, viewType } = params;
+        await am.doAction(action, {
             newWindow,
             onClose,
             stackPosition,
             viewType,
         });
         if (params.close) {
-            await ctx.executeCloseAction();
+            await am._executeCloseAction();
         }
     } finally {
         if (blockUi) {
-            ctx.env.services.ui.unblock();
+            am.env.services.ui.unblock();
         }
     }
     if (effect) {
-        ctx.env.services.effect.add(effect);
+        am.env.services.effect.add(effect);
     }
 }

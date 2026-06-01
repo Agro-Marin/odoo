@@ -30,6 +30,25 @@ export const BUTTON_CLICK_PARAMS = [
 ];
 
 /**
+ * Parse the `options` arch attribute as JSON, raising a contextual error.
+ *
+ * @param {Element} node - the `<button>` XML element from the arch
+ * @returns {Object}
+ */
+function parseButtonOptions(node) {
+    const raw = node.getAttribute("options") || "{}";
+    try {
+        return JSON.parse(raw);
+    } catch (e) {
+        // Surface the offending arch instead of a bare SyntaxError with a
+        // character offset that points into a string the author never sees.
+        throw new Error(`Invalid JSON in button "options" attribute: ${raw}`, {
+            cause: e,
+        });
+    }
+}
+
+/**
  * Parse a `<button>` XML arch node into a structured descriptor.
  *
  * Splits node attributes into `clickParams` (action-related) and `attrs`
@@ -58,7 +77,7 @@ export function processButton(node) {
         icon: node.getAttribute("icon") || false,
         title: node.getAttribute("title") || undefined,
         string: node.getAttribute("string") || undefined,
-        options: JSON.parse(node.getAttribute("options") || "{}"),
+        options: parseButtonOptions(node),
         display: node.getAttribute("display") || "selection",
         clickParams,
         column_invisible: node.getAttribute("column_invisible"),

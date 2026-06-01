@@ -19,9 +19,14 @@ import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 export async function executeButtonCallback(el, fct) {
     let btns = [];
     function disableButtons() {
+        // ``el`` may be null: getEl() returns null when the component is not
+        // mounted or, in a dialog, when no ".modal" ancestor is found. Guard
+        // it so the click resolves through ``fct`` instead of rejecting with a
+        // TypeError on ``null.querySelectorAll`` (overlay buttons are still
+        // disabled).
         btns = [
             ...btns,
-            ...el.querySelectorAll("button:not([disabled])"),
+            ...(el ? el.querySelectorAll("button:not([disabled])") : []),
             ...document.querySelectorAll(".o-overlay-container button:not([disabled])"),
         ];
         for (const btn of btns) {
@@ -137,7 +142,7 @@ export function useViewButtons(ref, options = {}) {
             }
 
             if (clickParams.confirm) {
-                return executeButtonCallback(getEl(), async () => {
+                return executeButtonCallback(/** @type {HTMLElement} */ (getEl()), async () => {
                     await new Promise((resolve) => {
                         const dialogProps = {
                             ...(clickParams["confirm-title"] && {
@@ -159,7 +164,7 @@ export function useViewButtons(ref, options = {}) {
                     });
                 });
             } else {
-                return executeButtonCallback(getEl(), execute);
+                return executeButtonCallback(/** @type {HTMLElement} */ (getEl()), execute);
             }
         },
     });

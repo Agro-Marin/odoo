@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
@@ -107,4 +108,4 @@ export const radioField = {
     }),
 };
 
-registry.category("fields").add("radio", radioField);
+registerField("radio", radioField);

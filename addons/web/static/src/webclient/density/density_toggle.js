@@ -24,7 +24,9 @@ export class DensityToggle extends Component {
 
     /** Initialize density service and reactive state. */
     setup() {
-        this.densityService = useService("density");
+        this.densityService = /** @type {{ current: string, set: (d: string) => Promise<void>, cycle: () => Promise<void> }} */ (
+            /** @type {any} */ (useService("density"))
+        );
         this.state = useState({ density: this.densityService.current });
     }
 

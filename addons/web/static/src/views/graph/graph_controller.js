@@ -3,7 +3,7 @@
 
 /** @module @web/views/graph/graph_controller - Controller wiring GraphModel to GraphRenderer with search bar and sample data support */
 
-import { Component, useRef } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { useModelWithSampleData } from "@web/model/model";
 import { useSetupAction } from "@web/core/action_hook";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
@@ -35,10 +35,12 @@ export class GraphController extends Component {
 
     /** Initialize the graph model, action hooks, and search bar toggler. */
     setup() {
-        this.model = useModelWithSampleData(
-            this.props.Model,
-            this.props.modelParams,
-            this.modelOptions,
+        this.model = useState(
+            useModelWithSampleData(
+                this.props.Model,
+                this.props.modelParams,
+                this.modelOptions,
+            ),
         );
 
         useSetupAction({

@@ -4,7 +4,8 @@
 /** @module @web/fields/selection/badge_selection/badge_selection_field - Clickable badge group field for Selection and Many2one columns */
 
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -88,4 +89,4 @@ export const badgeSelectionField = {
     }),
 };
 
-registry.category("fields").add("selection_badge", badgeSelectionField);
+registerField("selection_badge", badgeSelectionField);

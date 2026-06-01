@@ -15,9 +15,9 @@ import { ActionMenus } from "@web/search/action_menus/action_menus";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
 import { SearchBar } from "@web/search/search_bar/search_bar";
-import { session } from "@web/session";
 import { MultiRecordController } from "@web/views/multi_record_controller";
 import { standardViewProps } from "@web/views/standard_view_props";
+import { buildMultiRecordModelParams } from "@web/views/view_utils";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { executeButtonCallback } from "@web/views/view_button/view_button_hook";
@@ -187,7 +187,12 @@ export class ListController extends MultiRecordController {
      * Build the params object passed to the relational model constructor.
      *
      * Merges arch-extracted fields, groupBy info, limits, ordering, and
-     * hook callbacks into a single configuration object.
+     * hook callbacks into a single configuration object.  The shared
+     * skeleton (state restoration, countLimit, defaultOrderBy,
+     * activeIdsLimit, hooks merge) is delegated to
+     * ``buildMultiRecordModelParams``; this getter only owns the
+     * list-specific bits (groupByInfo construction, multiEdit flag,
+     * limit fallbacks, list-specific save hooks).
      *
      * @returns {Record<string, any>}
      */
@@ -207,34 +212,34 @@ export class ListController extends MultiRecordController {
             );
         }
 
-        const modelConfig = this.props.state?.modelState?.config || {
-            resModel: this.props.resModel,
-            fields,
-            activeFields,
-            openGroupsByDefault: rawExpand
-                ? evaluateExpr(rawExpand, this.props.context)
-                : false,
-        };
-
-        return {
-            config: modelConfig,
-            state: this.props.state?.modelState,
-            groupByInfo,
-            limit: this.archInfo.limit || this.props.limit,
-            countLimit: this.archInfo.countLimit,
-            defaultOrderBy: this.archInfo.defaultOrder,
-            groupsLimit: this.archInfo.groupsLimit,
-            multiEdit: !this.props.readonly && this.archInfo.multiEdit,
-            activeIdsLimit: session.active_ids_limit,
-            hooks: {
-                ...this._uiHooks,
-                onRecordSaved: this.onRecordSaved.bind(this),
-                onWillSaveRecord: this.onWillSaveRecord.bind(this),
-                onWillSaveMulti: this.onWillSaveMulti.bind(this),
-                onAskMultiSaveConfirmation: this.onAskMultiSaveConfirmation.bind(this),
-                onWillSetInvalidField: this.onWillSetInvalidField.bind(this),
+        return buildMultiRecordModelParams({
+            archInfo: this.archInfo,
+            props: this.props,
+            uiHooks: this._uiHooks,
+            config: {
+                resModel: this.props.resModel,
+                fields,
+                activeFields,
+                openGroupsByDefault: rawExpand
+                    ? evaluateExpr(rawExpand, this.props.context)
+                    : false,
             },
-        };
+            hooks: {
+                lifecycle: {
+                    onRecordSaved: this.onRecordSaved.bind(this),
+                    onWillSaveRecord: this.onWillSaveRecord.bind(this),
+                    onWillSaveMulti: this.onWillSaveMulti.bind(this),
+                    onAskMultiSaveConfirmation: this.onAskMultiSaveConfirmation.bind(this),
+                    onWillSetInvalidField: this.onWillSetInvalidField.bind(this),
+                },
+            },
+            extras: {
+                groupByInfo,
+                limit: this.archInfo.limit || this.props.limit,
+                groupsLimit: this.archInfo.groupsLimit,
+                multiEdit: !this.props.readonly && this.archInfo.multiEdit,
+            },
+        });
     }
 
     get className() {

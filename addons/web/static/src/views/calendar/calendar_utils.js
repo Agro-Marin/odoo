@@ -69,8 +69,8 @@ export function getColor(key) {
  * Same-month ranges are collapsed (e.g. "August 4-5, 2019"), same-day
  * ranges show a single date, and cross-month ranges show full dates.
  *
- * @param {import("luxon").DateTime} start
- * @param {import("luxon").DateTime} end
+ * @param {any} start
+ * @param {any} end
  * @returns {string} formatted date span
  */
 export function getFormattedDateSpan(start, end) {

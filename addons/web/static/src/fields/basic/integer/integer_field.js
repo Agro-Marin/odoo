@@ -4,7 +4,8 @@
 /** @module @web/fields/basic/integer/integer_field - Numeric input field for Integer columns with locale-aware formatting */
 
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { extractNumericOptions } from "@web/fields/field_utils";
 import { formatInteger } from "@web/fields/formatters";
 import { parseInteger } from "@web/fields/parsers";
@@ -108,4 +109,4 @@ export const integerField = {
     }),
 };
 
-registry.category("fields").add("integer", integerField);
+registerField("integer", integerField);

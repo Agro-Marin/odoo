@@ -3,8 +3,7 @@
 
 /** @module @web/fields/relational/many2many_tags/kanban_many2many_tags_field - Kanban-view variant of Many2many tags showing only colored tags */
 
-import { registry } from "@web/core/registry";
-
+import { registerField } from "@web/fields/_registry";
 import { Many2ManyTagsField, many2ManyTagsField } from "./many2many_tags_field.js";
 export class KanbanMany2ManyTagsField extends Many2ManyTagsField {
     static template = "web.KanbanMany2ManyTagsField";
@@ -26,4 +25,4 @@ export const kanbanMany2ManyTagsField = {
     component: KanbanMany2ManyTagsField,
 };
 
-registry.category("fields").add("kanban.many2many_tags", kanbanMany2ManyTagsField);
+registerField({ name: "many2many_tags", view: "kanban" }, kanbanMany2ManyTagsField);

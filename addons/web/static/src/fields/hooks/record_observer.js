@@ -61,10 +61,12 @@ export function useRecordObserver(callback) {
     onWillDestroy(() => {
         currentId = uniqueId();
     });
-    onWillStart(() => observeRecord(component.props));
-    onWillUpdateProps((nextProps) => {
+    onWillStart(async () => {
+        await observeRecord(component.props);
+    });
+    onWillUpdateProps(async (nextProps) => {
         if (nextProps.record !== component.props.record) {
-            return observeRecord(nextProps);
+            await observeRecord(nextProps);
         }
     });
 }

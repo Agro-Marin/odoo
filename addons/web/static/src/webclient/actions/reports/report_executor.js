@@ -13,24 +13,30 @@
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+
+// Pre-execution hooks for ir.actions.report. Each handler is called with
+// `(action, options, env)`; returning a truthy value short-circuits the
+// default report flow (used by IoT and POS to redirect printing).
+registry
+    .category("ir.actions.report handlers")
+    .addValidation((entry) => typeof entry === "function");
 import { user } from "@web/services/user";
 
 import { ReportAction } from "./report_action.js";
 import { downloadReport, getReportUrl } from "./utils.js";
 
+/** @import { ActionManager } from "../action_service.js" */
+/** @import { ReportAction as ReportActionType } from "@web/webclient/actions/action_service" */
+
 /**
  * Execute a report action as a client-side HTML preview.
  *
- * @param {Object} action the report action descriptor
+ * @param {ReportActionType} action the report action descriptor
  * @param {Object} options action execution options
- * @param {Object} ctx
- * @param {Function} ctx.makeController create a controller object
- * @param {Function} ctx.getActionInfo build action info (props, config, state)
- * @param {Function} ctx.updateUI render the controller in the action container
+ * @param {ActionManager} am
  * @returns {Promise}
  */
-export function executeReportClientAction(action, options, ctx) {
-    const { makeController, getActionInfo, updateUI } = ctx;
+export function executeReportClientAction(action, options, am) {
     const props = {
         ...options.props,
         data: action.data,
@@ -42,40 +48,32 @@ export function executeReportClientAction(action, options, ctx) {
         context: { ...action.context },
     };
 
-    const controller = makeController({
+    const controller = am._makeController({
         Component: ReportAction,
         action,
-        ...getActionInfo(action, props),
+        ...am._getActionInfo(action, props),
     });
 
-    return updateUI(controller, options);
+    return am._updateUI(controller, options);
 }
 
 /**
  * Execute a report action. Delegates to registered report handlers first,
  * then falls back to HTML preview or PDF/text download.
  *
- * @param {Object} action the report action descriptor
+ * @param {ReportActionType} action the report action descriptor
  * @param {Object} options action execution options
- * @param {Object} ctx
- * @param {Object} ctx.env the OWL environment
- * @param {Function} ctx.doAction execute another action
- * @param {Function} ctx.makeController create a controller object
- * @param {Function} ctx.getActionInfo build action info
- * @param {Function} ctx.updateUI render the controller
+ * @param {ActionManager} am
  * @returns {Promise}
  */
-export async function executeReportAction(action, options, ctx) {
-    const { env, doAction, makeController, getActionInfo, updateUI } = ctx;
-    const clientActionCtx = { makeController, getActionInfo, updateUI };
-
+export async function executeReportAction(action, options, am) {
     const handlers = registry.category("ir.actions.report handlers").getAll();
     for (const handler of handlers) {
-        const result = await handler(action, options, env);
+        const result = await handler(action, options, am.env);
         if (result) {
             const { onClose } = options;
             if (action.close_on_report_download) {
-                return doAction({ type: "ir.actions.act_window_close" }, { onClose });
+                return am.doAction({ type: "ir.actions.act_window_close" }, { onClose });
             } else if (onClose) {
                 onClose();
             }
@@ -83,14 +81,14 @@ export async function executeReportAction(action, options, ctx) {
         }
     }
     if (action.report_type === "qweb-html") {
-        return executeReportClientAction(action, options, clientActionCtx);
+        return executeReportClientAction(action, options, am);
     } else if (
         action.report_type === "qweb-pdf" ||
         action.report_type === "qweb-text"
     ) {
-        const type = action.report_type.slice(5);
+        const type = action.report_type === "qweb-pdf" ? "pdf" : "text";
         let success, message;
-        env.services.ui.block();
+        am.env.services.ui.block();
         try {
             const downloadContext = { ...user.context };
             if (action.context) {
@@ -103,20 +101,20 @@ export async function executeReportAction(action, options, ctx) {
                 downloadContext,
             ));
         } finally {
-            env.services.ui.unblock();
+            am.env.services.ui.unblock();
         }
         if (message) {
-            env.services.notification.add(message, {
+            am.env.services.notification.add(message, {
                 sticky: true,
                 title: _t("Report"),
             });
         }
         if (!success) {
-            return executeReportClientAction(action, options, clientActionCtx);
+            return executeReportClientAction(action, options, am);
         }
         const { onClose } = options;
         if (action.close_on_report_download) {
-            return doAction({ type: "ir.actions.act_window_close" }, { onClose });
+            return am.doAction({ type: "ir.actions.act_window_close" }, { onClose });
         } else if (onClose) {
             onClose();
         }

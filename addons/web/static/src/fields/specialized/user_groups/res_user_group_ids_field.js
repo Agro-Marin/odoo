@@ -6,6 +6,7 @@
 import { Component, onWillRender, toRaw, useChildSubEnv } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -219,7 +220,9 @@ class ResUserGroupIdsField extends Component {
         });
 
         this.hooks = {
-            onRecordChanged: this.onRecordChanged.bind(this),
+            lifecycle: {
+                onRecordChanged: this.onRecordChanged.bind(this),
+            },
         };
     }
 
@@ -280,7 +283,7 @@ class ResUserGroupIdsField extends Component {
      * Handle changes in the generated sub-form and propagate them back to the
      * parent record's x2many group_ids field via SET commands.
      * @param {unknown} _ - unused record reference
-     * @param {Record<string, number | boolean>} values - changed field name to value map
+     * @param {{[key: string]: number | boolean}} values - changed field name to value map
      * @returns {Promise<void>}
      */
     onRecordChanged(_, values) {
@@ -314,4 +317,4 @@ const resUserGroupIdsField = {
     additionalClasses: ["w-100"],
 };
 
-registry.category("fields").add("res_user_group_ids", resUserGroupIdsField);
+registerField("res_user_group_ids", resUserGroupIdsField);

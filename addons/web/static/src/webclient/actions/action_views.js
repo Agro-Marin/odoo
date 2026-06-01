@@ -12,7 +12,8 @@
  *
  * @param {Object[]} views - available view descriptors
  * @param {boolean} multiRecord - whether to match multi-record views
- * @param {string} viewType - the view type to find
+ * @param {string} [viewType] - the view type to find; when undefined no
+ *   descriptor matches and the caller falls back to its default view
  * @returns {Object|undefined}
  */
 export function findView(views, multiRecord, viewType) {

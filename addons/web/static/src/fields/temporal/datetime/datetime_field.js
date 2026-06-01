@@ -11,19 +11,20 @@ import {
     deserializeDateTime,
     today,
 } from "@web/core/l10n/dates";
+import { ModelEvent } from "@web/core/events";
+import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { exprToBoolean } from "@web/core/utils/format/strings";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
 import { formatDate, formatDateTime } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-const { DateTime } = globalThis.luxon ?? {};
-
 function getFormattedPlaceholder(value, type, options) {
-    if (value instanceof globalThis.luxon.DateTime) {
+    if (value instanceof DateTime) {
         return type === "date"
             ? formatDate(value, options)
             : formatDateTime(value, options);
@@ -48,6 +49,7 @@ function getFormattedPlaceholder(value, type, options) {
  *  numeric?: boolean;
  *  minPrecision?: string;
  *  maxPrecision?: string;
+ *  alwaysRange?: boolean;
  * }} DateTimeFieldProps
  *
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
@@ -117,6 +119,7 @@ export class DateTimeField extends Component {
     //-------------------------------------------------------------------------
 
     setup() {
+        useRenderCounter("fields.DateTimeField");
         const getPickerProps = () => {
             const value = this.getRecordValue();
             /** @type {DateTimePickerProps} */
@@ -424,7 +427,7 @@ export class DateTimeField extends Component {
      */
     triggerIsDirty(isDirty) {
         this.props.record.model.bus.trigger(
-            "FIELD_IS_DIRTY",
+            ModelEvent.FIELD_IS_DIRTY,
             isDirty ?? !areDatesEqual(this.getRecordValue(), this.state.value),
         );
     }

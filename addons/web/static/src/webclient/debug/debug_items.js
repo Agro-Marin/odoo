@@ -7,6 +7,7 @@ import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
+import { FieldWidgetsDialog } from "./field_widgets_dialog.js";
 
 /**
  * Debug menu item: open the unit test runner.
@@ -66,8 +67,26 @@ export function openViewItem({ env }) {
     };
 }
 
+/**
+ * Debug menu item: open a searchable dialog listing every registered field
+ * widget — name, display name, supported types, component class, and
+ * option count.  Read-only registry inspector.
+ * @param {{ env: Object }} params
+ * @returns {Object} debug menu item descriptor
+ */
+export function inspectFieldWidgetsItem({ env }) {
+    return {
+        type: "item",
+        description: _t("Inspect Field Widgets"),
+        callback: () => env.services.dialog.add(FieldWidgetsDialog),
+        sequence: 545,
+        section: "tools",
+    };
+}
+
 registry
     .category("debug")
     .category("default")
     .add("runUnitTestsItem", /** @type {any} */ (runUnitTestsItem))
-    .add("openViewItem", /** @type {any} */ (openViewItem));
+    .add("openViewItem", /** @type {any} */ (openViewItem))
+    .add("inspectFieldWidgetsItem", /** @type {any} */ (inspectFieldWidgetsItem));

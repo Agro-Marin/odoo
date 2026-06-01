@@ -4,7 +4,7 @@
 /** @module @web/fields/relational/many2one/many2one - Core Many2One autocomplete component with search, navigation, and barcode support */
 
 import { Component, toRaw, useRef, useState } from "@odoo/owl";
-import * as BarcodeScanner from "@web/components/barcode/barcode_dialog";
+import { BarcodeScanner } from "@web/components/barcode/barcode_dialog";
 import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video_scanner";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeContext } from "@web/core/context";
@@ -314,7 +314,7 @@ export class Many2One extends Component {
     async openRecordInAction(newWindow) {
         const action = await this.orm.call(
             this.props.relation,
-            "get_formview_action",
+            "get_record_default_action",
             [[this.props.value?.id]],
             { context: this.props.openActionContext() },
         );

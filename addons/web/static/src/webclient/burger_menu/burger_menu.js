@@ -5,6 +5,7 @@
 
 import { Component, useState } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
+import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
@@ -34,12 +35,12 @@ export class BurgerMenu extends Component {
             isBurgerOpened: false,
         });
         this.swipeStartX = null;
-        useBus(this.env.bus, "HOME-MENU:TOGGLED", () => {
+        useBus(this.env.bus, AppEvent.HOME_MENU_TOGGLED, () => {
             this._closeBurger();
         });
         useBus(
             this.env.bus,
-            "ACTION_MANAGER:UPDATE",
+            AppEvent.ACTION_MANAGER_UPDATE,
             /** @type {any} */ (
                 ({ detail: req }) => {
                     if (req.id) {

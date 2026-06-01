@@ -6,6 +6,7 @@
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { extractDigits } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -59,4 +60,4 @@ export const statInfoField = {
     }),
 };
 
-registry.category("fields").add("statinfo", statInfoField);
+registerField("statinfo", statInfoField);

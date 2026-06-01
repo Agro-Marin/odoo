@@ -13,16 +13,17 @@
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
 
+/** @import { ActionManager } from "./action_service.js" */
+
 /**
  * Build the props, config, currentState, and displayName for a client action controller.
  *
  * @param {Object} action the client action descriptor
  * @param {Object} props initial props to merge
- * @param {Object} callbacks
- * @param {Function} callbacks.pushState push current state to the router
+ * @param {ActionManager} am
  * @returns {{ props: Object, currentState: Object, config: Object, displayName: string }}
  */
-export function buildActionInfo(action, props, { pushState }) {
+export function buildActionInfo(action, props, am) {
     const actionProps = { ...props, action, actionId: action.id };
     const currentState = {
         resId: actionProps.resId ?? false,
@@ -35,7 +36,7 @@ export function buildActionInfo(action, props, { pushState }) {
         Object.assign(currentState, patchState);
         const changed = !shallowEqual(currentState, oldState);
         if (changed && action.target !== "new" && controller.isMounted) {
-            pushState();
+            am.pushState();
         }
     };
     return {
@@ -56,15 +57,10 @@ export function buildActionInfo(action, props, { pushState }) {
  * @param {Object} action the act_window action descriptor
  * @param {Object[]} views all available views for this action
  * @param {Object} props initial props to merge
- * @param {Object} callbacks
- * @param {Function} callbacks.getView get a view by type from the current action
- * @param {Function} callbacks.switchView switch to a different view type
- * @param {Function} callbacks.doAction execute an action
- * @param {Function} callbacks.pushState push current state to the router
+ * @param {ActionManager} am
  * @returns {{ props: Object, currentState: Object, config: Object, displayName: string }}
  */
-export function buildViewInfo(view, action, views, props = {}, callbacks) {
-    const { getView, switchView, doAction, pushState } = callbacks;
+export function buildViewInfo(view, action, views, props = {}, am) {
     const target = action.target;
     const viewSwitcherEntries = views
         .filter((v) => v.multiRecord === view.multiRecord)
@@ -90,14 +86,14 @@ export function buildViewInfo(view, action, views, props = {}, callbacks) {
         { activeIds, readonly, force, newWindow } = /** @type {any} */ ({}),
     ) => {
         if (target !== "new") {
-            if (getView("form")) {
-                return switchView(
+            if (am._getView("form")) {
+                return am.switchView(
                     "form",
                     { readonly, resId, resIds: activeIds },
                     { newWindow },
                 );
             } else if (force || !resId) {
-                return doAction(
+                return am.doAction(
                     {
                         type: "ir.actions.act_window",
                         res_model: action.res_model,
@@ -130,7 +126,7 @@ export function buildViewInfo(view, action, views, props = {}, callbacks) {
             if (!viewProps.onSave) {
                 viewProps.onSave = (record, params) => {
                     if (params?.closable) {
-                        doAction({ type: "ir.actions.act_window_close" });
+                        am.doAction({ type: "ir.actions.act_window_close" });
                     }
                 };
             }
@@ -168,7 +164,7 @@ export function buildViewInfo(view, action, views, props = {}, callbacks) {
         Object.assign(currentState, patchState);
         const changed = !shallowEqual(currentState, oldState);
         if (changed && target !== "new" && controller.isMounted) {
-            pushState();
+            am.pushState();
         }
     };
 

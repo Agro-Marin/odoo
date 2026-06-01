@@ -6,8 +6,10 @@
 import { Component, useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { cookie } from "@web/core/browser/cookie";
+import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { useBus } from "@web/core/utils/hooks";
 import { formatText } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -37,12 +39,12 @@ export class AceField extends Component {
         const { model } = this.props.record;
         useBus(
             model.bus,
-            "WILL_SAVE_URGENTLY",
+            ModelEvent.WILL_SAVE_URGENTLY,
             /** @type {any} */ (() => this.commitChanges()),
         );
         useBus(
             model.bus,
-            "NEED_LOCAL_CHANGES",
+            ModelEvent.NEED_LOCAL_CHANGES,
             /** @type {any} */ (
                 ({ detail }) => detail.proms.push(this.commitChanges())
             ),
@@ -62,7 +64,7 @@ export class AceField extends Component {
         } else {
             this.isDirty = false;
         }
-        this.props.record.model.bus.trigger("FIELD_IS_DIRTY", this.isDirty);
+        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, this.isDirty);
         this.editedValue = editedValue;
     }
 
@@ -74,7 +76,7 @@ export class AceField extends Component {
                 });
             }
             this.isDirty = false;
-            this.props.record.model.bus.trigger("FIELD_IS_DIRTY", false);
+            this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, false);
         }
     }
 }
@@ -95,5 +97,4 @@ export const aceField = {
     }),
 };
 
-registry.category("fields").add("ace", aceField);
-registry.category("fields").add("code", aceField);
+registerField({ name: "ace", aliases: ["code"] }, aceField);

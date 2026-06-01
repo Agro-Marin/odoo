@@ -14,7 +14,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
  * On mobile, opens a full dialog instead. Prevents FullCalendar's own
  * popover from closing while the custom popover is open.
  *
- * @param {typeof Component} component - OWL component class to render inside the popover
+ * @param {typeof import("@odoo/owl").Component} component - OWL component class to render inside the popover
  * @returns {{ close: Function, open: Function }} popover control API
  */
 export function useCalendarPopover(component) {

@@ -3,6 +3,7 @@
 
 /** @module @web/webclient/currency_service - Service that auto-reloads currencies when res.currency records are mutated */
 
+import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { currencies } from "@web/services/currency";
@@ -11,10 +12,19 @@ import { UPDATE_METHODS } from "@web/services/orm_service";
 /** Service that reloads currencies when res.currency records are mutated. */
 export const currencyService = {
     dependencies: ["orm"],
-    async: ["reload_currencies"],
+    // ``async`` lookup is by exact key on the returned object — entries
+    // here must match the camelCase method names below.  Pre-fix this
+    // listed ``"reload_currencies"`` (snake_case typo) so the
+    // destroy-protection wrapper in ``hooks.js:_protectMethod`` walked
+    // ``service["reload_currencies"]`` → undefined → no wrap.  The
+    // single live consumer (``account_online_synchronization``'s
+    // OdooFin connector at ``odoo_fin_connector.js:55``) was therefore
+    // calling the raw promise-returning method, leaking results into
+    // destroyed components.
+    async: ["reloadCurrencies"],
     /**
-     * @param {import("@odoo/owl").OdooEnv} env
-     * @param {{ orm: import("@web/core").ORM }} services
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ orm: import("@web/services/orm_service").ORM }} services
      * @returns {{ reloadCurrencies: () => Promise<void> }}
      */
     start(env, { orm }) {
@@ -26,7 +36,15 @@ export const currencyService = {
             }
             Object.assign(currencies, result);
         }
-        rpcBus.addEventListener("RPC:RESPONSE", (ev) => {
+        rpcBus.addEventListener(RpcEvent.RESPONSE, (ev) => {
+            // Defensive: malformed payloads (null detail, missing data) can
+            // be dispatched to the global rpcBus by tests or by intentional
+            // synthetic fires. Optional-chain the detail before destructuring
+            // so this listener does not turn a malformed event into a thrown
+            // exception that pollutes other tests via the shared bus.
+            if (!ev.detail?.data?.params) {
+                return;
+            }
             const { data, error } = ev.detail;
             const { model, method } = data.params;
             if (!error && model === "res.currency" && UPDATE_METHODS.includes(method)) {

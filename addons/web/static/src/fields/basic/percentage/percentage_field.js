@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { extractDigits } from "@web/fields/field_utils";
 import { formatPercentage } from "@web/fields/formatters";
 import { useInputField } from "@web/fields/input_field_hook";
@@ -52,4 +53,4 @@ export const percentageField = {
     }),
 };
 
-registry.category("fields").add("percentage", percentageField);
+registerField("percentage", percentageField);

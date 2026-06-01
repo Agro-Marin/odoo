@@ -4,7 +4,7 @@
 /** @module @web/fields/field_tooltip - Builds JSON tooltip info for field debug tooltips */
 
 /**
- * @param {{ field: { name: string, string: string, help?: string, type: string, domain?: string, relation?: string, selection?: Array, change_default?: boolean, model_field?: string, default?: any }, fieldInfo: { widget?: string, field?: { displayName?: string }, help?: string, context?: string, domain?: string, invisible?: string, column_invisible?: string, readonly?: string, required?: string }, viewMode?: string, resModel?: string }} params
+ * @param {{ field: { name: string, string: string, help?: string, type: string, domain?: string, relation?: string, selection?: Array, change_default?: boolean, model_field?: string, default?: any }, fieldInfo: { widget?: string, field?: { displayName?: string }, help?: string, context?: string, domain?: string, invisible?: string, column_invisible?: string, readonly?: string, required?: string }, viewMode?: string, resModel?: string, help?: string }} params
  * @returns {string} JSON-serialized tooltip info
  */
 export function getTooltipInfo(params) {
@@ -20,7 +20,7 @@ export function getTooltipInfo(params) {
         field: {
             name: params.field.name,
             label: params.field.string,
-            help: params.fieldInfo.help ?? params.field.help,
+            help: params.help ?? params.fieldInfo.help ?? params.field.help,
             type: params.field.type,
             widget: params.fieldInfo.widget,
             widgetDescription,

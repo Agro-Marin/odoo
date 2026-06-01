@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -44,7 +45,7 @@ export const phoneField = {
     }),
 };
 
-registry.category("fields").add("phone", phoneField);
+registerField("phone", phoneField);
 
 class FormPhoneField extends PhoneField {
     static template = "web.FormPhoneField";
@@ -55,4 +56,4 @@ export const formPhoneField = {
     component: FormPhoneField,
 };
 
-registry.category("fields").add("form.phone", formPhoneField);
+registerField({ name: "phone", view: "form" }, formPhoneField);

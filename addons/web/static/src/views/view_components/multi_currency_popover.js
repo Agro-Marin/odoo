@@ -22,7 +22,7 @@ export class MultiCurrencyPopover extends Component {
 
     setup() {
         this.orm = useService("orm");
-        this.defaultCurrency = user.activeCompany.currency_id;
+        this.defaultCurrency = user.activeCompany?.currency_id;
         this.state = useState({ rates: null });
         onWillStart(async () => {
             this.state.rates = await getCurrencyRates();

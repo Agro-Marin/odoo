@@ -3,7 +3,7 @@
 
 /** @module @web/views/settings/highlight_text/settings_radio_field - RadioField variant with search-term highlighting on option labels */
 
-import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { RadioField, radioField } from "@web/fields/selection/radio/radio_field";
 
 import { HighlightText } from "./highlight_text.js";
@@ -21,4 +21,4 @@ export const settingsRadioField = {
     component: SettingsRadioField,
 };
 
-registry.category("fields").add("base_settings.radio", settingsRadioField);
+registerField({ name: "radio", view: "base_settings" }, settingsRadioField);

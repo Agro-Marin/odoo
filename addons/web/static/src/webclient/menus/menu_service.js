@@ -4,6 +4,7 @@
 /** @module @web/webclient/menus/menu_service - Service that loads, caches, and navigates the Odoo menu tree */
 
 import { browser } from "@web/core/browser/browser";
+import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
 
@@ -18,6 +19,13 @@ const loadMenusUrl = `/web/webclient/load_menus`;
  */
 export const menuService = {
     dependencies: ["action"],
+    // ``selectMenu`` (clicks a menu item → ``action.doAction``) and
+    // ``reload`` (fetches the menu tree from the server) are both
+    // async on the returned interface.  Listing them wires
+    // destroy-protection at ``useService("menu")`` time so a navbar /
+    // burger-menu / hotkey component that unmounts mid-call doesn't
+    // resume into destroyed state when the menu / action resolves.
+    async: ["selectMenu", "reload"],
     async start(env) {
         let currentAppId;
         let menusData;
@@ -56,7 +64,7 @@ export const menuService = {
                             );
                         }
                         menusData = res;
-                        env.bus.trigger("MENUS:APP-CHANGED");
+                        env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
                     }
                 }
             });
@@ -89,7 +97,7 @@ export const menuService = {
             if (menu && menu.appID !== currentAppId) {
                 currentAppId = menu.appID;
                 browser.sessionStorage.setItem("menu_id", currentAppId);
-                env.bus.trigger("MENUS:APP-CHANGED");
+                env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
             }
         }
 
@@ -132,7 +140,7 @@ export const menuService = {
             async reload() {
                 if (fetchMenus) {
                     menusData = await fetchMenus(true);
-                    env.bus.trigger("MENUS:APP-CHANGED");
+                    env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
                 }
             },
         };

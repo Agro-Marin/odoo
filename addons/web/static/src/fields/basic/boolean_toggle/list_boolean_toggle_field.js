@@ -3,8 +3,7 @@
 
 /** @module @web/fields/basic/boolean_toggle/list_boolean_toggle_field - List-view variant of the Boolean toggle switch */
 
-import { registry } from "@web/core/registry";
-
+import { registerField } from "@web/fields/_registry";
 import { BooleanToggleField, booleanToggleField } from "./boolean_toggle_field.js";
 export class ListBooleanToggleField extends BooleanToggleField {
     static template = "web.ListBooleanToggleField";
@@ -27,4 +26,4 @@ export const listBooleanToggleField = {
     component: ListBooleanToggleField,
 };
 
-registry.category("fields").add("list.boolean_toggle", listBooleanToggleField);
+registerField({ name: "boolean_toggle", view: "list" }, listBooleanToggleField);

@@ -3,6 +3,7 @@
 
 /** @module @web/views/view_service - Service that loads, caches, and invalidates view descriptions (arch, filters, action menus) */
 
+import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { UPDATE_METHODS } from "@web/services/orm_service";
@@ -51,11 +52,17 @@ export const viewService = {
     dependencies: ["orm"],
     async: ["loadViews"],
     start(env, { orm }) {
-        rpcBus.addEventListener("RPC:RESPONSE", (ev) => {
+        rpcBus.addEventListener(RpcEvent.RESPONSE, (ev) => {
+            // ``ev.detail`` itself may be null (synthetic test fires or a
+            // malformed event). Optional-chain it before reading ``.data``
+            // so the listener never throws on the shared bus.
+            if (!ev.detail?.data?.params) {
+                return;
+            }
             const { model, method } = ev.detail.data.params;
             if (["ir.ui.view", "ir.filters"].includes(model)) {
                 if (UPDATE_METHODS.includes(method)) {
-                    rpcBus.trigger("CLEAR-CACHES", "get_views");
+                    rpcBus.trigger(RpcEvent.CLEAR_CACHES, "get_views");
                 }
             }
         });
@@ -103,8 +110,16 @@ export const viewService = {
                 ),
             );
 
+            // Cold-cache get_views failure cascades the same way as
+            // fields_get: no view (form/list/kanban/calendar/graph/pivot)
+            // for the requested model can render without its arch + field
+            // metadata.  get_views is idempotent and the disk cache
+            // already accepts staleness, so one retry smooths the
+            // cold-fetch path while capping persistent-outage delay
+            // at a single backoff interval.
             const result = await orm
                 .cache({ type: "disk" })
+                .retry(1)
                 .call(resModel, "get_views", [], {
                     context: filteredContext,
                     views,

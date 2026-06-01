@@ -3,10 +3,11 @@
 
 /** @module @web/views/pivot/pivot_search_model - SearchModel extension restoring pivot_row_groupby from saved favorites */
 
-/** @type {any} */
-
 import { SearchModel } from "@web/search/search_model";
 
+// Widen to `any` so dynamically-set instance state and protected methods
+// used by the subclass don't trip TS.
+/** @type {any} */
 const Base = SearchModel;
 
 /**

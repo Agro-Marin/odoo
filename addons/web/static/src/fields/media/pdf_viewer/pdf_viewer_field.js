@@ -5,7 +5,8 @@
 
 import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { url } from "@web/core/utils/urls";
@@ -113,4 +114,4 @@ export const pdfViewerField = {
     supportedTypes: ["binary"],
 };
 
-registry.category("fields").add("pdf_viewer", pdfViewerField);
+registerField("pdf_viewer", pdfViewerField);

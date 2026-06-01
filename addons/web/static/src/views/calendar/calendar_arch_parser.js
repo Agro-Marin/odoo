@@ -6,7 +6,7 @@
 import { evaluateExpr } from "@web/core/py_js/py";
 import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { Field } from "@web/fields/field";
+import { parseFieldNode } from "@web/views/field_arch";
 
 const FIELD_ATTRIBUTE_NAMES = [
     "date_start",
@@ -65,7 +65,7 @@ export class CalendarArchParser {
         const eventLimit = xmlDoc.hasAttribute("event_limit")
             ? evaluateExpr(xmlDoc.getAttribute("event_limit"))
             : 5;
-        const formViewId = Number.parseInt(xmlDoc.getAttribute("form_view_id", 10), 10) || false;
+        const formViewId = Number.parseInt(xmlDoc.getAttribute("form_view_id"), 10) || false;
         const hasEditDialog = exprToBoolean(xmlDoc.getAttribute("event_open_popup"));
         const isDateHidden = exprToBoolean(xmlDoc.getAttribute("hide_date"));
         const isTimeHidden = exprToBoolean(xmlDoc.getAttribute("hide_time"));
@@ -78,7 +78,7 @@ export class CalendarArchParser {
         const quickCreate = exprToBoolean(xmlDoc.getAttribute("quick_create"), true);
         const quickCreateViewId =
             (quickCreate &&
-                Number.parseInt(xmlDoc.getAttribute("quick_create_view_id", 10), 10)) ||
+                Number.parseInt(xmlDoc.getAttribute("quick_create_view_id"), 10)) ||
             null;
         const showDatePicker = exprToBoolean(
             xmlDoc.getAttribute("show_date_picker"),
@@ -94,7 +94,7 @@ export class CalendarArchParser {
                     const fieldName = node.getAttribute("name");
                     fieldNames.add(fieldName);
 
-                    const fieldInfo = Field.parseFieldNode(
+                    const fieldInfo = parseFieldNode(
                         node,
                         models,
                         modelName,

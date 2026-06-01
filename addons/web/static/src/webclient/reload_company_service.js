@@ -4,20 +4,29 @@
 /** @module @web/webclient/reload_company_service - Service that triggers a page reload when res.company records are modified */
 
 import { browser } from "@web/core/browser/browser";
+import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { UPDATE_METHODS } from "@web/services/orm_service";
 
 // reload the page if changes are being done to `res.company`
 
-registry.category("services").add("reloadCompany", {
+export const reloadCompanyService = {
     dependencies: ["action"],
     /**
-     * @param {import("@odoo/owl").OdooEnv} env
-     * @param {{ action: import("@web/webclient").actionService }} services
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ action: ReturnType<typeof import("@web/webclient/actions/action_service").actionService.start> }} services
      */
     start(env, { action }) {
-        rpcBus.addEventListener("RPC:RESPONSE", (ev) => {
+        rpcBus.addEventListener(RpcEvent.RESPONSE, (ev) => {
+            // Defensive: malformed payloads (null detail, missing data) can
+            // be dispatched to the global rpcBus by tests or by intentional
+            // synthetic fires. Destructuring ``ev.detail`` directly throws
+            // when detail is null. Use optional chaining first, then a safe
+            // destructure once we know the shape is good.
+            if (!ev.detail?.data?.params) {
+                return;
+            }
             const { data, error } = ev.detail;
             const { model, method } = data.params;
             if (!error && model === "res.company" && UPDATE_METHODS.includes(method)) {
@@ -27,4 +36,6 @@ registry.category("services").add("reloadCompany", {
             }
         });
     },
-});
+};
+
+registry.category("services").add("reloadCompany", reloadCompanyService);

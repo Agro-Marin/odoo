@@ -6,7 +6,8 @@
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { formatFloat } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -26,7 +27,9 @@ export class GaugeField extends Component {
         this.chart = null;
         this.canvasRef = useRef("canvas");
 
-        onWillStart(async () => await loadBundle("web.chartjs_lib"));
+        onWillStart(async () => {
+            await loadBundle("web.chartjs_lib");
+        });
 
         useEffect(() => {
             this.renderChart();
@@ -108,6 +111,7 @@ export class GaugeField extends Component {
                 aspectRatio: 2,
             },
         };
+        // @ts-ignore — Chart is provided at runtime by the chartjs_lib bundle, not imported as a module
         this.chart = new Chart(this.canvasRef.el, config);
     }
 }
@@ -139,4 +143,4 @@ export const gaugeField = {
     }),
 };
 
-registry.category("fields").add("gauge", gaugeField);
+registerField("gauge", gaugeField);

@@ -73,7 +73,7 @@ export class KanbanHeader extends Component {
         }
         const tooltip = await this.loadTooltip();
         if (tooltip.length) {
-            this.popover.open(ev.target, { tooltip });
+            this.popover.open(/** @type {HTMLElement} */ (ev.target), { tooltip });
         }
     }
 

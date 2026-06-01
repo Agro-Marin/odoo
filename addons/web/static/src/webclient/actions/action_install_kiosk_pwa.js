@@ -7,7 +7,7 @@ import { Component, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
-import { standardActionServiceProps } from "./action_service.js";
+import { standardActionServiceProps } from "./action_constants.js";
 /**
  * Client action to use in a dialog to display the URL of a Kiosk, containing a
  * link to Install the corresponding PWA

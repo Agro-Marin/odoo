@@ -429,7 +429,7 @@ export class GraphModel extends Model {
             }
         }
         const graphCurrencies = new Set();
-        const defaultCurrency = user.activeCompany.currency_id;
+        const defaultCurrency = user.activeCompany?.currency_id;
         for (const group of groups) {
             const { __domain, __count } = group;
             const labels = [];
@@ -462,7 +462,10 @@ export class GraphModel extends Model {
                     const selected = fields[fieldName].selection.find(
                         (s) => s[0] === val,
                     );
-                    label = selected[1];
+                    // Stale data may reference a selection option that was
+                    // since removed; fall back to the raw value rather than
+                    // crashing on undefined[1].
+                    label = selected ? selected[1] : String(val);
                 } else if (["date", "datetime"].includes(type)) {
                     label = val[1];
                 } else {

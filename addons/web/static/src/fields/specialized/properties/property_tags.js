@@ -9,7 +9,9 @@ import { ColorList } from "@web/components/colorlist/colorlist";
 import { useTagNavigation } from "@web/components/record_selectors/tag_navigation_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+import { deepCopy } from "@web/core/utils/collections/objects";
+
+import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -123,7 +125,7 @@ export class PropertyTags extends Component {
      * @returns {array}
      */
     get selectedTags() {
-        return JSON.parse(JSON.stringify(this.props.selectedTags || []));
+        return deepCopy(this.props.selectedTags || []);
     }
 
     /**
@@ -134,7 +136,7 @@ export class PropertyTags extends Component {
      * @returns {array}
      */
     get availableTags() {
-        return JSON.parse(JSON.stringify(this.props.tags || []));
+        return deepCopy(this.props.tags || []);
     }
 
     /**
@@ -337,4 +339,4 @@ export const propertyTagsField = {
     component: PropertyTagsField,
 };
 
-registry.category("fields").add("property_tags", propertyTagsField);
+registerField("property_tags", propertyTagsField);

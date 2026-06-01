@@ -5,7 +5,8 @@
 
 import { Component, useEffect, useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class IframeWrapperField extends Component {
@@ -47,4 +48,4 @@ export const iframeWrapperField = {
     supportedTypes: ["text", "html"],
 };
 
-registry.category("fields").add("iframe_wrapper", iframeWrapperField);
+registerField("iframe_wrapper", iframeWrapperField);
