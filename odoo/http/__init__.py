@@ -125,7 +125,7 @@ All symbols are re-exported for backward compatibility.
 # Constants
 from .constants import (
     CORS_MAX_AGE,
-    CSRF_TOKEN_SALT,
+    CSRF_TOKEN_MAX_AGE,
     DEFAULT_LANG,
     DEFAULT_MAX_CONTENT_LENGTH,
     GEOIP_EMPTY_CITY,
@@ -136,12 +136,14 @@ from .constants import (
     SAFE_HTTP_METHODS,
     SESSION_DELETION_TIMER,
     SESSION_LIFETIME,
+    SESSION_ROTATION_EXCLUDED_PATHS,
     SESSION_ROTATION_INTERVAL,
     STATIC_CACHE,
     STATIC_CACHE_LONG,
     STORED_SESSION_BYTES,
     get_default_session,
     geoip2,
+    maxminddb,
 )
 
 # Session internals (for tests)
@@ -152,6 +154,9 @@ from .exceptions import (
     RegistryError,
     SessionExpiredException,
 )
+
+# Protocols
+from ._protocols import HttpExtension
 
 # Helper functions
 from .helpers import (
@@ -201,6 +206,7 @@ from .wrappers import (
     Headers,
     ResponseCacheControl,
     ResponseStream,
+    _Response,
 )
 
 # Request
@@ -212,6 +218,7 @@ from .dispatcher import (
     HttpDispatcher,
     JsonRPCDispatcher,
     Json2Dispatcher,
+    _dispatchers,
 )
 
 # Application
@@ -226,7 +233,7 @@ from odoo.modules.registry import Registry
 __all__ = [
     # Constants
     "CORS_MAX_AGE",
-    "CSRF_TOKEN_SALT",
+    "CSRF_TOKEN_MAX_AGE",
     "DEFAULT_LANG",
     "DEFAULT_MAX_CONTENT_LENGTH",
     "GEOIP_EMPTY_CITY",
@@ -237,6 +244,7 @@ __all__ = [
     "SAFE_HTTP_METHODS",
     "SESSION_DELETION_TIMER",
     "SESSION_LIFETIME",
+    "SESSION_ROTATION_EXCLUDED_PATHS",
     "SESSION_ROTATION_INTERVAL",
     "STATIC_CACHE",
     "STATIC_CACHE_LONG",
@@ -256,6 +264,7 @@ __all__ = [
     "HTTPRequest",
     "Headers",
     "HttpDispatcher",
+    "HttpExtension",
     "Json2Dispatcher",
     "JsonRPCDispatcher",
     # Registry

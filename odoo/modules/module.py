@@ -9,17 +9,15 @@ import os
 import re
 import sys
 import traceback
+import types
 import typing
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Collection, Mapping
 from pathlib import Path
 
 import odoo.upgrade
 from odoo import release, tools
 
 import odoo.addons
-
-if typing.TYPE_CHECKING:
-    import types
 
 try:
     from packaging.requirements import InvalidRequirement, Requirement
@@ -49,9 +47,14 @@ __all__ = [
     "get_resource_from_path",
     "initialize_sys_path",
     "load_odoo_module",
+    "load_script",
 ]
 
-MODULE_NAME_RE = re.compile(r"^\w{1,256}$")
+# re.ASCII restricts \w to [A-Za-z0-9_] — module names must be ASCII because
+# they are imported as Python package names and used as filesystem directory
+# names; allowing Unicode here would let parts of the loader accept what later
+# stages cannot import.
+MODULE_NAME_RE = re.compile(r"^\w{1,256}$", re.ASCII)
 MANIFEST_NAMES = ["__manifest__.py"]
 README = ["README.rst", "README.md", "README.txt", "README"]
 
@@ -112,8 +115,22 @@ TYPED_FIELD_DEFINITION_RE = re.compile(
 
 _logger = logging.getLogger(__name__)
 
-current_test: bool = False
-"""Indicates whether we are in a test mode.
+if typing.TYPE_CHECKING:
+    from odoo.tests.common import TestCase
+
+current_test: "TestCase | bool" = False
+"""Test-mode marker observed by loggers, mail, reports and the ORM.
+
+The value follows a small state machine driven by ``odoo.tests``:
+
+* ``False`` — no test is running (default and steady state).
+* ``True`` — ``loader.run_suite`` has begun; the suite has not yet selected
+  a specific :class:`TestCase`.  Brief, observable only between
+  :class:`OdooSuite.run` iterations.
+* ``TestCase`` instance — set by ``OdooSuite.run`` for the currently
+  executing test, and read by consumers as ``current_test.canonical_tag`` or
+  ``current_test.get_log_metadata()``.  Consumers that dereference attributes
+  must guard against the bool form (e.g. with ``contextlib.suppress``).
 
 Reviewed 2026-03: a plain global is correct here — Odoo uses fork-based
 concurrency (--workers=N), so each process gets an independent copy.  Tests
@@ -215,7 +232,7 @@ class Manifest(Mapping[str, typing.Any]):
         self.path = path
         self.name = Path(path).name
         if not MODULE_NAME_RE.match(self.name):
-            raise FileNotFoundError(f"Invalid module name: {self.name}")
+            raise ValueError(f"Invalid module name: {self.name}")
         self.__manifest_content = manifest_content
 
     @property
@@ -246,7 +263,7 @@ class Manifest(Mapping[str, typing.Any]):
     def version(self) -> str:
         try:
             return self.__manifest_cached["version"]
-        except Exception:
+        except KeyError:
             return adapt_version("1.0")
 
     @functools.cached_property
@@ -283,6 +300,18 @@ class Manifest(Mapping[str, typing.Any]):
     def raw_value(self, key: str) -> typing.Any:
         return copy.deepcopy(self.__manifest_cached.get(key))
 
+    def _force_parse(self) -> None:
+        """Trigger parsing of the manifest content eagerly.
+
+        ``__manifest_cached`` is a ``cached_property`` and parsing is normally
+        deferred to the first attribute read.  Call this when a caller wants
+        the parse to happen now (e.g. during graph construction, so that
+        manifest validation errors surface up-front rather than mid-loop).
+        """
+        # Reading the cached_property is sufficient to populate it; the value
+        # is discarded because the side effect (caching) is what we need.
+        self.__manifest_cached  # noqa: B018 — intentional cached_property trigger
+
     def __iter__(self) -> typing.Iterator[str]:
         manifest = self.__manifest_cached
         yield from manifest
@@ -313,9 +342,9 @@ class Manifest(Mapping[str, typing.Any]):
         for binary in depends.get("bin", []):
             try:
                 tools.find_in_path(binary)
-            except OSError:
+            except OSError as e:
                 msg = "Unable to find {dependency!r} in path"
-                raise MissingDependency(msg, binary)
+                raise MissingDependency(msg, binary) from e
 
     def __bool__(self) -> bool:
         return True
@@ -362,14 +391,26 @@ class Manifest(Mapping[str, typing.Any]):
                     manifest_content = ast.literal_eval(f.read())
             except OSError:
                 pass
-            except Exception:
-                _logger.debug(
-                    "Failed to parse the manifest file at %r",
-                    path,
-                    exc_info=True,
+            except (SyntaxError, ValueError) as e:
+                # ast.literal_eval raises SyntaxError for unparseable input and
+                # ValueError for valid syntax containing non-literal nodes
+                # (function calls, names, etc.).  Both indicate a broken
+                # manifest authored by a developer; surface the message at
+                # WARNING so an operator running default log levels notices.
+                _logger.warning(
+                    "Failed to parse the manifest file at %r: %s", path, e,
                 )
             else:
-                return Manifest(path=path, manifest_content=manifest_content)
+                try:
+                    return Manifest(path=path, manifest_content=manifest_content)
+                except ValueError:
+                    # Invalid module name (e.g. dir like 'foo-bar' that
+                    # happens to contain a parseable __manifest__.py): skip
+                    # silently so all_addon_manifests() does not crash
+                    # bootstrap on stray directories.
+                    _logger.debug(
+                        "Manifest at %r has invalid module name, skipped", path,
+                    )
         return None
 
     @staticmethod
@@ -476,11 +517,18 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
         # not uncommon to find them in manifest files, use them as
         # alternative.
         author = manifest.get("contributors") or manifest.get("maintainer") or ""
-        manifest["author"] = str(author)
+        if isinstance(author, (list, tuple)):
+            # Render lists as a comma-joined string instead of Python repr;
+            # `str(["A", "B"])` would produce "['A', 'B']", which is what
+            # ends up in the ir_module_module.author column.
+            author = ", ".join(str(a) for a in author)
+        else:
+            author = str(author)
+        manifest["author"] = author
         _logger.warning(
             "Missing `author` key in manifest for %r, defaulting to %r",
             module,
-            str(author),
+            author,
         )
 
     if not manifest.get("license"):
@@ -507,15 +555,32 @@ def _load_manifest(module: str, manifest_content: dict) -> dict:
     # automatically installed if all dependencies are (special case: [] to
     # always install the module), either `True` to auto-install the module
     # in case all dependencies declared in `depends` are installed.
-    if isinstance(manifest["auto_install"], Iterable):
-        manifest["auto_install"] = auto_install_set = set(manifest["auto_install"])
+    auto_install = manifest["auto_install"]
+    # Reject strings explicitly: `isinstance(str, Iterable)` is True, and
+    # `set("sale")` would silently become `{'s', 'a', 'l', 'e'}`, producing
+    # an opaque assertion further down.  A typo'd `'auto_install': 'sale'`
+    # (forgot the brackets) should fail with a message that names the cause.
+    if isinstance(auto_install, str):
+        raise TypeError(
+            f"module {module}: 'auto_install' must be a bool or a list/tuple/set"
+            f" of dependency names; got string {auto_install!r} (did you forget"
+            f" the brackets, e.g. ['{auto_install}']?)"
+        )
+    if isinstance(auto_install, (list, tuple, set, frozenset)):
+        manifest["auto_install"] = auto_install_set = set(auto_install)
         non_dependencies = auto_install_set.difference(depends)
         assert not non_dependencies, (
-            "auto_install triggers must be dependencies,"
-            f" found non-dependencies [{', '.join(non_dependencies)}] for module {module}"
+            f"module {module}: auto_install triggers must be dependencies,"
+            f" found non-dependencies [{', '.join(non_dependencies)}]"
         )
-    elif manifest["auto_install"]:
+    elif auto_install is True:
         manifest["auto_install"] = set(depends)
+    elif auto_install is not False:
+        raise TypeError(
+            f"module {module}: 'auto_install' must be a bool or a"
+            f" list/tuple/set of dependency names; got"
+            f" {type(auto_install).__name__}: {auto_install!r}"
+        )
 
     try:
         manifest["version"] = adapt_version(str(manifest["version"]))

@@ -234,7 +234,7 @@ class TraversalMixin:
             if "." in func:
                 return self.browse(
                     rec_id
-                    for rec_id, rec in zip(self._ids, self, strict=False)
+                    for rec_id, rec in zip(self._ids, self, strict=True)
                     if any(rec.mapped(func))
                 )
             # Fast path: batch ACL + recompute, then C-level cache scan.
@@ -264,7 +264,7 @@ class TraversalMixin:
         else:
             raise TypeError(f"Invalid function {func!r} to filter on {self._name}")
         return self.browse(
-            rec_id for rec_id, rec in zip(self._ids, self, strict=False) if func(rec)
+            rec_id for rec_id, rec in zip(self._ids, self, strict=True) if func(rec)
         )
 
     @typing.overload
@@ -374,7 +374,7 @@ class TraversalMixin:
         predicate = Domain(domain)._as_predicate(self)
         return self.browse(
             rec_id
-            for rec_id, rec in zip(self._ids, self, strict=False)
+            for rec_id, rec in zip(self._ids, self, strict=True)
             if predicate(rec)
         )
 
@@ -555,7 +555,7 @@ class TraversalMixin:
         if not has_nulls:
             # No nulls in any field: raw tuple comparison
             keys = [tuple(columns[c][i] for c in range(len(columns))) for i in range(n)]
-            id_key_pairs = list(zip(ids, keys, strict=False))
+            id_key_pairs = list(zip(ids, keys, strict=True))
             id_key_pairs.sort(key=_key1, reverse=reverse_param)
             return tuple(pair[0] for pair in id_key_pairs)
 
@@ -573,7 +573,7 @@ class TraversalMixin:
                     key.append((_val_rank, v))
             keys.append(tuple(key))
 
-        id_key_pairs = list(zip(ids, keys, strict=False))
+        id_key_pairs = list(zip(ids, keys, strict=True))
         id_key_pairs.sort(key=_key1, reverse=reverse_param)
         return tuple(pair[0] for pair in id_key_pairs)
 

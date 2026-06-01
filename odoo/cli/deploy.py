@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+import urllib.parse
 import zipfile
 from pathlib import Path
 
@@ -8,13 +9,63 @@ import requests
 
 from . import Command
 
+# Directory names and file suffixes that should never ship in a module zip.
+# VCS metadata can leak credentials; build caches and dependency trees inflate
+# uploads 10-100x with no runtime benefit.
+EXCLUDED_DIR_NAMES = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".svn",
+        ".bzr",
+        "CVS",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        "node_modules",
+        ".venv",
+        "venv",
+        ".env",
+        ".idea",
+        ".vscode",  # IDE metadata
+        "dist",
+        "build",  # common build outputs
+    }
+)
+EXCLUDED_SUFFIXES = frozenset(
+    {
+        ".pyc",
+        ".pyo",
+        ".swp",
+        ".swo",
+        ".orig",
+        ".bak",
+        ".DS_Store",
+    }
+)
+
+# Hosts that deploy treats as local and therefore defaults to http://.
+# Exact host match only (substring matches would let 'localhost.evil.com'
+# bypass TLS).
+_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
+
+
+def _should_skip(filepath: Path, module_dir: Path) -> bool:
+    """Return True if ``filepath`` should be excluded from the deploy zip."""
+    rel_parts = filepath.relative_to(module_dir).parts
+    if any(p in EXCLUDED_DIR_NAMES for p in rel_parts):
+        return True
+    return filepath.suffix in EXCLUDED_SUFFIXES
+
 
 class Deploy(Command):
     """Deploy a module on an Odoo instance"""
 
     def __init__(self) -> None:
         super().__init__()
-        self.session = requests.session()
+        self.session = requests.Session()
 
     def deploy_module(
         self,
@@ -44,9 +95,12 @@ class Deploy(Command):
         force: bool = False,
     ) -> str:
         print("Uploading module file...")
+        # urlencode the db name: a db containing '&' or '#' would otherwise
+        # inject extra query parameters into the login request.
+        encoded_db = urllib.parse.quote(db, safe="")
         self.session.get(
-            f"{url}/web/login?db={db}", allow_redirects=False
-        )  # this set the db in the session
+            f"{url}/web/login?db={encoded_db}", allow_redirects=False
+        )  # this sets the db in the session
         endpoint = url + "/base_import_module/login_upload"
         post_data = {
             "login": login,
@@ -79,12 +133,15 @@ class Deploy(Command):
             print("Zipping module directory...")
             with zipfile.ZipFile(temp, "w") as zfile:
                 for filepath in module_dir.rglob("*"):
-                    if filepath.is_file():
-                        zfile.write(filepath, filepath.relative_to(module_dir.parent))
-                return temp
+                    if not filepath.is_file():
+                        continue
+                    if _should_skip(filepath, module_dir):
+                        continue
+                    zfile.write(filepath, filepath.relative_to(module_dir.parent))
         except Exception:
             Path(temp).unlink()
             raise
+        return temp
 
     def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
@@ -122,17 +179,38 @@ class Deploy(Command):
             action="store_true",
             help='Force init even if module is already installed. (will update `noupdate="1"` records)',
         )
-        if not cmdargs:
-            sys.exit(parser.print_help())
 
+        # No explicit empty-args guard: argparse will fail with a clear
+        # "the following arguments are required: path" message, matching
+        # the convention used across the rest of the cli package.
         args = parser.parse_args(args=cmdargs)
 
-        if not args.verify_ssl:
-            self.session.verify = False
-
         try:
-            if not args.url.startswith(("http://", "https://")):
-                args.url = f"https://{args.url}"
+            if not args.url.lower().startswith(("http://", "https://")):
+                # Localhost defaults match the argparse default (http); remote
+                # targets default to https. Resolve the host via urlsplit
+                # against a synthesised authority so we match on the host
+                # exactly — not on substring ('localhost.evil.com' must not
+                # resolve to http), and so IPv6 loopback '[::1]' is covered.
+                parsed = urllib.parse.urlsplit(f"//{args.url}", scheme="")
+                hostname = (parsed.hostname or "").lower()
+                scheme = "http" if hostname in _LOCAL_HOSTS else "https"
+                args.url = f"{scheme}://{args.url}"
+
+            # Warn/disable AFTER URL resolution so the decision reflects the
+            # actual scheme. An earlier version warned only in the scheme-
+            # inference branch, which meant a user passing 'https://host'
+            # directly silently got SSL verification turned off with no
+            # warning at all.
+            if not args.verify_ssl:
+                self.session.verify = False
+                if args.url.lower().startswith("https://"):
+                    print(
+                        f"WARNING: SSL verification is OFF for {args.url}. "
+                        "Pass --verify-ssl to verify the server certificate.",
+                        file=sys.stderr,
+                    )
+
             result = self.deploy_module(
                 args.path,
                 args.url,

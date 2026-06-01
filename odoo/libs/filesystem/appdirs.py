@@ -564,13 +564,13 @@ if __name__ == "__main__":
     )
 
     dirs = AppDirs(appname, appauthor, version="1.0")
-    for prop in props:
+    for _prop in props:
         pass
 
     dirs = AppDirs(appname, appauthor)
-    for prop in props:
+    for _prop in props:
         pass
 
     dirs = AppDirs(appname)
-    for prop in props:
+    for _prop in props:
         pass

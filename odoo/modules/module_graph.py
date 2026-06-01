@@ -148,16 +148,16 @@ class ModuleNode:
         # acceptable in this context since we don't modify it
         manifest = Manifest.for_addon(name, display_warning=False)
         if manifest is not None:
-            manifest.raw_value("")  # parse the manifest now
+            # Parse the manifest now so validation errors surface during graph
+            # construction instead of mid-loading-loop.
+            manifest._force_parse()
         self.manifest: Mapping = manifest or {}
 
         # ir_module_module data                     # column_name
         self.id: int = 0  # id
         self.state: STATES = "uninstalled"  # state
         self.demo: bool = False  # demo
-        self.installed_version: str | None = (
-            None  # latest_version (attention: Incorrect field names !! in ir_module.py)
-        )
+        self.db_version: str | None = None  # db_version
 
         # info for upgrade
         self.load_state: STATES = "uninstalled"  # the state when added to module_graph
@@ -286,13 +286,93 @@ class ModuleGraph:
                     self._remove(name)
 
     def _update_depth(self, names: Iterable[str]) -> None:
+        # Detect cycles explicitly via iterative DFS rather than relying on
+        # Python's recursion limit: a cycle and a very deep acyclic chain
+        # produce the same RecursionError, and the latter would be falsely
+        # reported as a dependency loop.
+        for cycle_member in self._find_cycle_members():
+            if cycle_member in self._modules:
+                _logger.warning(
+                    "module %s: in a dependency loop, skipped", cycle_member,
+                )
+                self._remove(cycle_member)
+        # With cycles removed, depth recursion is bounded by graph diameter.
         for name in names:
             if module := self._modules.get(name):
-                try:
-                    module.depth
-                except RecursionError:
-                    _logger.warning("module %s: in a dependency loop, skipped", name)
-                    self._remove(name)
+                module.depth
+
+    def _find_cycle_members(self) -> set[str]:
+        """Return names of modules that participate in any dependency cycle.
+
+        Uses Tarjan's strongly connected components algorithm.  A node is on a
+        cycle iff it lies in a non-singleton SCC, or it has a self-loop.
+
+        The previous single-pass DFS was incomplete: in topologies like
+        ``A → B → D → A`` and ``A → C → D → A`` (two cycles sharing A and D),
+        the DFS marks A, B, D when it finds the first back edge but reaches D
+        again from C only after D is ``DONE``, missing C.  Tarjan's SCC walks
+        the whole graph and groups nodes by reachability, so every cycle
+        member is detected regardless of traversal order.
+
+        Iterative implementation; safe on graphs deeper than Python's
+        recursion limit.
+        """
+        indices: dict[str, int] = {}
+        lowlinks: dict[str, int] = {}
+        on_scc_stack: set[str] = set()
+        scc_stack: list[str] = []
+        on_cycle: set[str] = set()
+        counter = 0
+
+        def deps_of(name: str) -> list[str]:
+            # Filter out dependencies that are not in the graph (they may have
+            # been pruned for being missing or non-installable).
+            return [d.name for d in self._modules[name].depends if d.name in self._modules]
+
+        for root in list(self._modules):
+            if root in indices:
+                continue
+            indices[root] = lowlinks[root] = counter
+            counter += 1
+            scc_stack.append(root)
+            on_scc_stack.add(root)
+            # Each work entry: [name, next_dep_idx, deps_list].  Mutable list so
+            # we can advance the iterator in place when re-entering this frame.
+            work: list[list] = [[root, 0, deps_of(root)]]
+
+            while work:
+                name, idx, deps = work[-1]
+                if idx < len(deps):
+                    work[-1][1] = idx + 1
+                    child = deps[idx]
+                    if child not in indices:
+                        indices[child] = lowlinks[child] = counter
+                        counter += 1
+                        scc_stack.append(child)
+                        on_scc_stack.add(child)
+                        work.append([child, 0, deps_of(child)])
+                    elif child in on_scc_stack:
+                        lowlinks[name] = min(lowlinks[name], indices[child])
+                else:
+                    # Finished exploring children of `name`.  If lowlink == index
+                    # then `name` is the root of an SCC; pop everything above it.
+                    if lowlinks[name] == indices[name]:
+                        scc: list[str] = []
+                        while True:
+                            w = scc_stack.pop()
+                            on_scc_stack.discard(w)
+                            scc.append(w)
+                            if w == name:
+                                break
+                        # Singleton SCC is on a cycle only if it has a self-loop.
+                        if len(scc) > 1 or name in deps_of(name):
+                            on_cycle.update(scc)
+                    work.pop()
+                    if work:
+                        parent = work[-1][0]
+                        lowlinks[parent] = min(lowlinks[parent], lowlinks[name])
+
+        return on_cycle
 
     def _update_from_database(self, names: Iterable[str]) -> None:
         names = tuple(name for name in names if name in self._modules)
@@ -300,12 +380,12 @@ class ModuleGraph:
             return
         # update modules with values from the database (if exist)
         query = """
-            SELECT name, id, state, demo, latest_version AS installed_version
+            SELECT name, id, state, demo, db_version
             FROM ir_module_module
             WHERE name = ANY(%s)
         """
         self._cr.execute(query, [list(names)])
-        for name, id_, state, demo, installed_version in self._cr.fetchall():
+        for name, id_, state, demo, db_version in self._cr.fetchall():
             if state == "uninstallable":
                 _logger.warning("module %s: not installable, skipped", name)
                 self._remove(name)
@@ -321,8 +401,8 @@ class ModuleGraph:
             module.id = id_
             module.state = state
             module.demo = demo
-            module.installed_version = installed_version
-            module.load_version = installed_version
+            module.db_version = db_version
+            module.load_version = db_version
             module.load_state = state
 
     def _remove(self, name: str, log_dependents: bool = True) -> None:

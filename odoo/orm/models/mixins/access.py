@@ -29,11 +29,7 @@ from odoo.tools.translate import LazyTranslate, _
 
 from ... import decorators as api
 from ...domain import Domain
-from ...helpers import (
-    check_companies_domain_parent_of,
-    check_company_domain_parent_of,
-    to_record_ids,
-)
+from ...helpers import to_record_ids
 from ...primitives import NO_ACCESS
 
 if typing.TYPE_CHECKING:
@@ -194,6 +190,9 @@ class AccessMixin:
 
         """
         if not self.env.su and (result := self._check_access(operation)):
+            # _check_access returns (records, partial_factory); call it to
+            # build the AccessError, then raise.  Raising the bare partial
+            # would TypeError out ("must derive from BaseException").
             raise result[1]()
 
     def has_access(self, operation: str) -> bool:
@@ -224,13 +223,25 @@ class AccessMixin:
 
         1. **Model-level ACL** (``ir.model.access``): always runs, even on an
            empty recordset.  Verifies the user's group grants the operation.
-        2. **Record-level rules** (``ir.rule``): only runs when ``self`` has
-           real record ids (``any(self._ids)``).  Evaluates domain-based rules
-           against the actual records.
+        2. **Record-level rules** (``ir.rule``): runs only against real
+           record ids; ``NewId`` records bypass rule evaluation.  Domain
+           predicates are evaluated against the actual database records via
+           :meth:`filtered_domain`.
 
         Calling on an empty recordset (``self.browse()``) therefore only checks
         model-level ACLs — useful to verify permission before records exist
         (e.g. at the start of ``create()``).
+
+        **Mixed recordsets** (``NewId`` + real ids): the rule check is
+        applied only to the real subset; ``NewId`` records always pass.
+        ``ir.rule`` is fundamentally a database-level filter — there is no
+        database row for a ``NewId`` to filter against.  Evaluating the
+        rule's domain predicate against an in-memory NewId would consult
+        whatever the cache happens to hold (often field defaults), which
+        is not a meaningful basis for a permission decision.  Any actual
+        data access on the NewId still goes through ``Field.__get__`` /
+        ``_fetch_field``, which performs its own access checks against
+        the origin id.
 
         This method provides the base implementation of
         methods :meth:`check_access`, :meth:`has_access`
@@ -243,14 +254,20 @@ class AccessMixin:
                 Access._make_access_error, self._name, operation
             )
 
-        # we only check access rules on real records, which should not be mixed
-        # with new records
-        if any(self._ids):
+        # Restrict the rule check to records with a real (truthy) id.  See
+        # the docstring's "Mixed recordsets" section for the rationale —
+        # NewIds have no database row, so a domain-predicate evaluation
+        # against the cache could spuriously flag a draft as forbidden
+        # based on uninitialised field values.
+        real_self = self.browse(id_ for id_ in self._ids if id_)
+        if real_self:
             Rule = self.env["ir.rule"]
             domain = Rule._compute_domain(self._name, operation)
             if domain and (
-                forbidden := self
-                - self.sudo().with_context(active_test=False).filtered_domain(domain)
+                forbidden := real_self
+                - real_self.sudo()
+                .with_context(active_test=False)
+                .filtered_domain(domain)
             ):
                 return forbidden, functools.partial(
                     Rule._make_access_error, operation, forbidden
@@ -270,7 +287,7 @@ class AccessMixin:
         :param str operation: one of ``create``, ``read``, ``write``, ``unlink``
         :param bool raise_exception: whether an exception should be raise if operation is forbidden
         :return: whether the operation is allowed
-        :rtype: bool
+        :rtype: bool | None
         :raise AccessError: if the operation is forbidden and raise_exception is True
         """
         if raise_exception:
@@ -308,7 +325,8 @@ class AccessMixin:
     def _check_company(self, fnames: list[str] | None = None) -> None:
         """Check the companies of the values of the given field names.
 
-        :param list fnames: names of relational fields to check
+        :param fnames: names of relational fields to check
+        :type fnames: list[str] | None
         :raises UserError: if the `company_id` of the value of any field is not
             in `[False, self.company_id]` (or `self` if
             :class:`~odoo.addons.base.models.res_company`).

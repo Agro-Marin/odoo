@@ -16,6 +16,14 @@ if typing.TYPE_CHECKING:
     from odoo.api import Environment
 
     from odoo.addons.base.models.res_lang import LangData
+else:
+    # ``Environment`` lives in odoo.orm.runtime, which imports from
+    # odoo.tools; ``LangData`` lives in base which loads much later.
+    # Runtime-importing either here would cycle or fail, so fall back to
+    # ``Any`` for introspection.  Type checkers still see the real classes
+    # via the branch above.
+    Environment = typing.Any
+    LangData = typing.Any
 
 _logger = logging.getLogger(__name__)
 

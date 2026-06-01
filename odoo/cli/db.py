@@ -1,15 +1,18 @@
 import argparse
-import io
 import sys
+import tempfile
 import textwrap
 import urllib.parse
 import zipfile
 from argparse import RawTextHelpFormatter
+from contextlib import ExitStack
 from functools import partial
 from pathlib import Path
 
 import requests
 
+from ..db import db_connect
+from ..modules.neutralize import neutralize_database
 from ..service.db import (
     dump_db,
     exp_create_database,
@@ -36,17 +39,32 @@ class Db(Command):
         Commands are all filestore-aware.
     """
 
+    _CONNECTION_FLAGS = (
+        ("-c", "--config"),
+        ("-D", "--data-dir"),
+        ("--addons-path",),
+        ("-r", "--db_user"),
+        ("-w", "--db_password"),
+        ("--pg_path",),
+        ("--db_host",),
+        ("--db_port",),
+        ("--db_sslmode",),
+    )
+
+    @classmethod
+    def _add_connection_flags(cls, p: argparse.ArgumentParser) -> None:
+        """Register connection/config flags on ``p``.
+
+        These flags live on BOTH the parent parser and every subparser so the
+        user can write either ``db -c cfg init mydb`` or the more natural
+        ``db init mydb -c cfg`` (matches ``module install`` UX).
+        """
+        for flags in cls._CONNECTION_FLAGS:
+            p.add_argument(*flags)
+
     def run(self, cmdargs: list[str]) -> None:
         parser = self.parser
-        parser.add_argument("-c", "--config")
-        parser.add_argument("-D", "--data-dir")
-        parser.add_argument("--addons-path")
-        parser.add_argument("-r", "--db_user")
-        parser.add_argument("-w", "--db_password")
-        parser.add_argument("--pg_path")
-        parser.add_argument("--db_host")
-        parser.add_argument("--db_port")
-        parser.add_argument("--db_sslmode")
+        self._add_connection_flags(parser)
         parser.set_defaults(func=lambda _: sys.exit(parser.format_help()))
 
         subs = parser.add_subparsers()
@@ -167,7 +185,8 @@ class Db(Command):
             dest="filestore",
             default=True,
             const=False,
-            help="if passed, zip database is dumped without filestore (default: false)",
+            help="if passed, zip database is dumped without filestore "
+            "(default: filestore is included)",
         )
 
         # DUPLICATE -----------------------------
@@ -207,6 +226,12 @@ class Db(Command):
             action="store_true",
             help="delete `target` database before renaming if it exists",
         )
+        rename.add_argument(
+            "-n",
+            "--neutralize",
+            action="store_true",
+            help="neutralize the database after rename",
+        )
         rename.add_argument("source")
         rename.add_argument(
             "target",
@@ -219,30 +244,25 @@ class Db(Command):
         drop.set_defaults(func=self.drop)
         drop.add_argument("database", help="database to delete")
 
+        # Also accept connection flags AFTER the subcommand name (matches
+        # `module install -c cfg <mod>` UX).
+        for sub in (init, load, dump, duplicate, rename, drop):
+            self._add_connection_flags(sub)
+
         args = parser.parse_args(cmdargs)
 
-        # NOTE: comprehension is intentionally dense — maps argparse namespace keys
-        # to config CLI flags (--db_host, --data-dir, etc.) in a single expression.
-        config.parse_config(
-            [
-                val
-                for k, v in vars(args).items()
-                if v is not None
-                if k in ["config", "data_dir", "addons_path"]
-                or k.startswith(("db_", "pg_"))
-                for val in [
-                    (
-                        "--data-dir"
-                        if k == "data_dir"
-                        else "--addons-path"
-                        if k == "addons_path"
-                        else f"--{k}"
-                    ),
-                    v,
-                ]
-            ],
-            setup_logging=True,
-        )
+        # Map argparse namespace keys to config CLI flags. The two underscore-form
+        # keys must be hyphenated; everything else passes through as `--<key>`.
+        flag_overrides = {"data_dir": "--data-dir", "addons_path": "--addons-path"}
+        passthrough_keys = ("config", "data_dir", "addons_path")
+        config_args: list[str] = []
+        for key, value in vars(args).items():
+            if value is None:
+                continue
+            if key not in passthrough_keys and not key.startswith(("db_", "pg_")):
+                continue
+            config_args.extend([flag_overrides.get(key, f"--{key}"), value])
+        config.parse_config(config_args, setup_logging=True)
         # force db management active to bypass check when only a
         # `check_db_management_enabled` version is available.
         config["list_db"] = True
@@ -267,34 +287,51 @@ class Db(Command):
         self._check_target(db_name, delete_if_exists=args.force)
 
         url = urllib.parse.urlparse(args.dump_file)
-        if url.scheme:
-            eprint(f"Fetching {args.dump_file}...", end="")
-            r = requests.get(args.dump_file, timeout=10)
-            if not r.ok:
-                sys.exit(f" unable to fetch {args.dump_file}: {r.reason}")
+        # ExitStack ties the spooled temp file's lifetime to the function:
+        # restore_db must read from it after the requests.get with-block
+        # closes, so a plain `with tempfile.SpooledTemporaryFile(...) as f:`
+        # at the inner scope would not work.
+        with ExitStack() as stack:
+            if url.scheme:
+                eprint(f"Fetching {args.dump_file}...", end="")
+                # Split connect/read timeouts: short connect (10s) catches
+                # bad URLs, unlimited read accommodates multi-GB production
+                # dumps. Stream to a spooled file so the whole response
+                # never lives in RAM; close the response so connections
+                # return to the pool.
+                r = stack.enter_context(
+                    requests.get(args.dump_file, timeout=(10, None), stream=True)
+                )
+                if not r.ok:
+                    sys.exit(f" unable to fetch {args.dump_file}: {r.reason}")
+                downloaded = stack.enter_context(
+                    tempfile.SpooledTemporaryFile(max_size=256 * 1024 * 1024)
+                )
+                for chunk in r.iter_content(chunk_size=1024 * 1024):
+                    downloaded.write(chunk)
+                downloaded.seek(0)
+                dump_file = downloaded
+                eprint(" done")
+            else:
+                eprint(f"Restoring {args.dump_file}...")
+                dump_file = args.dump_file
 
-            eprint(" done")
-            dump_file = io.BytesIO(r.content)
-        else:
-            eprint(f"Restoring {args.dump_file}...")
-            dump_file = args.dump_file
+            if not zipfile.is_zipfile(dump_file):
+                sys.exit(
+                    "Not a zipped dump file, use `pg_restore` to restore raw dumps,"
+                    " and `psql` to execute sql dumps or scripts."
+                )
 
-        if not zipfile.is_zipfile(dump_file):
-            sys.exit(
-                "Not a zipped dump file, use `pg_restore` to restore raw dumps,"
-                " and `psql` to execute sql dumps or scripts."
+            restore_db(
+                db=db_name,
+                dump_file=dump_file,
+                copy=True,
+                neutralize_database=args.neutralize,
             )
-
-        restore_db(
-            db=db_name,
-            dump_file=dump_file,
-            copy=True,
-            neutralize_database=args.neutralize,
-        )
 
     def dump(self, args: argparse.Namespace) -> None:
         if args.dump_path == "-":
-            dump_db(args.database, sys.stdout.buffer)
+            dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)
         else:
             with Path(args.dump_path).open("wb") as f:
                 dump_db(args.database, f, args.dump_format, args.filestore)
@@ -308,6 +345,9 @@ class Db(Command):
     def rename(self, args: argparse.Namespace) -> None:
         self._check_target(args.target, delete_if_exists=args.force)
         exp_rename(args.source, args.target)
+        if args.neutralize:
+            with db_connect(args.target).cursor() as cr:
+                neutralize_database(cr)
 
     def drop(self, args: argparse.Namespace) -> None:
         if not exp_drop(args.database):

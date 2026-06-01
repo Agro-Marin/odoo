@@ -6,10 +6,13 @@ without any Odoo imports.
 """
 
 import unittest
+from collections import namedtuple
 
 from odoo.orm.components.cache import FieldCache
 from odoo.orm.components.compute import ComputeEngine
+from odoo.orm.components.recompute import RecomputeScheduler
 from odoo.orm.components.storage import DictBackend
+from odoo.orm.components.unit_of_work import UnitOfWork
 
 
 class TestCacheComputeLifecycle(unittest.TestCase):
@@ -220,10 +223,6 @@ class TestUnitOfWorkIntegration(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        from collections import namedtuple
-
-        from odoo.orm.components.unit_of_work import UnitOfWork
-
         self.cache = FieldCache()
         self.engine = ComputeEngine()
         self.uow = UnitOfWork(self.cache, self.engine)
@@ -312,10 +311,6 @@ class TestRecomputeSchedulerIntegration(unittest.TestCase):
     """Test RecomputeScheduler with ComputeEngine for protection and cycle detection."""
 
     def setUp(self) -> None:
-        from collections import namedtuple
-
-        from odoo.orm.components.recompute import RecomputeScheduler
-
         self.engine = ComputeEngine()
         self.MockField = namedtuple(
             "MockField",

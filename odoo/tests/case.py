@@ -4,7 +4,6 @@ import contextlib
 import inspect
 import logging
 import sys
-from collections.abc import Iterator
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Any
 from unittest import SkipTest

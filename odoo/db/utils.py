@@ -1,16 +1,17 @@
-"""
-Database utility functions.
-"""
-
 import os
 import re
 import warnings
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 import psycopg
 from psycopg.adapt import Loader
 
 from odoo import tools
+
+# Emit the ODOO_PGAPPNAME deprecation at most once per process.  On a
+# busy server connection_info_for() fires on every borrow, so the naive
+# warn() call produces thousands of duplicates in a single request.
+_ODOO_PGAPPNAME_WARNED = False
 
 
 # Numeric-to-float loader for psycopg3.
@@ -31,10 +32,16 @@ psycopg.adapters.register_loader("numeric", _NumericToFloatLoader)
 # Query categorization patterns — used only for debug-level logging
 # statistics, not for correctness.  The optional `"?` handles the
 # common case of quoted identifiers but won't match hyphens or closing
-# quotes.  This is fine — misclassified queries just produce slightly
-# wrong debug stats, never wrong behavior.
-re_from = re.compile(r'\bfrom\s+"?([a-zA-Z_0-9]+)\b', re.IGNORECASE)
-re_into = re.compile(r'\binto\s+"?([a-zA-Z_0-9]+)\b', re.IGNORECASE)
+# quotes.  The optional schema prefix matches `public.res_users` and
+# `"public"."res_users"` — previously these fell through to "other".
+# Misclassified queries just produce slightly wrong debug stats, never
+# wrong behavior.
+re_from = re.compile(
+    r'\bfrom\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
+)
+re_into = re.compile(
+    r'\binto\s+(?:"?[a-zA-Z_0-9]+"?\.)?"?([a-zA-Z_0-9]+)\b', re.IGNORECASE
+)
 
 
 def categorize_query(decoded_query: str) -> tuple[str, str] | tuple[str, None]:
@@ -87,13 +94,16 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
         the default configuration from ``db_`` or ``db_replica_``.
     :rtype: (str, dict)
     """
+    global _ODOO_PGAPPNAME_WARNED  # noqa: PLW0603 — process-wide once-flag
     app_name = tools.config["db_app_name"]
     if "ODOO_PGAPPNAME" in os.environ:
-        warnings.warn(
-            "Since 19.0, use PGAPPNAME instead of ODOO_PGAPPNAME",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        if not _ODOO_PGAPPNAME_WARNED:
+            warnings.warn(
+                "Since 19.0, use PGAPPNAME instead of ODOO_PGAPPNAME",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _ODOO_PGAPPNAME_WARNED = True
         app_name = os.environ["ODOO_PGAPPNAME"]
     # Using manual string interpolation for security reason and trimming at default NAMEDATALEN=63
     app_name = app_name.replace("{pid}", str(os.getpid()))[:63]
@@ -106,11 +116,28 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
         elif us.username:
             db_name = us.username
         else:
+            # Last-ditch fallback: libpq defaults dbname to the username when
+            # the URI omits a path, so a URI without username or path is
+            # malformed.  Using the hostname as the dbname label is almost
+            # certainly wrong — warn so the misconfiguration surfaces.
+            warnings.warn(
+                f"PostgreSQL URI {db_or_uri!r} has no database path and no "
+                f"username; using hostname {us.hostname!r} as the database "
+                f"name label.  This is likely a misconfiguration.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             db_name = us.hostname
+        # Only inject health-param keys NOT already present in the URI's
+        # query string.  psycopg applies kwargs over DSN values, so blindly
+        # spreading _HEALTH_PARAMS would silently override an operator's
+        # explicit ?connect_timeout=60 with our default 10.
+        uri_keys = {k for k, _ in parse_qsl(us.query)}
+        merged = {k: v for k, v in _HEALTH_PARAMS.items() if k not in uri_keys}
         return db_name, {
             "dsn": db_or_uri,
             "application_name": app_name,
-            **_HEALTH_PARAMS,
+            **merged,
         }
 
     connection_info = {"dbname": db_or_uri, "application_name": app_name}

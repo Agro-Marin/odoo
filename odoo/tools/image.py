@@ -78,15 +78,15 @@ class ImageProcess(_ImageProcessBase):
             # Convert ValueError to UserError with translated message
             error_msg = str(e)
             if "could not be decoded" in error_msg:
-                raise UserError(_lt("This file could not be decoded as an image file."))
+                raise UserError(_lt("This file could not be decoded as an image file.")) from e
             if "Too large image" in error_msg:
                 raise UserError(
                     _lt(
                         "Too large image (above %sMpx), reduce the image size.",
                         str(IMAGE_MAX_RESOLUTION / 1e6),
                     )
-                )
-            raise UserError(error_msg)  # pylint: disable=E8502
+                ) from e
+            raise UserError(error_msg) from e  # pylint: disable=E8502
 
 
 def image_process(
@@ -148,8 +148,8 @@ def binary_to_image(source: bytes) -> Image.Image:
     """
     try:
         return _binary_to_image_base(source)
-    except ValueError:
-        raise UserError(_lt("This file could not be decoded as an image file."))
+    except ValueError as e:
+        raise UserError(_lt("This file could not be decoded as an image file.")) from e
 
 
 def base64_to_image(base64_source: str | bytes) -> Image.Image:
@@ -161,8 +161,8 @@ def base64_to_image(base64_source: str | bytes) -> Image.Image:
     """
     try:
         return _base64_to_image_base(base64_source)
-    except ValueError:
-        raise UserError(_lt("This file could not be decoded as an image file."))
+    except ValueError as e:
+        raise UserError(_lt("This file could not be decoded as an image file.")) from e
 
 
 def get_webp_size(source: bytes) -> tuple[int, int] | None:
@@ -175,8 +175,8 @@ def get_webp_size(source: bytes) -> tuple[int, int] | None:
     """
     try:
         return _get_webp_size_base(source)
-    except ValueError:
-        raise UserError(_lt("This file is not a webp file."))
+    except ValueError as e:
+        raise UserError(_lt("This file is not a webp file.")) from e
 
 
 def is_image_size_above(
@@ -189,5 +189,5 @@ def is_image_size_above(
     """
     try:
         return _is_image_size_above_base(base64_source_1, base64_source_2)
-    except ValueError:
-        raise UserError(_lt("This file could not be decoded as an image file."))
+    except ValueError as e:
+        raise UserError(_lt("This file could not be decoded as an image file.")) from e

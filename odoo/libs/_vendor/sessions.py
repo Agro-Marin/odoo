@@ -169,13 +169,28 @@ class FilesystemSessionStore(SessionStore):
     def save(self, session):
         fn = self.get_session_filename(session.sid)
         fd, tmp = tempfile.mkstemp(suffix=_fs_transaction_suffix, dir=self.path)
-        with os.fdopen(fd, "wb") as f:
-            f.write(_json_dumps(dict(session)))
         try:
+            # fchmod before close so the file never exists on disk with the
+            # default mkstemp umask; fsync before replace so a host crash
+            # can't leave a zero-length file after the metadata rename.
+            os.fchmod(fd, self.mode)
+            with os.fdopen(fd, "wb") as f:
+                f.write(_json_dumps(dict(session)))
+                f.flush()
+                os.fsync(f.fileno())
             pathlib.Path(tmp).replace(fn)
-            pathlib.Path(fn).chmod(self.mode)
         except OSError:
-            pass
+            # Log instead of swallowing silently: on NFS, a failed rename
+            # used to leave the client with a cookie pointing to a session
+            # that never landed on disk, and no ops-visible signal.
+            _logger.warning(
+                "Failed to persist session %r to %r", session.sid, fn, exc_info=True
+            )
+            # Best-effort cleanup of the orphan tmp file.
+            try:
+                pathlib.Path(tmp).unlink()
+            except OSError:
+                pass
 
     def delete(self, session):
         fn = self.get_session_filename(session.sid)

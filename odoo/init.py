@@ -6,7 +6,7 @@ import sys
 
 from .release import MIN_PY_VERSION
 
-assert sys.version_info > MIN_PY_VERSION, (
+assert sys.version_info[:2] >= MIN_PY_VERSION, (
     f"Outdated python version detected, Odoo requires Python >= {'.'.join(map(str, MIN_PY_VERSION))} to run."
 )
 

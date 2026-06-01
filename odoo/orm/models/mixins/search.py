@@ -29,7 +29,10 @@ from odoo.tools import SQL, Query, partition
 from odoo.tools.orm_profiler import _orm_profiling_enabled
 
 from ... import decorators as api
-from ..._typing import DomainType, ValuesType  # noqa: TC003 — runtime import required (PEP 649)
+from ..._typing import (
+    DomainType,
+    ValuesType,
+)
 from ...domain import Domain
 from ...parsing import parse_field_expr, regex_order
 from ...primitives import COLLECTION_TYPES, NewId
@@ -248,9 +251,20 @@ class SearchMixin:
             # field_name may be a sequence of field names (partner_id.name)
             # retrieve the last field in the sequence
             model = self
-            for fname in field_name.split("."):
+            segments = field_name.split(".")
+            for i, fname in enumerate(segments):
+                if model is None:
+                    # An earlier segment was non-relational, so we cannot
+                    # traverse further.  Raising here gives a clear error
+                    # at configuration time instead of crashing inside
+                    # ``model._fields[fname]`` with ``AttributeError``.
+                    raise ValueError(
+                        f"Invalid _rec_names_search entry {field_name!r} on "
+                        f"{self._name!r}: segment {segments[i - 1]!r} is "
+                        f"non-relational and cannot be traversed further"
+                    )
                 field = model._fields[fname]
-                model = self.env.get(field.comodel_name)
+                model = self.env.get(field.comodel_name) if field.relational else None
             # depending on the operator, we may need to cast the value to the type of the field
             # ignore if we cannot convert
             if field.relational:
@@ -335,7 +349,14 @@ class SearchMixin:
         terms = []
         for order_part in order.split(","):
             order_match = regex_order.match(order_part)
-            assert order_match is not None, "No match found"
+            # raise (not assert) so contract holds under python -O.  The
+            # outer ``_check_qorder`` already validated the full string,
+            # so a per-part match failure indicates a regex divergence.
+            if order_match is None:
+                raise RuntimeError(
+                    f"Order part {order_part!r} did not match regex_order "
+                    f"despite passing _check_qorder({order!r})"
+                )
             field_name = order_match["field"]
 
             direction = (order_match["direction"] or "").upper()
@@ -584,10 +605,18 @@ class SearchMixin:
                 if field not in _fdc:
                     storable.append((fname, field, env._core.field_data(field)))
                 else:
+                    # cache_key may fail to resolve in test contexts where
+                    # the env is not fully seeded (e.g. ``env.company`` not
+                    # available in DictBackend tests).  Narrow the catch so
+                    # genuine bugs in ``_get_cache`` or user-defined
+                    # ``cache_key`` overrides surface instead of being silenced.
                     try:
                         storable.append((fname, field, field._get_cache(env)))
-                    except Exception:
-                        pass  # cache_key can't resolve (e.g. env.company)
+                    except (KeyError, AttributeError, TypeError) as e:
+                        _logger.debug(
+                            "DictBackend cache load skipped %s.%s: %s",
+                            self._name, fname, e,
+                        )
 
         # Batch-load: iterate fields in outer loop, records in inner loop.
         # This writes directly to the cache dict without per-record browse()
@@ -694,7 +723,12 @@ class SearchMixin:
             field in the sequence, ``model`` is that field's model, and
             ``alias`` is the model's table alias
         """
-        assert field.related and not field.store
+        # raise (not assert) — under python -O a non-related field would reach
+        # ``related.split(".")`` below and crash with an opaque AttributeError.
+        if not (field.related and not field.store):
+            raise ValueError(
+                f"_traverse_related_sql expects a non-stored related field, got {field!r}"
+            )
         if not (self.env.su or field.compute_sudo or field.inherited):
             raise ValueError(
                 f"Cannot convert {field} to SQL because it is not a sudoed related or inherited field"
@@ -841,4 +875,4 @@ class SearchMixin:
 
 
 # Import _ for translations - done after class definition to avoid issues
-from odoo.tools.translate import _
+from odoo.tools.translate import _  # noqa: E402

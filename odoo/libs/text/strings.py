@@ -6,6 +6,7 @@ Pure Python text helpers with no Odoo dependencies.
 __all__ = ["get_flag", "human_size", "mod10r", "remove_accents", "str2bool"]
 
 import unicodedata
+import warnings
 from typing import Literal
 
 
@@ -64,8 +65,6 @@ def str2bool(s: str, default: bool | None = None) -> bool:
         >>> str2bool('maybe', default=False)
         False
     """
-    import warnings
-
     # allow this (for now?) because it's used for get_param
     if type(s) is bool:
         return s  # type: ignore

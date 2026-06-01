@@ -1,16 +1,18 @@
 import logging
 import time
+from typing import TYPE_CHECKING
 
-from odoo import api  # noqa: TC001 — runtime import required (PEP 649)
 from odoo.tools import config
 from odoo.tools.populate import populate_models
 
-from . import Command, get_single_database, odoo_env
-from .command import build_config_args
+from . import Command, build_config_args, get_single_database, odoo_env
 
-DEFAULT_FACTOR = (
-    "10000"  # NOTE: string intentional — argparse delivers user input as str
-)
+if TYPE_CHECKING:
+    from odoo import api
+
+# argparse delivers every user-supplied value as `str`; keep the default in
+# the same type so comparisons and .split() behave uniformly.
+DEFAULT_FACTOR = "10000"
 DEFAULT_SEPARATOR = "_"
 DEFAULT_MODELS = "res.partner,product.template,account.move,sale.order,crm.lead,stock.picking,project.task"
 
@@ -45,14 +47,21 @@ class Populate(Command):
         )
         parsed_args = parser.parse_args(cmdargs)
 
-        config_args = build_config_args(
-            parsed_args.config, parsed_args.db_name, extra_args=["--no-http"]
-        )
+        # build_config_args already adds --no-http via its default; don't
+        # pass it in extra_args as well (optparse tolerates the duplicate
+        # but the redundancy obscures intent).
+        config_args = build_config_args(parsed_args.config, parsed_args.db_name)
         config.parse_config(config_args, setup_logging=True)
 
         # deduplicate models if necessary, and keep the last corresponding
         # factor for each model
-        opt_factors = [int(f) for f in parsed_args.factors.split(",")]
+        try:
+            opt_factors = [int(f) for f in parsed_args.factors.split(",")]
+        except ValueError:
+            parser.error(
+                f"--factors must be a comma-separated list of integers, got "
+                f"{parsed_args.factors!r}"
+            )
         model_factors = {
             model_name: (
                 opt_factors[index] if index < len(opt_factors) else opt_factors[-1]
@@ -61,11 +70,12 @@ class Populate(Command):
                 parsed_args.models_to_populate.split(",")
             )
         }
-        try:
-            separator_code = ord(parsed_args.separator)
-        except TypeError:
-            msg = "Separator must be a single Unicode character."
-            raise ValueError(msg)
+        if len(parsed_args.separator) != 1:
+            parser.error(
+                f"--sep must be a single Unicode character, got "
+                f"{parsed_args.separator!r} (length {len(parsed_args.separator)})"
+            )
+        separator_code = ord(parsed_args.separator)
 
         db_name = get_single_database(config["db_name"])
         with odoo_env(db_name, context={"active_test": False}) as env:

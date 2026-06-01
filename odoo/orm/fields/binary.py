@@ -89,14 +89,14 @@ class Binary(Field):
             return value
         try:
             return str(value).encode("ascii")
-        except UnicodeEncodeError:
+        except UnicodeEncodeError as e:
             raise UserError(
                 record.env._(
                     "ASCII characters are required for %(value)s in %(field)s",
                     value=value,
                     field=self.name,
                 )
-            )
+            ) from e
 
     def get_column_update(self, record: BaseModel) -> bytes | None:
         """Return the raw binary bytes for ``record``, bypassing bin_size context."""

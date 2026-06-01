@@ -14,10 +14,14 @@ This module contains methods for model lifecycle management:
 import typing
 from collections import defaultdict
 
+from odoo.exceptions import UserError
 from odoo.tools.translate import _
 
 from ... import decorators as api
-from ..._typing import DomainType, IdType  # noqa: TC003 — runtime import required (PEP 649)
+from ..._typing import (
+    DomainType,
+    IdType,
+)
 
 if typing.TYPE_CHECKING:
     from collections.abc import Collection
@@ -94,7 +98,9 @@ class LifecycleMixin:
     @api.deprecated("Deprecated since 19.0, use action_archive or action_unarchive")
     def toggle_active(self) -> None:
         "Inverses the value of :attr:`active` on the records in ``self``."
-        assert self._active_name, f"No 'active' field on model {self._name}"
+        if not self._active_name:
+            # raise (not assert) so misconfiguration surfaces under python -O
+            raise UserError(self.env._("No 'active' field on model %s", self._name))
         active_recs = self.filtered(self._active_name)
         active_recs.action_archive()
         (self - active_recs).action_unarchive()
@@ -106,7 +112,8 @@ class LifecycleMixin:
         action once the active field changes.
         """
         field_name = self._active_name
-        assert field_name, f"No 'active' field on model {self._name}"
+        if not field_name:
+            raise UserError(self.env._("No 'active' field on model %s", self._name))
         active_recs = self.filtered(lambda record: record[field_name])
         active_recs[field_name] = False
 
@@ -117,7 +124,8 @@ class LifecycleMixin:
         action once the active field changes.
         """
         field_name = self._active_name
-        assert field_name, f"No 'active' field on model {self._name}"
+        if not field_name:
+            raise UserError(self.env._("No 'active' field on model %s", self._name))
         inactive_recs = self.filtered(lambda record: not record[field_name])
         inactive_recs[field_name] = True
 

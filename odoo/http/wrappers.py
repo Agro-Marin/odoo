@@ -20,22 +20,35 @@ def _apply_cookie_defaults(
     expires: datetime | int | None,
     max_age: int | None,
     cookie_type: str,
-) -> tuple[datetime | int | None, int | None]:
-    """Apply shared cookie defaults: expiry fallback and consent filtering.
+    secure: bool | None,
+    samesite: str | None,
+) -> tuple[datetime | int | None, int | None, bool, str | None]:
+    """Apply shared cookie defaults: expiry fallback, consent filtering,
+    and security attributes.
 
     Both :class:`_Response` and :class:`FutureResponse` need identical
     pre-processing of ``set_cookie`` parameters.  Extracted here to
     avoid duplicating the logic.
+
+    ``secure`` defaults to ``request.httprequest.is_secure`` (True on
+    TLS, False on HTTP) and ``samesite`` defaults to ``"Lax"`` — matching
+    the modern browser defaults explicitly so no cookie leaves the
+    server without the Secure / SameSite protections when they apply.
     """
     if expires == -1:  # not provided → default 1 year
         expires = datetime.now() + timedelta(days=365)
 
     from . import request  # lazy import — avoid circular dependency
 
-    if request.db and not request.env["ir.http"]._is_allowed_cookie(cookie_type):
+    if request and request.db and not request.env["ir.http"]._is_allowed_cookie(cookie_type):
         max_age = 0
 
-    return expires, max_age
+    if secure is None:
+        secure = bool(request and request.httprequest.is_secure)
+    if samesite is None:
+        samesite = "Lax"
+
+    return expires, max_age, secure, samesite
 
 
 def make_request_wrap_methods(attr: str) -> tuple[Any, Any]:
@@ -61,10 +74,9 @@ class HTTPRequest:
         # Werkzeug 3.1 changed defaults from unlimited to 500 KB / 1000 parts.
         # Odoo needs 10 MB for base64 form fields, HTML content, and import data.
         # Odoo forms with One2many lines can exceed 1000 parts (e.g., 200 invoice
-        # lines × 5+ fields each). Set to 10000 to match the memory size headroom.
+        # lines x 5+ fields each). Set to 10000 to match the memory size headroom.
         httprequest.max_form_memory_size = 10 * 1024 * 1024
         httprequest.max_form_parts = 10_000
-        self._session_id__ = httprequest.cookies.get("session_id")
 
         self.__wrapped = httprequest
         self.__environ = self.__wrapped.environ
@@ -77,6 +89,20 @@ class HTTPRequest:
             )
         }
 
+    @property
+    def session_id(self) -> str | None:
+        """Value of the ``session_id`` cookie on the incoming request."""
+        return self.__wrapped.cookies.get("session_id")
+
+    @property
+    def raw_environ(self) -> dict[str, Any]:
+        """The original, unfiltered WSGI environ.
+
+        Use for low-level operations (:meth:`Request.reroute`) that need
+        the werkzeug/wsgi keys filtered out of :attr:`environ`.
+        """
+        return self.__environ
+
     def __enter__(self) -> HTTPRequest:
         return self
 
@@ -86,12 +112,15 @@ HTTPREQUEST_ATTRIBUTES = [
     "__repr__",
     "__exit__",
     "accept_charsets",
+    "accept_encodings",
     "accept_languages",
     "accept_mimetypes",
     "access_route",
     "args",
     "authorization",
     "base_url",
+    "cache_control",
+    "close",
     "content_encoding",
     "content_length",
     "content_md5",
@@ -112,6 +141,7 @@ HTTPREQUEST_ATTRIBUTES = [
     "if_none_match",
     "if_range",
     "if_unmodified_since",
+    "input_stream",
     "is_json",
     "is_secure",
     "json",
@@ -132,7 +162,7 @@ HTTPREQUEST_ATTRIBUTES = [
     "scheme",
     "script_root",
     "server",
-    "session",
+    "stream",
     "trusted_hosts",
     "url",
     "url_root",
@@ -242,7 +272,7 @@ class _Response(werkzeug.wrappers.Response):
         expires: datetime | int | None = -1,
         path: str | None = "/",
         domain: str | None = None,
-        secure: bool = False,
+        secure: bool | None = None,
         httponly: bool = False,
         samesite: str | None = None,
         partitioned: bool = False,
@@ -253,8 +283,15 @@ class _Response(werkzeug.wrappers.Response):
         We want to continue to support the session cookie, but not by default.
         Now the default is arbitrary 1 year.
         So if you want a cookie of session, you have to explicitly pass expires=None.
+
+        ``secure`` and ``samesite`` default to ``None`` (let
+        :func:`_apply_cookie_defaults` pick the right values based on
+        the current request scheme). Pass ``secure=False`` explicitly
+        only when you really need an insecure cookie.
         """
-        expires, max_age = _apply_cookie_defaults(expires, max_age, cookie_type)
+        expires, max_age, secure, samesite = _apply_cookie_defaults(
+            expires, max_age, cookie_type, secure, samesite,
+        )
         super().set_cookie(
             key,
             value=value,
@@ -402,30 +439,35 @@ class Response(Proxy):
         super().__init__(response)
 
 
-# Monkey-patch HTTPException.get_response to return our Response
-__wz_get_response = HTTPException.get_response
+# Monkey-patches into werkzeug.exceptions: ``HTTPException.get_response``
+# is wrapped so it returns our :class:`Response`, and ``abort`` is wrapped
+# so it accepts our :class:`Response` instances. Both originals are
+# stashed on the ``werkzeug.exceptions`` module — one consistent storage
+# location — so module reloads (test isolation, importlib.reload) don't
+# re-wrap an already-patched version and produce infinite recursion.
+if not hasattr(werkzeug.exceptions, "_odoo_original_get_response"):
+    werkzeug.exceptions._odoo_original_get_response = HTTPException.get_response
+if not hasattr(werkzeug.exceptions, "_odoo_original_abort"):
+    werkzeug.exceptions._odoo_original_abort = werkzeug.exceptions.abort
 
 
 def get_response(
     self: HTTPException, environ: dict[str, Any] | None = None, scope: Any = None
 ) -> Response:
     """Return an Odoo :class:`Response` wrapping the werkzeug exception response."""
-    return Response(__wz_get_response(self, environ, scope))
-
-
-HTTPException.get_response = get_response
-
-# Monkey-patch werkzeug.exceptions.abort to handle our Response
-werkzeug_abort = werkzeug.exceptions.abort
+    return Response(
+        werkzeug.exceptions._odoo_original_get_response(self, environ, scope)
+    )
 
 
 def abort(status: int | Response, *args: Any, **kwargs: Any) -> None:
     """Abort the current request with an HTTP error, unwrapping Odoo Response if needed."""
     if isinstance(status, Response):
         status = status._wrapped__
-    werkzeug_abort(status, *args, **kwargs)
+    werkzeug.exceptions._odoo_original_abort(status, *args, **kwargs)
 
 
+HTTPException.get_response = get_response
 werkzeug.exceptions.abort = abort
 
 
@@ -449,13 +491,15 @@ class FutureResponse:
         expires: datetime | int | None = -1,
         path: str | None = "/",
         domain: str | None = None,
-        secure: bool = False,
+        secure: bool | None = None,
         httponly: bool = False,
         samesite: str | None = None,
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
-        expires, max_age = _apply_cookie_defaults(expires, max_age, cookie_type)
+        expires, max_age, secure, samesite = _apply_cookie_defaults(
+            expires, max_age, cookie_type, secure, samesite,
+        )
         werkzeug.Response.set_cookie(
             self,
             key,

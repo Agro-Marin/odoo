@@ -5,8 +5,7 @@ import odoo.db
 import odoo.modules.neutralize
 from odoo.tools import config
 
-from . import Command, get_single_database
-from .command import build_config_args
+from . import Command, build_config_args, get_single_database
 
 _logger = logging.getLogger(__name__)
 
@@ -30,8 +29,9 @@ class Neutralize(Command):
 
         dbname = get_single_database(config["db_name"])
 
-        if not parsed_args.to_stdout:
-            _logger.info("Starting %s database neutralization", dbname)
+        # Python logging writes to stderr; it does not contaminate the SQL
+        # emitted to stdout in --stdout mode, so log unconditionally.
+        _logger.info("Starting %s database neutralization", dbname)
 
         try:
             with odoo.db.db_connect(dbname).cursor() as cursor:
@@ -51,6 +51,7 @@ class Neutralize(Command):
 
         except Exception:
             _logger.critical(
-                "An error occurred during the neutralization. THE DATABASE IS NOT NEUTRALIZED!"
+                "An error occurred during the neutralization. THE DATABASE IS NOT NEUTRALIZED!",
+                exc_info=True,
             )
             sys.exit(1)

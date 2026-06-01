@@ -9,10 +9,10 @@ import os
 import re
 import zipfile
 from pathlib import Path
-from typing import IO, TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
 WINDOWS_RESERVED = re.compile(
     r"""
@@ -103,7 +103,7 @@ else:
 
     def is_running_as_nt_service() -> bool:
         @contextmanager
-        def close_srv(srv):
+        def close_srv(srv: Any) -> Iterator[Any]:
             try:
                 yield srv
             finally:

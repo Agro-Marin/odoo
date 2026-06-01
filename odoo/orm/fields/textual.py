@@ -15,11 +15,8 @@ from odoo.libs._field_access import scalar_cache_get as _scalar_cache_get
 from odoo.logutils import COLOR_PATTERN, DEFAULT, GREEN, RED, ColoredFormatter
 from odoo.tools import (
     SQL,
-    html2plaintext,
     html_normalize,
     html_sanitize,
-    is_html_empty,
-    plaintext2html,
     sql,
 )
 from odoo.tools.misc import PENDING, SENTINEL, OrderedSet, Sentinel
@@ -239,8 +236,10 @@ class BaseString(Field[str | typing.Literal[False]]):
                     # term number mismatch, ignore all translations
                     value = base_value
                     translated_terms = base_terms
+                # post-condition: lengths now match — strict=True surfaces any
+                # future regression that reintroduces a mismatch silently.
                 get_base = dict(
-                    zip(translated_terms, base_terms, strict=False)
+                    zip(translated_terms, base_terms, strict=True)
                 ).__getitem__
             else:
 
@@ -306,8 +305,10 @@ class BaseString(Field[str | typing.Literal[False]]):
                 for from_lang_term in from_lang_terms:
                     dictionary[from_lang_term][lang] = from_lang_term
             else:
+                # the else branch is gated by length equality — strict=True
+                # is the structurally correct choice and catches regressions.
                 for from_lang_term, to_lang_term in zip(
-                    from_lang_terms, to_lang_terms, strict=False
+                    from_lang_terms, to_lang_terms, strict=True
                 ):
                     dictionary[from_lang_term][lang] = to_lang_term
         return dictionary
@@ -641,7 +642,7 @@ class BaseString(Field[str | typing.Literal[False]]):
             # pylint: disable=not-callable
             new_translations = {
                 l: self.translate(
-                    lambda term: translation_dictionary.get(term, {l: None})[l],
+                    lambda term, td=translation_dictionary, l=l: td.get(term, {l: None})[l],
                     cache_value,
                 )
                 for l in old_translations

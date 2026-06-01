@@ -14,10 +14,12 @@ from odoo.libs.datetime.tz import timezone as get_timezone
 from odoo.tools import date_utils, get_lang
 
 from .... import decorators as api
-from ...._typing import DomainType, ModelType  # noqa: TC003 — runtime import required (PEP 649)
+from ...._typing import (
+    DomainType,
+    ModelType,
+)
 from ....constants import READ_GROUP_TIME_GRANULARITY
 from ....fields.temporal import Date, Datetime
-from ....parsing import parse_read_group_spec
 
 
 class _ReadGroupFillMixin:
@@ -219,7 +221,7 @@ class _ReadGroupFillMixin:
             formats: date -> %Y-%m-%d, datetime -> %Y-%m-%d %H:%M:%S
         :param int min_groups: minimal amount of required groups for the
             fill_temporal range (should be >= 1)
-        :rtype: list
+        :rtype: list[dict]
         :return: list
         """
         # min_groups is actively used by web clients (fill_temporal context key)

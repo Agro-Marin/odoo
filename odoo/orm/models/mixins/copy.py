@@ -176,7 +176,20 @@ class CopyMixin:
 
         """
         vals_list = self.with_context(active_test=False).copy_data(default)
-        new_records = self.create(vals_list)
-        for old_record, new_record in zip(self, new_records, strict=False):
+        # ``copy_data`` returns ``None`` for records already in the recursion
+        # guard's seen-map.  At the outer level this only fires for
+        # recordsets containing duplicate ids or callers that pre-populated
+        # ``__copy_data_seen`` in context.  Drop the ``None`` entries together
+        # with their originals so ``create`` never sees ``None`` and the
+        # strict-zip with ``new_records`` below still aligns.
+        pairs = [
+            (rec, vals)
+            for rec, vals in zip(self, vals_list, strict=True)
+            if vals is not None
+        ]
+        if not pairs:
+            return self.browse()
+        new_records = self.create([vals for _, vals in pairs])
+        for (old_record, _), new_record in zip(pairs, new_records, strict=True):
             old_record.copy_translations(new_record, excluded=default or ())
         return new_records

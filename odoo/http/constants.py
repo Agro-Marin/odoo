@@ -6,8 +6,12 @@ CORS_MAX_AGE = 60 * 60 * 24
 # The HTTP methods that do not require a CSRF validation.
 SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
 
-# The default csrf token lifetime, a salt against BREACH, one year
-CSRF_TOKEN_SALT = 60 * 60 * 24 * 365
+# The default csrf token lifetime (one year). When used as the
+# time-limit of :meth:`Request.csrf_token`, the embedded ``max_ts``
+# timestamp rolls over daily and effectively acts as a per-user salt,
+# defeating BREACH-style compression-ratio attacks that need a stable
+# token to recover bytes one at a time.
+CSRF_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
 
 # The default lang to use when the browser doesn't specify it
 DEFAULT_LANG = "en_US"
@@ -91,8 +95,22 @@ SESSION_ROTATION_INTERVAL = 60 * 60 * 3
 # made at the same time and all use the same old cookie.
 SESSION_DELETION_TIMER = 120
 
-# The amount of bytes of the session that will remain static and can be used
-# for calculating the csrf token and be stored inside the database.
+# URL paths for which automatic session rotation is disabled.
+# Websocket polling hits these endpoints many times per minute; rotating the
+# session there wastes a disk write on every call and reopens the soft-rotate
+# race window — rotation should fire on a real user action instead.
+SESSION_ROTATION_EXCLUDED_PATHS = (
+    "/websocket/on_closed",
+    "/websocket/peek_notifications",
+    "/websocket/update_bus_presence",
+)
+
+# The amount of bytes (characters) of the session id that remain stable
+# across a "soft" rotation. These first ``STORED_SESSION_BYTES`` characters
+# are used to compute the CSRF token (so it survives soft rotation) and
+# to correlate device-log rows. 42 base64-urlsafe characters yield about
+# 252 bits of entropy; see :meth:`FilesystemSessionStore.generate_key`
+# for the full collision analysis.
 STORED_SESSION_BYTES = 42
 
 # The cache duration for static content from the filesystem, one week.
@@ -104,9 +122,57 @@ STATIC_CACHE_LONG = 60 * 60 * 24 * 365
 
 
 # GeoIP / MaxMind — only available if geoip2 is installed.
-# maxminddb is a dependency of geoip2; import them together so except
-# clauses like ``except OSError, maxminddb.InvalidDatabaseError:`` never
-# crash with an AttributeError when maxminddb is None.
+# maxminddb is a transitive dependency of geoip2; we import them together
+# so either both modules are available or both are ``None``. Callers MUST
+# still guard code paths that reference ``maxminddb.InvalidDatabaseError``
+# or ``geoip2.errors.AddressNotFoundError`` with an ``if geoip2 is not None``
+# check — otherwise an ``AttributeError`` is raised when Python evaluates
+# the except-clause type expressions against ``None``.
+
+
+class _GeoIPNull:
+    """Chainable null sentinel returned by :class:`GeoIP` when geoip2 isn't installed.
+
+    Mimics an empty geoip2 record so chained access (``g.country.iso_code``,
+    ``g.location.latitude``) returns this same instance instead of raising,
+    while ``bool(g)`` and ``g == None`` are False/True respectively.
+    """
+    __slots__ = ()
+
+    def __getattr__(self, _name):
+        return self
+
+    def __bool__(self):
+        return False
+
+    def __eq__(self, other):
+        return other is self or other is None
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(None)
+
+    def __iter__(self):
+        return iter(())
+
+    def __len__(self):
+        return 0
+
+    def __getitem__(self, _key):
+        # Subdivisions[0] etc. are always gated by truthiness in callers.
+        raise IndexError
+
+    def __str__(self):
+        return ""
+
+    def __repr__(self):
+        return "<GeoIPNull>"
+
+
+_GEOIP_NULL = _GeoIPNull()
+
 try:
     import geoip2.database
     import geoip2.errors
@@ -118,5 +184,5 @@ try:
 except ImportError:
     geoip2 = None
     maxminddb = None
-    GEOIP_EMPTY_COUNTRY = None
-    GEOIP_EMPTY_CITY = None
+    GEOIP_EMPTY_COUNTRY = _GEOIP_NULL
+    GEOIP_EMPTY_CITY = _GEOIP_NULL

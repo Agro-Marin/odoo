@@ -856,9 +856,11 @@ class Field[T]:
                         document_kind=description,
                         document_model=records._name,
                     )
-                )
+                ) from e
         # assign final values to records
-        for record, value in zip(records, values, strict=False):
+        # values starts as list(records) and is transformed length-preserving,
+        # so strict=True catches a future refactor that breaks the invariant.
+        for record, value in zip(records, values, strict=True):
             record[self.name] = self._process_related(
                 value[self.related_field.name], record.env
             )
@@ -2094,8 +2096,10 @@ class Field[T]:
         # for record, value in zip(records._ids, values):
         #   field_cache.setdefault(record, value)
         # ```
+        # strict=True: caller's contract is len(records._ids) == len(values).
+        # Length mismatches raise ValueError instead of silently truncating.
         collections.deque(
-            map(field_cache.setdefault, records._ids, values, strict=False), maxlen=0
+            map(field_cache.setdefault, records._ids, values, strict=True), maxlen=0
         )
 
     def _update_cache(
@@ -2106,12 +2110,29 @@ class Field[T]:
 
         One can normally make a clean field dirty but not the other way around.
         Updating a dirty field without ``dirty=True`` is a programming error and
-        logs an error.
+        raises ``ValueError`` — silently overwriting a dirty value would lose
+        the pending write at the next flush.
 
         :param dirty: whether ``field`` must be made dirty on ``record`` after
             the update
+        :raises ValueError: when ``dirty=False`` and at least one of ``records``
+            currently has a dirty value for ``self``
         """
         env = records.env
+
+        # Reject overwrites of pending dirty values *before* mutating the
+        # cache.  See ``Cache.remove`` for the symmetric guard on the bulk
+        # invalidation path.
+        if self.is_column and not dirty:
+            dirty_ids = env._core.get_dirty(self)
+            if dirty_ids and not dirty_ids.isdisjoint(records._ids):
+                overlap = sorted(dirty_ids.intersection(records._ids))
+                raise ValueError(
+                    f"Field._update_cache: refusing to overwrite the dirty "
+                    f"value of {self} on records {overlap} without dirty=True; "
+                    f"the pending write would be lost"
+                )
+
         field_cache = self._get_cache(env)
         ids = records._ids
         if len(ids) <= 1:
@@ -2122,19 +2143,8 @@ class Field[T]:
             # batch update: push the loop into C via dict.fromkeys
             field_cache.update(dict.fromkeys(ids, cache_value))
 
-        # dirty only makes sense for stored column fields
-        if self.is_column:
-            if dirty:
-                env._core.mark_dirty(self, (id_ for id_ in records._ids if id_))
-            else:
-                dirty_ids = env._core.get_dirty(self)
-                if dirty_ids and not dirty_ids.isdisjoint(records._ids):
-                    _logger.error(
-                        "Field._update_cache() updating the value on %s.%s where dirty flag is already set",
-                        records,
-                        self.name,
-                        stack_info=True,
-                    )
+        if self.is_column and dirty:
+            env._core.mark_dirty(self, (id_ for id_ in records._ids if id_))
 
     ############################################################################
     #

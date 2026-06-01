@@ -7,6 +7,19 @@ from .constants import GEOIP_EMPTY_CITY, GEOIP_EMPTY_COUNTRY, geoip2, maxminddb
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+# Sentinel exception tuple used in the ``except`` clauses below. When
+# geoip2/maxminddb are not installed we cannot reference their exception
+# classes — evaluating ``maxminddb.InvalidDatabaseError`` against ``None``
+# would raise ``AttributeError`` at except-match time and replace the
+# original error. Falling back to ``OSError`` alone in that case keeps
+# the defensive fallback behaviour intact.
+_GEOIP_DB_ERRORS: tuple[type[BaseException], ...] = (
+    (OSError, maxminddb.InvalidDatabaseError) if maxminddb is not None else (OSError,)
+)
+_GEOIP_NOT_FOUND: type[BaseException] = (
+    geoip2.errors.AddressNotFoundError if geoip2 is not None else LookupError
+)
+
 
 class GeoIP(collections.abc.Mapping):
     """
@@ -44,11 +57,13 @@ class GeoIP(collections.abc.Mapping):
             root,
         )  # lazy import to avoid circular dependency
 
+        if geoip2 is None:
+            return GEOIP_EMPTY_CITY
         try:
             return root.geoip_city_db.city(self.ip)
-        except OSError, maxminddb.InvalidDatabaseError:
+        except _GEOIP_DB_ERRORS:
             return GEOIP_EMPTY_CITY
-        except geoip2.errors.AddressNotFoundError:
+        except _GEOIP_NOT_FOUND:
             return GEOIP_EMPTY_CITY
 
     @functools.cached_property
@@ -61,11 +76,13 @@ class GeoIP(collections.abc.Mapping):
             # the City class inherits from the Country class and the
             # city record is in cache already, save a geolocalization
             return self._city_record
+        if geoip2 is None:
+            return GEOIP_EMPTY_COUNTRY
         try:
             return root.geoip_country_db.country(self.ip)
-        except OSError, maxminddb.InvalidDatabaseError:
+        except _GEOIP_DB_ERRORS:
             return self._city_record
-        except geoip2.errors.AddressNotFoundError:
+        except _GEOIP_NOT_FOUND:
             return GEOIP_EMPTY_COUNTRY
 
     @property
@@ -86,7 +103,7 @@ class GeoIP(collections.abc.Mapping):
         raise AttributeError(f"{self} has no attribute {attr!r}")
 
     def __bool__(self) -> bool:
-        return self.country_name is not None
+        return bool(self.country_name)
 
     # Old dict API, undocumented for now, will be deprecated some day
     def __getitem__(self, item: str) -> Any:
