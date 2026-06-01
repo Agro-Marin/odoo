@@ -38,17 +38,27 @@ test("simple rendering", async () => {
     });
     await mountWithCleanup(MainComponentsContainer);
     expect("div.o-main-components-container").toHaveCount(1);
-    expect(".o-main-components-container").toHaveInnerHTML(`
-        <span>MainComponentA</span>
-        <span>MainComponentB</span>
-        <div class="o-overlay-container"></div>
-        <div></div>
-        <div class="o_notification_manager"></div>
-    `);
+    // ``clearRegistry`` removes our test additions but doesn't (and can't)
+    // unregister system-level main components that modules attach when
+    // their JS loads: ``o-overlay-container``, ``o_notification_manager``,
+    // ``o-mail-ChatHub``, ``editor_notification_manager``,
+    // ``o_upload_progress_toast`` etc.  Asserting the exact innerHTML
+    // therefore couples this test to whichever modules happen to be
+    // loaded in the unit-test bundle — every new system component
+    // breaks it.  Verify just that OUR two registry entries render.
+    expect(".o-main-components-container > span:first-child").toHaveText(
+        "MainComponentA",
+    );
+    expect(".o-main-components-container > span:nth-child(2)").toHaveText(
+        "MainComponentB",
+    );
 });
 
 test("unmounts erroring main component", async () => {
-    expect.assertions(6);
+    // Bumped from 6→7 after splitting the brittle ``toHaveInnerHTML``
+    // root assertion into per-child ``toHaveText`` checks (see comment
+    // below).
+    expect.assertions(7);
     expect.errors(1);
     onError((error) => {
         expect.step(error.reason.message);
@@ -82,12 +92,15 @@ test("unmounts erroring main component", async () => {
     });
     await mountWithCleanup(MainComponentsContainer);
     expect("div.o-main-components-container").toHaveCount(1);
-    expect(".o-main-components-container").toHaveInnerHTML(`
-        <span>MainComponentA</span><span>MainComponentB</span>
-        <div class="o-overlay-container"></div>
-        <div></div>
-        <div class="o_notification_manager"></div>
-    `);
+    // See ``simple rendering`` test for why exact-innerHTML assertions
+    // are too brittle in this fork — verify the two TEST components are
+    // present rather than asserting the full container contents.
+    expect(".o-main-components-container > span:first-child").toHaveText(
+        "MainComponentA",
+    );
+    expect(".o-main-components-container > span:nth-child(2)").toHaveText(
+        "MainComponentB",
+    );
     compA.state.shouldThrow = true;
     await animationFrame();
     expect.verifySteps([
@@ -96,12 +109,18 @@ test("unmounts erroring main component", async () => {
     ]);
     expect.verifyErrors(["BOOM"]);
 
-    expect(".o-main-components-container span").toHaveCount(1);
-    expect(".o-main-components-container span").toHaveInnerHTML("MainComponentB");
+    // After MainComponentA errors out, only MainComponentB should be
+    // left as a direct ``<span>`` child of the container.  System
+    // components (ChatHub, notification managers …) render as
+    // ``<div>``s, so the span count is still a safe discriminator.
+    expect(".o-main-components-container > span").toHaveCount(1);
+    expect(".o-main-components-container > span").toHaveText("MainComponentB");
 });
 
 test("unmounts erroring main component: variation", async () => {
-    expect.assertions(6);
+    // See sibling test — assertion count bumped 6→7 for the same
+    // split-into-two-children reason.
+    expect.assertions(7);
     expect.errors(1);
     onError((error) => {
         expect.step(error.reason.message);
@@ -135,12 +154,14 @@ test("unmounts erroring main component: variation", async () => {
     });
     await mountWithCleanup(MainComponentsContainer);
     expect("div.o-main-components-container").toHaveCount(1);
-    expect(".o-main-components-container").toHaveInnerHTML(`
-        <span>MainComponentA</span><span>MainComponentB</span>
-        <div class="o-overlay-container"></div>
-        <div></div>
-        <div class="o_notification_manager"></div>
-    `);
+    // See ``simple rendering`` test above for the brittle-innerHTML
+    // rationale: assert only on the two test components.
+    expect(".o-main-components-container > span:first-child").toHaveText(
+        "MainComponentA",
+    );
+    expect(".o-main-components-container > span:nth-child(2)").toHaveText(
+        "MainComponentB",
+    );
     compB.state.shouldThrow = true;
     await animationFrame();
     expect.verifySteps([
@@ -148,8 +169,8 @@ test("unmounts erroring main component: variation", async () => {
         "BOOM",
     ]);
     expect.verifyErrors(["BOOM"]);
-    expect(".o-main-components-container span").toHaveCount(1);
-    expect(".o-main-components-container span").toHaveInnerHTML("MainComponentA");
+    expect(".o-main-components-container > span").toHaveCount(1);
+    expect(".o-main-components-container > span").toHaveText("MainComponentA");
 });
 
 test("MainComponentsContainer re-renders when the registry changes", async () => {

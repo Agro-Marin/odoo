@@ -250,7 +250,13 @@ export function setupQUnit() {
      * browser_js is closed as soon as an error is logged.
      */
     QUnit.done(async (result) => {
-        await odoo.loader.checkErrorProm;
+        // Pre-2026 this awaited ``odoo.loader.checkErrorProm`` so the
+        // microtask-scheduled AMD error report ran before we scanned
+        // for ``.o_module_error``.  Post-ESM the loader no longer
+        // surfaces a Promise because dep-resolution errors are caught
+        // by esbuild at build time; the microtask drain below is kept
+        // as defense in depth for any other lingering async work.
+        await Promise.resolve();
         const moduleLoadingError = document.querySelector(".o_module_error");
         if (moduleLoadingError) {
             errorMessages.unshift(moduleLoadingError.innerText);

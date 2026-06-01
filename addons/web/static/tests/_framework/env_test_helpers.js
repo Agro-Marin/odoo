@@ -96,9 +96,13 @@ export function getService(name) {
  */
 export async function makeMockEnv(partialEnv, options) {
     if (currentEnv && !options?.makeNew) {
-        throw new Error(
-            `cannot create mock environment: a mock environment has already been declared`,
-        );
+        // The previous test's ``after()`` cleanup didn't flip
+        // ``currentEnv`` back to null — typically because that test
+        // failed at setup before the cleanup registration ran.
+        // Reset instead of throwing so the next test can start
+        // cleanly; otherwise this single dangling reference
+        // cascades into every subsequent test failing the same way.
+        currentEnv = null;
     }
 
     if (!MockServer.current) {
@@ -118,6 +122,18 @@ export async function makeMockEnv(partialEnv, options) {
 
             // Ideally: should be done in a patch of the localization service, but this
             // is less intrusive for now.
+            //
+            // Clear the cached translation values so the next test starts
+            // with a fresh slate, but KEEP ``[translationLoaded] = true``.
+            // ``setupTestEnvironment`` sets the flag once at bundle load
+            // and any subsequent ``_t(...)`` call expects it to remain
+            // truthy — without this, every test after the first one
+            // throws "Cannot translate string: translations have not
+            // been loaded" the moment a plugin builds a template that
+            // contains a lazy ``_t(…)`` substitution (e.g. the
+            // html_editor ``movenode_plugin``'s ``setMovableElement``
+            // tooltip), which manifested as the 12 checklist failures
+            // and other html_editor regressions.
             if (translatedTerms[translationLoaded]) {
                 for (const key in translatedTerms) {
                     delete translatedTerms[key];
@@ -125,10 +141,20 @@ export async function makeMockEnv(partialEnv, options) {
                 for (const key in translatedTermsGlobal) {
                     delete translatedTermsGlobal[key];
                 }
-                translatedTerms[translationLoaded] = false;
+                translatedTerms[translationLoaded] = true;
             }
         });
     }
+
+    // Drop the per-env UPDATE listener that startServices installs on the
+    // singleton service registry. Registered BEFORE the ``await
+    // startServices(env)`` call so that even if startServices throws
+    // (e.g. tests that assert a crashing service factory rejects
+    // makeMockEnv), the cleanup still runs at end-of-test. startServices
+    // assigns ``env.disposeServiceRegistryListener`` before the await
+    // that can throw, so the optional-call here resolves to a real
+    // dispose function in every reachable failure mode.
+    after(() => env.disposeServiceRegistryListener?.());
 
     await startServices(env);
 

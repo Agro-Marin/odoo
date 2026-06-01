@@ -2,7 +2,12 @@
 
 // ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
 
-import { globals } from "@odoo/hoot";
+import { afterEach, beforeEach, globals } from "@odoo/hoot";
+
+import { setupMockCurrencies } from "./mock_currency.hoot.js";
+import { makeSession } from "./mock_session.hoot.js";
+import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
+import { setupMockTemplates } from "./mock_templates.hoot.js";
 
 const { fetch: realFetch } = globals;
 
@@ -132,8 +137,174 @@ export function setupTestEnvironment() {
         return origAdd.call(this, key, value, { ...options, force: true });
     };
 
+    // 1b. Mark translations as loaded by default so OWL template
+    //     compilation doesn't throw "translations have not been loaded"
+    //     when a component with translatable text is mounted without
+    //     the caller first invoking allowTranslations(). Restores the
+    //     behaviour `legacy/patch_translations.js` provided to QUnit.
+    //     Tests that need the un-loaded state can reset it explicitly.
+    const translationModule = loader.modules.get("@web/core/l10n/translation");
+    if (translationModule?.translatedTerms && translationModule.translationLoaded) {
+        translationModule.translatedTerms[translationModule.translationLoaded] = true;
+    }
+
+    // 1c. Reset the ``user`` singleton between tests so its closure-bound
+    //     ``groupCache`` / ``accessRightCache`` don't leak across tests.
+    //     ``mock_user.hoot.js::mockUserFactory`` was the historical wiring
+    //     point but is invoked nowhere in the current test bootstrap —
+    //     without this hook, the first test calling
+    //     ``user.hasGroup("base.group_allow_export")`` warms a cache that
+    //     all later tests inherit, masking the ``has_group`` RPC that
+    //     ``stepAllNetworkCalls`` + ``verifySteps`` are written to assert.
+    const userModule = loader.modules.get("@web/services/user");
+    if (userModule?.user && userModule._makeUser) {
+        // ``_makeUser`` is destructive: it ``delete``s session keys after
+        // destructuring them. Reusing the module-scoped ``session`` for
+        // every reset would yield ``uid: undefined`` from the second test
+        // onward, suppressing every cached call (e.g. ``hasGroup`` short-
+        // circuits to ``Promise.resolve(false)``). Build a fresh mock
+        // session from the current ``serverState`` on each cycle so the
+        // recreated user always has a valid identity.
+        onServerStateChange(userModule.user, () =>
+            userModule._makeUser(makeSession(serverState)),
+        );
+    }
+
+    // 1d. Sync the ``@web/session`` singleton with ``serverState`` between
+    //     tests. Production code reads ``session.view_info[type]`` (e.g.
+    //     ``view.js::loadView``), but ``patchWithCleanup(serverState.view_info, …)``
+    //     doesn't propagate to the @web/session module without this wiring
+    //     — the historical ``mockSessionFactory`` was meant to install it
+    //     but is invoked nowhere. Without this, tests that register a new
+    //     view type (e.g. view.test.js's ``toy``) hit
+    //     ``Invalid view type: toy`` because the production lookup misses.
+    const sessionModule = loader.modules.get("@web/session");
+    if (sessionModule?.session) {
+        onServerStateChange(sessionModule.session, () => makeSession(serverState));
+    }
+
+    // 1e. Auto-cleanup of ``addEventListener`` attachments per test on
+    //     module-level event targets.
+    //
+    //     Odoo services have no destroy hook, so anything they bind to a
+    //     module-singleton target (``browser``, the various ``*Bus``
+    //     EventBus instances) persists for the lifetime of the page —
+    //     across a unified test bundle that is many tests' worth of
+    //     stale handlers.
+    //
+    //     Concrete failure caught in ``test_services``: ``hotkey_service``
+    //     attaches a fresh ``onKeydown`` on every service start. Each
+    //     closure captures its own ``registrations`` Map, but only the
+    //     FIRST test's closure handles the keydown (others either also
+    //     fire from stale closures or accumulate as dead handlers). When
+    //     ``commandService`` registers ``control+k → openMainPalette`` in
+    //     test N, the first test's stale ``hotkey_service`` is what fires
+    //     on press.
+    //
+    //     The same shape catches ``currencyService`` on ``rpcBus``: each
+    //     ``makeMockEnv`` registers a new ``RPC:RESPONSE`` listener, so
+    //     by test N a single ``unlink`` triggers N reload-currencies
+    //     calls (caught by ``currency_service.test.js::reload currencies
+    //     when updating a res.currency``).  Same hazard exists for
+    //     ``userBus``, ``routerBus``, ``pagerBus``.
+    //
+    //     This wraps each target's ``addEventListener`` to track calls
+    //     during the test, and ``afterEach`` removes everything attached
+    //     during it.  Listeners attached at MODULE LOAD (before the first
+    //     beforeEach) leave ``trackedListeners === null`` and are NOT
+    //     tracked — production listeners survive.
+    function trackTestListeners(target) {
+        const origAdd = target.addEventListener;
+        const origRemove = target.removeEventListener;
+        let trackedListeners = null;
+        // ``.call(target, ...)`` is required for unbound prototype methods
+        // (EventTarget); ``browser.addEventListener`` is already bound to
+        // ``window`` so its ``this`` is irrelevant — both work uniformly.
+        target.addEventListener = function (type, listener, options) {
+            if (trackedListeners) {
+                trackedListeners.push({ type, listener, options });
+            }
+            return origAdd.call(target, type, listener, options);
+        };
+        target.removeEventListener = function (type, listener, options) {
+            if (trackedListeners) {
+                const i = trackedListeners.findIndex(
+                    (t) => t.type === type && t.listener === listener,
+                );
+                if (i >= 0) {
+                    trackedListeners.splice(i, 1);
+                }
+            }
+            return origRemove.call(target, type, listener, options);
+        };
+        beforeEach(
+            () => {
+                trackedListeners = [];
+            },
+            { global: true },
+        );
+        afterEach(
+            () => {
+                if (!trackedListeners) {
+                    return;
+                }
+                for (const { type, listener, options } of trackedListeners) {
+                    origRemove.call(target, type, listener, options);
+                }
+                trackedListeners = [];
+            },
+            { global: true },
+        );
+    }
+    const browserModule = loader.modules.get("@web/core/browser/browser");
+    if (browserModule?.browser) {
+        trackTestListeners(browserModule.browser);
+    }
+    const rpcModule = loader.modules.get("@web/core/network/rpc");
+    if (rpcModule?.rpcBus) {
+        trackTestListeners(rpcModule.rpcBus);
+    }
+    const userBusModule = loader.modules.get("@web/services/user");
+    if (userBusModule?.userBus) {
+        trackTestListeners(userBusModule.userBus);
+    }
+    const routerModule = loader.modules.get("@web/core/browser/router");
+    if (routerModule?.routerBus) {
+        trackTestListeners(routerModule.routerBus);
+    }
+    const pagerModule = loader.modules.get("@web/components/pager/pager");
+    if (pagerModule?.pagerBus) {
+        trackTestListeners(pagerModule.pagerBus);
+    }
+
+    // 1f. Seed `@web/services/currency`'s in-memory `currencies` map
+    //     from `serverState.currencies` so monetary widgets format with
+    //     the expected currency symbol.  `mock_currency.hoot.js` was
+    //     historically a dead module-factory — `setupMockCurrencies`
+    //     rewrites it as a direct subscription.
+    setupMockCurrencies(loader);
+
+    // 1g. Rewrite every template's `<img src>` / `<iframe src>` to a
+    //     static placeholder, moving the original value to `data-src`,
+    //     so:
+    //     - the browser never issues a real HTTP request for an asset
+    //       Chrome's native loader can't be intercepted by the JS mock
+    //       server (`_onRoute "/web/image/..."`),
+    //     - tests can assert the computed URL via `data-src` without
+    //       waiting for or fighting the network.
+    //     `mock_templates.hoot.js` was historically a dead
+    //     module-factory — `setupMockTemplates` rewrites it as a direct
+    //     processor registration.
+    setupMockTemplates(loader);
+
     // 2. Remove app-specific services that require runtime state
-    //    not available in test context (e.g. pos_config_id).
+    //    not available in test context (e.g. pos_config_id).  These
+    //    services would otherwise REGISTER successfully but then crash
+    //    inside their ``start()`` body when they touch missing runtime
+    //    state.  Deleting them here is a pre-emptive removal at the
+    //    registry layer, distinct from the env.js cascade-skip which
+    //    handles services whose declared deps are missing — both
+    //    failure modes are guarded, at different layers.
     const serviceReg = registryModule.registry?.category?.("services");
     if (!serviceReg) {
         return;
@@ -147,23 +318,20 @@ export function setupTestEnvironment() {
         delete content[name];
     }
 
-    // 3. Cascade: remove services whose dependencies are now missing.
-    //    Prevents env.js "Some services could not be started" errors.
-    //    Registry entries are stored as [sequence, descriptor].
-    let changed = true;
-    while (changed) {
-        changed = false;
-        for (const [name, entry] of Object.entries(content)) {
-            const svc = Array.isArray(entry) ? entry[1] : entry;
-            for (const dep of svc?.dependencies || []) {
-                if (dep && !(dep in content)) {
-                    delete content[name];
-                    changed = true;
-                    break;
-                }
-            }
-        }
-    }
+    // Cascade-removal pass (formerly step 3) was deleted 2026-05-22.
+    // It walked the registry at framework-init time and removed every
+    // service with an unmet dep, attempting to prevent env.js's
+    // ``startServices`` from throwing ``Some services could not be
+    // started``.  The pass ran too early: test files lazy-load via
+    // dynamic ``import()`` AFTER framework init, so services
+    // registered by those imports (e.g. ``spreadsheet_dashboard_loader``
+    // via ``dashboard_loader.test.js``) slipped past the cascade and
+    // re-introduced the startup error every time ``startServices``
+    // hit them.  env.js now runs the same cascade at startServices
+    // time, when the registry is complete, so this pre-pass is
+    // redundant and was removed.  See env.js cascade-skip block
+    // (search for ``// Cascade-skip services whose declared
+    // dependencies cannot be met``).
 }
 
 export function clearServerModelCache() {

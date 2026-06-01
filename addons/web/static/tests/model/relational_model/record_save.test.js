@@ -17,6 +17,7 @@
 
 import { markRaw } from "@odoo/owl";
 import { describe, expect, test } from "@odoo/hoot";
+import { mockSendBeacon } from "@odoo/hoot-mock";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { FetchRecordError } from "@web/model/relational_model/errors";
 import { save } from "@web/model/relational_model/record_save";
@@ -72,21 +73,32 @@ function makeRecord({
         _values: markRaw({}),
         _checkValidity: () => validity,
         _getChanges: () => ({ ...changes }),
+        _clearChanges() {
+            this._changes = markRaw({});
+            this.dirty = false;
+        },
         _discard: () => {},
         _load: async () => {},
         _setData: () => {},
         model: {
             _closeUrgentSaveNotification: null,
-            _urgentSave: false,
+            // ``record_save.save`` reads ``model.urgentSave.isActive`` (see
+            // :model/relational_model/record_save.js:69) — the legacy
+            // ``_urgentSave: false`` shape was replaced by an observable
+            // object so the urgent-save UI can react to mode changes.
+            urgentSave: { isActive: false },
             useSendBeaconToSaveUrgently: false,
             env: { inDialog: false },
             load: async () => {},
             _updateConfig: () => {},
             _updateSimilarRecords: () => {},
             hooks: {
-                onWillSaveRecord: async () => willSaveResult,
-                onRecordSaved: async () => {},
-                onWillLoadRoot: () => {},
+                lifecycle: {
+                    onWillSaveRecord: async () => willSaveResult,
+                    onRecordSaved: async () => {},
+                    onWillLoadRoot: () => {},
+                },
+                ui: {},
             },
             orm: {
                 webSave:
@@ -263,5 +275,66 @@ describe("FetchRecordError on empty reload response", () => {
 
         expect(caughtError).toBeInstanceOf(FetchRecordError);
         expect(caughtError.resIds).toEqual([1]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Urgent save (sendBeacon path) — must include last_write_date in kwargs so
+// the server can reject the write under optimistic-locking. The normal-save
+// path sets kwargs.last_write_date at record_save.js:135; the urgent path
+// must mirror that or two users editing the same record can both close
+// their tabs and the later beacon silently overwrites the earlier write.
+// ---------------------------------------------------------------------------
+
+describe("urgent save (sendBeacon path)", () => {
+    test("includes string write_date as kwargs.last_write_date", async () => {
+        let capturedBlob = null;
+        mockSendBeacon((_url, blob) => {
+            capturedBlob = blob;
+            return true;
+        });
+
+        const rec = makeRecord({
+            resId: 7,
+            changes: { name: "Updated under urgent save" },
+        });
+        rec._values = markRaw({ write_date: "2026-05-01 12:00:00" });
+        rec.model.urgentSave.isActive = true;
+        rec.model.useSendBeaconToSaveUrgently = true;
+
+        const result = await save(rec, { reload: false });
+
+        expect(result).toBe(true);
+        expect(capturedBlob).not.toBe(null);
+        const payload = JSON.parse(await capturedBlob.text());
+        expect(payload.params.method).toBe("web_save");
+        expect(payload.params.kwargs.last_write_date).toBe("2026-05-01 12:00:00");
+    });
+
+    test("converts Luxon DateTime write_date via toISO() before sending", async () => {
+        let capturedBlob = null;
+        mockSendBeacon((_url, blob) => {
+            capturedBlob = blob;
+            return true;
+        });
+
+        // Minimal Luxon DateTime stub: only needs .toISO(), matching the
+        // type-narrowing logic at record_save.js:135 (the normal save path).
+        const luxonStub = { toISO: () => "2026-05-01T12:00:00.000-06:00" };
+
+        const rec = makeRecord({
+            resId: 7,
+            changes: { name: "Updated under urgent save" },
+        });
+        rec._values = markRaw({ write_date: luxonStub });
+        rec.model.urgentSave.isActive = true;
+        rec.model.useSendBeaconToSaveUrgently = true;
+
+        await save(rec, { reload: false });
+
+        const payload = JSON.parse(await capturedBlob.text());
+        expect(payload.params.kwargs.last_write_date).toBe(
+            "2026-05-01T12:00:00.000-06:00",
+        );
     });
 });

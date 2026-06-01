@@ -59,12 +59,12 @@ test("a component can be the  UI active element: simple usage", async () => {
 
     const comp = await mountWithCleanup(MyComponent);
 
-    expect(getService("ui").activeElement).toBe(queryOne("#owner"));
+    expect(/** @type {any} */ (getService("ui").activeElement)).toBe(queryOne("#owner"));
     expect("#owner input").toBeFocused();
     comp.hasRef = false;
     comp.render();
     await animationFrame();
-    expect(getService("ui").activeElement).toBe(document);
+    expect(/** @type {any} */ (getService("ui").activeElement)).toBe(document);
     expect(document.body).toBeFocused();
 });
 
@@ -156,7 +156,7 @@ test("do not become UI active element if no element to focus", async () => {
     }
 
     await mountWithCleanup(MyComponent);
-    expect(getService("ui").activeElement).toBe(document);
+    expect(/** @type {any} */ (getService("ui").activeElement)).toBe(document);
 });
 
 test("become UI active element if no element to focus but the container is focusable", async () => {
@@ -179,7 +179,7 @@ test("become UI active element if no element to focus but the container is focus
     }
 
     await mountWithCleanup(MyComponent);
-    expect(getService("ui").activeElement).toBe(queryOne("#idActiveElement"));
+    expect(/** @type {any} */ (getService("ui").activeElement)).toBe(queryOne("#idActiveElement"));
 });
 
 test("UI active element: trap focus - first or last tabable changes", async () => {

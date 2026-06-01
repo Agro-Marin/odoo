@@ -105,6 +105,12 @@ test("can translate a text node", async () => {
 
 test("[cache] write into the cache", async () => {
     patchWithCleanup(IndexedDB.prototype, {
+        // Force a cache miss so the write path runs. Without this, a previous
+        // test in the same browser session may have warmed the real IndexedDB,
+        // and the server response would be considered already-cached.
+        read() {
+            return undefined;
+        },
         write(table, key, value) {
             expect.step(`table: ${table}`);
             expect.step(`key: ${key}`);

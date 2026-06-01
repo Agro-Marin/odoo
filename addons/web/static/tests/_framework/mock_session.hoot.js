@@ -11,7 +11,7 @@ import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
 /**
  * @param {typeof serverState} serverState
  */
-const makeSession = ({
+export const makeSession = ({
     companies,
     db,
     lang,
@@ -28,7 +28,16 @@ const makeSession = ({
         debug: new URLSearchParams(location.search).get("debug"),
         lang,
     },
-    can_insert_in_spreadsheet: true,
+    // Production default is ``False`` (see ``core/spreadsheet/models/ir_http.py``);
+    // the flag only flips to ``True`` when the user has the relevant
+    // ``documents_spreadsheet`` / ``spreadsheet_dashboard_edition`` group
+    // (see those modules' ``ir_http.py``). Defaulting to ``true`` here
+    // makes every core/web list/search test that doesn't expect the
+    // ``Insert in spreadsheet`` static action-menu entry (display
+    // toolbar, list with delete="0", action menu ordering, m2m groupby
+    // variants…) fail by mismatched menu items. Spreadsheet's own tests
+    // that need the entry can opt in via ``patchWithCleanup(session,…)``.
+    can_insert_in_spreadsheet: false,
     db,
     registry_hash: "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0",
     home_action_id: false,

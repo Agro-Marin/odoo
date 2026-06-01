@@ -13058,6 +13058,7 @@ test(`editable list with fields with readonly modifier`, async () => {
 
 test.tags("desktop");
 test(`editable form alongside html field: click out to unselect the row`, async () => {
+    Foo._fields.html_field = fields.Html();
     Bar._fields.name = fields.Char();
 
     await mountView({
@@ -13065,7 +13066,7 @@ test(`editable form alongside html field: click out to unselect the row`, async 
         type: "form",
         arch: `
             <form>
-                <field name="text" widget="html"/>
+                <field name="html_field"/>
                 <field name="o2m">
                     <list editable="bottom">
                         <field name="name"/>
@@ -16168,9 +16169,16 @@ test(`list view with optional fields from local storage being the empty array`, 
     verifyHeaders(["foo", "reference"]);
     // open optional columns headers dropdown
     await contains(`table .o_optional_columns_dropdown button`).click();
-    expect(`.o-dropdown--menu span.dropdown-item`).toHaveCount(2, {
-        message: "dropdown has 2 optional column headers",
-    });
+    // Scope to optional-column entries: web_enterprise injects a
+    // ``dropdown-item-studio`` ("Add Custom Field") under the same dropdown
+    // when the action is loaded via the WebClient (mountWithCleanup +
+    // doAction triggers ``isStudioEditable()``); ``mountView`` mode does
+    // not.  Filtering by ``:not(.dropdown-item-studio)`` keeps the
+    // assertion stable across both runtimes.
+    expect(`.o-dropdown--menu span.dropdown-item:not(.dropdown-item-studio)`).toHaveCount(
+        2,
+        { message: "dropdown has 2 optional column headers" },
+    );
     // disable optional field "reference" (no optional column enabled)
     await contains(`.o-dropdown--menu span.dropdown-item input:eq(1)`).click();
     expect.verifySteps([

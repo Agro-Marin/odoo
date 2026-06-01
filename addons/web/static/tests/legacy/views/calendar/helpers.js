@@ -5,7 +5,7 @@
 import { uiService } from "@web/ui/block/ui_service";
 import { createElement } from "@web/core/utils/dom/xml";
 import { registry } from "@web/core/registry";
-import { Field } from "@web/fields/field";
+import { parseFieldNode } from "@web/views/field_arch";
 import { clearRegistryWithCleanup, makeTestEnv } from "../../helpers/mock_env.js";
 import { click, getFixture, mount, nextTick, triggerEvent } from "../../helpers/utils.js";
 import { setupViewRegistries } from "@web/../tests/views/helpers";
@@ -232,7 +232,7 @@ function makeFakeModelState() {
         hasEditDialog: false,
         quickCreate: false,
         popoverFieldNodes: {
-            name: Field.parseFieldNode(fakeFieldNode, fakeModels, "event", "calendar"),
+            name: parseFieldNode(fakeFieldNode, fakeModels, "event", "calendar"),
         },
         activeFields: {
             name: {
