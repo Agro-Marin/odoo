@@ -80,11 +80,11 @@ class IrModuleModule(models.Model):
         translation_importer.save(overwrite=overwrite)
 
     @api.depends('name')
-    def _get_latest_version(self):
-        imported_modules = self.filtered(lambda m: m.imported and m.latest_version)
+    def _compute_manifest_version(self):
+        imported_modules = self.filtered(lambda m: m.imported and m.db_version)
         for module in imported_modules:
-            module.installed_version = module.latest_version
-        super(IrModuleModule, self - imported_modules)._get_latest_version()
+            module.manifest_version = module.db_version
+        super(IrModuleModule, self - imported_modules)._compute_manifest_version()
 
     @api.depends('icon')
     def _get_icon_image(self):
@@ -122,7 +122,7 @@ class IrModuleModule(models.Model):
             values['icon'] = '/' + icon_path
         except OSError:
             pass  # keep the default icon
-        values['latest_version'] = terp.version
+        values['db_version'] = terp.version
         if self.env.context.get('data_module'):
             values['module_type'] = 'industries'
         if with_demo:

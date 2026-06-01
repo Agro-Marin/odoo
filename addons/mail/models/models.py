@@ -93,8 +93,8 @@ class Base(models.AbstractModel):
         for record, record_operation in document_operations.items():
             operation_documents[record_operation] += record
         # force prefetch in a post-loop as recordset concatenation may lose it
-        for records in operation_documents.values():
-            records = records.with_prefetch(self.ids)
+        for operation, records in operation_documents.items():
+            operation_documents[operation] = records.with_prefetch(self.ids)
         return operation_documents
 
     # ------------------------------------------------------------

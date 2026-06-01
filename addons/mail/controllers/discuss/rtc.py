@@ -176,6 +176,7 @@ class RtcController(http.Controller):
             data,
             headers=[
                 ("Content-Type", "application/javascript"),
+                ("X-Content-Type-Options", "nosniff"),
                 ("Cache-Control", f"max-age={http.STATIC_CACHE}"),
             ],
         )

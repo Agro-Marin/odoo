@@ -41,10 +41,14 @@ export const multiTabFallbackService = {
             }
             // Check who's next.
             const now = new Date().getTime();
-            const lastPresenceByTab =
-                JSON.parse(
-                    localStorage.getItem("multi_tab_service.lastPresenceByTab"),
-                ) ?? {};
+            // ``JSON.parse(localStorage.getItem(missingKey))`` returns
+            // ``null`` on real localStorage but throws ``"undefined" is
+            // not valid JSON`` when test patches return ``undefined``.
+            // ``?? {}`` only catches null/undefined, not exceptions.
+            // Coerce the raw value before parsing.
+            const lastPresenceByTab = JSON.parse(
+                localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+            );
             const heartbeatKillOld = now - HEARTBEAT_KILL_OLD_PERIOD;
             let newMain;
             for (const [tab, lastPresence] of Object.entries(lastPresenceByTab)) {
@@ -76,10 +80,14 @@ export const multiTabFallbackService = {
             let heartbeatValue = parseInt(
                 localStorage.getItem("multi_tab_service.heartbeat") ?? 0,
             );
-            const lastPresenceByTab =
-                JSON.parse(
-                    localStorage.getItem("multi_tab_service.lastPresenceByTab"),
-                ) ?? {};
+            // ``JSON.parse(localStorage.getItem(missingKey))`` returns
+            // ``null`` on real localStorage but throws ``"undefined" is
+            // not valid JSON`` when test patches return ``undefined``.
+            // ``?? {}`` only catches null/undefined, not exceptions.
+            // Coerce the raw value before parsing.
+            const lastPresenceByTab = JSON.parse(
+                localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+            );
             if (heartbeatValue + HEARTBEAT_OUT_OF_DATE_PERIOD < now) {
                 // Heartbeat is out of date. Electing new main.
                 startElection();
@@ -141,10 +149,14 @@ export const multiTabFallbackService = {
          */
         function unregister() {
             clearTimeout(heartbeatTimeout);
-            const lastPresenceByTab =
-                JSON.parse(
-                    localStorage.getItem("multi_tab_service.lastPresenceByTab"),
-                ) ?? {};
+            // ``JSON.parse(localStorage.getItem(missingKey))`` returns
+            // ``null`` on real localStorage but throws ``"undefined" is
+            // not valid JSON`` when test patches return ``undefined``.
+            // ``?? {}`` only catches null/undefined, not exceptions.
+            // Coerce the raw value before parsing.
+            const lastPresenceByTab = JSON.parse(
+                localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+            );
             delete lastPresenceByTab[tabId];
             localStorage.setItem(
                 "multi_tab_service.lastPresenceByTab",
@@ -163,9 +175,15 @@ export const multiTabFallbackService = {
         browser.addEventListener("storage", onStorage);
 
         // REGISTER THIS TAB
-        const lastPresenceByTab =
-            JSON.parse(localStorage.getItem("multi_tab_service.lastPresenceByTab")) ??
-            {};
+        // ``getItem`` returns ``null`` in real localStorage which
+        // ``JSON.parse`` accepts (-> null), but test patches sometimes
+        // return ``undefined`` for missing keys. ``JSON.parse(undefined)``
+        // throws ``"undefined" is not valid JSON``; ``??`` doesn't catch
+        // exceptions. Coerce to a known-safe fallback string before
+        // parsing.
+        const lastPresenceByTab = JSON.parse(
+            localStorage.getItem("multi_tab_service.lastPresenceByTab") || "{}",
+        );
         lastPresenceByTab[tabId] = now;
         localStorage.setItem(
             "multi_tab_service.lastPresenceByTab",

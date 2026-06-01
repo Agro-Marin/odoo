@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import hootDom from "@odoo/hoot-dom";
-import { enableEventLogs, setupEventActions } from "@web/../lib/hoot-dom/helpers/events";
+import { enableEventLogs, setupEventActions } from "@odoo/hoot-dom-helpers-events";
 import { browser } from "@web/core/browser/browser";
 import { Macro } from "@web/core/utils/macro";
 import { config as transitionConfig } from "@web/components/transition";

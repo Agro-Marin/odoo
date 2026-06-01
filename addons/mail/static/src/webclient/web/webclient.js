@@ -15,6 +15,12 @@ patch(WebClient.prototype, {
         super.setup();
         this.orm = useService("orm");
         this.notification = useService("notification");
+        // Trigger init_messaging (``/mail/data``) now that we're in the
+        // backend WebClient context.  The mail.store service no longer
+        // fires this from its ``start()``, so contexts without a
+        // WebClient (e.g. isolated unit-test component mounts via
+        // ``mountView``) don't incidentally hit the route.
+        this.env.services["mail.store"]?.initialize();
         if (this._canSendNativeNotification) {
             this.env.bus.addEventListener(
                 "WEB_CLIENT_READY",

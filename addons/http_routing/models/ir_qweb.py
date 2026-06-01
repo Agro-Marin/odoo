@@ -26,8 +26,9 @@ Then:
 
 Failure to meet this expectation can lead to downstream problems, e.g.
 here inside of http_routing's ir.qweb. Solutions vary, the one used
-inside of #99667 is to use the request.borrow_request context manager to
-temporary hide the incoming http request.
+inside of #99667 is to use the ``odoo.http.borrow_request`` context
+manager (a module-level function, not a method on ``request``) to
+temporarily hide the incoming http request.
 """
 
 

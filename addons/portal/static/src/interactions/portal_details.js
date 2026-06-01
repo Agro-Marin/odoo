@@ -21,19 +21,18 @@ export class PortalDetails extends Interaction {
     adaptAddressForm() {
         const countryEl = this.el.querySelector("select[name=country_id]");
         const countryID = countryEl.value || 0;
-        for (const optionEl of this.stateOptionEls) {
-            optionEl.remove();
-        }
         let nb = 0;
         for (const el of this.stateOptionEls) {
             if (el.dataset.country_id === countryID) {
                 el.classList.remove("d-none");
-                this.stateEl.appendChild(el);
+                this.stateEl.appendChild(el);  // appendChild is a move when already attached
                 nb++;
+            } else {
+                el.remove();
             }
         }
         this.stateEl.classList.remove("d-none");
-        this.stateEl.parentElement.classList[nb >= 1 ? "remove" : "add"]("d-none");
+        this.stateEl.parentElement.classList.toggle("d-none", nb === 0);
     }
 }
 

@@ -88,7 +88,19 @@ export class ChatHub extends Record {
 
     async _load(str) {
         /** @type {{ opened: Object[], folded: Object[] }} */
-        const { opened = [], folded = [] } = JSON.parse(str);
+        let parsed;
+        // Defensive: callers pass either the localStorage value (which can
+        // be the literal string "undefined" from a polluted setItem) or
+        // the default "{}". A bare ``JSON.parse(str)`` crashes the entire
+        // chat-hub init on garbage, which then aborts the store insert
+        // and breaks unrelated calendar / form tests that just happen to
+        // mount the webclient after a polluted run.
+        try {
+            parsed = str && str !== "undefined" ? JSON.parse(str) : {};
+        } catch {
+            parsed = {};
+        }
+        const { opened = [], folded = [] } = parsed;
         const hasInvalidData =
             opened.some((data) => !data.id || !data.model) ||
             folded.some((data) => !data.id || !data.model);

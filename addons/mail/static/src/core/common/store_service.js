@@ -13,13 +13,28 @@ import {
     prettifyMessageText,
 } from "@mail/utils/common/format";
 import { compareDatetime } from "@mail/utils/common/misc";
+// Side-effect imports: the bundle graph must include every dependency
+// referenced by ``mail.store`` through a runtime string identifier so
+// that esbuild does not tree-shake them when ``store_service.js`` is
+// pulled into a satellite bundle (e.g. ``web.assets_tests``) via mail
+// tour files.
+//
+// - ``im_status_service``: declared in ``dependencies`` below; without
+//   it service startup fails with "Missing dependencies: im_status".
+// - ``./_models.js``: index of every Record subclass in ``core/common/``.
+//   ``Store`` declares fields with string ``targetModel`` (e.g.
+//   ``fields.One("res.partner")``); ``makeStore`` resolves those by
+//   iterating ``modelRegistry`` and throws "No target model X exists"
+//   if the corresponding ``*_model.js`` file was not imported.
+import "@mail/core/common/im_status_service";
+import "./_models.js";
 import { reactive } from "@odoo/owl";
 import { loader } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
+import { ConnectionLostError, rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
@@ -295,10 +310,53 @@ export class Store extends BaseStore {
         return dataRequest._resultDef;
     }
 
-    /** Import data received from init_messaging */
+    /**
+     * Import data received from init_messaging.
+     *
+     * Idempotent: only the first call issues the RPC; subsequent calls
+     * resolve against the same ``isReady`` Deferred.  The call site is
+     * now the mount of the backend WebClient (or the explicit trigger
+     * in the livechat embed) rather than ``start()``, so tests that
+     * mount an isolated component (e.g. ``mountView`` for a form view)
+     * do not incidentally hit ``/mail/data`` through the mail.store
+     * service boot.
+     */
     async initialize() {
-        await this.fetchStoreData("init_messaging");
-        this.isReady.resolve();
+        if (this._initializePromise) {
+            return this._initializePromise;
+        }
+        this._initializePromise = (async () => {
+            // ``init_messaging`` is idempotent and the only path that
+            // populates ``store.isReady``.  Web-client bootstrap fires it
+            // very early (WebClient.setup), so a transient network race
+            // (server still warming after a fresh DB install, fetch
+            // aborted by an early lifecycle event, intermittent 5xx) can
+            // surface as a ``ConnectionLostError`` that:
+            //   1. propagates as an unhandled rejection from this
+            //      fire-and-forget call site, which the global error
+            //      service logs as ``console.error`` — failing
+            //      ``HttpCase`` tour tests that consider any browser
+            //      error fatal (e.g. test_main_flows.TestUi.
+            //      test_01_main_flow_tour was failing here in steady
+            //      state); and
+            //   2. leaves ``isReady`` unresolved forever, so chat /
+            //      notification / discuss components hang on
+            //      ``await store.isReady``.
+            // A single retry covers the first-request-after-cold-boot
+            // window without masking persistent connection loss — if
+            // the second attempt also fails, the error propagates as
+            // before and the user (or the test) sees the real problem.
+            try {
+                await this.fetchStoreData("init_messaging");
+            } catch (error) {
+                if (!(error instanceof ConnectionLostError)) {
+                    throw error;
+                }
+                await this.fetchStoreData("init_messaging");
+            }
+            this.isReady.resolve();
+        })();
+        return this._initializePromise;
     }
 
     /**
@@ -864,7 +922,14 @@ export const storeService = {
          */
         store.self_guest ??= { id: -1 };
         store.settings ??= {};
-        store.initialize();
+        // ``initialize()`` (the ``/mail/data`` init_messaging RPC) is no
+        // longer triggered eagerly from service ``start()``.  It now fires
+        // from the WebClient patch (backend) or the livechat embed
+        // service, so contexts that boot the mail.store service without
+        // a user-facing mail surface (e.g. unit tests mounting an
+        // isolated view) don't incidentally hit ``/mail/data``.  Any
+        // component that needs init_messaging data MUST either await
+        // ``store.isReady`` or call ``store.initialize()`` explicitly.
         store.onStarted();
         return store;
     },

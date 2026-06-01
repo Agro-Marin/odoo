@@ -7,7 +7,7 @@ import { CALL_PROMOTE_FULLSCREEN } from "@mail/discuss/call/common/thread_model_
 import { monitorAudio } from "@mail/utils/common/media_monitoring";
 import { assignDefined, closeStream, onChange } from "@mail/utils/common/misc";
 import { reactive, toRaw } from "@odoo/owl";
-import { loadBundle, loadJS } from "@web/core/assets";
+import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import { isBrowserSafari, isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/l10n/translation";
@@ -16,8 +16,6 @@ import { registry } from "@web/core/registry";
 import { pick } from "@web/core/utils/collections/objects";
 import { memoize } from "@web/core/utils/functions";
 import { debounce } from "@web/core/utils/timing";
-import { url } from "@web/core/utils/urls";
-
 import { CallAction } from "./call_actions.js";
 let sequence = 1;
 const getSequence = () => sequence++;
@@ -780,11 +778,15 @@ export class Rtc extends Record {
             this.clear();
             return;
         }
-        await Promise.resolve(() =>
-            loadJS(
-                url("/mail/static/lib/selfie_segmentation/selfie_segmentation.js"),
-            ).catch(() => {}),
-        );
+        // Note: ``selfie_segmentation.js`` is shipped eagerly via
+        // ``web.assets_backend`` (mail/__manifest__.py defines it under
+        // the bundle so ``window.SelfieSegmentation`` is available
+        // before any call starts).  A previous in-place ``loadJS``
+        // wrapped in ``Promise.resolve(() => loadJS(...))`` was a
+        // no-op (the arrow function was the resolved value, never
+        // invoked), and even when fixed would have been redundant.
+        // Removed 2026-05-10 — see machine_doc_v1/CONVENTIONS.md
+        // §"Lazy-loading vendored libraries".
         if (this.state.hasPendingRequest) {
             return;
         }

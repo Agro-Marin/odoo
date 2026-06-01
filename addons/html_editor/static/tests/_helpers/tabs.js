@@ -5,13 +5,23 @@ export const TAB_WIDTH = 40;
 
 let charWidths = undefined;
 let indentWidths = undefined;
+let widthsPromise = undefined;
 
+// Measures block indentations and per-character widths once, to predict the tab
+// widths the editor renders. Must run AFTER web fonts have loaded: the blocks
+// are created first (so the browser requests their fonts -- headings use a
+// distinct web font), then we await ``document.fonts.ready`` before measuring.
+// Measuring during font load yields fallback-font metrics that diverge from the
+// editor's real rendering, visibly so for large heading fonts, which would
+// break the sub-pixel tab-width assertions.
 function setWidths() {
-    if (charWidths && indentWidths) {
-        // charWidths and indentWidths are global variables that need to be set
-        // only once.
-        return;
+    if (!widthsPromise) {
+        widthsPromise = measureWidths();
     }
+    return widthsPromise;
+}
+
+async function measureWidths() {
     charWidths = {};
     indentWidths = {};
 
@@ -22,11 +32,14 @@ function setWidths() {
 
     const referenceBlock = document.createElement("p");
     rootDiv.append(referenceBlock);
-    const referenceLeft = referenceBlock.getBoundingClientRect().left;
 
     const range = new Range();
     const tags = ["p", "h1", "blockquote", "li"];
     const chars = ["a", "b", "c", "d", "e", "f"];
+
+    // Create every block up front so the browser starts loading their fonts
+    // before we wait for them.
+    const elements = {};
     for (const tag of tags) {
         let element;
         if (tag === "li") {
@@ -38,37 +51,41 @@ function setWidths() {
             element = document.createElement(tag);
             rootDiv.append(element);
         }
+        element.textContent = "|";
+        elements[tag] = element;
+    }
+
+    // Wait for the requested fonts to finish loading before measuring.
+    await document.fonts.ready;
+
+    const referenceLeft = referenceBlock.getBoundingClientRect().left;
+    for (const tag of tags) {
+        const element = elements[tag];
 
         // Calculate the base indentation (result of margin, padding and border)
         // for the given block.
         element.textContent = "|";
         range.selectNodeContents(element);
-        const indentWidth = range.getBoundingClientRect().left - referenceLeft;
-        indentWidths[tag] = indentWidth;
+        indentWidths[tag] = range.getBoundingClientRect().left - referenceLeft;
 
         // Calculate the width of each char in the given block.
         charWidths[tag] = {};
         for (const char of chars) {
             element.textContent = char;
             range.selectNodeContents(element);
-            const width = range.getBoundingClientRect().width;
-            charWidths[tag][char] = width;
+            charWidths[tag][char] = range.getBoundingClientRect().width;
         }
     }
     rootDiv.remove();
 }
 
-export function getCharWidth(tag, char) {
-    if (!charWidths) {
-        setWidths();
-    }
+export async function getCharWidth(tag, char) {
+    await setWidths();
     return charWidths[tag][char];
 }
 
-export function getIndentWidth(tag) {
-    if (!indentWidths) {
-        setWidths();
-    }
+export async function getIndentWidth(tag) {
+    await setWidths();
     return indentWidths[tag];
 }
 

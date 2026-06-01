@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { markRaw, markup } from "@odoo/owl";
-import { Reactive } from "@web/core/utils/reactive";
+import { SignalStore } from "@web/core/utils/reactive";
 
 function tryParseJSON(jsonString) {
     try {
@@ -53,7 +53,7 @@ class DocAPIError extends Error {
     }
 }
 
-export class ModelStore extends Reactive {
+export class ModelStore extends SignalStore {
     constructor() {
         super();
 

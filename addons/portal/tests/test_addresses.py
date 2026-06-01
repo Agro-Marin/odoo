@@ -1,12 +1,13 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo.http import Request
+from odoo.libs.web import urls
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import JsonRpcException
 from odoo.tools import mute_logger
-from odoo.libs.web import urls
 
 from odoo.addons.base.tests.common import BaseCommon
+from odoo.addons.portal.controllers.portal import CustomerPortal
 
 
 @tagged('-at_install', 'post_install')
@@ -307,3 +308,44 @@ class TestPortalAddresses(BaseCommon, HttpCase):
             self.archive_url, params={'partner_id': child_partner.id},
         )
         self.assertFalse(child_partner.active)
+
+    def test_zipcode_alias_is_consumed_from_extra_form_data(self):
+        """``zipcode`` aliases to ``zip`` AND is dropped from extra_form_data.
+
+        Regression: before the fix, _parse_form_data would copy ``zipcode``
+        into ``extra_form_data`` (because it is not a partner field) and then
+        only delete it from ``form_data`` when aliasing. Any subclass that
+        overrode ``_handle_extra_form_data`` would observe a stale
+        ``zipcode`` entry that had already been consumed.
+        """
+        captured = {}
+
+        original = CustomerPortal._handle_extra_form_data
+
+        def spy(controller_self, extra_form_data, address_values):
+            captured["extra"] = dict(extra_form_data)
+            captured["address"] = dict(address_values)
+            return original(controller_self, extra_form_data, address_values)
+
+        self.patch(CustomerPortal, "_handle_extra_form_data", spy)
+
+        self.authenticate(self.portal_user.login, self.portal_user.login)
+        csrf_token = Request.csrf_token(self)
+        values = {**self.default_address_values}
+        values.pop("zip")
+        values["zipcode"] = "9999"
+
+        res = self._submit_address_values({
+            **values,
+            "csrf_token": csrf_token,
+            "partner_id": self.portal_user.partner_id.id,
+        })
+
+        self.assertEqual(res, {"redirectUrl": "/my/addresses"})
+        self.assertEqual(self.portal_user.partner_id.zip, "9999")
+        self.assertIn("zip", captured["address"])
+        self.assertNotIn(
+            "zipcode", captured["extra"],
+            "zipcode was already aliased to zip and should not be reported "
+            "as an unmapped extra form field",
+        )
