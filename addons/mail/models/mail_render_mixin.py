@@ -474,8 +474,10 @@ class MailRenderMixin(models.AbstractModel):
                     variables,
                     **options,
                 )
-                # remove the rendered tag <div> that was added in order to wrap potentially multiples nodes into one.
-                render_result = render_result[5:-6]
+                # remove the rendered <div> wrapper added by create_parent="div"
+                render_result = render_result.removeprefix("<div>").removesuffix(
+                    "</div>"
+                )
             except Exception as e:
                 if isinstance(e, QWebError) and isinstance(
                     e.__cause__, PermissionError
@@ -509,6 +511,12 @@ class MailRenderMixin(models.AbstractModel):
         """
         records = self.env[model].browse(res_ids)
         result = {}
+        # normalize the HTML once (add a parent div to avoid modification of
+        # the template), then strip it back. Idempotent — hoist out of the loop
+        # to avoid re-normalizing per record.
+        normalized_src = html_normalize(f"<div>{template_src}</div>")
+        if normalized_src.startswith("<div>") and normalized_src.endswith("</div>"):
+            normalized_src = normalized_src.removeprefix("<div>").removesuffix("</div>")
         for record in records:
 
             def replace(match, record=record):
@@ -531,16 +539,11 @@ class MailRenderMixin(models.AbstractModel):
                 value = escape(value or "")
                 return value if tag.lower() == "t" else f"<{tag}>{value}</{tag}>"
 
-            # normalize the HTML (add a parent div to avoid modification of the template)
-            template_src = html_normalize(f"<div>{template_src}</div>")
-            if template_src.startswith("<div>") and template_src.endswith("</div>"):
-                template_src = template_src[5:-6]
-
             result[record.id] = Markup(
                 re.sub(
-                    r"""<(\w+)[\s|\n]+t-out=[\s|\n]*(\'|\")((\w|\.)+)(\2)[\s|\n]*((\/>)|(>[\s|\n]*([^<>]*?))[\s|\n]*<\/\1>)""",
+                    r"""<(\w+)\s+t-out=\s*(\'|\")((\w|\.)+)(\2)\s*((\/>)|(>\s*([^<>]*?))\s*<\/\1>)""",
                     replace,
-                    template_src,
+                    normalized_src,
                     flags=re.DOTALL,
                 )
             )

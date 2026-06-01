@@ -81,7 +81,7 @@ class ChannelController(http.Controller):
         channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
         if not channel:
             raise NotFound
-        unknown_members = self.env["discuss.channel.member"].search(
+        unknown_members = request.env["discuss.channel.member"].search(
             domain=[
                 ("id", "not in", known_member_ids),
                 ("channel_id", "=", channel.id),
@@ -243,6 +243,7 @@ class ChannelController(http.Controller):
         type="jsonrpc",
         auth="public",
     )
+    @add_guest_to_context
     def discuss_channel_sub_channel_create(
         self, parent_channel_id, from_message_id=None, name=None
     ):

@@ -14,7 +14,6 @@
             <t t-else="">
                 <NameAndSignature t-props="nameAndSignatureProps"/>
                 <form method="POST">
-                    <input type="hidden" name="csrf_token" t-att-value="csrfToken"/>
                     <div class="o_web_sign_name_and_signature"/>
                     <div class="o_portal_sign_controls my-3">
                         <div t-if="state.error" class="o_portal_sign_error_msg alert alert-danger" role="status">

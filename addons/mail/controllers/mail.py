@@ -20,6 +20,25 @@ _logger = logging.getLogger(__name__)
 class MailController(http.Controller):
     _cp_path = "/mail"
 
+    # Legacy FontAwesome / odoo_ui_icons character-code mapping for /font_to_img.
+    # Maps legacy Twitter codes to their X replacement and lists new icons that
+    # require the odoo_ui_icons font instead of FontAwesome.
+    _OI_FONT_CHAR_CODES = {
+        # Replacement of existing Twitter icons by X icons (the route here
+        # receives the old icon code always, but the replacement one is also
+        # considered for consistency anyway).
+        "61569": "59464",  # F081 -> E848: fa-twitter-square
+        "61593": "59418",  # F099 -> E81A: fa-twitter
+        # Addition of new icons
+        "59407": "59407",  # E80F: fa-strava
+        "59409": "59409",  # E811: fa-discord
+        "59416": "59416",  # E818: fa-threads
+        "59417": "59417",  # E819: fa-kickstarter
+        "59419": "59419",  # E81B: fa-tiktok
+        "59420": "59420",  # E81C: fa-bluesky
+        "59421": "59421",  # E81D: fa-google-play
+    }
+
     @classmethod
     def _redirect_to_generic_fallback(cls, model, res_id, access_token=None, **kwargs):
         if request.session.uid is None:
@@ -120,7 +139,11 @@ class MailController(http.Controller):
                 # to any record that the user can access, regardless of currently visible
                 # records based on the "currently allowed companies".
                 cids_str = request.cookies.get("cids", str(user.company_id.id))
-                cids = [int(cid) for cid in cids_str.split("-")]
+                try:
+                    cids = [int(cid) for cid in cids_str.split("-")]
+                except ValueError:
+                    # malformed cookie -> fall back to user's main company
+                    cids = [user.company_id.id]
                 try:
                     record_sudo.with_user(uid).with_context(
                         allowed_company_ids=cids
@@ -351,9 +374,6 @@ class MailController(http.Controller):
         Awesome font by default) and is used only for mass mailing because
         custom fonts are not supported in mail.
 
-        NOTE: FA7 ships woff2 only; PIL's ImageFont.truetype() requires a
-        TTF/OTF file. The default font path will fail until a compatible
-        font file is added. Callers can pass an explicit ``font`` path.
         :param icon : decimal encoding of unicode character
         :param color : RGB code of the color
         :param bg : RGB code of the background color
@@ -366,25 +386,9 @@ class MailController(http.Controller):
         :returns PNG image converted from given font
         """
         # For custom icons, use the corresponding custom font
-        if icon.isdigit():
-            oi_font_char_codes = {
-                # Replacement of existing Twitter icons by X icons (the route
-                # here receives the old icon code always, but the replacement
-                # one is also considered for consistency anyway).
-                "61569": "59464",  # F081 -> E848: fa-twitter-square
-                "61593": "59418",  # F099 -> E81A: fa-twitter
-                # Addition of new icons
-                "59407": "59407",  # E80F: fa-strava
-                "59409": "59409",  # E811: fa-discord
-                "59416": "59416",  # E818: fa-threads
-                "59417": "59417",  # E819: fa-kickstarter
-                "59419": "59419",  # E81B: fa-tiktok
-                "59420": "59420",  # E81C: fa-bluesky
-                "59421": "59421",  # E81D: fa-google-play
-            }
-            if icon in oi_font_char_codes:
-                icon = oi_font_char_codes[icon]
-                font = "/web/static/lib/odoo_ui_icons/fonts/odoo_ui_icons.woff"
+        if icon.isdigit() and icon in self._OI_FONT_CHAR_CODES:
+            icon = self._OI_FONT_CHAR_CODES[icon]
+            font = "/web/static/lib/odoo_ui_icons/fonts/odoo_ui_icons.woff"
 
         size = max(width, height, 1) if width else size
         width = width or size
@@ -426,13 +430,14 @@ class MailController(http.Controller):
         response = Response()
         response.mimetype = "image/png"
         response.data = output.getvalue()
-        response.headers["Cache-Control"] = "public, max-age=604800"
+        # 7-day public cache; keep Cache-Control and Expires in sync (RFC 7234)
+        max_age_seconds = 604800
+        response.headers["Cache-Control"] = f"public, max-age={max_age_seconds}"
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST"
-        response.headers["Connection"] = "close"
         response.headers["Date"] = time.strftime("%a, %d-%b-%Y %T GMT", time.gmtime())
         response.headers["Expires"] = time.strftime(
-            "%a, %d-%b-%Y %T GMT", time.gmtime(time.time() + 604800 * 60)
+            "%a, %d-%b-%Y %T GMT", time.gmtime(time.time() + max_age_seconds)
         )
 
         return response

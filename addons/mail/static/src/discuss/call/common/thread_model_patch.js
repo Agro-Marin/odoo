@@ -153,9 +153,27 @@ const ThreadPatch = {
                 ) {
                     return this.store.rtc.selfSession.is_camera_on;
                 }
-                return JSON.parse(
-                    localStorage.getItem(`discuss_channel_camera_default_${this.id}`),
+                // ``getItem`` returns ``null`` in real localStorage which
+                // ``JSON.parse`` accepts (-> null). Test patches sometimes
+                // return ``undefined`` for missing keys; ``JSON.parse(
+                // undefined)`` throws ``"undefined" is not valid JSON``,
+                // aborting the surrounding store data insert (visible as
+                // ``Store data insert aborted due to following errors``
+                // in the test log). Guard the parse explicitly.
+                // Also reject the literal string "undefined" — a polluted
+                // value (from a stray ``setItem(key, undefined)``) reads
+                // back truthy but still crashes JSON.parse.
+                const raw = localStorage.getItem(
+                    `discuss_channel_camera_default_${this.id}`,
                 );
+                if (!raw || raw === "undefined") {
+                    return null;
+                }
+                try {
+                    return JSON.parse(raw);
+                } catch {
+                    return null;
+                }
             },
             /** @this {import("models").Thread} */
             onUpdate() {

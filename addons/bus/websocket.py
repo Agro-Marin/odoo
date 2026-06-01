@@ -34,8 +34,8 @@ from odoo.http import (
     root,
 )
 from odoo.modules.registry import Registry
-from odoo.service import model as service_model
 from odoo.service.security import check_session
+from odoo.service.transaction import retrying
 from odoo.service.server import CommonServer
 from odoo.tools import config
 
@@ -734,7 +734,7 @@ class Websocket:
             env = self.new_env(cr, self._session, set_lang=True)
             for callback in self.__event_callbacks[event_type]:
                 try:
-                    service_model.retrying(functools.partial(callback, env, self), env)
+                    retrying(functools.partial(callback, env, self), env)
                 except Exception:
                     _logger.warning(
                         "Error during Websocket %s callback",
@@ -967,7 +967,7 @@ class WebsocketRequest:
 
         with acquire_cursor(self.db) as cr:
             self.env = self.ws.new_env(cr, self.session, set_lang=True)
-            service_model.retrying(
+            retrying(
                 functools.partial(self._serve_ir_websocket, event_name, data),
                 self.env,
             )
@@ -1050,7 +1050,7 @@ class WebsocketConnectionHandler:
         public_session = cls._handle_public_configuration(request)
         try:
             response = cls._get_handshake_response(request.httprequest.headers)
-            socket = request.httprequest._HTTPRequest__environ["socket"]
+            socket = request.httprequest.raw_environ["socket"]
             session, db, httprequest = (
                 (public_session or request.session),
                 request.db,

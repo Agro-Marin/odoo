@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import { buildM2OFieldDescription, Many2OneField } from "@web/fields/relational/many2one/many2one_field";
@@ -117,4 +117,4 @@ export const PartnerAutoCompleteMany2oneField = {
     ...buildM2OFieldDescription(PartnerAutoCompleteMany2one),
 };
 
-registry.category("fields").add("res_partner_many2one", PartnerAutoCompleteMany2oneField, { force: true });
+registerField("res_partner_many2one", PartnerAutoCompleteMany2oneField, { force: true });

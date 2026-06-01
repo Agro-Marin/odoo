@@ -13,6 +13,7 @@ import {
     TOUR_RECORDER_ACTIVE_LOCAL_STORAGE_KEY,
 } from "@web_tour/js/tour_recorder/tour_recorder_state";
 import { redirect } from "@web/core/utils/urls";
+import { translationIsReady } from "@web/core/l10n/translation";
 
 class OnboardingItem extends Component {
     static components = { DropdownItem };
@@ -281,9 +282,42 @@ export const tourService = {
         }
 
         odoo.startTour = startTour;
+        // Cheap "is the tour ready to start?" probe.  Test runners poll
+        // this from outside (Runtime.evaluate inside ``try { ... } catch
+        // {}``) so any throw silently becomes ``undefined`` — the test
+        // then waits 60s and fails with "ready code was always falsy".
+        //
+        // Three things must be true before a tour can start:
+        //   1. The tour is registered in ``web_tour.tours``.  Trivial
+        //      registry membership check.
+        //   2. The tour's optional ``wait_for`` predicate has resolved.
+        //      Tours can declare async preconditions (e.g. wait for a
+        //      bundle, a record fetch) and the test should not start
+        //      until they fire.
+        //   3. **Translations are loaded.**  Tour ``steps()`` functions
+        //      routinely use ``_t(...)`` and ``markup(_t(...))``.  These
+        //      eagerly throw ``"Cannot translate string: translations
+        //      have not been loaded"`` if called before
+        //      ``translationIsReady`` resolves.  ``getTourFromRegistry``
+        //      (called by both ``isTourReady`` formerly and ``startTour``
+        //      always) evaluates ``steps()`` eagerly — so without
+        //      gating on translations, the test framework would either
+        //      silently swallow the throw (legacy behavior, "ready always
+        //      falsy") or, worse, see ``isTourReady`` return true, fire
+        //      ``startTour``, and crash inside ``getTourFromRegistry``
+        //      with a fatal browser error.  Both have been observed in
+        //      the test_main_flows tour suite during fresh-DB cold
+        //      starts where the localization service is still warming
+        //      up after Owl mounts.
         odoo.isTourReady = (tourName) => {
-            const tour = getTourFromRegistry(tourName);
-            return tour ? tour.wait_for.then(() => true) : false;
+            if (!tourRegistry.contains(tourName)) {
+                return false;
+            }
+            const tour = tourRegistry.get(tourName);
+            return Promise.all([
+                translationIsReady,
+                tour.wait_for || Promise.resolve(),
+            ]).then(() => true);
         };
 
         return {

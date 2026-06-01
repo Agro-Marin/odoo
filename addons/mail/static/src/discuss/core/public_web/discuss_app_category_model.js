@@ -46,10 +46,21 @@ export class DiscussAppCategory extends Record {
             );
         },
         onUpdate() {
+            const key = `mail.sidebar_category_${this.id}_hidden`;
             if (!this.hidden && this.hidden !== undefined) {
-                localStorage.removeItem(`mail.sidebar_category_${this.id}_hidden`);
+                // Only call removeItem when the key actually exists — the
+                // eager compute fires on EVERY record creation and the
+                // resulting unconditional removeItem leaks a storage I/O
+                // step into tests that patch ``localStorage.removeItem``
+                // for verification (e.g. clickbot's ``only one app`` test
+                // sees stray ``savedState: null`` steps that don't match
+                // its expected sequence). Real localStorage no-ops on
+                // missing keys, but the test-time patch logs the call.
+                if (localStorage.getItem(key) !== null) {
+                    localStorage.removeItem(key);
+                }
             } else {
-                localStorage.setItem(`mail.sidebar_category_${this.id}_hidden`, true);
+                localStorage.setItem(key, true);
             }
         },
         eager: true,
@@ -71,9 +82,19 @@ export class DiscussAppCategory extends Record {
         },
         onUpdate() {
             if (this.localStateKey) {
-                this._openLocally = JSON.parse(
-                    browser.localStorage.getItem(this.localStateKey) ?? "true",
-                );
+                // Defensive: storage may return the literal string
+                // "undefined" (from a polluted setItem(k, undefined))
+                // which the ``?? "true"`` defense does NOT catch — the
+                // string is truthy and reaches ``JSON.parse("undefined")``
+                // which throws and aborts the enclosing store insert.
+                const raw =
+                    browser.localStorage.getItem(this.localStateKey) ?? "true";
+                try {
+                    this._openLocally =
+                        raw === "undefined" ? true : JSON.parse(raw);
+                } catch {
+                    this._openLocally = true;
+                }
             }
         },
     });

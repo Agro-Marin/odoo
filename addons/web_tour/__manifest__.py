@@ -44,10 +44,18 @@ Odoo Web tours.
             ('include', 'web_tour.interactive'),
             'web_tour/static/tests/*.test.js',
         ],
-        "web.assets_tests": [
-            'web_tour/static/src/js/tour_automatic/tour_helpers.js',
-            ('include', 'web_tour.automatic')
-        ],
+        # ``web_tour.automatic`` is preloaded into ``web.assets_web`` via
+        # ``ir.qweb.assetsbundle.DYNAMIC_ESM_BUNDLES`` (separate ESM child
+        # bundle).  Including its modules into ``web.assets_tests`` again
+        # would bundle a SECOND copy of ``tour_helpers.js`` — each bundle
+        # gets its own ``TourHelpers`` class, the patches in
+        # ``tour_helpers_hoot.js`` apply to one prototype while
+        # ``tour_step_automatic.js`` instantiates the other, and every
+        # ``run: "click"`` step throws ``TypeError: actionHelper.click is
+        # not a function``.  The lazy ``loadBundle("web_tour.automatic")``
+        # in ``tour_service.js`` is a no-op once the parent loads, so the
+        # preload optimisation is moot here.
+        "web.assets_tests": [],
         'web_tour.common': [
             'web/static/lib/hoot-dom/**/*',
             'web_tour/static/src/js/tour_step.js',

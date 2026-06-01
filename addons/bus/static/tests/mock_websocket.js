@@ -15,6 +15,16 @@ function cleanupWebSocketCallbacks() {
 }
 
 function cleanupWekSocketWorker() {
+    // ``MockServer.prototype.start`` is patched (below) to ``setupWeb-
+    // SocketWorker()`` + ``after(cleanupWekSocketWorker)`` on every call.
+    // A test that legitimately starts the mock server twice (e.g. an
+    // editor test that mounts WebClient inside its setup AND then calls
+    // ``makeMockEnv`` again to switch contexts) registers two cleanups;
+    // the first nulls ``currentWebSocketWorker`` and the second then
+    // crashes on ``null.connectTimeout``. Guard against the double-run.
+    if (!currentWebSocketWorker) {
+        return;
+    }
     if (currentWebSocketWorker.connectTimeout) {
         clearTimeout(currentWebSocketWorker.connectTimeout);
     }
