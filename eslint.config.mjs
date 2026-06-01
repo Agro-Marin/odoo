@@ -272,7 +272,29 @@ export default [
                 caughtErrors: "all",
             }],
             curly: ["error", "all"],
-            "no-restricted-syntax": ["error", "PrivateIdentifier"],
+            "no-restricted-syntax": [
+                "error",
+                "PrivateIdentifier",
+                {
+                    // H-5 Pattern 4 smell detector — state-management
+                    // review 2026-04-19.  A setter inside a
+                    // ``reactive({...})`` literal conflates state with
+                    // effects: the setter runs SIDE effects on other
+                    // reactive state when ``obj.foo = x`` is written,
+                    // hiding a data-flow edge the signal system can't
+                    // reason about.  Express the effect explicitly with
+                    // ``useEffect(() => ..., () => [obj.foo])`` and
+                    // keep the signal itself a plain field.
+                    //
+                    // The escape hatch — read-only caching / pure
+                    // derivation — only needs a getter (no setter), so
+                    // this selector only fires on ``set``.
+                    selector:
+                        "CallExpression[callee.name='reactive'] > ObjectExpression > Property[kind='set']",
+                    message:
+                        "Pattern 4 smell: setters inside reactive({...}) conflate state with effects. Use plain reactive({foo: null}) + useEffect for side effects, or a SignalStore subclass for computation. See machine_doc_v1/STATE_MANAGEMENT.md §Pattern 4.",
+                },
+            ],
             "prefer-const": ["error", {
                 destructuring: "all",
                 ignoreReadBeforeAssign: true,
@@ -441,6 +463,52 @@ export default [
                     },
                 ],
             }],
+        },
+    },
+
+    // =========================================================================
+    // Component-lifecycle: ban this.env.services.X in web's component layer
+    //
+    // ``this.env.services.X`` bypasses the lifecycle-protection wrapper that
+    // ``useService("X")`` installs around every method via ``_protectMethod``
+    // (core/utils/hooks.js).  Without it, an in-flight promise that resolves
+    // after the component unmounts will run on a destroyed component, causing
+    // "this.render is not a function" or stale-state bugs that are hard to
+    // reproduce.
+    //
+    // Bare ``env.services.X`` (no ``this``) inside registry factories and
+    // command providers is intentionally NOT flagged — those are not OWL
+    // components.
+    //
+    // Scope: web's source files only.  Other addons (POS, mail, hr_attendance)
+    // have many existing call sites that need a per-module audit before this
+    // rule can be widened safely.
+    // =========================================================================
+    {
+        files: ["**/web/static/src/**/*.js"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                "PrivateIdentifier",
+                {
+                    selector:
+                        "CallExpression[callee.name='reactive'] > ObjectExpression > Property[kind='set']",
+                    message:
+                        "Pattern 4 smell: setters inside reactive({...}) conflate state with effects. Use plain reactive({foo: null}) + useEffect for side effects, or a SignalStore subclass for computation. See machine_doc_v1/STATE_MANAGEMENT.md §Pattern 4.",
+                },
+                {
+                    selector:
+                        "MemberExpression[property.name='services'][object.type='MemberExpression'][object.property.name='env'][object.object.type='ThisExpression']",
+                    message:
+                        "Use useService('X') instead of this.env.services.X. useService adds component-lifecycle protection that prevents promise-resolution-after-destroy bugs. If you genuinely need the raw service (e.g., the dialog outlives the widget), add `// eslint-disable-next-line no-restricted-syntax` with a comment explaining why.",
+                },
+                // (Removed 2026-05-09) The `Reactive` BC alias was dropped
+                // from `@web/core/utils/reactive` along with this rule.
+                // Attempting `import { Reactive } from "@web/core/utils/reactive"`
+                // now fails at module-load with a native "no such export"
+                // error — clearer than a lint warning, and impossible to
+                // suppress with eslint-disable.
+            ],
         },
     },
 ];

@@ -116,10 +116,17 @@ select = [
 
 unfixable = [
     "F401",       # unused-import: warn but don't auto-remove (prevents race with multi-step edits)
-    "ERA001",     # commented-out-code: warn but don't auto-remove (needs human review)
 ]
 
 ignore = [
+    # --- ERA001 disabled: >99% false positives in this codebase ---
+    # Sampled 122 hits across the core: data-format examples in dict/list literal
+    # comments, ASCII class-hierarchy diagrams, math formulas, pseudocode
+    # walkthroughs, explanatory labels. Ruff's pattern-based eradicate check
+    # cannot distinguish documentation from dead code, and adding ~120 noqa
+    # comments would degrade readability far more than any real leak warrants.
+    "ERA001",     # commented-out-code (false-positive-heavy in doc-dense code)
+
     # --- Formatter-managed (let ruff format handle these) ---
     "E111",       # indentation-with-invalid-multiple
     "E114",       # indentation-not-multiple-of-four-comment
@@ -265,8 +272,12 @@ ignore = [
     "PLR0124",    # self-comparisons test mathematical properties (reflexivity, etc.)
     "A001",       # builtin shadowing in test helpers (hash, type, etc.)
     "A002",       # builtin shadowing in test helpers (str, etc.)
-    "ERA001",     # commented-out code: tests use code-example comments and TODO-disabled cases
 ]
+
+# Tests inside D/ANN-enforced packages (libs/, orm/components/) — suppress D/ANN
+# to match the project-wide convention that tests are exempt from docstring/annotation rules.
+"odoo/libs/tests/**" = ["D", "ANN"]
+"odoo/orm/components/tests/**" = ["D", "ANN"]
 
 # __manifest__.py: Standalone dict expression is the whole file
 "**/__manifest__.py" = ["B018"]
