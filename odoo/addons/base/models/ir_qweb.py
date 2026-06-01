@@ -386,15 +386,15 @@ from typing import Any, Literal, NamedTuple, Self
 from dateutil.relativedelta import relativedelta
 from lxml import etree
 from markupsafe import Markup, escape
-from rjsmin import jsmin as _rjsmin
 from psycopg.errors import (
     DeadlockDetected,
     ReadOnlySqlTransaction,
     SerializationFailure,
     TransactionRollback,
 )
+from rjsmin import jsmin as _rjsmin
 
-from odoo import api, models, tools, SUPERUSER_ID
+from odoo import SUPERUSER_ID, api, models, tools
 from odoo.exceptions import MissingError, UserError
 from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
@@ -1370,7 +1370,7 @@ class IrQweb(models.AbstractModel):
             if "xml" in tools.config["dev_mode"]
             else value["tree"]
         )
-        # return etree, document and ref  # noqa: ERA001
+        # return etree, document and ref
         return (value_tree, value["template"], value["ref"])
 
     @api.model
@@ -1617,7 +1617,7 @@ class IrQweb(models.AbstractModel):
         """
         # <t t-setf-name="Hello #{world} %s !"/>
         # =>
-        # values['name'] = 'Hello %s %%s !' % (values['world'],)  # noqa: ERA001
+        # values['name'] = 'Hello %s %%s !' % (values['world'],)
         values = [
             f"self._compile_to_str({self._compile_expr(m.group(1) or m.group(2))})"
             for m in FORMAT_REGEX.finditer(expr)
@@ -2655,8 +2655,8 @@ class IrQweb(models.AbstractModel):
             # nodes without taking indentation into account such as:
             #    if (if_expression):
             #         content_if
-            #    log ['last_path_node'] = path  # noqa: ERA001
-            #    else:  # noqa: ERA001
+            #    log ['last_path_node'] = path
+            #    else:
             #       content_else
 
             code.append(indent_code("else:", level))
@@ -4334,7 +4334,10 @@ class IrQweb(models.AbstractModel):
                         debug_assets=is_dynamic,
                         assets_params=assets_params,
                     )
-                    lazy_data = lazy_ab.get_native_module_data()
+                    # Only ``import_map`` is consumed here — the combined
+                    # dynamic-child bridge is built separately below — so skip
+                    # the per-child bridge build + attachment persistence.
+                    lazy_data = lazy_ab.get_native_module_data(with_bridges=False)
                     prod_import_map.update(lazy_data["import_map"])
                     if is_dynamic:
                         dynamic_bundles.append(lazy_ab)
@@ -4363,14 +4366,13 @@ class IrQweb(models.AbstractModel):
                 # parent's import map for bare-specifier resolution).
                 include_names = AssetsBundle.IMPORT_MAP_INCLUDES.get(bundle, [])
                 for include_name in include_names:
-                    include_ab = self._get_asset_bundle(
+                    # debug_assets=False here → reuse the ormcached native
+                    # module data (keyed by bundle + assets_params) instead of
+                    # rebuilding the bundle and its bridge on every render.
+                    include_data = self._get_native_module_data_cached(
                         include_name,
-                        js=True,
-                        css=False,
-                        debug_assets=False,
                         assets_params=assets_params,
                     )
-                    include_data = include_ab.get_native_module_data()
                     prod_import_map.update(include_data["import_map"])
                     prod_import_map.update(
                         include_data.get("bridge_import_map", {}),
@@ -4395,7 +4397,8 @@ class IrQweb(models.AbstractModel):
                         debug_assets=False,
                         assets_params=assets_params,
                     )
-                    sec_data = sec_ab.get_native_module_data()
+                    # Only ``import_map`` is consumed; skip the bridge build.
+                    sec_data = sec_ab.get_native_module_data(with_bridges=False)
                     for spec, url in sec_data["import_map"].items():
                         prod_import_map.setdefault(spec, url)
 
@@ -4430,8 +4433,7 @@ class IrQweb(models.AbstractModel):
                 # ``patchWithCleanup`` rely on.
                 if include_names:
                     self_bridges = asset_bundle._build_parent_self_bridge()
-                    for spec, shim in self_bridges.items():
-                        prod_import_map[spec] = shim
+                    prod_import_map.update(self_bridges)
                     # ── Alias override ──────────────────────────────
                     # Modules that declare an ``alias=@odoo/xyz``
                     # header (hoot.js / hoot-dom.js / hoot-mock.js)
@@ -4706,7 +4708,9 @@ class IrQweb(models.AbstractModel):
                 debug_assets=True,
                 assets_params=assets_params,
             )
-            lazy_data = lazy_ab.get_native_module_data()
+            # Only ``import_map`` is consumed (no bridge used here); skip the
+            # discarded per-child bridge build.
+            lazy_data = lazy_ab.get_native_module_data(with_bridges=False)
             import_map.update(lazy_data["import_map"])
             lazy_bundles.append(lazy_ab)
 
@@ -4737,7 +4741,8 @@ class IrQweb(models.AbstractModel):
                 debug_assets=debug_assets,
                 assets_params=assets_params,
             )
-            sec_data = sec_ab.get_native_module_data()
+            # Only ``import_map`` is consumed; skip the bridge build.
+            sec_data = sec_ab.get_native_module_data(with_bridges=False)
             for spec, url in sec_data["import_map"].items():
                 import_map.setdefault(spec, url)
 
@@ -4812,7 +4817,7 @@ class IrQweb(models.AbstractModel):
         # Check if a previous ESM bundle on this page already rendered
         # an import map (e.g. the setup bundle on the test page).
         # Only ONE import map per document is allowed by the spec.
-        _req = request if request else None
+        _req = request or None
         _already_has_esm = _req and getattr(
             _req,
             "_esm_import_map_rendered",
@@ -5213,7 +5218,9 @@ class IrQweb(models.AbstractModel):
 # caught at server startup — operators learn about the problem before
 # any user hits it.  See ``AssetsBundle._validate_external_libs`` for
 # the full invariant list.
-from odoo.addons.base.models.assetsbundle import AssetsBundle as _AssetsBundle  # noqa: E402
+from odoo.addons.base.models.assetsbundle import (  # noqa: E402
+    AssetsBundle as _AssetsBundle,
+)
 
 _AssetsBundle._validate_external_libs(set(IrQweb._ODOO_EXTERNAL_LIBS))
 del _AssetsBundle
