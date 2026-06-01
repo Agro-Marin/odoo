@@ -28,6 +28,22 @@ const errorHandlerRegistry = registry.category("error_handlers");
 const errorDialogRegistry = registry.category("error_dialogs");
 const errorNotificationRegistry = registry.category("error_notifications");
 
+// Error dialogs are OWL Component classes; the error service mounts the
+// matching one for an exception name (see `RPCErrorDialog` and friends).
+errorDialogRegistry.addValidation((entry) => typeof entry === "function");
+
+// Error notifications are toast configs: `title` / `message` / `type` /
+// `sticky` / `buttons` are forwarded to the notification service. All fields
+// are optional because callers compose missing pieces from the error itself.
+errorNotificationRegistry.addValidation({
+    title: { type: [String, Object], optional: true },
+    message: { type: [String, Object], optional: true },
+    type: { type: String, optional: true },
+    sticky: { type: Boolean, optional: true },
+    buttons: { type: Array, optional: true },
+    "*": true,
+});
+
 // -----------------------------------------------------------------------------
 // RPC errors
 // -----------------------------------------------------------------------------
@@ -83,7 +99,7 @@ export function rpcErrorHandler(env, error, originalError) {
             code: originalError.code,
             type: originalError.type,
             serverHost: /** @type {any} */ (error).event?.target?.location.host,
-            model: /** @type {any} */ (originalError).model,
+            model: originalError.model,
         });
         return true;
     }
@@ -109,6 +125,24 @@ export function lostConnectionHandler(env, error, originalError) {
         return false;
     }
     if (originalError instanceof ConnectionLostError) {
+        // Match ``rpcErrorHandler``'s pattern: handlers that fully take
+        // ownership of an error (here: by showing a sticky user-facing
+        // notification AND polling for connection restoration) MUST
+        // ``preventDefault`` on the unhandled-rejection event.  Without
+        // this, ``error_service.handleError``'s post-loop
+        // ``shouldLogError()`` check still returns true (it only inspects
+        // ``event.defaultPrevented``, not the loop's break/return value)
+        // and produces a redundant ``console.error`` traceback that:
+        //   * duplicates information the user already sees in the toast,
+        //     and
+        //   * fails browser-tour ``HttpCase`` tests, which treat any
+        //     ``console.error`` as a fatal browser exception (see
+        //     test_main_flows.TestUi.test_01_main_flow_tour racing against
+        //     the very first ``/mail/data`` ``init_messaging`` RPC after
+        //     a fresh-DB cold boot — the network glitch is transient and
+        //     the next attempt succeeds, but the duplicate console
+        //     traceback is still fatal to the test).
+        error.unhandledRejectionEvent.preventDefault();
         if (connectionLostNotifRemove) {
             // notification already displayed (can occur if there were several
             // concurrent rpcs when the connection was lost)
@@ -171,6 +205,21 @@ const defaultDialogs = new Map([
 export function defaultHandler(env, error) {
     const DialogComponent =
         defaultDialogs.get(/** @type {any} */ (error.constructor)) || ErrorDialog;
+    // ``errorService`` starts in the first wave (no deps) so it can capture
+    // errors during the boot of any other service.  The dialog service starts
+    // later (depends on ``overlay``).  If an error fires in that window we
+    // would crash with "Cannot read properties of undefined (reading 'add')",
+    // turning a single startup glitch into a meta-error that masks the real
+    // failure.  Fall back to ``console.error`` until dialog is available.
+    if (!env.services.dialog) {
+        console.error(
+            "Uncaught error before dialog service started:",
+            error.name,
+            error.message,
+            error.traceback,
+        );
+        return true;
+    }
     env.services.dialog.add(DialogComponent, {
         traceback: error.traceback,
         message: error.message,
@@ -182,3 +231,13 @@ export function defaultHandler(env, error) {
 errorHandlerRegistry.add("defaultHandler", /** @type {any} */ (defaultHandler), {
     sequence: 100,
 });
+
+// Error handlers are bare functions invoked as ``handler(env, uncaughtError,
+// originalError)`` by ``error_service.js`` at line 78. A non-function entry
+// would surface there as ``TypeError: handler is not a function`` AND swallow
+// the original error along the way (the catch around the call returns rather
+// than rethrowing, so a handler bug masks the underlying error). The
+// predicate catches the bad registration at definition time with a precise
+// message. Throws in debug, warns in production (see ``core/registry.js
+// validateSchema``).
+errorHandlerRegistry.addValidation((v) => typeof v === "function");

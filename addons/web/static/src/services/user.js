@@ -4,6 +4,7 @@
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
+import { UserEvent } from "@web/core/events";
 import { pyToJsLocale } from "@web/core/l10n/utils";
 import { rpc } from "@web/core/network/rpc";
 import { ensureArray, sortBy } from "@web/core/utils/collections/arrays";
@@ -124,7 +125,7 @@ export function _makeUser(session) {
             allowed_company_ids: activeCompanies.map((c) => c.id),
         });
 
-        userBus.trigger("ACTIVE_COMPANIES_CHANGED");
+        userBus.trigger(UserEvent.ACTIVE_COMPANIES_CHANGED);
     }
 
     // Companies information
@@ -358,20 +359,39 @@ export const setLastConnectedUsers = (users) => {
     );
 };
 
-if (!session.quick_login) {
-    browser.localStorage.removeItem(LAST_CONNECTED_USER_KEY);
-} else if (user.login && user.login !== "__system__") {
-    const users = getLastConnectedUsers();
-    const lastConnectedUsers = [
-        {
-            login: user.login,
-            name: user.name,
-            partnerId: user.partnerId,
-            partnerWriteDate: user.writeDate,
-            userId: user.userId,
-        },
-        ...users.filter((u) => u.userId !== user.userId),
-    ];
-    setLastConnectedUsers(lastConnectedUsers);
+// Idempotent: ``session`` is a shared global (``odoo.__session_info__``),
+// and ``user.js`` is bundled into both ``web.assets_frontend_lazy`` and
+// ``web.assets_tests`` (transitively via mail tours → store_service).
+// Without the sentinel, the first bundle's module evaluation deletes
+// ``quick_login`` and the second bundle's evaluation interprets the
+// missing key as "quick login disabled" — wiping out the saved-user
+// list that the first evaluation just populated.
+if (!session._quick_login_processed) {
+    if (!session.quick_login) {
+        // Only remove if the key actually exists — module-body removeItem
+        // fires on EVERY page load, and the resulting unconditional call
+        // leaks a storage I/O step into tests that patch
+        // ``localStorage.removeItem`` for verification (e.g. clickbot's
+        // ``only one app`` sees stray ``savedState: null`` steps that
+        // don't match its expected sequence). Real localStorage no-ops on
+        // missing keys, but test-time patches log the call.
+        if (browser.localStorage.getItem(LAST_CONNECTED_USER_KEY) !== null) {
+            browser.localStorage.removeItem(LAST_CONNECTED_USER_KEY);
+        }
+    } else if (user.login && user.login !== "__system__") {
+        const users = getLastConnectedUsers();
+        const lastConnectedUsers = [
+            {
+                login: user.login,
+                name: user.name,
+                partnerId: user.partnerId,
+                partnerWriteDate: user.writeDate,
+                userId: user.userId,
+            },
+            ...users.filter((u) => u.userId !== user.userId),
+        ];
+        setLastConnectedUsers(lastConnectedUsers);
+    }
+    session._quick_login_processed = true;
+    delete session.quick_login;
 }
-delete session.quick_login;

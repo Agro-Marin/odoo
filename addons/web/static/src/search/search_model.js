@@ -5,6 +5,7 @@
 
 import { EventBus, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
+import { DateTime } from "@web/core/l10n/luxon";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { user } from "@web/services/user";
@@ -52,11 +53,9 @@ import {
 import { getIntervalOptions } from "./utils/dates.js";
 
 /** @import { Context } from "@web/core/context" */
-/** @import { DomainListRepr } from "@web/core/domain" */
+/** @import { Domain, DomainListRepr } from "@web/core/domain" */
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
-
-const { DateTime } = globalThis.luxon ?? {};
 
 /**
  * @typedef {Object} Section
@@ -77,11 +76,10 @@ const { DateTime } = globalThis.luxon ?? {};
  * @property {any} [activeValueId]
  * @property {string} [domain]
  * @property {string|false} [groupBy]
- *
- * @typedef {Section & { type: "category" }} Category
- * @typedef {Section & { type: "filter" }} Filter
- * @typedef {(section: Section) => boolean} SectionPredicate
  */
+/** @typedef {Section & { type: "category" }} Category */
+/** @typedef {Section & { type: "filter" }} Filter */
+/** @typedef {(section: Section) => boolean} SectionPredicate */
 
 export class SearchModel extends EventBus {
     constructor(env, services, args) {
@@ -268,7 +266,10 @@ export class SearchModel extends EventBus {
         // prepare search panel sections
 
         /** @type Map<number,Section> */
-        this.sections = new Map(sections || []);
+        // ``sections`` from the parser is a flat array of section descriptors;
+        // ``SearchArchParser.parse`` returns them in an entries-compatible
+        // shape but the typedef hasn't tracked that. Cast at the boundary.
+        this.sections = new Map(/** @type {[number, Section][]} */ (sections || []));
         this.display = this._getDisplay(config.display);
 
         if (this.display.searchPanel) {

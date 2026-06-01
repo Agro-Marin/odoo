@@ -30,7 +30,7 @@ export class DatetimePicker extends Interaction {
                 .create({
                     target: this.el,
                     pickerProps: {
-                        type: this.type,
+                        type: /** @type {"date" | "datetime"} */ (this.type),
                         minDate: this.minDate && deserializeFunction(this.minDate),
                         maxDate: this.maxDate && deserializeFunction(this.maxDate),
                         value: parseFunction(

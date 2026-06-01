@@ -8,6 +8,9 @@ import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
 
 import { registry } from "./registry.js";
+import { makeAssetLog } from "./utils/asset_log.js";
+
+const log = makeAssetLog("js");
 
 /**
  * @typedef {{
@@ -20,6 +23,58 @@ import { registry } from "./registry.js";
 
 export const globalBundleCache = new Map();
 export const assetCacheByDocument = new WeakMap();
+// Track specifiers that are resolvable by the page's *existing* import
+// maps — whether injected by this module or rendered server-side into
+// the initial HTML.  Chromium's multi-importmap support merges maps by
+// appending rules, but a later rule for a spec already defined earlier
+// is dropped with "An import map rule for specifier '<spec>' was
+// removed, as it conflicted with an existing rule".  Treat every spec
+// already present in the document as off-limits so lazy ``loadBundle``
+// calls don't re-declare them.
+const injectedImportMapKeys = new Set();
+
+/**
+ * Pre-seed ``injectedImportMapKeys`` from the document's existing
+ * ``<script type="importmap">`` tags.  The initial page import map is
+ * rendered server-side (``ir_qweb._get_esm_asset_nodes``) and already
+ * contains every specifier of the dynamic child bundles of
+ * ``web.assets_web`` — tour, spreadsheet, html_editor, mail, etc.
+ * Without this seed, the first ``loadBundle("web_tour.interactive")``
+ * call after page load would re-inject those same specifiers and
+ * Chromium would log a warning for each one.
+ *
+ * @param {Document} targetDoc
+ * @returns {number} number of specifiers seeded
+ */
+function seedInjectedImportMapKeys(targetDoc) {
+    const head = targetDoc.head || targetDoc.documentElement;
+    if (!head) {
+        return 0;
+    }
+    let seeded = 0;
+    for (const script of head.querySelectorAll('script[type="importmap"]')) {
+        const text = script.textContent || "";
+        if (!text.trim()) {
+            continue;
+        }
+        try {
+            const parsed = JSON.parse(text);
+            const imports = parsed && parsed.imports;
+            if (imports && typeof imports === "object") {
+                for (const spec of Object.keys(imports)) {
+                    if (!injectedImportMapKeys.has(spec)) {
+                        injectedImportMapKeys.add(spec);
+                        seeded++;
+                    }
+                }
+            }
+        } catch {
+            // Malformed JSON is the server's problem — the import map
+            // wouldn't work anyway.  Don't abort the seed for other tags.
+        }
+    }
+    return seeded;
+}
 
 /** @returns {Map<string, Promise<any>>} */
 function getGlobalBundleCache() {
@@ -50,7 +105,11 @@ function computeBundleCacheMap(targetDoc) {
     }
 }
 
-whenReady(() => computeBundleCacheMap(document));
+whenReady(() => {
+    computeBundleCacheMap(document);
+    const seeded = seedInjectedImportMapKeys(document);
+    log("whenReady:seeded-import-map-keys", seeded);
+});
 
 /**
  * @param {HTMLLinkElement | HTMLScriptElement} el
@@ -118,6 +177,17 @@ export function loadCSS(url, options) {
 
 export class AssetsLoadingError extends Error {}
 
+// Entries are OWL Component classes — ``LazyComponent`` below resolves
+// the registered class via ``registry.category("lazy_components").get(name)``
+// and mounts it via ``<t t-component="Component" .../>``.  A non-Component
+// entry would fail at mount time deep inside OWL with an unhelpful error;
+// catching the misregistration at ``add()`` time surfaces the bug at the
+// point of registration instead.  Follows the same pattern as the
+// ``dialogs`` registry (see ``ui/dialog/dialog_service.js:13``).
+registry
+    .category("lazy_components")
+    .addValidation((entry) => entry?.prototype instanceof Component);
+
 /**
  * Utility component that loads an asset bundle before instanciating a component
  */
@@ -165,8 +235,10 @@ export const assets = {
     getBundle(bundleName) {
         const cacheMap = getGlobalBundleCache();
         if (cacheMap.has(bundleName)) {
+            log("getBundle:cache-hit", bundleName);
             return cacheMap.get(bundleName);
         }
+        log("getBundle:fetch", bundleName);
         const url = new URL(`/web/bundle/${bundleName}`, location.origin);
         for (const [key, value] of Object.entries(session.bundle_params || {})) {
             url.searchParams.set(key, value);
@@ -210,9 +282,16 @@ export const assets = {
                     }
                 }
             }
+            log("getBundle:done", bundleName, {
+                cssLibs: cssLibs.length,
+                jsLibs: jsLibs.length,
+                esmSpecifiers: esmSpecifiers?.length ?? null,
+                importMapEntries: esmImportMap ? Object.keys(esmImportMap).length : null,
+            });
             return { cssLibs, jsLibs, esmSpecifiers, esmImportMap };
         })().catch((reason) => {
             cacheMap.delete(bundleName);
+            log("getBundle:error", bundleName, reason);
             throw new AssetsLoadingError(`The loading of ${url} failed`, {
                 cause: reason,
             });
@@ -240,6 +319,9 @@ export const assets = {
                 )} as ${typeof bundleName}`,
             );
         }
+        log("loadBundle:start", bundleName,
+            "css=", css, "js=", js,
+            "crossDoc=", targetDoc !== document);
         const { cssLibs, jsLibs, esmSpecifiers, esmImportMap } = await getBundle(bundleName);
         const promises = [];
         if (css && cssLibs) {
@@ -264,7 +346,9 @@ export const assets = {
                 ...jsLibs.map((url) => assets.loadJS(url, { targetDoc })),
             );
         }
-        return Promise.all(promises);
+        const result = await Promise.all(promises);
+        log("loadBundle:done", bundleName, "promises=", promises.length);
+        return result;
     },
 
     /**
@@ -283,7 +367,48 @@ export const assets = {
      * @returns {Promise<void>}
      */
     async loadESMBundle(specifiers, { targetDoc = document, importMap = null } = {}) {
+        log("loadESMBundle:start", "specs=", specifiers.length,
+            "importMap=", importMap ? Object.keys(importMap).length : 0,
+            "crossDoc=", !(targetDoc === document || targetDoc.defaultView === window));
         if (targetDoc === document || targetDoc.defaultView === window) {
+            // Inject the bundle's import map entries before kicking off
+            // the dynamic imports.  Required when this bundle's
+            // specifiers aren't already pre-registered in the page's
+            // main import map (e.g. ``loadBundle("web.assets_emoji")``
+            // from the unit-test page, where the setup bundle doesn't
+            // pre-register dynamic-child specifiers — only
+            // ``web.assets_web`` does).  Modern browsers support
+            // multiple ``<script type="importmap">`` tags per
+            // document; later maps are merged with earlier ones as
+            // long as no conflicting keys redefine an entry.
+            if (importMap) {
+                // Re-seed in case another async flow appended an
+                // import map between whenReady and this call.  Idempotent
+                // and O(#existing-specs); cheap compared to the injection
+                // it prevents.
+                seedInjectedImportMapKeys(document);
+                const freshEntries = {};
+                let nDup = 0;
+                for (const [spec, url] of Object.entries(importMap)) {
+                    if (!injectedImportMapKeys.has(spec)) {
+                        freshEntries[spec] = url;
+                        injectedImportMapKeys.add(spec);
+                    } else {
+                        nDup++;
+                    }
+                }
+                const nFresh = Object.keys(freshEntries).length;
+                log("loadESMBundle:importMap filter",
+                    "fresh=", nFresh, "dup=", nDup,
+                    "total=", nFresh + nDup);
+                if (nFresh) {
+                    const mapEl = document.createElement("script");
+                    mapEl.type = "importmap";
+                    mapEl.textContent = JSON.stringify({ imports: freshEntries });
+                    (document.head || document.documentElement).appendChild(mapEl);
+                    log("loadESMBundle:injected fresh import map entries=", nFresh);
+                }
+            }
             const results = await Promise.all(
                 specifiers.map(async (specifier) => {
                     const mod = await import(specifier);
@@ -291,8 +416,11 @@ export const assets = {
                 }),
             );
             const modules = Object.fromEntries(results);
-            if (globalThis.odoo?.loader?.registerNativeModules) {
+            if (/** @type {any} */ (globalThis).odoo?.loader?.registerNativeModules) {
                 odoo.loader.registerNativeModules(modules);
+                log("loadESMBundle:registered", specifiers.length, "modules into odoo.loader");
+            } else {
+                log("loadESMBundle:warn no odoo.loader.registerNativeModules");
             }
             return;
         }
@@ -307,7 +435,7 @@ export const assets = {
         // conflict — rules already present in targetDoc are kept.
         const targetWin = targetDoc.defaultView;
         const extraMap = {};
-        const loadedModules = targetWin.odoo?.loader?.modules;
+        const loadedModules = /** @type {any} */ (targetWin).odoo?.loader?.modules;
         const validName = /^[a-zA-Z_$][\w$]*$/;
         // Conventional mapping from bare specifier to the URL esbuild
         // would have fetched if the module had been loaded individually:
@@ -368,6 +496,8 @@ export const assets = {
             Object.assign(extraMap, importMap);
         }
         if (Object.keys(extraMap).length) {
+            log("loadESMBundle:crossDoc injecting extra import map entries=",
+                Object.keys(extraMap).length);
             const mapEl = targetDoc.createElement("script");
             mapEl.type = "importmap";
             mapEl.textContent = JSON.stringify({ imports: extraMap });
@@ -419,6 +549,11 @@ export const assets = {
         if (cacheMap.has(url)) {
             return cacheMap.get(url);
         }
+        if (retryCount === 0) {
+            log("loadCSS", url);
+        } else {
+            log("loadCSS:retry", url, "attempt=", retryCount);
+        }
         const linkEl = targetDoc.createElement("link");
         linkEl.setAttribute("href", url);
         linkEl.type = "text/css";
@@ -463,6 +598,7 @@ export const assets = {
         if (cacheMap.has(url)) {
             return cacheMap.get(url);
         }
+        log("loadJS", url);
         const scriptEl = targetDoc.createElement("script");
         scriptEl.setAttribute("src", url);
         scriptEl.type = url.includes("web/static/lib/pdfjs/")

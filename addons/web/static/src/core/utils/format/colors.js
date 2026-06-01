@@ -322,7 +322,7 @@ export function isCSSColor(cssColor) {
  * @param {string} cssColor1 - hexadecimal code or rgb() or rgba()
  * @param {string} cssColor2 - hexadecimal code or rgb() or rgba()
  * @param {number} weight - a number between 0 and 1
- * @returns {string} - mixed color in hexadecimal format
+ * @returns {string | false} - mixed color in hexadecimal format, or ``false`` if either input cannot be parsed
  */
 export function mixCssColors(cssColor1, cssColor2, weight) {
     const rgba1 = convertCSSColorToRgba(cssColor1);

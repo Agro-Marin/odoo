@@ -9,7 +9,9 @@
  * Determine whether a value is ambiguous and needs explicit typing.
  * Returns true when a value mixes strings/IDs with other types or contains empty strings.
  * @param {Value} value
- * @param {boolean} [displayNames] - whether IDs should be treated as strings
+ * @param {boolean | Record<number, string>} [displayNames] - truthy means IDs
+ *   should be treated as strings; a non-empty display-names map is also
+ *   accepted (the function only uses ``displayNames`` for truthiness).
  * @returns {boolean}
  */
 export function disambiguate(value, displayNames) {
@@ -36,7 +38,7 @@ export function disambiguate(value, displayNames) {
  * @returns {boolean} whether the value is a positive integer (valid record ID)
  */
 export function isId(value) {
-    return Number.isInteger(value) && value >= 1;
+    return Number.isInteger(value) && /** @type {number} */ (value) >= 1;
 }
 
 /**

@@ -14,6 +14,7 @@ import {
     useState,
 } from "@odoo/owl";
 import { isMacOS, isMobileOS } from "@web/core/browser/feature_detection";
+import { CommandPaletteEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { KeepLast, Race } from "@web/core/utils/concurrency";
 import { highlightText } from "@web/core/utils/dom/html";
@@ -32,7 +33,7 @@ const FUZZY_NAMESPACES = ["default"];
 
 /**
  * @typedef {Command & {
- *  Component?: Component;
+ *  Component?: import("@odoo/owl").ComponentConstructor;
  *  props?: object;
  * }} CommandItem
  */
@@ -40,7 +41,7 @@ const FUZZY_NAMESPACES = ["default"];
 /**
  * @typedef {{
  *  namespace?: string;
- *  provide: ()=>CommandItem[];
+ *  provide: (env: any, options?: any) => CommandItem[] | Promise<CommandItem[]>;
  * }} Provider
  */
 
@@ -112,9 +113,9 @@ export class CommandPalette extends Component {
     setup() {
         if (this.props.bus) {
             const setConfig = ({ detail }) => this.setCommandPaletteConfig(detail);
-            this.props.bus.addEventListener(`SET-CONFIG`, setConfig);
+            this.props.bus.addEventListener(CommandPaletteEvent.SET_CONFIG, setConfig);
             onWillDestroy(() =>
-                this.props.bus.removeEventListener(`SET-CONFIG`, setConfig),
+                this.props.bus.removeEventListener(CommandPaletteEvent.SET_CONFIG, setConfig),
             );
         }
 

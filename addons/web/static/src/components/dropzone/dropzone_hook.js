@@ -8,7 +8,7 @@ import { Dropzone } from "@web/components/dropzone/dropzone";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @param {any} targetRef - Element on which to place the dropzone.
- * @param {typeof import("@odoo/owl").Component} dropzoneComponent - Class used to instantiate the dropzone component.
+ * @param {import("@odoo/owl").ComponentConstructor} dropzoneComponent - Class used to instantiate the dropzone component.
  * @param {Object} dropzoneComponentProps - Props given to the instantiated dropzone component.
  * @param {function} isDropzoneEnabled - Function that determines whether the dropzone should be enabled.
  */

@@ -232,8 +232,8 @@ export class Popover extends Component {
     isInside(target) {
         return (
             this.props.target?.contains(target) ||
-            this.popoverRef?.el?.contains(target) ||
-            this.env[OVERLAY_SYMBOL]?.contains(target)
+            this.popoverRef?.el?.contains(/** @type {Node} */ (target)) ||
+            /** @type {any} */ (this.env)[OVERLAY_SYMBOL]?.contains(target)
         );
     }
 
@@ -288,7 +288,10 @@ export class Popover extends Component {
         const { el } = this.popoverRef;
 
         // Reverse the direction if RTL as bootstrap expects it that way
-        [direction, variant] = reverseForRTL(direction, variant);
+        [direction, variant] = reverseForRTL(
+            /** @type {any} */ (direction),
+            /** @type {any} */ (variant),
+        );
 
         // Update the bootstrap popper placement, in order to give the arrow its shape
         el.dataset.popperPlacement = direction;

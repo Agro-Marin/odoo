@@ -23,10 +23,11 @@ export class CustomGroupByItem extends Component {
 
     /** @param {Event} ev */
     onSelected(ev) {
-        if (ev.target.value) {
-            this.props.onAddCustomGroup(ev.target.value);
+        const target = /** @type {HTMLSelectElement} */ (ev.target);
+        if (target.value) {
+            this.props.onAddCustomGroup(target.value);
             // reset the placeholder
-            ev.target.value = "";
+            target.value = "";
         }
     }
 }

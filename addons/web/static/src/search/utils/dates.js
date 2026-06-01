@@ -241,7 +241,7 @@ export function toGeneratorId(unit, offset) {
 }
 
 /**
- * @param {import("luxon").DateTime} referenceMoment
+ * @param {any} referenceMoment
  * @param {{ startYear: number, endYear: number, startMonth: number, endMonth: number }} optionsParams
  * @returns {Array<Object>}
  */
@@ -284,7 +284,7 @@ function getQuarterPeriodOptions(optionsParams) {
 }
 
 /**
- * @param {import("luxon").DateTime} referenceMoment
+ * @param {any} referenceMoment
  * @param {{ startYear: number, endYear: number }} optionsParams
  * @returns {Array<Object>}
  */

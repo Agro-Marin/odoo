@@ -71,7 +71,12 @@ export class CodeEditor extends Component {
             activeMode: undefined,
         });
 
-        onWillStart(async () => await loadBundle("web.ace_lib"));
+        // Block body (not expression body) so the arrow returns ``Promise<void>``
+        // instead of the bundle loader's ``Promise<void[]>``, matching the
+        // ``onWillStart`` callback contract.
+        onWillStart(async () => {
+            await loadBundle("web.ace_lib");
+        });
 
         const sessions = {};
         // The ace library triggers the "change" event even if the change is

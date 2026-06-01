@@ -28,12 +28,13 @@ import {
     serializeDate,
     serializeDateTime,
 } from "@web/core/l10n/dates";
+import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { unique } from "@web/core/utils/collections/arrays";
 /**
  * @typedef {Object} ValueEditorInfo
- * @property {typeof import("@odoo/owl").Component | null} component
+ * @property {import("@odoo/owl").ComponentConstructor | null} component
  * @property {((params: {value: any, update: Function, displayPlaceholder?: boolean}) => Object) | null} extractProps
  * @property {(value: any) => boolean} isSupported
  * @property {(operator?: string) => any} defaultValue
@@ -42,13 +43,9 @@ import { unique } from "@web/core/utils/collections/arrays";
  * @property {(value: any, disambiguate?: boolean) => string} [stringify]
  */
 
-const { DateTime } = globalThis.luxon ?? {};
-
 // ============================================================================
 
-/** @type {import("@web/core").Registry} */
 const formatters = registry.category("formatters");
-/** @type {import("@web/core").Registry} */
 const parsers = registry.category("parsers");
 
 /**
@@ -82,7 +79,7 @@ function isParsable(fieldType, value) {
 
 /**
  * @param {"date"|"datetime"} type
- * @param {import("luxon").DateTime} value
+ * @param {any} value luxon DateTime instance
  * @returns {string} serialized date string
  */
 function genericSerializeDate(type, value) {
@@ -92,7 +89,7 @@ function genericSerializeDate(type, value) {
 /**
  * @param {"date"|"datetime"} type
  * @param {string} value
- * @returns {import("luxon").DateTime}
+ * @returns {any} luxon DateTime instance
  */
 function genericDeserializeDate(type, value) {
     return type === "date" ? deserializeDate(value) : deserializeDateTime(value);
@@ -118,6 +115,7 @@ function placeholderForInput(displayPlaceholder) {
     }
 }
 
+/** @type {ValueEditorInfo} */
 const STRING_EDITOR = {
     component: Input,
     extractProps: ({ value, update, displayPlaceholder }) => ({
@@ -428,6 +426,7 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
             return makeSelectEditor(options, params);
         }
         case undefined: {
+            /** @type {[any, string][]} */
             const options = [[1, "1"]];
             return makeSelectEditor(options, params);
         }
@@ -448,7 +447,7 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
 }
 
 /**
- * @param {Object} [fieldDef]
+ * @param {Object} fieldDef
  * @param {string} operator
  * @param {Object} [options]
  * @returns {ValueEditorInfo}
@@ -469,7 +468,7 @@ export function getValueEditorInfo(fieldDef, operator, options = {}) {
 }
 
 /**
- * @param {Object} [fieldDef]
+ * @param {Object} fieldDef
  * @param {string} operator
  * @param {any} [value=null] - current value to keep if supported
  * @returns {any} the default value for the field/operator, or the current value if valid

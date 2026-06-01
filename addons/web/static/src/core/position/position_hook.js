@@ -64,7 +64,7 @@ export function usePosition(refName, getTarget, options = {}) {
     };
 
     const component = useComponent();
-    const bus = component.env[POSITION_BUS] || new EventBus();
+    const bus = /** @type {any} */ (component.env)[POSITION_BUS] || new EventBus();
 
     let executingUpdate = false;
     const batchedUpdate = async () => {

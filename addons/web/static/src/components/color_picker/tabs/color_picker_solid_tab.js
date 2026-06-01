@@ -24,8 +24,16 @@ export class ColorPickerSolidTab extends Component {
     };
 }
 
-registry.category("color_picker_tabs").add("web.solid", {
-    id: "solid",
-    name: _t("Solid"),
-    component: ColorPickerSolidTab,
-});
+registry.category("color_picker_tabs").add(
+    "web.solid",
+    {
+        id: "solid",
+        name: _t("Solid"),
+        component: ColorPickerSolidTab,
+    },
+    // Solid is the default tab and must render first so keyboard navigation
+    // (Tab moves Solid -> Custom -> Gradient) starts on it. Custom registers at
+    // the default sequence (50); pin Solid below it so ordering no longer
+    // depends on module evaluation order (which the ESM bundling reshuffled).
+    { sequence: 40 }
+);

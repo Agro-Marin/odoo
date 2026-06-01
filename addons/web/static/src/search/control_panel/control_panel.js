@@ -140,6 +140,45 @@ export class ControlPanel extends Component {
         slots: { type: Object, optional: true },
     };
 
+    // Class fields declared with @type so strictNullChecks treats them
+    // as initialized.  Real assignment happens in setup() and lifecycle
+    // hooks; OWL components don't use a constructor, so without these
+    // declarations TS marks every `this.X` access as possibly undefined.
+    /** @type {any} */
+    actionService;
+    /** @type {any} */
+    pagerProps;
+    /** @type {any} */
+    notificationService;
+    /** @type {any[]} */
+    breadcrumbs;
+    /** @type {any} */
+    orm;
+    /** @type {any} */
+    dialogService;
+    /** @type {{el: HTMLElement | null}} */
+    root;
+    /** @type {{el: HTMLElement | null}} */
+    newActionNameRef;
+    /** @type {any[] | undefined} */
+    defaultEmbeddedActions;
+    /** @type {EmbeddedActionsConfigHandler} */
+    embeddedActionsConfigHandler;
+    /** @type {{embeddedInfos: {showEmbedded: boolean, embeddedActions: any[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: any[], currentEmbeddedAction: any}}} */
+    state;
+    /** @type {(ev: Event) => void} */
+    onScrollThrottledBound;
+    /** @type {number} */
+    scrollingElementHeight;
+    /** @type {number} */
+    oldScrollTop;
+    /** @type {number} */
+    lastScrollTop;
+    /** @type {number} */
+    initialScrollTop;
+    /** @type {boolean} */
+    isScrolling;
+
     setup() {
         this.actionService = useService("action");
         this.pagerProps = this.env.config.pagerProps
@@ -790,6 +829,7 @@ export class ControlPanel extends Component {
      * @returns {HTMLElement[]}
      */
     getBoxedElements(elements) {
+        /** @type {HTMLElement[]} */
         const boxed = [];
         for (const el of [...elements]) {
             const elStyles = el.ownerDocument.defaultView.getComputedStyle(el);
@@ -798,7 +838,10 @@ export class ControlPanel extends Component {
             } else if (elStyles.getPropertyValue("display") === "none") {
                 continue;
             } else {
-                boxed.push(el);
+                // ``elements`` comes from an HTMLCollection so each ``el`` is
+                // typed ``Element`` but at runtime it's always an HTMLElement
+                // (Bootstrap toolbar markup).
+                boxed.push(/** @type {HTMLElement} */ (el));
             }
         }
         return boxed;
