@@ -498,16 +498,34 @@ class OdooSassImporter(SassImporter):
 
 _sass_compiler: SassEmbeddedCompiler | None = None
 _sass_lock = threading.Lock()
+_on_stop_registered = False
 
 
 def get_sass_compiler() -> SassEmbeddedCompiler:
     """Return the singleton SassEmbeddedCompiler, creating it lazily."""
-    global _sass_compiler
+    global _sass_compiler, _on_stop_registered
     if _sass_compiler is None:
         with _sass_lock:
             if _sass_compiler is None:
                 _sass_compiler = SassEmbeddedCompiler()
                 atexit.register(close_sass_compiler)
+                if not _on_stop_registered:
+                    # Close the compiler subprocess during the server's
+                    # graceful stop. on_stop hooks run before the server's
+                    # lingering-child check, so this avoids the spurious
+                    # "process may hang" warning and does not rely on atexit
+                    # ordering. Lazy import: this tool sits below odoo.service,
+                    # and the hook is only needed when a server is running.
+                    try:
+                        from odoo.service.server import CommonServer
+
+                        CommonServer.on_stop(close_sass_compiler)
+                        _on_stop_registered = True
+                    except Exception:
+                        _logger.debug(
+                            "Could not register sass close on server stop",
+                            exc_info=True,
+                        )
     return _sass_compiler
 
 
