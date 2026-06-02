@@ -78,11 +78,12 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         // payload (typically < 64k). So we try to save with sendBeacon, and if it
         // doesn't work, we will prevent the page from unloading.
         const route = `/web/dataset/call_kw/${record.resModel}/web_save`;
-        // Optimistic locking: mirror the normal-save path (see :135) so the
-        // server can reject concurrent edits even when the save was initiated
-        // by sendBeacon on tab close. The urgent path is gated on
-        // `record.resId` being truthy (see :66), so we only need to guard on
-        // the presence of write_date in _values.
+        // Optimistic locking: mirror the normal-save path's last_write_date
+        // logic (below) so the server can reject concurrent edits even when the
+        // save was initiated by sendBeacon on tab close. The normal path guards
+        // on `record.resId && write_date`; here a present `write_date` already
+        // implies the record was persisted (so resId is truthy), so guarding on
+        // write_date alone is sufficient.
         const urgentKwargs = { context: record.context, specification: {} };
         if (record._values.write_date) {
             const wd = record._values.write_date;
