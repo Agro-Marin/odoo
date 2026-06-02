@@ -263,12 +263,26 @@ class IrAttachment(models.Model):
         # database allowed it. Helps avoid errors when concurrent transactions
         # are deleting the same file, and some of the transactions are
         # rolled back by PostgreSQL (due to concurrent updates detection).
+        #
+        # Deleting an asset-bundle attachment must also drop the "assets"
+        # ormcache, which stores rendered asset nodes embedding the bundle URL:
+        # a cached node that outlives its attachment is a hard 404 on the next
+        # request (the ESM serve path, unlike the classic /web/assets
+        # controller, has no on-the-fly rebuild). clear_cache() also signals
+        # other workers. The hot build-time version rotation goes through
+        # _unlink_attachments' raw SQL, which bypasses this on purpose to avoid
+        # cross-worker thrash and only ever drops already-superseded versions.
+        clear_assets = any(
+            url and url.startswith("/web/assets/") for url in self.mapped("url")
+        )
         to_delete = OrderedSet(
             attach.store_fname for attach in self if attach.store_fname
         )
         res = super().unlink()
         for file_path in to_delete:
             self._file_delete(file_path)
+        if clear_assets:
+            self.env.registry.clear_cache("assets")
 
         return res
 
