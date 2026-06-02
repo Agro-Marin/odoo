@@ -42,9 +42,11 @@
 | `components/signature/` | features | 2 | 410 | Signature pad component with draw, auto-generate, and load modes |
 | `components/tags_list/` | features | 1 | 47 | Renders a list of colored tags with optional visibility limit and overflow co... |
 | `components/time_picker/` | features | 1 | 304 | Time input component with dropdown hour/minute selection and configurable rou... |
-| `components/tree_editor/` | features | 5 | 1,125 | UI-layer tree editor components (tree_editor, tree_editor_autocomplete, tree_editor_components, tree_editor_operator_editor, tree_editor_value_editors). The 14 tree-manipulation utilities moved to `core/tree/` in the UMD→ESM refactor. |
+| `components/tree_editor/` | features | 5 | 1,125 | UI-layer tree editor components (tree_editor, tree_editor_autocomplete, tree_editor_components, tree_editor_operator_editor, tree_editor_value_editors). Data-only tree-manipulation utilities live in `core/tree/`. |
 | `components/user_switch/` | features | 1 | 67 | Login page component for quick-switching between recently connected user acco... |
 | `core/` | shared | 9 | 1,875 | Lazy-loads CSS/JS asset bundles into documents with caching |
+| `core/avatar/` | shared | 0 | — | Avatar component styles (SCSS only) |
+| `core/badge/` | shared | 0 | — | Badge component styles (SCSS only) |
 | `core/browser/` | shared | 5 | 776 | Prevents default scroll on bare "#" anchor clicks |
 | `core/colors/` | shared | 1 | 223 | Predefined color palettes for charts and graph visualizations |
 | `core/errors/` | shared | 1 | 215 | Traceback formatting, source-map annotation, and error chain utilities |
@@ -53,7 +55,7 @@
 | `core/network/` | shared | 5 | 1,191 | Content-Disposition header parser (RFC 6266/5987) |
 | `core/position/` | shared | 2 | 558 | OWL hook for auto-repositioning a popper element relative to a target |
 | `core/py_js/` | shared | 9 | 2,573 | Public API for parsing and evaluating Python expressions in JS |
-| `core/tree/` | shared | 16 | — | Condition-tree primitives migrated from `components/tree_editor/` in the UMD→ESM refactor. Holds the data-only manipulation utilities (AST, conversions between domain ↔ tree ↔ Python expression, virtual operators). UI lives back in `components/tree_editor/`. |
+| `core/tree/` | shared | 16 | — | Data-only condition-tree primitives: AST, conversions between domain ↔ tree ↔ Python expression, virtual operators. UI lives in `components/tree_editor/`. |
 | `core/utils/` | shared | 18 | 2,633 | ErrorHandler component that catches child rendering errors |
 | `core/utils/collections/` | shared | 3 | 505 | Array helpers: groupBy, sortBy, unique, intersection, cartesian, zip |
 | `core/utils/dnd/` | shared | 7 | 2,287 | useDraggable OWL hook for free-form element dragging |
@@ -82,6 +84,7 @@
 | `fields/basic/phone/` | features | 1 | 57 | Phone number input field with tel: link in readonly mode |
 | `fields/basic/text/` | features | 1 | 151 | Multi-line textarea input field for Text columns |
 | `fields/basic/url/` | features | 1 | 77 | URL input field with clickable hyperlink in readonly mode |
+| `fields/display/` | features | 0 | — | Field-widget category (parent): read-only display widgets — see child dirs (badge, gauge, progress_bar, statusbar, …) |
 | `fields/display/badge/` | features | 1 | 75 | Read-only badge pill for Selection and Many2one columns |
 | `fields/display/contact_statistics/` | features | 1 | 27 | Read-only list display for contact statistics stored as JSON |
 | `fields/display/gauge/` | features | 1 | 141 | Chart.js doughnut gauge visualization for numeric fields |
@@ -91,6 +94,7 @@
 | `fields/display/stat_info/` | features | 1 | 77 | Stat button content showing a formatted value with a label |
 | `fields/display/statusbar/` | features | 1 | 405 | Horizontal pipeline status bar for Selection and Many2one columns |
 | `fields/hooks/` | features | 1 | — | OWL hooks shared across field widgets (e.g. `record_observer.js`). |
+| `fields/media/` | features | 0 | — | Field-widget category (parent): media widgets — see child dirs (binary, image, pdf_viewer, signature, …) |
 | `fields/media/attachment_image/` | features | 1 | 22 | Read-only image display field for Many2one attachment references |
 | `fields/media/binary/` | features | 1 | 114 | File upload/download field for Binary columns |
 | `fields/media/contact_image/` | features | 1 | 51 | Image field variant with fallback to a preview image when empty |
@@ -118,6 +122,7 @@
 | `fields/selection/radio/` | features | 1 | 116 | Radio button group field for Selection and Many2one columns |
 | `fields/selection/selection/` | features | 2 | 194 | Selection dropdown field with whitelist/blacklist value filtering |
 | `fields/selection/state_selection/` | features | 1 | 121 | Kanban-style colored state dot dropdown for Selection columns |
+| `fields/specialized/` | features | 0 | — | Field-widget category (parent): specialized widgets — see child dirs (domain, properties, ace, color_picker, …) |
 | `fields/specialized/ace/` | features | 1 | 102 | Code editor field using the Ace/CodeEditor component |
 | `fields/specialized/color_picker/` | features | 1 | 40 | Predefined color palette picker field for Integer columns |
 | `fields/specialized/domain/` | features | 1 | 391 | Domain expression editor field with record count and selector UI |
@@ -128,13 +133,20 @@
 | `fields/specialized/journal_dashboard_graph/` | features | 1 | 186 | Chart.js graph field for accounting journal dashboard data |
 | `fields/specialized/kanban_color_picker/` | features | 1 | 38 | Inline color palette picker for kanban card color selection |
 | `fields/specialized/properties/` | features | 8 | 2,827 | Calendar-view read-only variant of the properties field |
-| `fields/specialized/user_groups/` | features | 3 | 520 | Field widget for visualizing and configuring res.users access rights (group_ids), implication popover, and per-privilege boolean field. **Relocated from `webclient/res_user_group_ids_field/` — the old path in prior revisions is stale.** |
+| `fields/specialized/properties/icons/` | features | 0 | — | Property-field type icons (PNG assets) |
+| `fields/specialized/user_groups/` | features | 3 | 520 | Field widget for visualizing and configuring res.users access rights (group_ids), implication popover, and per-privilege boolean field. |
+| `fields/temporal/` | features | 0 | — | Field-widget category (parent): temporal widgets — see child dirs (datetime, remaining_days, timezone_mismatch) |
 | `fields/temporal/datetime/` | features | 2 | 775 | Date and datetime field widget with inline editing and picker integration |
 | `fields/temporal/remaining_days/` | features | 1 | 108 | Deadline countdown field showing remaining days with color-coded urgency |
 | `fields/temporal/timezone_mismatch/` | features | 1 | 109 | Timezone selection field that warns when browser and user timezones differ |
+| `legacy/` | misc | 0 | — | Legacy compatibility namespace — see `legacy/js/` |
+| `legacy/js/` | misc | 0 | — | Legacy JS namespace — see `legacy/js/core/`, `legacy/js/public/` |
 | `legacy/js/core/` | misc | 1 | 185 | Legacy class inheritance system based on John Resig's simple JavaScript inher... |
 | `legacy/js/public/` | misc | 5 | 1,791 | Lazy script loader that defers event handling until all JS bundles are loaded |
 | `libs/` | misc | 1 | 117 | (generated/vendored — no description) |
+| `libs/fontawesome7/` | misc | 0 | — | Vendored FontAwesome 7 — icon CSS + webfonts |
+| `libs/fontawesome7/css/` | misc | 0 | — | FontAwesome 7 stylesheets |
+| `libs/fontawesome7/webfonts/` | misc | 0 | — | FontAwesome 7 webfont files |
 | `model/` | entities | 6 | 1,594 | Sample server, property field definitions, and shared model utilities |
 | `model/relational_model/` | entities | 26 | 7,058 | x2many ORM command serialization and deduplication (CREATE, UPDATE, LINK, SET... |
 | `polyfills/` | misc | 1 | 138 | (generated/vendored — no description) |
@@ -203,7 +215,9 @@
 | `views/widgets/week_days/` | widgets | 1 | 62 | Widget rendering seven day-of-week checkboxes respecting the locale's week st... |
 | `webclient/` | pages | 4 | 353 | Service that auto-reloads currencies when res.currency records are mutated |
 | `webclient/actions/` | pages | 13 | 2,778 | Executes action buttons (type=object/action/special) with RPC, context filter... |
+| `webclient/actions/action_executors/` | pages | 5 | 349 | Per-action-type executors: one module each for `act_url`, `act_window`, `client`, `close`, `server`, dispatched by the action service |
 | `webclient/actions/reports/` | pages | 4 | 327 | Client action rendering an HTML report in an iframe with print button and act... |
+| `webclient/actions/reports/layout_assets/` | pages | 0 | — | Report layout SCSS assets |
 | `webclient/burger_menu/` | pages | 1 | 77 | Fullscreen mobile menu displaying user menu, company switcher, and current ap... |
 | `webclient/burger_menu/burger_user_menu/` | pages | 1 | 20 | Mobile variant of the user menu shown inside the burger menu overlay |
 | `webclient/burger_menu/mobile_switch_company_menu/` | pages | 1 | 32 | Mobile company switcher with collapsible toggle for many companies |
@@ -215,7 +229,7 @@
 | `webclient/loading_indicator/` | pages | 1 | 72 | Loading indicator counting active RPCs and blocking the UI after a 3s delay |
 | `webclient/menus/` | pages | 3 | 340 | Utility functions to traverse the menu tree and compute flat app/menuItem lis... |
 | `webclient/navbar/` | pages | 1 | 287 | Main navigation bar with app switcher, sub-menus, systray items, and mobile s... |
-| `views/settings/` | pages | 5 | 481 | Three-way dialog (Save/Discard/Stay) for unsaved settings changes. **Relocated from `webclient/settings_form_view/` — the old path in prior revisions is stale.** |
+| `views/settings/` | pages | 5 | 481 | Three-way dialog (Save/Discard/Stay) for unsaved settings changes. |
 | `views/settings/fields/` | pages | 2 | 82 | Boolean field for settings that shows an Enterprise upgrade dialog when checked |
 | `views/settings/fields/settings_binary_field/` | pages | 1 | 32 | BinaryField variant resolving download URLs via the related field's relation |
 | `views/settings/highlight_text/` | pages | 3 | 74 | FormLabel variant with search-term highlighting and enterprise upgrade badge |
@@ -225,3 +239,7 @@
 | `webclient/switch_company_menu/` | pages | 2 | 488 | Single company row in the switch-company dropdown with toggle and log-into ac... |
 | `webclient/user_menu/` | pages | 2 | 245 | Systray dropdown displaying current user avatar and menu items from the user_... |
 | `(root)` | misc | 4 | 774 | Top-level entry points and session |
+| `@types/` | misc | 0 | — | TypeScript ambient type declarations (`.d.ts`): env, context, fields, models, registries, services, views, owl, user |
+| `@types/models/` | misc | 0 | — | Model-layer ambient types (`_runtime.d.ts`) |
+| `@types/registries/` | misc | 0 | — | Registry ambient types (fields, services, views, command, debug, view_widgets) |
+| `scss/` | misc | 0 | — | Shared SCSS stylesheets (variables, mixins, base backend styles) — ~197 `.scss`, no JS |

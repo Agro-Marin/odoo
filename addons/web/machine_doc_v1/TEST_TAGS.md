@@ -6,20 +6,17 @@ Quick reference for running targeted subsets of `core/addons/web/tests/`.
 
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
-| `web_unit` | TransactionCase (pure Python) | 49 methods | ~30s |
-| `web_http` | HttpCase (url_open, no browser) | 58 methods | ~5 min |
+| `web_unit` | TransactionCase (pure Python) | 70 methods | ~30s |
+| `web_http` | HttpCase (url_open, no browser) | 61 methods | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 5 methods | ~2 min |
 | `web_js` | Full JS suites (HOOT/QUnit) | 36 methods | ~1-2 hr |
 | `web_perf` | Query count regression (@warmup) | 25 methods | ~2 min |
 | `web_benchmark` | Statistical timing (run_benchmark) | 8 methods | ~5 min |
 | `click_all` | Click-everywhere (-standard) | 2 methods (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
 
-> Note: ten test files currently carry no `web_*` topic tag — nine have
-> no `@tagged` at all (`test_assets.py`, `test_click_everywhere.py`,
-> `test_esm_pipeline.py` [11 classes, 35 methods], `test_js.py`,
-> `test_reports.py`, `test_res_config_settings.py`, `test_session_info.py`,
-> `test_web_save.py`, `test_web_search_read.py`), and one
-> (`test_res_config_doc_links.py`) is tagged only with framework
+> Note: three test files currently carry no `web_*` topic tag — two have
+> no `@tagged` at all (`test_esm_pipeline.py`, `test_res_config_settings.py`),
+> and one (`test_res_config_doc_links.py`) is tagged only with framework
 > conventions (`-standard`, `external`, `post_install`, `-at_install`).
 > They are not selected by any of the filters in this table; run with
 > the `/web` module filter alone (`-u web`) to include them.
@@ -95,17 +92,15 @@ to run individual groups instead of the full 1-2 hour suite.
 | `web_translate` | test_translate | Translation overrides |
 | `web_users` | test_res_users, test_res_users_settings | User settings, name_search |
 | `web_controllers_audit` | test_controllers_audit | Controller conventions: docstrings, auth, readonly, methods |
-| `web_read_group` | test_web_read_group | `web_read_group` API correctness (added post-doc-generation) |
+| `web_read_group` | test_web_read_group | `web_read_group` API correctness |
 | `assets_bundle` | test_assets | Bundle generation timings and asset cursors (sub-tag alongside `web_assets`) |
 | `web_bundle_size` | test_web_bundle_size | ESM bundle byte-size regression gate; pins upper-bound budgets per bundle (sub-tag alongside `web_perf` and `web_assets`) |
 
 ## JS Legacy QUnit File Taxonomy
 
 `tests/legacy/` contains 28 `.js` files; only **6 of them are actual test
-suites**.  The others are helpers and bundle entry points that the legacy
-QUnit chain still references.  Counting bundle entries as "tests left to
-migrate" gives a ~4.5× pessimistic estimate; the audit on 2026-05-07
-inflated the work scope before this clarification was added.
+suites**. The others are helpers and bundle entry points that the legacy
+QUnit chain still references.
 
 ### Real legacy QUnit suites (6, by full path)
 
@@ -118,30 +113,20 @@ tests/legacy/core/utils/nested_sortable_tests.js
 tests/legacy/legacy_tests/core/class_tests.js
 ```
 
-Five of these can be deleted today; one (`public_widget_tests.js`) is gated
-on the `publicWidget.Widget` liquidation, which has not yet been scoped —
-deletion criteria depend on a fork-wide audit of remaining `publicWidget`
-extensions.
-
 ### Everything else under `tests/legacy/` (the remaining ~22 files) is bundle-only support code:
 
 - `main.js`, `qunit.js`, `setup.js`, `patch_translations.js` — runner glue
 - `ignore_missing_deps_{start,stop}.js` — ESM bridge shims
 - `helpers/**`, `views/**`, `search/**`, `webclient/**` — fixtures and
-  helper functions consumed only by the 6 suites above (verified zero
-  downstream consumers as of 2026-05-07)
+  helper functions consumed only by the 6 suites above
 
-LOC inventory verified 2026-05-07:
+LOC inventory:
 
 | Subset | LOC |
 |---|---|
 | `tests/legacy/` total tree | 9,081 |
 | `tests/legacy/{helpers,views,search}/` subdirectories alone | 3,656 |
 | QUnit library file (`static/lib/qunit/qunit-2.9.1.js`) | 6,612 (~200 KB on disk) |
-
-Removing the 6 suites and the QUnit library transitively makes the rest
-of `tests/legacy/` deletable and shrinks the
-`web.tests_assets`/`web.qunit_suite_tests` bundles.
 
 ## Examples
 

@@ -4,66 +4,24 @@
 > WITHOUT migrating to actual `.ts` files. The asset pipeline (`assetsbundle.py`
 > URL stripping, `ir_qweb.py` URL extension forcing) hardcodes `.js` in 6+
 > sites; flipping a file's extension would require a separate infrastructure
-> change. This recipe gets ~80% of the type-safety win at ~5% of the cost.
+> change.
 
 ## When to apply
 
 Apply to files that already carry `// @ts-check` and have multiple
-`/** @type {any} */` escapes. Highest-value targets are the model/network
-seam (per the original architecture audit):
-
-| File | Pre-PR `any` escapes |
-|---|---:|
-| `core/network/rpc.js` | 11 (done — see commit log) |
-| `model/relational_model/record.js` | 5 |
-| `model/relational_model/relational_model.js` | 1 |
-| `core/network/rpc_cache.js` | 1 |
-| `webclient/actions/action_service.js` | 1 |
-
-Skip files where `any` is genuinely warranted (e.g. dynamic registry
+`/** @type {any} */` escapes; highest-value targets are the model/network
+seam. Skip files where `any` is genuinely warranted (dynamic registry
 values, framework-level proxy types that escape JSDoc's expressiveness).
 
-## Setup — local type-check
+## Type-check setup
 
-The repo has no committed `tsconfig.json`; the dev opt-in template at
-`tooling/_jsconfig.json` (copied per-developer by `tooling/enable.sh`)
-is the canonical config. For a one-off seam-file check without enabling
-the full tooling:
-
-```bash
-cat > /tmp/tsconfig_seam.json << 'EOF'
-{
-    "compilerOptions": {
-        "moduleResolution": "node",
-        "baseUrl": "<repo-root>",
-        "target": "ESNext",
-        "noEmit": true,
-        "allowJs": true,
-        "checkJs": true,
-        "strict": false,
-        "strictNullChecks": true,
-        "strictBindCallApply": true,
-        "strictFunctionTypes": true,
-        "skipLibCheck": true,
-        "lib": ["ESNext", "DOM", "DOM.Iterable"],
-        "types": [],
-        "paths": {
-            "@odoo/owl": ["addons/web/static/lib/owl/owl.js"],
-            "@web/*": ["addons/web/static/src/*"]
-        }
-    },
-    "include": [
-        "<repo-root>/addons/web/static/src/core/network/rpc.js",
-        "<repo-root>/addons/web/static/src/core/network/rpc_cache.js"
-    ]
-}
-EOF
-
-PATH="$NODE_DIR:$PATH" node_modules/typescript/bin/tsc --project /tmp/tsconfig_seam.json 2>&1 | grep "rpc\.js"
-```
-
-`"types": []` blocks the implicit `@types/models` / `@types/registries`
-loading that errors out when run outside the full tooling install.
+The core repo ships a committed root `tsconfig.json` (`noEmit: true`,
+`allowJs: true`, `typeRoots` → each module's `static/src/@types`); CI
+type-checks against it (see "CI gating"). Opt-in editor template at
+`tooling/_jsconfig.json` (copied by `tooling/enable.sh`). For a one-off
+seam-file check, point `tsc --noEmit` at a `tsconfig` with `"types": []`
+to block the implicit `@types/models` / `@types/registries` loading that
+errors out outside the full tooling install.
 
 ## The 6 recurring tightening patterns
 
@@ -88,9 +46,6 @@ this.model = undefined;
 error.model = data.params.model;
 ```
 
-Catches: typos in the field name (`error.mdoel` etc.); accidentally
-storing a non-string value.
-
 ### Pattern 2 — `unknown` payload narrowed by structural shape
 
 **Before**:
@@ -112,9 +67,6 @@ error.exceptionName = /** @type {any} */ (errorData)?.name;
 // JsonRpcError.data is now typed as RPCErrorData, so:
 error.exceptionName = errorData?.name ?? null;
 ```
-
-Catches: misspelled fields when consumers read `error.data.foo`;
-forgotten `?.` when the field is optional.
 
 ### Pattern 3 — Module-scoped imported class
 
@@ -141,9 +93,6 @@ rpc.setCache = function (cache) {
     rpcCache = cache;
 };
 ```
-
-Catches: passing the wrong cache-like object; calling methods that
-don't exist on `RPCCache`.
 
 ### Pattern 4 — Custom event detail
 
@@ -173,9 +122,6 @@ rpcBus.addEventListener(RpcEvent.REQUEST, (event) => {
 });
 ```
 
-Catches: missing fields on `detail.data.params`; passing the wrong
-discriminator (e.g. accessing `detail.error` on a REQUEST event).
-
 ### Pattern 5 — Promise + bolt-on method (`.abort()`)
 
 **Before**:
@@ -194,9 +140,6 @@ return promise;
 /** @type {RpcPromise<any>} */ (promise).abort = function (rejectError = true) { ... };
 return /** @type {RpcPromise<any>} */ (promise);
 ```
-
-Catches: callers that read `.abort` on the return without the typedef;
-attempts to monkey-patch other methods onto the promise.
 
 ### Pattern 6 — Runtime helper that TS can't narrow as a type predicate
 
@@ -242,11 +185,10 @@ registerField("list.text", listTextField);
 registerField("liist.text", buggyVariant);  // silently registers garbage
 ```
 
-The string `"list.text"` is fragile: a typo registers an unreachable key
-that no view ever asks for. The lookup-time prefix walk
-(`getFieldFromRegistry` → `[jsClass, viewType, ""]`) silently falls
-back to the default widget, so the registration noise is invisible
-until you grep the bundle for orphan keys.
+The string `"list.text"` is fragile: a typo registers an unreachable key.
+The lookup-time prefix walk (`getFieldFromRegistry` → `[jsClass, viewType, ""]`)
+silently falls back to the default widget, so the noise is invisible until
+you grep the bundle for orphan keys.
 
 **After**: keep the string form for backward compatibility, add a typed
 spec overload that constrains the prefix to a union of known view types.
@@ -278,19 +220,13 @@ registerField({ name: "text", view: "list" }, listTextField);
 registerField({ name: "text", view: "liist" }, buggyVariant);
 ```
 
-Catches: typos in the view slug (`liist`, `LIST`, `kabnan`); registration
-of an unintended prefix because the union is grep-able and finite.
-
 **Don't drop the string form** — 74 of the 94 fork-wide `registerField`
 sites are plain (no view prefix) and have no typo risk; migrating them
-yields no win. Reserve the typed form for view-prefixed registrations
-(20 sites as of this PR's migration).
+yields no win. Reserve the typed form for view-prefixed registrations.
 
-**Naming nuance**: the "name" in `FieldRegistrationSpec.name` is the
-widget identifier the view arch references via `widget="<name>"`. It is
-NOT necessarily a field type — `res_partner_many2one` is a widget name,
-not a type. The original audit framing used `{type, view, variant}`
-which conflated these; the actual API uses `name` for fidelity.
+**Naming nuance**: the `name` in `FieldRegistrationSpec.name` is the widget
+identifier the view arch references via `widget="<name>"`, NOT necessarily a
+field type — `res_partner_many2one` is a widget name, not a type.
 
 ## Gotcha — `@template T` block scope
 
@@ -314,14 +250,8 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
 1. **Static parse**: `node --check <file>` — catches malformed JSDoc that
    would crash the asset bundler.
 2. **esbuild graph**: `esbuild --bundle <entry>` — catches import drift
-   from typedef-only changes (rare, but happens if you accidentally
-   import a value instead of a type).
-3. **TypeScript compile**: `tsc --noEmit --project /tmp/tsconfig_seam.json`
-   — the actual win; counts new errors.
-4. **Standalone behavior simulation**: replicate the file's logic in a
-   plain Node script, assert each tightened code path still produces the
-   pre-PR result for the canonical inputs. This is the cheap substitute
-   for the full Hoot harness during local iteration.
+   from typedef-only changes (importing a value instead of a type).
+3. **TypeScript compile**: `tsc --noEmit` — the actual win; counts new errors.
 
 ## What this recipe does NOT cover
 
@@ -329,75 +259,11 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
   hardcoding `.js` extension in URL stripping and forced-suffix logic.
   Would need 6+ pipeline patches across `assetsbundle.py` and
   `ir_qweb.py` plus a `--loader=ts:` esbuild flag.
-- **CI gating** — no committed `tsconfig.json` means CI doesn't run
-  `tsc --noEmit`. Adding a CI-friendly config is a separate infrastructure
-  change with its own PR scope.
-- **The `@types/registries` / `@types/models` ambient typeRoots** — these
-  declare framework-wide interfaces but loading them implicitly errors out
-  without the full tooling install. The seam-file checker bypasses them
-  via `"types": []`; that costs a few "implicit any" warnings on registry
-  reads but doesn't block validation.
-
-## Pattern adoption status
-
-| File | Status | Date | Escapes |
-|---|---|---|---|
-| `core/network/rpc.js` | Done | 2026-05-23 | 11 → 0 |
-| `core/network/rpc_cache.js` | Done (1 escape — deepFreeze pattern 6) | 2026-05-23 | 1 → 0 |
-| `model/relational_model/record.js` | Done (5 escapes; surfaced a `relatedPropertyField` typedef bug — declared as `string` but used as `{name, id?, displayName?}` at both write sites) | 2026-05-23 | 5 → 0 |
-| `model/relational_model/relational_model.js` | Done (1 escape — `groupByInfo` shape) | 2026-05-23 | 1 → 0 |
-| `webclient/actions/action_service.js` | Done (1 escape — `switchView` default-param pattern) | 2026-05-23 | 1 → 0 |
-| `model/types.js` | Done (typedef fix for `relatedPropertyField`) | 2026-05-23 | 0 → 0 |
-| `views/form/form_controller.js` | Partial (2 of 7 easy escapes — default-param pattern; remaining 5 are OWL-adapter casts that need broader type infrastructure) | 2026-05-23 | 7 → 5 |
-| `components/errors/error_handlers.js` | Partial (1 of 8 easy escape — eliminated `(originalError).model` now that `RPCError.model` is in the typedef; remaining 7 are dynamic Component class + addon registry shapes) | 2026-05-23 | 8 → 7 |
-| `fields/_registry.js` | Added typed-spec overload + `fieldKey()` helper + `FieldViewPrefix` union (Pattern 7). 20 view-prefixed call sites across 16 files migrated to the typed form. | 2026-05-25 | n/a — API addition |
-
-**Cumulative**: 34 → 12 across the seam (any-escapes); plus 20 view-
-prefixed string-key registrations migrated to typed specs. The
-remaining 12 escapes are legitimate dynamic-adapter `any`s (registry
-handlers that take varied shapes, Component classes attached at
-runtime, OWL hook parameter coercion) where the cast IS the right tool.
-
-**Pattern 7 typo-catching verified by tsc**: a synthetic test with
-`view: "liist"` and `view: "FORM"` produces:
-- `error TS2820: Type '"liist"' is not assignable to type 'FieldViewPrefix | undefined'. Did you mean '"list"'?`
-- `error TS2820: Type '"FORM"' is not assignable to type 'FieldViewPrefix | undefined'. Did you mean '"form"'?`
-
-## Drift caught while applying the recipe
-
-1. **`relatedPropertyField` typedef vs reality** (`model/types.js:22, 52`):
-   declared as `string` for both `Field` and `FieldInfo`, but both write
-   sites in `record.js` assigned object literals (`{ name, id?,
-   displayName? }`). The `/** @type {any} */ ({...})` cast on the
-   assignment had been hiding it. Consumers only checked truthiness
-   (`if (field.relatedPropertyField)`), so the bug was latent. **Fixed**
-   the typedef to match reality.
-
-2. **`groupByInfo` shape under-declared** (`relational_model.js:78`):
-   declared as `Record<string, unknown>`, but the model destructures
-   `{activeFields, fields}` from it at line 970. Tightened to
-   `Record<string, { activeFields: ...; fields: ... }>`.
-
-3. **8 pre-existing tsc errors in `rpc_cache.js`** (CryptoKey nullability,
-   Deferred.resolve missing on type, tables-array-vs-null confusion): not
-   introduced by this PR but **surfaced** by running tsc on the file.
-   They were already there; the `// @ts-check` pragma was running but
-   the file had never been part of any external tsc-noEmit check, so the
-   drift never alerted. Documented here as the next-tier backlog.
-
-## Next-tier work surfaced by this PR
-
-Running `tsc --noEmit` on the seam files exposed a backlog beyond the
-direct `@type {any}` escapes:
-
-- `rpc_cache.js` — 8 errors (CryptoKey nullability, Deferred.resolve
-  shape, tables param). Tightening these requires touching the
-  IndexedDB/encryption flow.
-- `form_controller.js` — 5 remaining adapter casts (useBus + render,
-  onMounted + resolver, model.exportState through useState wrapper,
-  ui.activeElement). Need OWL type plumbing.
-- `error_handlers.js` — 7 remaining (dynamic ErrorComponent class field,
-  registry.add validator schema). Need error-handler interface design.
-
-These are appropriate follow-up PRs; the recipe applies but the type
-infrastructure isn't all in place yet.
+- **CI gating** — `.github/workflows/typecheck.yml` runs
+  `npx tsc --project tsconfig.json --noEmit` on every PR touching JS/TS, in
+  **warn-only mode** (`continue-on-error: true`): it annotates the PR and
+  tracks drift against a ~6,575-error baseline without blocking merges.
+- **The `@types/registries` / `@types/models` ambient typeRoots** — declare
+  framework-wide interfaces but loading them implicitly errors out without
+  the full tooling install. The seam-file checker bypasses them via
+  `"types": []`, costing a few "implicit any" warnings on registry reads.
