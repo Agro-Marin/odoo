@@ -225,7 +225,7 @@ select {
 //== Titles
 @include media-breakpoint-down(md) {
  h1 {
- font-size: $h1-font-size * 3 / 4;
+ font-size: calc($h1-font-size * 3 / 4);
  }
  h2,
  h3,

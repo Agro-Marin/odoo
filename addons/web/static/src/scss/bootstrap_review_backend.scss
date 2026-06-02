@@ -18,8 +18,7 @@
                 transform $o-duration-fast $o-easing-standard;
 
     &:focus-visible {
-        outline: $o-ring-width solid $o-ring-color;
-        outline-offset: $o-ring-offset;
+        @include o-focus-ring();
     }
 }
 
@@ -359,6 +358,5 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-    outline: $o-ring-width solid $o-ring-color;
-    outline-offset: $o-ring-offset;
+    @include o-focus-ring();
 }
