@@ -11,7 +11,7 @@ Every Python model defined or extended by the `web` module, with fields, key met
 
 ## Frontend Data Layer
 
-These models provide the core CRUD and data-fetching APIs consumed by the JS webclient.
+Core CRUD and data-fetching APIs consumed by the JS webclient.
 
 ### models/web_read.py — Base (`_inherit = 'base'`)
 
@@ -94,12 +94,12 @@ Webclient context setup, session info, and request handling.
 
 **Key Methods:**
 - `session_info()` — Main bootstrap RPC. Returns dict built by `_base_session_info` + `session_info` additions. Full key list:
-  - From `_base_session_info`: `uid`, `is_system`, `is_admin`, `is_public`, `is_internal_user`, `user_context`, `registry_hash`, `show_effect`, `currencies`, `quick_login`, `bundle_params`, `test_mode`, optionally `server_version`, `server_version_info`
-  - Added by `session_info`: `max_file_upload_size`, `active_ids_limit`, `db`, `support_url`, `name`, `username`, `partner_write_date`, `partner_display_name`, `partner_id`, `home_action_id`, `view_info`, `user_settings`, `groups`, `web.base.url`, conditionally `user_companies` (company hierarchy, only for internal users)
+  - From `_base_session_info`: `uid`, `is_system`, `is_admin`, `is_public`, `is_internal_user`, `registry_hash`, `show_effect`, `currencies`, `quick_login`, `bundle_params`, `test_mode`, `cwv_sample_rate`, `feature_flags`, optionally `server_version`, `server_version_info`
+  - Added by `session_info`: `user_context`, `max_file_upload_size`, `active_ids_limit`, `db`, `support_url`, `name`, `username`, `partner_write_date`, `partner_display_name`, `partner_id`, `home_action_id`, `view_info`, `user_settings`, `groups`, `web.base.url`, conditionally `user_companies` (company hierarchy, only for internal users)
   - `groups` is a single-flag dict `{"base.group_allow_export": bool}`, NOT a full list of the user's groups
   - `browser_cache_secret` is NOT part of `session_info()` — it is injected separately by `home.py:119-121` into the HTML template after `session_info()` returns
 - `get_frontend_session_info()` — Lightweight variant for public/website pages (no company hierarchy).
-- `lazy_session_info()` — Hook for expensive session data loaded after bootstrap. Currently returns `{profile_session, profile_collectors, profile_params}` (profiling keys moved here from `session_info()` in commit `77e466310ab`). Note: `max_profile_allowed` is NOT part of this response.
+- `lazy_session_info()` — Hook for expensive session data loaded after bootstrap. Currently returns `{profile_session, profile_collectors, profile_params}`. Note: `max_profile_allowed` is NOT part of this response.
 - `webclient_rendering_context()` — Context dict for webclient HTML template.
 - `color_scheme()` — Returns `"light"` (override point for dark mode).
 - `content_density()` — Priority: cookie > user setting > `'default'`.
@@ -218,7 +218,7 @@ Auto-regenerate report stylesheet on style changes.
 Model is **defined upstream in `base`**; web only extends it. The `ir.model.access.csv` in `security/` correctly does not grant access here.
 
 **Key Methods:**
-- `get_properties_base_definition(model_name, field_name)` — `@api.model`. ACL-checked retrieval of property field definitions. Returns `list[dict]` (the raw result of `web_search_read` on `properties.base.definition`), NOT a singular dict.
+- `get_properties_base_definition(model_name, field_name)` — `@api.model`. ACL-checked retrieval of property field definitions. Returns the `web_search_read` result **dict** (`{"length", "records"}`) on `properties.base.definition` — annotated `-> dict[str, Any]`; a singular dict, not a list.
 
 ## Config
 
@@ -239,13 +239,12 @@ vCard export for contact data.
 
 ### models/web_cwv_metric.py — WebCwvMetric (`_name = 'web.cwv.metric'`)
 
-Storage for Core Web Vitals beacons (RUM Phase 2). Records are written by
+Storage for Core Web Vitals beacons. Records are written by
 `controllers/observability.py:cwv()` and pruned on a daily cron (`_gc_old_metrics`).
 
 `_log_access = False`: the four standard audit columns
-(`create_uid`/`create_date`/`write_uid`/`write_date`) are skipped — RUM is
-append-only and high-volume, and `recorded_at` already captures the moment
-the beacon was received.
+(`create_uid`/`create_date`/`write_uid`/`write_date`) are skipped (append-only,
+high-volume; `recorded_at` captures beacon arrival).
 
 **Fields** (numeric vitals are server-clamped before persistence; see
 `controllers/observability.py:_clamp_latency`/`_clamp_cls`):
@@ -261,11 +260,6 @@ the beacon was received.
 
 **Key Methods:**
 - `_gc_old_metrics()` (`@api.model`) — Daily cron retention sweep. Reads `web.cwv.retention_days` (default `"30"`). `0` disables (cron no-op). Issues a single raw `DELETE FROM web_cwv_metric WHERE recorded_at < now() - INTERVAL ...` (no ORM iteration; table is append-only by design). Registered via `data/web_cwv_metric_data.xml`.
-
-> Phase 1 = beacon ingestion + log line (`controllers/observability.py`).
-> Phase 2 = persistent model + dashboard view (`views/web_cwv_metric_views.xml`).
-> Phase 3 = sampling + retention (`cwv_sample_rate` injected into `session_info`
-> for client-side sampling, plus `web.cwv.retention_days` driving daily GC).
 
 ## Model Index
 

@@ -4,16 +4,13 @@
 
 ## Canonical primitives
 
-OWL's reactivity already offers the three building blocks that Solid,
-Svelte 5, Vue 3 Vapor, and Angular Signals all converged on; the names
-are different but the semantics line up.  Keep this table handy to
-translate between industry vocabulary and what lives in this codebase:
+Translation between industry vocabulary and the OWL primitives in this codebase:
 
 | Concept | OWL-native spelling | Industry analog |
 |---------|---------------------|-----------------|
 | Component-local signal | `useState({ ... })` | React `useState` / Vue `ref` / Solid `createSignal` (component-scoped) |
 | Shared signal | `reactive({ ... })` returned from a service's `start()` | Vue 3 `reactive` / Solid store / Svelte 5 `$state` in module scope |
-| Shared signal class | `class extends SignalStore` (née `Reactive`) | Mobx observable class / Vue `reactive` on `this` / Pinia store class |
+| Shared signal class | `class extends SignalStore` | Mobx observable class / Vue `reactive` on `this` / Pinia store class |
 | Component-scoped effect | `useEffect` (from `@odoo/owl`) — fires only while owning component is mounted | React `useEffect` / Solid `createEffect` inside a component |
 | Process-scoped effect | `effect(cb, deps)` (from `@web/core/utils/reactive`) — fires until garbage-collected; used by services and record observers | Solid `createEffect` at module scope / Vue 3 `watchEffect` / Svelte 5 `$effect` |
 | Computed / derived value (on a class) | Plain JS getter reading signals (OWL is Proxy-based — getters track automatically) | Solid `createMemo` accessed via class field / Vue `computed` ref on `this` |
@@ -32,29 +29,11 @@ passed around as a value object — same shape as Vue's `ref` (`.value`
 read) but for read-only derivations. Neither is memoized; OWL's
 scheduler batches renders within a tick.
 
-**SignalStore.**  ``SignalStore`` is the canonical class name (aligned
-with 2026 frontend vocabulary).  Historically named ``Reactive``; the
-backward-compatibility alias was exported from the same module until
-2026-05-09, when it was dropped after a fork-wide grep confirmed zero
-in-tree consumers.  Attempting `import { Reactive } from
-"@web/core/utils/reactive"` now fails at module-load with a native
-"no such export" error.
-
-**Migration status (as of 2026-05-09)**: **23 of 23 sites on
-``extends SignalStore`` — 100% complete; alias removed.**
-
-Round 2 batch 1 (2026-05-01, 17 sites): `core/addons/web` (2),
-`addons/core` non-web (10), `addons/enterprise` non-`web_studio` (5).
-
-Round 2 batch 2 (2026-05-02, 5 sites): `web_studio` —
-`view_editor_model` (1), `edition_flow` (3 classes), `report_editor_model`
-(1).  This batch required deleting the parallel ``Reactive`` class at
-``enterprise/web_studio/static/src/client_action/utils.js:75-86`` (which
-added a ``raw()`` method returning the pre-proxy object) and replacing
-its 8 ``this.raw()`` callers in ``edition_flow.js`` with ``toRaw(this)``
-from ``@odoo/owl`` — semantically equivalent and the canonical OWL
-primitive for that operation.  Net: ``utils.js`` shrank from 161 to 148
-lines; the migration is feature-parity, not a behavior change.
+**SignalStore.**  ``SignalStore`` is the canonical class name.  Only
+`SignalStore` is exported; the `Reactive` alias was removed.  Attempting
+`import { Reactive } from "@web/core/utils/reactive"` fails at module-load
+with a native "no such export" error.  All 27 production sites use
+``extends SignalStore``.
 
 ## Decision Tree
 
@@ -136,8 +115,7 @@ file uploads, emoji frequency, currency rates, user preferences.
 
 ## Pattern 3: `SignalStore` Base Class — Model Entities
 
-Classes extending `SignalStore` (`core/utils/reactive.js`, formerly
-named `Reactive` — alias kept for backward compatibility) auto-wrap
+Classes extending `SignalStore` (`core/utils/reactive.js`) auto-wrap
 `this` in `reactive()` during construction.  Used for ORM data
 structures where any property mutation must propagate to the UI.
 
@@ -151,9 +129,7 @@ class DataPoint extends SignalStore {
 }
 ```
 
-Only `SignalStore` is exported.  The `Reactive` alias was dropped
-2026-05-09; existing code can no longer `import { Reactive }` and must
-use `SignalStore`.
+Only `SignalStore` is exported; the `Reactive` alias was removed.
 
 **Inheritance chain** (actual class names in code):
 
@@ -168,17 +144,17 @@ SignalStore
                 └── DynamicGroupList
 ```
 
-As of 2026-05-01, `DataPoint` `extends SignalStore` directly (migrated in Round 2). The chain above uses `SignalStore` as the canonical base; the historical `Reactive` alias was dropped from the export list 2026-05-09.
+`DataPoint` `extends SignalStore` directly.
 
 **Critical detail**: Use `markRaw()` on large objects that don't need reactivity
 (field definitions, active fields, configs). Without it, OWL deep-wraps every
 nested property, causing massive overhead.
 
 **Key files**:
-- `core/utils/reactive.js` — `SignalStore` base class (3 lines of behavior) + `Reactive` BC alias
-- `model/relational_model/datapoint.js` — `DataPoint extends SignalStore` (migrated 2026-05-01)
+- `core/utils/reactive.js` — `SignalStore` base class (3 lines of behavior)
+- `model/relational_model/datapoint.js` — `DataPoint extends SignalStore`
 - `model/relational_model/record.js` — `RelationalRecord extends DataPoint` (exported as `RelationalRecord`, NOT `Record`)
-- `components/dropdown/dropdown_hooks.js` — `DropdownState extends SignalStore` (migrated 2026-05-01)
+- `components/dropdown/dropdown_hooks.js` — `DropdownState extends SignalStore`
 
 ## Pattern 4 (discouraged): `reactive()` with side-effecting setters
 
@@ -223,13 +199,8 @@ The one legitimate surviving use case is *caching* inside the getter
 (memoize an expensive derivation) — that's not a state mutation and
 remains fine on a `SignalStore` getter.
 
-> **Migration status.**  Existing Pattern 4 sites remain in place
-> until their owning feature is touched.
->
-> **Verified inventory (2026-05-09, revised).** Earlier passes flagged four
-> candidate sites; deeper reading of each shows that **zero are open
-> refactor targets** — every surviving setter has a documented constraint
-> that defeats the `useEffect` rewrite:
+> **Pattern 4 sites.** Every surviving setter has a documented constraint
+> that defeats the `useEffect` rewrite; **zero are open refactor targets**:
 >
 > | Site | Verdict |
 > |---|---|
@@ -239,8 +210,7 @@ remains fine on a `SignalStore` getter.
 > | `components/emoji_picker/emoji_picker.js:325` (`set searchTerm`) | ✗ Not Pattern 4. Delegation between `props.state` and `this.state`. |
 > | `components/dropdown/_behaviours/dropdown_nesting.js:25` (`set isOpen`) | ⚠ Edge case — fires `BUS.trigger("dropdown-opened", this)` (fire-once-on-edge signal, not state mutation). `useEffect` rewrite would either fire too often or require a `prev`-tracking dance uglier than the setter. **Leave**. |
 >
-> **Net open Pattern 4 work: zero sites.** Pattern 4 is now best read as
-> a *vocabulary check* for new code review — not a backlog. When a new
+> Pattern 4 is a *vocabulary check* for new code review, not a backlog. When a new
 > setter introduces cross-state side effects, the reviewer's question is:
 > "is this the canonical synchronous-timing exception (kanban quick-create
 > kind), the state-machine timing kind (transition kind), or genuinely an
@@ -318,36 +288,34 @@ only one save/discard/load runs at a time.
 `navigator.sendBeacon()` to fire-and-forget unsaved changes. This bypasses
 the mutex and normal flow.
 
-> **Optimistic-locking parity (resolved 2026-05-08)**: the urgent path
-> (`model/relational_model/record_save.js:79-83`) now sets
+> **Optimistic-locking parity**: the urgent path
+> (`model/relational_model/record_save.js:87-89`) sets
 > `urgentKwargs.last_write_date` whenever `record._values.write_date` is
-> present, mirroring the normal path 61 lines later (`record_save.js:140-143`).
-> The code carries an explicit comment at `record_save.js:74-78` tying the
+> present, mirroring the normal path 60 lines later (`record_save.js:147-150`).
+> The code carries an explicit comment at `record_save.js:81-85` tying the
 > two paths together: *"Optimistic locking: mirror the normal-save path
 > (see :135) so the server can reject concurrent edits even when the save
-> was initiated by sendBeacon on tab close."* Pre-2026-05-08 the urgent
-> path omitted the field; the audit that flagged the gap is preserved in
-> `CONVENTIONS.md` §9 as historical context.
+> was initiated by sendBeacon on tab close."*
 
 **Key files**:
-- `views/form/form_controller.js:691` — `save()` entry point
-- `views/form/form_controller.js:711` — `discard()` entry point
-- `views/form/form_controller.js:501` — `beforeLeave()` auto-save
-- `model/relational_model/record.js:393` — `_applyChanges()` (dirty tracking)
-- `model/relational_model/record.js:252` — `discard()` (mutex-wrapped)
-- `services/result_set_cache_invalidator_service.js:84` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined at `:31` `RESULT_SET_REMOVING_METHODS`; RAM filtered by model, IndexedDB does full table clear — see Flow 14). Previously a module-load listener at `model/relational_model/relational_model.js:150`; relocated to a service so the listener follows env lifecycle.
+- `views/form/form_controller.js:696` — `save()` entry point
+- `views/form/form_controller.js:716` — `discard()` entry point
+- `views/form/form_controller.js:506` — `beforeLeave()` auto-save
+- `model/relational_model/record.js:471` — `_applyChanges()` (dirty tracking)
+- `model/relational_model/record.js:248` — `discard()` (mutex-wrapped)
+- `services/result_set_cache_invalidator_service.js:84` — `CLEAR-CACHES` emission (unlink + action_archive + action_unarchive; method set defined at `:31` `RESULT_SET_REMOVING_METHODS`; RAM filtered by model, IndexedDB does full table clear — see Flow 14).
 
 **All 5 CLEAR-CACHES emission sites in the web module:**
 
 | File:Line | Trigger | Scope |
 |---|---|---|
 | `services/result_set_cache_invalidator_service.js:84` | `unlink` / `action_archive` / `action_unarchive` RPC response (set defined at `:31` `RESULT_SET_REMOVING_METHODS`) | tables: web_read, web_search_read, web_read_group; model-scoped in RAM only |
-| `search/search_query_mutations.js:50` | `ir.filters` write/unlink (saved-favorite mutations) | `"get_views"` table |
-| `webclient/actions/action_service.js:140` | `ir.actions.act_window` write/unlink | `"/web/action/load"` table |
-| `views/view_service.js:61` | `ir.ui.view` / `ir.filters` write/unlink | `"get_views"` table |
-| `webclient/webclient.js:230` | Post-service-worker-registration on hard refresh | all |
+| `search/search_query_mutations.js:51` | `ir.filters` write/unlink (saved-favorite mutations) | `"get_views"` table |
+| `webclient/actions/action_service.js:171` | `ir.actions.act_window` write/unlink | `"/web/action/load"` table |
+| `views/view_service.js:65` | `ir.ui.view` / `ir.filters` write/unlink | `"get_views"` table |
+| `webclient/webclient.js:234` | Post-service-worker-registration on hard refresh | all |
 
-Plus **one listener** at `core/network/rpc.js:123` that routes the event to `rpc_cache.js` for cache invalidation.
+Plus **one listener** at `core/network/rpc.js:234` that routes the event to `rpc_cache.js` for cache invalidation.
 
 ## Model Load State Diagram
 
@@ -401,12 +369,8 @@ outcomes still throw `InvalidLoadTransitionError`.
 | `model.mutex` | RelationalModel | Per-record save/discard serialization. Used across `RelationalRecord.save` / `.discard` / `.delete` / `.update`. A model-level state machine cannot replace mutex usage scattered across the record class without an unrelated re-architecting. |
 | `model._urgentSave` | RelationalModel | Cross-cutting mode flag read by ~5 fast-paths in record/save/preprocessors. Different axis (urgent save vs. load). |
 
-The audit recommendation (#9) framed this coordinator as a replacement
-for those three primitives. Reading the code revealed orthogonal
-concerns; the implementation keeps the existing primitives and ADDS
-the coordinator as a narration layer. Same trade-off as the
-`ChangeSet` extraction (which kept `record.dirty` as a public field
-while formalizing the atomic `changes/dirty` pair via paired helpers).
+These three primitives have concerns orthogonal to load-status tracking;
+the coordinator keeps them and ADDS itself as a narration layer.
 
 ## Typed Events
 
@@ -428,16 +392,15 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 | `RpcEvent.CLEAR_CACHES` | `CLEAR-CACHES` | rpcBus | Invalidate caches |
 | `RouterEvent.ROUTE_CHANGE` | `ROUTE_CHANGE` | routerBus | URL changed |
 
-## Server-side `__version` stamp for cached endpoints (Plan C, 2026-05-19)
+## Server-side `__version` stamp for cached endpoints
 
 `update: "always"` consumers ask the cache to revalidate against the server on
-every read; the cache calls back with `(value, hasChanged)`.  Pre-Plan-C the
-freshness check was `JSON.stringify(prev) !== JSON.stringify(curr)` — O(n) on
-both sides, ~0.04 ms per call on a 200-entry search-panel payload.
+every read; the cache calls back with `(value, hasChanged)`.
 
-**Plan C** lets opted-in endpoints inject a `__version` field (sha256 of
+Opted-in endpoints inject a `__version` field (sha256 of
 canonical JSON) into their dict return value.  The cache compares versions
-when both sides carry one (O(1), ~2,000× faster on the bench), falls back to
+when both sides carry one (O(1), ~2,000× faster on the bench than the
+`JSON.stringify` comparison), falls back to
 `jsonEqual` otherwise.  Backward-compatible in both directions: old server +
 new client → fallback path; new server + old client → unknown field ignored.
 
@@ -479,7 +442,7 @@ returning at the first that produces an answer:
 | # | Layer | Cost | Wins when |
 |---|---|---|---|
 | 1 | `prev === curr` | O(1) | The same reference is passed twice (rare) |
-| 2 | `prev.__version !== curr.__version` | O(1) | Both sides have a Plan-C version stamp |
+| 2 | `prev.__version !== curr.__version` | O(1) | Both sides have a version stamp |
 | 3 | `shapeDiffers(prev, curr)` — array/object length, type mismatch | O(1) | Row appended/removed; type changed |
 | 4 | `!jsonEqual(prev, curr)` — full deep compare | O(n) | Same shape, possibly same content |
 
