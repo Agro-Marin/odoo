@@ -109,9 +109,6 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | HTTP | `/web/filestore/<path:_path>` | none | `content_filestore()` | x-sendfile | Error handler for direct filestore access |
 | JSONRPC | `/web/sign/get_fonts`, `/web/sign/get_fonts/<fontname>` | none | `get_fonts()` | Signature widget | Available signature fonts (base64) |
 
-> `/web/image/` has 17 URL variants for combinations of xmlid/id/model+id+field with optional WxH and filename.
-> `/web/content/` has 7 URL variants. All resolve to the same handler per group.
-
 ## Export
 
 ### controllers/export.py — Export / CSVExport / ExcelExport
