@@ -11,7 +11,7 @@
     // Simulate the old UI (FC v4)
     // the resizer on the bottom of the event styled with a = icon when hovered
     .fc-timegrid-event .fc-event-resizer {
-        color: #fff;
+        color: $white;
         text-align: center;
         font-family: monospace;
     }

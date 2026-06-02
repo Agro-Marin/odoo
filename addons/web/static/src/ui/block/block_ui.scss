@@ -5,7 +5,7 @@
     &:not(.o_blockUI_invisible) {
         -webkit-backdrop-filter: blur(2px);
         backdrop-filter: blur(2px);
-        background: rgba(#000, .5);
-        color: #fff;
+        background: rgba($black, .5);
+        color: $white;
     }
 }
