@@ -1001,8 +1001,8 @@ test(`Form and subview with _view_ref contexts`, async () => {
         expect(context.list_view_ref).toBe("some_other_tree_view");
         // "The correct _view_ref should have been sent to the server for the subview"
     });
-    onRpc("get_record_default_action", ({ model, kwargs }) => {
-        expect.step("get_record_default_action");
+    onRpc("get_formview_action", ({ model, kwargs }) => {
+        expect.step("get_formview_action");
         return {
             res_id: 1,
             type: "ir.actions.act_window",
@@ -1027,7 +1027,7 @@ test(`Form and subview with _view_ref contexts`, async () => {
         visible: false,
     }).click();
     expect.verifySteps([
-        "get_record_default_action",
+        "get_formview_action",
         "product get_views",
         "partner.type get_views",
     ]);

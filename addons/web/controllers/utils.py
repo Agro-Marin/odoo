@@ -191,7 +191,7 @@ def get_action(env: Any, path_part: str) -> Any:
             )
             if not action:
                 action = env["ir.actions.act_window"].new(
-                    env[model].get_record_default_action()
+                    env[model].get_formview_action()
                 )
         else:
             action = Actions

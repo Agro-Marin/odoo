@@ -314,7 +314,7 @@ export class Many2One extends Component {
     async openRecordInAction(newWindow) {
         const action = await this.orm.call(
             this.props.relation,
-            "get_record_default_action",
+            "get_formview_action",
             [[this.props.value?.id]],
             { context: this.props.openActionContext() },
         );
