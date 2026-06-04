@@ -702,7 +702,7 @@
 // ===============  Generate color classes ===============
 @for $i from 1 through length($o-colors-complete) {
     $color: nth($o-colors-complete, $i);
-    $color-subtle: mix($o-white, $color, 55%);
+    $color-subtle: tint-color($color, 55%);
 
     .o_calendar_renderer {
         .o_calendar_color_#{$i - 1} {
