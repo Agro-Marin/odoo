@@ -3090,3 +3090,108 @@ class TestQwebPerformance(TransactionCaseWithUserDemo):
             "test-cold-id-3",
             FIRST_SEARCH_FETCH + OTHER_SEARCH_FETCH + ARCH_COMBINE - 1,
         )  # 7
+
+
+@tagged("post_install", "-at_install")
+class TestQWebCompileIsolation(TransactionCase):
+    """Compilation is destructive: each directive pops the attributes it
+    consumes from the element (see ``_compile_node`` / ``_compile_directives``).
+    The source tree is shared, though — a DB view's tree is cached for the whole
+    transaction in ``cr.cache["_compile_batch_"]`` (see ``_preload_trees``), and
+    an etree passed by the caller is the caller's own object. Compilation must
+    therefore run on a private copy; otherwise a recompile (triggered by a
+    mid-transaction eviction of the bounded ``templates`` ormcache) or a reused
+    etree silently renders corrupted output. These tests pin that invariant.
+
+    They reproduce the regression in the standard (non-dev) test runner, where
+    ``_generate_code_cached`` is ormcached; in ``--dev=xml`` the engine already
+    deep-copies, so the corruption never occurred there.
+    """
+
+    @staticmethod
+    def _directive_attrs(element):
+        """Return the qweb directive attribute names still present in ``element``."""
+        return [
+            attr
+            for node in element.iter()
+            if isinstance(node.tag, str)
+            for attr in node.attrib
+            if attr.startswith("t-") or attr == "groups"
+        ]
+
+    def test_compile_is_idempotent(self):
+        """Compiling the same template twice must produce identical code.
+
+        Reproduces the recompile path a ``templates`` ormcache eviction triggers
+        in production: the second compile must read a pristine source tree, not
+        one the first compile stripped in place.
+        """
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "compile_isolation_idem",
+                "type": "qweb",
+                "key": "base.compile_isolation_idem",
+                "arch": """<t t-name="base.compile_isolation_idem">
+                    <div t-att-class="'c'" t-foreach="[1, 2, 3]" t-as="i"><span t-esc="i"/></div>
+                </t>""",
+            }
+        )
+        qweb = self.env["ir.qweb"]
+        code1 = qweb._generate_code(view.id)[0]
+        code2 = qweb._generate_code(view.id)[0]
+        self.assertEqual(
+            code1,
+            code2,
+            "recompiling the same template is not idempotent — the first compile "
+            "mutated the shared source tree",
+        )
+
+    def test_render_does_not_mutate_cached_tree(self):
+        """A render must leave the transaction-cached source tree intact.
+
+        If rendering strips the cached tree, a later recompile (after an ormcache
+        eviction within the same transaction) renders corrupted HTML.
+        """
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "compile_isolation_cache",
+                "type": "qweb",
+                "key": "base.compile_isolation_cache",
+                "arch": """<t t-name="base.compile_isolation_cache">
+                    <div t-foreach="[1, 2, 3]" t-as="i"><span t-esc="i"/></div>
+                </t>""",
+            }
+        )
+        qweb = self.env["ir.qweb"]
+        before = self._directive_attrs(qweb._get_template(view.id)[0])
+        self.assertTrue(before, "sanity: the template must carry t-* directives")
+
+        rendered = str(qweb._render(view.id))
+        self.assertIn("<span>1</span>", rendered)
+        self.assertIn("<span>3</span>", rendered)
+
+        after = self._directive_attrs(qweb._get_template(view.id)[0])
+        self.assertEqual(
+            before,
+            after,
+            "rendering stripped the transaction-cached source tree; a recompile "
+            "after a templates-cache eviction would render corrupted output",
+        )
+
+    def test_render_reused_etree_is_stable(self):
+        """Rendering the same etree object twice must give identical output.
+
+        The etree branch of ``_get_template`` must not mutate the caller's
+        element, otherwise the second render compiles an already-stripped tree.
+        """
+        qweb = self.env["ir.qweb"]
+        element = etree.fromstring('<t><span t-esc="1 + 1"/></t>')
+        first = str(qweb._render(element))
+        second = str(qweb._render(element))  # same object reused
+        self.assertEqual(first, "<span>2</span>")
+        self.assertEqual(
+            first,
+            second,
+            "re-rendering a reused etree produced different output — the caller's "
+            "element was mutated during compilation",
+        )
