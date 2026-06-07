@@ -366,7 +366,7 @@ class TestParentSelfBridge(TransactionCase):
             "web.assets_unit_tests_setup", debug=False,
         )
         import_map = None
-        for tag, attrs in pre:
+        for _tag, attrs in pre:
             if attrs.get("type") == "importmap":
                 import_map = json.loads(attrs["text"])["imports"]
                 break
@@ -462,6 +462,7 @@ class TestEsbuildIntegration(TransactionCase):
         super().setUpClass()
         import shutil
         from pathlib import Path
+
         import odoo
         odoo_root = Path(odoo.__path__[0]).parent
         cls.esbuild = shutil.which("esbuild") or shutil.which(
@@ -629,6 +630,7 @@ class TestEsbuildSourceMaps(TransactionCase):
         super().setUpClass()
         import shutil
         from pathlib import Path
+
         import odoo
         odoo_root = Path(odoo.__path__[0]).parent
         cls.esbuild = shutil.which("esbuild") or shutil.which(
@@ -794,15 +796,21 @@ class TestEsbuildSourceMaps(TransactionCase):
 def _fake_native_module(url="", raw_content="", module_path="", filename=None):
     """Lightweight stand-in for a JavascriptAsset in helper unit tests.
 
-    The extracted helpers only read ``.url``, ``.raw_content``,
-    ``.module_path`` and ``._filename`` off each native module, so a plain
-    namespace avoids building real assets (and touching the filestore).
+    Mirrors the attributes the esbuild helpers read off a real native module:
+    ``.url``, ``.raw_content``, ``.module_path``, ``._filename`` and
+    ``.parsed_header``. The header is derived from ``raw_content`` exactly as
+    :meth:`JavascriptAsset.parsed_header` does, so the ``@odoo/*`` alias pass in
+    ``_esbuild_flags`` behaves like production — without building a real asset
+    (or touching the filestore).
     """
+    from odoo.addons.base.models.assetsbundle import _parse_odoo_module_header
+
     return SimpleNamespace(
         url=url,
         raw_content=raw_content,
         module_path=module_path,
         _filename=filename,
+        parsed_header=_parse_odoo_module_header(raw_content),
     )
 
 
