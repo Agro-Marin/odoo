@@ -91,7 +91,9 @@ $o-btn-outline-border-width-defaults: () !default;
             @extend .btn-fill-#{$color};
             @if index($o-btn-flat-defaults, $color) {
                 // TODO In master: move definition to web_editor
-                @extend .btn.flat !optional;
+                // Extends the %o-btn-flat placeholder (website.scss) instead of
+                // the compound selector .btn.flat, which Dart Sass rejects.
+                @extend %o-btn-flat !optional;
             }
         }
     }

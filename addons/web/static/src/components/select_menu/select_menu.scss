@@ -59,7 +59,7 @@
             border-radius: $o-border-radius;
 
             &:focus {
-                outline: $o-ring-width solid $o-ring-color;
+                @include o-focus-ring();
             }
         }
 

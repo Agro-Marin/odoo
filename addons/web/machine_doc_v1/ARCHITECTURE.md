@@ -5,8 +5,7 @@ High-level structure, data flow, and component organization for `core/addons/web
 > **See also**: `doc/COMPONENT_DIAGRAM.md` — 18 audit areas with file lists,
 > invariants, and cross-cutting concerns. `doc/FLOW_DIAGRAM.md` — 14 end-to-end
 > sequence diagrams (bootstrap, RPC, auth, view loading, onchange, save, etc.).
-> `JS_FILE_INDEX.md` — Complete index of all 630 JS files with purpose descriptions (subtotals partially stale; see file header).
-> `DIRECTORY_MAP.md` — All 237 directories mapped to FSD layers and responsibilities.
+> `DIRECTORY_MAP.md` — All 240 directories mapped to FSD layers and responsibilities.
 > `STATE_MANAGEMENT.md` — Decision tree for state patterns, record architecture, typed events.
 
 ## Module Identity
@@ -73,107 +72,20 @@ Browser
 
 ## Directory Structure
 
-```
-core/addons/web/
-├── __manifest__.py           # Module metadata + asset bundle definitions
-├── controllers/              # 21 controller classes across 23 .py files (HTTP endpoints)
-│   ├── dataset.py            #   call_kw + call_button: gateway for ORM RPC
-│   ├── session.py            #   authenticate, session_info, logout
-│   ├── home.py               #   /, /odoo, /web/login, /web/health
-│   ├── binary.py             #   /web/image, /web/content, /web/assets
-│   ├── action.py             #   /web/action/load, /run, /load_breadcrumbs
-│   ├── export.py             #   /web/export (CSV, XLSX)
-│   ├── report.py             #   /report (HTML, PDF, barcode)
-│   ├── database.py           #   /web/database (manager, create, drop, backup)
-│   ├── webclient.py          #   translations, version_info, bundles, test runners
-│   ├── json.py               #   /json/1/ (bearer-auth JSON API)
-│   ├── model.py              #   /web/model/get_definitions
-│   ├── domain.py             #   /web/domain/validate
-│   ├── view.py               #   /web/view/edit_custom
-│   ├── pivot.py              #   /web/pivot/export_xlsx
-│   ├── profiling.py          #   /web/set_profiling, /web/speedscope
-│   ├── webmanifest.py        #   PWA manifest, service worker, offline page
-│   ├── vcard.py              #   vCard download
-│   ├── settings.py           #   /base_setup/data, /base_setup/demo_active
-│   ├── observability.py      #   /web/observability/cwv (Core Web Vitals beacon)
-│   ├── export_writers.py     #   Export format base class
-│   ├── json_helpers.py       #   JSON API helpers
-│   └── utils.py              #   clean_action() and shared helpers
-├── models/                   # 21 Python model files (ORM extensions)
-│   ├── web_read.py           #   web_read, web_save, web_search_read (core CRUD)
-│   ├── web_read_group.py     #   web_read_group (grouped data for views)
-│   ├── web_onchange.py       #   onchange() (form change simulation)
-│   ├── record_snapshot.py    #   Snapshot diffing for onchange
-│   ├── web_search_panel.py   #   Sidebar filter panels
-│   ├── ir_http.py            #   session_info(), bootstrap context
-│   ├── ir_ui_menu.py         #   load_web_menus() (sidebar)
-│   ├── ir_ui_view.py         #   View type metadata
-│   ├── ir_model.py           #   Schema introspection
-│   ├── ir_qweb_fields.py     #   QWeb image rendering
-│   ├── res_users.py          #   User search priority, CAPTCHA
-│   ├── res_users_settings.py #   UI density, embedded actions
-│   ├── res_users_settings_embedded_action.py # Per-user action config
-│   ├── base_document_layout.py # Report layout wizard
-│   ├── res_company.py        #   Report style regeneration
-│   ├── res_config_settings.py #  web_app_name config
-│   ├── res_partner.py        #   vCard export
-│   ├── web_read_group_helpers.py # Temporal fill, group expansion formatters
-│   ├── web_search_panel_helpers.py # Filter panel helpers
-│   ├── properties_base_definition.py # Property field definitions
-│   └── web_cwv_metric.py     #   Core Web Vitals storage + retention (RUM Phase 2)
-├── static/
-│   ├── src/                  # 630 JavaScript/OWL source files (4 at src/ root — env.js, session.js, module_loader.js, service_worker.js — counted in the total)
-│   │   ├── boot/             #   App entry points: main.js, start.js (env.js and session.js are at src/ root)
-│   │   ├── core/             #   Framework primitives: registry, utils, browser, l10n, network, py_js
-│   │   ├── components/       #   Reusable OWL UI components (dropdown, colorpicker, etc.)
-│   │   ├── services/         #   Data & input services (orm, hotkey, field, etc.)
-│   │   ├── ui/               #   UI overlay services & components (see UI Layer below)
-│   │   │   ├── block/        #     Block UI overlay + ui_service
-│   │   │   ├── bottom_sheet/ #     Mobile bottom sheet
-│   │   │   ├── dialog/       #     Modal dialog + confirmation_dialog + dialog_service
-│   │   │   ├── effects/      #     Visual effects (rainbow_man) + effect_service
-│   │   │   ├── notification/ #     Toast notifications + notification_service
-│   │   │   ├── overlay/      #     Base overlay layer manager + overlay_service
-│   │   │   ├── popover/      #     Positioned popover + popover_service
-│   │   │   └── tooltip/      #     Data-attribute tooltips + tooltip_service
-│   │   ├── fields/           #   68 widget directories (7 subcategories; ~95 registry entries counting view-specific variants)
-│   │   │   ├── basic/        #     21 widgets: boolean, char, float, html, integer, text, url, ...
-│   │   │   ├── display/      #     8 widgets: badge, gauge, handle, progress_bar, statusbar, ...
-│   │   │   ├── media/        #     7 widgets: binary, image, image_url, pdf_viewer, signature, ...
-│   │   │   ├── relational/   #     11 widgets + 5 utilities: many2one, many2many_tags, x2many, reference, ...
-│   │   │   ├── selection/    #     7 widgets: selection, radio, priority, state_selection, ...
-│   │   │   ├── specialized/  #     11 widgets: domain, properties, ace, color_picker, ...
-│   │   │   └── temporal/     #     3 widgets: datetime, remaining_days, timezone_mismatch
-│   │   ├── views/            #   View types: form, list, kanban, calendar, graph, pivot
-│   │   ├── webclient/        #   App shell: navbar, menus, user menu, burger menu
-│   │   ├── search/           #   Search bar, facets, filters, group-by, favorites
-│   │   ├── model/            #   Client-side relational data model
-│   │   ├── public/           #   Public (anonymous) page features
-│   │   ├── libs/             #   Internal utility libraries
-│   │   ├── polyfills/        #   Browser polyfills
-│   │   ├── legacy/           #   Legacy compatibility code
-│   │   ├── @types/           #   TypeScript type declarations
-│   │   └── scss/             #   ~197 SCSS stylesheets
-│   ├── lib/                  # Vendored JS libraries (DO NOT MODIFY)
-│   │   ├── owl/              #   OWL component framework
-│   │   ├── luxon/            #   DateTime library
-│   │   ├── bootstrap/        #   CSS framework
-│   │   ├── Chart/            #   Chart.js
-│   │   ├── fullcalendar/     #   Calendar library
-│   │   └── ...               #   19 vendored libraries total
-│   ├── tests/                # JS test files (413 .js incl. 329 *.test.js Hoot suites)
-│   └── fonts/                # Web fonts (Google, Inter, Lato, Sign)
-├── tests/                    # 36 Python test files (see machine_doc_v1/TEST_TAGS.md)
-├── views/                    # XML templates (backend UI, reports)
-├── data/                     # XML data fixtures
-├── security/                 # Access control (ir.model.access.csv)
-├── i18n/                     # Translation files
-├── doc/                      # Architecture diagrams for correctness audits
-│   ├── COMPONENT_DIAGRAM.md  #   18 audit areas with files, invariants, cross-cutting concerns
-│   └── FLOW_DIAGRAM.md       #   14 end-to-end sequence diagrams (bootstrap → save → cache)
-├── tooling/                  # ESLint, JSConfig, git hooks
-└── machine_doc_v1/           # Machine-consumable documentation (this directory)
-```
+Top-level layout of `core/addons/web/` (detailed maps are separate docs):
+
+| Path | Contents | Map |
+|------|----------|-----|
+| `controllers/` | 23 `.py` — HTTP endpoints (21 Controller classes) | `ROUTE_MAP.md` |
+| `models/` | 22 `.py` — ORM extensions (web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
+| `static/src/` | 649 JavaScript/OWL source files across 240 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/lib/` | 19 vendored JS libraries — DO NOT MODIFY | versions table below |
+| `static/tests/` | 428 `.js` (incl. 344 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
+| `tests/` | 40 Python test files | `TEST_TAGS.md` |
+| `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
+| `doc/` | `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) | — |
+
+The `static/src/` JS layers are summarized in **JavaScript Architecture** below; the full per-directory layer + responsibility map is in `DIRECTORY_MAP.md`.
 
 ## JavaScript Architecture
 
@@ -182,15 +94,15 @@ Layered organization under `static/src/`:
 | Layer | Directory | Purpose | Files |
 |-------|-----------|---------|-------|
 | **Boot** | `boot/` | App entry points: main.js, start.js (env.js, session.js, module_loader.js, service_worker.js at src/ root) | 2 JS |
-| **Primitives** | `core/` | Registry, utils, browser abstraction, l10n, network, py_js, tree (relocated from components/) | 102 JS |
+| **Primitives** | `core/` | Registry, utils, browser abstraction, l10n, network, py_js, tree (relocated from components/) | 103 JS |
 | **Components** | `components/` | Reusable OWL UI components (dropdown, colorpicker, etc.) — shrank by ~15 after tree utilities moved to core/ | 74 JS |
-| **Services** | `services/` | Data & input singletons: orm, hotkey, field, file_upload, sortable, debug, web_vitals, multi_company_recovery, form_dialog_stack, slow_rpc, etc. | 35 JS |
+| **Services** | `services/` | Data & input singletons: orm, hotkey, field, file_upload, sortable, debug, web_vitals, multi_company_recovery, form_dialog_stack, slow_rpc, etc. | 37 JS |
 | **UI** | `ui/` | Overlay services & components: dialog, popover, tooltip, notification, effects, block | 20 JS |
-| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); ~95 registry entries counting view-specific variants | 111 JS |
-| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 144 JS |
-| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu | 54 JS |
+| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); ~95 registry entries counting view-specific variants | 112 JS |
+| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 149 JS |
+| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu | 55 JS |
 | **Search** | `search/` | Search bar, facets, filters, group-by, favorites | 31 JS |
-| **Model** | `model/` | Client-side relational data model (Record, StaticList, etc.) | 34 JS |
+| **Model** | `model/` | Client-side relational data model (Record, StaticList, etc.) | 43 JS |
 | **Public** | `public/` | Public (anonymous) page features | 11 JS |
 
 ## JavaScript Services
@@ -245,7 +157,7 @@ Services are registered in `registry.category("services")` and injected via `use
 - `NetworkError` (base) — all network/RPC failures
 - `RPCError extends NetworkError` — server-returned errors; `{name:"RPC_ERROR", type:"server", code, data, exceptionName, subType}`. **Never retryable** (server-deterministic).
 - `ConnectionLostError extends NetworkError` — HTTP 502/503/504, JSON parse failure under an ``application/json`` content-type, missing content-type, or fetch network failure (DNS, CORS, server unreachable). Frontend never sees a status code for these. **Retryable**.
-- `ServerOverloadError extends ConnectionLostError` (T2.3, 2026-05-22) — Server returned a non-JSON content-type (typically werkzeug HTML traceback from ``PoolError`` / ``OperationalError``). Carries ``status`` so callers can branch on the actual HTTP code; the message embeds it. Backward-compatible with existing ``instanceof ConnectionLostError`` catchers. **Retryable with a 1000ms backoff floor** so retries don't pile onto an overloaded backend (``SERVER_OVERLOAD_BACKOFF_FLOOR_MS`` in ``rpc.js``).
+- `ServerOverloadError extends ConnectionLostError` — Server returned a non-JSON content-type (typically werkzeug HTML traceback from ``PoolError`` / ``OperationalError``). Carries ``status`` so callers can branch on the actual HTTP code; the message embeds it. Backward-compatible with existing ``instanceof ConnectionLostError`` catchers. **Retryable with a 1000ms backoff floor** so retries don't pile onto an overloaded backend (``SERVER_OVERLOAD_BACKOFF_FLOOR_MS`` in ``rpc.js``).
 - `ConnectionAbortedError extends NetworkError` — caller invoked `promise.abort(true)` or an external `AbortController` aborted the signal. `abort(false)` silently cancels without rejection. **Never retryable** (caller intent).
 - `ConnectionTimeoutError extends NetworkError` — `AbortSignal.timeout(ms)` fired (settings.timeout exhausted). Carries `url` and `timeoutMs` so callers can decide whether to retry, alert, or escalate. **Retryable**.
 
@@ -281,9 +193,9 @@ Services are registered in `registry.category("services")` and injected via `use
 | `tree_processor` | `services/tree_processor_service.js` | Tree data structure processor (deps: `field`, `name`) |
 | `web.frequent.emoji` | `services/frequent_emoji_service.js` | Emoji frequency tracking (dotted namespace key) |
 | `lazy_session` | `webclient/session_service.js` | Lazy-loaded session info (profile_session, profile_collectors, etc.). Consumed by `profiling` service — refactoring this breaks profiling startup. |
-| `multi_company_recovery` | `services/multi_company_recovery_service.js` | Recovers from `AccessError` when the server tags the error context with `suggested_company`. Two strategies: `recoverFromLifecycleError` reloads the page after activating; `recoverFromSaveError` mutates the model's context and activates with `reload:false` to preserve user input. Used by FormController in both onError paths. |
-| `form_dialog_stack` | `services/form_dialog_stack_service.js` | Single global counter of currently-open form-in-dialog instances. Subscribes to `AppEvent.FORM_DIALOG_ADD/REMOVE` once at startup; exposes `count` and `isEmpty` getters. Replaces the per-FormController counter that drifted when controllers mounted after a dialog was already open. Read by `beforeVisibilityChange` to suppress tab-switch auto-save when a child form dialog is active. |
-| `slow_rpc` | `services/slow_rpc_service.js` | Patience-UX service: shows a sticky `notification.add(_t("This is taking longer than usual…"))` toast when any non-silent RPC exceeds `SLOW_RPC_CONFIG.thresholdMs` (default 5 s, mutable so a future `slow_rpc.threshold_ms` ir.config_parameter can tune it without an API change). Listens passively on `rpcBus` for `RPC:REQUEST` / `RPC:RESPONSE`; success, error, abort, and timeout responses all clear the timer. Pairs with the existing `silent` setting — silent RPCs (boot-time field metadata, action loads, retry-internal calls) opt out of the patience UI just as they opt out of error dialogs. Added 2026-05-04. |
+| `multi_company_recovery` | `services/multi_company_recovery_service.js` | Recovers from `AccessError` when the server context carries `suggested_company`. `recoverFromLifecycleError` reloads after activating; `recoverFromSaveError` mutates the model context and activates with `reload:false` to preserve input. Used by FormController's onError paths. |
+| `form_dialog_stack` | `services/form_dialog_stack_service.js` | Single global counter of open form-in-dialog instances; subscribes to `AppEvent.FORM_DIALOG_ADD/REMOVE` at startup and exposes `count`/`isEmpty` getters. Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is active. |
+| `slow_rpc` | `services/slow_rpc_service.js` | Patience-UX: shows a sticky `notification.add(_t("This is taking longer than usual…"))` toast when a non-silent RPC exceeds `SLOW_RPC_CONFIG.thresholdMs` (default 5 s, mutable). Listens on `rpcBus` for `RPC:REQUEST`/`RPC:RESPONSE`; success, error, abort, and timeout all clear the timer. Silent RPCs opt out, as with error dialogs. |
 
 > Additional webclient-level services: `action`, `menu`, `view`, `currency`,
 > `density`, `profiling`, `reloadCompany`, `shareTarget`, etc. These live in `webclient/` or `views/`.
@@ -323,79 +235,19 @@ Shared logic extracted from form, list, and kanban controllers to eliminate dupl
 
 ## Asset Pipeline (ESM + esbuild)
 
-The web module ships **native ES modules**. JS reaches the browser through a
-two-stage bootstrap:
+The web module ships **native ES modules**, delivered to the browser via an inline `module_loader.js` shim plus an esbuild-bundled `<script type="module">`. Marker convention: every native source carries `/** @odoo-module native */`; **zero** `odoo.define()` calls remain. Full pipeline — loader contract, classification sets (`ESM_BUNDLES`/`DYNAMIC_ESM_BUNDLES`/`IMPORT_MAP_INCLUDES`), esbuild flags, import-map bridging, failure modes, and tunable `web.esbuild.*` params — is in **`ESM_BUNDLING.md`**.
 
-1. **Inline loader shim** — `ir.qweb._build_loader_shim_js()` reads
-   `static/src/module_loader.js` from disk at asset-node generation time,
-   minifies it, and emits it as an inline `<script>` tag. This installs
-   `window.odoo.loader` BEFORE any `<script type="module">` runs. The file
-   itself is **not** included in any asset bundle.
-2. **ESM bundle** — `AssetsBundle.esbuild_native_bundle()`
-   (`core/odoo/addons/base/models/assetsbundle.py:1018`) invokes esbuild to
-   bundle + minify all native ESM files into a single file served via
-   `<script type="module">`. At evaluation time the bundle calls
-   `odoo.loader.registerNativeModules({...})` so sibling bundles share the
-   same singleton module instances.
+### `remove` and `after` directives (manifest bundle composition)
 
-### Bundle classification
-
-Defined in `AssetsBundle` (`assetsbundle.py:385-531`):
-
-| Constant | Purpose |
-|----------|---------|
-| `ESM_BUNDLES` | Bundles that go through esbuild. Covers every main webclient bundle (`assets_web`, `assets_frontend`, report and test bundles) plus most addon asset bundles. |
-| `DYNAMIC_ESM_BUNDLES` | Parent → lazy-child mapping. Children's specifiers are pre-registered in the parent's import map so runtime `import()` (via `loadBundle`) can resolve them. `@web/*` deps are bridged through `odoo.loader.modules` `data:` URI shims to preserve singleton identity. |
-| `IMPORT_MAP_INCLUDES` | Parent → satellite bundles whose specifiers piggyback on the parent's import map. Skips esbuild entirely — used for test-runner bundles that load individual test files on demand. |
-
-### Module marker convention
-
-Every native ESM source carries `/** @odoo-module native */` in its header.
-The legacy `/** @odoo-module */` (without `native`) flagged files going
-through a Python transform and is now absent from `web/static/src`.
-**Zero** `odoo.define()` calls remain in the web module — the refactor is
-complete on this side.
-
-### Import alias resolution
-
-`@web/...`, `@odoo/owl`, `@web/fields/...`, and similar aliases are resolved
-by esbuild using `--alias` flags generated once per process from the
-addon-path scan in `AssetsBundle._get_esbuild_addon_flags()`
-(`assetsbundle.py:664`). The alias set is cached via
-`_esbuild_addon_scan_cache`.
-
-### `remove` and `after` directives
-
-The manifest uses 29 `remove` tuples to strip files from parent bundles,
-plus `after` directives for position-sensitive SCSS insertion. These are
-load-bearing for refactors — removing a file from the manifest's `remove`
-list silently re-enables it in every bundle that composes the parent.
-
-Notable removals:
-- `web.assets_backend` removes `clickbot.js`, `**/*.dark.scss`, entire
-  `actions/reports/**/*` (then re-adds `.js`/`.xml` only), and
-  `button_box/*.scss`
-- `web.assets_frontend` removes `commands/**`, `debug_menu.js`,
-  `file_viewer.dark.scss`, `emoji_data.js`, `database_manager.js`
-- `web.report_assets_common` removes `utilities_custom_backend.scss` +
-  `bootstrap_review_backend.scss` then uses `after` to inject
-  `utilities_custom_report.scss` in their place
+The manifest uses 29 `remove` tuples to strip files from parent bundles, plus `after` directives for position-sensitive SCSS insertion. Load-bearing for refactors — removing a file from a `remove` list silently re-enables it in every bundle that composes the parent.
+- `web.assets_backend` removes `clickbot.js`, `**/*.dark.scss`, all of `actions/reports/**/*` (re-adds `.js`/`.xml` only), `button_box/*.scss`
+- `web.assets_frontend` removes `commands/**`, `debug_menu.js`, `file_viewer.dark.scss`, `emoji_data.js`, `database_manager.js`
+- `web.report_assets_common` swaps `utilities_custom_backend.scss` + `bootstrap_review_backend.scss` for `utilities_custom_report.scss` via `after`
 
 ### Module metadata (`__manifest__.py`)
-
-- `depends: ["base"]` — web is the root addon aside from base
-- `auto_install: True` — installs automatically alongside base
-- `bootstrap: True` — loaded during server bootstrap before regular addons
-- `data:` — 17 XML/CSV files including `webclient_templates.xml`,
-  `report_templates.xml`, `web_menus.xml`, `report_layout.xml`,
-  `ir_attachment.xml`, `web_security.xml`, `ir.model.access.csv`,
-  `neutralize_views.xml`, `speedscope_template.xml`, `memory_template.xml`,
-  `speedscope_config_wizard.xml`, `ir_ui_view_views.xml`,
-  `res_config_settings_views.xml`, `web_cwv_metric_views.xml`,
-  `web_cwv_metric_data.xml`
-- `external_dependencies`: none declared (vobject is imported inline in
-  `res_partner.py`; server fails to load vcard export if missing)
-- `demo`: no demo data
+- `depends: ["base"]` · `auto_install: True` · `bootstrap: True` (loaded during server bootstrap, before regular addons)
+- `data:` — 17 XML/CSV files (`webclient_templates.xml`, `report_templates.xml`, `web_menus.xml`, `ir.model.access.csv`, `web_cwv_metric_views.xml`, `web_cwv_metric_data.xml`, …)
+- `external_dependencies`: none declared (vobject imported inline in `res_partner.py`); no demo data
 
 ## Asset Bundles
 
@@ -420,7 +272,7 @@ Defined in `__manifest__.py`. Bundles group JS/CSS/SCSS for specific contexts.
 
 | Bundle | Purpose |
 |--------|---------|
-| `web._assets_core` | Luxon, session.js, env.js, ui/, services/, components/, core/ — bundled as native ESM via esbuild. **OWL is NOT in this bundle** — it is loaded separately via a non-deferred `<script src="@odoo/owl">` resolved through the import map before the ESM bundle evaluates (see `ir_qweb.py:4084` _get_native_module_nodes). The `module_loader.js` shim is also NOT part of this bundle; it is emitted separately by `ir.qweb._build_loader_shim_js()` as an inline `<script>`. Included only by `web.assets_backend`. |
+| `web._assets_core` | Luxon, session.js, env.js, ui/, services/, components/, core/ — bundled as native ESM via esbuild. **OWL is NOT in this bundle** — it is loaded separately via a non-deferred `<script src="@odoo/owl">` resolved through the import map before the ESM bundle evaluates (see `ESM_BUNDLING.md`). The `module_loader.js` shim is also NOT part of this bundle; it is emitted separately by `ir.qweb._build_loader_shim_js()` as an inline `<script>`. Included only by `web.assets_backend`. |
 | `web._assets_helpers` | SCSS functions, mixins, variable definitions |
 | `web._assets_bootstrap` | Bootstrap SCSS (shared base) |
 | `web._assets_bootstrap_backend` | Bootstrap SCSS (backend variant) |
@@ -453,11 +305,10 @@ Defined in `__manifest__.py`. Bundles group JS/CSS/SCSS for specific contexts.
 
 ### Vendored libraries (`static/lib/`)
 
-The version values below are extracted manually from each library's source
-file (header comment, `version = "..."` literal, or filename). There are
-**no `VERSION.txt` files** in `static/lib/` — when a refactor upgrades any
-of these libraries, update both the table here and the version string in
-the source file (and add a `VERSION.txt` if you want one to exist).
+Versions below are extracted manually from each library's source (header
+comment, `version = "..."` literal, or filename). There are **no
+`VERSION.txt` files** in `static/lib/` — on upgrade, update both this table
+and the version string in the source file.
 
 | Library | Version | Used for |
 |---------|---------|----------|
@@ -481,16 +332,14 @@ the source file (and add a `VERSION.txt` if you want one to exist).
 | `stacktracejs` | 2.0-unknown | Traceback annotation in error_utils.js |
 | `zxing-library` | 0.21.3 | BarcodeDetector polyfill (barcode scanner) |
 
-> **Three "internal" entries** (`owl`, `hoot`, `hoot-dom`) mean the code is
-> maintained in-tree rather than dropped from upstream. Versioning is by git
-> commit rather than a released tag.
+> **Three "internal" entries** (`owl`, `hoot`, `hoot-dom`) are maintained
+> in-tree, versioned by git commit rather than a released tag.
 >
-> **`stacktracejs` has `2.0-unknown`** — no canonical upstream release matches
-> the drop. Anyone refactoring error handling should not assume `2.0-unknown`
-> is a real upstream tag.
+> **`stacktracejs` `2.0-unknown`** — no canonical upstream release matches; do
+> not assume it is a real upstream tag.
 >
-> **`diff_match_patch` is forked** — upstream is frozen since Google's last
-> commit. Don't try to upgrade via npm; the local copy has patches.
+> **`diff_match_patch` is forked** — upstream frozen since Google's last commit;
+> the local copy has patches, so don't upgrade via npm.
 
 ## File Counts
 
@@ -498,9 +347,9 @@ the source file (and add a `VERSION.txt` if you want one to exist).
 |----------|-------|
 | Python (controllers) | 23 (21 Controller classes + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 22 (21 model files + `__init__.py`) |
-| Python (tests) | 39 |
-| JavaScript (src) | 630 |
-| JavaScript (tests) | 416 (incl. 332 `*.test.js` Hoot suites) |
+| Python (tests) | 40 |
+| JavaScript (src) | 649 |
+| JavaScript (tests) | 428 (incl. 344 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 94 |
 | SCSS/CSS | 193 (25 in `static/src/scss/` shared base; remaining 168 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 275 (12 views + 3 data + 260 OWL templates) |

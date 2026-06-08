@@ -698,12 +698,19 @@ font[class*='bg-'] {
 }
 
 // Buttons
+// The base ".flat" styles live in a placeholder so web/bootstrap_review_frontend
+// can @extend them for themes that set btn-*-flat. Dart Sass forbids extending
+// the compound selector ".btn.flat", but extending a placeholder is allowed and
+// produces identical CSS.
+%o-btn-flat {
+    border: 0;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    @include button-size(0.75rem, 1.5rem, ($font-size-base * .75), 0);
+}
 .btn {
     &.flat {
-        border: 0;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        @include button-size(0.75rem, 1.5rem, ($font-size-base * .75), 0);
+        @extend %o-btn-flat;
         &.btn-lg { @include button-size(1rem, 2rem, ($font-size-lg * .75), 0); }
         &.btn-sm { @include button-size(.5rem, 1rem, ($font-size-sm * .75), 0); }
         &.btn-xs { @include button-size(.25rem, .5rem, ($font-size-base * .5), 0); }

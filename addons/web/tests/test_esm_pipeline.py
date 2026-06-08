@@ -106,7 +106,9 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertEqual(len(captured.records), 2)
         self.assertIn("fails=1", captured.records[0].getMessage())
         self.assertIn("fails=2", captured.records[1].getMessage())
-        _expiry, _reason, fails = self.IrQweb._esbuild_cooldowns["web.test_bundle"]
+        _expiry, _reason, fails = self.IrQweb._esbuild_cooldowns[
+            (self.env.cr.dbname, "web.test_bundle")
+        ]
         self.assertEqual(fails, 2)
         # Extended cooldown kicks in at the 2nd failure.
         remaining = _expiry - time.monotonic()
@@ -126,10 +128,40 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertEqual(len(captured.records), 1)
         self.assertIn("event=circuit_open", captured.records[0].getMessage())
         self.assertNotIn(
-            "web.test_bundle", self.IrQweb._esbuild_cooldowns,
+            (self.env.cr.dbname, "web.test_bundle"), self.IrQweb._esbuild_cooldowns,
         )
         allow, _ = self.IrQweb._esbuild_circuit_state("web.test_bundle")
         self.assertTrue(allow)
+
+    def test_circuit_key_is_database_scoped(self):
+        # The cooldown dict is a single process-global class attribute shared
+        # by every registry in the worker, so its key MUST include the database
+        # name — otherwise an esbuild failure for a bundle in one tenant would
+        # open the breaker for the same bundle name in every other tenant.
+        with self.assertLogs(f"{ASSET_ROOT}.fallback", level=logging.WARNING):
+            self.IrQweb._esbuild_circuit_record_failure(
+                "web.test_bundle", reason="ScopeCheck",
+            )
+        self.assertIn(
+            (self.env.cr.dbname, "web.test_bundle"),
+            self.IrQweb._esbuild_cooldowns,
+            msg="cooldown key must be (db_name, bundle)",
+        )
+        self.assertNotIn(
+            "web.test_bundle",
+            self.IrQweb._esbuild_cooldowns,
+            msg="bundle-only key would bleed the breaker across databases",
+        )
+        # A failure recorded by another database (different db_name, same
+        # bundle) must NOT open this database's breaker.
+        self.IrQweb._esbuild_cooldowns[("some_other_db", "web.test_bundle")] = (
+            time.monotonic() + 1e6, "OtherDbFail", 1,
+        )
+        allow, reason = self.IrQweb._esbuild_circuit_state("web.test_bundle")
+        self.assertFalse(
+            allow, msg="this db's own failure should still gate it",
+        )
+        self.assertEqual(reason, "ScopeCheck")
 
 
 class TestEsbuildAdvisoryLock(TransactionCase):
@@ -334,7 +366,7 @@ class TestParentSelfBridge(TransactionCase):
             "web.assets_unit_tests_setup", debug=False,
         )
         import_map = None
-        for tag, attrs in pre:
+        for _tag, attrs in pre:
             if attrs.get("type") == "importmap":
                 import_map = json.loads(attrs["text"])["imports"]
                 break
@@ -430,6 +462,7 @@ class TestEsbuildIntegration(TransactionCase):
         super().setUpClass()
         import shutil
         from pathlib import Path
+
         import odoo
         odoo_root = Path(odoo.__path__[0]).parent
         cls.esbuild = shutil.which("esbuild") or shutil.which(
@@ -597,6 +630,7 @@ class TestEsbuildSourceMaps(TransactionCase):
         super().setUpClass()
         import shutil
         from pathlib import Path
+
         import odoo
         odoo_root = Path(odoo.__path__[0]).parent
         cls.esbuild = shutil.which("esbuild") or shutil.which(
@@ -762,15 +796,21 @@ class TestEsbuildSourceMaps(TransactionCase):
 def _fake_native_module(url="", raw_content="", module_path="", filename=None):
     """Lightweight stand-in for a JavascriptAsset in helper unit tests.
 
-    The extracted helpers only read ``.url``, ``.raw_content``,
-    ``.module_path`` and ``._filename`` off each native module, so a plain
-    namespace avoids building real assets (and touching the filestore).
+    Mirrors the attributes the esbuild helpers read off a real native module:
+    ``.url``, ``.raw_content``, ``.module_path``, ``._filename`` and
+    ``.parsed_header``. The header is derived from ``raw_content`` exactly as
+    :meth:`JavascriptAsset.parsed_header` does, so the ``@odoo/*`` alias pass in
+    ``_esbuild_flags`` behaves like production — without building a real asset
+    (or touching the filestore).
     """
+    from odoo.addons.base.models.assetsbundle import _parse_odoo_module_header
+
     return SimpleNamespace(
         url=url,
         raw_content=raw_content,
         module_path=module_path,
         _filename=filename,
+        parsed_header=_parse_odoo_module_header(raw_content),
     )
 
 
