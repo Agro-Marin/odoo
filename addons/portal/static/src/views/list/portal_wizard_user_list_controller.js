@@ -10,14 +10,14 @@ export class PortalWizardUserListController extends ListController {
     /**
      * @override
      */
-     async beforeExecuteActionButton(clickParams) {
+    async beforeExecuteActionButton(clickParams) {
         if (clickParams.name === 'action_refresh_modal' || this.isPortalActionOngoing) {
             return false;
         }
         this.isPortalActionOngoing = true;
         return super.beforeExecuteActionButton(clickParams);
     }
-    
+
     /**
      * @override
      */

@@ -2,7 +2,7 @@ import logging
 
 import psycopg
 
-from odoo import models
+from odoo import _, models
 from odoo.exceptions import UserError
 from odoo.tools.sql import SQL
 
@@ -273,16 +273,18 @@ class MaterializedViewMixin(models.AbstractModel):
         if kind is None:
             return
         if kind in ("r", "p"):
-            raise UserError(
-                f"Cannot create materialized view {self._table!r}: a regular "
-                f"table with that name already exists (relkind={kind!r}). "
-                "Drop or rename it manually before upgrading the module."
-            )
+            raise UserError(_(
+                "Cannot create materialized view %(table)r: a regular "
+                "table with that name already exists (relkind=%(kind)r). "
+                "Drop or rename it manually before upgrading the module.",
+                table=self._table, kind=kind,
+            ))
         if kind not in ("v", "m"):
-            raise UserError(
-                f"Cannot (re)create materialized view {self._table!r}: "
-                f"unexpected pg_class relkind {kind!r}.  Investigate manually."
-            )
+            raise UserError(_(
+                "Cannot (re)create materialized view %(table)r: "
+                "unexpected pg_class relkind %(kind)r.  Investigate manually.",
+                table=self._table, kind=kind,
+            ))
 
         dependents = self._dependent_relations(self._table)
         if dependents:

@@ -34,8 +34,13 @@ class PurchaseOrder(models.Model):
     ]
     _description = "Purchase Order"
     _check_company_auto = True
-    _rec_names_search = ["name", "partner_ref"]
     _order = "priority desc, id desc"
+
+    @property
+    def _rec_names_search(self):
+        if self.env.context.get("purchase_show_partner_name"):
+            return ["name", "partner_ref", "partner_id.name"]
+        return ["name", "partner_ref"]
 
     # ------------------------------------------------------------
     # FIELDS
@@ -353,6 +358,9 @@ class PurchaseOrder(models.Model):
     type_name = fields.Char(
         string="Type Name",
         compute="_compute_type_name",
+    )
+    partner_credit_warning = fields.Text(
+        compute="_compute_partner_credit_warning",
     )
     purchase_warning_text = fields.Text(
         string="Purchase Warning",
@@ -702,6 +710,23 @@ class PurchaseOrder(models.Model):
                     currency_obj=order.currency_id,
                 )
             order.display_name = name
+
+    @api.depends("company_id", "partner_id", "amount_total")
+    def _compute_partner_credit_warning(self):
+        for order in self:
+            order.with_company(order.company_id)
+            order.partner_credit_warning = ""
+            show_warning = (
+                order.state in ("draft", "rfq", "sent")
+                and order.company_id.account_use_credit_limit
+            )
+            if show_warning:
+                order.partner_credit_warning = self.env[
+                    "account.move"
+                ]._build_credit_warning_message(
+                    order.sudo(),  # ensure access to `credit` & `credit_limit` fields
+                    current_amount=(order.amount_total / order.currency_rate),
+                )
 
     @api.depends(
         "partner_id.name",

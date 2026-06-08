@@ -312,7 +312,7 @@ class MailMail(models.Model):
                 """Track mail ids that have been sent, and notify cron progress accordingly."""
                 processed = set(ids) - ids_done
                 ids_done.update(processed)
-                if self.env.get("ir_cron"):
+                if self.env.context.get("ir_cron_progress_id"):
                     # commit progress only when running from a cron job
                     self.env["ir.cron"]._commit_progress(
                         len(processed), remaining=total - len(ids_done)

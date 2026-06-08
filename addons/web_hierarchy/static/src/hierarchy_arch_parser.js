@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { visitXML } from "@web/core/utils/dom/xml";
 import { stringToOrderBy } from "@web/core/utils/order_by";
-import { Field } from "@web/fields/field";
+import { parseFieldNode } from "@web/views/field_arch";
 import { getActiveActions } from "@web/views/view_utils";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 
@@ -55,7 +55,7 @@ export class HierarchyArchParser {
                     archInfo.icon = node.getAttribute("icon");
                 }
             } else if (node.tagName === "field") {
-                const fieldInfo = Field.parseFieldNode(node, models, modelName, "hierarchy");
+                const fieldInfo = parseFieldNode(node, models, modelName, "hierarchy");
                 const name = fieldInfo.name;
                 if (!(name in fieldNextIds)) {
                     fieldNextIds[name] = 0;

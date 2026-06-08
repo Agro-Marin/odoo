@@ -49,12 +49,8 @@ export class AddressCard extends Interaction {
             addDeliveryAddressButton.href = addDeliveryUrl.toString();
         }
 
-        // Toggle the billing address row.
-        if (useDeliveryAsBilling) {
-            this.billingContainer.classList.add('d-none');  // Hide the billing address row.
-        } else {
-            this.billingContainer.classList.remove('d-none');  // Show the billing address row.
-        }
+        // Toggle the billing address row and its "Add billing address" button together.
+        this.billingContainer.classList.toggle('d-none', useDeliveryAsBilling);
         this.addBillingAddressBtn.classList.toggle('d-none', useDeliveryAsBilling);
     }
 }

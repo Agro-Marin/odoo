@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { waitImages } from "@point_of_sale/utils";
-import { Reactive } from "@web/core/utils/reactive";
+import { SignalStore } from "@web/core/utils/reactive";
 import { logPosMessage } from "../utils/pretty_console_log.js";
 export const printerService = {
     dependencies: ["renderer"],
@@ -8,7 +8,7 @@ export const printerService = {
         return new PrinterService(env, { renderer });
     },
 };
-export class PrinterService extends Reactive {
+export class PrinterService extends SignalStore {
     constructor(...args) {
         super(...args);
         this.setup(...args);

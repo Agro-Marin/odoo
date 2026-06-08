@@ -6,7 +6,13 @@ from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 
 class SearchController(http.Controller):
-    @http.route("/discuss/search", methods=["POST"], type="jsonrpc", auth="public")
+    @http.route(
+        "/discuss/search",
+        methods=["POST"],
+        type="jsonrpc",
+        auth="public",
+        readonly=True,
+    )
     @add_guest_to_context
     def search(self, term, category_id=None, limit=10):
         store = Store()
@@ -21,7 +27,7 @@ class SearchController(http.Controller):
             Domain("is_member", "=", True) & base_domain,
             base_domain,
         ]
-        channels = self.env["discuss.channel"]
+        channels = request.env["discuss.channel"]
         for domain in priority_conditions:
             remaining_limit = limit - len(channels)
             if remaining_limit <= 0:

@@ -42,7 +42,7 @@ class TestClocFields(test_cloc.TestClocCustomization):
             self.env['ir.module.module'].create({
                 'author': 'Odoo S.A.',
                 'imported': True,
-                'latest_version': '13.0.1.0.0',
+                'db_version': '13.0.1.0.0',
                 'name': 'studio_customization',
                 'state': 'installed',
                 'summary': 'Studio Customization',
@@ -103,7 +103,7 @@ class TestClocFields(test_cloc.TestClocCustomization):
         self.env['ir.module.module'].create({
             'author': 'Odoo S.A.',
             'imported': True,
-            'latest_version': '15.0.1.0.0',
+            'db_version': '15.0.1.0.0',
             'name': 'test_imported_module',
             'state': 'installed',
             'summary': 'Test imported module for cloc',
@@ -171,7 +171,7 @@ class TestClocFields(test_cloc.TestClocCustomization):
         self.env['ir.module.module'].create({
             'author': 'Odoo S.A.',
             'imported': True,
-            'latest_version': '15.0.1.0.0',
+            'db_version': '15.0.1.0.0',
             'name': 'test_imported_module',
             'state': 'installed',
             'summary': 'Test imported module for cloc',

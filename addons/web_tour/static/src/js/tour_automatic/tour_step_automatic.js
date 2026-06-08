@@ -2,6 +2,20 @@
 import { tourState } from "@web_tour/js/tour_state";
 import hoot from "@odoo/hoot-dom";
 import { serializeChanges, serializeMutation } from "@web_tour/js/utils/tour_utils";
+// ``tour_helpers_hoot`` is a side-effect-only module: it ``patch()``es
+// ``TourHelpers.prototype`` with the actual click/edit/hover/check/...
+// methods that ``run: "click"`` (and friends) reach for at line ~117.
+// The import has to be explicit here because nothing in
+// ``tour_helpers.js`` exports forces this module to load — esbuild
+// keeps it inside concatenated bundles by virtue of being in the
+// glob, but ``DYNAMIC_ESM_BUNDLES`` children (web_tour.automatic) are
+// served as individual specs to the browser's import map and the
+// browser only loads modules that are statically reachable from the
+// dynamic ``import()`` entry points.  Without this line, every
+// ``run: "click"`` step in a tour throws
+// ``TypeError: actionHelper.click is not a function`` because the
+// patch never executed in the dynamic-import flow.
+import "@web_tour/js/tour_automatic/tour_helpers_hoot";
 import { TourHelpers } from "@web_tour/js/tour_automatic/tour_helpers";
 import { TourStep } from "@web_tour/js/tour_step";
 import { getTag } from "@web/core/utils/dom/xml";

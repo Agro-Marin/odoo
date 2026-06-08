@@ -159,9 +159,9 @@ class GamificationMentorship(models.Model):
                     rec.mentor_karma_per_milestone,
                     source=rec,
                     reason=_(
-                        "Mentee %s reached %s",
-                        mentee.name,
-                        mentee.rank_id.name or "a new rank",
+                        "Mentee %(mentee)s reached %(rank)s",
+                        mentee=mentee.name,
+                        rank=mentee.rank_id.name or "a new rank",
                     ),
                 )
                 rec.mentee_milestones_reached += 1

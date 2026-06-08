@@ -173,7 +173,32 @@ export class Editor {
                 throw new Error(`Missing plugin id (class ${P.name})`);
             }
             if (this.pluginsMap.has(P.id)) {
-                throw new Error(`Duplicate plugin id: ${P.id}`);
+                // Plugin already registered for this id — idempotently
+                // dedupe. Two cases produce this state:
+                //
+                //   1. Same class reference twice in the ``Plugins`` list
+                //      (e.g., a file's ``EMBEDDED_COMPONENT_PLUGINS.push(P)``
+                //      runs AND ``P`` is also in an explicit
+                //      ``config.Plugins`` entry). Identity check ``===``
+                //      catches this.
+                //
+                //   2. Different class objects with the same id and same
+                //      class name. This is the cross-bundle case in the
+                //      fork: test bundles each re-evaluate a plugin
+                //      source file, producing distinct ``Class`` objects
+                //      (different identity) but with identical
+                //      ``static id`` and class ``name``. Whichever bundle
+                //      pushes first wins.
+                //
+                // A REAL duplicate (different ids — same string but truly
+                // different class names) is still surfaced.
+                const existing = this.pluginsMap.get(P.id);
+                if (existing === P || existing.name === P.name) {
+                    continue;
+                }
+                throw new Error(
+                    `Duplicate plugin id: ${P.id} (${existing.name} vs ${P.name})`,
+                );
             }
             this.pluginsMap.set(P.id, P);
             const plugin = new P(this.getEditorContext(P.dependencies));

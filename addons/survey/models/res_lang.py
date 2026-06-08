@@ -2,7 +2,7 @@ from typing import Literal
 
 from odoo import Command, _, models
 from odoo.exceptions import UserError
-from odoo.orm.primitives import ValuesType
+from odoo.models import ValuesType
 
 
 class ResLang(models.Model):

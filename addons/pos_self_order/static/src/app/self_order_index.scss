@@ -10,7 +10,7 @@
     height: 100%;
 
     // Target 4K devices
-    @media #{screen and (min-width: 3839px), (min-height: 3839px)} {
+    @media screen and (min-width: 3839px), (min-height: 3839px) {
         --root-font-size: #{$o-so-font-size-4k};
     }
 

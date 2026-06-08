@@ -212,7 +212,7 @@ class ThreadController(http.Controller):
             if not attachments._has_attachments_ownership(
                 post_data.get("attachment_tokens")
             ):
-                msg = self.env._(
+                msg = request.env._(
                     "One or more attachments do not exist, or you do not have the rights to access them.",
                 )
                 raise UserError(msg)
@@ -249,7 +249,7 @@ class ThreadController(http.Controller):
                 )
             res["partner_ids"] = partners.filtered(
                 lambda p: (
-                    (not self.env.user.share and p.has_access("read"))
+                    (not request.env.user.share and p.has_access("read"))
                     or (
                         verify_limited_field_access_token(
                             p,
@@ -346,7 +346,7 @@ class ThreadController(http.Controller):
         "/mail/thread/unsubscribe", methods=["POST"], type="jsonrpc", auth="user"
     )
     def mail_thread_unsubscribe(self, res_model, res_id, partner_ids):
-        thread = self.env[res_model].browse(res_id)
+        thread = request.env[res_model].browse(res_id)
         thread.message_unsubscribe(partner_ids)
         return (
             Store()
@@ -361,7 +361,7 @@ class ThreadController(http.Controller):
 
     @http.route("/mail/thread/subscribe", methods=["POST"], type="jsonrpc", auth="user")
     def mail_thread_subscribe(self, res_model, res_id, partner_ids):
-        thread = self.env[res_model].browse(res_id)
+        thread = request.env[res_model].browse(res_id)
         thread.message_subscribe(partner_ids)
         return (
             Store()

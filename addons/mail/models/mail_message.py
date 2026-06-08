@@ -1806,12 +1806,15 @@ class MailMessage(models.Model):
         fnames = ["message_ids", "message_needaction", "message_needaction_counter"]
         self.flush_recordset(["model", "res_id"])
         for record in self:
-            model = model or record.model
-            res_id = res_id or record.res_id
-            if model in self.pool and issubclass(
-                self.pool[model], self.pool["mail.thread"]
+            # use fresh locals so explicit model/res_id args (when given) keep
+            # applying on each iteration, instead of being shadowed by the
+            # first iteration's record values
+            rec_model = model or record.model
+            rec_res_id = res_id or record.res_id
+            if rec_model in self.pool and issubclass(
+                self.pool[rec_model], self.pool["mail.thread"]
             ):
-                self.env[model].browse(res_id).invalidate_recordset(fnames)
+                self.env[rec_model].browse(rec_res_id).invalidate_recordset(fnames)
 
     def _records_by_model_name(self):
         ids_by_model = defaultdict(OrderedSet)

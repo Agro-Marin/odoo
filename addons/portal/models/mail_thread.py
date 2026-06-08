@@ -1,30 +1,48 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import hashlib
 import hmac
 
-from odoo import api, fields, models, _
-from odoo.addons.portal.utils import validate_thread_with_hash_pid, validate_thread_with_token
+from odoo import _, api, fields, models
+
+from odoo.addons.portal.utils import (
+    validate_thread_with_hash_pid,
+    validate_thread_with_token,
+)
 
 
 class MailThread(models.AbstractModel):
-    _inherit = 'mail.thread'
+    _inherit = "mail.thread"
 
-    _mail_post_token_field = 'access_token' # token field for external posts, to be overridden
+    # Token field used to authenticate external posts (defaults to portal.mixin's
+    # ``access_token``). Subclasses with a different token field override this.
+    _mail_post_token_field = "access_token"
 
-    website_message_ids = fields.One2many('mail.message', 'res_id', string='Website Messages',
-        domain=lambda self: [('model', '=', self._name), ('message_type', 'in', ('comment', 'email', 'email_outgoing', 'auto_comment', 'out_of_office'))],
+    website_message_ids = fields.One2many(
+        "mail.message",
+        "res_id",
+        string="Portal Messages",
+        domain=lambda self: [
+            ("model", "=", self._name),
+            (
+                "message_type",
+                "in",
+                ("comment", "email", "email_outgoing", "auto_comment", "out_of_office"),
+            ),
+        ],
+        # Portal users see their own thread messages without mail.message ACL.
+        # Access-token / HMAC validation happens upstream in the controller.
         bypass_search_access=True,
-        help="Website communication history")
+        help="Portal communication history for this record.",
+    )
 
     def _notify_get_recipients_groups(self, message, model_description, msg_vals=False):
+        """Add a 'portal_customer' notification group with an HMAC-signed access link."""
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals=msg_vals
         )
         if not self:
             return groups
 
-        portal_enabled = isinstance(self, self.env.registry['portal.mixin'])
+        portal_enabled = isinstance(self, self.env.registry["portal.mixin"])
         if not portal_enabled:
             return groups
 
@@ -34,70 +52,102 @@ class MailThread(models.AbstractModel):
             # notifying other customers that need it
             access_token = self.sudo()._portal_ensure_token()
             local_msg_vals = dict(msg_vals or {})
-            local_msg_vals['access_token'] = access_token
-            local_msg_vals['pid'] = customer.id
-            local_msg_vals['hash'] = self._sign_token(customer.id)
+            local_msg_vals["access_token"] = access_token
+            local_msg_vals["pid"] = customer.id
+            local_msg_vals["hash"] = self._sign_token(customer.id)
             # sudo: mail.thread - user posting with read access should be able to get/create signup
             # token when notifying other customers that need it
             local_msg_vals.update(customer.sudo().signup_get_auth_param()[customer.id])
-            access_link = self._notify_get_action_link('view', **local_msg_vals)
+            access_link = self._notify_get_action_link("view", **local_msg_vals)
 
             new_group = [
-                ('portal_customer', lambda pdata: pdata['id'] == customer.id, {
-                    'active': True,
-                    'button_access': {
-                        'url': access_link,
+                (
+                    "portal_customer",
+                    lambda pdata: pdata["id"] == customer.id,
+                    {
+                        "active": True,
+                        "button_access": {
+                            "url": access_link,
+                        },
+                        "has_button_access": True,
                     },
-                    'has_button_access': True,
-                })
+                )
             ]
         else:
             new_group = []
 
-        # enable portal users that should have access through portal (if not access rights
-        # will do their duty)
-        portal_group = next(group for group in groups if group[0] == 'portal')
-        portal_group[2]['active'] = True
-        portal_group[2]['has_button_access'] = True
+        # Activate the parent "portal" group so portal users get the access
+        # button. Defensive lookup: parent currently guarantees this group exists,
+        # but tolerate future refactors that might not.
+        portal_group = next((g for g in groups if g[0] == "portal"), None)
+        if portal_group is not None:
+            portal_group[2]["active"] = True
+            portal_group[2]["has_button_access"] = True
 
         return new_group + groups
 
-    def _sign_token(self, pid):
-        """Generate a secure hash for this record with the email of the recipient with whom the record have been shared.
+    def _sign_token(self, pid) -> str:
+        """Generate an HMAC binding this record's token to a partner id.
 
-        This is used to determine who is opening the link
-        to be able for the recipient to post messages on the document's portal view.
+        :param int pid: ``res.partner`` id authorised to post on this thread
+        :return: HMAC-SHA256 hex digest (64 chars)
+        :rtype: str
+        :raises NotImplementedError: if the model lacks the configured token field
+
+        Implementation note: this signs ``repr((dbname, access_token, pid))``
+        rather than delegating to :func:`odoo.tools.security.hmac`, which wraps
+        the message as ``repr((scope, message))``. The two formats produce
+        different digests, so switching helpers would invalidate every existing
+        portal link in production. Kept hand-rolled for backward compatibility.
         """
         self.ensure_one()
-        # check token field exists
         if self._mail_post_token_field not in self._fields:
-            raise NotImplementedError(_(
-                "Model %(model_name)s does not support token signature, as it does not have %(field_name)s field.",
-                model_name=self._name,
-                field_name=self._mail_post_token_field
-            ))
-        # sign token
+            raise NotImplementedError(
+                _(
+                    "Model %(model_name)s does not support token signature, as it does not have %(field_name)s field.",
+                    model_name=self._name,
+                    field_name=self._mail_post_token_field,
+                )
+            )
         secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
         token = (self.env.cr.dbname, self[self._mail_post_token_field], pid)
-        return hmac.new(secret.encode('utf-8'), repr(token).encode('utf-8'), hashlib.sha256).hexdigest()
+        return hmac.new(
+            secret.encode(), repr(token).encode(), hashlib.sha256
+        ).hexdigest()
 
     def _portal_get_parent_hash_token(self, pid):
-        """ Overridden in models which have M2o 'parent' field and can be shared on
-        either an individual basis or indirectly in a group via the M2o record.
+        """Return a parent record's signed token for shared-portal use cases.
 
-        :return: False or logical parent's _sign_token() result
+        Overridden in models that have a Many2one ``parent`` field and can be
+        shared either individually or indirectly via the parent.
+
+        :param int pid: ``res.partner`` id to sign against
+        :return: parent's ``_sign_token(pid)`` or ``False`` if no parent applies
         """
         return False
 
     @api.model
     def _get_allowed_access_params(self):
-        return super()._get_allowed_access_params() | {'hash', 'pid', 'token'}
+        """Allow ``hash``, ``pid``, ``token`` in portal access-validation kwargs."""
+        return super()._get_allowed_access_params() | {"hash", "pid", "token"}
 
     @api.model
-    def _get_thread_with_access(self, thread_id, *, hash=None, pid=None, token=None, **kwargs):
-        if thread := super()._get_thread_with_access(thread_id, hash=hash, pid=pid, token=token, **kwargs):
+    def _get_thread_with_access(
+        self, thread_id, *, hash=None, pid=None, token=None, **kwargs
+    ):
+        """Resolve a thread by id, falling back to HMAC / access-token validation.
+
+        First tries the parent's ACL-based resolution. If the user has no rights
+        but provides a valid ``hash+pid`` HMAC pair or a valid ``token``, returns
+        the sudo recordset so portal controllers can render the page.
+        """
+        if thread := super()._get_thread_with_access(
+            thread_id, hash=hash, pid=pid, token=token, **kwargs
+        ):
             return thread
         thread = self.browse(thread_id).sudo()
-        if validate_thread_with_hash_pid(thread, hash, pid) or validate_thread_with_token(thread, token):
+        if validate_thread_with_hash_pid(
+            thread, hash, pid
+        ) or validate_thread_with_token(thread, token):
             return thread
         return self.browse()

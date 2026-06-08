@@ -27,14 +27,24 @@ export class LanguageSelector extends Component {
         onWillStart(() => {
             if (user.userId) {
                 const userLang = jsToPyLocale(user.lang);
-                loadLanguages(this.orm).then((res) => {
-                    const userLangIndex = res.findIndex((lang) => lang[0] === userLang);
-                    if (userLangIndex !== -1) {
-                        const [userLangItem] = res.splice(userLangIndex, 1);
-                        res.unshift(userLangItem);
-                    }
-                    this.state.languages = res;
-                });
+                // Swallow the rejection: if the ``res.lang`` RPC fails (e.g.
+                // no access, missing model in a stripped environment), the
+                // selector simply renders without language options instead
+                // of bubbling an unhandled rejection that would crash the
+                // surrounding component's lifecycle.
+                loadLanguages(this.orm).then(
+                    (res) => {
+                        const userLangIndex = res.findIndex(
+                            (lang) => lang[0] === userLang,
+                        );
+                        if (userLangIndex !== -1) {
+                            const [userLangItem] = res.splice(userLangIndex, 1);
+                            res.unshift(userLangItem);
+                        }
+                        this.state.languages = res;
+                    },
+                    () => {},
+                );
             }
         });
     }

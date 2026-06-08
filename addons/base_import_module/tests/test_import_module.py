@@ -379,7 +379,7 @@ class TestImportModule(odoo.tests.TransactionCase):
         self.assertEqual(asset_data.name, f'{bundle}_/{path}'.replace(".", "_"))
 
         module = self.env['ir.module.module'].search([('name', '=', 'test_module')])
-        self.assertEqual(module.latest_version, f'{release.series}.1.0')
+        self.assertEqual(module.db_version, f'{release.series}.1.0')
 
         # Update test module
         stream = BytesIO()

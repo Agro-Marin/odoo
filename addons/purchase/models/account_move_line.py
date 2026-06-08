@@ -27,10 +27,10 @@ class AccountMoveLine(models.Model):
 
     @api.depends("product_id.purchase_line_warn_msg")
     def _compute_purchase_line_warn_msg(self):
-        has_group = self.env.user.has_group("purchase.group_warning_purchase")
+        has_warning_group = self.env.user.has_group("purchase.group_warning_purchase")
         for line in self:
             line.purchase_line_warn_msg = (
-                line.product_id.purchase_line_warn_msg if has_group else ""
+                line.product_id.purchase_line_warn_msg if has_warning_group else ""
             )
 
     # ------------------------------------------------------------
@@ -41,7 +41,15 @@ class AccountMoveLine(models.Model):
         super()._copy_data_extend_business_fields(values)
         values["purchase_line_ids"] = [(6, None, self.purchase_line_ids.ids)]
 
-    def _prepare_line_values_for_purchase(self):
+    def _purchase_prepare_purchase_line_values(self):
+        """Build creation values for ``purchase.order.line`` records from invoice lines.
+
+        Used by the "Create Purchase Order from Bill" wizard to seed PO lines with
+        the product, quantity, UoM, price and discount of the originating bill lines.
+
+        :return: One dict of creation values per record in ``self``.
+        :rtype: list[dict]
+        """
         return [
             {
                 "product_id": line.product_id.id,

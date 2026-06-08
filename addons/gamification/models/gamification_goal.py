@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Literal, Self
 
 from odoo import _, api, exceptions, fields, models
-from odoo.orm.primitives import ValuesType
+from odoo.models import ValuesType
 from odoo.tools.safe_eval import safe_eval, time
 
 _logger = logging.getLogger(__name__)

@@ -7,7 +7,6 @@ class StockPackageDestination(models.TransientModel):
 
     move_line_ids = fields.Many2many(
         comodel_name="stock.move.line",
-        relation="Products",
         required=True,
     )
     location_dest_id = fields.Many2one(

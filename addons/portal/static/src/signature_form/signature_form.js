@@ -20,7 +20,6 @@ export class SignatureForm extends Component {
     setup() {
         this.rootRef = useRef("root");
 
-        this.csrfToken = odoo.csrf_token;
         this.state = useState({
             error: false,
             success: false,
