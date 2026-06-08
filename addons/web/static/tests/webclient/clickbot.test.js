@@ -25,6 +25,27 @@ import { ListRenderer } from "@web/views/list/list_renderer";
 import { SUCCESS_SIGNAL } from "@web/webclient/clickbot/clickbot";
 import { WebClient } from "@web/webclient/webclient";
 
+// The clickbot logs a detected errored RPC as a free-text prefix + JSON.stringify of
+// the runtime error object. Key insertion order of that object is an internal detail,
+// so step assertions must compare the payload by structure, not by serialized key order.
+const RPC_ERROR_MARKER = "A RPC in error was detected, maybe it's related to the error dialog : ";
+
+/**
+ * Re-serialize a JSON string with every object's keys sorted recursively (arrays keep
+ * their order). Lets two structurally-equal payloads compare equal regardless of the
+ * order their keys were inserted at runtime.
+ *
+ * @param {string} jsonString
+ * @returns {string}
+ */
+function canonicalJson(jsonString) {
+    return JSON.stringify(JSON.parse(jsonString), (key, value) =>
+        value && typeof value === "object" && !Array.isArray(value)
+            ? Object.fromEntries(Object.keys(value).sort().map((k) => [k, value[k]]))
+            : value,
+    );
+}
+
 class Foo extends models.Model {
     foo = fields.Char();
     bar = fields.Boolean();
@@ -448,7 +469,12 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
             },
             error: (msg) => {
                 // Replace msg with null id as JSON-RPC ids are not reset between two tests
-                expect.step(msg.toString().replaceAll(/"id":\d+,/g, `"id":null,`));
+                msg = msg.toString().replaceAll(/"id":\d+,/g, `"id":null,`);
+                if (msg.startsWith(RPC_ERROR_MARKER)) {
+                    // Compare the error payload structurally, not by runtime key order.
+                    msg = RPC_ERROR_MARKER + canonicalJson(msg.slice(RPC_ERROR_MARKER.length));
+                }
+                expect.step(msg);
                 clickEverywhereDef.resolve();
             },
         },
@@ -526,7 +552,7 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
                 },
             },
         },
-        settings: { silent: false, cache: false },
+        settings: { silent: false, cache: false, retry: false, dedup: false },
         error: {
             name: "RPC_ERROR",
             type: "server",
@@ -549,7 +575,7 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
     });
     const expectedModalHtml = /* xml */ `
         <header class="modal-header">
-            <h4 class="modal-title text-break flex-grow-1">Oops!</h4>
+            <h4 class="modal-title text-break flex-grow-1" id="dialog_0_title">Oops!</h4>
             <button type="button" class="btn-close" aria-label="Close" tabindex="-1"></button>
         </header>
         <main class="modal-body">
@@ -566,7 +592,7 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
 
     expect.verifyErrors(["This is a server Error"]);
     expect.verifySteps([
-        `A RPC in error was detected, maybe it's related to the error dialog : ${expectedRpcData}`,
+        `${RPC_ERROR_MARKER}${canonicalJson(expectedRpcData)}`,
         "Error while testing App1 app1",
         `Error: Error dialog detected${expectedModalHtml}`,
     ]);

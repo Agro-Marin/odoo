@@ -15,7 +15,7 @@ import {
     isNodeDisplayed,
     isNodeVisible,
     queryRect,
-} from "@web/../lib/hoot-dom/helpers/dom";
+} from "@odoo/hoot-dom-helpers-dom";
 import {
     addInteractionListener,
     getColorHex,
@@ -23,7 +23,7 @@ import {
     isInstanceOf,
     isIterable,
     R_WHITE_SPACE,
-} from "@web/../lib/hoot-dom/hoot_dom_utils";
+} from "@odoo/hoot-dom-utils";
 import {
     CASE_EVENT_TYPES,
     deepCopy,
@@ -92,8 +92,8 @@ import { Test } from "./test.js";
  *
  * @typedef {import("@odoo/hoot-dom").Dimensions} Dimensions
  * @typedef {import("@odoo/hoot-dom").FormatXmlOptions} FormatXmlOptions
- * @typedef {import("@web/../lib/hoot-dom/hoot_dom_utils").InteractionDetails} InteractionDetails
- * @typedef {import("@web/../lib/hoot-dom/hoot_dom_utils").InteractionType} InteractionType
+ * @typedef {import("@odoo/hoot-dom-utils").InteractionDetails} InteractionDetails
+ * @typedef {import("@odoo/hoot-dom-utils").InteractionType} InteractionType
  * @typedef {import("@odoo/hoot-dom").QueryRectOptions} QueryRectOptions
  * @typedef {import("@odoo/hoot-dom").QueryTextOptions} QueryTextOptions
  * @typedef {import("@odoo/hoot-dom").Target} Target
@@ -1323,6 +1323,62 @@ export class Matcher {
             message: options?.message,
             onPass: () => [this._received, r`is[! not] strictly less than`, max],
             onFail: () => [r`expected value[! not] to be strictly less`],
+            getFailedDetails: (received) =>
+                detailsFromEntries([
+                    ["Maximum:", max],
+                    [null, received],
+                ]),
+        }));
+    }
+
+    /**
+     * Expects the received value to be greater than or equal to `min`.
+     *
+     * @param {number} min
+     * @param {ExpectOptions} [options]
+     * @example
+     *  expect(5).toBeGreaterThanOrEqual(5);
+     * @example
+     *  expect(6).toBeGreaterThanOrEqual(5);
+     */
+    toBeGreaterThanOrEqual(min, options) {
+        this._ensureArguments(arguments, "number");
+
+        return this._resolve(() => ({
+            name: "toBeGreaterThanOrEqual",
+            acceptedType: "number",
+            predicate: (received) => min <= received,
+            message: options?.message,
+            onPass: () => [this._received, r`is[! not] greater than or equal to`, min],
+            onFail: () => [r`expected value[! not] to be greater than or equal to`],
+            getFailedDetails: (received) =>
+                detailsFromEntries([
+                    ["Minimum:", min],
+                    [null, received],
+                ]),
+        }));
+    }
+
+    /**
+     * Expects the received value to be less than or equal to `max`.
+     *
+     * @param {number} max
+     * @param {ExpectOptions} [options]
+     * @example
+     *  expect(5).toBeLessThanOrEqual(5);
+     * @example
+     *  expect(4).toBeLessThanOrEqual(5);
+     */
+    toBeLessThanOrEqual(max, options) {
+        this._ensureArguments(arguments, "number");
+
+        return this._resolve(() => ({
+            name: "toBeLessThanOrEqual",
+            acceptedType: "number",
+            predicate: (received) => received <= max,
+            message: options?.message,
+            onPass: () => [this._received, r`is[! not] less than or equal to`, max],
+            onFail: () => [r`expected value[! not] to be less than or equal to`],
             getFailedDetails: (received) =>
                 detailsFromEntries([
                     ["Maximum:", max],

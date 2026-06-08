@@ -16,11 +16,11 @@ import { ActionMenus } from "@web/search/action_menus/action_menus";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
 import { SearchBar } from "@web/search/search_bar/search_bar";
-import { session } from "@web/session";
 import { MultiRecordController } from "@web/views/multi_record_controller";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
 import { SelectionBox } from "@web/views/view_components/selection_box";
+import { buildMultiRecordModelParams } from "@web/views/view_utils";
 
 import { KanbanCogMenu } from "./kanban_cog_menu.js";
 import { KanbanRenderer } from "./kanban_renderer.js";
@@ -130,12 +130,36 @@ export class KanbanController extends MultiRecordController {
         this.headerButtons = this.archInfo.headerButtons;
 
         // --- Quick create ---
+        //
+        // Why the side-effecting setter (Pattern 4) here despite the
+        // STATE_MANAGEMENT.md discouragement:
+        //
+        // Opening a quick-create while sample data is visible MUST
+        // clear the samples synchronously, on the same microtask as
+        // the ``groupId`` mutation.  An ``onMounted`` / ``useEffect``
+        // approach defers the cleanup by 1-2 render frames, producing
+        // a visible flicker (sample records still painted while the
+        // quick-create form mounts) and breaking integration tests
+        // that assert ``.o_kanban_record`` is gone the moment
+        // ``quickCreateKanbanRecord()`` resolves.
+        //
+        // The previous attempt to migrate this to ``useEffect``
+        // (commit 19fb5d01bb81) was reverted because the deferred
+        // timing breaks 3 sample-data integration tests in
+        // ``kanban_view.test.js`` ("empty grouped kanban with sample
+        // data and click quick create" and siblings).  The setter is
+        // the canonical exception to Pattern 4: when downstream
+        // observers contractually require synchronous side-effect
+        // visibility, useEffect's queued semantics are wrong.
+        //
+        // STATE_MANAGEMENT.md §Pattern 4 documents this exception.
         const self = this;
         this.quickCreateState = reactive(
             /** @type {any} */ ({
                 get groupId() {
                     return this._groupId || false;
                 },
+                // eslint-disable-next-line no-restricted-syntax -- synchronous timing contract; see comment above
                 set groupId(groupId) {
                     if (self.model.useSampleModel) {
                         self.model.removeSampleDataInGroups();
@@ -244,7 +268,17 @@ export class KanbanController extends MultiRecordController {
     // Getters
     // -------------------------------------------------------------------------
 
-    /** @returns {Object} Configuration object passed to the RelationalModel constructor. */
+    /**
+     * Configuration object passed to the RelationalModel constructor.
+     *
+     * Delegates the shared multi-record skeleton (state restoration,
+     * countLimit, defaultOrderBy, activeIdsLimit, hooks merge) to
+     * ``buildMultiRecordModelParams``; this getter only owns the
+     * kanban-specific bits (cardColorField + progressBar field
+     * dependencies, ``maxGroupByDepth: 1``, no group limit).
+     *
+     * @returns {Object}
+     */
     get modelParams() {
         const { resModel, limit } = this.props;
         const { activeFields, fields } = extractFieldsFromArchInfo(
@@ -260,30 +294,31 @@ export class KanbanController extends MultiRecordController {
         }
 
         addFieldDependencies(activeFields, fields, this.progressBarAggregateFields);
-        const modelConfig = this.props.state?.modelState?.config || {
-            resModel,
-            activeFields,
-            fields,
-            fieldsToAggregate: this.progressBarAggregateFields.map(
-                (field) => field.name,
-            ),
-            openGroupsByDefault: true,
-        };
 
-        return {
-            config: modelConfig,
-            state: this.props.state?.modelState,
-            limit: this.archInfo.limit || limit || 40,
-            groupsLimit: Number.MAX_SAFE_INTEGER, // no limit
-            countLimit: this.archInfo.countLimit,
-            defaultOrderBy: this.archInfo.defaultOrder,
-            maxGroupByDepth: 1,
-            activeIdsLimit: session.active_ids_limit,
-            hooks: {
-                ...this._uiHooks,
-                onRecordSaved: this.onRecordSaved.bind(this),
+        return buildMultiRecordModelParams({
+            archInfo: this.archInfo,
+            props: this.props,
+            uiHooks: this._uiHooks,
+            config: {
+                resModel,
+                activeFields,
+                fields,
+                fieldsToAggregate: this.progressBarAggregateFields.map(
+                    (field) => field.name,
+                ),
+                openGroupsByDefault: true,
             },
-        };
+            hooks: {
+                lifecycle: {
+                    onRecordSaved: this.onRecordSaved.bind(this),
+                },
+            },
+            extras: {
+                limit: this.archInfo.limit || limit || 40,
+                groupsLimit: Number.MAX_SAFE_INTEGER, // no limit
+                maxGroupByDepth: 1,
+            },
+        });
     }
 
     /** @returns {Object[]} Fields to aggregate in progress bar computations. */

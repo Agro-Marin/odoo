@@ -83,6 +83,63 @@ export class IndexedDB {
     }
 
     /**
+     * Selectively delete entries from one or more tables.  Iterates each
+     * table's keys with an ``openKeyCursor`` and deletes only those for
+     * which ``predicate(key)`` returns ``true``.
+     *
+     * Used by the RPC cache to honour model-scoped ``CLEAR-CACHES``
+     * signals on the disk cache without over-invalidating unrelated
+     * models.  The cursor scan is O(N) per table but avoids the
+     * "blow away everything on any unlink" footgun of plain
+     * :meth:`invalidate`.
+     *
+     * Predicate errors are swallowed (a malformed key is treated as
+     * non-matching and left in place) so a single bad entry can't
+     * abort the entire invalidation pass.
+     *
+     * @param {string[]} tables
+     * @param {(key: string) => boolean} predicate
+     * @returns Promise
+     */
+    async invalidateWhere(tables, predicate) {
+        return this.execute((db) => {
+            if (db) {
+                return this._invalidateWhere(db, tables, predicate);
+            }
+        });
+    }
+
+    /**
+     * Delete entries whose stored value carries ``model === <model>``.
+     *
+     * Faster path than :meth:`invalidateWhere` for the canonical
+     * "invalidate one Odoo model's cached responses" case: the predicate
+     * is a fixed object-property check, so the cursor never has to invoke
+     * a caller-supplied function or JSON.parse the key.  ``openCursor`` is
+     * used (vs ``openKeyCursor``) because the discriminator lives on the
+     * stored value (``cursor.value.model``); this trades a little extra
+     * I/O for value reads against eliminating per-key parse cost — net
+     * win for typical entry sizes.
+     *
+     * Entries written without a ``model`` property are silently kept
+     * (correct — they are not model-scoped). This includes pre-existing
+     * entries written by older code before the model-on-value migration;
+     * they remain accessible to ``invalidate(table)`` but cannot be
+     * surgically scoped to a model.
+     *
+     * @param {string[]} tables
+     * @param {string} model - Odoo model name, e.g. ``"res.partner"``
+     * @returns Promise
+     */
+    async invalidateByModel(tables, model) {
+        return this.execute((db) => {
+            if (db) {
+                return this._invalidateByModel(db, tables, model);
+            }
+        });
+    }
+
+    /**
      * Delete the whole database
      *
      * @returns Promise
@@ -249,6 +306,109 @@ export class IndexedDB {
             const r = objectStore.get(key);
             r.onsuccess = () => resolve(r.result);
             transaction.onerror = () => reject(transaction.error);
+        });
+    }
+
+    async _invalidateByModel(db, tables, model) {
+        return new Promise((resolve, reject) => {
+            const objectStoreNames = [...db.objectStoreNames].filter(
+                (table) => table !== VERSION_TABLE,
+            );
+            const targetTables = objectStoreNames.filter((t) => tables.includes(t));
+            if (!targetTables.length) {
+                return resolve();
+            }
+            const transaction = db.transaction(targetTables, "readwrite", {
+                durability: "relaxed",
+            });
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+            transaction.onabort = () => reject(transaction.error);
+            for (const table of targetTables) {
+                const objectStore = transaction.objectStore(table);
+                // ``openCursor`` (not ``openKeyCursor``) so we can read
+                // ``cursor.value.model``. The value is materialised but
+                // the per-step cost — object property access — beats the
+                // predicate cost of the prior ``invalidateWhere`` path
+                // which JSON.parsed each key.  Old entries without a
+                // ``model`` property are silently kept.
+                const request = objectStore.openCursor();
+                request.onsuccess = (event) => {
+                    const cursor = /** @type {IDBCursorWithValue | null} */ (
+                        /** @type {IDBRequest} */ (event.target).result
+                    );
+                    if (!cursor) {
+                        return;
+                    }
+                    if (cursor.value?.model === model) {
+                        objectStore.delete(cursor.key);
+                    }
+                    cursor.continue();
+                };
+            }
+        });
+    }
+
+    async _invalidateWhere(db, tables, predicate) {
+        return new Promise((resolve, reject) => {
+            const objectStoreNames = [...db.objectStoreNames].filter(
+                (table) => table !== VERSION_TABLE,
+            );
+            const targetTables = objectStoreNames.filter((t) => tables.includes(t));
+            if (!targetTables.length) {
+                return resolve();
+            }
+            // Relaxed durability matches sibling write paths; the
+            // cursor iteration runs inside the single transaction so
+            // either every targeted entry is deleted or none is.
+            const transaction = db.transaction(targetTables, "readwrite", {
+                durability: "relaxed",
+            });
+            // ``oncomplete`` is the canonical resolve signal: it fires
+            // after every queued request (cursor continuations and the
+            // store ``delete(key)`` writes below) has landed durably.
+            // Wire it before opening cursors so the handlers exist when
+            // the transaction enters its terminal state.
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+            transaction.onabort = () => reject(transaction.error);
+            for (const table of targetTables) {
+                // Keep a reference to the store: ``openKeyCursor`` returns
+                // an ``IDBCursor`` (key-only) which cannot call its own
+                // ``.delete()`` — that method is reserved for value
+                // cursors from ``openCursor``. Deleting through the
+                // object store by explicit key is both spec-compliant
+                // and cheaper (we never materialise the value).
+                const objectStore = transaction.objectStore(table);
+                const request = objectStore.openKeyCursor();
+                request.onsuccess = (event) => {
+                    const cursor = /** @type {IDBCursor | null} */ (
+                        /** @type {IDBRequest} */ (event.target).result
+                    );
+                    if (!cursor) {
+                        // Cursor exhausted for this table; nothing more
+                        // to queue. The transaction auto-commits once
+                        // every table's cursor reaches this branch.
+                        return;
+                    }
+                    let shouldDelete = false;
+                    try {
+                        shouldDelete = predicate(/** @type {string} */ (cursor.key));
+                    } catch {
+                        // Predicate error: treat as non-matching, keep the entry.
+                    }
+                    if (shouldDelete) {
+                        objectStore.delete(cursor.key);
+                    }
+                    cursor.continue();
+                };
+            }
+            // No explicit ``transaction.commit()``: cursor iteration
+            // queues one ``continue()`` per onsuccess tick, and calling
+            // ``commit()`` while requests are still pending moves the
+            // transaction to the committing state, causing the next
+            // ``cursor.continue()`` to raise ``TransactionInactiveError``.
+            // The transaction auto-commits when every cursor exhausts.
         });
     }
 }

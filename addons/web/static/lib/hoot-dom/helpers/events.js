@@ -1653,6 +1653,11 @@ async function _pointerDown(options) {
     registerButton(eventInit, true);
 
     if (pointerDownTarget !== runTime.previousPointerDownTarget) {
+        console.debug(
+            "[debug:hoot] _pointerDown reset clickCount (target changed: %s -> %s)",
+            runTime.previousPointerDownTarget?.tagName,
+            pointerDownTarget?.tagName,
+        );
         runTime.clickCount = 0;
     }
 
@@ -1753,6 +1758,11 @@ async function _pointerUp(options) {
         await triggerClick(clickTarget, mouseEventInit);
         if (mouseEventInit.button === btn.LEFT) {
             runTime.clickCount++;
+            console.debug(
+                "[debug:hoot] _pointerUp clickCount -> %s detail=%s",
+                runTime.clickCount,
+                mouseEventInit.detail,
+            );
             if (!hasTouch() && runTime.clickCount % 2 === 0) {
                 await _dispatch(clickTarget, "dblclick", mouseEventInit);
             }
@@ -1766,9 +1776,18 @@ async function _pointerUp(options) {
     runTime.pointerDownTimeout = globalThis.setTimeout(() => {
         // Use `globalThis.setTimeout` to potentially make use of the mock timeouts
         // since the events run in the same temporal context as the tests
+        console.debug(
+            "[debug:hoot] clickChain reset-timer fired (clickCount=%s -> 0)",
+            runTime.clickCount,
+        );
         runTime.clickCount = 0;
         runTime.pointerDownTimeout = 0;
     }, DOUBLE_CLICK_DELAY);
+    console.debug(
+        "[debug:hoot] _pointerUp scheduled reset-timer id=%s in %sms",
+        runTime.pointerDownTimeout,
+        DOUBLE_CLICK_DELAY,
+    );
 }
 
 /**

@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { extractDigits } from "@web/fields/field_utils";
 import { formatFloatFactor } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -95,4 +96,4 @@ export const floatToggleField = {
     }),
 };
 
-registry.category("fields").add("float_toggle", floatToggleField);
+registerField("float_toggle", floatToggleField);

@@ -26,8 +26,10 @@ This module provides the core of the Odoo Web Client.
         "views/neutralize_views.xml",
         "views/ir_ui_view_views.xml",
         "views/res_config_settings_views.xml",
+        "views/web_cwv_metric_views.xml",
         "data/ir_attachment.xml",
         "data/report_layout.xml",
+        "data/web_cwv_metric_data.xml",
         "views/web_menus.xml",
     ],
     "assets": {
@@ -284,6 +286,14 @@ This module provides the core of the Odoo Web Client.
             "web/static/lib/ace/mode-json.js",
             "web/static/lib/ace/theme-monokai.js",
         ],
+        # Lazy-loaded by ``components/signature/name_and_signature.js`` via
+        # ``loadBundle("web.assets_signature_pad_lib")``.  Kept out of
+        # ``web.assets_backend`` so the signature pad's ~31 KB UMD payload
+        # ships only on the first session that opens a SignatureField,
+        # SignatureDialog, or any descendant component.
+        "web.assets_signature_pad_lib": [
+            "web/static/lib/signature_pad/signature_pad.umd.js",
+        ],
         "web.assets_web_print": [
             "web/static/src/scss/functions.scss",
             "web/static/src/scss/primary_variables_print.scss",
@@ -369,9 +379,9 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/scss/bootstrap_overridden_frontend.scss",
         ],
         "web.assets_tests": [
-            "web/static/tests/legacy/helpers/cleanup.js",
-            "web/static/tests/legacy/helpers/utils.js",
-            "web/static/tests/legacy/utils.js",
+            "web/static/tests/helpers/cleanup.js",
+            "web/static/tests/helpers/utils.js",
+            "web/static/tests/utils.js",
             "web/static/tests/tours/**/*",
         ],
         "web.__assets_tests_call__": [
@@ -438,12 +448,8 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/tests/legacy/legacy_tests/helpers/test_utils_tests.js",
             ),
-            "web/static/lib/fullcalendar/core/index.global.js",
-            "web/static/lib/fullcalendar/interaction/index.global.js",
-            "web/static/lib/fullcalendar/daygrid/index.global.js",
-            "web/static/lib/fullcalendar/timegrid/index.global.js",
-            "web/static/lib/fullcalendar/list/index.global.js",
-            "web/static/lib/fullcalendar/luxon3/index.global.js",
+            "web/static/lib/fullcalendar/skeleton.css",
+            "web/static/lib/fullcalendar/fullcalendar.global.js",
             "web/static/lib/zxing-library/zxing-library.js",
             "web/static/lib/ace/ace.js",
             "web/static/lib/ace/mode-python.js",
@@ -458,6 +464,8 @@ This module provides the core of the Odoo Web Client.
             ),
             "web/static/lib/signature_pad/signature_pad.umd.js",
             "web/static/tests/legacy/helpers/**/*.js",
+            "web/static/tests/helpers/cleanup.js",
+            "web/static/tests/helpers/utils.js",
             "web/static/tests/legacy/views/helpers.js",
             "web/static/tests/legacy/search/helpers.js",
             "web/static/tests/legacy/views/calendar/helpers.js",
@@ -466,7 +474,7 @@ This module provides the core of the Odoo Web Client.
             "web/static/tests/legacy/main.js",
             "web/static/tests/legacy/mock_server_tests.js",
             "web/static/tests/legacy/setup.js",
-            "web/static/tests/legacy/utils.js",
+            "web/static/tests/utils.js",
             "web/static/src/webclient/clickbot/clickbot.js",
         ],
         "web.qunit_suite_tests": [
@@ -508,13 +516,9 @@ This module provides the core of the Odoo Web Client.
             "/web/static/lib/chartjs-adapter-luxon/chartjs-adapter-luxon.js",
         ],
         "web.fullcalendar_lib": [
-            "/web/static/lib/fullcalendar/core/index.global.js",
-            "/web/static/lib/fullcalendar/core/locales-all.global.js",
-            "/web/static/lib/fullcalendar/interaction/index.global.js",
-            "/web/static/lib/fullcalendar/daygrid/index.global.js",
-            "/web/static/lib/fullcalendar/luxon3/index.global.js",
-            "/web/static/lib/fullcalendar/timegrid/index.global.js",
-            "/web/static/lib/fullcalendar/list/index.global.js",
+            "/web/static/lib/fullcalendar/skeleton.css",
+            "/web/static/lib/fullcalendar/fullcalendar.global.js",
+            "/web/static/lib/fullcalendar/locales-all.global.js",
         ],
     },
     "auto_install": True,

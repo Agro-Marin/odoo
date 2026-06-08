@@ -4,6 +4,7 @@
 /** @module @web/services/commands/command_service - Service that registers, manages, and opens the command palette */
 
 import { Component, EventBus } from "@odoo/owl";
+import { CommandPaletteEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
 import { CommandPalette } from "./command_palette.js";
@@ -41,6 +42,33 @@ import { CommandPalette } from "./command_palette.js";
 const commandCategoryRegistry = registry.category("command_categories");
 const commandProviderRegistry = registry.category("command_provider");
 const commandSetupRegistry = registry.category("command_setup");
+
+// Each provider exposes `provide(env, options?)` which returns an array of
+// commands; `namespace` (default "default") routes the provider to a palette.
+commandProviderRegistry.addValidation({
+    provide: Function,
+    namespace: { type: String, optional: true },
+    "*": true,
+});
+
+// Categories group commands inside a palette. Most entries are empty objects
+// used purely as ordering anchors via the registry's `sequence` option.
+// `namespace` opts a category into a non-default palette ("/", "?", "@").
+commandCategoryRegistry.addValidation({
+    namespace: { type: String, optional: true },
+    name: { type: [String, Object], optional: true },
+    "*": true,
+});
+
+// Per-namespace palette configuration (placeholder text, debounce, footer).
+// All fields are optional: a missing entry just falls back to defaults.
+commandSetupRegistry.addValidation({
+    debounceDelay: { type: Number, optional: true },
+    emptyMessage: { type: [String, Object], optional: true },
+    name: { type: [String, Object], optional: true },
+    placeholder: { type: [String, Object], optional: true },
+    "*": true,
+});
 
 class DefaultFooter extends Component {
     static template = "web.DefaultFooter";
@@ -133,7 +161,7 @@ export const commandService = {
          */
         function openPalette(config, onClose) {
             if (isPaletteOpened) {
-                bus.trigger("SET-CONFIG", config);
+                bus.trigger(CommandPaletteEvent.SET_CONFIG, config);
                 return;
             }
 

@@ -148,7 +148,12 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
         } else {
             // There's enough available space among shrinkable columns => shrink them uniformly
             let remainingColumnsToShrink = shrinkableColumns.length;
-            while (diff >= 1) {
+            // Guard on `remainingColumnsToShrink` (mirrors the expand branch below):
+            // once every shrinkable column has reached its minWidth, a residual
+            // sub-pixel `diff >= 1` would make `colDiff` divide by 0 (→ Infinity) and
+            // the loop body no-op forever. Exiting leaves the table overflowing by
+            // <1px, which is harmless (and handled by the horizontal scrollbar).
+            while (diff >= 1 && remainingColumnsToShrink > 0) {
                 const colDiff = diff / remainingColumnsToShrink;
                 for (const { thIndex, minWidth } of shrinkableColumns) {
                     const currentWidth = _columnWidths[thIndex];

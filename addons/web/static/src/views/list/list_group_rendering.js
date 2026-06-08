@@ -1,0 +1,323 @@
+// @ts-check
+/** @odoo-module native */
+
+/** @module @web/views/list/list_group_rendering - Group-row rendering helpers extracted from ListRenderer */
+
+/**
+ * Group rendering cohort extracted from ``ListRenderer``.
+ *
+ * Same prototype-mixin pattern as ``list_styling.js``: methods land on
+ * ``ListRenderer.prototype`` so subclasses' ``super.<method>(...)``
+ * keeps resolving to the canonical implementation.
+ *
+ * Cohort scope:
+ *   - Group-aware mutation entry points (``addInGroup``,
+ *     ``addNewGroup``, ``editGroupRecord``).
+ *   - Aggregate-column / colspan computations
+ *     (``getFirstAggregateIndex``, ``getLastAggregateIndex``,
+ *     ``getAggregateColumns``, ``getGroupNameCellColSpan``,
+ *     ``getGroupPagerCellColspan``) — these are thin wrappers over the
+ *     shared utility functions in ``list_group_layout.js`` that adapt
+ *     the renderer's ``this.columns`` / ``this.fields`` /
+ *     ``this.hasSelectors`` / ``this.hasOpenFormViewColumn`` shape to
+ *     the utilities' parameter list.
+ *   - Group-pager rendering (``getGroupPagerProps``,
+ *     ``showGroupPager``).
+ *   - Group menu config (``getGroupConfigMenuProps``,
+ *     ``showGroupConfigMenu``, ``canCreateGroup``).
+ *   - Group click + toggle (``onGroupHeaderClicked``, ``toggleGroup``).
+ *   - Aggregate value formatting (``formatGroupAggregate`` —
+ *     delegates to ``this.agg`` from ``useListAggregates``).
+ *   - Misc (``nbRecordsInGroup``, ``getGroupLevel``).
+ *
+ * The methods read from ``this`` (renderer instance):
+ *   - ``this.props.list`` / ``this.props.activeActions`` / ``this.props.archInfo``
+ *   - ``this.props.editable`` / ``this.props.readonly``
+ *   - ``this.actionService`` (for ``editGroupRecord``)
+ *   - ``this.columns`` / ``this.fields`` / ``this.aggregates``
+ *   - ``this.hasSelectors`` / ``this.hasOpenFormViewColumn``
+ *   - ``this.dialogClose``
+ *   - ``this.agg`` (the ``useListAggregates`` hook result)
+ *   - ``this.state.showGroupInput`` (mutated by ``addNewGroup``)
+ *
+ * Field initializations stay in the renderer's setup; only method
+ * bodies move here.
+ */
+
+import { registry } from "@web/core/registry";
+import {
+    countRecordsInGroup,
+    getAggregateColumns as getAggregateColumnsUtil,
+    getFirstAggregateIndex as getFirstAggregateIndexUtil,
+    getGroupNameCellColSpan as getGroupNameCellColSpanUtil,
+    getGroupPagerCellColspan as getGroupPagerCellColspanUtil,
+    getLastAggregateIndex as getLastAggregateIndexUtil,
+} from "./list_group_layout.js";
+
+/**
+ * Mixin applied to ``ListRenderer.prototype`` after class declaration.
+ */
+export const listGroupRenderingMixin = {
+    /**
+     * Whether the renderer should expose a "+ New group" affordance.
+     * Active only when the arch enables ``createGroup``, the list is
+     * grouped by a single ``many2one`` field, and that field matches
+     * the arch's ``defaultGroupBy`` (so the new group is meaningful in
+     * the current grouping context).
+     */
+    get canCreateGroup() {
+        const { archInfo, list, readonly } = this.props;
+        const { activeActions, defaultGroupBy } = archInfo;
+        return (
+            !readonly &&
+            activeActions.createGroup &&
+            list.groupByField?.type === "many2one" &&
+            list.groupByField.name === defaultGroupBy?.[0]
+        );
+    },
+
+    /**
+     * Add a new record inside the given group.  Leaves any in-progress
+     * edit first (without abandoning unsaved changes) so the new row
+     * doesn't collide with a half-saved sibling.
+     *
+     * @param {Object} group
+     */
+    async addInGroup(group) {
+        const left = await this.props.list.leaveEditMode({ canAbandon: false });
+        if (left) {
+            group.addNewRecord({}, this.props.editable === "top");
+        }
+    },
+
+    /**
+     * Open the form view for a group's representative record (the
+     * "Edit" affordance in a group's gear menu).
+     *
+     * @param {Object} group
+     */
+    editGroupRecord(group) {
+        const { resId, resModel } = group.record;
+        this.actionService.doAction({
+            context: { create: false },
+            res_model: resModel,
+            res_id: resId,
+            type: "ir.actions.act_window",
+            views: [[false, "form"]],
+        });
+    },
+
+    /**
+     * @param {Object} group
+     * @returns {number}
+     */
+    nbRecordsInGroup(group) {
+        return countRecordsInGroup(group);
+    },
+
+    /**
+     * Props for the group-config-menu component (gear icon next to a
+     * group header).  Pulls extension entries from the
+     * ``group_config_items`` registry so addons can layer custom
+     * actions onto every group.
+     *
+     * @param {Object} group
+     */
+    getGroupConfigMenuProps(group) {
+        return {
+            activeActions: this.props.activeActions,
+            configItems: registry.category("group_config_items").getEntries(),
+            deleteGroup: async () => await this.props.list.deleteGroups([group]),
+            dialogClose: this.dialogClose,
+            group,
+            list: this.props.list,
+        };
+    },
+
+    /**
+     * Format an aggregate value for a single column in a group's
+     * aggregate row.  Thin wrapper that delegates to the
+     * ``useListAggregates`` hook (``this.agg``); kept on the prototype
+     * so subclass overrides like ``super.formatGroupAggregate(...)``
+     * keep resolving here.
+     *
+     * @param {Object} group
+     * @param {Object} column
+     */
+    formatGroupAggregate(group, column) {
+        return this.agg.formatGroupAggregate(group, column);
+    },
+
+    /**
+     * Depth of the given group in the current group-by hierarchy.
+     * Drives indentation classes on the group header.
+     *
+     * @param {Object} group
+     */
+    getGroupLevel(group) {
+        return this.props.list.groupBy.length - group.list.groupBy.length - 1;
+    },
+
+    // -----------------------------------------------------------------
+    // Aggregate-column / colspan computations
+    //
+    // The five methods below are shape-adapters that take the
+    // renderer's ``this.columns`` / ``this.fields`` /
+    // ``this.aggregates`` plus a few feature flags
+    // (``hasSelectors``, ``hasOpenFormViewColumn``) and call into the
+    // pure utilities in ``list_group_layout.js``.  They exist as
+    // overridable methods because subclasses (e.g. ``stock``,
+    // ``hr_recruitment``) pre-process columns or aggregates before
+    // dispatch.
+    //
+    // Group-header layout the helpers cooperatively render:
+    //   TH TH TH TH TH AGG AGG TH AGG AGG TH TH TH
+    //   0  1  2  3  4   5   6   7  8   9  10 11 12
+    //   [    TH 5    ][TH][TH][TH][TH][TH][ TH 3 ]
+    //   [ group name ][ aggregate cells  ][ pager]
+    // -----------------------------------------------------------------
+
+    getFirstAggregateIndex(group) {
+        const aggregates = group
+            ? group.aggregates
+            : /** @type {any} */ (this).aggregates;
+        return getFirstAggregateIndexUtil(
+            /** @type {any} */ (this.columns),
+            this.fields,
+            aggregates,
+        );
+    },
+
+    getLastAggregateIndex(group) {
+        const aggregates = group
+            ? group.aggregates
+            : /** @type {any} */ (this).aggregates;
+        return getLastAggregateIndexUtil(
+            /** @type {any} */ (this.columns),
+            this.fields,
+            aggregates,
+        );
+    },
+
+    getAggregateColumns(group) {
+        const aggregates = group
+            ? group.aggregates
+            : /** @type {any} */ (this).aggregates;
+        return getAggregateColumnsUtil(
+            /** @type {any} */ (this.columns),
+            this.fields,
+            aggregates,
+        );
+    },
+
+    getGroupNameCellColSpan(group) {
+        const aggregates = group
+            ? group.aggregates
+            : /** @type {any} */ (this).aggregates;
+        return getGroupNameCellColSpanUtil(
+            /** @type {any} */ (this.columns),
+            this.fields,
+            aggregates,
+            { hasSelectors: this.hasSelectors },
+        );
+    },
+
+    getGroupPagerCellColspan(group) {
+        const aggregates = group
+            ? group.aggregates
+            : /** @type {any} */ (this).aggregates;
+        return getGroupPagerCellColspanUtil(
+            /** @type {any} */ (this.columns),
+            this.fields,
+            aggregates,
+            { hasOpenFormViewColumn: this.hasOpenFormViewColumn },
+        );
+    },
+
+    /**
+     * Props for the per-group ``Pager`` component shown when a group
+     * has more records than its current limit.  Re-renders the
+     * renderer after a load so column widths reflow.
+     *
+     * @param {Object} group
+     */
+    getGroupPagerProps(group) {
+        const list = group.list;
+        return {
+            offset: list.offset,
+            limit: list.limit,
+            total: list.count,
+            onUpdate: async ({ offset, limit }) => {
+                await list.load({ limit, offset });
+                this.render(true);
+            },
+            withAccessKey: false,
+        };
+    },
+
+    /**
+     * Whether the group should render a pager in its header.  False
+     * for folded groups (no rows to paginate) and groups whose entire
+     * record set fits within the current limit.
+     *
+     * @param {Object} group
+     */
+    showGroupPager(group) {
+        return !group.isFolded && group.list.limit < group.list.count;
+    },
+
+    /**
+     * Whether the group should render the gear/config menu.  Limited
+     * to groups grouped by a relational field (many2one/many2many)
+     * with a non-falsy value — anonymous "Undefined" groups don't get
+     * the menu.
+     *
+     * @param {Object} group
+     */
+    showGroupConfigMenu(group) {
+        return (
+            group.value && ["many2one", "many2many"].includes(group.groupByField.type)
+        );
+    },
+
+    /**
+     * Click handler for the group header.  Leaves any in-progress
+     * edit before toggling so the user doesn't lose unsaved input
+     * when collapsing a group containing the edited row.
+     *
+     * @param {PointerEvent} _ev
+     * @param {Object} group
+     */
+    async onGroupHeaderClicked(_ev, group) {
+        const left = await this.props.list.leaveEditMode();
+        if (left) {
+            this.toggleGroup(group);
+        }
+    },
+
+    /**
+     * Toggle a group's folded state.  Plain wrapper kept as a method
+     * (not inlined) so subclasses can override the toggle behavior
+     * (e.g. ``stock`` can refresh on-screen counts after toggle).
+     *
+     * @param {Object} group
+     */
+    toggleGroup(group) {
+        group.toggle();
+    },
+
+    /**
+     * Called by ``ListAggregatesRow`` when the user confirms a new
+     * group name in the inline group-create input.  Hides the input
+     * regardless of whether a value was supplied so the user can
+     * confirm/cancel from the same affordance.
+     *
+     * @param {string} value
+     */
+    addNewGroup(value) {
+        this.state.showGroupInput = false;
+        if (value) {
+            this.props.list.createGroup(value);
+        }
+    },
+};

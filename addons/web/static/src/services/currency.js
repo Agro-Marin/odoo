@@ -56,7 +56,7 @@ export async function getCurrencyRates() {
     const url = `/web/dataset/call_kw/${model}/${method}`;
     const context = {
         ...user.context,
-        to_currency: user.activeCompany.currency_id,
+        to_currency: user.activeCompany?.currency_id,
     };
     const params = {
         model,
@@ -74,6 +74,13 @@ export async function getCurrencyRates() {
                 }
             },
         },
+        // Cold-cache currency-rate fetch breaks monetary formatting
+        // across every screen, so survive a single transient blip
+        // (proxy hiccup, brief 503).  read() is idempotent; cache
+        // already accepts slight staleness.  Retry budget is small
+        // (1) so the user-perceived delay on persistent outage is
+        // capped at one backoff interval (~200ms).
+        retry: 1,
     });
     Object.assign(rates, recordsToRates(records));
     return rates;

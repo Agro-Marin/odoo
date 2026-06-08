@@ -9,6 +9,18 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+
+// Items in the grouped-list column header dropdown. `method` is the controller
+// method name invoked on click; `class` may be a literal string or a function
+// of `{ permissions }` returning one (see `configItems` getter below).
+registry.category("group_config_items").addValidation({
+    label: { type: [String, Object] },
+    method: String,
+    isVisible: { type: Function, optional: true },
+    class: { type: [String, Function], optional: true },
+    icon: { type: String, optional: true },
+    "*": true,
+});
 import { isRelational } from "@web/model/relational_model/utils";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";

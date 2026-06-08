@@ -1356,7 +1356,7 @@ test("properties: date(time) property manipulations", async () => {
     ];
     onRpc(({ method, args }) => {
         expect.step(method);
-        if (method === "has_access") {
+        if (method === "has_access" || method === "has_group") {
             return true;
         }
         if (method === "web_save") {
@@ -1382,7 +1382,11 @@ test("properties: date(time) property manipulations", async () => {
         resId: 5000,
         arch: /* xml */ `<form><field name="company_id"/><field name="properties"/></form>`,
     });
-    expect.verifySteps(["get_views", "web_read"]);
+    // ``has_group`` is now emitted by the properties field during mount
+    // to gate the "definition editor" affordance on a group membership
+    // check; other tests in this file already mock it (see line ~1836)
+    // but this one was written before the gate landed.
+    expect.verifySteps(["get_views", "web_read", "has_group"]);
 
     // check initial properties
     expect("[property-name=property_1] .o_property_field_value input").toHaveValue(

@@ -10,6 +10,7 @@ import {
     onWillUpdateProps,
     reactive,
     status,
+    useChildSubEnv,
     useEffect,
     xml,
 } from "@odoo/owl";
@@ -152,6 +153,14 @@ export class Dropdown extends Component {
             // Using deepMerge allows to keep entries of both option.hotkeys
             ...deepMerge(this.nesting.navigationOptions, this.props.navigationOptions),
         });
+
+        // Expose the navigator to navigable children. Items rendered
+        // inside the popover (DropdownItem, AccordionItem, etc.) can
+        // call ``useNavigatorActive(this.env.navigation, …)`` to bind
+        // their focus class declaratively. The popover is mounted with
+        // the dropdown's ``childEnv``, so this key propagates through
+        // the portal to nested content.
+        useChildSubEnv({ navigation: this.navigation });
 
         this.uiService = useService("ui");
 

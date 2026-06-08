@@ -15,6 +15,7 @@ import {
     formatServerValue,
     getDefaultValues,
     getTextValues,
+    parseServerValues,
 } from "@web/model/relational_model/record_value_transforms";
 
 const { DateTime } = luxon;
@@ -385,5 +386,317 @@ describe("computeDataContext", () => {
         const data = { created_at: dt };
         const { withVirtualIds } = computeDataContext(data, datetimeFields, {}, 1);
         expect(withVirtualIds.created_at).toBe("2024-03-20 08:00:00");
+    });
+});
+
+// ===========================================================================
+// parseServerValues — added in Phase 3 of the model-layer decomposition.
+//
+// Tests dispatch by field type (scalar, m2o, x2many record/id/command list,
+// properties) using a hand-rolled record mock. The helper depends on
+// record._createStaticListDatapoint and record._processProperties as
+// instance-level callbacks (per the established Phase 1 convention); the
+// mock supplies stubs that capture their arguments for assertion.
+// ===========================================================================
+
+/**
+ * Builds the minimum record shape consumed by parseServerValues.
+ *
+ * The two instance methods the helper calls back into are stubs by default:
+ *   - _createStaticListDatapoint: returns a synthetic StaticList carrying
+ *     the data it was constructed with + spy methods for command application
+ *   - _processProperties: returns the per-property values that should be
+ *     spliced into the parsed bag
+ *
+ * @param {Object} [opts]
+ * @param {Object} [opts.activeFields={}]
+ * @param {Object} [opts.fields={}]
+ * @param {Function|null} [opts.createStaticList] - override for the stub
+ * @param {Function|null} [opts.processProperties] - override for the stub
+ * @returns {Object}
+ */
+function makeParseRecord({
+    activeFields = {},
+    fields = {},
+    createStaticList = null,
+    processProperties = null,
+} = {}) {
+    /** @type {any} */
+    const record = {
+        activeFields,
+        fields,
+        _createStaticListDatapoint:
+            createStaticList ??
+            ((data, fieldName, options) => ({
+                data,
+                fieldName,
+                options,
+                _appliedInitialCommands: null,
+                _appliedCommands: null,
+                _applyInitialCommands(commands) {
+                    this._appliedInitialCommands = commands;
+                },
+                _applyCommands(commands) {
+                    this._appliedCommands = commands;
+                },
+            })),
+        _processProperties:
+            processProperties ?? (() => ({})),
+    };
+    return record;
+}
+
+// ---------------------------------------------------------------------------
+// parseServerValues — empty input and active-field filtering
+// ---------------------------------------------------------------------------
+
+describe("parseServerValues — empty input and filtering", () => {
+    test("returns empty object when serverValues is undefined", () => {
+        const rec = makeParseRecord();
+        expect(parseServerValues(rec, undefined)).toEqual({});
+    });
+
+    test("returns empty object when serverValues is null", () => {
+        const rec = makeParseRecord();
+        expect(parseServerValues(rec, null)).toEqual({});
+    });
+
+    test("returns empty object when activeFields is empty", () => {
+        const rec = makeParseRecord({
+            activeFields: {},
+            fields: { name: { type: "char" } },
+        });
+        expect(parseServerValues(rec, { name: "hello" })).toEqual({});
+    });
+
+    test("skips fields not in activeFields (e.g. server-sent definition_record companion)", () => {
+        const rec = makeParseRecord({
+            activeFields: { name: {} },
+            fields: {
+                name: { type: "char" },
+                definition_record: { type: "many2one" },
+            },
+        });
+        const result = parseServerValues(rec, {
+            name: "hello",
+            definition_record: { id: 1, display_name: "Parent" },
+        });
+        // ``definition_record`` is silently dropped — only fields the view
+        // subscribes to land in the parsed bag.
+        expect(Object.keys(result)).toEqual(["name"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// parseServerValues — scalar / m2o delegation
+// ---------------------------------------------------------------------------
+
+describe("parseServerValues — scalar / m2o", () => {
+    test("char value passes through parseServerValue unchanged", () => {
+        const rec = makeParseRecord({
+            activeFields: { name: {} },
+            fields: { name: { type: "char" } },
+        });
+        const result = parseServerValues(rec, { name: "hello" });
+        expect(result.name).toBe("hello");
+    });
+
+    test("integer value passes through parseServerValue unchanged", () => {
+        const rec = makeParseRecord({
+            activeFields: { count: {} },
+            fields: { count: { type: "integer" } },
+        });
+        const result = parseServerValues(rec, { count: 42 });
+        expect(result.count).toBe(42);
+    });
+
+    test("many2one false stays false", () => {
+        const rec = makeParseRecord({
+            activeFields: { partner_id: {} },
+            fields: { partner_id: { type: "many2one" } },
+        });
+        const result = parseServerValues(rec, { partner_id: false });
+        expect(result.partner_id).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// parseServerValues — x2many: list-of-records path
+// ---------------------------------------------------------------------------
+
+describe("parseServerValues — x2many record list", () => {
+    test("forwards a list of records to _createStaticListDatapoint as-is", () => {
+        const rec = makeParseRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "one2many" } },
+        });
+        const records = [{ id: 1, name: "A" }, { id: 2, name: "B" }];
+        const result = parseServerValues(rec, { line_ids: records });
+        expect(result.line_ids.data).toEqual(records);
+        expect(result.line_ids.fieldName).toBe("line_ids");
+        // No commands applied for a plain record list.
+        expect(result.line_ids._appliedInitialCommands).toBe(null);
+    });
+
+    test("maps a list of bare ids into {id} objects before delegating", () => {
+        const rec = makeParseRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "many2many" } },
+        });
+        const result = parseServerValues(rec, { line_ids: [3, 7, 11] });
+        expect(result.line_ids.data).toEqual([{ id: 3 }, { id: 7 }, { id: 11 }]);
+    });
+
+    test("forwards orderBys to _createStaticListDatapoint", () => {
+        const rec = makeParseRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "one2many" } },
+        });
+        const orderBys = { line_ids: [{ name: "sequence", asc: true }] };
+        const result = parseServerValues(
+            rec,
+            { line_ids: [{ id: 1 }] },
+            { orderBys },
+        );
+        expect(result.line_ids.options.orderBys).toBe(orderBys);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// parseServerValues — x2many: command-list paths
+// ---------------------------------------------------------------------------
+
+describe("parseServerValues — x2many command list", () => {
+    test("new datapoint + command list: creates empty list then applies INITIAL commands", () => {
+        const rec = makeParseRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "one2many" } },
+        });
+        const commands = [[0, 0, { name: "new" }], [4, 5, 0]];
+        const result = parseServerValues(rec, { line_ids: commands });
+        // The constructor receives an empty data list — the commands carry the data.
+        expect(result.line_ids.data).toEqual([]);
+        expect(result.line_ids._appliedInitialCommands).toBe(commands);
+        // The "apply on existing" path must NOT fire.
+        expect(result.line_ids._appliedCommands).toBe(null);
+    });
+
+    test("existing datapoint + command list: reuses currentValues, applies INCREMENTAL commands", () => {
+        const existingList = {
+            data: [{ id: 1 }],
+            _appliedInitialCommands: null,
+            _appliedCommands: null,
+            _applyInitialCommands(commands) {
+                this._appliedInitialCommands = commands;
+            },
+            _applyCommands(commands) {
+                this._appliedCommands = commands;
+            },
+        };
+        const rec = makeParseRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "one2many" } },
+        });
+        const commands = [[1, 1, { name: "updated" }]];
+        const result = parseServerValues(
+            rec,
+            { line_ids: commands },
+            { currentValues: { line_ids: existingList } },
+        );
+        // The existing list is reused (same reference).
+        expect(result.line_ids).toBe(existingList);
+        // Incremental commands applied; initial-commands path did NOT fire.
+        expect(result.line_ids._appliedCommands).toBe(commands);
+        expect(result.line_ids._appliedInitialCommands).toBe(null);
+    });
+
+    test("existing datapoint + plain record list: reuses currentValues without applying commands", () => {
+        const existingList = {
+            data: [{ id: 1 }],
+            _appliedInitialCommands: null,
+            _appliedCommands: null,
+            _applyInitialCommands() {},
+            _applyCommands() {},
+        };
+        const rec = makeParseRecord({
+            activeFields: { line_ids: {} },
+            fields: { line_ids: { type: "many2many" } },
+        });
+        // Plain record list (element 0 is an object, not an array)
+        const result = parseServerValues(
+            rec,
+            { line_ids: [{ id: 1, name: "A" }] },
+            { currentValues: { line_ids: existingList } },
+        );
+        expect(result.line_ids).toBe(existingList);
+        // Neither command-application path should fire — the static list is
+        // reused as-is and the caller is responsible for any re-sync.
+        expect(result.line_ids._appliedInitialCommands).toBe(null);
+        expect(result.line_ids._appliedCommands).toBe(null);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// parseServerValues — properties dispatch
+// ---------------------------------------------------------------------------
+
+describe("parseServerValues — properties", () => {
+    test("delegates to _processProperties and merges its return into the parsed bag", () => {
+        let capturedArgs = null;
+        const rec = makeParseRecord({
+            activeFields: { props: {} },
+            fields: {
+                props: { type: "properties", definition_record: "parent_id" },
+                parent_id: { type: "many2one" },
+            },
+            processProperties: (value, fieldName, parent, currentValues) => {
+                capturedArgs = { value, fieldName, parent, currentValues };
+                // Simulate the splice: each property becomes a top-level
+                // ``${fieldName}.${propertyName}`` key on the parsed bag.
+                return { "props.color": "red", "props.size": 42 };
+            },
+        });
+        const propsValue = [
+            { name: "color", type: "char", value: "red" },
+            { name: "size", type: "integer", value: 42 },
+        ];
+        const result = parseServerValues(rec, {
+            props: propsValue,
+            // parent_id is in fields but NOT in activeFields → skipped by the
+            // top-level loop, but still accessible via serverValues[definition_record].
+        });
+        // The _processProperties stub was called with the parsed value, the
+        // field name, the parent m2o value, and the (undefined) currentValues.
+        // Use toEqual (deep) not toBe (reference) — parseServerValue may
+        // return a transformed copy of the input array for "properties".
+        expect(capturedArgs.fieldName).toBe("props");
+        expect(capturedArgs.value).toEqual(propsValue);
+        // Its return was merged into the parsed bag.
+        expect(result["props.color"]).toBe("red");
+        expect(result["props.size"]).toBe(42);
+    });
+
+    test("reads parent m2o value from serverValues[field.definition_record]", () => {
+        let capturedParent = null;
+        const rec = makeParseRecord({
+            activeFields: { props: {} },
+            fields: {
+                props: { type: "properties", definition_record: "parent_id" },
+                parent_id: { type: "many2one" },
+            },
+            processProperties: (_value, _fieldName, parent) => {
+                capturedParent = parent;
+                return {};
+            },
+        });
+        const parent = { id: 5, display_name: "Parent" };
+        parseServerValues(rec, {
+            props: [],
+            parent_id: parent,
+        });
+        // The helper passes the raw value at the definition_record key, not
+        // the parsed value (parent_id is not in activeFields, so it is never
+        // dispatched through parseServerValue).
+        expect(capturedParent).toBe(parent);
     });
 });

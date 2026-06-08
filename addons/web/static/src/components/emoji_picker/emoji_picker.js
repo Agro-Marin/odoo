@@ -53,8 +53,9 @@ export const loader = reactive({
     loaded: undefined,
 });
 
-/** @returns {Promise<{ categories: Object[], emojis: Emoji[] }>} */
+/** @returns {Promise<{ categories: any[], emojis: any[] }>} */
 export async function loadEmoji() {
+    /** @type {{ categories: any[], emojis: any[] }} */
     const res = { categories: [], emojis: [] };
     try {
         await loader.loadEmoji();
@@ -104,12 +105,41 @@ export class EmojiPicker extends Component {
     static props = [...PICKER_PROPS, "class?", "initialSearchTerm?"];
     static template = "web.EmojiPicker";
 
-    categories = null;
-    /** @type {Emoji[]|null} */
-    emojis = null;
-    shouldScrollElem = null;
+    // Class fields declared with @type so strictNullChecks treats them
+    // as initialized.  Real assignment happens in setup() / onWillStart
+    // / onMounted; lifecycle ordering guarantees they are non-undefined
+    // at every observable access site (each lifecycle hook bails early
+    // if `this.emojis` hasn't loaded yet).
+    /** @type {{el: HTMLElement | null}} */
+    gridRef;
+    /** @type {{el: HTMLElement | null}} */
+    navbarRef;
+    /** @type {any} */
+    ui;
+    /** @type {boolean} */
+    isMobileOS;
+    /** @type {{activeEmojiIndex: number, categoryId: number | null, searchTerm: string, hoveredEmoji: Emoji | undefined, emojiNavbarRepr: any[][] | undefined}} */
+    state;
+    /** @type {any} */
+    frequentEmojiService;
+    /** @type {{name: string, displayName: string, sortId: number, title?: string}[]} */
+    categories;
+    /** @type {Emoji[]} */
+    emojis;
+    /** @type {{[key: string]: Emoji}} */
+    emojiByCodepoints;
+    /** @type {{name: string, displayName: string, title: string, sortId: number}} */
+    recentCategory;
+    /** @type {ResizeObserver | undefined} */
+    navbarResizeObserver;
+    /** @type {boolean | (() => HTMLElement | null)} */
+    shouldScrollElem = false;
+    /** @type {string | undefined} */
     lastSearchTerm;
     keyboardNavigated = false;
+    /** @type {any[]} */
+    emojiMatrix;
+    // searchTerm is a getter/setter pair (see below) — do not redeclare here.
 
     setup() {
         this.gridRef = useRef("emoji-grid");
@@ -530,7 +560,7 @@ export class EmojiPicker extends Component {
 }
 
 /**
- * @param {typeof import("@odoo/owl").Component} PickerComponent
+ * @param {import("@odoo/owl").ComponentConstructor} PickerComponent
  * @param {{ el: HTMLElement | null }} ref
  * @param {Record<string, any>} props
  * @param {Record<string, any>} [options]
@@ -593,14 +623,14 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
             };
             if (ref?.el) {
                 pickerMobileProps.close = () => remove();
-                const app = new App(PickerMobile, {
+                const app = new App(PickerMobile, /** @type {any} */ ({
                     name: "Popout",
                     env: component.env,
                     props: pickerMobileProps,
                     getTemplate,
                     translatableAttributes: ["data-tooltip"],
                     translateFn: appTranslateFn,
-                });
+                }));
                 app.mount(ref.el);
                 remove = () => {
                     state.isOpen = false;
@@ -707,7 +737,7 @@ class PickerMobileInDialog extends PickerMobile {
             window,
             "click",
             (ev) => {
-                if (ev.target !== this.root.el && !this.root.el.contains(ev.target)) {
+                if (ev.target !== this.root.el && !this.root.el.contains(/** @type {Node} */ (ev.target))) {
                     this.props.close?.();
                 }
             },

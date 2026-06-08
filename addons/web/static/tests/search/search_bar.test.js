@@ -1598,7 +1598,7 @@ test("no rpc for getting display_name for facets if known", async () => {
     onRpc("name_search", ({ kwargs }) => {
         expect.step(kwargs.domain);
     });
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
 
     await mountWithSearch(SearchBar, {
         resModel: "partner",
@@ -1648,7 +1648,7 @@ test("clicking on the searchview icon trigger the search", async () => {
 });
 
 test("facets display with any / not any operator", async function () {
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     onRpc("/web/domain/validate", () => {
         expect.step("/web/domain/validate");
         return true;
@@ -1682,7 +1682,7 @@ test("facets display with any / not any operator", async function () {
 });
 
 test("facets display with any / not any operator (with a complex path)", async function () {
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     onRpc("/web/domain/validate", () => {
         expect.step("/web/domain/validate");
         return true;
@@ -1715,7 +1715,7 @@ test("facets display with any / not any operator (with a complex path)", async f
 });
 
 test("facets display with any / not any operator (with a or)", async function () {
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     onRpc("/web/domain/validate", () => {
         expect.step("/web/domain/validate");
         return true;
@@ -1748,7 +1748,7 @@ test("facets display with any / not any operator (with a or)", async function ()
 });
 
 test("facets display with any / not any operator (check brackets)", async function () {
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     onRpc("/web/domain/validate", () => {
         expect.step("/web/domain/validate");
         return true;

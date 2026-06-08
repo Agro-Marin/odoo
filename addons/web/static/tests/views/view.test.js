@@ -1,6 +1,6 @@
 // @ts-check
 
-import { before, expect, test } from "@odoo/hoot";
+import { beforeEach, expect, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, onWillStart, onWillUpdateProps, useState, xml } from "@odoo/owl";
@@ -44,7 +44,12 @@ class ToyControllerImp extends ToyController {
     }
 }
 
-before(() => {
+// Re-register on every test: ``before`` (suite-once) is wiped by the
+// global registry cleanup ``afterEach``, which restores from a snapshot
+// taken at the previous test's ``beforeEach`` — that snapshot doesn't
+// include this suite's ``before`` additions, so toy/toy_imp would be
+// gone for every test after the first.
+beforeEach(() => {
     patchWithCleanup(serverState.view_info, {
         toy: { multi_record: true, display_name: "Toy", icon: "fab fa-android" },
     });

@@ -4,7 +4,7 @@ import { delay, tick } from "@odoo/hoot-dom";
 import {
     mockedCancelAnimationFrame,
     mockedRequestAnimationFrame,
-} from "@web/../lib/hoot-dom/helpers/time";
+} from "@odoo/hoot-dom-helpers-time";
 import { isInstanceOf } from "../../hoot-dom/hoot_dom_utils.js";
 import { makeNetworkLogger } from "../core/logger.js";
 import {

@@ -36,7 +36,7 @@ import {
     uncheck,
 } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
-import { EventList } from "@web/../lib/hoot-dom/helpers/events";
+import { EventList } from "@odoo/hoot-dom-helpers-events";
 import { mountForTest, parseUrl } from "../local_helpers.js";
 
 /**

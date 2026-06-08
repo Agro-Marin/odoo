@@ -6,7 +6,8 @@
 import { Component } from "@odoo/owl";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { formatChar } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -94,4 +95,4 @@ export const fieldSelectorField = {
     },
 };
 
-registry.category("fields").add("field_selector", fieldSelectorField);
+registerField("field_selector", fieldSelectorField);

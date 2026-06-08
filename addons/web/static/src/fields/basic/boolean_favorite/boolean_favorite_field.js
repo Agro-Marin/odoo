@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -70,4 +71,4 @@ export const booleanFavoriteField = {
     }),
 };
 
-registry.category("fields").add("boolean_favorite", booleanFavoriteField);
+registerField("boolean_favorite", booleanFavoriteField);

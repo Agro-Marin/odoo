@@ -39,7 +39,7 @@ test("attach document widget calls action with attachment ids", async () => {
         },
     });
 
-    mockService("http", {
+    (/** @type {any} */ (mockService))("http", {
         post(route, params) {
             expect.step("post");
             expect(route).toBe("/web/binary/upload_attachment");
@@ -98,7 +98,7 @@ test("attach document widget calls action with attachment ids on a new record", 
         },
     });
 
-    mockService("http", {
+    (/** @type {any} */ (mockService))("http", {
         post(route, params) {
             expect.step("post");
             expect(route).toBe("/web/binary/upload_attachment");

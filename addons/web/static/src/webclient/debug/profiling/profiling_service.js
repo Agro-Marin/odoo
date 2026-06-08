@@ -5,7 +5,6 @@
 
 import { EventBus, reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { session } from "@web/session";
 
 import { ProfilingItem } from "./profiling_item.js";
 import { profilingSystrayItem } from "./profiling_systray_item.js";
@@ -15,10 +14,17 @@ const systrayRegistry = registry.category("systray");
 /**
  * Service for toggling Python profiling (sql, traces) from the debug menu.
  * Manages profiling session state, collector toggles, and the systray indicator.
+ *
+ * Profile state (``profile_session``, ``profile_collectors``, ``profile_params``)
+ * is fetched lazily via the ``lazy_session`` service after ``WEB_CLIENT_READY``.
+ * Until the fetch resolves the service runs with defaults (no active session,
+ * default collector list, empty params) — acceptable because profiling is a
+ * debug-only feature and the systray indicator simply appears a moment after
+ * boot if a profiling session was already active.
  */
 export const profilingService = {
-    dependencies: ["orm"],
-    start(env, { orm }) {
+    dependencies: ["orm", "lazy_session"],
+    start(env, { orm, lazy_session }) {
         // Only set up profiling when in debug mode
         if (!env.debug) {
             return;
@@ -44,15 +50,34 @@ export const profilingService = {
 
         const state = reactive(
             {
-                session: session.profile_session || false,
-                collectors: session.profile_collectors || ["sql", "traces_async"],
-                params: session.profile_params || {},
+                session: false,
+                collectors: ["sql", "traces_async"],
+                params: {},
                 get isEnabled() {
                     return Boolean(state.session);
                 },
             },
             notify,
         );
+
+        // Populate from the lazy session once it arrives.  Each assignment goes
+        // through the reactive proxy so ``notify`` re-runs and the systray
+        // updates when a profiling session was active on page load.
+        lazy_session.getValue("profile_session", (value) => {
+            if (value) {
+                state.session = value;
+            }
+        });
+        lazy_session.getValue("profile_collectors", (value) => {
+            if (value) {
+                state.collectors = value;
+            }
+        });
+        lazy_session.getValue("profile_params", (value) => {
+            if (value) {
+                state.params = value;
+            }
+        });
 
         const bus = new EventBus();
         notify();

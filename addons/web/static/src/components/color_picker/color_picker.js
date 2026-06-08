@@ -15,6 +15,15 @@ import {
 } from "@web/core/utils/format/colors";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
+// `color_picker_tabs` registers each tab of the color picker. `id` is
+// matched against `props.enabledTabs` (see `getAll().filter` below) and
+// `component` is rendered when the tab is active.
+registry.category("color_picker_tabs").addValidation({
+    id: String,
+    name: { type: [String, Object] },
+    component: { validate: (c) => typeof c === "function" },
+});
+
 // These colors are already normalized as per normalizeCSSColor in @web/legacy/js/widgets/colorpicker
 export const DEFAULT_COLORS = [
     [
@@ -180,7 +189,7 @@ export class ColorPicker extends Component {
         useEffect(
             () => {
                 // Recompute the positioning of the popover if any.
-                this.env[POSITION_BUS]?.trigger("update");
+                /** @type {any} */ (this.env)[POSITION_BUS]?.trigger("update");
             },
             () => [this.state.activeTab],
         );

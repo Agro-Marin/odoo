@@ -3,7 +3,7 @@
 
 /** @module @web/views/pivot/pivot_controller - Controller wiring PivotModel to PivotRenderer with search bar and scroll restoration */
 
-import { Component, useEffect, useRef } from "@odoo/owl";
+import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { useModelWithSampleData } from "@web/model/model";
 import { useSetupAction } from "@web/core/action_hook";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
@@ -36,10 +36,12 @@ export class PivotController extends Component {
 
     /** Initialize the pivot model, action hooks, scroll restoration, and search bar toggler. */
     setup() {
-        this.model = useModelWithSampleData(
-            this.props.Model,
-            this.props.modelParams,
-            this.modelOptions,
+        this.model = useState(
+            useModelWithSampleData(
+                this.props.Model,
+                this.props.modelParams,
+                this.modelOptions,
+            ),
         );
 
         const { setScrollFromState } = useSetupAction({

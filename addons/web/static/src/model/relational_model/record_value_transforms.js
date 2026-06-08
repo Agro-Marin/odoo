@@ -1,18 +1,39 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_value_transforms - Stateless value formatting, defaults, and eval context extraction */
+/** @module @web/model/relational_model/record_value_transforms - Stateless value formatting, defaults, eval context extraction, and bulk server-value parsing */
 
 /**
- * Pure value transformation functions for Record data.
+ * Value transformation functions for Record data.
  *
- * Handles formatting JS field values back to server format, computing default
- * values for empty fields, extracting text values for char/text/html fields,
- * and building eval contexts from record data.
+ * Most helpers (``formatServerValue``, ``getDefaultValues``,
+ * ``getTextValues``, ``computeDataContext``) are pure — they depend
+ * only on their arguments, making them independently testable.
  *
- * These are stateless — they depend only on their arguments, making them
- * independently testable and reusable outside of a Record instance.
+ * ``parseServerValues`` (added Phase 3) takes the RelationalRecord as
+ * its first argument because it needs to call back into ``record``-
+ * level protected methods that own per-instance state:
+ *
+ *   - ``record._createStaticListDatapoint(...)`` — constructor that
+ *     reads ``record.model.Class.StaticList``
+ *   - ``record._processProperties(...)`` — mutates
+ *     ``record.fields`` and ``record.activeFields`` with the dynamic
+ *     properties schema returned by the server
+ *
+ * Following the established convention (see ``record_lifecycle.js``,
+ * ``record_validator.js``), the helper accesses these via ``record._X``
+ * directly rather than via explicit callback parameters. The plan
+ * (workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md
+ * §6 Phase 3) initially proposed a ``createStaticList`` callback
+ * parameter; the implementation follows Phase 1's convention for
+ * cross-phase consistency. Tests provide stubs by setting the methods
+ * directly on the mock record.
  */
+
+import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
+import { parseServerValue } from "./field_values.js";
+
+/** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
  * Format a JS field value back to server format.
@@ -24,8 +45,6 @@
  * @param {any} value
  * @returns {any} server-formatted value
  */
-
-import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 export function formatServerValue(fieldType, value) {
     switch (fieldType) {
         case "date":
@@ -184,4 +203,121 @@ export function computeDataContext(data, fields, textValues, resId) {
             ...x2manyDataContext.withoutVirtualIds,
         },
     };
+}
+
+/**
+ * Parse a bag of server values into JS-shaped record values.
+ *
+ * Dispatch by field type:
+ *   - **x2many** (``one2many`` / ``many2many``): build or reuse a
+ *     StaticList datapoint via ``record._createStaticListDatapoint``.
+ *     The server may send either a list of record objects
+ *     (``[{id, name, ...}, ...]``), a list of bare ids
+ *     (``[1, 2, 3]`` — converted to ``[{id: 1}, ...]``), or a list of
+ *     x2many commands (``[[4, 1, 0], ...]`` — detected by inspecting
+ *     element 0). Command lists go through
+ *     ``staticList._applyInitialCommands`` (new list) or
+ *     ``._applyCommands`` (existing list passed via ``currentValues``).
+ *   - **properties**: delegate to ``parseServerValue`` for the value
+ *     itself, then call ``record._processProperties`` to splice the
+ *     dynamic property definitions into ``record.fields`` /
+ *     ``record.activeFields`` and return the per-property values that
+ *     get merged into the parsed bag.
+ *   - **scalar / m2o / reference / date / etc.**: delegate to
+ *     ``parseServerValue(field, value)`` (from ``field_values.js``).
+ *
+ * Skips fields not declared in ``record.activeFields`` (the server may
+ * send more fields than the view subscribes to — e.g. the
+ * ``definition_record`` companion of a properties field).
+ *
+ * Invariant I7 preservation:
+ * The helper RETURNS a plain object; it does not assign to
+ * ``record._values``. The four call sites in record.js (at lines for
+ * ``_setData`` x2, ``_applyChanges``, ``_applyValues``) each handle
+ * the assignment and ``markRaw`` wrapping themselves, preserving the
+ * three-layer state contract (``_values`` server-truth /
+ * ``_changes`` user-edits / ``data`` merged).
+ *
+ * @param {RelationalRecord} record
+ * @param {Object} serverValues - field-name → server-shape value
+ * @param {Object} [options]
+ * @param {Object} [options.currentValues] - existing parsed values
+ *  (for x2many reuse / command-list application against an existing
+ *  StaticList datapoint)
+ * @param {Object<string, Object>} [options.orderBys] - default
+ *  ``orderBy`` overrides per x2many field name; forwarded to newly-
+ *  constructed StaticList datapoints
+ * @returns {Object} parsed values keyed by field name
+ */
+export function parseServerValues(
+    record,
+    serverValues,
+    { currentValues, orderBys } = {},
+) {
+    /** @type {Record<string, any>} */
+    const parsedValues = {};
+    if (!serverValues) {
+        return parsedValues;
+    }
+    for (const fieldName of Object.keys(serverValues)) {
+        const value = serverValues[fieldName];
+        if (!record.activeFields[fieldName]) {
+            continue;
+        }
+        const field = record.fields[fieldName];
+        if (field.type === "one2many" || field.type === "many2many") {
+            let staticList =
+                /** @type {import("./static_list").StaticList | undefined} */ (
+                    currentValues?.[fieldName]
+                );
+            const listValue = /** @type {any[]} */ (value);
+            // value can be a list of records or a list of commands (new record)
+            const valueIsCommandList =
+                listValue.length && Array.isArray(listValue[0]);
+            if (!staticList) {
+                let data = valueIsCommandList ? [] : listValue;
+                if (data.length && typeof data[0] === "number") {
+                    data = data.map((resId) => ({ id: resId }));
+                }
+                // ``data`` is either an array of plain ids that we just
+                // mapped to ``{id}`` objects, an empty array (command
+                // list path), or pre-shaped record objects from the
+                // server. All three satisfy the consumer's shape.
+                staticList = record._createStaticListDatapoint(
+                    /** @type {Array<{id: number, [key: string]: any}>} */ (data),
+                    fieldName,
+                    { orderBys },
+                );
+                if (valueIsCommandList) {
+                    staticList._applyInitialCommands(listValue);
+                }
+            } else if (valueIsCommandList) {
+                staticList._applyCommands(listValue);
+            }
+            parsedValues[fieldName] = staticList;
+        } else {
+            parsedValues[fieldName] = parseServerValue(field, value);
+            if (field.type === "properties") {
+                // ``definition_record`` names the parent field (m2o on the
+                // record that defines the property set). The value at that
+                // key is the parsed m2o value — ``{id, display_name}`` or
+                // ``false`` if unset — see ``_processProperties`` which
+                // reads ``parent?.id`` and ``parent?.display_name``.
+                const parent =
+                    /** @type {{ id?: number; display_name?: string } | false | undefined} */ (
+                        serverValues[field.definition_record]
+                    );
+                Object.assign(
+                    parsedValues,
+                    record._processProperties(
+                        parsedValues[fieldName],
+                        fieldName,
+                        parent,
+                        currentValues,
+                    ),
+                );
+            }
+        }
+    }
+    return parsedValues;
 }

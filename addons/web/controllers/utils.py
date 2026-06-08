@@ -191,7 +191,7 @@ def get_action(env: Any, path_part: str) -> Any:
             )
             if not action:
                 action = env["ir.actions.act_window"].new(
-                    env[model].get_formview_action()
+                    env[model].get_record_default_action()
                 )
         else:
             action = Actions
@@ -205,7 +205,9 @@ def get_action(env: Any, path_part: str) -> Any:
     return action
 
 
-def get_action_triples(env: Any, path: str, *, start_pos: int = 0) -> Iterator[tuple[int | None, Any, int | None]]:
+def get_action_triples(
+    env: Any, path: str, *, start_pos: int = 0
+) -> Iterator[tuple[int | None, Any, int | None]]:
     """
     Extract the triples (active_id, action, record_id) from a "/odoo"-like path.
 

@@ -7,7 +7,8 @@ import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { cookie } from "@web/core/browser/cookie";
 import { getColor, getCustomColor, hexToRGBA } from "@web/core/colors/colors";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 const colorScheme = cookie.get("color_scheme");
@@ -25,7 +26,9 @@ export class JournalDashboardGraphField extends Component {
         this.canvasRef = useRef("canvas");
         this.data = JSON.parse(this.props.record.data[this.props.name] || "[]");
 
-        onWillStart(async () => await loadBundle("web.chartjs_lib"));
+        onWillStart(async () => {
+            await loadBundle("web.chartjs_lib");
+        });
 
         useEffect(() => {
             this.renderChart();
@@ -185,4 +188,4 @@ export const journalDashboardGraphField = {
     }),
 };
 
-registry.category("fields").add("dashboard_graph", journalDashboardGraphField);
+registerField("dashboard_graph", journalDashboardGraphField);

@@ -6,6 +6,7 @@
 import { Component, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 import { parseFloat } from "@web/fields/parsers";
@@ -42,10 +43,10 @@ export class ProgressBarField extends Component {
         useNumpadDecimal();
         this.root = useRef("numpadDecimal");
 
-        const { currentValueField, maxValueField, name } = this.props;
+        const { currentValueField, maxValueField: maxValueFieldProp, name } = this.props;
         this.currentValueField = currentValueField ? currentValueField : name;
-        if (maxValueField) {
-            this.maxValueField = maxValueField;
+        if (maxValueFieldProp) {
+            this.maxValueField = maxValueFieldProp;
         }
         this.currentValueRef = useInputField({
             getValue: () => this.formatValue(this.currentValueField, this.currentValue),
@@ -54,11 +55,12 @@ export class ProgressBarField extends Component {
             fieldName: this.currentValueField,
             shouldSave: () => this.props.readonly,
         });
+        const maxValueField = /** @type {string} */ (this.maxValueField);
         this.maxValueRef = useInputField({
-            getValue: () => this.formatValue(this.maxValueField, this.maxValue),
-            parse: (v) => this.parseValue(this.maxValueField, v),
+            getValue: () => this.formatValue(maxValueField, this.maxValue),
+            parse: (v) => this.parseValue(maxValueField, v),
             refName: "maxValue",
-            fieldName: this.maxValueField,
+            fieldName: maxValueField,
             shouldSave: () => this.props.readonly,
         });
 
@@ -73,7 +75,7 @@ export class ProgressBarField extends Component {
     }
     /** @returns {boolean} Whether maxValueField is a fixed number (percentage mode) rather than a field name. */
     get isPercentage() {
-        return !this.props.maxValueField || !isNaN(this.props.maxValueField);
+        return !this.props.maxValueField || !isNaN(/** @type {number} */ (this.props.maxValueField));
     }
 
     /** @returns {number} Current progress value from the record, defaulting to 0. */
@@ -123,7 +125,11 @@ export class ProgressBarField extends Component {
      * @returns {string} Formatted max value
      */
     formatMaxValue(humanReadable = !this.state.isEditing) {
-        return this.formatValue(this.maxValueField, this.maxValue, humanReadable);
+        return this.formatValue(
+            /** @type {string} */ (this.maxValueField),
+            this.maxValue,
+            humanReadable,
+        );
     }
 
     /**
@@ -209,4 +215,4 @@ export const progressBarField = {
     }),
 };
 
-registry.category("fields").add("progressbar", progressBarField);
+registerField("progressbar", progressBarField);

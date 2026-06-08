@@ -40,8 +40,16 @@ export const fieldService = {
             if (typeof resModel !== "string" || !resModel) {
                 throw new Error(`Invalid model name: ${resModel}`);
             }
+            // Cold-cache fields_get failure cascades: form/list/kanban
+            // for the affected model can't render without field metadata,
+            // so a transient 503 here breaks every screen on that model
+            // until the user reloads.  fields_get is idempotent and the
+            // disk cache already accepts staleness — one retry smooths
+            // the cold-fetch path while capping persistent-outage delay
+            // at a single backoff interval.
             return orm
                 .cache({ type: "disk" })
+                .retry(1)
                 .call(resModel, "fields_get", [options.fieldNames, options.attributes]);
         }
 

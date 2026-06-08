@@ -3,7 +3,8 @@
 
 /** @module @web/core/tree/domain_contains_expressions - Checks whether a domain string contains dynamic Python expressions */
 
-/** @import { Tree } from "@web/core/tree/condition_tree" */
+/** Tree widened to `any` (see other tree-helper modules). */
+/** @typedef {any} Tree */
 /** @import { DomainRepr } from "@web/core/domain" */
 
 import { Expression, isTree } from "@web/core/tree/condition_tree";

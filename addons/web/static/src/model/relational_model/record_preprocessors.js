@@ -212,7 +212,7 @@ export function preprocessPropertiesChanges(record, changes) {
                 !propertiesData.find((property) => property.name === propertyName)
             ) {
                 // try to change the value of a properties that has a different parent
-                record.model.hooks.onDisplayPropertyWarning(
+                record.model.hooks.ui.onDisplayPropertyWarning(
                     _t(
                         "This record belongs to a different parent so you can not change this property.",
                     ),

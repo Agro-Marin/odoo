@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { patch } from "@web/core/utils/patch";
+import { patch, patchInfo } from "@web/core/utils/patch";
 
 class BaseClass {
     static staticStr = "base";
@@ -951,5 +951,67 @@ describe("other", () => {
         const fn = obj.fn; // purposely not bound
         fn();
         expect.verifySteps(["patched", "original"]);
+    });
+});
+
+describe("patchInfo", () => {
+    test("unpatched target returns null", () => {
+        const obj = { fn() {} };
+        expect(patchInfo(obj)).toBe(null);
+    });
+
+    test("reports extensions in call order with patched keys", () => {
+        const obj = { var: "v", fn() {} };
+        const ext1 = { var: "v1" };
+        const ext2 = { fn() {} };
+
+        patch(obj, ext1);
+        patch(obj, ext2);
+
+        const info = patchInfo(obj);
+        expect(info.extensions).toEqual([ext1, ext2]);
+        expect(info.patchedKeys).toEqual(["var", "fn"]);
+    });
+
+    test("returns null after every patch is unpatched", () => {
+        const obj = { fn() {} };
+        const unpatch1 = patch(obj, { fn() {} });
+        const unpatch2 = patch(obj, { fn() {} });
+
+        expect(patchInfo(obj).extensions).toHaveLength(2);
+
+        unpatch1();
+        expect(patchInfo(obj).extensions).toHaveLength(1);
+
+        unpatch2();
+        expect(patchInfo(obj)).toBe(null);
+    });
+
+    test("returned extensions array is a copy — mutating it leaves the patch graph intact", () => {
+        const obj = { fn() {} };
+        const ext = { fn() {} };
+        patch(obj, ext);
+
+        const info = patchInfo(obj);
+        info.extensions.length = 0;
+
+        expect(patchInfo(obj).extensions).toEqual([ext]);
+    });
+
+    test("works on class prototypes and on class constructors independently", () => {
+        class A {
+            fn() {}
+            static staticFn() {}
+        }
+        const protoPatch = { fn() {} };
+        const staticPatch = { staticFn() {} };
+
+        patch(A.prototype, protoPatch);
+        patch(A, staticPatch);
+
+        expect(patchInfo(A.prototype).extensions).toEqual([protoPatch]);
+        expect(patchInfo(A).extensions).toEqual([staticPatch]);
+        expect(patchInfo(A.prototype).patchedKeys).toEqual(["fn"]);
+        expect(patchInfo(A).patchedKeys).toEqual(["staticFn"]);
     });
 });

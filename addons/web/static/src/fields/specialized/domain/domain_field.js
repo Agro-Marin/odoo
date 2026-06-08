@@ -9,9 +9,11 @@ import { useGetDefaultLeafDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
 import { domainContainsExpressions } from "@web/core/tree/domain_contains_expressions";
 import { Domain, InvalidDomainError } from "@web/core/domain";
+import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
@@ -72,7 +74,7 @@ export class DomainField extends Component {
             }
         });
 
-        useBus(this.props.record.model.bus, "NEED_LOCAL_CHANGES", async (ev) => {
+        useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, async (ev) => {
             if (this.debugDomain) {
                 const props = this.props;
                 const handleChanges = async () => {
@@ -302,13 +304,13 @@ export class DomainField extends Component {
             this.debugDomain = null;
         }
         this.props.record.update({ [this.props.name]: domain });
-        this.props.record.model.bus.trigger("FIELD_IS_DIRTY", false);
+        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, false);
     }
 
     debugUpdate(domain) {
         const isDirty = domain !== this.getDomain();
         this.debugDomain = isDirty ? domain : null;
-        this.props.record.model.bus.trigger("FIELD_IS_DIRTY", isDirty);
+        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
         if (!this.props.record.isValid) {
             this.props.record.resetFieldValidity(this.props.name);
         }
@@ -374,4 +376,4 @@ export const domainField = {
     },
 };
 
-registry.category("fields").add("domain", domainField);
+registerField("domain", domainField);

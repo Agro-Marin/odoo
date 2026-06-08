@@ -5,6 +5,7 @@
 
 import { Component, markup, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { capitalize } from "@web/core/utils/format/strings";
@@ -12,8 +13,6 @@ import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { Tooltip } from "@web/ui/tooltip/tooltip";
-
-const { DateTime } = globalThis.luxon ?? {};
 
 // This props are added by the error handler
 /**
@@ -32,7 +31,8 @@ const { DateTime } = globalThis.luxon ?? {};
  * @property {Function} close
  */
 
-/** @type {StandardErrorDialogProps} */
+// Note: this is the OWL prop *schema* (used in `static props = {...}`),
+// not concrete prop values, so the StandardErrorDialogProps typedef does not apply.
 export const standardErrorDialogProps = {
     traceback: { type: [String, { value: null }], optional: true },
     message: { type: String, optional: true },

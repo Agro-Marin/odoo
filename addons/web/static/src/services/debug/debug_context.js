@@ -4,9 +4,23 @@
 /** @module @web/services/debug/debug_context - Debug context manager that collects and merges debug menu items by category */
 
 import { useEffect, useEnv, useSubEnv } from "@odoo/owl";
-import { registry } from "@web/core/registry";
+import { Registry, registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 const debugRegistry = registry.category("debug");
+
+// The ``debug`` registry is a parent-only registry: its entries are
+// sub-Registry instances created lazily by ``debugRegistry.category(name)``
+// when each category (``default``, ``form``, ``view``, etc.) is first
+// accessed.  No code in the fork calls ``debugRegistry.add(...)`` directly
+// — the menu items are added to the SUB-registries (``debugRegistry
+// .category("form").add("itemKey", factory)``), not to the parent.
+// Adding a schema here catches accidental misuse: a future caller who
+// writes ``debugRegistry.add("default", factory)`` instead of
+// ``debugRegistry.category("default").add("itemKey", factory)`` would
+// silently shadow the sub-registry and break ``getItems()`` below
+// (which iterates ``debugRegistry.category(name).getAll()``).  The
+// validator surfaces the mistake at registration time.
+debugRegistry.addValidation((entry) => entry instanceof Registry);
 
 /**
  * @typedef {Object} AccessRights

@@ -454,6 +454,7 @@ test("domain field: manually edit domain with textarea", async function () {
 
     onRpc("search_count", ({ args }) => expect.step(args[0]));
     onRpc("/web/domain/validate", () => true);
+    onRpc("/mail/data", () => ({}));
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         name: "test",
@@ -510,6 +511,7 @@ test("domain field: manually set an invalid domain with textarea", async functio
         }
     });
 
+    onRpc("/mail/data", () => ({}));
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         name: "test",
@@ -564,6 +566,7 @@ test("domain field: reload count by clicking on the refresh button", async funct
 
     onRpc("/web/domain/validate", () => true);
     onRpc("search_count", ({ args }) => expect.step(args[0]));
+    onRpc("/mail/data", () => ({}));
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         name: "test",
@@ -644,6 +647,7 @@ test("domain field: have a default count limit of 10000", async function () {
         return 99999;
     });
 
+    onRpc("/mail/data", () => ({}));
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         name: "test",
@@ -679,6 +683,7 @@ test("domain field: foldable and count limit reached", async function () {
         return 99999;
     });
 
+    onRpc("/mail/data", () => ({}));
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         name: "test",
@@ -714,6 +719,7 @@ test("domain field: configurable count limit", async function () {
         return 99999;
     });
 
+    onRpc("/mail/data", () => ({}));
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         name: "test",
@@ -752,6 +758,7 @@ test("domain field: edit domain with dynamic content", async function () {
         expect(args[1].foo).toBe(rawDomain);
     });
     onRpc("/web/domain/validate", () => true);
+    onRpc("/mail/data", () => ({}));
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         name: "test",
@@ -791,8 +798,17 @@ test("domain field: edit through selector (dynamic content)", async function () 
             </form>`,
     };
 
-    onRpc(({ method }) => expect.step(method));
+    onRpc(({ method }) => {
+        // ``lazy_session_info`` is a fork-local boilerplate RPC fired on
+        // WebClient bootstrap (see ir_http.lazy_session_info hook); it is
+        // unrelated to the domain-widget behavior under test, so we filter
+        // it out of the step trace to keep the assertion focused.
+        if (method !== "lazy_session_info") {
+            expect.step(method);
+        }
+    });
 
+    onRpc("/mail/data", () => ({}));
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         name: "test",

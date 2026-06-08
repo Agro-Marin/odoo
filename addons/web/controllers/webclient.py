@@ -4,12 +4,14 @@ from typing import Any
 import odoo.tools
 from odoo import http
 from odoo.http import Response, request
+from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.modules import Manifest
 from odoo.tools.misc import file_path
 
 from .utils import _local_web_translations
 
 _logger = logging.getLogger(__name__)
+_http_log = get_asset_logger("http")
 
 
 class WebClient(http.Controller):
@@ -150,6 +152,11 @@ class WebClient(http.Controller):
 
         from odoo.addons.base.models.assetsbundle import AssetsBundle
         use_esm = bundle_name in AssetsBundle._DYNAMIC_BUNDLE_NAMES
+        log_event(
+            _http_log, logging.DEBUG, "bundle_request",
+            bundle=bundle_name, debug=bool(debug), is_esm=use_esm,
+            params=sorted(bundle_params),
+        )
 
         files = request.env["ir.qweb"]._get_asset_nodes(
             bundle_name, debug=debug, js=True, css=True
@@ -197,5 +204,27 @@ class WebClient(http.Controller):
                 "files": data,
                 "template_url": tpl_url,
             }
+            # URL-vs-data-URI breakdown lets ops correlate a lazy
+            # bundle response with any ``[asset.js] loadESMBundle``
+            # logs on the browser side (which now emit fresh/dup/total
+            # counts) without cross-referencing the full JSON payload.
+            _n_data_uri = sum(
+                1 for v in import_map.values() if v.startswith("data:")
+            )
+            _n_real_url = len(import_map) - _n_data_uri
+            log_event(
+                _http_log, logging.INFO, "served_esm",
+                bundle=bundle_name, specs=len(specifiers),
+                imports=len(import_map),
+                url=_n_real_url, data=_n_data_uri,
+                files=len(data["files"]),
+                tpl=bool(tpl_url),
+            )
+        else:
+            log_event(
+                _http_log, logging.INFO, "served_legacy",
+                bundle=bundle_name,
+                files=len(data) if isinstance(data, list) else 0,
+            )
 
         return request.make_json_response(data)

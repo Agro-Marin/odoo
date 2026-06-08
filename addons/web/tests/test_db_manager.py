@@ -36,9 +36,16 @@ class TestDatabaseOperations(BaseCase):
     def setUp(self):
         self.password = secrets.token_hex()
 
-        # monkey-patch password verification
+        # monkey-patch password verification. ``verify_admin_password`` is a
+        # method on the ``configmanager`` class (the ``config`` singleton's
+        # type) — patching the bare module path ``odoo.tools.config`` fails
+        # because the module never had a top-level ``verify_admin_password``
+        # function; the same name on ``odoo.tools.config`` resolves to the
+        # singleton only via the ``from .config import config`` rebinding in
+        # ``odoo/tools/__init__.py``, which ``mock.patch``'s importlib lookup
+        # does not honor.
         self.verify_admin_password_patcher = patch(
-            "odoo.tools.config.verify_admin_password",
+            "odoo.tools.config.configmanager.verify_admin_password",
             self.password.__eq__,
         )
         self.startPatcher(self.verify_admin_password_patcher)

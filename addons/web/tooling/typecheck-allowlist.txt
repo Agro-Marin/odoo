@@ -1,0 +1,48 @@
+# Type-check allowlist — files that MUST stay `tsc --noEmit` clean.
+#
+# Paths are relative to the Odoo community (core) repo root — the same root
+# tooling/enable.sh installs jsconfig.json + node_modules into, and the same
+# base the jsconfig `@web/*` mapping uses (addons/web/static/src/*).
+#
+# The CI gate (tooling/typecheck-ci.sh) runs tsc over each file below plus its
+# transitive import graph, then FAILS if any error is attributed to a file in
+# this list. Errors in imported-but-unlisted files are tolerated — they are the
+# codebase's pre-existing type debt, ratcheted down file-by-file.
+#
+# HOW TO ADD A FILE:
+#   1. Eliminate its `/** @type {any} */` escapes (see machine_doc_v1/
+#      JSDOC_TYPE_TIGHTENING.md for the recipe).
+#   2. Run: bash tooling/typecheck-ci.sh --probe addons/web/static/src/<path>
+#      It must report 0 errors for that path.
+#   3. Add the path here.
+#
+# IMPORTANT: "any-escapes removed" is NOT the same as "tsc-clean". Removing a
+# cast often REVEALS errors the `any` was suppressing. Always verify with the
+# --probe command before adding — do not trust a file's status from a doc.
+# (Measured 2026-05-28: record.js had 0 any-escapes per the doc but 32 real
+# tsc errors; relational_model.js 29; action_service.js 7. Only rpc.js was
+# genuinely clean among the documented "Done" seam files.)
+
+# --- core/l10n ---
+addons/web/static/src/core/l10n/luxon.js
+addons/web/static/src/core/l10n/date_utils.js
+addons/web/static/src/core/l10n/utils/normalize.js
+addons/web/static/src/core/l10n/utils/format_list.js
+
+# --- core/network ---
+addons/web/static/src/core/network/rpc.js
+addons/web/static/src/core/network/rpc_dedup.js
+addons/web/static/src/core/network/content_disposition.js
+
+# --- core/utils ---
+addons/web/static/src/core/utils/functions.js
+addons/web/static/src/core/utils/order_by.js
+addons/web/static/src/core/utils/format/strings.js
+addons/web/static/src/core/utils/format/numbers.js
+addons/web/static/src/core/utils/format/binary.js
+
+# --- core (root) ---
+addons/web/static/src/core/domain.js
+addons/web/static/src/core/context.js
+addons/web/static/src/core/events.js
+addons/web/static/src/core/constants.js

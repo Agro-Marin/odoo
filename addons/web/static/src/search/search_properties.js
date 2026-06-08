@@ -12,7 +12,9 @@
  * pattern), preserving subclass polymorphism.
  */
 
-/** @import { SearchModel } from "@web/search/search_model" */
+/** SearchModel widened so this delegate module can read instance state
+ * set across SearchModel's many methods. */
+/** @typedef {any} SearchModel */
 
 /**
  * Generate search items corresponding to properties of a field.

@@ -61,7 +61,7 @@ function makeRecord({
         data,
         model: {
             orm: { call: ormCall, webRead: ormWebRead },
-            hooks: { onDisplayPropertyWarning },
+            hooks: { lifecycle: {}, ui: { onDisplayPropertyWarning } },
         },
         _processProperties: processProperties,
     };

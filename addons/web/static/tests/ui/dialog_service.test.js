@@ -83,19 +83,19 @@ test("multiple dialogs can become the UI active element", async () => {
     getService("dialog").add(CustomDialog, { title: "Hello" });
     await animationFrame();
     expect(queryOne(".o_dialog:not(.o_inactive_modal) .modal")).toBe(
-        getService("ui").activeElement,
+        /** @type {any} */ (getService("ui").activeElement),
     );
 
     getService("dialog").add(CustomDialog, { title: "Sauron" });
     await animationFrame();
     expect(queryOne(".o_dialog:not(.o_inactive_modal) .modal")).toBe(
-        getService("ui").activeElement,
+        /** @type {any} */ (getService("ui").activeElement),
     );
 
     getService("dialog").add(CustomDialog, { title: "Rafiki" });
     await animationFrame();
     expect(queryOne(".o_dialog:not(.o_inactive_modal) .modal")).toBe(
-        getService("ui").activeElement,
+        /** @type {any} */ (getService("ui").activeElement),
     );
 });
 
@@ -121,19 +121,19 @@ test("a popover with an autofocus child can become the UI active element", async
         }
     }
 
-    expect(document).toBe(getService("ui").activeElement);
+    expect(document).toBe(/** @type {any} */ (getService("ui").activeElement));
     expect(document.body).toBeFocused();
 
     getService("dialog").add(CustomDialog, { title: "Hello" });
     await animationFrame();
     expect(queryOne(".o_dialog:not(.o_inactive_modal) .modal")).toBe(
-        getService("ui").activeElement,
+        /** @type {any} */ (getService("ui").activeElement),
     );
     expect(".btn.test").toBeFocused();
 
     await click(".btn.test");
     await animationFrame();
-    expect(queryOne(".o_popover")).toBe(getService("ui").activeElement);
+    expect(queryOne(".o_popover")).toBe(/** @type {any} */ (getService("ui").activeElement));
     expect(".o_popover input").toBeFocused();
 });
 

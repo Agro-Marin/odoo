@@ -252,3 +252,12 @@ registry
     .add("many2one_reference", parseInteger)
     .add("monetary", parseMonetary)
     .add("percentage", parsePercentage);
+
+// Same contract as the ``formatters`` registry: every parser must be a
+// callable. Predicate runs against existing entries and any third-party
+// additions; throws in debug, warns in production. Field arch parsers
+// (e.g. domain editor, search bar) invoke entries as
+// ``parsers.get(type)(value)`` so non-function entries would surface
+// downstream as ``TypeError: parser is not a function``; the predicate
+// catches the bad registration earlier with a more specific message.
+registry.category("parsers").addValidation((v) => typeof v === "function");

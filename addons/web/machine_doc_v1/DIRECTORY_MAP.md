@@ -1,13 +1,13 @@
 # Directory Map
 
-> **231 directories** | Maps directory → layer + responsibility
+> **237 directories** | Maps directory → layer + responsibility
 >
 > Layers (Feature-Sliced Design): shared → entities → features → widgets → pages
 
 | Directory | Layer | Files | Lines | Primary Responsibility |
 |-----------|-------|------:|------:|----------------------|
 | `boot/` | misc | 2 | 85 | Entry point that launches the web client (replaced in enterprise) |
-| `components/` | features | 3 | 293 | Reusable OWL UI components (pickers, dropdowns, editors, file handling) |
+| `components/` | features | 2 | 293 | Reusable OWL UI components (pickers, dropdowns, editors, file handling) |
 | `components/action_swiper/` | features | 1 | 250 | Touch swipe component that triggers actions on left/right swipe gestures |
 | `components/autocomplete/` | features | 1 | 557 | Generic autocomplete dropdown with multi-source results, keyboard navigation,... |
 | `components/barcode/` | features | 4 | 689 | BarcodeDetector polyfill built on ZXing for browsers without native support |
@@ -42,9 +42,9 @@
 | `components/signature/` | features | 2 | 410 | Signature pad component with draw, auto-generate, and load modes |
 | `components/tags_list/` | features | 1 | 47 | Renders a list of colored tags with optional visibility limit and overflow co... |
 | `components/time_picker/` | features | 1 | 304 | Time input component with dropdown hour/minute selection and configurable rou... |
-| `components/tree_editor/` | features | 19 | 2,638 | AST manipulation helpers for boolean wrapping, negation, and path validation |
+| `components/tree_editor/` | features | 5 | 1,125 | UI-layer tree editor components (tree_editor, tree_editor_autocomplete, tree_editor_components, tree_editor_operator_editor, tree_editor_value_editors). The 14 tree-manipulation utilities moved to `core/tree/` in the UMD→ESM refactor. |
 | `components/user_switch/` | features | 1 | 67 | Login page component for quick-switching between recently connected user acco... |
-| `core/` | shared | 7 | 1,875 | Lazy-loads CSS/JS asset bundles into documents with caching |
+| `core/` | shared | 9 | 1,875 | Lazy-loads CSS/JS asset bundles into documents with caching |
 | `core/browser/` | shared | 5 | 776 | Prevents default scroll on bare "#" anchor clicks |
 | `core/colors/` | shared | 1 | 223 | Predefined color palettes for charts and graph visualizations |
 | `core/errors/` | shared | 1 | 215 | Traceback formatting, source-map annotation, and error chain utilities |
@@ -53,12 +53,13 @@
 | `core/network/` | shared | 5 | 1,191 | Content-Disposition header parser (RFC 6266/5987) |
 | `core/position/` | shared | 2 | 558 | OWL hook for auto-repositioning a popper element relative to a target |
 | `core/py_js/` | shared | 9 | 2,573 | Public API for parsing and evaluating Python expressions in JS |
+| `core/tree/` | shared | 16 | — | Condition-tree primitives migrated from `components/tree_editor/` in the UMD→ESM refactor. Holds the data-only manipulation utilities (AST, conversions between domain ↔ tree ↔ Python expression, virtual operators). UI lives back in `components/tree_editor/`. |
 | `core/utils/` | shared | 18 | 2,633 | ErrorHandler component that catches child rendering errors |
 | `core/utils/collections/` | shared | 3 | 505 | Array helpers: groupBy, sortBy, unique, intersection, cartesian, zip |
 | `core/utils/dnd/` | shared | 7 | 2,287 | useDraggable OWL hook for free-form element dragging |
 | `core/utils/dom/` | shared | 8 | 1,289 | useAutoresize hook to auto-grow input/textarea elements on content change |
 | `core/utils/format/` | shared | 4 | 1,151 | Binary size detection, base64 length calculation, and human-readable byte for... |
-| `fields/` | features | 14 | 2,308 | OWL hook that opens a dynamic placeholder popover on trigger key |
+| `fields/` | features | 16 | 2,308 | OWL hook that opens a dynamic placeholder popover on trigger key |
 | `fields/basic/` | features | 2 | 93 | Abstract base class for numeric input fields with shared focus and parse logic |
 | `fields/basic/boolean/` | features | 1 | 42 | Checkbox field widget for Boolean columns |
 | `fields/basic/boolean_favorite/` | features | 1 | 70 | Star toggle field for marking records as favorites |
@@ -89,6 +90,7 @@
 | `fields/display/progress_bar/` | features | 2 | 197 | Kanban-view variant of the progress bar field |
 | `fields/display/stat_info/` | features | 1 | 77 | Stat button content showing a formatted value with a label |
 | `fields/display/statusbar/` | features | 1 | 405 | Horizontal pipeline status bar for Selection and Many2one columns |
+| `fields/hooks/` | features | 1 | — | OWL hooks shared across field widgets (e.g. `record_observer.js`). |
 | `fields/media/attachment_image/` | features | 1 | 22 | Read-only image display field for Many2one attachment references |
 | `fields/media/binary/` | features | 1 | 114 | File upload/download field for Binary columns |
 | `fields/media/contact_image/` | features | 1 | 51 | Image field variant with fallback to a preview image when empty |
@@ -126,6 +128,7 @@
 | `fields/specialized/journal_dashboard_graph/` | features | 1 | 186 | Chart.js graph field for accounting journal dashboard data |
 | `fields/specialized/kanban_color_picker/` | features | 1 | 38 | Inline color palette picker for kanban card color selection |
 | `fields/specialized/properties/` | features | 8 | 2,827 | Calendar-view read-only variant of the properties field |
+| `fields/specialized/user_groups/` | features | 3 | 520 | Field widget for visualizing and configuring res.users access rights (group_ids), implication popover, and per-privilege boolean field. **Relocated from `webclient/res_user_group_ids_field/` — the old path in prior revisions is stale.** |
 | `fields/temporal/datetime/` | features | 2 | 775 | Date and datetime field widget with inline editing and picker integration |
 | `fields/temporal/remaining_days/` | features | 1 | 108 | Deadline countdown field showing remaining days with color-coded urgency |
 | `fields/temporal/timezone_mismatch/` | features | 1 | 109 | Timezone selection field that warns when browser and user timezones differ |
@@ -133,10 +136,10 @@
 | `legacy/js/public/` | misc | 5 | 1,791 | Lazy script loader that defers event handling until all JS bundles are loaded |
 | `libs/` | misc | 1 | 117 | (generated/vendored — no description) |
 | `model/` | entities | 6 | 1,594 | Sample server, property field definitions, and shared model utilities |
-| `model/relational_model/` | entities | 23 | 7,218 | x2many ORM command serialization and deduplication (CREATE, UPDATE, LINK, SET... |
+| `model/relational_model/` | entities | 26 | 7,058 | x2many ORM command serialization and deduplication (CREATE, UPDATE, LINK, SET... |
 | `polyfills/` | misc | 1 | 138 | (generated/vendored — no description) |
 | `public/` | pages | 11 | 1,922 | Interaction that detects Caps Lock state and toggles a warning on password in... |
-| `search/` | widgets | 16 | 4,045 | CallbackRecorder utility and useSetupAction hook for persisting view state ac... |
+| `search/` | widgets | 14 | 3,492 | CallbackRecorder utility and useSetupAction hook for persisting view state across filters |
 | `search/action_menus/` | widgets | 1 | 217 | Action/Print dropdown menus for executing server actions on selected records |
 | `search/breadcrumbs/` | widgets | 1 | 29 | Navigation breadcrumb trail showing the action stack with back-navigation |
 | `search/cog_menu/` | widgets | 1 | 100 | Combined cog dropdown merging Action, Print, and registry-based menu items |
@@ -149,14 +152,15 @@
 | `search/search_panel/` | widgets | 1 | 507 | Sidebar filter panel with category trees and grouped checkbox filters |
 | `search/utils/` | widgets | 3 | 507 | Date period/quarter/interval option definitions and domain generators for sea... |
 | `search/with_search/` | widgets | 1 | 112 | Wrapper component that creates a SearchModel and injects it into the sub-envi... |
-| `services/` | shared | 15 | 2,969 | Currency lookup, formatting, and exchange rate fetching |
+| `services/` | shared | 17 | — | Top-level data & input singletons: orm, http, field, name, currency, file_upload, sortable, error, title, localization, scss_error_display, frequent_emoji, tree_processor, lazy_session, multi_company_recovery, form_dialog_stack, slow_rpc |
 | `services/commands/` | shared | 5 | 961 | (generated/vendored — no description) |
 | `services/debug/` | shared | 6 | 513 | Debug context manager that collects and merges debug menu items by category |
 | `services/hotkeys/` | shared | 2 | 552 | useHotkey hook to register/unregister keyboard shortcuts with component lifec... |
 | `services/install_scoped_app/` | shared | 1 | 63 | Public page component for installing scoped Progressive Web Apps |
 | `services/navigation/` | shared | 1 | 472 | Keyboard arrow-key navigation hook for selectable item lists |
 | `services/pwa/` | shared | 2 | 295 | Dialog showing Safari-specific PWA installation instructions (iOS and macOS) |
-| `ui/` | shared | 1 | 53 | (generated/vendored — no description) |
+| `services/web_vitals/` | shared | 1 | — | RUM Phase 1 Core Web Vitals beacon: PerformanceObserver captures LCP/FCP/CLS/TTFB and ships them via `navigator.sendBeacon` to `/web/observability/cwv` on `pagehide`. |
+| `ui/` | shared | 0 | 0 | Top-level namespace — no direct JS files. All UI services live in subdirectories: `block/`, `bottom_sheet/`, `dialog/`, `effects/`, `notification/`, `overlay/`, `popover/`, `tooltip/`. |
 | `ui/block/` | shared | 2 | 380 | Full-screen overlay component that blocks UI during long-running operations |
 | `ui/bottom_sheet/` | shared | 2 | 437 | Mobile-friendly slide-up panel with drag-to-dismiss and snap points |
 | `ui/dialog/` | shared | 3 | 408 | Standard confirm/cancel dialog with async button handling |
@@ -197,7 +201,7 @@
 | `views/widgets/ribbon/` | widgets | 1 | 70 | Decorative ribbon on the top-right corner of a form view with configurable la... |
 | `views/widgets/signature/` | widgets | 1 | 98 | Widget opening a signature drawing dialog and writing the captured image to a... |
 | `views/widgets/week_days/` | widgets | 1 | 62 | Widget rendering seven day-of-week checkboxes respecting the locale's week st... |
-| `webclient/` | pages | 5 | 389 | Service that auto-reloads currencies when res.currency records are mutated |
+| `webclient/` | pages | 4 | 353 | Service that auto-reloads currencies when res.currency records are mutated |
 | `webclient/actions/` | pages | 13 | 2,778 | Executes action buttons (type=object/action/special) with RPC, context filter... |
 | `webclient/actions/reports/` | pages | 4 | 327 | Client action rendering an HTML report in an iframe with print button and act... |
 | `webclient/burger_menu/` | pages | 1 | 77 | Fullscreen mobile menu displaying user menu, company switcher, and current ap... |
@@ -211,13 +215,12 @@
 | `webclient/loading_indicator/` | pages | 1 | 72 | Loading indicator counting active RPCs and blocking the UI after a 3s delay |
 | `webclient/menus/` | pages | 3 | 340 | Utility functions to traverse the menu tree and compute flat app/menuItem lis... |
 | `webclient/navbar/` | pages | 1 | 287 | Main navigation bar with app switcher, sub-menus, systray items, and mobile s... |
-| `webclient/res_user_group_ids_field/` | pages | 3 | 520 | Field widget for visualizing and configuring res.users access rights (group_ids) |
-| `webclient/settings_form_view/` | pages | 5 | 481 | Three-way dialog (Save/Discard/Stay) for unsaved settings changes |
-| `webclient/settings_form_view/fields/` | pages | 2 | 82 | Boolean field for settings that shows an Enterprise upgrade dialog when checked |
-| `webclient/settings_form_view/fields/settings_binary_field/` | pages | 1 | 32 | BinaryField variant resolving download URLs via the related field's relation |
-| `webclient/settings_form_view/highlight_text/` | pages | 3 | 74 | FormLabel variant with search-term highlighting and enterprise upgrade badge |
-| `webclient/settings_form_view/settings/` | pages | 5 | 339 | Setting variant with search-based visibility filtering and URL hash highlighting |
-| `webclient/settings_form_view/widgets/` | pages | 5 | 308 | Service that checks whether demo data is active in the current database |
+| `views/settings/` | pages | 5 | 481 | Three-way dialog (Save/Discard/Stay) for unsaved settings changes. **Relocated from `webclient/settings_form_view/` — the old path in prior revisions is stale.** |
+| `views/settings/fields/` | pages | 2 | 82 | Boolean field for settings that shows an Enterprise upgrade dialog when checked |
+| `views/settings/fields/settings_binary_field/` | pages | 1 | 32 | BinaryField variant resolving download URLs via the related field's relation |
+| `views/settings/highlight_text/` | pages | 3 | 74 | FormLabel variant with search-term highlighting and enterprise upgrade badge |
+| `views/settings/settings/` | pages | 5 | 339 | Setting variant with search-based visibility filtering and URL hash highlighting |
+| `views/settings/widgets/` | pages | 5 | 308 | Service that checks whether demo data is active in the current database |
 | `webclient/share_target/` | pages | 1 | 76 | Service receiving shared files from the PWA service worker (Web Share Target ... |
 | `webclient/switch_company_menu/` | pages | 2 | 488 | Single company row in the switch-company dropdown with toggle and log-into ac... |
 | `webclient/user_menu/` | pages | 2 | 245 | Systray dropdown displaying current user avatar and menu items from the user_... |

@@ -1,5 +1,5 @@
 declare module "registries" {
-    import { Component } from "@odoo/owl";
+    import { Component, ComponentConstructor } from "@odoo/owl";
     import { OdooEnv } from "@web/env";
     import { NotificationOptions } from "@web/services/notifications/notification_service";
     import { Interaction } from "@web/public/interaction";
@@ -13,30 +13,30 @@ declare module "registries" {
     }
     export type ActionHandlersRegistryItemShape = (params: ActionHandlerParams) => (void | Promise<void>);
 
-    export type ActionsRegistryItemShape = (((env: OdooEnv, action: ActionDescription) => void) | typeof Component) & {
+    export type ActionsRegistryItemShape = (((env: OdooEnv, action: ActionDescription) => void) | ComponentConstructor) & {
         displayName?: string;
         path?: string;
         target?: ActionMode;
     };
 
     export interface CogMenuRegistryItemShape {
-        Component: typeof Component;
+        Component: ComponentConstructor;
         groupNumber: number;
         isDisplayed?: (env: OdooEnv) => boolean;
     }
 
-    export type DialogsRegistryItemShape = typeof Component;
+    export type DialogsRegistryItemShape = ComponentConstructor;
 
-    export type EffectsRegistryItemShape = (env: OdooEnv, params: object) => ({ Component: typeof Component, props: object } | undefined);
+    export type EffectsRegistryItemShape = (env: OdooEnv, params: object) => ({ Component: ComponentConstructor, props: object } | undefined);
 
-    export type ErrorDialogsRegistryItemShape = typeof Component;
+    export type ErrorDialogsRegistryItemShape = ComponentConstructor;
 
     export type ErrorHandlersRegistryItemShape = (env: OdooEnv, error: any, originalError?: any) => boolean | void;
 
     export type ErrorNotificationsRegistryItemShape = NotificationOptions & { message?: string };
 
     export interface FavoriteMenuRegistryItemShape {
-        Component: typeof Component;
+        Component: ComponentConstructor;
         groupNumber: number;
         isDisplayed?: (env: OdooEnv) => boolean;
     }
@@ -62,21 +62,21 @@ declare module "registries" {
         [key: string]: any;
     }
 
-    export type LazyComponentsRegistryItemShape = typeof Component;
+    export type LazyComponentsRegistryItemShape = ComponentConstructor;
 
     export interface MainComponentsRegistryItemShape {
-        Component: typeof Component | (new (...args: any[]) => Component);
+        Component: ComponentConstructor;
         props?: object;
     }
 
     export type ParsersRegistryItemShape = (value: any, options?: any) => any;
 
-    export type PublicComponentsRegistryItemShape = typeof Component;
+    export type PublicComponentsRegistryItemShape = ComponentConstructor;
 
     export type SampleServerRegistryItemShape = (...args: any[]) => any;
 
     export interface SystrayRegistryItemShape {
-        Component: typeof Component;
+        Component: ComponentConstructor;
         isDisplayed?: (env: OdooEnv) => boolean;
     }
 
@@ -84,12 +84,59 @@ declare module "registries" {
 
     export type InteractionRegistryItemShape = typeof Interaction;
 
+    // Color picker tab. `id` matches against `props.enabledTabs` on the
+    // ColorPicker component; `component` is rendered when the tab is active.
+    // Runtime schema lives at `components/color_picker/color_picker.js`.
+    export interface ColorPickerTabsRegistryItemShape {
+        id: string;
+        name: string;
+        component: ComponentConstructor;
+    }
+
+    // Debug menu section header. Sections group debug-menu items;
+    // `sequence` orders the section blocks vertically (default 50 if absent).
+    // Runtime schema lives at `services/debug/debug_menu_basic.js`.
+    export interface DebugSectionRegistryItemShape {
+        label: string;
+        sequence?: number;
+    }
+
+    // Bag of utility helpers / component classes shared across view layers
+    // via registry indirection to break import cycles. Entries are
+    // typeof-function (covers both utility functions and Component classes,
+    // since class declarations are functions). Runtime schema is the
+    // predicate `(entry) => typeof entry === "function"` at
+    // `views/form/form_utils.js`. Callers read entries with `.get(key)` and
+    // invoke as-appropriate for the key.
+    export type SharedComponentsRegistryItemShape = Function;
+
+    // Factory function for an entry in the user menu (top-right systray
+    // dropdown). Invoked with the env and returns the item descriptor.
+    // The `type` field discriminates "item" (clickable / link) from
+    // "separator" and similar. Runtime schema is the predicate
+    // `(entry) => typeof entry === "function"` at
+    // `webclient/user_menu/user_menu.js`. The returned object's full shape
+    // is consumer-defined (`webclient/user_menu/user_menu_items.js`) — the
+    // catch-all index signature allows additional fields like `show`,
+    // `hide`, `isDisplayed`, etc., without forcing every factory to declare
+    // them.
+    export type UserMenuItemsRegistryItemShape = (env: OdooEnv) => {
+        type: string;
+        id?: string;
+        description?: string;
+        callback?: () => any;
+        href?: string;
+        sequence?: number;
+        [key: string]: any;
+    };
+
     interface GlobalRegistryCategories {
         action_handlers: ActionHandlersRegistryItemShape;
         actions: ActionsRegistryItemShape;
         cogMenu: CogMenuRegistryItemShape;
+        color_picker_tabs: ColorPickerTabsRegistryItemShape;
+        debug_section: DebugSectionRegistryItemShape;
         dialogs: DialogsRegistryItemShape;
-        effetcs: EffectsRegistryItemShape;
         effects: EffectsRegistryItemShape;
         error_dialogs: ErrorDialogsRegistryItemShape;
         error_handlers: ErrorHandlersRegistryItemShape;
@@ -104,7 +151,9 @@ declare module "registries" {
         public_components: PublicComponentsRegistryItemShape;
         "public.interactions": InteractionRegistryItemShape;
         sample_server: SampleServerRegistryItemShape;
+        shared_components: SharedComponentsRegistryItemShape;
         systray: SystrayRegistryItemShape;
+        user_menuitems: UserMenuItemsRegistryItemShape;
         "ir.actions.report handlers": IrActionsReportHandlers;
         /** Catch-all for dynamically registered categories */
         [key: string]: any;

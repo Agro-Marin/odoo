@@ -7,6 +7,7 @@ import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 const formatters = registry.category("formatters");
 
@@ -71,4 +72,4 @@ export const badgeField = {
     }),
 };
 
-registry.category("fields").add("badge", badgeField);
+registerField("badge", badgeField);

@@ -1,7 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/collections/objects - Object helpers: deepEqual, deepCopy, pick, omit, deepMerge */
+/** @module @web/core/utils/collections/objects - Object helpers: deepEqual, deepCopy, toRawDeep, pick, omit, deepMerge */
+
+import { toRaw } from "@odoo/owl";
 
 /**
  * Shallow compares two objects.
@@ -35,9 +37,78 @@ export function shallowEqual(obj1, obj2, comparisonFn = (a, b) => a === b) {
 export const deepEqual = (obj1, obj2) => shallowEqual(obj1, obj2, deepEqual);
 
 /**
- * Deep copies an object using structuredClone, which preserves
- * Date, Set, Map, ArrayBuffer, RegExp, and other structured types.
- * Does not support functions or DOM nodes.
+ * Recursively un-wraps OWL reactive proxies in plain objects, arrays, Maps,
+ * and Sets so that the result is structured-clone compatible. Class instances
+ * (Date, RegExp, ArrayBuffer, etc.) are returned by reference via a single
+ * level of ``toRaw`` — ``structuredClone`` already handles their internal
+ * state correctly when present in the output tree. Cycles are preserved via
+ * a ``WeakMap`` accumulator.
+ *
+ * @template T
+ * @param {T} value
+ * @param {WeakMap<object, object>} [seen]
+ * @returns {T}
+ */
+export function toRawDeep(value, seen = new WeakMap()) {
+    if (value === null || typeof value !== "object") {
+        return value;
+    }
+    const raw = toRaw(value);
+    if (seen.has(raw)) {
+        return /** @type {any} */ (seen.get(raw));
+    }
+    if (Array.isArray(raw)) {
+        /** @type {any[]} */
+        const out = [];
+        seen.set(raw, out);
+        for (let i = 0; i < raw.length; i++) {
+            out[i] = toRawDeep(raw[i], seen);
+        }
+        return /** @type {any} */ (out);
+    }
+    // Plain objects: both ``Object``-prototyped and null-prototype. Class
+    // instances (constructor !== Object and prototype !== null) fall through
+    // to the passthrough at the bottom.
+    const proto = Object.getPrototypeOf(raw);
+    if (proto === Object.prototype || proto === null) {
+        /** @type {Record<string, any>} */
+        const out = proto === null ? Object.create(null) : {};
+        seen.set(raw, out);
+        for (const k of Object.keys(raw)) {
+            out[k] = toRawDeep(/** @type {any} */ (raw)[k], seen);
+        }
+        return /** @type {any} */ (out);
+    }
+    if (raw instanceof Map) {
+        /** @type {Map<any, any>} */
+        const out = new Map();
+        seen.set(raw, out);
+        for (const [k, v] of raw) {
+            out.set(toRawDeep(k, seen), toRawDeep(v, seen));
+        }
+        return /** @type {any} */ (out);
+    }
+    if (raw instanceof Set) {
+        /** @type {Set<any>} */
+        const out = new Set();
+        seen.set(raw, out);
+        for (const v of raw) {
+            out.add(toRawDeep(v, seen));
+        }
+        return /** @type {any} */ (out);
+    }
+    // Date, RegExp, ArrayBuffer, class instances — passthrough.
+    return /** @type {any} */ (raw);
+}
+
+/**
+ * Deep copies an object using ``structuredClone``, which preserves Date,
+ * Set, Map, ArrayBuffer, RegExp, and other structured types. Reactive OWL
+ * proxies are recursively unwrapped via ``toRawDeep`` before cloning so that
+ * structured types survive the copy instead of falling through to the JSON
+ * fallback (which silently drops them). Functions and DOM nodes still fall
+ * through to JSON.
+ *
  * @template T
  * @param {T} object
  * @return {T}
@@ -49,9 +120,13 @@ export function deepCopy(object) {
     try {
         return structuredClone(object);
     } catch {
-        // structuredClone can't handle functions, DOM nodes, proxies, etc.
-        // Fall back to JSON round-trip which silently drops non-serializable values.
-        return JSON.parse(JSON.stringify(object));
+        // structuredClone fails on reactive proxies; unwrap and retry.
+        try {
+            return structuredClone(toRawDeep(object));
+        } catch {
+            // Truly non-clonable input (functions, DOM nodes, etc.).
+            return JSON.parse(JSON.stringify(toRawDeep(object)));
+        }
     }
 }
 

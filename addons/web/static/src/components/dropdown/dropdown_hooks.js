@@ -5,14 +5,14 @@
 
 import { useEnv, useState } from "@odoo/owl";
 import { DROPDOWN_NESTING } from "@web/components/dropdown/_behaviours/dropdown_nesting";
-import { Reactive } from "@web/core/utils/reactive";
+import { SignalStore } from "@web/core/utils/reactive";
 /**
  * Represents the state of a dropdown.
  * In order to use it, pass the state instance to the dropdown component, i.e.:
  *  <Dropdown state="dropdownState" ...>...</Dropdown>
  * @param {{ onOpen?: Function, onClose?: Function }} [callbacks]
  */
-export class DropdownState extends Reactive {
+export class DropdownState extends SignalStore {
     isOpen = false;
     constructor({ onOpen, onClose } = /** @type {any} */ ({})) {
         super();

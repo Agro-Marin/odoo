@@ -17,7 +17,6 @@ import { useService } from "@web/core/utils/hooks";
  */
 export class BaseRecordSelector extends Component {
     setup() {
-        /** @type {import("@web/core").NameService} */
         this.nameService = useService("name");
         onWillStart(() => this.computeDerivedParams());
         onWillUpdateProps((nextProps) => this.computeDerivedParams(nextProps));

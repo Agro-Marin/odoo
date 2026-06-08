@@ -45,6 +45,7 @@
  * @typedef {Object} Options
  * @property {(value: Value) => (null|Object)} [getFieldDef]
  * @property {boolean} [distributeNot]
+ * @property {boolean} [generateSmartDates] when false, emit literal date/datetime values instead of relative expressions
  */
 
 import { Domain } from "@web/core/domain";

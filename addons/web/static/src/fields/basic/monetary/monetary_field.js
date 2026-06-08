@@ -5,8 +5,10 @@
 
 import { Component, useEffect, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
 import { nbsp } from "@web/core/utils/format/strings";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+
+import { registerField } from "@web/fields/_registry";
 import { formatMonetary } from "@web/fields/formatters";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
@@ -30,9 +32,13 @@ export class MonetaryField extends Component {
         trailingZeros: true,
     };
 
+    /** @type {{value: string | undefined}} */
+    state;
+
     setup() {
+        useRenderCounter("fields.MonetaryField");
         this.inputRef = useInputField(this.inputOptions);
-        this.state = useState({ value: undefined });
+        this.state = useState({ value: /** @type {string | undefined} */ (undefined) });
         this.nbsp = nbsp;
         useNumpadDecimal();
         useEffect(() => {
@@ -42,7 +48,7 @@ export class MonetaryField extends Component {
         });
     }
 
-    /** @returns {{ getValue: () => string | number, refName: string, parse: (v: string) => number }} */
+    /** @returns {{ getValue: () => string, refName: string, parse: (v: string) => number }} */
     get inputOptions() {
         return {
             getValue: () => this.formattedValue,
@@ -60,10 +66,11 @@ export class MonetaryField extends Component {
         const currency = this.props.record.data[currencyField];
         return currency?.id;
     }
-    /** @returns {import("@web/services").Currency | null} */
+    /** @returns {NonNullable<ReturnType<typeof getCurrency>> | null} */
     get currency() {
-        if (!isNaN(this.currencyId)) {
-            return getCurrency(this.currencyId) || null;
+        const id = this.currencyId;
+        if (id !== undefined && !isNaN(id)) {
+            return getCurrency(id) || null;
         }
         return null;
     }
@@ -73,15 +80,16 @@ export class MonetaryField extends Component {
         return this.currency ? this.currency.symbol : "";
     }
 
-    /** @returns {Array | null} */
+    /** @returns {[number, number] | null} */
     get currencyDigits() {
         if (this.props.useFieldDigits) {
             return this.props.record.fields[this.props.name].digits;
         }
-        if (!this.currency) {
+        const currency = this.currency;
+        if (!currency) {
             return null;
         }
-        return getCurrency(this.currencyId).digits;
+        return currency.digits;
     }
 
     /** @returns {number | false} */
@@ -89,10 +97,10 @@ export class MonetaryField extends Component {
         return this.props.record.data[this.props.name];
     }
 
-    /** @returns {string | number} */
+    /** @returns {string} */
     get formattedValue() {
         if (this.props.inputType === "number" && !this.props.readonly && this.value) {
-            return this.value;
+            return String(this.value);
         }
         return formatMonetary(this.value, {
             digits: this.currencyDigits,
@@ -105,7 +113,7 @@ export class MonetaryField extends Component {
         });
     }
 
-    /** @param {InputEvent} ev */
+    /** @param {InputEvent & { target: HTMLInputElement }} ev */
     onInput(ev) {
         this.state.value = ev.target.value;
     }
@@ -146,4 +154,4 @@ export const monetaryField = {
     }),
 };
 
-registry.category("fields").add("monetary", monetaryField);
+registerField("monetary", monetaryField);

@@ -8,7 +8,14 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
-import { findUnsetRequiredFields } from "@web/model/relational_model/record_validator";
+import {
+    checkValidity,
+    displayInvalidFieldNotification,
+    findUnsetRequiredFields,
+    removeInvalidFields,
+    resetFieldValidity,
+    setInvalidField,
+} from "@web/model/relational_model/record_validator";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -274,5 +281,375 @@ describe("findUnsetRequiredFields — properties", () => {
         );
         // relatedPropertyField is always skipped
         expect(result.has("derived_prop")).toBe(false);
+    });
+});
+
+// ===========================================================================
+// Orchestration helpers — added in Phase 2 of the model-layer decomposition
+// (workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
+//
+// These tests target the helpers directly with a hand-rolled mock record.
+// The mock supplies only the surface each helper reads — invalidFields Set,
+// unsetRequiredFields Set, model.hooks namespaces, multiEdit hooks, etc.
+//
+// Imports for these helpers live at the top of this file (consolidated with
+// the existing findUnsetRequiredFields import) to satisfy ES-module
+// top-level-import semantics.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Mock factory for orchestration tests
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds the minimum record shape consumed by the orchestration helpers.
+ *
+ * Defaults exercise the happy path:
+ *   - no invalid fields, no unset required fields
+ *   - hooks return undefined (allow), notification hook returns a no-op closer
+ *   - not selected, multiEdit off
+ *
+ * @param {Object} [opts]
+ * @param {Object} [opts.activeFields={}]
+ * @param {Object} [opts.fields={}]
+ * @param {Object} [opts.data={}]
+ * @param {string[]} [opts.invalid=[]] - fields already in _invalidFields
+ * @param {string[]} [opts.unsetRequired=[]] - fields already in _unsetRequiredFields
+ * @param {string[]} [opts.required=[]] - which fields _isRequired returns true for
+ * @param {string[]} [opts.invisible=[]] - which fields _isInvisible returns true for
+ * @param {boolean} [opts.selected=false]
+ * @param {boolean} [opts.multiEdit=false]
+ * @param {*} [opts.willSetInvalidResult] - return value of onWillSetInvalidField
+ * @param {Function|null} [opts.onDisplayInvalidFields] - notification hook stub
+ * @returns {Object}
+ */
+function makeOrchestrationRecord({
+    activeFields = {},
+    fields = {},
+    data = {},
+    invalid = [],
+    unsetRequired = [],
+    required = [],
+    invisible = [],
+    selected = false,
+    multiEdit = false,
+    willSetInvalidResult = undefined,
+    onDisplayInvalidFields = null,
+} = {}) {
+    /** @type {any} */
+    const record = {
+        activeFields,
+        fields,
+        data,
+        selected,
+        dirty: false,
+        _invalidFields: new Set(invalid),
+        _unsetRequiredFields: new Set(unsetRequired),
+        _closeInvalidFieldsNotification: () => {},
+        _isInvisible: (name) => invisible.includes(name),
+        _isRequired: (name) => required.includes(name),
+        // delegate to the imported helper so the recursive isChildListValid
+        // codepath in checkValidity hits the same module under test
+        _checkValidity(options) {
+            return checkValidity(this, options);
+        },
+        discard: async () => {},
+        switchMode: () => {},
+        model: {
+            multiEdit,
+            root: { _recordToDiscard: null },
+            hooks: {
+                lifecycle: {
+                    onWillSetInvalidField: () => willSetInvalidResult,
+                },
+                ui: {
+                    onDisplayInvalidFields:
+                        onDisplayInvalidFields ?? (() => () => {}),
+                },
+            },
+        },
+    };
+    return record;
+}
+
+// ---------------------------------------------------------------------------
+// checkValidity — silent mode
+// ---------------------------------------------------------------------------
+
+describe("checkValidity — silent mode", () => {
+    test("returns true when no required fields are unset, without mutating state", () => {
+        const rec = makeOrchestrationRecord({
+            activeFields: { name: {} },
+            fields: { name: { type: "char" } },
+            data: { name: "Partner" },
+            required: ["name"],
+        });
+        const result = checkValidity(rec, { silent: true });
+        expect(result).toBe(true);
+        // silent must not touch state
+        expect(rec._invalidFields.size).toBe(0);
+        expect(rec._unsetRequiredFields.size).toBe(0);
+    });
+
+    test("returns false when a required field is unset, without mutating state", () => {
+        const rec = makeOrchestrationRecord({
+            activeFields: { name: {} },
+            fields: { name: { type: "char" } },
+            data: { name: false },
+            required: ["name"],
+        });
+        const result = checkValidity(rec, { silent: true });
+        expect(result).toBe(false);
+        // silent must not push the field into _invalidFields
+        expect(rec._invalidFields.size).toBe(0);
+        expect(rec._unsetRequiredFields.size).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// checkValidity — default mode (replace unsetRequired subset)
+// ---------------------------------------------------------------------------
+
+describe("checkValidity — default mode", () => {
+    test("populates _invalidFields and _unsetRequiredFields when a required field is unset", () => {
+        const rec = makeOrchestrationRecord({
+            activeFields: { name: {} },
+            fields: { name: { type: "char" } },
+            data: { name: false },
+            required: ["name"],
+        });
+        const result = checkValidity(rec);
+        expect(result).toBe(false);
+        expect([...rec._invalidFields]).toEqual(["name"]);
+        expect([...rec._unsetRequiredFields]).toEqual(["name"]);
+    });
+
+    test("replaces the prior _unsetRequiredFields subset on rescan", () => {
+        // Prior state: "name" was unset
+        const rec = makeOrchestrationRecord({
+            activeFields: { name: {}, email: {} },
+            fields: { name: { type: "char" }, email: { type: "char" } },
+            data: { name: "now set", email: false },
+            required: ["name", "email"],
+            invalid: ["name"],
+            unsetRequired: ["name"],
+        });
+        const result = checkValidity(rec);
+        expect(result).toBe(false);
+        // "name" should have been pruned from both sets; "email" added
+        expect([...rec._invalidFields]).toEqual(["email"]);
+        expect([...rec._unsetRequiredFields]).toEqual(["email"]);
+    });
+
+    test("preserves invalid-input flags (not in unsetRequiredFields) across the rescan", () => {
+        // "name" was flagged as invalid by a field widget (e.g. via setInvalidField),
+        // not because it was unset-required. checkValidity should leave it alone.
+        const rec = makeOrchestrationRecord({
+            activeFields: { name: {}, email: {} },
+            fields: { name: { type: "char" }, email: { type: "char" } },
+            data: { name: "set", email: "set" },
+            required: [],
+            invalid: ["name"],          // invalid-input flag survives
+            unsetRequired: [],          // but not in unset-required subset
+        });
+        checkValidity(rec);
+        expect([...rec._invalidFields]).toEqual(["name"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// checkValidity — removeInvalidOnly mode (prune-only)
+// ---------------------------------------------------------------------------
+
+describe("checkValidity — removeInvalidOnly mode", () => {
+    test("removes fields from _unsetRequiredFields that are no longer unset, without adding new ones", () => {
+        // Prior: "name" was unset; now set. "email" is unset but not in the prior subset.
+        const rec = makeOrchestrationRecord({
+            activeFields: { name: {}, email: {} },
+            fields: { name: { type: "char" }, email: { type: "char" } },
+            data: { name: "now set", email: false },
+            required: ["name", "email"],
+            invalid: ["name"],
+            unsetRequired: ["name"],
+        });
+        checkValidity(rec, { removeInvalidOnly: true });
+        // "name" pruned (no longer unset); "email" NOT added (removeInvalidOnly).
+        expect([...rec._invalidFields]).toEqual([]);
+        expect([...rec._unsetRequiredFields]).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// checkValidity — displayNotification side effect
+// ---------------------------------------------------------------------------
+
+describe("checkValidity — displayNotification", () => {
+    test("invokes onDisplayInvalidFields when invalid and displayNotification=true", () => {
+        let displayCalled = false;
+        const rec = makeOrchestrationRecord({
+            activeFields: { name: {} },
+            fields: { name: { type: "char" } },
+            data: { name: false },
+            required: ["name"],
+            onDisplayInvalidFields: () => {
+                displayCalled = true;
+                return () => {};
+            },
+        });
+        checkValidity(rec, { displayNotification: true });
+        expect(displayCalled).toBe(true);
+    });
+
+    test("does NOT invoke onDisplayInvalidFields when valid", () => {
+        let displayCalled = false;
+        const rec = makeOrchestrationRecord({
+            activeFields: { name: {} },
+            fields: { name: { type: "char" } },
+            data: { name: "set" },
+            onDisplayInvalidFields: () => {
+                displayCalled = true;
+                return () => {};
+            },
+        });
+        checkValidity(rec, { displayNotification: true });
+        expect(displayCalled).toBe(false);
+    });
+
+    test("stores the close callback on record._closeInvalidFieldsNotification", () => {
+        const closer = () => {};
+        const rec = makeOrchestrationRecord({
+            activeFields: { name: {} },
+            fields: { name: { type: "char" } },
+            data: { name: false },
+            required: ["name"],
+            onDisplayInvalidFields: () => closer,
+        });
+        checkValidity(rec, { displayNotification: true });
+        expect(rec._closeInvalidFieldsNotification).toBe(closer);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// setInvalidField
+// ---------------------------------------------------------------------------
+
+describe("setInvalidField", () => {
+    test("adds the field name to _invalidFields", async () => {
+        const rec = makeOrchestrationRecord();
+        await setInvalidField(rec, "name");
+        expect(rec._invalidFields.has("name")).toBe(true);
+    });
+
+    test("is idempotent — adding the same field twice does not duplicate", async () => {
+        const rec = makeOrchestrationRecord({ invalid: ["name"] });
+        await setInvalidField(rec, "name");
+        expect(rec._invalidFields.size).toBe(1);
+    });
+
+    test("returns early without adding when onWillSetInvalidField returns false", async () => {
+        const rec = makeOrchestrationRecord({ willSetInvalidResult: false });
+        await setInvalidField(rec, "name");
+        expect(rec._invalidFields.size).toBe(0);
+    });
+
+    test("multiEdit + selected: triggers discard + switchMode + notification", async () => {
+        let discardCalled = false;
+        let switchModeArg = null;
+        let displayCalled = false;
+        const rec = makeOrchestrationRecord({
+            selected: true,
+            multiEdit: true,
+            onDisplayInvalidFields: () => {
+                displayCalled = true;
+                return () => {};
+            },
+        });
+        rec.discard = async () => {
+            discardCalled = true;
+        };
+        rec.switchMode = (mode) => {
+            switchModeArg = mode;
+        };
+        await setInvalidField(rec, "name");
+        expect(displayCalled).toBe(true);
+        expect(discardCalled).toBe(true);
+        expect(switchModeArg).toBe("readonly");
+    });
+
+    test("multiEdit + selected + _recordToDiscard === this: does NOT trigger discard/switchMode", async () => {
+        let discardCalled = false;
+        const rec = makeOrchestrationRecord({
+            selected: true,
+            multiEdit: true,
+        });
+        rec.model.root._recordToDiscard = rec;
+        rec.discard = async () => {
+            discardCalled = true;
+        };
+        await setInvalidField(rec, "name");
+        // The field is still flagged, but the multiEdit cascade is suppressed
+        // because this record is the one already being discarded.
+        expect(rec._invalidFields.has("name")).toBe(true);
+        expect(discardCalled).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// resetFieldValidity + removeInvalidFields
+// ---------------------------------------------------------------------------
+
+describe("resetFieldValidity", () => {
+    test("removes the field name from _invalidFields", () => {
+        const rec = makeOrchestrationRecord({ invalid: ["name", "email"] });
+        resetFieldValidity(rec, "name");
+        expect(rec._invalidFields.has("name")).toBe(false);
+        expect(rec._invalidFields.has("email")).toBe(true);
+    });
+
+    test("is a no-op when the field is not flagged", () => {
+        const rec = makeOrchestrationRecord({ invalid: ["email"] });
+        resetFieldValidity(rec, "name");
+        expect(rec._invalidFields.size).toBe(1);
+    });
+
+    test("does NOT touch _unsetRequiredFields", () => {
+        const rec = makeOrchestrationRecord({
+            invalid: ["name"],
+            unsetRequired: ["name"],
+        });
+        resetFieldValidity(rec, "name");
+        expect(rec._invalidFields.has("name")).toBe(false);
+        // _unsetRequiredFields is the canonical source for "required not satisfied";
+        // this helper is for invalid-input flag only.
+        expect(rec._unsetRequiredFields.has("name")).toBe(true);
+    });
+});
+
+describe("removeInvalidFields (bulk)", () => {
+    test("removes multiple field names in one call", () => {
+        const rec = makeOrchestrationRecord({ invalid: ["a", "b", "c"] });
+        removeInvalidFields(rec, "a", "c");
+        expect([...rec._invalidFields]).toEqual(["b"]);
+    });
+
+    test("is a no-op when no field names are passed", () => {
+        const rec = makeOrchestrationRecord({ invalid: ["a", "b"] });
+        removeInvalidFields(rec);
+        expect(rec._invalidFields.size).toBe(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// displayInvalidFieldNotification
+// ---------------------------------------------------------------------------
+
+describe("displayInvalidFieldNotification", () => {
+    test("returns the close callback produced by the hook", () => {
+        const closer = () => "closed";
+        const rec = makeOrchestrationRecord({
+            onDisplayInvalidFields: () => closer,
+        });
+        const result = displayInvalidFieldNotification(rec);
+        expect(result).toBe(closer);
     });
 });

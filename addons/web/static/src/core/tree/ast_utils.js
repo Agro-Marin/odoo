@@ -3,7 +3,10 @@
 
 /** @module @web/core/tree/ast_utils - AST manipulation helpers for boolean wrapping, negation, and path validation */
 
-/** @import { AST } from "@web/core/py_js/py_parser" */
+/** Local AST alias widened to `any` because the canonical AST is a
+ * discriminated union narrowed via `.type` checks at runtime; TS can't
+ * track the narrowing through helper boundaries.
+ * @typedef {any} AST */
 
 import { COMPARATORS, TERM_OPERATORS_NEGATION_EXTENDED } from "./operators.js";
 

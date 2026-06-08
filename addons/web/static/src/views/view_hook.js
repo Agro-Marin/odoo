@@ -91,7 +91,11 @@ export function useActionLinks({ resModel, reload }) {
             if (data.context) {
                 options.additionalContext = evaluateExpr(data.context);
             }
-            keepLast.add(doAction(action, options));
+            // ``action`` is a synthesised ``ir.actions.act_window`` descriptor
+            // built from the anchor's data attributes; the ``ActionRequest``
+            // ambient type doesn't model every legal field combination so we
+            // narrow at the boundary.
+            keepLast.add(doAction(/** @type {any} */ (action), options));
         }
     }
 

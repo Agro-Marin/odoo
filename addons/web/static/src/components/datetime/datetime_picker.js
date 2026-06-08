@@ -13,10 +13,10 @@ import {
     today,
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
+import { DateTime, Info } from "@web/core/l10n/luxon";
 import { Time } from "@web/core/l10n/time";
 import { _t } from "@web/core/l10n/translation";
 import { ensureArray } from "@web/core/utils/collections/arrays";
-const { DateTime, Info } = globalThis.luxon ?? {};
 
 /**
  * @typedef DateItem
@@ -32,7 +32,7 @@ const { DateTime, Info } = globalThis.luxon ?? {};
  *
  * @typedef {[DateTime, DateTime]} DateRange
  *
- * @typedef {globalThis.luxon["DateTime"]["prototype"]} DateTime
+ * @typedef {any} DateTime luxon DateTime instance
  *
  * @typedef DateTimePickerProps
  * @property {number} [focusedDateIndex=0]
@@ -99,7 +99,7 @@ const getStartOfCentury = (date) => Math.floor(date.year / 100) * 100;
 const getStartOfWeek = (date) => {
     const { weekStart } = localization;
     return date.set({
-        weekday: /** @type {import("luxon").WeekdayNumbers} */ (
+        weekday: /** @type {any} */ (
             date.weekday < weekStart ? weekStart - 7 : weekStart
         ),
     });

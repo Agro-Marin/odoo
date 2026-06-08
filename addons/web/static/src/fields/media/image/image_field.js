@@ -5,14 +5,15 @@
 
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { FileUploader } from "@web/fields/file_handler";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-const { DateTime } = globalThis.luxon ?? {};
 
 export const fileTypeMagicWordMap = {
     "/": "jpg",
@@ -326,4 +327,4 @@ export const imageField = {
     }),
 };
 
-registry.category("fields").add("image", /** @type {any} */ (imageField));
+registerField("image", /** @type {any} */ (imageField));

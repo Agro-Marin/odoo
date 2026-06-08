@@ -18,10 +18,10 @@ import { App, Component, whenReady } from "@odoo/owl";
 import { RPCError } from "@web/core/network/rpc";
 import { patch } from "@web/core/utils/patch";
 
-// Accessed lazily — globalThis.luxon is a global from a legacy bundle that may not be
+// Accessed lazily — /** @type {any} */ (globalThis).luxon is a global from a legacy bundle that may not be
 // available yet when this native ESM module first evaluates (e.g. error pages).
-/** @type {() => import("luxon").Settings} */
-const getLuxonSettings = () => globalThis.luxon.Settings;
+/** @type {() => any} */
+const getLuxonSettings = () => /** @type {any} */ (globalThis).luxon.Settings;
 
 // Load localizations outside the PublicRoot to not wait for DOM ready (but
 // wait for them in PublicRoot)

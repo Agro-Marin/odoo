@@ -11,10 +11,11 @@
  * preserving the original public API via re-exports.
  */
 
-import { onMounted, onWillUnmount, useComponent } from "@odoo/owl";
+import { onMounted, onWillUnmount } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { registry } from "@web/core/registry";
 import { parseXML } from "@web/core/utils/dom/xml";
+import { useService } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
 import { isX2Many } from "@web/views/view_utils";
 
@@ -103,23 +104,22 @@ export async function loadSubViews(
 }
 
 /**
- * Hook to register/unregister a form-in-dialog with the parent FormController.
- *
- * Triggers bus events on mount/unmount so the parent can track nested
- * form dialogs (used to suppress auto-save when a sub-form is open).
+ * Hook to register/unregister a form-in-dialog with the page-level
+ * ``form_dialog_stack`` service so the parent ``FormController`` can
+ * suppress auto-save (in ``beforeVisibilityChange``) while a child
+ * form-in-dialog is open.
  */
 export function useFormViewInDialog() {
-    const component = useComponent();
-    onMounted(() => {
-        component.env.bus.trigger("FORM-CONTROLLER:FORM-IN-DIALOG:ADD");
-    });
-
-    onWillUnmount(() => {
-        component.env.bus.trigger("FORM-CONTROLLER:FORM-IN-DIALOG:REMOVE");
-    });
+    const formDialogStack = useService("form_dialog_stack");
+    onMounted(() => formDialogStack.push());
+    onWillUnmount(() => formDialogStack.pop());
 }
 
 // Register shared utilities for lower layers via registry indirection
 const sharedComponents = registry.category("shared_components");
+// Despite the name, entries are utility functions (`loadSubViews`,
+// `useFormViewInDialog`) used to break import cycles between view layers,
+// not Component classes — both are typeof-function so the predicate covers both.
+sharedComponents.addValidation((entry) => typeof entry === "function");
 sharedComponents.add("loadSubViews", loadSubViews);
 sharedComponents.add("useFormViewInDialog", useFormViewInDialog);

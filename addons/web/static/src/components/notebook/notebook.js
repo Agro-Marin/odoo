@@ -154,7 +154,9 @@ export class Notebook extends Component {
             }
         }
         this.disabledPages = [];
+        /** @type {[string, any][]} */
         const pages = [];
+        /** @type {[string, any][]} */
         const pagesWithIndex = [];
         for (const [k, v] of Object.entries({
             ...props.slots,

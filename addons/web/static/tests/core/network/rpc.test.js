@@ -9,6 +9,7 @@ import {
     rpc,
     rpcBus,
     RPCError,
+    ServerOverloadError,
 } from "@web/core/network/rpc";
 import { RPCCache } from "@web/core/network/rpc_cache";
 
@@ -130,11 +131,55 @@ test("check connection aborted", async () => {
     expect.verifySteps(["RPC:REQUEST", "RPC:RESPONSE"]);
 });
 
-test("trigger a ConnectionLostError when response isn't json parsable", async () => {
-    mockFetch(() => new Response("<h...", { status: 500 }));
+test("trigger a ServerOverloadError when response carries a non-JSON content-type", async () => {
+    // Server returned an HTML error page (typical werkzeug PoolError /
+    // OperationalError traceback).  Caught by content-type sniff BEFORE
+    // attempting JSON parse — the more specific ``ServerOverloadError``
+    // is thrown so retry logic can apply a longer backoff floor.
+    mockFetch(() => new Response("<html>pool full</html>", {
+        status: 500,
+        headers: { "Content-Type": "text/html" },
+    }));
 
-    const error = new ConnectionLostError("/test/");
-    await expect(rpc("/test/")).rejects.toThrow(error);
+    await expect(rpc("/test/")).rejects.toThrow(ServerOverloadError);
+});
+
+test("ServerOverloadError is also a ConnectionLostError (backward compatibility)", async () => {
+    // Existing callers catching ``instanceof ConnectionLostError`` must
+    // continue to match the subclass — this contract is load-bearing for
+    // every component that currently shows the connection-lost UX.
+    mockFetch(() => new Response("<html/>", {
+        status: 500,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+    }));
+
+    await expect(rpc("/test/")).rejects.toThrow(ConnectionLostError);
+});
+
+test("trigger a ConnectionLostError when response says JSON but body is unparseable", async () => {
+    // Content-Type advertises JSON, but the body is truncated / malformed.
+    // No evidence of server-side error page; treat as transient connectivity
+    // failure with the default backoff (no overload floor).
+    mockFetch(() => new Response("<h...", {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+    }));
+
+    await expect(rpc("/test/")).rejects.toThrow(ConnectionLostError);
+});
+
+test("no content-type header falls back to ConnectionLostError (preserves prior behavior)", async () => {
+    // ``Response(string)`` defaults to ``text/plain;charset=UTF-8`` per the
+    // Fetch spec — but here we explicitly strip the header to simulate a
+    // truly bare response.  The sniff guards on ``contentType && !isJson``
+    // so the absence of a header preserves the pre-T2.3 behavior.
+    mockFetch(() => {
+        const r = new Response("<h...", { status: 500 });
+        r.headers.delete("content-type");
+        return r;
+    });
+
+    await expect(rpc("/test/")).rejects.toThrow(ConnectionLostError);
 });
 
 test("rpc can send additional headers", async () => {
@@ -167,4 +212,199 @@ test("Cache: can cache a simple rpc", async () => {
     expect(await rpc("/test/", {}, { cache: true })).toEqual({ action_id: 123 });
     expect(await rpc("/test/", {}, { cache: true })).toEqual({ action_id: 123 });
     expect.verifySteps(["Fetch"]);
+});
+
+test("Dedup: concurrent identical rpcs share one fetch and one promise", async () => {
+    mockFetch(() => {
+        expect.step("Fetch");
+        return { result: { x: 1 } };
+    });
+
+    const p1 = rpc("/test/", {}, { dedup: true });
+    const p2 = rpc("/test/", {}, { dedup: true });
+    const p3 = rpc("/test/", {}, { dedup: true });
+
+    // Promise identity is the load-bearing contract: matches rpc_dedup.test.js
+    // and is what callers rely on when they apply ``.abort()`` to one of the
+    // returned promises (shared abort across deduped callers).
+    expect(p1).toBe(p2);
+    expect(p2).toBe(p3);
+
+    const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+    expect(r1).toEqual({ x: 1 });
+    expect(r2).toEqual({ x: 1 });
+    expect(r3).toEqual({ x: 1 });
+    expect.verifySteps(["Fetch"]);
+});
+
+test("Dedup: different (url, params) do not collide", async () => {
+    mockFetch((_, { body }) => {
+        const id = JSON.parse(body).params.id;
+        expect.step(`Fetch:${id}`);
+        return { result: { id } };
+    });
+
+    const p1 = rpc("/test/", { id: 1 }, { dedup: true });
+    const p2 = rpc("/test/", { id: 2 }, { dedup: true });
+    expect(p1).not.toBe(p2);
+
+    await Promise.all([p1, p2]);
+    expect.verifySteps(["Fetch:1", "Fetch:2"]);
+});
+
+test("Dedup: post-settle call fires fresh (entry evicted)", async () => {
+    mockFetch(() => {
+        expect.step("Fetch");
+        return { result: true };
+    });
+
+    await rpc("/test/", {}, { dedup: true });
+    await rpc("/test/", {}, { dedup: true });
+    expect.verifySteps(["Fetch", "Fetch"]);
+});
+
+test("Dedup: error path also evicts so subsequent calls retry", async () => {
+    mockFetch(() => {
+        expect.step("Fetch");
+        return new Response("<h...", { status: 500 });
+    });
+
+    const p1 = rpc("/test/", {}, { dedup: true });
+    const p2 = rpc("/test/", {}, { dedup: true });
+    expect(p1).toBe(p2);
+
+    await expect(p1).rejects.toThrow(ConnectionLostError);
+    await expect(p2).rejects.toThrow(ConnectionLostError);
+    expect.verifySteps(["Fetch"]);
+
+    // After the shared rejection settles, a new call must fire fresh —
+    // dedup must NOT cache failures.
+    await expect(rpc("/test/", {}, { dedup: true })).rejects.toThrow(
+        ConnectionLostError,
+    );
+    expect.verifySteps(["Fetch"]);
+});
+
+test("Dedup: silent abort evicts the inflight entry (regression)", async () => {
+    // Silent abort (``promise.abort(false)``) cancels the underlying
+    // fetch but intentionally leaves the outer promise pending so the
+    // caller can swallow the cancellation without surfacing an error.
+    //
+    // Pre-fix, the dedup-eviction hook was wired exclusively through
+    // ``promise.then(onSettle, onSettle)`` — since the promise never
+    // settles on a silent abort, ``onSettle`` never fired and the
+    // inflight Map slot leaked forever.  A subsequent identical
+    // request would then be deduped onto a forever-pending,
+    // already-canceled promise and the new caller would never see
+    // data.
+    //
+    // The fix wraps ``.abort`` in the dedup branch so silent aborts
+    // evict synchronously.  This test verifies the user-observable
+    // contract: a fresh request after silent abort fires a new fetch.
+    let fetchCount = 0;
+    mockFetch(() => {
+        fetchCount++;
+        expect.step(`Fetch:${fetchCount}`);
+        // First fetch hangs (so abort actually does something);
+        // subsequent fetches resolve normally.
+        if (fetchCount === 1) {
+            return new Promise(() => {});
+        }
+        return { result: { ok: true } };
+    });
+
+    const p1 = rpc("/test/", {}, { dedup: true });
+    p1.abort(false); // silent — p1 stays pending forever
+
+    // Fresh identical request must NOT be deduped onto p1.
+    const p2 = rpc("/test/", {}, { dedup: true });
+    expect(p2).not.toBe(p1);
+    expect(await p2).toEqual({ ok: true });
+    expect.verifySteps(["Fetch:1", "Fetch:2"]);
+});
+
+test("Dedup composes with cache: cache hit skips the fetch", async () => {
+    rpc.setCache(
+        new RPCCache(
+            "mockRpcDedup",
+            1,
+            "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+        ),
+    );
+    mockFetch(() => {
+        expect.step("Fetch");
+        return { result: { x: 42 } };
+    });
+
+    // Prime the cache.
+    expect(await rpc("/test/", {}, { cache: true })).toEqual({ x: 42 });
+    expect.verifySteps(["Fetch"]);
+
+    // Concurrent dedup calls — both hit cache (no fetch).
+    const p1 = rpc("/test/", {}, { cache: true, dedup: true });
+    const p2 = rpc("/test/", {}, { cache: true, dedup: true });
+    expect(p1).toBe(p2);
+    await Promise.all([p1, p2]);
+    expect.verifySteps([]);
+});
+
+// ----------------------------------------------------------------------------
+// Plan-C envelope versioning (Phase 3)
+// ----------------------------------------------------------------------------
+//
+// The server-side ``@versioned_envelope`` decorator stashes a content hash on
+// ``request._response_version``; the JSON-RPC dispatcher lifts it as a
+// sibling of ``result`` (``parsed.version``).  rpc.js reattaches it as
+// ``result.__version`` so the rpc cache's ``payloadChanged`` sees the same
+// field as for in-payload ``@versioned`` returns.  These tests pin the JS
+// half of that contract.
+
+test("envelope version: list result gets __version attached when parsed.version is present", async () => {
+    mockFetch(() => ({
+        result: [{ id: 1 }, { id: 2 }],
+        version: "abc123def456",
+    }));
+    const result = await rpc("/test/");
+    expect(result).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(result.__version).toBe("abc123def456");
+});
+
+test("envelope version: dict result gets __version attached when parsed.version is present", async () => {
+    mockFetch(() => ({
+        result: { records: [{ id: 1 }], length: 1 },
+        version: "v789",
+    }));
+    const result = await rpc("/test/");
+    expect(result.__version).toBe("v789");
+});
+
+test("envelope version: in-payload __version wins over envelope sibling", async () => {
+    // If the result already carries __version (e.g. ``@versioned`` decorator
+    // on a dict return), the envelope sibling must not overwrite it.
+    mockFetch(() => ({
+        result: { records: [], __version: "in-payload-wins" },
+        version: "envelope-loses",
+    }));
+    const result = await rpc("/test/");
+    expect(result.__version).toBe("in-payload-wins");
+});
+
+test("envelope version: absent parsed.version leaves result unchanged", async () => {
+    // Legacy server (no envelope versioning) — result must round-trip clean.
+    mockFetch(() => ({ result: [{ id: 1 }] }));
+    const result = await rpc("/test/");
+    expect(result).toEqual([{ id: 1 }]);
+    expect(result.__version).toBe(undefined);
+});
+
+test("envelope version: primitive result is not mutated (cannot attach property)", async () => {
+    mockFetch(() => ({ result: 42, version: "v1" }));
+    const result = await rpc("/test/");
+    expect(result).toBe(42);
+});
+
+test("envelope version: null result is not mutated", async () => {
+    mockFetch(() => ({ result: null, version: "v1" }));
+    const result = await rpc("/test/");
+    expect(result).toBe(null);
 });

@@ -3,8 +3,8 @@
 
 /** @module @web/views/settings/fields/upgrade_boolean_field - Boolean field for settings that shows an Enterprise upgrade dialog when checked */
 
-import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { registerField } from "@web/fields/_registry";
 import { BooleanField, booleanField } from "@web/fields/basic/boolean/boolean_field";
 
 import { UpgradeDialog } from "./upgrade_dialog.js";
@@ -43,4 +43,4 @@ export const upgradeBooleanField = {
     additionalClasses: [...(booleanField.additionalClasses || []), "o_field_boolean"],
 };
 
-registry.category("fields").add("upgrade_boolean", upgradeBooleanField);
+registerField("upgrade_boolean", upgradeBooleanField);

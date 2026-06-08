@@ -7,7 +7,8 @@ import { Component } from "@odoo/owl";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { formatSelection } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useCommand } from "@web/services/commands/command_hook";
@@ -121,4 +122,4 @@ export const stateSelectionField = {
     },
 };
 
-registry.category("fields").add("state_selection", stateSelectionField);
+registerField("state_selection", stateSelectionField);

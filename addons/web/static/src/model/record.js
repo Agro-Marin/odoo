@@ -40,7 +40,7 @@ class StandaloneRelationalModel extends RelationalModel {
             const config = this._getNextConfig(this.config, params);
             this.root = this._createRoot(config, data);
             this.config = config;
-            this.hooks.onRootLoaded(this.root);
+            this.hooks.lifecycle.onRootLoaded(this.root);
             return Promise.resolve();
         }
         return super.load(params);
@@ -75,7 +75,11 @@ class _Record extends Component {
         );
         modelServices.orm = this.orm;
         this.model = useState(
-            new StandaloneRelationalModel(this.env, modelParams, modelServices),
+            new StandaloneRelationalModel(
+                /** @type {import("@web/env").OdooEnv} */ (this.env),
+                modelParams,
+                modelServices,
+            ),
         );
 
         /**

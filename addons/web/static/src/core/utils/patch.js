@@ -144,3 +144,32 @@ export function patch(objToPatch, extension) {
         }
     };
 }
+
+/**
+ * Diagnostic read accessor for the patch graph.
+ *
+ * Reports how an object has been patched so operators triaging a bug like
+ * "form_controller saves twice" can answer "which addons override that
+ * method, and in which order" without instrumenting the running session.
+ *
+ * Returns ``null`` for unpatched targets. For patched targets:
+ * - ``extensions`` is the array of patch objects in original ``patch()``
+ *   call order (the underlying ``Set`` preserves insertion order). The
+ *   array is a fresh copy — mutating it never affects the patch graph.
+ * - ``patchedKeys`` is the union of property keys any extension has
+ *   touched, useful for "did *anyone* override ``save``?" queries.
+ *
+ * @param {object} target Same object handed to ``patch()`` (class
+ *   prototype, class constructor, or plain object).
+ * @returns {{ extensions: object[], patchedKeys: string[] } | null}
+ */
+export function patchInfo(target) {
+    const description = patchDescriptions.get(target);
+    if (!description) {
+        return null;
+    }
+    return {
+        extensions: [...description.extensions],
+        patchedKeys: [...description.originalProperties.keys()],
+    };
+}

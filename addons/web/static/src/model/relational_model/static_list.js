@@ -543,6 +543,19 @@ export class StaticList extends DataPoint {
         }
         await this._addRecord(newRecord);
         await resequence(this, newRecord.id, this.records[index].id);
+        // ``resequence`` writes the handle-field sequence value via
+        // ``record._update(...)``, which (per Invariant 1 in record.js)
+        // sets ``dirty=true`` and populates ``_changes[handleField]``.
+        // From the user's perspective the new row was just inserted —
+        // they have not yet typed anything in it, so the per-record
+        // dirty signal should read false.  We deliberately do NOT call
+        // ``_clearChanges()`` here: the handle-field entry must remain
+        // in ``_changes`` so it ships with the parent's CREATE command
+        // on save.  This is the canonical "internal-plumbing reset":
+        // ``dirty`` and ``_changes`` legitimately diverge because they
+        // mean different things in this flow (visual modified-state vs
+        // commit log).  Discard tears down both via ``_clearChanges()``
+        // in ``record._discard``, so no information is lost downstream.
         newRecord.dirty = false;
         return newRecord;
     }

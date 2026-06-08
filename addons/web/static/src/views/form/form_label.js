@@ -45,7 +45,7 @@ export class FormLabel extends Component {
 
     /** @returns {boolean} whether the label should display a tooltip */
     get hasTooltip() {
-        return Boolean(odoo.debug) || this.tooltipHelp;
+        return Boolean(odoo.debug || this.tooltipHelp);
     }
 
     /** @returns {string} help text for the tooltip, including company-dependent notice */

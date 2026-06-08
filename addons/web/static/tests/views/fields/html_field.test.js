@@ -1,8 +1,10 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
+import { after, beforeEach, expect, test } from "@odoo/hoot";
 import { click, edit, pointerDown, queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
+import { registry } from "@web/core/registry";
+import { htmlField as webHtmlFallback } from "@web/fields/basic/html/html_field";
 import {
     clickSave,
     contains,
@@ -13,6 +15,23 @@ import {
     onRpc,
     serverState,
 } from "@web/../tests/web_test_helpers";
+
+// These tests verify the textarea fallback shipped by ``web`` for ``html``
+// columns. When ``html_editor`` is installed (the default in the unit-test
+// bundle) it overrides the registry entry with its Wysiwyg-backed component,
+// hiding the fallback. Pin web's component for the duration of the file and
+// restore the previous value per test so other suites that rely on the
+// rich editor remain unaffected.
+beforeEach(() => {
+    const fieldsRegistry = registry.category("fields");
+    const previous = fieldsRegistry.contains("html") ? fieldsRegistry.get("html") : null;
+    fieldsRegistry.add("html", webHtmlFallback);
+    after(() => {
+        if (previous) {
+            fieldsRegistry.add("html", previous);
+        }
+    });
+});
 
 const RED_TEXT = /* html */ `<div class="kek" style="color:red">some text</div>`;
 const GREEN_TEXT = /* html */ `<div class="kek" style="color:green">hello</div>`;

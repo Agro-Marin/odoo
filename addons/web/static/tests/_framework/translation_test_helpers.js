@@ -24,7 +24,13 @@ export function installLanguages(languages) {
 export function allowTranslations() {
     translatedTerms[translationLoaded] = true;
     after(() => {
-        translatedTerms[translationLoaded] = false;
+        // Keep the flag truthy after teardown — the bundle-level
+        // ``setupTestEnvironment`` sets it once at module load and the
+        // rest of the suite (any plugin building a template with a
+        // lazy ``_t(…)`` substitution) expects it to stay truthy.
+        // Resetting to ``false`` here would re-introduce the failure
+        // mode that the fix in ``env_test_helpers.js`` addresses.
+        translatedTerms[translationLoaded] = true;
     });
 }
 

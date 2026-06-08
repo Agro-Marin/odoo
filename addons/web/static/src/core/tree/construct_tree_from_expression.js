@@ -3,7 +3,10 @@
 
 /** @module @web/core/tree/construct_tree_from_expression - Parses a Python expression string into a condition tree structure */
 
-/** @import { AST } from "@web/core/py_js/py_parser" */
+/** Local AST alias widened to `any` because the canonical AST is a
+ * discriminated union narrowed via `.type` checks at runtime; TS can't
+ * track the narrowing through helper boundaries.
+ * @typedef {any} AST */
 /** @import { Tree, Condition, ComplexCondition, Options } from "@web/core/tree/condition_tree" */
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";
@@ -176,7 +179,7 @@ function _getConditionFromIntersection(ast, options, negate = false) {
  * @param {AST} ast
  * @param {Options} options
  * @param {boolean} [negate=false]
- * @returns {Condition|ComplexCondition}
+ * @returns {Tree}
  */
 function _leafFromAST(ast, options, negate = false) {
     if (isNot(ast)) {

@@ -17,7 +17,12 @@ import { ListRenderer } from "./list_renderer.js";
  * controller, renderer, arch parser, and relational model that make up the
  * standard list view.
  *
- * @type {import("@web/views/view").ViewDescriptor}
+ * Type annotation intentionally omitted: ``ViewRegistryEntry`` in the
+ * ambient declaration types ``Controller``/``Renderer`` as
+ * ``ComponentConstructor`` which OWL component class types don't currently
+ * satisfy (documented OWL adapter case — see ``JSDOC_TYPE_TIGHTENING.md``).
+ * Sibling view files (kanban/form/graph/calendar/pivot) follow the same
+ * untyped-export convention.
  */
 export const listView = {
     type: "list",
@@ -38,7 +43,9 @@ export const listView = {
      * into the props passed to {@link ListController}.
      *
      * @param {Record<string, any>} genericProps - standard view props (arch, resModel, fields, etc.)
-     * @param {typeof listView} view - the view descriptor
+     * @param {Record<string, any>} view - the view descriptor (typed loosely to avoid the
+     *     circular ``typeof listView`` self-reference; the only fields read here are
+     *     ``ArchParser``, ``Model``, ``Renderer``, ``buttonTemplate``).
      * @returns {Record<string, any>} props for ListController
      */
     props: (genericProps, view) => {

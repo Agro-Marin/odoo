@@ -17,6 +17,7 @@ import { _t } from "@web/core/l10n/translation";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
 import { renderToMarkup } from "@web/core/utils/render";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
 import { Widget } from "@web/views/widgets/widget";
 
@@ -41,6 +42,7 @@ export class GraphRenderer extends Component {
     static props = ["class?", "model", "buttonTemplate"];
 
     setup() {
+        useRenderCounter("graph.GraphRenderer");
         this.model = this.props.model;
 
         this.rootRef = useRef("root");

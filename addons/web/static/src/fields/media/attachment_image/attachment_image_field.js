@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class AttachmentImageField extends Component {
@@ -19,4 +20,4 @@ export const attachmentImageField = {
     supportedTypes: ["many2one"],
 };
 
-registry.category("fields").add("attachment_image", attachmentImageField);
+registerField("attachment_image", attachmentImageField);
