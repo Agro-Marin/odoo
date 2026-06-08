@@ -18,6 +18,11 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 
+# BaseModel.__init__ takes (self, env, ids, prefetch_ids).  inspect.signature
+# returns the bound parameters minus self for unbound methods, so we expect
+# 4 here (self is included in attrs["__init__"] when read from the class dict).
+_BASE_MODEL_INIT_PARAM_COUNT = 4
+
 
 class MetaModel(type):
     """The metaclass of all model classes.
@@ -77,7 +82,12 @@ class MetaModel(type):
                     attrs["_name"],
                 )
 
-            assert attrs.get("_name")
+            # raise (not assert) — under python -O a missing _name would slip
+            # through and crash much later in registration with an opaque error.
+            if not attrs.get("_name"):
+                raise ValueError(
+                    f"Model class {name!r} must define a '_name' attribute"
+                )
 
         return super().__new__(meta, name, bases, attrs)
 
@@ -91,7 +101,8 @@ class MetaModel(type):
 
         if (
             "__init__" in attrs
-            and len(inspect.signature(attrs["__init__"]).parameters) != 4
+            and len(inspect.signature(attrs["__init__"]).parameters)
+            != _BASE_MODEL_INIT_PARAM_COUNT
         ):
             _logger.warning(
                 "The method %s.__init__ doesn't match the new signature in module %s",
@@ -106,6 +117,13 @@ class MetaModel(type):
         if cls._module:
             cls._module_to_models__[cls._module].append(cls)
 
+        # ``cls._inherit`` defaults to ``()`` on BaseModel, but a developer
+        # explicitly setting ``_inherit = None`` would crash here with an
+        # opaque ``TypeError: argument of type 'NoneType'`` at the membership
+        # test below.  Coerce to () so the legitimate "no inheritance" intent
+        # behaves the same as the default.
+        if cls._inherit is None:
+            cls._inherit = ()
         if not cls._abstract and cls._name not in cls._inherit:
             # this class defines a model: add magic fields
             def add(name: str, field: Field) -> None:

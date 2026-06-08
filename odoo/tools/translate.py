@@ -63,7 +63,7 @@ JAVASCRIPT_TRANSLATION_COMMENT = "odoo-javascript"
 SKIPPED_ELEMENTS = ("script", "style", "title")
 
 # these direct uses of CSV are ok.
-import csv  # pylint: disable=deprecated-module
+import csv  # noqa: E402  # pylint: disable=deprecated-module
 
 # which elements are translated inline
 TRANSLATED_ELEMENTS = {
@@ -644,7 +644,13 @@ def _get_uid(frame: object) -> int | None:
     if "uid" in frame.f_locals:
         return frame.f_locals["uid"]
     if "user" in frame.f_locals:
-        return int(frame.f_locals["user"])  # user may be a record
+        try:
+            return int(frame.f_locals["user"])  # user may be a record or a uid
+        except (TypeError, ValueError):
+            # `user` is a login string (or other non-uid local); fall through to
+            # the self.env.uid heuristic instead of raising and breaking the _()
+            # call of whatever frame happens to have a `user` local.
+            pass
     if (local_self := frame.f_locals.get("self")) is not None:
         if hasattr(local_self, "env") and (uid := local_self.env.uid):
             return uid
@@ -2074,7 +2080,7 @@ class TranslationImporter:
                         for lang in langs:
                             # translate and confirm model_terms translations
                             new_val = field.translate(
-                                lambda term: translation_dictionary.get(term, {}).get(
+                                lambda term, td=translation_dictionary, lang=lang: td.get(term, {}).get(
                                     lang
                                 ),
                                 _value_en,

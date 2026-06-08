@@ -73,7 +73,23 @@ class ResUsersSettings(models.Model):
     _PROTECTED_SETTINGS_FIELDS = frozenset({"user_id", "id", *models.MAGIC_COLUMNS})
 
     def set_res_users_settings(self, new_settings: dict[str, Any]) -> dict[str, Any]:
+        """Apply ``new_settings`` to this settings record and return the changes.
+
+        Skips protected fields (``_PROTECTED_SETTINGS_FIELDS``), unknown fields
+        and inverse-less computes, and only writes values that actually changed.
+
+        :param dict new_settings: field name -> new value to apply.
+        :return: the formatted subset of the fields that were changed (+ ``id``).
+        :rtype: dict[str, Any]
+        """
         self.ensure_one()
+        # Ownership is enforced by the `res_users_settings_rule_user` record rule
+        # ([('user_id','=',user.id)]), NOT by this method: the write below runs
+        # without sudo so a group_user cannot reach another user's record
+        # (RUSET-L1). Do NOT wrap this method in sudo() assuming it self-checks
+        # ownership -- doing so would bypass the rule. `user_id` is additionally
+        # in `_PROTECTED_SETTINGS_FIELDS` so a row cannot be re-pointed at
+        # another user.
         changed_settings = {}
         for setting, new_value in new_settings.items():
             if setting in self._PROTECTED_SETTINGS_FIELDS:

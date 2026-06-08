@@ -46,7 +46,10 @@ class IrBinary(models.AbstractModel):
         :param int | None res_id: id of the record
         :param str | None access_token: access token to use instead
             of the access rights and access rules.
-        :param str | None field: image field name to check the access to
+        :param str | None field: image field name to check the access to.
+            Mandatory whenever ``access_token`` is supplied: a binary token is
+            minted bound to a concrete field name, so a token verified against
+            ``field=None`` can never match and is silently ignored (IRB-L2).
         :returns: single record
         :raises MissingError: when no record was found.
         """
@@ -119,7 +122,7 @@ class IrBinary(models.AbstractModel):
         default_mimetype: str = "application/octet-stream",
     ) -> Stream:
         """
-        Create a :class:odoo.http.Stream: from a record's binary field.
+        Create a :class:`odoo.http.Stream` from a record's binary field.
 
         :param record: the record where to load the data from.
         :param str field_name: the binary field where to load the data
@@ -181,6 +184,11 @@ class IrBinary(models.AbstractModel):
             stream.download_name = stream.download_name.replace("\n", "_").replace(
                 "\r", "_"
             )
+            # Two libraries on purpose (IRB-M2): odoo's `get_extension` parses
+            # the existing name (it understands odoo's multi-part / magic-byte
+            # extensions) to decide whether one is already present, while the
+            # stdlib `guess_extension` maps the mimetype to an extension to
+            # append. Do not "dedup" these — they answer different questions.
             if (
                 not get_extension(stream.download_name)
                 and stream.mimetype != "application/octet-stream"
@@ -204,8 +212,8 @@ class IrBinary(models.AbstractModel):
         quality: int = 0,
     ) -> Stream:
         """
-        Create a :class:odoo.http.Stream: from a record's binary field,
-        equivalent of :meth:`~get_stream_from` but for images.
+        Create a :class:`odoo.http.Stream` from a record's binary field,
+        equivalent of :meth:`~_get_stream_from` but for images.
 
         In case the record does not exist or is not accessible, the
         alternative ``placeholder`` path is used instead. If not set,
@@ -243,7 +251,7 @@ class IrBinary(models.AbstractModel):
             it.
         :param int quality: if not zero, the quality of the resized
             image.
-
+        :rtype: Stream
         """
         stream = None
         try:
@@ -255,7 +263,12 @@ class IrBinary(models.AbstractModel):
                 mimetype,
                 default_mimetype,
             )
-        except UserError:
+        except UserError, MissingError:
+            # MissingError covers a dangling attachment-backed binary field
+            # (_record_to_stream raises "The related attachment does not exist."
+            # on attachment GC races / manual deletes). Degrade to the
+            # placeholder like the empty-stream case rather than escaping to a
+            # 500 (IRB-C1); still re-raise when an explicit download is asked.
             if request and request.params.get("download"):
                 raise
 
@@ -274,13 +287,23 @@ class IrBinary(models.AbstractModel):
 
         if isinstance(stream.etag, str):
             stream.etag += f"-{width}x{height}-crop={crop}-quality={quality}"
-        if isinstance(stream.last_modified, (int, float)):
-            stream.last_modified = datetime.fromtimestamp(stream.last_modified, tz=UTC)
-        modified = werkzeug.http.is_resource_modified(
-            request.httprequest.environ,
-            etag=stream.etag if isinstance(stream.etag, str) else None,
-            last_modified=stream.last_modified,
-        )
+
+        # HTTP cache negotiation only applies when there is a live request.
+        # `request` is falsy on non-HTTP paths (e.g. ir_actions_report resolving
+        # /web/image URLs server-side to avoid HTTP self-requests, which runs in
+        # cron/worker context). With no request, always (re)process the image so
+        # those callers do not hit an AttributeError on request.httprequest.
+        modified = True
+        if request:
+            if isinstance(stream.last_modified, (int, float)):
+                stream.last_modified = datetime.fromtimestamp(
+                    stream.last_modified, tz=UTC
+                )
+            modified = werkzeug.http.is_resource_modified(
+                request.httprequest.environ,
+                etag=stream.etag if isinstance(stream.etag, str) else None,
+                last_modified=stream.last_modified,
+            )
 
         if modified and (width or height or crop):
             if stream.type == "path":
@@ -299,11 +322,21 @@ class IrBinary(models.AbstractModel):
         return stream
 
     def _get_placeholder_stream(self, path: str | None = None) -> Stream:
+        """Return a placeholder image as a stream, defaulting to the web placeholder.
+
+        :param str | None path: image path; ``web/static/img/placeholder.png`` when falsy.
+        :rtype: Stream
+        """
         if not path:
             path = DEFAULT_PLACEHOLDER_PATH
         return Stream.from_path(path, filter_ext=(".png", ".jpg"))
 
     def _placeholder(self, path: str | bool = False) -> bytes:
+        """Return the raw bytes of a placeholder image, defaulting to the web placeholder.
+
+        :param str | bool path: image path; ``web/static/img/placeholder.png`` when falsy.
+        :rtype: bytes
+        """
         if not path:
             path = DEFAULT_PLACEHOLDER_PATH
         with file_open(path, "rb", filter_ext=(".png", ".jpg")) as file:

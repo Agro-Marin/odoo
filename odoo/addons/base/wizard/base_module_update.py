@@ -17,6 +17,8 @@ class BaseModuleUpdate(models.TransientModel):
     )
 
     def update_module(self) -> bool:
+        # self is always a single transient record (opened via target:new);
+        # update_list() (a full addons-path rescan) therefore runs once.
         for this in self:
             updated, added = self.env["ir.module.module"].update_list()
             this.write({"updated": updated, "added": added, "state": "done"})
@@ -25,7 +27,7 @@ class BaseModuleUpdate(models.TransientModel):
     def action_module_open(self) -> dict[str, Any]:
         return {
             "domain": [],
-            "name": "Modules",
+            "name": self.env._("Modules"),
             "view_mode": "list,form",
             "res_model": "ir.module.module",
             "view_id": False,

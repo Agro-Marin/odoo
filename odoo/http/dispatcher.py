@@ -1,13 +1,9 @@
+import collections.abc
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    import collections.abc
-    from collections.abc import Callable
-
-    from .request_class import Request
+from typing import Any
 
 import werkzeug.exceptions
 from werkzeug.exceptions import (
@@ -39,6 +35,16 @@ class Dispatcher(ABC):
     @classmethod
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
+        existing = _dispatchers.get(cls.routing_type)
+        if existing is not None and existing is not cls:
+            # Silently overriding here masked typo'd ``routing_type``
+            # collisions during fork refactors; warn so reviewers see it.
+            _logger.warning(
+                "Dispatcher routing_type=%r already registered as %s; %s overrides it.",
+                cls.routing_type,
+                existing.__name__,
+                cls.__name__,
+            )
         _dispatchers[cls.routing_type] = cls
 
     def __init__(self, request: Request) -> None:
@@ -81,6 +87,10 @@ class Dispatcher(ABC):
                 "Access-Control-Allow-Headers",
                 "Origin, X-Requested-With, Content-Type, Accept, Authorization",
             )
+            # ``abort`` raises an HTTPException carrying our 204 Response;
+            # _serve.py catches it (HTTPException w/ ``code is None`` branch),
+            # runs ``post_dispatch`` so CORS+CSP+session headers land on the
+            # 204, and returns it to the WSGI server. No endpoint runs.
             werkzeug.exceptions.abort(Response(status=204))
 
         if "max_content_length" in routing:
@@ -158,10 +168,13 @@ class HttpDispatcher(Dispatcher):
                     )
                 else:
                     _logger.warning(MISSING_CSRF_WARNING, self.request.httprequest.path)
+                # Phrasing matters: an expired session is the dominant
+                # cause of CSRF rejection in practice (tab left open past
+                # session lifetime).  ``website.form`` controller emits
+                # the same wording on its own raise — kept identical so
+                # log scrapers and user-facing screens stay consistent.
                 msg = "Session expired (invalid CSRF token)"
-                raise werkzeug.exceptions.BadRequest(
-                    msg
-                )
+                raise werkzeug.exceptions.BadRequest(msg)
 
         if self.request.db:
             return self.request.registry["ir.http"]._dispatch(endpoint)
@@ -190,6 +203,7 @@ class HttpDispatcher(Dispatcher):
             )
             if was_connected:
                 root.session_store.rotate(session, self.request.env)
+                # secure / samesite come from ``_apply_cookie_defaults``.
                 response.set_cookie(
                     "session_id",
                     session.sid,
@@ -202,10 +216,12 @@ class HttpDispatcher(Dispatcher):
             return exc
 
         if isinstance(exc, UserError):
-            try:
-                return werkzeug_default_exceptions[exc.http_status](exc.args[0])
-            except KeyError, AttributeError:
-                return UnprocessableEntity(exc.args[0])
+            description = exc.args[0] if exc.args else str(exc) or None
+            status = getattr(exc, "http_status", None)
+            exc_cls = werkzeug_default_exceptions.get(status)
+            if exc_cls is not None:
+                return exc_cls(description)
+            return UnprocessableEntity(description)
 
         return InternalServerError()
 
@@ -303,6 +319,16 @@ class JsonRPCDispatcher(Dispatcher):
             response["error"] = error
         else:
             response["result"] = result
+            # Plan-C envelope versioning: methods decorated with
+            # ``@versioned_envelope`` (``odoo.tools.cache_version``) stash a
+            # content hash on ``request._response_version``.  Lift it to a
+            # sibling of ``result`` so the JS rpc layer can transfer it back
+            # onto the result object — sidesteps the "lists can't carry a
+            # __version key in-payload" limitation of the dict-only
+            # ``@versioned`` decorator.
+            version = getattr(self.request, "_response_version", None)
+            if version is not None:
+                response["version"] = version
 
         return self.request.make_json_response(response)
 
@@ -330,10 +356,27 @@ class Json2Dispatcher(Dispatcher):
             except ValueError as exc:
                 e = f"could not parse the body as json: {exc.args[0]}"
                 raise werkzeug.exceptions.BadRequest(e) from exc
-        try:
+            if self.jsonrequest is not None and not isinstance(self.jsonrequest, dict):
+                # Top-level JSON arrays/scalars cannot be merged with the
+                # path-argument dict, and there is no sensible default
+                # mapping. Previously the TypeError was swallowed and the
+                # body was silently discarded — clients got "missing
+                # argument" errors instead of a clear 400.
+                #
+                # ``null`` is intentionally exempt: it is the JSON spelling
+                # of "no body content", semantically equivalent to an
+                # empty request, and is handled by the ``self.jsonrequest is None``
+                # branch below (path args alone, endpoint surfaces its own
+                # ``missing argument`` error if applicable).
+                e = (
+                    "JSON request body must be an object (got "
+                    f"{type(self.jsonrequest).__name__!r})."
+                )
+                raise werkzeug.exceptions.BadRequest(e)
+        if self.jsonrequest is None:
+            self.request.params = dict(args)
+        else:
             self.request.params = self.jsonrequest | args
-        except TypeError:
-            self.request.params = dict(args)  # make a copy
 
         if self.request.db:
             result = self.request.registry["ir.http"]._dispatch(endpoint)
@@ -365,3 +408,14 @@ class Json2Dispatcher(Dispatcher):
             body = serialize_exception(exc)
 
         return self.request.make_json_response(body, headers=headers, status=status)
+
+
+# Late import to break the Dispatcher <-> Request cycle.  ``Request`` is used
+# only in annotations and method bodies of the classes above, so it does not
+# need to be resolvable at class-definition time.  By the time this import
+# runs, the ABC and its subclasses are already in this module's namespace,
+# so request_class.py's top-of-file import of ``HttpDispatcher`` /
+# ``JsonRPCDispatcher`` (which it does from its own bottom-of-file import)
+# resolves against our partially-initialised module successfully.
+# See odoo.addons.test_lint.tests.test_pep649.KNOWN_FAILURES for context.
+from .request_class import Request  # noqa: E402  — see note above

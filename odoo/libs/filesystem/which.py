@@ -56,7 +56,7 @@ __all__ = [
 import pathlib
 import sys
 from os import F_OK, R_OK, W_OK, X_OK, access, defpath, environ, pathsep
-from os.path import dirname, exists, join, split
+from os.path import dirname, split
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

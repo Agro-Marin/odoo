@@ -26,10 +26,19 @@ class AvatarMixin(models.AbstractModel):
     def _compute_avatar(
         self, avatar_field: _FieldName, image_field: _FieldName
     ) -> None:
+        """Set ``avatar_field`` from the resized image, or fall back to a
+        generated SVG (initial + color) or the grey placeholder.
+
+        :param str avatar_field: name of the avatar field to populate
+        :param str image_field: name of the same-resolution image field to read
+        """
         for record in self:
             avatar = record[image_field]
             if not avatar:
-                if record.id and record[record._avatar_name_field]:
+                # ``strip()`` so a whitespace-only name (truthy but yielding a
+                # blank/odd initial) falls through to the placeholder instead.
+                name = record[record._avatar_name_field]
+                if record.id and name and name.strip():
                     avatar = record._avatar_generate_svg()
                 else:
                     avatar = b64encode(record._avatar_get_placeholder())
@@ -56,10 +65,22 @@ class AvatarMixin(models.AbstractModel):
         self._compute_avatar("avatar_128", "image_128")
 
     def _avatar_generate_svg(self) -> bytes:
-        initial = html_escape(self[self._avatar_name_field][0].upper())
+        """Build a base64-encoded SVG avatar from the record's first name
+        initial over an HSL background seeded from the name and create date.
+
+        :rtype: bytes
+        """
+        self.ensure_one()
+        # ``strip()`` so a leading-whitespace name uses its first letter as the
+        # initial rather than a blank glyph.
+        initial = html_escape(self[self._avatar_name_field].strip()[0].upper())
         bgcolor = hsl_from_seed(
             self[self._avatar_name_field]
-            + str(self.create_date.replace(tzinfo=UTC).timestamp() if self.create_date else "")
+            + str(
+                self.create_date.replace(tzinfo=UTC).timestamp()
+                if self.create_date
+                else ""
+            )
         )
         return b64encode(
             (
@@ -75,6 +96,10 @@ class AvatarMixin(models.AbstractModel):
         return "base/static/img/avatar_grey.png"
 
     def _avatar_get_placeholder(self) -> bytes:
+        """Return the raw bytes of the grey placeholder avatar image.
+
+        :rtype: bytes
+        """
         with file_open(self._avatar_get_placeholder_path(), "rb") as f:
             return f.read()
 

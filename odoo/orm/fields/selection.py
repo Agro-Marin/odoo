@@ -149,12 +149,17 @@ class Selection(Field[str | typing.Literal[False]]):
                         self,
                     )
                 selection_add = field._args__["selection_add"]
-                assert isinstance(selection_add, list), (
-                    f"{self}: selection_add={selection_add!r} must be a list"
-                )
-                assert values is not None, (
-                    f"{self}: selection_add={selection_add!r} on non-list selection {self.selection!r}"
-                )
+                # raise (not assert) so misconfiguration of selection_add
+                # surfaces under python -O instead of producing a broken
+                # Selection field at registry build time.
+                if not isinstance(selection_add, list):
+                    raise TypeError(
+                        f"{self}: selection_add={selection_add!r} must be a list"
+                    )
+                if values is None:
+                    raise TypeError(
+                        f"{self}: selection_add={selection_add!r} on non-list selection {self.selection!r}"
+                    )
 
                 values_add = {
                     kv[0]: (kv[1] if len(kv) > 1 else None) for kv in selection_add

@@ -2,7 +2,7 @@ import sys
 
 from odoo.tools import cloc, config
 
-from . import Command
+from . import Command, get_single_database
 
 
 class Cloc(Command):
@@ -34,17 +34,17 @@ class Cloc(Command):
         self.parser.add_argument("--verbose", "-v", action="count", default=0)
         opt, unknown = self.parser.parse_known_args(args + ["--no-http"])
         if not opt.database and not opt.path:
-            self.parser.print_help()
-            sys.exit()
+            self.parser.print_help(sys.stderr)
+            sys.exit(2)
 
         c = cloc.Cloc()
         if opt.database:
-            if "," in opt.database:
-                sys.exit(
-                    "-d/--database has multiple databases, please provide a single one"
-                )
-            config.parse_config(["-d", opt.database] + unknown)
-            c.count_database(config["db_name"][0])
+            config.parse_config(["-d", opt.database] + unknown, setup_logging=True)
+            db_name = get_single_database(
+                config["db_name"],
+                error_handler=self.parser.error,
+            )
+            c.count_database(db_name)
         if opt.path:
             for i in opt.path:
                 c.count_path(i)

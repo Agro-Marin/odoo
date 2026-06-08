@@ -1,0 +1,102 @@
+name: Service Types Freshness
+
+# Companion to typecheck.yml + lint.yml + doc_links.yml.
+#
+# Catches the drift class observed on 2026-05-10 when the
+# hand-maintained ``@types/services.d.ts`` was found to have three
+# stale import paths (``httpService``, ``uiService``,
+# ``datetimePickerService``).  The generator
+# ``tooling/scripts/generate_service_types.py`` is the source of truth;
+# this gate ensures the committed ``services.d.ts`` matches the
+# generator output.
+#
+# Unlike the typecheck/doc-link gates, this gate is **drift-zero by
+# design** — there is no "tolerated baseline".  A failure means a
+# service was added, moved, or renamed without running the regenerate
+# script.  Two minutes of friction here saves a real bug
+# (``useService("orm")`` silently resolving to ``any``) downstream.
+#
+# Phase 1 warn-only (``continue-on-error: true``) per the team
+# convention.  Flip to blocking once the generator has shipped one
+# release cycle without surprise regressions.
+
+on:
+  pull_request:
+    branches: ['*']
+    paths:
+      # Triggers when a service registration *might* have changed.
+      # Conservative — false positives are cheap (the gate is fast).
+      - 'addons/core/addons/web/static/src/**/*.js'
+      - 'addons/core/addons/web/static/src/@types/services.d.ts'
+      - 'addons/core/addons/web/tooling/scripts/generate_service_types.py'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  service_types:
+    name: services_freshness_gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    continue-on-error: true  # Phase 1 warn-only — flip to false later
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # 3.10+ is enough; the script uses only stdlib (re, pathlib,
+          # dataclasses, argparse).  3.12 chosen to match the doc-link
+          # gate so caches share the same Python image.
+          python-version: '3.12'
+
+      - name: Run --check
+        id: gate
+        run: |
+          set +e
+          python addons/core/addons/web/tooling/scripts/generate_service_types.py --check 2>&1 \
+            | tee /tmp/service-types-output.log
+          GATE_EXIT=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=${GATE_EXIT}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarise
+        if: always()
+        run: |
+          GATE_EXIT="${{ steps.gate.outputs.exit_code }}"
+          {
+            echo "## Service types freshness"
+            echo ""
+            if [ "$GATE_EXIT" = "0" ]; then
+              echo "> :white_check_mark: \`@types/services.d.ts\` matches the generator output."
+            else
+              echo "> :warning: \`@types/services.d.ts\` is **out of sync** with the registry."
+              echo ""
+              echo "Run locally:"
+              echo ""
+              echo "    ./addons/core/addons/web/tooling/scripts/regen_service_types.sh"
+              echo ""
+              echo "Then commit the regenerated file alongside your service change."
+            fi
+            echo ""
+            echo "Generator: \`addons/core/addons/web/tooling/scripts/generate_service_types.py\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Annotate PR (warn-only)
+        if: always() && steps.gate.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.notice(
+              `Service types: @types/services.d.ts drifted from the generator output. ` +
+              `Warn-only mode — does not block merge. See workflow Summary tab.`
+            );
+            core.warning(
+              `Run \`./addons/core/addons/web/tooling/scripts/regen_service_types.sh\` ` +
+              `and commit the diff alongside your service change.`
+            );

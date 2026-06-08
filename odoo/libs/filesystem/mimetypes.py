@@ -241,7 +241,7 @@ def _odoo_guess_mimetype(
     return default
 
 
-import magic
+import magic  # noqa: E402  # imported after fallback definitions; see use in guess_mimetype
 
 
 def guess_mimetype(bin_data: bytes | bytearray, default: str | None = None) -> str:

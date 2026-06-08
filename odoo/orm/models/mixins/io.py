@@ -24,6 +24,7 @@ import logging
 import typing
 import uuid
 from collections import defaultdict
+from typing import Self
 
 import psycopg
 
@@ -39,8 +40,6 @@ from ...parsing import fix_import_export_id_paths
 
 _logger = logging.getLogger("odoo.models")
 
-
-from typing import Self
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator
@@ -227,7 +226,13 @@ class IOMixin:
                     if "." in fname:  # Properties field
                         fname, prop_name = fname.split(".")
                         field = records._fields[fname]
-                        assert field.type == "properties" and prop_name
+                        # raise (not assert) — under python -O a non-property
+                        # field with a dot in its expression would silently
+                        # export blank data instead of erroring out.
+                        if not (field.type == "properties" and prop_name):
+                            raise ValueError(
+                                f"export expected a properties subfield, got {field!r}.{prop_name!r}"
+                            )
 
                         property_type, property_cache = cache_properties[field].get(
                             prop_name, ("char", None)
@@ -362,10 +367,13 @@ class IOMixin:
                 for record, xid in self.env[model].browse(ids).__ensure_xml_id():
                     for i, j in xidmap.pop((record._name, record.id)):
                         lines[i][j] = xid
-            assert not xidmap, (
-                f"failed to export xids for "
-                f"{', '.join(f'{k}:{v}' for k, v in xidmap.items())}"
-            )
+            # raise (not assert) — under python -O leftover xids would silently
+            # ship raw (model, id) tuples in exported cells.
+            if xidmap:
+                raise RuntimeError(
+                    "failed to export xids for "
+                    + ", ".join(f"{k}:{v}" for k, v in xidmap.items())
+                )
 
         if _is_toplevel_call:
             self.env.cr.cache.pop("export_properties_cache", None)
@@ -446,9 +454,12 @@ class IOMixin:
             if not batch:
                 return
 
-            assert not (xml_id and model), (
-                "flush can specify *either* an external id or a model, not both"
-            )
+            # raise (not assert) — mutual-exclusivity of xml_id/model is a
+            # caller contract, must hold under python -O.
+            if xml_id and model:
+                raise ValueError(
+                    "flush can specify *either* an external id or a model, not both"
+                )
 
             if xml_id and xml_id not in batch_xml_ids:
                 if xml_id not in self.env:

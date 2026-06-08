@@ -14,6 +14,7 @@ import typing
 from collections import defaultdict
 from itertools import batched
 from operator import attrgetter
+from typing import Self
 
 from odoo.exceptions import AccessError, UserError
 from odoo.libs.json import dumps as json_dumps
@@ -24,7 +25,16 @@ from odoo.tools.nplusone import _n1_enabled
 from odoo.tools.orm_profiler import _orm_profiling_enabled
 from odoo.tools.translate import _
 
+from ... import decorators as api
 from ..._typing import ValuesType  # noqa: TC003 — runtime import required (PEP 649)
+from ...primitives import (
+    INSERT_BATCH_SIZE,
+    LOG_ACCESS_COLUMNS,
+    SQL_DEFAULT,
+    SUPERUSER_ID,
+    UPDATE_BATCH_SIZE,
+    Command,
+)
 
 # Minimum batch size to use COPY protocol instead of INSERT.
 # COPY avoids SQL parsing/planning overhead and is faster for large batches,
@@ -69,18 +79,6 @@ _CREATE_BAD_NAMES_LOG = frozenset(
     }
 )
 _CREATE_BAD_NAMES = frozenset({"id", "parent_path"})
-
-from typing import Self
-
-from ... import decorators as api
-from ...primitives import (
-    INSERT_BATCH_SIZE,
-    LOG_ACCESS_COLUMNS,
-    SQL_DEFAULT,
-    SUPERUSER_ID,
-    UPDATE_BATCH_SIZE,
-    Command,
-)
 
 if typing.TYPE_CHECKING:
     from ...fields.base import Field
@@ -361,7 +359,13 @@ class CrudMixin:
         :raise UserError: if a loop would be created in a hierarchy of objects a result of the operation
           (such as setting an object as its own parent)
         """
-        assert isinstance(vals_list, (list, tuple))
+        # raise (not assert) so the contract holds under python -O.  A
+        # non-list/tuple here would otherwise crash much later inside the
+        # field classification loop with an opaque error.
+        if not isinstance(vals_list, (list, tuple)):
+            raise TypeError(
+                f"create() expects a list of dicts, got {type(vals_list).__name__}"
+            )
         if not vals_list:
             return self.browse()
 
@@ -450,7 +454,7 @@ class CrudMixin:
                 parents = self.env[model_name].create(
                     [data["inherited"][model_name] for data in parent_data_list]
                 )
-                for parent, data in zip(parents, parent_data_list, strict=False):
+                for parent, data in zip(parents, parent_data_list, strict=True):
                     data["stored"][parent_name] = parent.id
 
         if _debug:
@@ -623,7 +627,7 @@ class CrudMixin:
         # create new records for the vals that must be completed
         records = self.browse().concat(*(self.new(vals) for vals in vals_list_todo))
 
-        for record, vals in zip(records, vals_list_todo, strict=False):
+        for record, vals in zip(records, vals_list_todo, strict=True):
             vals["__precomputed__"] = precomputed = set()
             for fname, field in precomputable.items():
                 if fname not in vals:
@@ -636,7 +640,11 @@ class CrudMixin:
     @api.model
     def _create(self, data_list: list[ValuesType]) -> Self:
         """Create records from the stored field values in ``data_list``."""
-        assert data_list
+        # raise (not assert) so the contract holds under python -O.  An
+        # empty data_list would otherwise produce no INSERT, no records,
+        # and confuse callers expecting at least one created record.
+        if not data_list:
+            raise ValueError("_create() called with empty data_list")
         cr = self.env.cr
         _debug = _orm_crud.isEnabledFor(logging.DEBUG)
         if _debug:
@@ -675,7 +683,7 @@ class CrudMixin:
                 for stored in stored_list:
                     new_id = storage.next_id(self._table)
                     row_dict: dict[str, typing.Any] = {"id": new_id}
-                    for fname, field in zip(columns, col_fields, strict=False):
+                    for fname, field in zip(columns, col_fields, strict=True):
                         if fname in stored:
                             row_dict[fname] = field.convert_to_column_insert(
                                 stored[fname], self, stored
@@ -705,7 +713,7 @@ class CrudMixin:
                             if fname in stored
                             else None
                         )
-                        for fname, field in zip(columns, col_fields, strict=False)
+                        for fname, field in zip(columns, col_fields, strict=True)
                     )
                     copy_rows.append(row)
                 batch_ids = cr.copy_from(
@@ -732,20 +740,25 @@ class CrudMixin:
                 # fields whose database default is NULL.  This produces uniform
                 # rows without DEFAULT keywords, enabling standard parameter
                 # binding for the entire VALUES clause.
-                if not columns:
-                    columns = ["id"]
                 rows: list[list[typing.Any]] = [[] for _ in stored_list]
-                for fname, field in zip(columns, col_fields, strict=False):
-                    for stored, row in zip(stored_list, rows, strict=False):
-                        if fname in stored:
-                            row.append(
-                                field.convert_to_column_insert(
-                                    stored[fname], self, stored
+                if col_fields:
+                    # Populated path: columns and col_fields are appended in
+                    # lockstep above, so strict=True enforces that invariant.
+                    for fname, field in zip(columns, col_fields, strict=True):
+                        for stored, row in zip(stored_list, rows, strict=True):
+                            if fname in stored:
+                                row.append(
+                                    field.convert_to_column_insert(
+                                        stored[fname], self, stored
+                                    )
                                 )
-                            )
-                        else:
-                            row.append(None)
-                if not col_fields:
+                            else:
+                                row.append(None)
+                else:
+                    # Empty-record edge case (e.g. create({})): synthesize an
+                    # ``id`` column bound to DEFAULT so PostgreSQL pulls the
+                    # next sequence value.
+                    columns = ["id"]
                     for row in rows:
                         row.append(SQL_DEFAULT)
 
@@ -798,7 +811,7 @@ class CrudMixin:
                     field.create(
                         [
                             (other, data["stored"][field.name])
-                            for other, data in zip(others, data_list, strict=False)
+                            for other, data in zip(others, data_list, strict=True)
                             if field.name in data["stored"]
                         ]
                     )
@@ -872,7 +885,7 @@ class CrudMixin:
         _x2m_html_types = frozenset(("one2many", "many2many", "html"))
         _m2o_types = frozenset(("many2one", "many2one_reference"))
         for data, record in zip(
-            data_list, records.with_context(bin_size=False), strict=False
+            data_list, records.with_context(bin_size=False), strict=True
         ):
             data["record"] = record
             # DLE P104: test_inherit.py, test_50_search_one2many
@@ -1169,7 +1182,7 @@ class CrudMixin:
                                 document_kind=description,
                                 document_model=self._name,
                             )
-                        )
+                        ) from e
                     raise
 
             # Pass 2: validate constraints touching inversed fields.
@@ -1216,7 +1229,14 @@ class CrudMixin:
 
     def _write_multi(self, vals_list: list[ValuesType]) -> None:
         """Low-level implementation of write()"""
-        assert len(self) == len(vals_list)
+        # raise (not assert) so contract holds under python -O — a length
+        # mismatch would silently zip-truncate the rows and persist wrong
+        # values on the trailing records.
+        if len(self) != len(vals_list):
+            raise ValueError(
+                f"_write_multi: len(records)={len(self)} != "
+                f"len(vals_list)={len(vals_list)}"
+            )
 
         if not self:
             return
@@ -1256,7 +1276,7 @@ class CrudMixin:
                     }
                     vals_list = [(log_vals | vals) for vals in vals_list]
                 updates = defaultdict(list)
-                for id_, vals in zip(self._ids, vals_list, strict=False):
+                for id_, vals in zip(self._ids, vals_list, strict=True):
                     fnames, row = zip(*sorted(vals.items()), strict=False)
                     updates[fnames].append((id_,) + row)
                 for fnames, rows in updates.items():
@@ -1293,7 +1313,7 @@ class CrudMixin:
             for row in rows:
                 # row is a plain tuple: (id, val1, val2, ...)
                 record_id = row[0]
-                values = dict(zip(fnames, row[1:], strict=False))
+                values = dict(zip(fnames, row[1:], strict=True))
                 if record_id in tbl:
                     tbl[record_id].update(values)
                 else:
@@ -1304,7 +1324,14 @@ class CrudMixin:
         assignments = []
         for fname in fnames:
             field = self._fields[fname]
-            assert field.is_column
+            # raise (not assert) so contract holds under python -O — building
+            # SQL UPDATE for a non-column field would otherwise produce a
+            # malformed query that fails at execution time with an opaque
+            # error reference to ``column_type``.
+            if not field.is_column:
+                raise RuntimeError(
+                    f"_execute_update: {field} is not a stored column field"
+                )
             column = SQL.identifier(fname)
             # the type cast is necessary for some values, like NULLs
             expr = SQL('"__tmp".%s::%s', column, SQL(field.column_type[1]))
@@ -1431,10 +1458,10 @@ class CrudMixin:
             _t_sql = time.perf_counter()
 
         # Invalidate the *whole* cache, since the ORM does not handle all
-        # changes made in the database, like cascading delete!
-        # Targeted invalidation (_invalidate_unlink_caches) misses non-stored
-        # computed/related fields that depend on FK fields through multi-hop
-        # chains (e.g. personal_stage_type_id → personal_stage_id → stage_id).
+        # changes made in the database, like cascading delete, and targeted
+        # invalidation misses non-stored computed/related fields that depend
+        # on FK fields through multi-hop chains
+        # (e.g. personal_stage_type_id → personal_stage_id → stage_id).
         self.env.invalidate_all(flush=False)
 
         if ir_model_data_unlink:
@@ -1568,6 +1595,18 @@ class CrudMixin:
                 )
 
         # on delete set null/restrict for jsonb company dependent many2one
+        # Defensive: the JSONPath below interpolates each id via f-string
+        # because PostgreSQL's jsonpath syntax does not accept psycopg
+        # parameter binding inside the path expression.  Currently safe
+        # because ``self.ids`` filters NewIds and only returns int.  Reject
+        # anything else loudly so a future caller cannot smuggle a SQL
+        # fragment through ``sub_ids``.
+        if many2one_fields and not all(
+            isinstance(id_, int) and id_ > 0 for id_ in sub_ids
+        ):
+            raise TypeError(
+                f"_unlink_process_batch: sub_ids must be positive ints, got {sub_ids!r}"
+            )
         for field in many2one_fields:
             model = self.env[field.model_name]
             if field.ondelete == "restrict" and not self.env.context.get(
@@ -1589,7 +1628,7 @@ class CrudMixin:
                     )
                 ):
                     on_restrict_id, field_json = res[0]
-                    to_delete_id = next(iter(id_ for id_ in field_json.values()))
+                    to_delete_id = next(iter(field_json.values()))
                     on_restrict_record = model.browse(on_restrict_id)
                     to_delete_record = self.browse(to_delete_id)
                     raise UserError(
@@ -1636,69 +1675,6 @@ class CrudMixin:
 
         return data, attachments
 
-    def _invalidate_unlink_caches(
-        self, fk_refs: typing.Any, cd_m2o_fields: typing.Any
-    ) -> None:
-        """Invalidate caches after deleting records.
-
-        Performs targeted cache invalidation instead of invalidate_all():
-
-        1. Deleted model's own fields + their inverses on other models
-        2. FK-referencing models affected by PG ON DELETE cascade/set-null
-        3. Company-dependent M2O JSONB columns updated by raw SQL
-
-        :param fk_refs: iterable of (m2o_field, ondelete) from pool.field_fk_refs
-        :param cd_m2o_fields: iterable of company-dependent M2O fields
-        """
-        deleted_ids = tuple(self.ids)
-        env = self.env
-
-        # 1. Invalidate the deleted model's own fields for the deleted IDs,
-        #    plus their inverse fields on ALL models (including same-model
-        #    self-referential M2M pairs like stock.move.move_orig_ids ↔
-        #    move_dest_ids where surviving records still cache refs to
-        #    deleted ones).
-        for field in self._fields.values():
-            field._invalidate_cache(env, deleted_ids)
-            for invf in self.pool.field_inverses.get(field, ()):
-                invf._invalidate_cache(env)
-
-        # 2. Invalidate FK-referencing models affected by PG ON DELETE
-        for m2o_field, ondelete in fk_refs:
-            if ondelete == "cascade":
-                # Rows cascade-deleted by PG — invalidate all fields
-                for f in env[m2o_field.model_name]._fields.values():
-                    f._invalidate_cache(env)
-            elif ondelete == "set null":
-                # PG set M2O to NULL — invalidate that field + its inverses
-                m2o_field._invalidate_cache(env)
-                for invf in self.pool.field_inverses.get(m2o_field, ()):
-                    invf._invalidate_cache(env, deleted_ids)
-
-        # 3. Company-dependent M2O: JSONB columns updated by raw SQL above
-        for field in cd_m2o_fields:
-            field._invalidate_cache(env)
-            for invf in self.pool.field_inverses.get(field, ()):
-                invf._invalidate_cache(env, deleted_ids)
-
-        # 4. Invalidate one-directional M2M fields on other models that
-        #    reference this model as comodel but have no registered inverse.
-        #    Example: wizard fields (stock.quant.relocate.quant_ids) that
-        #    cache references to deleted records.  These are not reachable
-        #    via the field_inverses walk in step 1.
-        model_name = self._name
-        field_inverses = self.pool.field_inverses
-        for model_cls in self.pool.models.values():
-            if model_cls._abstract:
-                continue
-            for field in model_cls._fields.values():
-                if (
-                    field.type == "many2many"
-                    and field.comodel_name == model_name
-                    and not field_inverses.get(field)
-                ):
-                    field._invalidate_cache(env)
-
     def _parent_store_create(self) -> None:
         """Set the parent_path field on ``self`` after its creation."""
         if not self._parent_store:
@@ -1740,7 +1716,7 @@ class CrudMixin:
 
         # associate each new parent_id to its corresponding record ids
         parent_to_ids = defaultdict(list)
-        for id_, vals in zip(self._ids, vals_list, strict=False):
+        for id_, vals in zip(self._ids, vals_list, strict=True):
             if self._parent_name in vals:
                 parent_to_ids[vals[self._parent_name]].append(id_)
 

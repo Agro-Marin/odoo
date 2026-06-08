@@ -141,6 +141,24 @@ class IrAttachment(models.Model):
     _res_field_idx = models.Index("(res_model, res_field, res_id)")
     _checksum_idx = models.Index("(checksum) WHERE checksum IS NOT NULL")
 
+    def _check_res_field_access(self, res_model: str, res_field: str) -> None:
+        """Validate write access to a field-backing attachment's target field.
+
+        The plain ``res_field`` Char has no ``groups``, so mutating it would
+        otherwise bypass the field-group ACL enforced on read by
+        ``_check_access``. Mirror that check at create/write time. See IRA-L2.
+
+        :param str res_model: the comodel name the attachment is linked to
+        :param str res_field: the comodel field name the attachment backs
+        :raise AccessError: if the user cannot access the comodel field
+        """
+        if self.env.su or self.env.is_system() or not res_field:
+            return
+        comodel = self.env.get(res_model)
+        field = comodel._fields.get(res_field) if comodel is not None else None
+        if field is None or not comodel._has_field_access(field, "write"):
+            raise AccessError(_("Sorry, you are not allowed to access this document."))
+
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         record_tuple_set = set()
@@ -174,6 +192,10 @@ class IrAttachment(models.Model):
             if raw:
                 values.update(self._get_datas_related_values(raw, values["mimetype"]))
                 checksum_raw_map[values["checksum"]] = raw
+
+            # a new res_field must pass the comodel field's ACL (IRA-L2)
+            if res_field := values.get("res_field"):
+                self._check_res_field_access(values.get("res_model"), res_field)
 
             # 'check()' only uses res_model and res_id from values, and make an exists.
             # We can group the values by model, res_id to make only one query when
@@ -209,6 +231,13 @@ class IrAttachment(models.Model):
                 raise AccessError(
                     _("Sorry, you are not allowed to access this document.")
                 )
+        # a changed res_field must pass the comodel field's ACL (IRA-L2)
+        if res_field := vals.get("res_field"):
+            if "res_model" in vals:
+                self._check_res_field_access(vals["res_model"], res_field)
+            else:
+                for record in self:
+                    self._check_res_field_access(record.res_model, res_field)
         # remove computed fields depending on datas
         for field in ("file_size", "checksum", "store_fname"):
             vals.pop(field, False)
@@ -448,6 +477,42 @@ class IrAttachment(models.Model):
                     break
                 i += 1
         return True
+
+    @api.autovacuum
+    def _audit_url_attachments(self) -> None:
+        """Defense-in-depth observation for ``ir.http._serve_fallback``.
+
+        That fallback serves any ``type='binary'`` attachment whose ``url``
+        matches the request path under ``sudo()``. Any attachment with
+        ``url`` set AND ``public=False`` is an oddity worth reviewing:
+        the usual pattern for a served attachment is ``public=True``
+        (web assets, sitemaps). A non-public record serving a URL
+        suggests either a configuration error or a future controller
+        leaking user input into ``vals``.
+
+        ``_check_serving_attachments`` already blocks non-admin writes
+        with ``url`` set — this vacuum catches what slips through
+        ``sudo()`` bypasses. Intentionally an observation, not a hard
+        block: the fix for a real hit is to either strip ``url`` from
+        the offending controller or tighten ``_get_serve_attachment``
+        to require ``public=True``.
+        """
+        suspicious = self.sudo().search(
+            [
+                ("type", "=", "binary"),
+                ("url", "!=", False),
+                ("public", "=", False),
+            ],
+            limit=20,
+        )
+        if suspicious:
+            _logger.warning(
+                "Found %d non-public binary attachment(s) with `url` set; "
+                "review that these are intended to be served via "
+                "ir.http._serve_fallback. First URLs: %s",
+                len(suspicious),
+                suspicious.mapped("url"),
+            )
 
     @api.autovacuum
     def _gc_file_store(self) -> None | bool:
@@ -753,6 +818,9 @@ class IrAttachment(models.Model):
                     self,
                     "res_id",
                     domain.map_conditions(
+                        # bind the loop's current `codomain` as a default arg so
+                        # the closure captures this iteration's value, not the
+                        # last one (late-binding closure pitfall). See IRA-M1.
                         lambda cond, codomain=codomain: (
                             codomain & cond if cond.field_expr == "res_model" else cond
                         )
@@ -859,6 +927,14 @@ class IrAttachment(models.Model):
 
         Performs a single batch search for all existing checksums instead of
         one query per attachment.
+
+        :raise UserError: if a value is not base64-encoded or omits ``mimetype``
+
+        .. note::
+            The dedup search runs as ``sudo()`` so it can match a
+            filestore-shared file across companies; the returned id may
+            therefore belong to another company. Reading that id is still
+            ACL-gated, so this leaks no content (IRA-C2).
         """
         # Phase 1: decode and compute checksums for all values
         entries: list[tuple[dict, str, int, str]] = []
@@ -867,6 +943,8 @@ class IrAttachment(models.Model):
                 bin_data = base64.b64decode(values.get("datas", ""))
             except binascii.Error as exc:
                 raise UserError(_("Attachment is not encoded in base64.")) from exc
+            if "mimetype" not in values:
+                raise UserError(_("Attachment is missing its mimetype."))
             checksum = self._compute_checksum(bin_data)
             entries.append((values, checksum, len(bin_data), values["mimetype"]))
 
@@ -984,8 +1062,13 @@ class IrAttachment(models.Model):
 
         if self.store_fname:
             stream.type = "path"
+            # The attachment lives in the current cursor's database, so use that
+            # db name to locate the filestore. This also works on the no-request
+            # path (cron / server-side report image resolution), where the
+            # `request` proxy is unbound; request.db == cr.dbname under HTTP.
+            db_name = request.db if request else self.env.cr.dbname
             stream.path = werkzeug.security.safe_join(
-                str(Path(config.filestore(request.db)).resolve()),
+                str(Path(config.filestore(db_name)).resolve()),
                 self.store_fname,
             )
             try:

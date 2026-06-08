@@ -379,7 +379,7 @@ if __name__ == "__main__":
     start = time.time()
     count = 0
 
-    def try_round(amount, expected, precision_digits=3):
+    def try_round(amount: float, expected: str, precision_digits: int = 3) -> complex | int:
         result = float_repr(
             float_round(amount, precision_digits=precision_digits),
             precision_digits=precision_digits,

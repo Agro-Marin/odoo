@@ -1,4 +1,3 @@
-# ruff: noqa: PLC0415
 
 _soap_clients = {}
 
@@ -43,7 +42,7 @@ def new_get_soap_client(wsdlurl, timeout=30):
                             wsdl=wsdlurl, proxy=getproxies(), timeout=timeout)
                     except ImportError:
                         raise ImportError(
-                            'No SOAP library (such as zeep) found')
+                            'No SOAP library (such as zeep) found') from None
         _soap_clients[(wsdlurl, timeout)] = client
     return _soap_clients[(wsdlurl, timeout)]
 

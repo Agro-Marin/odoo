@@ -1,6 +1,7 @@
 import ast
 import logging
 
+from odoo.exceptions import ValidationError
 from odoo.tests.common import ADMIN_USER_ID, TransactionCase, tagged
 
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
@@ -385,3 +386,144 @@ class TestEmbeddedFilters(FiltersCase):
         self.assertFalse(filter_a.embedded_parent_res_id)
         self.assertFalse(filter_b.embedded_action_id)
         self.assertFalse(filter_b.embedded_parent_res_id)
+
+
+@tagged("post_install", "-at_install")
+class TestCreateFilterValidation(FiltersCase):
+    """Regression tests for audit finding IRF-L1: create_filter must reject a
+    favorite whose stored domain/context is not a list/dict, so a single
+    malformed favorite created over RPC cannot break the shared favorites
+    dropdown far from its cause.
+    """
+
+    def test_create_filter_rejects_non_list_domain(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create_filter(
+                {
+                    "name": "bad domain",
+                    "model_id": "res.partner",
+                    "domain": "{'a': 1}",
+                    "context": "{}",
+                }
+            )
+
+    def test_create_filter_rejects_non_dict_context(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create_filter(
+                {
+                    "name": "bad context",
+                    "model_id": "res.partner",
+                    "domain": "[]",
+                    "context": "[1, 2]",
+                }
+            )
+
+    def test_create_filter_rejects_unparseable_domain(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create_filter(
+                {
+                    "name": "broken",
+                    "model_id": "res.partner",
+                    "domain": "[('a', '=',",
+                    "context": "{}",
+                }
+            )
+
+    def test_create_filter_accepts_valid(self):
+        ir_filter = self.env["ir.filters"].create_filter(
+            {
+                "name": "good filter",
+                "model_id": "res.partner",
+                "domain": "[('is_company', '=', True)]",
+                "context": "{'group_by': ['country_id']}",
+            }
+        )
+        self.assertTrue(ir_filter)
+        self.assertEqual(ir_filter._get_eval_domain(), [("is_company", "=", True)])
+
+
+@tagged("post_install", "-at_install")
+class TestConstrainsValidation(FiltersCase):
+    """Audit findings IRF-L2 / IRF-C1: validation must run on every write path
+    (raw ORM ``create``/``write``), not only ``create_filter``, and ``sort``
+    must be a list of strings.
+    """
+
+    def test_raw_create_rejects_non_list_domain(self):
+        # IRF-L2: a malformed domain inserted via plain ORM create (bypassing
+        # create_filter) is rejected by the @api.constrains backstop.
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create(
+                {
+                    "name": "raw bad domain",
+                    "model_id": "res.partner",
+                    "domain": "{'a': 1}",
+                    "context": "{}",
+                }
+            )
+
+    def test_raw_create_rejects_non_dict_context(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create(
+                {
+                    "name": "raw bad context",
+                    "model_id": "res.partner",
+                    "domain": "[]",
+                    "context": "[1, 2]",
+                }
+            )
+
+    def test_raw_write_rejects_malformed_domain(self):
+        ir_filter = self.env["ir.filters"].create(
+            {"name": "ok", "model_id": "res.partner"}
+        )
+        with self.assertRaises(ValidationError):
+            ir_filter.write({"domain": "{'a': 1}"})
+
+    def test_create_rejects_sort_with_non_string_elements(self):
+        # IRF-C1: the DB CHECK only enforces "jsonb array"; [1, 2] passes it but
+        # blows up later at ",".join(...). The constraint must reject it.
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create(
+                {
+                    "name": "bad sort",
+                    "model_id": "res.partner",
+                    "sort": "[1, 2]",
+                }
+            )
+
+    def test_create_filter_rejects_sort_with_non_string_elements(self):
+        with self.assertRaises(ValidationError):
+            self.env["ir.filters"].create_filter(
+                {
+                    "name": "bad sort rpc",
+                    "model_id": "res.partner",
+                    "sort": "[1, 2]",
+                }
+            )
+
+    def test_create_accepts_sort_list_of_strings(self):
+        ir_filter = self.env["ir.filters"].create(
+            {
+                "name": "good sort",
+                "model_id": "res.partner",
+                "sort": '["name desc", "id"]',
+            }
+        )
+        self.assertTrue(ir_filter)
+
+
+@tagged("post_install", "-at_install")
+class TestCrossUserWrite(FiltersCase):
+    """Audit finding IRF-T1: pin the cross-user write contract. Absent a record
+    rule, ``ir.filters`` grants full CRUD to ``group_user``, so any internal
+    user can edit a global (shared) filter. This test documents that intended
+    behaviour so a future record-rule change is a conscious decision.
+    """
+
+    def test_internal_user_can_write_global_filter(self):
+        global_filter = self.env["ir.filters"].create(
+            {"name": "global", "model_id": "ir.filters", "user_ids": []}
+        )
+        global_filter.with_user(self.USER_ID).write({"name": "edited by demo"})
+        self.assertEqual(global_filter.name, "edited by demo")

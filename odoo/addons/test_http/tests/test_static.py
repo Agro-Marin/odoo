@@ -392,7 +392,7 @@ class TestHttpStatic(TestHttpStaticCommon):
 
     def test_static20_web_assets(self):
         attachment = self.env["ir.attachment"].search(
-            [("url", "like", "%/web.assets_frontend_minimal.min.js")], limit=1
+            [("url", "like", "%/web.assets_web.min.js")], limit=1
         )
         x_sendfile = opj(config.filestore(self.env.cr.dbname), attachment.store_fname)
         x_accel_redirect = (
@@ -407,7 +407,7 @@ class TestHttpStatic(TestHttpStaticCommon):
                 assert_headers={
                     "Content-Length": str(attachment.file_size),
                     "Content-Type": "application/javascript; charset=utf-8",
-                    "Content-Disposition": "inline; filename=web.assets_frontend_minimal.min.js",
+                    "Content-Disposition": "inline; filename=web.assets_web.min.js",
                 },
                 assert_content=attachment.raw,
             )
@@ -425,7 +425,7 @@ class TestHttpStatic(TestHttpStaticCommon):
                     "X-Accel-Redirect": x_accel_redirect,
                     "Content-Length": "0",
                     "Content-Type": "application/javascript; charset=utf-8",
-                    "Content-Disposition": "inline; filename=web.assets_frontend_minimal.min.js",
+                    "Content-Disposition": "inline; filename=web.assets_web.min.js",
                 },
             )
 
@@ -435,7 +435,7 @@ class TestHttpStatic(TestHttpStaticCommon):
 
     def test_static21_web_assets(self):
         attachment = self.env["ir.attachment"].search(
-            [("url", "like", "%/web.assets_frontend_minimal.min.js")], limit=1
+            [("url", "like", "%/web.assets_web.min.js")], limit=1
         )
         x_sendfile = opj(config.filestore(self.env.cr.dbname), attachment.store_fname)
         x_accel_redirect = (
@@ -450,7 +450,7 @@ class TestHttpStatic(TestHttpStaticCommon):
                 assert_headers={
                     "Content-Length": str(attachment.file_size),
                     "Content-Type": "application/javascript; charset=utf-8",
-                    "Content-Disposition": "inline; filename=web.assets_frontend_minimal.min.js",
+                    "Content-Disposition": "inline; filename=web.assets_web.min.js",
                 },
                 assert_content=attachment.raw,
             )
@@ -468,7 +468,7 @@ class TestHttpStatic(TestHttpStaticCommon):
                     "X-Accel-Redirect": x_accel_redirect,
                     "Content-Length": "0",
                     "Content-Type": "application/javascript; charset=utf-8",
-                    "Content-Disposition": "inline; filename=web.assets_frontend_minimal.min.js",
+                    "Content-Disposition": "inline; filename=web.assets_web.min.js",
                 },
             )
 

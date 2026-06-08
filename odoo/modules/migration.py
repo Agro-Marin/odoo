@@ -130,10 +130,14 @@ class MigrationManager:
             except FileNotFoundError:
                 return ""
 
+        # Resolve once: the registry singleton acquires a lock per call, and we
+        # would otherwise pay it on every loop iteration.
+        force_upgrade_scripts = Registry(self.cr.dbname)._force_upgrade_scripts
+
         for pkg in self.graph:
             if (
                 pkg.load_state != "to upgrade"
-                and pkg.name not in Registry(self.cr.dbname)._force_upgrade_scripts
+                and pkg.name not in force_upgrade_scripts
             ):
                 continue
 
@@ -163,6 +167,9 @@ class MigrationManager:
             pkg.load_state != "to upgrade"
             and pkg.name not in Registry(self.cr.dbname)._force_upgrade_scripts
         ):
+            # NOTE: this method is called per-package by load_module_graph;
+            # the Registry() lookup is unavoidable here without changing the
+            # call signature. _get_files() above hoists it for its own loop.
             return
 
         def convert_version(version: str) -> str:
@@ -199,6 +206,10 @@ class MigrationManager:
             """return a list of migration script files"""
             m = self.migrations[pkg.name]
 
+            # Sort by (filename, full_path) so files with the same basename in
+            # different source dirs (module/migrations, module/upgrades, and
+            # odoo.upgrade/<pkg>) get a deterministic order rather than dict-
+            # iteration order.
             return sorted(
                 (
                     f
@@ -206,7 +217,7 @@ class MigrationManager:
                     for f in m[k].get(version, [])
                     if Path(f).name.startswith(f"{stage}-")
                 ),
-                key=lambda f: Path(f).name,
+                key=lambda f: (Path(f).name, f),
             )
 
         installed_version = pkg.load_version or ""

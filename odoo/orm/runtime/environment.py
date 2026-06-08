@@ -19,7 +19,6 @@ from odoo.libs.datetime.tz import timezone as get_timezone
 from odoo.tools import (
     SQL,
     OrderedSet,
-    Query,
     clean_context,
     frozendict,
     reset_cached_properties,
@@ -39,14 +38,14 @@ from collections.abc import Collection, Iterator, MutableMapping
 
 from ..primitives import SUPERUSER_ID
 from .registry import Registry
-from .transaction import MAX_FIXPOINT_ITERATIONS, Transaction
+from .transaction import Transaction
 
 if typing.TYPE_CHECKING:
     from datetime import tzinfo
 
     from .._typing import BaseModel, Field
     from ..components.core import OrmCore
-    from ..primitives import IdType, NewId
+    from ..primitives import IdType
 
     M = typing.TypeVar("M", bound=BaseModel)
 
@@ -83,7 +82,18 @@ class Environment(Mapping[str, "BaseModel"]):
         self.transaction.reset()
 
     def __new__(cls, cr: BaseCursor, uid: int, context: dict, su: bool = False):
-        assert isinstance(cr, BaseCursor)
+        # raise (not assert) so the contract holds under python -O
+        if not isinstance(cr, BaseCursor):
+            raise TypeError(
+                f"Environment(cr=...) expected BaseCursor, got {type(cr).__name__}"
+            )
+        # ``bool`` is a subclass of ``int`` in Python, so ``True == 1``
+        # would silently elevate ``Environment(cr, True, {})`` to SUPERUSER
+        # at the next line.  Reject bool explicitly to avoid that surprise.
+        if isinstance(uid, bool):
+            raise TypeError(
+                f"Environment(uid=...) expected int, got bool ({uid!r})"
+            )
         if uid == SUPERUSER_ID:
             su = True
 
@@ -419,11 +429,17 @@ class Environment(Mapping[str, "BaseModel"]):
         """
         lang = self.lang or "en_US"
         if isinstance(source, str):
-            assert not (args and kwargs), "Use args or kwargs, not both"
+            # raise (not assert) so the contract holds under python -O.  Without
+            # this guard, mixing args and kwargs would silently drop kwargs from
+            # ``format_args`` (because ``args or kwargs`` returns args when args
+            # is truthy), losing user-visible substitutions in translations.
+            if args and kwargs:
+                raise TypeError("Use args or kwargs, not both")
             format_args = args or kwargs
         elif isinstance(source, LazyGettext):
             # translate a lazy text evaluation
-            assert not args and not kwargs, "All args should come from the lazy text"
+            if args or kwargs:
+                raise TypeError("All args should come from the lazy text")
             return source._translate(lang)
         else:
             raise TypeError(f"Cannot translate {source!r}")
@@ -668,7 +684,11 @@ class Environment(Mapping[str, "BaseModel"]):
         (or an empty list if no result to fetch).  The method automatically
         flushes all the fields in the metadata of the query.
         """
-        assert isinstance(query, SQL)
+        # raise (not assert) so the contract holds under python -O — passing a
+        # plain string would otherwise reach ``flush_query`` which iterates
+        # ``query.to_flush`` and crashes with an opaque AttributeError.
+        if not isinstance(query, SQL):
+            raise TypeError(f"execute_query expected SQL, got {type(query).__name__}")
         self.flush_query(query)
         self.cr.execute(query)
         # In pipeline mode, cursor.description is not available until after
@@ -688,14 +708,20 @@ class Environment(Mapping[str, "BaseModel"]):
         if not rows:
             return []
         description = self.cr.description
-        assert description is not None, (
-            "No cr.description, the executed query does not return a table."
-        )
+        if description is None:
+            # raise (not assert) — under python -O the assert is stripped and
+            # the next line crashes with TypeError on iter(None).
+            raise RuntimeError(
+                "No cr.description, the executed query does not return a table."
+            )
         cols = tuple(col.name for col in description)
         if _rows_to_dicts is not None:
             return _rows_to_dicts(cols, rows)
-        return [dict(zip(cols, row, strict=False)) for row in rows]
+        # cr.description and rows must agree by SQL contract — strict=True
+        # surfaces any psycopg-side anomaly instead of silently producing
+        # dicts with missing columns.
+        return [dict(zip(cols, row, strict=True)) for row in rows]
 
 
 # Re-export for backward compatibility (code using ``from .environment import Cache``)
-from .cache_compat import Cache, Starred  # noqa: F401
+from .cache_compat import Cache, Starred  # noqa: F401, E402

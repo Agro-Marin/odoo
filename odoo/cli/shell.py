@@ -60,7 +60,7 @@ class Console(code.InteractiveConsole):
 class Shell(Command):
     """Start odoo in an interactive shell"""
 
-    supported_shells = ["ipython", "ptpython", "bpython", "python"]
+    supported_shells = ("ipython", "ptpython", "bpython", "python")
 
     def init(self, args: list[str]) -> None:
         parser = self.parser
@@ -74,8 +74,9 @@ class Shell(Command):
         parser.add_argument(
             "--shell-interface",
             dest="shell_interface",
+            choices=self.supported_shells,
             help="Specify a preferred REPL to use in shell mode. "
-            "Supported REPLs are: [ipython|ptpython|bpython|python]",
+            f"Supported REPLs are: {self.supported_shells}",
         )
         # parse_known_args: shell-specific args go to parsed_args,
         # everything else is forwarded to config.parse_config for server startup
@@ -105,7 +106,9 @@ class Shell(Command):
 
         preferred_interface = self._shell_interface
         if preferred_interface:
-            shells_to_try = [preferred_interface, "python"]
+            # dict.fromkeys preserves order and dedupes when the user asked
+            # for 'python' explicitly — otherwise we'd attempt python twice.
+            shells_to_try = list(dict.fromkeys([preferred_interface, "python"]))
         else:
             shells_to_try = self.supported_shells
 
@@ -114,7 +117,14 @@ class Shell(Command):
                 shell_func = getattr(self, shell)
                 return shell_func(local_vars, pythonstartup)
             except ImportError:
-                pass
+                # If the user explicitly requested this shell, surface the
+                # fallback — previously the failure was silent and users
+                # couldn't tell why --shell-interface=bpython gave them python.
+                if shell == preferred_interface:
+                    _logger.warning(
+                        "Requested shell %r is not installed; falling back.",
+                        preferred_interface,
+                    )
             except Exception:
                 _logger.warning("Could not start '%s' shell.", shell)
                 _logger.debug("Shell error:", exc_info=True)
@@ -140,7 +150,7 @@ class Shell(Command):
         embed(
             {},
             local_vars,
-            startup_paths=[pythonstartup] if pythonstartup else False,
+            startup_paths=[pythonstartup] if pythonstartup else None,
         )
 
     def bpython(
@@ -184,8 +194,7 @@ class Shell(Command):
         else:
             self.console(local_vars)
 
-    def run(self, args: list[str]) -> int:
+    def run(self, args: list[str]) -> None:
         self.init(args)
         dbname = get_single_database(config["db_name"], allow_none=True)
         self.shell(dbname)
-        return 0

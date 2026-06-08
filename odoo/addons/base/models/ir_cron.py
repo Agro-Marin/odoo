@@ -267,6 +267,9 @@ class IrCron(models.Model):
             )
         except psycopg.errors.UndefinedTable:
             # The table ir_cron does not exist; this is probably not an Odoo database.
+            # NOTE: UndefinedTable is a subclass of ProgrammingError, so this
+            # specific handler MUST stay before the `except psycopg.ProgrammingError`
+            # re-raise below — reordering would turn this warning into a hard error.
             _logger.warning("Tried to poll an undefined table on database %s.", db_name)
         except db.PoolError:
             # Connection pool could not reach the database (e.g. it was
@@ -305,15 +308,25 @@ class IrCron(models.Model):
             _logger.debug("job %s acquired", job_id)
             # take into account overridings of _process_job() on that database
             registry = Registry(db_name).check_signaling()
-            registry[IrCron._name]._process_job(cron_cr, job)
-            cron_cr.commit()
+            try:
+                registry[IrCron._name]._process_job(cron_cr, job)
+                cron_cr.commit()
+            except Exception:
+                # An infra-level failure (e.g. a _reschedule_*/_add_progress
+                # SQL error, not the action itself — that is caught in
+                # _run_job) must not abandon the rest of the cycle. Roll back
+                # to release the lock and let this job retry next cycle, then
+                # continue with the remaining ready jobs.
+                cron_cr.rollback()
+                _logger.exception("job %s failed to process, skip", job_id)
+                continue
             _logger.debug("job %s updated and released", job_id)
 
     @staticmethod
     def _check_version(cron_cr: BaseCursor) -> None:
         """Ensure the code version matches the database version"""
         cron_cr.execute("""
-            SELECT latest_version
+            SELECT db_version
             FROM ir_module_module
              WHERE name='base'
         """)
@@ -451,7 +464,7 @@ class IrCron(models.Model):
             FROM ir_cron
             LEFT JOIN last_cron_progress lcp ON lcp.cron_id = ir_cron.id
             WHERE %(where)s
-            FOR NO KEY UPDATE SKIP LOCKED
+            FOR NO KEY UPDATE OF ir_cron SKIP LOCKED
         """,
             cron_id=job_id,
             where=where_clause,
@@ -473,6 +486,11 @@ class IrCron(models.Model):
         if not job:  # Job is already taken
             return None
 
+        # `progress_id` is intentionally NOT coalesced: the timeout branch in
+        # `_process_job` (UPDATE ... WHERE id = %(progress_id)s) is only
+        # reached when `timed_out_counter >= 3`, which implies a progress row
+        # (hence a non-NULL `progress_id`) exists. A NULL would yield a
+        # harmless no-op UPDATE.
         for field_name in ("done", "remaining", "timed_out_counter"):
             job[field_name] = job[field_name] or 0
         return job
@@ -596,6 +614,9 @@ class IrCron(models.Model):
                     job["cron_name"],
                     env.user.login,
                 )
+                # Setting a terminal status here short-circuits the run loop
+                # below (its `while status is None` guard), so the action is
+                # never executed for an archived user.
                 status = CompletionStatus.FAILED
 
             # stop after MIN_RUNS_PER_JOB runs and MIN_TIME_PER_JOB seconds, or
@@ -880,7 +901,9 @@ class IrCron(models.Model):
             return True
         return self.write({"active": active})
 
-    def _trigger(self, at: datetime | Iterable[datetime] | None = None, *, coalesce: int = 0) -> Any:
+    def _trigger(
+        self, at: datetime | Iterable[datetime] | None = None, *, coalesce: int = 0
+    ) -> Any:
         """Schedule a cron job to be executed soon independently of its
         ``nextcall`` field value.
 
@@ -1007,7 +1030,6 @@ class IrCron(models.Model):
     ) -> None:
         """
         Log the progress of the cron job.
-        Use ``_commit_progress()`` instead.
 
         :param int done: the number of tasks already processed
         :param int remaining: the number of tasks left to process

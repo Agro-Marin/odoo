@@ -15,7 +15,6 @@ if typing.TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Reversible
 
     from .models.base import BaseModel
-    from .primitives import IdType
 
 
 # =============================================================================
@@ -24,7 +23,18 @@ if typing.TYPE_CHECKING:
 
 
 def _origin_ids_python(ids: Iterable) -> list[int]:
-    """Extract origin IDs from any iterable of record IDs (pure Python)."""
+    """Extract origin IDs from any iterable of record IDs (pure Python).
+
+    For each ``id_``: yield ``id_`` itself when it is a truthy ``int``;
+    otherwise, yield ``id_.origin`` when present and truthy.  Values without
+    an origin (``False``-y plain ``id_`` and no ``origin`` attribute) are
+    skipped.
+
+    Per :class:`NewId`'s contract, ``origin`` is always an ``int`` or ``None``,
+    so the returned list is truly ``list[int]``.  A non-``int`` ``origin``
+    indicates misuse of ``NewId`` and is *not* filtered here — callers that
+    accept untrusted origins should validate themselves.
+    """
     return [oid for id_ in ids if (oid := id_ or getattr(id_, "origin", None))]
 
 

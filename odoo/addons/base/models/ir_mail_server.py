@@ -732,6 +732,14 @@ class IrMail_Server(models.Model):
     def _check_forced_mail_server(
         self, mail_server: Self, allow_archived: bool, smtp_from: str | None
     ) -> None:
+        """Validate that a forced outgoing mail server may be used.
+
+        :param mail_server: the server explicitly forced by the caller.
+        :param allow_archived: whether an archived server is acceptable.
+        :param smtp_from: envelope sender; unused here but part of the override
+            hook contract (the ``mail`` module uses it to forbid forcing a
+            user-owned server whose ``from_filter`` does not match the sender).
+        """
         if not allow_archived and not mail_server.active:
             raise UserError(
                 _(
@@ -793,8 +801,8 @@ class IrMail_Server(models.Model):
                                            or 'html'). Default is 'plain'.
         :param list[tuple[str, bytes, str]] | None attachments: list of (filename, filecontents) pairs, where filecontents is a string
                                  containing the bytes of the attachment
-        :param message_id:
-        :param references:
+        :param str | None message_id: optional value for the Message-Id header; generated when omitted
+        :param str | None references: optional value for the References header (parent message ids)
         :param list[str] | None email_cc: optional list of string values for CC header (to be joined with commas)
         :param list[str] | None email_bcc: optional list of string values for BCC header (to be joined with commas)
         :param dict[str, str] | None headers: optional map of headers to set on the outgoing mail (may override the

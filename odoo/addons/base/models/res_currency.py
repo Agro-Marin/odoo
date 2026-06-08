@@ -161,6 +161,17 @@ class ResCurrency(models.Model):
             )
 
     def _get_rates(self, company: Self, date: Any) -> dict[int, float]:
+        """Return ``{currency_id: rate}`` for ``self`` at ``date`` for ``company``.
+
+        Per currency, selects the latest rate with ``name <= date`` scoped to the
+        company root or global (``company_id`` NULL); falls back to the earliest
+        known rate, then to ``1.0`` if the currency has no rate at all.
+
+        :param company: company whose root/global rates are considered
+        :param date: cut-off date for rate selection
+        :return: mapping of currency id to applicable rate
+        :rtype: dict[int, float]
+        """
         if not self.ids:
             return {}
         currency_query = self._as_query(ordered=False)
@@ -181,6 +192,12 @@ class ResCurrency(models.Model):
                 currency_id,
             )
         )
+        # RCUR-L1: the fallback runs only when no rate exists on or before
+        # 'date' (i.e. a date preceding the currency's first recorded rate).
+        # Ordering 'name ASC' is deliberate: it returns the *earliest* known
+        # rate, so early dates use the first historical rate. This is
+        # intentional (asymmetric with the primary 'name DESC' selection), not
+        # a bug — behaviour is correct, documented here for auditors.
         rate_fallback = Rate._search(
             [
                 ("company_id", "in", (False, company.root_id.id)),
@@ -218,6 +235,12 @@ class ResCurrency(models.Model):
     @api.depends("rate_ids.rate")
     @api.depends_context("to_currency", "date", "company", "company_id")
     def _compute_current_rate(self) -> None:
+        """Compute ``rate``/``inverse_rate``/``rate_string`` from context.
+
+        ``date``, ``company_id`` and ``to_currency`` are read from the context;
+        ``rate`` is units of this currency per 1 unit of ``to_currency`` and
+        ``inverse_rate`` its reciprocal (``0.0`` when ``rate`` is falsy).
+        """
         date = self.env.context.get("date") or fields.Date.context_today(self)
         company = (
             self.env["res.company"].browse(self.env.context.get("company_id"))
@@ -242,6 +265,7 @@ class ResCurrency(models.Model):
 
     @api.depends("rounding")
     def _compute_decimal_places(self) -> None:
+        """Derive ``decimal_places`` from the ``rounding`` factor."""
         for currency in self:
             if 0 < currency.rounding < 1:
                 currency.decimal_places = math.ceil(math.log10(1 / currency.rounding))
@@ -250,6 +274,7 @@ class ResCurrency(models.Model):
 
     @api.depends("rate_ids.name")
     def _compute_date(self) -> None:
+        """Set ``date`` to the most recent rate's date."""
         for currency in self:
             currency.date = currency.rate_ids[:1].name
 
@@ -368,6 +393,15 @@ class ResCurrency(models.Model):
         company: Any = None,
         date: Any = None,
     ) -> float:
+        """Return the rate converting one unit of ``from_currency`` to ``to_currency``.
+
+        :param from_currency: source currency
+        :param to_currency: target currency
+        :param company: company used to look up the rate (defaults to env company)
+        :param date: date used to look up the rate (defaults to today)
+        :return: the conversion rate (``1`` when both currencies are equal)
+        :rtype: float
+        """
         if from_currency == to_currency:
             return 1
         company = company or self.env.company
@@ -408,6 +442,9 @@ class ResCurrency(models.Model):
             raise UserError(
                 self.env._("Cannot convert amount: target currency is not set.")
             )
+        # RCUR-L2: conversion is defined for a single source/target pair.
+        self.ensure_one()
+        to_currency.ensure_one()
         # Short-circuit on zero to avoid a needless rate lookup.
         if not from_amount:
             return 0.0
@@ -417,6 +454,10 @@ class ResCurrency(models.Model):
         return to_currency.round(to_amount) if round else to_amount
 
     def _select_companies_rates(self) -> str:
+        """Return the SQL selecting each rate's validity window per company.
+
+        Extension point with no caller in ``base``; overridden by ``account``.
+        """
         return """
             SELECT
                 r.currency_id,
@@ -575,8 +616,9 @@ class ResCurrencyRate(models.Model):
         return {
             company: company.sudo()
             .currency_id.rate_ids.filtered(
-                lambda x, company=company: (x.rate and x.company_id == company)
-                or not x.company_id
+                lambda x, company=company: (
+                    (x.rate and x.company_id == company) or not x.company_id
+                )
             )
             .sorted("name")[-1:]
             .rate

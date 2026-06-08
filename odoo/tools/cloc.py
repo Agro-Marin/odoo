@@ -3,13 +3,11 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import odoo.modules
 from odoo import api
-
-if TYPE_CHECKING:
-    from odoo.api import Environment
+from odoo.api import Environment
 
 VERSION = 1
 DEFAULT_EXCLUDE = [

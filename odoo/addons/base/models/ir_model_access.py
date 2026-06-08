@@ -324,6 +324,8 @@ class IrModelRelation(models.Model):
 
 
 class IrModelAccess(models.Model):
+    """Per-model CRUD access control list (ACL) entry."""
+
     _name = "ir.model.access"
     _description = "Model Access"
     _order = "model_id,group_id,name,id"
@@ -379,12 +381,14 @@ class IrModelAccess(models.Model):
              WHERE m.model = %s
                AND a.active = TRUE
                AND %s = TRUE
-          ORDER BY c.name, g.name NULLS LAST
+          ORDER BY COALESCE(c.name->>(%s::text), c.name->>'en_US') NULLS LAST, COALESCE(g.name->>(%s::text), g.name->>'en_US')
             """,
                 lang,
                 lang,
                 model_name,
                 perm_column,
+                lang,
+                lang,
             )
         )
         return [f"{x[0]}/{x[1]}" if x[0] else x[1] for x in self.env.cr.fetchall()]
@@ -463,7 +467,7 @@ class IrModelAccess(models.Model):
             )
 
         if model not in self.env:
-            _logger.error("Missing model %s", model)
+            _logger.warning("Missing model %s", model)
 
         has_access = model in self._get_allowed_models(mode)
         if not has_access and raise_exception:
@@ -524,7 +528,7 @@ class IrModelAccess(models.Model):
             ):
                 _logger.warning(
                     "Rule %s has no group, this is a deprecated feature. Every access-granting rule should specify a group.",
-                    ima["name"],
+                    ima.get("name"),
                 )
         return super().create(vals_list)
 

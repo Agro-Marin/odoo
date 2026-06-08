@@ -69,10 +69,12 @@ class DictBackend:
     ) -> list[int]:
         tbl = self._tables.setdefault(table, {})
         new_ids: list[int] = []
+        # strict=True so a column/row width mismatch in tests fails loudly
+        # rather than silently dropping columns from the inserted row.
         for row in rows:
             self._sequences[table] += 1
             id_ = self._sequences[table]
-            tbl[id_] = dict(zip(columns, row, strict=False))
+            tbl[id_] = dict(zip(columns, row, strict=True))
             new_ids.append(id_)
         return new_ids
 

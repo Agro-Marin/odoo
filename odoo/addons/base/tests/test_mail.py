@@ -238,7 +238,9 @@ class TestSanitizer(BaseCase):
         ]
         for not_email in not_emails:
             sanitized = html_sanitize(not_email)
-            left_part = not_email.split(">")[
+            left_part = not_email.split(
+                ">"
+            )[
                 0
             ]  # take only left part, as the sanitizer could add data information on node
             self.assertNotIn(

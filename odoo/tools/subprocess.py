@@ -65,7 +65,7 @@ def find_pg_tool(name: str) -> str:
     try:
         return which(name, path=path)
     except OSError:
-        raise Exception(f"Command `{name}` not found.")
+        raise Exception(f"Command `{name}` not found.") from None
 
 
 def exec_pg_environ() -> dict[str, str]:
@@ -157,7 +157,7 @@ def stripped_sys_argv(*strip_args: str) -> list[str]:
 # ----------------------------------------------------------
 
 # ensure we have a non patched time for query times when using freezegun
-import time
+import time  # noqa: E402
 
 real_time = time.time.__call__  # type: ignore
 

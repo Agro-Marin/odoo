@@ -84,6 +84,29 @@ class TestQWebTField(TransactionCase):
         text = etree.fromstring(self.env["ir.qweb"]._render(view1.id)).find("span").text
         self.assertEqual(text, "5.0000")
 
+    def test_render_t_call_options_retrocompat(self):
+        """QWEB-L1: the deprecated `t-call-options` attribute must still compile
+        (it is renamed to `t-options`). Previously `el.attrib.set()` raised
+        AttributeError, breaking this retro-compat path."""
+        self.env["ir.ui.view"].create(
+            {
+                "name": "qweb_t1_callee",
+                "key": "base.qweb_t1_callee",
+                "type": "qweb",
+                "arch": """<t t-name="base.qweb_t1_callee"><span>CALLEE</span></t>""",
+            }
+        )
+        caller = self.env["ir.ui.view"].create(
+            {
+                "name": "qweb_t1_caller",
+                "key": "base.qweb_t1_caller",
+                "type": "qweb",
+                "arch": """<t t-name="base.qweb_t1_caller"><t t-call="base.qweb_t1_callee" t-call-options="{}"/></t>""",
+            }
+        )
+        rendered = self.env["ir.qweb"]._render(caller.id)
+        self.assertIn("CALLEE", rendered)
+
     def test_xss_breakout(self):
         view = self.env["ir.ui.view"].create(
             {
@@ -884,6 +907,17 @@ class TestQWebBasic(TransactionCase):
                 "foo",
             ),  # POP_JUMP_IF_NOT_NONE
             ("{a for a in (1, 2)}", {}, {1, 2}),  # RERAISE
+            # QWEB-T3: pin the Python 3.14 opcodes the safe allow-set was
+            # extended for. A future interpreter bump renaming/removing one of
+            # these would silently break every valid template using the
+            # corresponding construct; these cases catch that regression.
+            ("(lambda a: a + a)(x)", {"x": 1}, 2),  # LOAD_FAST_BORROW_LOAD_FAST_BORROW
+            ("sum(i for i in range(n))", {"n": 3}, 3),  # LOAD_FAST_BORROW + POP_ITER
+            ("[i * i for i in range(n)]", {"n": 3}, [0, 1, 4]),  # LOAD_FAST_BORROW
+            ("3 + 4 * 5", {}, 23),  # LOAD_SMALL_INT
+            ("None if x else 9", {"x": 0}, 9),  # LOAD_COMMON_CONSTANT (None)
+            ("1 if x else 2", {"x": []}, 2),  # TO_BOOL / NOT_TAKEN on the branch
+            ("bool(x) and x + 1", {"x": 5}, 6),  # TO_BOOL via boolean op
         ]
 
         IrQweb = self.env["ir.qweb"]
@@ -990,6 +1024,93 @@ class TestQWebBasic(TransactionCase):
             Exception
         ):  # NotImplementedError for 'lambda a=open' and Undefined value 'open'.
             self.env["ir.qweb"]._render(t.id, values)
+
+    def test_compile_expr_forbidden(self):
+        """QWEB-T4: the sandbox must reject the classic escape gadgets.
+
+        This pins the anti-sandbox-escape invariant against regression: a
+        future change re-opening one of these vectors must break this test.
+        Each gadget is driven through the real QWeb engine (`_render` of a
+        view whose `t-out` is the gadget expression), and asserted to raise.
+        """
+        IrQweb = self.env["ir.qweb"]
+        forbidden = [
+            "().__class__",
+            "''.__class__.__mro__",
+            "''.__class__.__mro__[1].__subclasses__()",
+            "[].__class__.__base__.__subclasses__()",
+            "(lambda f: f.__globals__)(lambda: None)",
+            "().__class__.__bases__",
+            "__import__('os')",
+            "__builtins__",
+            "__import__('os').system('echo pwned')",
+        ]
+        for expr in forbidden:
+            # 1) Compile-time gate: tokenize-stage `__` name gate /
+            #    `assert_no_dunder_name` (co_names) must reject the expression.
+            with self.assertRaises(Exception, msg="compile should reject: %s" % expr):
+                IrQweb._compile_expr(expr)
+
+            # 2) End-to-end: rendering a template using the gadget must also
+            #    fail (the engine exposes no escape path). Compilation happens
+            #    inside _render, so the gate fires there too.
+            view = self.env["ir.ui.view"].create(
+                {
+                    "name": "forbidden",
+                    "type": "qweb",
+                    "arch_db": '<t t-name="forbidden"><t t-out="%s"/></t>'
+                    % misc.html_escape(expr),
+                }
+            )
+            with self.assertRaises(Exception, msg="render should reject: %s" % expr):
+                IrQweb._render(view.id)
+
+    def test_post_processing_att_malicious_scheme(self):
+        """QWEB-T5: `javascript:` URLs are scrubbed from href/src/action/
+        formaction, except the whitelisted `history.back()` form. Pins the
+        subtle `MALICIOUS_SCHEMES` regex against a silent re-opening."""
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "malicious-scheme",
+                "type": "qweb",
+                "arch_db": """<t t-name="malicious-scheme">
+                    <a t-att-href="bad"/>
+                    <a t-att-href="back"/>
+                </t>""",
+            }
+        )
+        rendered = self.env["ir.qweb"]._render(
+            view.id,
+            {"bad": "javascript:alert(1)", "back": "javascript:history.back()"},
+        )
+        doc = etree.fromstring("<root>%s</root>" % rendered)
+        links = doc.findall("a")
+        # First link: javascript:alert(1) must be blanked.
+        self.assertEqual(links[0].get("href"), "")
+        # Second link: the whitelisted history.back() form is preserved.
+        self.assertEqual(links[1].get("href"), "javascript:history.back()")
+
+    def test_raw_stays_unescaped(self):
+        """QWEB-T6: `t-raw` output must stay unescaped (the single intentional
+        unescaped path), while `t-out` escapes. Regression here is an XSS or a
+        double-escape, both otherwise silent."""
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "raw-vs-out",
+                "type": "qweb",
+                "arch_db": """<t t-name="raw-vs-out">
+                    <span class="out" t-out="payload"/>
+                    <span class="raw" t-raw="payload"/>
+                </t>""",
+            }
+        )
+        payload = "<b>bold</b>"
+        with mute_logger("odoo.addons.base.models.ir_qweb"):
+            rendered = self.env["ir.qweb"]._render(view.id, {"payload": payload})
+        # t-out escapes the markup.
+        self.assertIn("&lt;b&gt;bold&lt;/b&gt;", rendered)
+        # t-raw leaves it untouched (the <b> tag survives as live markup).
+        self.assertIn('<span class="raw"><b>bold</b></span>', rendered)
 
     def test_foreach_iter_list(self):
         t = self.env["ir.ui.view"].create(
@@ -1488,9 +1609,7 @@ class TestQWebBasic(TransactionCase):
                 <t t-set="val"><b>TOTO %s</b></t>
                 <t t-if="'TOTO' in val">OK</t>
                 <a t-out="val"/>
-            </t>""".replace(
-                    "                ", ""
-                ),
+            </t>""".replace("                ", ""),
             }
         )
         result = """
@@ -1512,9 +1631,7 @@ class TestQWebBasic(TransactionCase):
                 <t t-if="'>' in val">if > in val</t>
                 <t t-if="'<b>' in val">if tag in val</t>
                 <a t-att-help="val % 1"/>
-            </t>""".replace(
-                    "                ", ""
-                ),
+            </t>""".replace("                ", ""),
             }
         )
         result = """
@@ -1574,8 +1691,10 @@ class TestQWebBasic(TransactionCase):
         )
         html = self.env["ir.qweb"]._render(
             view1.id,
-            {"text": """a
-        b <b>c</b>"""},
+            {
+                "text": """a
+        b <b>c</b>"""
+            },
         )
         self.assertEqual(
             html,

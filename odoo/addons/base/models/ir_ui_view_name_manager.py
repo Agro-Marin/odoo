@@ -64,7 +64,12 @@ class NameManager:
         node_info: dict[str, Any],
         info: dict[str, Any] = frozendict(),
     ) -> None:
+        """Record a field declared by a ``<field>`` element of the view."""
         self.available_fields[name].setdefault("info", {}).update(info)
+        # Invariant: node_info["model_groups"] already has the field's python
+        # `field.groups` AND-ed in by _postprocess_tag_field / _validate_tag_field
+        # (ir_ui_view.py). _get_field_groups relies on this cached value and never
+        # re-applies field.groups for fields seen as a <field> element.
         self.field_groups[name] = node_info["model_groups"]
         self.available_fields[name].setdefault("groups", []).append(
             node_info["view_groups"]
@@ -72,6 +77,7 @@ class NameManager:
         self.available_names.add(info.get("id") or name)
 
     def has_action(self, name: str) -> None:
+        """Record an action name declared in the view."""
         self.available_actions.add(name)
 
     def must_have_fields(
@@ -81,6 +87,7 @@ class NameManager:
         node_info: dict[str, Any],
         use: str,
     ) -> None:
+        """Record fields referenced by an expression on ``node`` for validation."""
         access_groups = node_info["model_groups"] & node_info["view_groups"]
         for name in names:
             if name == "id":
@@ -89,14 +96,22 @@ class NameManager:
                 self.used_fields[name][access_groups] = (use, node)
             elif self.parent:
                 self.parent.must_have_fields(node, {name[7:]}, node_info, use)
+            else:
+                # A `parent.`-prefixed reference in a root view (no parent) cannot
+                # resolve; route it through used_names so check() flags it as
+                # "does not exist" instead of silently dropping it.
+                self.used_names[name] = use
 
     def must_have_name(self, name: str, use: str) -> None:
+        """Record a name that must be present in the view (e.g. a label ``for=`` target)."""
         self.used_names[name] = use
 
     def must_exist_action(self, action_id: str, node: etree._Element) -> None:
+        """Record an action id/xmlid whose existence must be checked at ``check`` time."""
         self.must_exist_actions[action_id] = node
 
     def must_exist_group(self, name: str, node: etree._Element) -> None:
+        """Record a ``groups=`` name whose existence must be checked at ``check`` time."""
         self.must_exist_groups[name] = node
 
     def _get_field_groups(self, name: str) -> Any:
@@ -122,6 +137,12 @@ class NameManager:
         return access_groups
 
     def check(self, view: Any) -> None:
+        """Run the consolidated validation pass over the names collected for ``view``.
+
+        Raises a view error (or logs a warning) for undefined names/ids,
+        nonexistent fields or actions, unknown groups, ``select="multi"`` misuse,
+        and access-rights group inconsistencies.
+        """
         for name, use in self.used_names.items():
             if (
                 name not in self.available_actions
@@ -135,7 +156,9 @@ class NameManager:
                     use=use,
                 )
                 view._raise_view_error(msg)
-            elif name not in self.available_actions and name not in self.available_names:
+            elif (
+                name not in self.available_actions and name not in self.available_names
+            ):
                 msg = _(
                     "Name or id \u201c%(name_or_id)s\u201d in %(use)s must be present in view but is missing.",
                     name_or_id=name,
@@ -188,6 +211,8 @@ class NameManager:
                 view._log_view_warning(msg, node)
 
         for name, groups_uses in self.used_fields.items():
+            # Multiple uses under the same access_groups collapse to the last
+            # (use, node); error messages then cite one representative node.
             use, node = next(iter(groups_uses.values()))
             if name == "id":  # always available
                 continue
@@ -315,8 +340,9 @@ class NameManager:
         return message, "does_not_exist" if does_not_exist else "inconsistency"
 
     def update_available_fields(self) -> None:
+        """Merge ``field_info`` into each accumulated available field."""
         for name, info in self.available_fields.items():
-            info.update(self.field_info.get(name, ()))
+            info.update(self.field_info.get(name, {}))
 
     def get_missing_fields(self) -> dict[str, tuple[Any, list[tuple]]]:
         """
@@ -331,11 +357,6 @@ class NameManager:
         #   <field name="field_c" required="field_a" groups="B2"/>
         # </div>
         #
-
-        # views have many elements with the same groups
-        parent = self
-        while parent.parent:
-            parent = parent.parent
 
         missing_fields = {}
         for name, groups_uses in self.used_fields.items():

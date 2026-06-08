@@ -222,6 +222,13 @@ def depends(func: Callable[[BaseModel], Collection[str]], /) -> Decorator: ...
 def depends(*args: str) -> Decorator: ...
 
 
+def _check_depends_id(deps) -> None:
+    """Reject ``id`` in a depends spec (raises NotImplementedError if present)."""
+    for arg in deps:
+        if "id" in arg.split("."):
+            raise NotImplementedError("Compute method cannot depend on field 'id'.")
+
+
 def depends(*args) -> Decorator:
     """Return a decorator that specifies the field dependencies of a "compute"
     method (for new-style function fields). Each argument must be a string
@@ -240,12 +247,21 @@ def depends(*args) -> Decorator:
 
     One may also pass a single function as argument. In that case, the
     dependencies are given by calling the function with the field's model.
+    The ``id``-rejection check applies to both forms — the callable's return
+    value is validated on first invocation.
     """
     if args and callable(args[0]):
-        args = args[0]
-    elif any("id" in arg.split(".") for arg in args):
-        msg = "Compute method cannot depend on field 'id'."
-        raise NotImplementedError(msg)
+        original = args[0]
+
+        @wraps(original)
+        def _depends_callable(self):
+            deps = tuple(original(self))
+            _check_depends_id(deps)
+            return deps
+
+        args = _depends_callable
+    else:
+        _check_depends_id(args)
     return attrsetter("_depends", args)
 
 
@@ -289,9 +305,11 @@ def autovacuum[C: Callable](method: C) -> C:
     A return value can be a tuple (done, remaining) which have simular meaning
     as in :meth:`~odoo.addons.base.models.ir_cron.IrCron._commit_progress`.
     """
-    assert method.__name__.startswith("_"), (
-        f"{method.__name__}: autovacuum methods must be private"
-    )
+    if not method.__name__.startswith("_"):
+        # raise (not assert) so the constraint holds under python -O
+        raise TypeError(
+            f"{method.__name__}: autovacuum methods must be private (start with '_')"
+        )
     method._autovacuum = True  # type: ignore
     return method
 

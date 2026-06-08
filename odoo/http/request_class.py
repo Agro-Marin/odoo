@@ -1,66 +1,52 @@
 import contextlib
 import functools
-import hashlib
-import hmac
 import logging
 import threading
 import time
-from collections.abc import Callable, Generator
-from typing import TYPE_CHECKING, Any
-from urllib.parse import urlencode, urlsplit, urlunsplit
+from typing import Any
 
 import babel.core
-import psycopg
-import psycopg.errors
 import werkzeug.datastructures
-import werkzeug.security
-import werkzeug.utils
-from werkzeug.exceptions import HTTPException, NotFound, UnsupportedMediaType
 
 import odoo
-import odoo.api
-from odoo.exceptions import AccessDenied
-from odoo.libs.json import dumps as _fast_dumps
 from odoo.libs.json import loads as _fast_loads
 from odoo.modules.registry import Registry
-from odoo.service import model as service_model
-from odoo.tools import config, consteq, profiler
-from odoo.tools.json import orjson_default
+from odoo.tools import profiler
 
+from ._csrf import _RequestCsrfMixin
+from ._response import _RequestResponseMixin
+from ._serve import _RequestServeMixin
 from .constants import (
-    CSRF_TOKEN_SALT,
     DEFAULT_LANG,
-    NOT_FOUND_NODB,
     SESSION_LIFETIME,
+    SESSION_ROTATION_EXCLUDED_PATHS,
     SESSION_ROTATION_INTERVAL,
-    STATIC_CACHE,
-    STORED_SESSION_BYTES,
     get_default_session,
 )
-from .dispatcher import HttpDispatcher, JsonRPCDispatcher, _dispatchers
-from .exceptions import RegistryError
 from .geoip import GeoIP
 from .helpers import (
     db_filter,
     db_list,
     get_session_max_inactivity,
-    is_cors_preflight,
 )
-from .stream import Stream
+from .session import Session
 from .wrappers import FutureResponse, HTTPRequest, Response
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
-    from .session import Session
 
 _logger = logging.getLogger(__name__)
 
 
-class Request:
+class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
     """
     Wrapper around the incoming HTTP request with deserialized request
     parameters, session utilities and request dispatching logic.
+
+    Concerns split across mixins for file-size hygiene:
+
+    * :class:`_RequestServeMixin` — routing (``_serve_static``/``_serve_db``/
+      ``_serve_nodb`` and helpers).
+    * :class:`_RequestResponseMixin` — response builders (``make_response``,
+      ``make_json_response``, ``redirect``, ``render``, ``reroute``).
+    * :class:`_RequestCsrfMixin` — CSRF token issuance and validation.
     """
 
     def __init__(self, httprequest: HTTPRequest) -> None:
@@ -72,22 +58,31 @@ class Request:
         self.geoip: GeoIP = GeoIP(httprequest.remote_addr)
         self.registry: Registry | None = None
         self.env: odoo.api.Environment | None = None
+        self._post_init_done: bool = False
 
     def _post_init(self) -> None:
+        if self._post_init_done:
+            return
         self.session, self.db = self._get_session_and_dbname()
-        self._post_init = None
+        self._post_init_done = True
 
     def _get_session_and_dbname(self) -> tuple[Session, str | None]:
         from .application import (
             root,
         )
 
-        sid = self.httprequest._session_id__
+        sid = self.httprequest.session_id
         if not sid or not root.session_store.is_valid_key(sid):
             session = root.session_store.new()
         else:
+            # ``get()`` honours ``renew_missing=True`` and returns a session
+            # with a freshly generated sid when the file does not exist. Do
+            # NOT override ``session.sid`` back to the client-supplied value
+            # — that would let any client dictate their own session id,
+            # weakening the defence-in-depth around session fixation (the
+            # primary mitigation is the hard rotation performed by
+            # :meth:`Session.finalize` on login).
             session = root.session_store.get(sid)
-            session.sid = sid  # in case the session was not persisted
 
         for key, val in get_default_session().items():
             session.setdefault(key, val)
@@ -139,8 +134,10 @@ class Request:
         :param dict context: optional context dictionary to change the current context
         :param bool su: optional boolean to change the superuser mode
         """
-        cr = None  # None is a sentinel, it keeps the same cursor
-        self.env = self.env(cr, user, context, su)
+        # Passing ``cr=None`` to ``env(...)`` keeps the current cursor; the
+        # ``Environment.__call__`` body resolves ``cr = self.cr if cr is
+        # None else cr`` before constructing the new environment.
+        self.env = self.env(None, user, context, su)
         self.env.transaction.default_env = self.env
         threading.current_thread().uid = self.env.uid
 
@@ -178,60 +175,15 @@ class Request:
     # =====================================================
     # Helpers
     # =====================================================
-    def csrf_token(self, time_limit: int | None = None) -> str:
-        """
-        Generates and returns a CSRF token for the current session
-
-        :param int | None time_limit: the CSRF token should only be
-            valid for the specified duration (in second), by default
-            48h, ``None`` for the token to be valid as long as the
-            current user's session is.
-        :returns: ASCII token string
-        :rtype: str
-        """
-        secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
-        if not secret:
-            msg = "CSRF protection requires a configured database secret"
-            raise ValueError(msg)
-
-        # if no `time_limit` => distant 1y expiry so max_ts acts as salt, e.g. vs BREACH
-        max_ts = int(time.time() + (time_limit or CSRF_TOKEN_SALT))
-        msg = f"{self.session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
-
-        hm = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
-        return f"{hm}o{max_ts}"
-
-    def validate_csrf(self, csrf: str | None) -> bool:
-        """
-        Is the given csrf token valid ?
-
-        :param str csrf: The token to validate.
-        :returns: ``True`` when valid, ``False`` when not.
-        :rtype: bool
-        """
-        if not csrf:
-            return False
-
-        secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
-        if not secret:
-            msg = "CSRF protection requires a configured database secret"
-            raise ValueError(msg)
-
-        hm, _, max_ts = csrf.rpartition("o")
-        msg = f"{self.session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
-
-        if max_ts:
-            try:
-                if int(max_ts) < int(time.time()):
-                    return False
-            except ValueError:
-                return False
-
-        hm_expected = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
-        return consteq(hm, hm_expected)
+    # CSRF helpers (``csrf_token``/``validate_csrf``) live on
+    # :class:`_RequestCsrfMixin`.
 
     def default_context(self) -> dict[str, Any]:
-        return get_default_session()["context"] | {"lang": self.default_lang()}
+        # ``get_default_session()['context']`` is currently ``{}`` so the
+        # only effective key is ``lang``. If the default session ever
+        # acquires more context keys, add them here explicitly rather
+        # than re-introducing a ``dict|dict`` merge that obscures intent.
+        return {"lang": self.default_lang()}
 
     def default_lang(self) -> str:
         """Returns default user language according to request specification
@@ -266,7 +218,12 @@ class Request:
         nothing.
         """
         if self.session.get("profile_session") and self.db:
-            if self.session["profile_expiration"] < str(odoo.fields.Datetime.now()):
+            # ``.get(..., "")`` (not ``[...]``) so a session that somehow has
+            # ``profile_session`` without ``profile_expiration`` (manual edit,
+            # cross-version migration) treats the missing expiration as
+            # already-elapsed and disables profiling, instead of crashing the
+            # request with KeyError.
+            if self.session.get("profile_expiration", "") < str(odoo.fields.Datetime.now()):
                 # avoid having session profiling for too long if user forgets to disable profiling
                 self.session["profile_session"] = None
                 _logger.warning("Profiling expiration reached, disabling profiling")
@@ -279,12 +236,19 @@ class Request:
                 _logger.debug("Profiling disabled for evented server")
             else:
                 try:
+                    # Use ``.get`` with the same defaults ir_profile sets
+                    # (``collectors=[]``, ``params={}``) so a session missing
+                    # those keys (cross-version migration, manual edit) gets
+                    # the documented default instead of a KeyError caught only
+                    # by the broad ``except`` below — which would log
+                    # "Failure during Profiler creation" with a misleading
+                    # traceback rooted in the missing-key error.
                     return profiler.Profiler(
                         db=self.db,
                         description=self.httprequest.full_path,
                         profile_session=self.session["profile_session"],
-                        collectors=self.session["profile_collectors"],
-                        params=self.session["profile_params"],
+                        collectors=self.session.get("profile_collectors", []),
+                        params=self.session.get("profile_params", {}),
                     )._get_cm_proxy()
                 except Exception:
                     _logger.exception("Failure during Profiler creation")
@@ -293,142 +257,28 @@ class Request:
         return contextlib.nullcontext()
 
     def _inject_future_response(self, response: Response) -> Response:
-        response.headers.extend(self.future_response.headers)
+        """Merge ``future_response`` headers into ``response``.
+
+        ``Set-Cookie`` is the only header in our pipeline that can
+        legitimately appear multiple times (one per cookie) and is
+        accumulated. Every other header that the dispatcher / session
+        save flow puts on ``future_response`` (CORS, Content-Security-
+        Policy, custom session-id replacement) is single-valued in
+        practice; using :meth:`Headers.extend` blindly duplicated them
+        when both ``future_response`` and ``response`` had a value, which
+        produced HTTP responses with two ``Content-Type`` headers when
+        controllers built responses by hand.
+        """
+        for key, value in self.future_response.headers.items():
+            if key.lower() == "set-cookie":
+                response.headers.add(key, value)
+            else:
+                response.headers.set(key, value)
         return response
 
-    def make_response(
-        self,
-        data: str | bytes | None,
-        headers: list[tuple[str, str]] | None = None,
-        cookies: Mapping[str, str] | None = None,
-        status: int = 200,
-    ) -> Response:
-        """Helper for non-HTML responses, or HTML responses with custom
-        response headers or cookies.
-
-        While handlers can just return the HTML markup of a page they want to
-        send as a string if non-HTML data is returned they need to create a
-        complete response object, or the returned data will not be correctly
-        interpreted by the clients.
-
-        :param str data: response body
-        :param int status: http status code
-        :param headers: HTTP headers to set on the response
-        :type headers: ``[(name, value)]``
-        :param collections.abc.Mapping cookies: cookies to set on the client
-        :returns: a response object.
-        :rtype: :class:`~odoo.http.Response`
-        """
-        response = Response(data, status=status, headers=headers)
-        if cookies:
-            for k, v in cookies.items():
-                response.set_cookie(k, v)
-        return response
-
-    def make_json_response(
-        self,
-        data: Any,
-        headers: list[tuple[str, str]] | None = None,
-        cookies: Mapping[str, str] | None = None,
-        status: int = 200,
-    ) -> Response:
-        """Helper for JSON responses, it json-serializes ``data`` and
-        sets the Content-Type header accordingly if none is provided.
-
-        :param data: the data that will be json-serialized into the response body
-        :param int status: http status code
-        :param list[tuple[str, str]] headers: HTTP headers to set on the response
-        :param collections.abc.Mapping cookies: cookies to set on the client
-        :rtype: :class:`~odoo.http.Response`
-        """
-        data = _fast_dumps(data, default=orjson_default)
-
-        headers = werkzeug.datastructures.Headers(headers)
-        headers["Content-Length"] = len(data)
-        if "Content-Type" not in headers:
-            headers["Content-Type"] = "application/json; charset=utf-8"
-
-        return self.make_response(data, headers.to_wsgi_list(), cookies, status)
-
-    def not_found(self, description: str | None = None) -> NotFound:
-        """Shortcut for a `HTTP 404
-        <http://tools.ietf.org/html/rfc7231#section-6.5.4>`_ (Not Found)
-        response
-        """
-        return NotFound(description)
-
-    def redirect(self, location: str, code: int = 303, local: bool = True) -> Response:
-        if local:
-            location = "/" + urlunsplit(
-                urlsplit(location)._replace(scheme="", netloc="")
-            ).lstrip("/\\")
-        if self.db:
-            return self.env["ir.http"]._redirect(location, code)
-        return werkzeug.utils.redirect(location, code, Response=Response)
-
-    def redirect_query(
-        self,
-        location: str,
-        query: dict[str, str] | None = None,
-        code: int = 303,
-        local: bool = True,
-    ) -> Response:
-        if query:
-            separator = "&" if "?" in location else "?"
-            location += separator + urlencode(query)
-        return self.redirect(location, code=code, local=local)
-
-    def render(
-        self,
-        template: str,
-        qcontext: dict[str, Any] | None = None,
-        lazy: bool = True,
-        **kw: Any,
-    ) -> Response:
-        """Lazy render of a QWeb template.
-
-        The actual rendering of the given template will occur at the end of
-        the dispatching. Meanwhile, the template and/or qcontext can be
-        altered or even replaced by a static response.
-
-        :param str template: template to render
-        :param dict qcontext: Rendering context to use
-        :param bool lazy: whether the template rendering should be deferred
-                          until the last possible moment
-        :param dict kw: forwarded to werkzeug's Response object
-        """
-        response = Response(template=template, qcontext=qcontext, **kw)
-        if not lazy:
-            return response.render()
-        return response
-
-    def reroute(self, path: str | bytes, query_string: str | None = None) -> None:
-        """
-        Rewrite the current request URL using the new path and query
-        string. This act as a light redirection, it does not return a
-        3xx responses to the browser but still change the current URL.
-        """
-        from . import request
-
-        # WSGI encoding dance https://peps.python.org/pep-3333/#unicode-issues
-        if isinstance(path, str):
-            path = path.encode("utf-8")
-        path = path.decode("latin1", "replace")
-
-        if query_string is None:
-            query_string = request.httprequest.environ["QUERY_STRING"]
-
-        # Change the WSGI environment
-        environ = self.httprequest._HTTPRequest__environ.copy()
-        environ["PATH_INFO"] = path
-        environ["QUERY_STRING"] = query_string
-        environ["RAW_URI"] = f"{path}?{query_string}"
-        # REQUEST_URI left as-is so it still contains the original URI
-
-        # Create and expose a new request from the modified WSGI env
-        httprequest = HTTPRequest(environ)
-        threading.current_thread().url = httprequest.url
-        self.httprequest = httprequest
+    # Response builders (``make_response``/``make_json_response``/``redirect``/
+    # ``render``/``reroute``/``not_found``) live on
+    # :class:`_RequestResponseMixin`.
 
     def _save_session(self, env: odoo.api.Environment | None = None) -> None:
         """
@@ -452,7 +302,9 @@ class Request:
         if sess.should_rotate:
             root.session_store.rotate(sess, env)  # it saves
         elif (
-            sess.uid and time.time() >= sess["create_time"] + SESSION_ROTATION_INTERVAL
+            sess.uid
+            and time.time() >= sess["create_time"] + SESSION_ROTATION_INTERVAL
+            and self.httprequest.path not in SESSION_ROTATION_EXCLUDED_PATHS
         ):
             root.session_store.rotate(sess, env, True)
         elif sess.is_dirty:
@@ -465,6 +317,8 @@ class Request:
             # only matters for authenticated sessions, and the DB
             # connection may already be dead.
             max_age = get_session_max_inactivity(env) if sess.uid else SESSION_LIFETIME
+            # secure / samesite are filled in by ``_apply_cookie_defaults``
+            # based on request scheme.
             self.future_response.set_cookie(
                 "session_id",
                 sess.sid,
@@ -472,229 +326,15 @@ class Request:
                 httponly=True,
             )
 
-    def _set_request_dispatcher(self, rule: Any) -> None:
-        routing = rule.endpoint.routing
-        dispatcher_cls = _dispatchers[routing["type"]]
-        if not is_cors_preflight(
-            self, rule.endpoint
-        ) and not dispatcher_cls.is_compatible_with(self):
-            compatible_dispatchers = [
-                disp.routing_type
-                for disp in _dispatchers.values()
-                if disp.is_compatible_with(self)
-            ]
-            e = (
-                f"Request inferred type is compatible with {compatible_dispatchers} "
-                f"but {routing['routes'][0]!r} is type={routing['type']!r}.\n\n"
-                "Please verify the Content-Type request header and try again."
-            )
-            # werkzeug doesn't let us add headers to UnsupportedMediaType
-            # so use the following (ugly) to still achieve what we want
-            res = UnsupportedMediaType(e).get_response()
-            res.headers["Accept"] = ", ".join(dispatcher_cls.mimetypes)
-            raise UnsupportedMediaType(response=res)
-        self.dispatcher = dispatcher_cls(self)
+# Routing methods (`_set_request_dispatcher`, `_serve_static`, `_serve_db`,
+# `_serve_nodb`, `_update_served_exception`, `_serve_ir_http_fallback`,
+# `_serve_ir_http`) live on :class:`_RequestServeMixin` in `_serve.py`.
 
-    # =====================================================
-    # Routing
-    # =====================================================
-    def _serve_static(self) -> Response:
-        """Serve a static file from the file system."""
-        from .application import (
-            root,
-        )
 
-        module, _, path = self.httprequest.path[1:].partition("/static/")
-        try:
-            directory = root.static_path(module)
-            if not directory:
-                raise NotFound(f'Module "{module}" not found.\n')
-            filepath = werkzeug.security.safe_join(directory, path)
-            debug = "assets" in self.session.debug
-            res = Stream.from_path(filepath, public=True).get_response(
-                max_age=0 if debug else STATIC_CACHE,
-                content_security_policy=None,
-            )
-            root.set_csp(res)
-            return res
-        except OSError:  # cover both missing file and invalid permissions
-            raise NotFound(f'File "{path}" not found in module {module}.\n')
-
-    def _serve_nodb(self) -> Response:
-        """
-        Dispatch the request to its matching controller in a
-        database-free environment.
-        """
-        from .application import (
-            root,
-        )
-
-        try:
-            router = root.nodb_routing_map.bind_to_environ(self.httprequest.environ)
-            try:
-                rule, args = router.match(return_rule=True)
-            except NotFound as exc:
-                exc.response = Response(
-                    NOT_FOUND_NODB,
-                    status=exc.code,
-                    headers=[
-                        ("Content-Type", "text/html; charset=utf-8"),
-                    ],
-                )
-                raise
-            self._set_request_dispatcher(rule)
-            self.dispatcher.pre_dispatch(rule, args)
-            response = self.dispatcher.dispatch(rule.endpoint, args)
-            self.dispatcher.post_dispatch(response)
-            return response
-        except HTTPException as exc:
-            if exc.code is not None:
-                raise
-            # Valid response returned via werkzeug.exceptions.abort
-            response = exc.get_response()
-            HttpDispatcher(self).post_dispatch(response)
-            return response
-
-    def _serve_db(self) -> Response:
-        """Load the ORM and use it to process the request."""
-        # reuse the same cursor for building, checking the registry, for
-        # matching the controller endpoint and serving the data
-        cr = None
-        try:
-            # get the registry and cursor (RO)
-            try:
-                registry = Registry(self.db)
-                cr = registry.cursor(readonly=True)
-                self.registry = registry.check_signaling(cr)
-            except (
-                AttributeError,
-                psycopg.OperationalError,
-                psycopg.ProgrammingError,
-            ) as e:
-                # If DB no longer exists, clean up stale registry to prevent
-                # repeated 30s hangs on subsequent requests.
-                try:
-                    from odoo.db import close_db
-                    from odoo.service.db import list_dbs
-
-                    if self.db not in list_dbs(force=True):
-                        Registry.delete(self.db)
-                        close_db(self.db)
-                except Exception:
-                    pass
-                raise RegistryError(f"Cannot get registry {self.db}") from e
-            threading.current_thread().dbname = self.registry.db_name
-
-            # find the controller endpoint to use
-            self.env = odoo.api.Environment(cr, self.session.uid, self.session.context)
-            try:
-                rule, args = self.registry["ir.http"]._match(self.httprequest.path)
-            except NotFound as not_found_exc:
-                # no controller endpoint matched -> fallback or 404
-                serve_func = functools.partial(
-                    self._serve_ir_http_fallback, not_found_exc
-                )
-                readonly = True
-            else:
-                # a controller endpoint matched -> dispatch the request
-                self._set_request_dispatcher(rule)
-                serve_func = functools.partial(self._serve_ir_http, rule, args)
-                readonly = rule.endpoint.routing["readonly"]
-                if callable(readonly):
-                    readonly = readonly(rule.endpoint.func.__self__, rule, args)
-
-            # keep on using the RO cursor when a readonly route matched,
-            # and for serve fallback
-            if readonly and cr.readonly:
-                threading.current_thread().cursor_mode = "ro"
-                try:
-                    return service_model.retrying(serve_func, env=self.env)
-                except psycopg.errors.ReadOnlySqlTransaction as exc:
-                    # although the controller is marked read-only, it
-                    # attempted a write operation, try again using a
-                    # read/write cursor
-                    _logger.warning(
-                        "%s, retrying with a read/write cursor",
-                        exc.args[0].rstrip(),
-                        exc_info=True,
-                    )
-                    threading.current_thread().cursor_mode = "ro->rw"
-                except Exception as exc:
-                    raise self._update_served_exception(exc)
-            else:
-                threading.current_thread().cursor_mode = "rw"
-
-            # we must use a RW cursor when a read/write route matched, or
-            # there was a ReadOnlySqlTransaction error
-            if cr.readonly:
-                cr.close()
-                cr = self.env.registry.cursor()
-            else:
-                # the cursor is already a RW cursor, start a new transaction
-                # that will avoid repeatable read serialization errors because
-                # check signaling is not done in `retrying` and that function
-                # would just succeed the second time
-                cr.rollback()
-            assert not cr.readonly
-            self.env = self.env(cr=cr)
-            try:
-                return service_model.retrying(serve_func, env=self.env)
-            except Exception as exc:
-                raise self._update_served_exception(exc)
-        except HTTPException as exc:
-            if exc.code is not None:
-                raise
-            # Valid response returned via werkzeug.exceptions.abort
-            response = exc.get_response()
-            HttpDispatcher(self).post_dispatch(response)
-            return response
-        finally:
-            self.env = None
-            if cr is not None:
-                cr.close()
-
-    def _update_served_exception(self, exc: Exception) -> Exception:
-        if isinstance(exc, HTTPException) and exc.code is None:
-            return exc  # bubble up to _serve_db
-        if (
-            "werkzeug" in config["dev_mode"]
-            and self.dispatcher.routing_type != JsonRPCDispatcher.routing_type
-        ):
-            return exc  # bubble up to werkzeug.debug.DebuggedApplication
-        if not hasattr(exc, "error_response"):
-            if isinstance(exc, AccessDenied):
-                exc.suppress_traceback()
-            exc.error_response = self.registry["ir.http"]._handle_error(exc)
-        return exc
-
-    def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
-        """
-        Called when no controller match the request path. Delegate to
-        ``ir.http._serve_fallback`` to give modules the opportunity to
-        find an alternative way to serve the request. In case no module
-        provided a response, a generic 404 - Not Found page is returned.
-        """
-        self.params = self.get_http_params()
-        self.registry["ir.http"]._auth_method_public()
-        response = self.registry["ir.http"]._serve_fallback()
-        if response:
-            self.registry["ir.http"]._post_dispatch(response)
-            return response
-
-        no_fallback = NotFound()
-        no_fallback.__context__ = (
-            not_found  # During handling of {not_found}, {no_fallback} occurred:
-        )
-        no_fallback.error_response = self.registry["ir.http"]._handle_error(no_fallback)
-        raise no_fallback
-
-    def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
-        """
-        Called when a controller match the request path. Delegate to
-        ``ir.http`` to serve a response.
-        """
-        self.registry["ir.http"]._authenticate(rule.endpoint)
-        self.registry["ir.http"]._pre_dispatch(rule, args)
-        response = self.dispatcher.dispatch(rule.endpoint, args)
-        self.registry["ir.http"]._post_dispatch(response)
-        return response
+# Late import to break the Request <-> Dispatcher cycle.  ``_dispatchers``
+# is referenced only inside ``Request.__init__`` at runtime (never at
+# class-definition time), so moving the import below the class definition
+# is safe.  dispatcher.py does the mirror move with
+# ``from .request_class import Request`` at its own bottom, making the cycle
+# resolvable regardless of which module Python loads first.
+from .dispatcher import _dispatchers  # noqa: E402  — see note above

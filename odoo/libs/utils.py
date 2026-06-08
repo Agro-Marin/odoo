@@ -5,7 +5,6 @@ Pure Python utilities with no Odoo dependencies.
 
 import re
 from contextlib import ContextDecorator, suppress
-from itertools import starmap
 from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:

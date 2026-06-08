@@ -9,6 +9,7 @@ import typing
 import odoo.db
 import odoo.tools.sql
 from odoo import api, tools
+from odoo.api import Environment
 from odoo.tools import OrderedSet
 from odoo.tools.convert import ConvertMode as LoadMode
 from odoo.tools.convert import IdRef, convert_file
@@ -24,7 +25,6 @@ LoadKind = typing.Literal["data", "demo"]
 if typing.TYPE_CHECKING:
     from collections.abc import Collection, Iterable
 
-    from odoo.api import Environment
     from odoo.db import BaseCursor
     from odoo.tests.result import OdooTestResult
 
@@ -45,13 +45,21 @@ def load_data(
 
     :returns: Whether a file was loaded
     """
-    keys = ("init_xml", "data") if kind == "data" else ("demo",)
+    # demo_xml is also iterated for kind="demo" — the load_demo guard checks
+    # both keys, so a module declaring only 'demo_xml' would otherwise have
+    # its demo data silently dropped.
+    keys = ("init_xml", "data") if kind == "data" else ("demo", "demo_xml")
 
     files: set[str] = set()
     for k in keys:
         if k == "init_xml" and package.manifest[k]:
             _logger.warning(
                 "module %s: key 'init_xml' is deprecated in Odoo 19.",
+                package.name,
+            )
+        if k == "demo_xml" and package.manifest[k]:
+            _logger.warning(
+                "module %s: key 'demo_xml' is deprecated in Odoo 19, use 'demo'.",
                 package.name,
             )
         for filename in package.manifest[k]:
@@ -286,10 +294,15 @@ def load_module_graph(
                 model for model in model_names if not registry[model]._abstract
             ]
             if concrete_models:
+                # NOT EXISTS instead of NOT IN: the latter returns no rows if
+                # the subquery ever produces a NULL (current schema disallows
+                # it, but a future ALTER TABLE could silently break this).
                 env.cr.execute(
                     """
-                    SELECT model FROM ir_model
-                    WHERE id NOT IN (SELECT DISTINCT model_id FROM ir_model_access) AND model = ANY(%s)
+                    SELECT m.model FROM ir_model m
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM ir_model_access a WHERE a.model_id = m.id
+                    ) AND m.model = ANY(%s)
                 """,
                     [list(concrete_models)],
                 )
@@ -310,7 +323,7 @@ def load_module_graph(
 
             ver = adapt_version(package.manifest["version"])
             # Set new modules and dependencies
-            module.write({"state": "installed", "latest_version": ver})
+            module.write({"state": "installed", "db_version": ver})
 
             package.state = "installed"
             module.env.flush_all()
@@ -388,9 +401,7 @@ def _check_module_names(cr: BaseCursor, module_names: Iterable[str]) -> None:
         if row[0] != len(mod_names):
             # find out what module name(s) are incorrect:
             cr.execute("SELECT name FROM ir_module_module")
-            incorrect_names = mod_names.difference(
-                [x["name"] for x in cr.dictfetchall()]
-            )
+            incorrect_names = mod_names.difference(name for [name] in cr.fetchall())
             _logger.warning(
                 "invalid module names, ignored: %s", ", ".join(incorrect_names)
             )
@@ -451,13 +462,11 @@ def load_modules(
         if not graph:
             _logger.critical("module base cannot be loaded! (hint: verify addons-path)")
             msg = "Module `base` cannot be loaded! (hint: verify addons-path)"
-            raise ImportError(
-                msg
-            )
+            raise ImportError(msg)
         if update_module and upgrade_modules:
             for pyfile in tools.config["pre_upgrade_scripts"]:
                 odoo.modules.migration.exec_script(
-                    cr, graph["base"].installed_version, pyfile, "base", "pre"
+                    cr, graph["base"].db_version, pyfile, "base", "pre"
                 )
 
         if update_module and tools.sql.table_exists(cr, "ir_model_fields"):
@@ -531,7 +540,7 @@ def load_modules(
                         ("name", "in", tuple(reinit_modules)),
                     ]
                 )
-                reinit_modules = (
+                reinit_records = (
                     modules.downstream_dependencies(
                         exclude_states=(
                             "uninstalled",
@@ -544,7 +553,7 @@ def load_modules(
                 )
                 registry._reinit_modules.update(
                     m
-                    for m in reinit_modules.mapped("name")
+                    for m in reinit_records.mapped("name")
                     if m not in graph._imported_modules
                 )
 
@@ -677,12 +686,15 @@ def load_modules(
             # Cleanup cron
             vacuum_cron = env.ref("base.autovacuum_job", raise_if_not_found=False)
             if vacuum_cron:
-                # trigger after a small delay to give time for assets to regenerate
-                # Reviewed 2026-03: datetime.now() is NOT deprecated (only utcnow() is).
-                # Odoo servers run in UTC; _trigger expects naive UTC datetimes.
-                vacuum_cron._trigger(
-                    at=datetime.datetime.now() + datetime.timedelta(minutes=1)
+                # trigger after a small delay to give time for assets to regenerate.
+                # _trigger expects a naive UTC datetime; build it from a
+                # timezone-aware UTC instant so the trigger fires at the right
+                # wall clock even if the host's TZ is not set to UTC.
+                trigger_at = (
+                    datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
+                    + datetime.timedelta(minutes=1)
                 )
+                vacuum_cron._trigger(at=trigger_at)
 
             env.flush_all()
 
@@ -710,7 +722,11 @@ def load_modules(
                 # modules to remove next time
                 cr.commit()
                 _logger.info("Reloading registry once more after uninstalling modules")
-                registry = Registry.new(
+                # The new Registry is published in the global Registry cache
+                # keyed by cr.dbname, so subsequent Registry(dbname) calls see
+                # it. We don't bind it locally — the caller's reference is
+                # stale anyway and we return immediately.
+                Registry.new(
                     cr.dbname,
                     update_module=update_module,
                     models_to_check=models_to_check,
@@ -790,7 +806,7 @@ def reset_modules_state(db_name: str) -> None:
     with db.cursor() as cr:
         if not odoo.tools.sql.table_exists(cr, "ir_module_module"):
             _logger.info(
-                "skipping reset_modules_state, ir_module_module table does not exists"
+                "skipping reset_modules_state, ir_module_module table does not exist"
             )
             return
         cr.execute(

@@ -5,7 +5,6 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
-from odoo.cli.command import Command, build_config_args, odoo_env
 from odoo.fields import Domain
 from odoo.modules import get_module_path
 from odoo.tools import OrderedSet, config
@@ -14,6 +13,8 @@ from odoo.tools.translate import (
     load_language,
     trans_export,
 )
+
+from . import Command, build_config_args, odoo_env
 
 _logger = logging.getLogger(__name__)
 
@@ -29,8 +30,8 @@ class SubcommandHelpFormatter(argparse.RawTextHelpFormatter):
 class I18n(Command):
     """Import, export, setup languages and internationalization files"""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self) -> None:
+        super().__init__()
         subparsers = self.parser.add_subparsers(
             dest="subcommand", required=True, help="Subcommands help"
         )
@@ -128,6 +129,7 @@ class I18n(Command):
             "--languages",
             dest="languages",
             nargs="+",
+            required=True,
             metavar="LANG",
             help="List of language codes to install",
         )
@@ -145,6 +147,15 @@ class I18n(Command):
                 self._export(parsed_args)
             case "loadlang":
                 self._loadlang(parsed_args)
+            case _:
+                # argparse's required=True on the subparsers makes this
+                # unreachable today. The default is a safety net: a 4th
+                # subcommand added to the parser without updating this
+                # dispatch would silently no-op, and that class of bug is
+                # infuriating to debug. Fail loudly instead.
+                raise NotImplementedError(
+                    f"i18n subcommand {parsed_args.subcommand!r} has no handler"
+                )
 
     def _get_languages(
         self, env: Any, language_codes: list[str], active_test: bool = True
@@ -262,7 +273,15 @@ class I18n(Command):
                 self.export_parser.error("No valid language has been provided")
 
             if parsed_args.output:
-                self._export_file(env, module_names, languages.code, parsed_args.output)
+                # Single --output implies a single language; reject multi-match.
+                # An empty resolved recordset is valid when combined with --pot.
+                if len(languages) > 1:
+                    self.export_parser.error(
+                        f"--output requires a single language; got "
+                        f"{len(languages)} matches: {languages.mapped('code')}"
+                    )
+                lang_code = languages.code if languages else None
+                self._export_file(env, module_names, lang_code, parsed_args.output)
             else:
                 # Po(t) files in the modules' i18n folders
                 for module_name in module_names:
@@ -290,7 +309,7 @@ class I18n(Command):
                 _logger.warning("No translatable terms were found in %s.", module_names)
             return
 
-        path.parent.mkdir(exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         export_format = path.suffix.removeprefix(".")
         if export_format == "pot":
             export_format = "po"

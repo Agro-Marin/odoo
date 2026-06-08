@@ -282,7 +282,7 @@ def upgrade(file_manager: FileManager) -> None:
         if not replacements:
             continue
 
-        def replacement_attr(match: re.Match[str]) -> str:
+        def replacement_attr(match: re.Match[str], replacements: dict = replacements) -> str:
             value = etree.fromstring(f"<x {match[0]} />").attrib["domain"]
             domain = replacements.get(no_whitespace(value))
             if not domain:
@@ -293,7 +293,7 @@ def upgrade(file_manager: FileManager) -> None:
             raw_value = repr(domain).strip('"')
             return f"{match[1]}{raw_value}{match[3]}"
 
-        def replacement_tag(match: re.Match[str]) -> str:
+        def replacement_tag(match: re.Match[str], replacements: dict = replacements) -> str:
             value = etree.fromstring(f"<x>{match[2]}</x>").text
             domain = replacements.get(no_whitespace(value))
             if not domain:

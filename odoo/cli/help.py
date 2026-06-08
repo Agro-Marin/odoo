@@ -14,6 +14,9 @@ from .command import (
 class Help(Command):
     """Display the list of available commands"""
 
+    # NOTE: ``server`` is referenced literally because it is the documented
+    # default command in ``cli.command.main`` (the ``else: command_name =
+    # "server"`` branch). If that default ever changes, update this template.
     template = textwrap.dedent("""\
         usage: {prog_name} [--addons-path=PATH,...] <command> [...]
 
@@ -30,7 +33,7 @@ class Help(Command):
         load_internal_commands()
         load_addons_commands()
 
-        padding = max(len(cmd_name) for cmd_name in commands) + 2
+        padding = max((len(cmd_name) for cmd_name in commands), default=0) + 2
         name_desc = [
             (cmd_name, (cmd.__doc__ or "").strip())
             for cmd_name, cmd in sorted(commands.items())
