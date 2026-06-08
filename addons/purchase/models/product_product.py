@@ -1,8 +1,7 @@
 from datetime import timedelta
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools.translate import _
 
 
 class ProductProduct(models.Model):
@@ -27,6 +26,9 @@ class ProductProduct(models.Model):
     # ------------------------------------------------------------
 
     def _compute_purchased_product_qty(self):
+        self.purchased_product_qty = 0.0
+        if not self.env.user.has_group("purchase.group_purchase_user"):
+            return
         date_from = fields.Date.today() - timedelta(days=365)
         domain = [
             ("order_id.state", "=", "done"),
@@ -41,7 +43,6 @@ class ProductProduct(models.Model):
         purchased_data = {product.id: qty for product, qty in order_lines}
         for product in self:
             if not product.id:
-                product.purchased_product_qty = 0.0
                 continue
             product.purchased_product_qty = product.uom_id.round(
                 purchased_data.get(product.id, 0),
@@ -72,19 +73,37 @@ class ProductProduct(models.Model):
             return NotImplemented
         product_ids = (
             self.env["purchase.order.line"]
-            .search(
+            .search_fetch(
                 [
                     ("order_id", "in", [self.env.context.get("order_id", "")]),
                 ],
+                ["product_id"],
             )
             .product_id.ids
         )
         return [("id", "in", product_ids)]
 
     # ------------------------------------------------------------
+    # ONCHANGE METHODS
+    # ------------------------------------------------------------
+
+    @api.onchange("type")
+    def _onchange_type_purchase_warn(self):
+        if self._origin and self.purchased_product_qty > 0:
+            return {
+                "warning": {
+                    "title": _("Warning"),
+                    "message": _(
+                        "You cannot change the product's type because it is already used in purchase orders."
+                    ),
+                }
+            }
+
+    # ------------------------------------------------------------
     # ACTION METHODS
     # ------------------------------------------------------------
 
+    @api.readonly
     def action_view_po(self):
         action = self.env["ir.actions.actions"]._for_xml_id(
             "purchase.action_purchase_history",

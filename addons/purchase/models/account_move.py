@@ -4,10 +4,9 @@ import time
 
 from markupsafe import Markup
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.fields import Command
 from odoo.tools import OrderedSet
-from odoo.tools.translate import _
 
 from odoo.addons.purchase import const
 
@@ -58,7 +57,7 @@ class AccountMove(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # OVERRIDE
+        """Post a chatter note on the bill when it is created from one or more purchase orders."""
         moves = super().create(vals_list)
         for move in moves:
             if move.reversed_entry_id:
@@ -74,7 +73,7 @@ class AccountMove(models.Model):
         return moves
 
     def write(self, vals):
-        # OVERRIDE
+        """Post a chatter note on the bill when its linked purchase order(s) change."""
         old_purchases = [
             move.mapped("line_ids.purchase_line_ids.order_id") for move in self
         ]

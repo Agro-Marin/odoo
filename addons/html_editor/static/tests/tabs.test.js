@@ -1,4 +1,4 @@
-import { describe, test } from "@odoo/hoot";
+import { beforeEach, describe, test } from "@odoo/hoot";
 import { testEditor } from "./_helpers/editor.js";
 import { TAB_WIDTH, getCharWidth, getIndentWidth, oeTab, testTabulation } from "./_helpers/tabs.js";
 import {
@@ -11,7 +11,7 @@ import {
 
 describe("insert tabulation", () => {
     test("should insert a tab character", async () => {
-        const expectedTabWidth = TAB_WIDTH - getCharWidth("p", "a");
+        const expectedTabWidth = TAB_WIDTH - await getCharWidth("p", "a");
         await testTabulation({
             contentBefore: `<p>a[]b</p>`,
             stepFunction: keydownTab,
@@ -30,7 +30,7 @@ describe("insert tabulation", () => {
     });
 
     test("should insert two tab characters", async () => {
-        const expectedTabWidth = TAB_WIDTH - getCharWidth("p", "a");
+        const expectedTabWidth = TAB_WIDTH - await getCharWidth("p", "a");
         await testTabulation({
             contentBefore: `<p>a[]b</p>`,
             stepFunction: async (editor) => {
@@ -46,7 +46,7 @@ describe("insert tabulation", () => {
     });
 
     test("should insert two tab characters with one char between them", async () => {
-        const expectedTabWidth = TAB_WIDTH - getCharWidth("p", "a");
+        const expectedTabWidth = TAB_WIDTH - await getCharWidth("p", "a");
         await testTabulation({
             contentBefore: `<p>a[]b</p>`,
             stepFunction: async (editor) => {
@@ -108,7 +108,7 @@ describe("insert tabulation", () => {
     });
 
     test("tab should be colored when inserting a tab in the middle of text having background color", async () => {
-        const expectedTabWidth = TAB_WIDTH - getCharWidth("p", "a");
+        const expectedTabWidth = TAB_WIDTH - await getCharWidth("p", "a");
         await testTabulation({
             contentBefore: `<p><font style="background-color: rgb(255,255,0);">a[]b</font></p>`,
             stepFunction: keydownTab,
@@ -123,7 +123,7 @@ describe("insert tabulation", () => {
     });
 
     test("tab should be colored when inserting a tab in the middle of text having background color (2)", async () => {
-        const expectedTabWidth = TAB_WIDTH - (getCharWidth("p", "a") + getCharWidth("p", "b"));
+        const expectedTabWidth = TAB_WIDTH - (await getCharWidth("p", "a") + await getCharWidth("p", "b"));
         await testTabulation({
             contentBefore: `<p><font style="background-color: rgb(255,255,0);">ab<strong>[]cd</strong></font></p>`,
             stepFunction: keydownTab,
@@ -138,7 +138,7 @@ describe("insert tabulation", () => {
     });
 
     test("tab should be colored when inserting a tab in the end of text having background color", async () => {
-        const expectedTabWidth = TAB_WIDTH - (getCharWidth("p", "a") + getCharWidth("p", "b"));
+        const expectedTabWidth = TAB_WIDTH - (await getCharWidth("p", "a") + await getCharWidth("p", "b"));
         await testTabulation({
             contentBefore: `<p><font style="background-color: rgb(255,255,0);">ab[]</font></p>`,
             stepFunction: keydownTab,
@@ -204,10 +204,10 @@ describe("insert tabulation", () => {
     });
 
     test("should insert tab characters at the beginning of two separate paragraphs with tabs in them", async () => {
-        const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
-        const tabAfterB = TAB_WIDTH - getCharWidth("p", "b");
-        const tabAfterC = TAB_WIDTH - getCharWidth("p", "c");
-        const tabAfterD = TAB_WIDTH - getCharWidth("p", "d");
+        const tabAfterA = TAB_WIDTH - await getCharWidth("p", "a");
+        const tabAfterB = TAB_WIDTH - await getCharWidth("p", "b");
+        const tabAfterC = TAB_WIDTH - await getCharWidth("p", "c");
+        const tabAfterD = TAB_WIDTH - await getCharWidth("p", "d");
 
         await testTabulation({
             contentBefore:
@@ -221,7 +221,7 @@ describe("insert tabulation", () => {
     });
 
     test("should insert tab characters at the beginning of three separate blocks", async () => {
-        const tabInBlockquote = TAB_WIDTH - getIndentWidth("blockquote");
+        const tabInBlockquote = TAB_WIDTH - await getIndentWidth("blockquote");
 
         await testTabulation({
             contentBefore:
@@ -247,7 +247,7 @@ describe("insert tabulation", () => {
     });
 
     test("should insert tab characters at the beginning of three separate indented blocks", async () => {
-        const tabInBlockquote = TAB_WIDTH - getIndentWidth("blockquote");
+        const tabInBlockquote = TAB_WIDTH - await getIndentWidth("blockquote");
 
         await testTabulation({
             contentBefore:
@@ -276,7 +276,7 @@ describe("insert tabulation", () => {
     });
 
     test("should insert tab characters at the beginning of three separate blocks of mixed indentation", async () => {
-        const tabInBlockquote = TAB_WIDTH - getIndentWidth("blockquote");
+        const tabInBlockquote = TAB_WIDTH - await getIndentWidth("blockquote");
 
         await testTabulation({
             contentBefore:
@@ -305,12 +305,12 @@ describe("insert tabulation", () => {
     });
 
     test("should insert tab characters at the beginning of three separate blocks with tabs in them", async () => {
-        const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
-        const tabAfterB = TAB_WIDTH - getCharWidth("p", "b");
-        const tabAfterCinH1 = TAB_WIDTH - getCharWidth("h1", "c");
-        const tabAfterDinH1 = TAB_WIDTH - getCharWidth("h1", "d");
-        const tabInBlockquote = TAB_WIDTH - getIndentWidth("blockquote");
-        const tabAfterEinBlockquote = TAB_WIDTH - getCharWidth("blockquote", "e"); // in bloquote, after a tab
+        const tabAfterA = TAB_WIDTH - await getCharWidth("p", "a");
+        const tabAfterB = TAB_WIDTH - await getCharWidth("p", "b");
+        const tabAfterCinH1 = TAB_WIDTH - await getCharWidth("h1", "c");
+        const tabAfterDinH1 = TAB_WIDTH - await getCharWidth("h1", "d");
+        const tabInBlockquote = TAB_WIDTH - await getIndentWidth("blockquote");
+        const tabAfterEinBlockquote = TAB_WIDTH - await getCharWidth("blockquote", "e"); // in bloquote, after a tab
 
         await testTabulation({
             contentBefore:
@@ -349,15 +349,15 @@ describe("insert tabulation", () => {
     });
 
     test("should insert tab characters in blocks and indent lists", async () => {
-        const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
-        const tabAfterB = TAB_WIDTH - getCharWidth("p", "b");
+        const tabAfterA = TAB_WIDTH - await getCharWidth("p", "a");
+        const tabAfterB = TAB_WIDTH - await getCharWidth("p", "b");
         const tabAfterCinNestedLI =
-            TAB_WIDTH - ((2 * getIndentWidth("li") + getCharWidth("li", "c")) % TAB_WIDTH);
-        const tabAfterD = TAB_WIDTH - getCharWidth("li", "d"); // in LI, after a tab
-        const tabInDoubleNestedList = TAB_WIDTH - ((3 * getIndentWidth("li")) % TAB_WIDTH);
-        const tabAfterE = TAB_WIDTH - getCharWidth("li", "e"); // in LI, after a tab
-        const tabInBlockquote = TAB_WIDTH - getIndentWidth("blockquote");
-        const tabAfterFinBlockquote = TAB_WIDTH - getCharWidth("blockquote", "f"); // in blockquote, after a tab
+            TAB_WIDTH - ((2 * await getIndentWidth("li") + await getCharWidth("li", "c")) % TAB_WIDTH);
+        const tabAfterD = TAB_WIDTH - await getCharWidth("li", "d"); // in LI, after a tab
+        const tabInDoubleNestedList = TAB_WIDTH - ((3 * await getIndentWidth("li")) % TAB_WIDTH);
+        const tabAfterE = TAB_WIDTH - await getCharWidth("li", "e"); // in LI, after a tab
+        const tabInBlockquote = TAB_WIDTH - await getIndentWidth("blockquote");
+        const tabAfterFinBlockquote = TAB_WIDTH - await getCharWidth("blockquote", "f"); // in blockquote, after a tab
 
         // prettier-ignore
         await testTabulation({
@@ -405,7 +405,7 @@ describe("insert tabulation", () => {
     });
 
     test("should indent only contenteditable paragraph-related blocks", async () => {
-        const tabInBlockquote = TAB_WIDTH - getIndentWidth("blockquote");
+        const tabInBlockquote = TAB_WIDTH - await getIndentWidth("blockquote");
 
         await testTabulation({
             contentBefore:
@@ -432,7 +432,10 @@ describe("insert tabulation", () => {
 });
 
 describe("delete backward tabulation", () => {
-    const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
+    let tabAfterA;
+    beforeEach(async () => {
+        tabAfterA = TAB_WIDTH - (await getCharWidth("p", "a"));
+    });
     test("should remove one tab character (1)", async () => {
         await testEditor({
             contentBefore: `<p>a${oeTab(tabAfterA)}[]b</p>`,
@@ -489,7 +492,10 @@ describe("delete backward tabulation", () => {
 });
 
 describe("delete forward tabulation", () => {
-    const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
+    let tabAfterA;
+    beforeEach(async () => {
+        tabAfterA = TAB_WIDTH - (await getCharWidth("p", "a"));
+    });
     test("should remove one tab character (1)", async () => {
         await testTabulation({
             contentBefore: `<p>a[]${oeTab(tabAfterA)}b1</p>`,
@@ -567,7 +573,10 @@ describe("delete forward tabulation", () => {
 });
 
 describe("delete mixed tabulation", () => {
-    const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
+    let tabAfterA;
+    beforeEach(async () => {
+        tabAfterA = TAB_WIDTH - (await getCharWidth("p", "a"));
+    });
     test("should remove all tab characters (1)", async () => {
         await testEditor({
             contentBefore: `<p>a${oeTab(tabAfterA)}[]${oeTab()}b1</p>`,
@@ -625,7 +634,7 @@ describe("remove tabulation with shift+tab", () => {
                 `>\u0009</span>\u200B`
             );
         }
-        const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
+        const tabAfterA = TAB_WIDTH - await getCharWidth("p", "a");
         await testEditor({
             contentBefore: `<p>a${oeTab(tabAfterA)}[]b</p>`,
             stepFunction: keydownShiftTab,
@@ -697,10 +706,10 @@ describe("remove tabulation with shift+tab", () => {
     });
 
     test("should remove tab characters from the beginning of two separate paragraphs with tabs in them", async () => {
-        const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
-        const tabAfterB = TAB_WIDTH - getCharWidth("p", "b");
-        const tabAfterC = TAB_WIDTH - getCharWidth("p", "c");
-        const tabAfterD = TAB_WIDTH - getCharWidth("p", "d");
+        const tabAfterA = TAB_WIDTH - await getCharWidth("p", "a");
+        const tabAfterB = TAB_WIDTH - await getCharWidth("p", "b");
+        const tabAfterC = TAB_WIDTH - await getCharWidth("p", "c");
+        const tabAfterD = TAB_WIDTH - await getCharWidth("p", "d");
         await testTabulation({
             contentBefore:
                 `<p>${oeTab(TAB_WIDTH)}a[${oeTab(tabAfterA)}b${oeTab(tabAfterB)}</p>` +
@@ -755,12 +764,12 @@ describe("remove tabulation with shift+tab", () => {
     });
 
     test("should remove tab characters from the beginning of three separate blocks with tabs in them", async () => {
-        const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
-        const tabAfterB = TAB_WIDTH - getCharWidth("p", "b");
-        const tabAfterCinH1 = TAB_WIDTH - getCharWidth("h1", "c");
-        const tabAfterDinH1 = TAB_WIDTH - getCharWidth("h1", "d");
+        const tabAfterA = TAB_WIDTH - await getCharWidth("p", "a");
+        const tabAfterB = TAB_WIDTH - await getCharWidth("p", "b");
+        const tabAfterCinH1 = TAB_WIDTH - await getCharWidth("h1", "c");
+        const tabAfterDinH1 = TAB_WIDTH - await getCharWidth("h1", "d");
         const tabAfterEinBlockquote =
-            TAB_WIDTH - (getIndentWidth("blockquote") + getCharWidth("blockquote", "e"));
+            TAB_WIDTH - (await getIndentWidth("blockquote") + await getCharWidth("blockquote", "e"));
 
         await testTabulation({
             contentBefore:
@@ -786,15 +795,15 @@ describe("remove tabulation with shift+tab", () => {
     });
 
     test("should remove tab characters from the beginning of blocks and outdent lists", async () => {
-        const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
-        const tabAfterB = TAB_WIDTH - getCharWidth("p", "b");
+        const tabAfterA = TAB_WIDTH - await getCharWidth("p", "a");
+        const tabAfterB = TAB_WIDTH - await getCharWidth("p", "b");
         const tabAfterCinLI =
-            TAB_WIDTH - ((getIndentWidth("li") + getCharWidth("li", "c")) % TAB_WIDTH);
-        const tabAfterD = TAB_WIDTH - getCharWidth("li", "d"); // in LI, after a tab
-        const tabAfterE = TAB_WIDTH - getCharWidth("li", "e"); // in LI, after a tab
-        const tabInNestedList = TAB_WIDTH - ((2 * getIndentWidth("li")) % TAB_WIDTH);
+            TAB_WIDTH - ((await getIndentWidth("li") + await getCharWidth("li", "c")) % TAB_WIDTH);
+        const tabAfterD = TAB_WIDTH - await getCharWidth("li", "d"); // in LI, after a tab
+        const tabAfterE = TAB_WIDTH - await getCharWidth("li", "e"); // in LI, after a tab
+        const tabInNestedList = TAB_WIDTH - ((2 * await getIndentWidth("li")) % TAB_WIDTH);
         const tabAfterFinBlockquote =
-            TAB_WIDTH - (getIndentWidth("blockquote") + getCharWidth("blockquote", "f"));
+            TAB_WIDTH - (await getIndentWidth("blockquote") + await getCharWidth("blockquote", "f"));
 
         await testTabulation({
             contentBefore:
@@ -856,8 +865,8 @@ describe("remove tabulation with shift+tab", () => {
 
 describe("update tab width", () => {
     test("should update tab width on content change", async () => {
-        const tabAfterA = TAB_WIDTH - getCharWidth("p", "a");
-        const tabAfterAA = TAB_WIDTH - 2 * getCharWidth("p", "a");
+        const tabAfterA = TAB_WIDTH - await getCharWidth("p", "a");
+        const tabAfterAA = TAB_WIDTH - 2 * await getCharWidth("p", "a");
         await testEditor({
             contentBefore: `<p><span>a[]</span>${oeTab(tabAfterA)}</p>`,
             stepFunction: async (editor) => {

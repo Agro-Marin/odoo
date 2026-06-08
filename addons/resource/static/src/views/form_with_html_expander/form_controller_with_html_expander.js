@@ -19,8 +19,8 @@ export class FormControllerWithHTMLExpander extends FormController {
 
     get modelParams() {
         const modelParams = super.modelParams;
-        const onRootLoaded = modelParams.hooks.onRootLoaded;
-        modelParams.hooks.onRootLoaded = async () => {
+        const onRootLoaded = modelParams.hooks.lifecycle.onRootLoaded;
+        modelParams.hooks.lifecycle.onRootLoaded = async () => {
             if (onRootLoaded) {
                 onRootLoaded();
             }

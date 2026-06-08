@@ -1161,7 +1161,7 @@ class AssetsBundle:
 
         return self.external_assets + response
 
-    def get_native_module_data(self) -> dict:
+    def get_native_module_data(self, with_bridges: bool = True) -> dict:
         """Return import map and preload data for native ESM modules.
 
         Returns a dict with:
@@ -1169,6 +1169,13 @@ class AssetsBundle:
         - ``preload_urls``: URLs for ``<link rel="modulepreload">``
         - ``bridge_import_map``: ``{specifier: data_uri}`` for
           legacy modules that native modules import from
+
+        :param with_bridges: when ``False``, skip building the
+            ``odoo.loader.modules`` bridge (``bridge_import_map`` comes back
+            empty). Callers that merge only ``import_map`` — the dynamic-child
+            and secondary import-map paths in ``ir_qweb`` — pass ``False`` to
+            avoid the bridge's regex discovery and attachment persistence,
+            work whose result they discard.
         """
         if not self.native_modules:
             log_event(
@@ -1219,8 +1226,10 @@ class AssetsBundle:
                 import_map[header["alias"]] = asset.url
                 native_specifiers.add(header["alias"])
 
-        bridge_import_map = self._build_native_to_legacy_bridge(
-            native_specifiers,
+        bridge_import_map = (
+            self._build_native_to_legacy_bridge(native_specifiers)
+            if with_bridges
+            else {}
         )
         log_event(
             _bundle_log,

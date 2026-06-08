@@ -63,9 +63,11 @@ export class PortalSecurity extends Interaction {
             )
         );
 
-        const { duration } = await this.services.field.loadFields("res.users.apikeys.description", {
-            fieldNames: ["duration"],
-        });
+        const { duration } = await this.waitFor(
+            this.services.field.loadFields("res.users.apikeys.description", {
+                fieldNames: ["duration"],
+            })
+        );
 
         this.services.dialog.add(InputConfirmationDialog, {
             title: _t("New API Key"),
@@ -109,10 +111,12 @@ export class PortalSecurity extends Interaction {
         });
     }
     async onRemoveApiKeyClick(ev) {
+        // currentTarget is the listened-to .o_portal_remove_api_key element (the <button>);
+        // target may be the inner <i> when the user clicks the icon glyph itself.
         await this.waitFor(
             await handleCheckIdentity(
                 this.waitFor(
-                    this.services.orm.call("res.users.apikeys", "remove", [parseInt(ev.target.id)])
+                    this.services.orm.call("res.users.apikeys", "remove", [parseInt(ev.currentTarget.dataset.id, 10)])
                 ),
                 this.services.orm,
                 this.services.dialog

@@ -21,9 +21,7 @@ class DiscussGifController(Controller):
             )
             response.raise_for_status()
         except requests.exceptions.ConnectionError:
-            _logger.error(
-                "Failed to connect to Tenor GIF API (connection retries exhausted)."
-            )
+            _logger.error("Failed to connect to Tenor GIF API.")
         except requests.exceptions.HTTPError:
             _logger.error("Tenor GIF API returned an HTTP error.")
 
@@ -31,10 +29,8 @@ class DiscussGifController(Controller):
             raise BadRequest
         return response
 
-    @route("/discuss/gif/search", type="jsonrpc", auth="user")
-    def search(
-        self, search_term, locale="en", country="US", position=None, readonly=True
-    ):
+    @route("/discuss/gif/search", type="jsonrpc", auth="user", readonly=True)
+    def search(self, search_term, locale="en", country="US", position=None):
         # sudo: ir.config_parameter - read keys are hard-coded and values are only used for server requests
         ir_config = request.env["ir.config_parameter"].sudo()
         query_string = urlencode(
@@ -50,10 +46,7 @@ class DiscussGifController(Controller):
                 "pos": position,
             }
         )
-        response = self._request_gifs(f"search?{query_string}")
-        if response:
-            return response.json()
-        return None
+        return self._request_gifs(f"search?{query_string}").json()
 
     @route("/discuss/gif/categories", type="jsonrpc", auth="user", readonly=True)
     def categories(self, locale="en", country="US"):
@@ -69,10 +62,7 @@ class DiscussGifController(Controller):
                 "country": country,
             }
         )
-        response = self._request_gifs(f"categories?{query_string}")
-        if response:
-            return response.json()
-        return None
+        return self._request_gifs(f"categories?{query_string}").json()
 
     @route("/discuss/gif/add_favorite", type="jsonrpc", auth="user")
     def add_favorite(self, tenor_gif_id):
@@ -89,10 +79,7 @@ class DiscussGifController(Controller):
                 "media_filter": "tinygif",
             }
         )
-        response = self._request_gifs(f"posts?{query_string}")
-        if response:
-            return response.json()["results"]
-        return None
+        return self._request_gifs(f"posts?{query_string}").json()["results"]
 
     @route("/discuss/gif/favorites", type="jsonrpc", auth="user", readonly=True)
     def get_favorites(self, offset=0):

@@ -1,7 +1,7 @@
 from typing import Any, Self
 
 from odoo import _, api, fields, models
-from odoo.orm.primitives import ValuesType
+from odoo.models import ValuesType
 
 
 class GamificationBadgeUser(models.Model):

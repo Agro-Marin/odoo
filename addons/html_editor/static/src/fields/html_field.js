@@ -16,6 +16,7 @@ import {
 import { normalizeHTML } from "@html_editor/utils/html";
 import { Wysiwyg } from "@html_editor/wysiwyg";
 import { Component, markup, status, useRef, useState } from "@odoo/owl";
+import { ModelEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -79,8 +80,15 @@ export class HtmlField extends Component {
         this.codeViewRef = useRef("codeView");
 
         const { model } = this.props.record;
-        useBus(model.bus, "WILL_SAVE_URGENTLY", () => this.commitChanges({ urgent: true }));
-        useBus(model.bus, "NEED_LOCAL_CHANGES", ({ detail }) =>
+        useBus(model.bus, ModelEvent.WILL_SAVE_URGENTLY, ({ detail }) =>
+            // Push onto detail.proms so UrgentSaveCoordinator.run() awaits this
+            // commit before the save reads _changes. Without it, the async commit
+            // races the tab-close save, which then sees no changes and skips the
+            // sendBeacon -- silently dropping the edit (and hanging tests that
+            // await the beacon). Mirrors the NEED_LOCAL_CHANGES handler below.
+            detail.proms.push(this.commitChanges({ urgent: true }))
+        );
+        useBus(model.bus, ModelEvent.NEED_LOCAL_CHANGES, ({ detail }) =>
             detail.proms.push(this.commitChanges())
         );
         this.busService = this.env.services.bus_service;
@@ -189,21 +197,31 @@ export class HtmlField extends Component {
         if (status(this) === "destroyed") {
             return;
         }
-        if (this.isDirty) {
-            if (this.state.showCodeView) {
+        if (this.state.showCodeView) {
+            if (this.isDirty) {
                 await this.updateValue(this.codeViewRef.el.value);
-                return;
             }
-            if (urgent) {
-                await this.updateValue(this.editor.getContent());
-            }
+            return;
+        }
+        if (urgent) {
+            // Always persist the current editor content on an urgent (page-unload)
+            // save -- do NOT gate on isDirty. A background image save (kicked off
+            // below) updates the DOM to the finalized src without flipping
+            // isDirty, and that finalized content still needs to be beaconed by
+            // the next urgent save. record.update no-ops when nothing actually
+            // changed, so committing while clean is harmless.
+            await this.updateValue(this.editor.getContent());
+            // Finish pending image uploads in the background: sendBeacon can't
+            // await the upload round-trip during unload. A subsequent save
+            // beacons the finalized src once the round-trip completes.
+            this.getEditorContent();
+            return;
+        }
+        if (this.isDirty) {
             const el = await this.getEditorContent();
             const content = el.innerHTML;
             this.clearElementToCompare(el);
-            const comparisonValue = el.innerHTML;
-            if (!urgent || (urgent && this.lastValue !== comparisonValue)) {
-                await this.updateValue(content);
-            }
+            await this.updateValue(content);
         }
     }
 

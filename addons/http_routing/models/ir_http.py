@@ -599,6 +599,14 @@ class IrHttp(models.AbstractModel):
             code, html = cls._get_error_html(request.env, code, values)
         except Exception:
             _logger.exception("Couldn't render a template for http status %s", code)
+            # The first attempt may have aborted the PG transaction (e.g. an
+            # INSERT into ir_attachment from asset-bundle generation hit a
+            # read-only cursor and raised ReadOnlySqlTransaction).  Without
+            # an explicit rollback the fallback render's SELECT would fail
+            # with "current transaction is aborted, commands ignored", and
+            # the user would see the outer 500 instead of the simpler error
+            # page this branch is meant to deliver.
+            request.env.cr.rollback()
             code, html = 418, request.env['ir.ui.view']._render_template('http_routing.http_error', values)
 
         response = Response(html, status=code, content_type='text/html;charset=utf-8')

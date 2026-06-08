@@ -37,7 +37,7 @@ export class PortalSearchPanel extends Interaction {
                 ?.getAttribute("href")
                 ?.replace("#", "") || ""
         );
-        search.set("search", this.el.querySelector("input[name=search]").value);
+        search.set("search", this.el.querySelector("input[name=search]")?.value || "");
         window.location.search = search.toString();
     }
 

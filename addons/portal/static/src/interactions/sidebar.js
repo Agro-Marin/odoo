@@ -72,7 +72,11 @@ export class Sidebar extends Interaction {
         let lastLI = false;
         let lastUL = null;
         const bsSidenavEl = this.el.querySelector(".bs-sidenav");
-        if (!bsSidenavEl) {
+        if (!bsSidenavEl || !this.spyWatched) {
+            // ``spyWatched`` is initialised to ``undefined`` in setup and is
+            // assigned by downstream subclasses (sale_management, account, ...).
+            // Bail out cleanly when a caller invokes ``generateMenu`` before a
+            // subclass has set it, instead of crashing on the removeAttribute below.
             return;
         }
 

@@ -13,6 +13,14 @@ from odoo.tools import groupby
 
 from odoo.addons.bus.websocket import wsrequest
 
+# Canonical post-render form of the empty-message edit marker.
+# Emitted by ``mail.thread`` after a user removes all content from a previously
+# posted message; consumed by chatter filters that need to ignore the stub.
+# The emit pipeline (``mail/models/mail_thread.py``) uses ``lxml`` self-closing
+# tags internally; browsers normalise to this canonical form, which is what the
+# tests in ``mail/tests/discuss/`` assert and what filters must match.
+EMPTY_EDIT_MARKER = '<span class="o-mail-Message-edited"></span>'
+
 
 def add_guest_to_context(func):
     """Decorate a function to extract the guest from the request.

@@ -22,6 +22,14 @@ const translateDropdownFromToolbar = async () => {
 };
 
 test("ChatGPT dialog opens in translate mode when clicked on translate button in toolbar", async () => {
+    // ``loadLanguages.installedLanguages`` is a module-level cache (upstream
+    // Odoo behavior, see web/core/l10n/translation.js). Without explicit
+    // setup, this test would inherit whatever the previous test in the run
+    // wrote there, making the button-vs-dropdown branch in
+    // ``LanguageSelector`` non-deterministic. Pin it to a single language so
+    // the toolbar consistently renders a button (not a dropdown).
+    loadLanguages.installedLanguages = false;
+    onRpc("res.lang", "get_installed", () => [["fr_BE", "French (BE) / Français (BE)"]]);
     await setupEditor("<p>te[s]t</p>", {
         config: { Plugins: [...MAIN_PLUGINS, ChatGPTTranslatePlugin] },
     });
@@ -163,6 +171,12 @@ test("Translate dropdown should have the default language at top", async () => {
 });
 
 test("press escape to close translate dialog", async () => {
+    // Same single-language setup as the "translate button" test above:
+    // without it, the toolbar may render a dropdown depending on prior
+    // ``loadLanguages.installedLanguages`` state, and the test never
+    // reaches the dialog.
+    loadLanguages.installedLanguages = false;
+    onRpc("res.lang", "get_installed", () => [["fr_BE", "French (BE) / Français (BE)"]]);
     await setupEditor("<p>[test]</p>", {
         config: { Plugins: [...MAIN_PLUGINS, ChatGPTTranslatePlugin] },
     });

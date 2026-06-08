@@ -891,10 +891,17 @@ class MailTemplate(models.Model):
         sending_email_layout_xmlid = email_layout_xmlid or self.email_layout_xmlid
 
         mails_sudo = self.env["mail.mail"].sudo()
-        batch_size = (
-            int(self.env["ir.config_parameter"].sudo().get_param("mail.batch_size"))
-            or 50
-        )  # be sure to not have 0, as otherwise no iteration is done
+        try:
+            batch_size = int(
+                self.env["ir.config_parameter"].sudo().get_param("mail.batch_size")
+                or 0
+            )
+        except ValueError:
+            _logger.warning(
+                "Malformed ICP 'mail.batch_size', falling back to default 50"
+            )
+            batch_size = 0
+        batch_size = batch_size or 50  # avoid 0 -> would skip all iterations
         RecordModel = self.env[self.model].with_prefetch(res_ids)
         record_ir_model = self.env["ir.model"]._get(self.model)
 

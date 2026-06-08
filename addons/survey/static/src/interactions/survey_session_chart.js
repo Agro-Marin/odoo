@@ -1,7 +1,7 @@
 /** @odoo-module native */
 /* global ChartDataLabels */
 
-import { loadJS } from "@web/core/assets";
+import { loadBundle } from "@web/core/assets";
 import SESSION_CHART_COLORS from "@survey/interactions/survey_session_colors";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
@@ -27,7 +27,7 @@ export class SurveySessionChart extends Interaction {
     }
 
     async willStart() {
-        await loadJS("/survey/static/src/js/libs/chartjs-plugin-datalabels.js");
+        await loadBundle("survey.assets_chartjs_datalabels_lib");
     }
 
     start() {
