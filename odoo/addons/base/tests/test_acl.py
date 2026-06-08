@@ -358,3 +358,258 @@ class TestIrRule(TransactionCaseWithUserDemo):
         # read the partners as demo user (several group domains, no global domain)
         partners = partners_demo.search([])
         self.assertTrue(partners, "Demo user should see some partners.")
+
+    def test_ir_rule_superuser_bypass(self):
+        """Pin the env.su superuser bypass: a restrictive global rule yields no
+        rules and an unrestricted (TRUE) domain under sudo, but is restrictive
+        for a non-superuser user. (IRU-T1)
+        """
+        model_res_partner = self.env.ref("base.model_res_partner")
+        # restrictive *global* rule (no group) -> AND-combined with everything
+        self.env["ir.rule"].create(
+            {
+                "name": "test_rule_su_bypass",
+                "model_id": model_res_partner.id,
+                "domain_force": "[('id', '=', False)]",
+            }
+        )
+
+        # superuser: rules bypassed entirely
+        su_rule = self.env(su=True)["ir.rule"]
+        self.assertFalse(
+            su_rule._get_rules("res.partner", "read"),
+            "Superuser must get no record rules (env.su bypass).",
+        )
+        self.assertTrue(
+            su_rule._compute_domain("res.partner", "read").is_true(),
+            "Superuser domain must be unrestricted (Domain.TRUE).",
+        )
+
+        # non-superuser demo user: the global rule applies and is restrictive
+        demo_rule = self.env(user=self.user_demo)["ir.rule"]
+        self.assertTrue(
+            demo_rule._get_rules("res.partner", "read"),
+            "Demo user must get the global rule.",
+        )
+        self.assertFalse(
+            demo_rule._compute_domain("res.partner", "read").is_true(),
+            "Demo user domain must be restricted by the global rule.",
+        )
+
+    def test_ir_rule_get_rules_modes(self):
+        """``_get_rules`` selects the rule for the requested perm mode only and
+        rejects an invalid mode. (IRU-T2)
+        """
+        model_res_partner = self.env.ref("base.model_res_partner")
+        group_user = self.env.ref("base.group_user")
+        unlink_rule = self.env["ir.rule"].create(
+            {
+                "name": "test_rule_unlink_only",
+                "model_id": model_res_partner.id,
+                "domain_force": "[('id', '!=', False)]",
+                "groups": [Command.set(group_user.ids)],
+                "perm_read": False,
+                "perm_write": False,
+                "perm_create": False,
+                "perm_unlink": True,
+            }
+        )
+
+        demo_rule = self.env(user=self.user_demo)["ir.rule"]
+        self.assertIn(
+            unlink_rule,
+            demo_rule._get_rules("res.partner", "unlink"),
+            "Rule with only perm_unlink must appear for the 'unlink' mode.",
+        )
+        for mode in ("read", "write", "create"):
+            self.assertNotIn(
+                unlink_rule,
+                demo_rule._get_rules("res.partner", mode),
+                f"Unlink-only rule must not appear for the {mode!r} mode.",
+            )
+
+        with self.assertRaises(ValueError):
+            demo_rule._get_rules("res.partner", "bogus")
+
+    @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
+    def test_ir_rule_access_error_message(self):
+        """Forcing a denial raises AccessError; the debug (group_no_one +
+        internal) message names the blaming rule. (IRU-T3, IRU-C3)
+        """
+        model_res_partner = self.env.ref("base.model_res_partner")
+        group_user = self.env.ref("base.group_user")
+
+        # a real, accessible partner to deny access to
+        partner = self.env["res.partner"].create({"name": "T3 partner"})
+
+        # group rule that forbids every record for the employee group
+        self.env["ir.rule"].create(
+            {
+                "name": "test_rule_t3_deny",
+                "model_id": model_res_partner.id,
+                "domain_force": "[('id', '=', False)]",
+                "groups": [Command.set(group_user.ids)],
+            }
+        )
+
+        partner_demo = partner.with_user(self.user_demo)
+        with self.assertRaises(AccessError):
+            partner_demo.check_access("read")
+
+        # In a group_no_one debug context the message must name the rule.
+        # Force the debug branch of _make_access_error by patching has_group.
+        UserCls = type(self.env.user)
+        original_has_group = UserCls.has_group
+
+        def fake_has_group(user, group_ext_id):
+            if group_ext_id == "base.group_no_one":
+                return True
+            return original_has_group(user, group_ext_id)
+
+        rule_env = self.env(user=self.user_demo)["ir.rule"]
+        self.patch(UserCls, "has_group", fake_has_group)
+        exception = rule_env._make_access_error("read", partner_demo)
+        self.assertIn(
+            "test_rule_t3_deny",
+            str(exception),
+            "Debug access-error message should name the blaming rule.",
+        )
+
+
+class TestIrModelAccess(TransactionCaseWithUserDemo):
+    def test_invalid_access_mode(self):
+        """The three mode guards reject an invalid access mode. (IMA-T1)"""
+        Access = self.env["ir.model.access"]
+        with self.assertRaises(ValueError):
+            Access._get_allowed_models("foo")
+        with self.assertRaises(ValueError):
+            Access.group_names_with_access("res.partner", "foo")
+        with self.assertRaises(ValueError):
+            Access._get_access_groups("res.partner", "foo")
+
+    @mute_logger("odoo.addons.base.models.ir_model_access")
+    def test_create_missing_name_raises_field_error(self):
+        """A group-less access-granting ACL without ``name`` raises the
+        required-field validation, not a KeyError from the warning. (IMA-C3)
+        """
+        model_partner = self.env.ref("base.model_res_partner")
+        with self.assertRaises(Exception) as cm:
+            self.env["ir.model.access"].create(
+                [
+                    {
+                        "model_id": model_partner.id,
+                        "group_id": False,
+                        "perm_read": True,
+                    }
+                ]
+            )
+        self.assertNotIsInstance(
+            cm.exception, KeyError, "Missing 'name' must not raise KeyError."
+        )
+
+    def test_check_unknown_model_warns(self):
+        """``check`` on an unknown model denies, logs a WARNING, and does not
+        raise when ``raise_exception=False``. (IMA-C2)
+        """
+        Access = self.env["ir.model.access"].with_user(self.user_demo)
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_model_access", level="WARNING"
+        ) as log_cm:
+            result = Access.check("no.such.model", "read", raise_exception=False)
+        self.assertFalse(result, "Access to an unknown model must be denied.")
+        self.assertTrue(
+            any("no.such.model" in msg for msg in log_cm.output),
+            "Unknown model must be logged at WARNING.",
+        )
+
+    def test_group_names_with_access_localized_ordering(self):
+        """``group_names_with_access`` orders groups alphabetically by their
+        localized (translated) name, not by raw jsonb structure. (IMA-C1)
+        """
+        self.env["res.lang"]._activate_lang("fr_FR")
+        model_partner = self.env.ref("base.model_res_partner")
+        Groups = self.env["res.groups"]
+
+        # en_US names sort as ZZZ_alpha < ZZZ_beta; fr_FR names invert that
+        # order (ZZZ_zulu > ZZZ_mike) so a localized ORDER BY is observable.
+        group_a = Groups.create({"name": "ZZZ_alpha"})
+        group_b = Groups.create({"name": "ZZZ_beta"})
+        group_a.with_context(lang="fr_FR").name = "ZZZ_zulu"
+        group_b.with_context(lang="fr_FR").name = "ZZZ_mike"
+
+        for group in (group_a, group_b):
+            self.env["ir.model.access"].create(
+                {
+                    "name": f"acl_{group.name}",
+                    "model_id": model_partner.id,
+                    "group_id": group.id,
+                    "perm_read": True,
+                }
+            )
+
+        Access = self.env["ir.model.access"].with_context(lang="fr_FR")
+        names = Access.group_names_with_access("res.partner", "read")
+        ours = [n for n in names if n in ("ZZZ_zulu", "ZZZ_mike")]
+        # Under fr_FR, "ZZZ_mike" < "ZZZ_zulu" -> beta's translation comes first.
+        self.assertEqual(
+            ours,
+            ["ZZZ_mike", "ZZZ_zulu"],
+            "Groups must be ordered by localized (fr_FR) name.",
+        )
+
+
+class TestIrExportsLineAcl(TransactionCaseWithUserDemo):
+    """Audit finding IEXP-L1: ``ir.exports.line`` must be gated on
+    ``base.group_allow_export`` (same as its parent ``ir.exports``), not on
+    ``base.group_user``. A plain internal user without the export privilege must
+    not be able to create/write/unlink export-line rows; an export-group user can.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.export_group = cls.env.ref("base.group_allow_export")
+        # demo is a plain internal user; ensure it is NOT in the export group.
+        cls.user_demo.write({"group_ids": [Command.unlink(cls.export_group.id)]})
+        cls.user_exporter = cls.env["res.users"].create(
+            {
+                "name": "Exporter",
+                "login": "exporter_iexp_l1",
+                "group_ids": [
+                    Command.link(cls.env.ref("base.group_user").id),
+                    Command.link(cls.export_group.id),
+                ],
+            }
+        )
+        cls.preset = cls.env["ir.exports"].create(
+            {"name": "preset", "resource": "res.partner"}
+        )
+
+    def test_non_export_user_cannot_create_line(self):
+        with self.assertRaises(AccessError):
+            self.env["ir.exports.line"].with_user(self.user_demo).create(
+                {"name": "name", "export_id": self.preset.id}
+            )
+
+    def test_non_export_user_cannot_write_line(self):
+        line = self.env["ir.exports.line"].create(
+            {"name": "name", "export_id": self.preset.id}
+        )
+        with self.assertRaises(AccessError):
+            line.with_user(self.user_demo).write({"name": "other"})
+
+    def test_non_export_user_cannot_unlink_line(self):
+        line = self.env["ir.exports.line"].create(
+            {"name": "name", "export_id": self.preset.id}
+        )
+        with self.assertRaises(AccessError):
+            line.with_user(self.user_demo).unlink()
+
+    def test_export_user_can_crud_line(self):
+        Line = self.env["ir.exports.line"].with_user(self.user_exporter)
+        line = Line.create({"name": "name", "export_id": self.preset.id})
+        self.assertTrue(line)
+        line.write({"name": "renamed"})
+        self.assertEqual(line.name, "renamed")
+        line.unlink()
+        self.assertFalse(line.exists())

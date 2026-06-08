@@ -1,12 +1,13 @@
 import functools
 import logging
 import threading
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Iterable
 from urllib.parse import urlencode, urlparse
 
 import werkzeug.routing
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix as ProxyFix_
+from werkzeug.wrappers import Response
 
 import odoo.tools
 from odoo.exceptions import AccessDenied, AccessError, UserError
@@ -25,9 +26,6 @@ from .request_class import Request
 from .routing import _generate_routing_rules
 from .session import FilesystemSessionStore, Session
 from .wrappers import HTTPRequest
-
-if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
 
 _logger = logging.getLogger(__name__)
 
@@ -86,11 +84,22 @@ class Application:
 
         netloc, path = urlparse(url)[1:3]
         try:
-            path_netloc, module, static, resource = path.split("/", 3)
+            # First segment is empty for absolute paths (``/foo/static/bar``);
+            # ``split`` raises ``ValueError`` for paths without three ``/``
+            # separators (already malformed for our purposes).
+            _leading, module, static, resource = path.split("/", 3)
         except ValueError:
             return None
 
-        if (netloc and netloc != host) or (path_netloc and path_netloc != host):
+        if netloc and netloc != host:
+            return None
+
+        # Hostless URLs of the form ``odoo.com/<addon>/static/<file>`` have
+        # no scheme and no ``//``, so ``urlparse`` leaves ``netloc`` empty
+        # and stuffs the implicit authority into the first path segment
+        # (``_leading``).  Validate that against ``host`` too — otherwise a
+        # caller passing ``host=""`` would silently accept any host prefix.
+        if not netloc and _leading and _leading != host:
             return None
 
         if not (static == "static" and resource):
@@ -135,23 +144,34 @@ class Application:
 
     @functools.cached_property
     def geoip_city_db(self):
+        if geoip2 is None:
+            raise RuntimeError("geoip2 is not installed; GeoIP lookup is disabled.")
         try:
             return geoip2.database.Reader(config["geoip_city_db"])
-        except OSError, maxminddb.InvalidDatabaseError:
-            _logger.debug(
-                "Couldn't load Geoip City file at %s. IP Resolver disabled.",
-                config["geoip_city_db"],
-                exc_info=True,
+        except (OSError, maxminddb.InvalidDatabaseError) as exc:
+            # IP resolution is optional; a missing or invalid City database
+            # is the terminal fallback (the caller has already tried Country).
+            # Log one line and let the caller treat the request as having no
+            # GeoIP context — a traceback adds no information here.
+            _logger.info(
+                "Couldn't load Geoip City file at %s (%s). IP Resolver disabled.",
+                config["geoip_city_db"], exc,
             )
             raise
 
     @functools.cached_property
     def geoip_country_db(self):
+        if geoip2 is None:
+            raise RuntimeError("geoip2 is not installed; GeoIP lookup is disabled.")
         try:
             return geoip2.database.Reader(config["geoip_country_db"])
         except (OSError, maxminddb.InvalidDatabaseError) as exc:
-            _logger.debug(
-                "Couldn't load Geoip Country file (%s). Fallbacks on Geoip City.",
+            # The caller (``GeoIP._country_record``) recovers by reading
+            # the City database when this one fails; the message wording
+            # describes that upstream recovery, not any behaviour of this
+            # method, which simply propagates the error.
+            _logger.info(
+                "Couldn't load Geoip Country file (%s); caller will fall back to Geoip City if available.",
                 exc,
             )
             raise
@@ -192,16 +212,32 @@ class Application:
             del current_thread.uid
         current_thread.rpc_model_method = ""
 
-        if odoo.tools.config["proxy_mode"] and environ.get("HTTP_X_FORWARDED_HOST"):
+        if odoo.tools.config["proxy_mode"] and (
+            environ.get("HTTP_X_FORWARDED_FOR")
+            or environ.get("HTTP_X_FORWARDED_PROTO")
+            or environ.get("HTTP_X_FORWARDED_HOST")
+        ):
             # The ProxyFix middleware has a side effect of updating the
             # environ, see https://github.com/pallets/werkzeug/pull/2184
+            # Gate on the presence of ANY X-Forwarded-* header our config
+            # trusts (x_for/x_proto/x_host=1). Previously the gate only
+            # checked X-Forwarded-Host, which left REMOTE_ADDR and
+            # wsgi.url_scheme wrong for proxies that forward only For/Proto
+            # (e.g. AWS ALB), breaking remote_addr, GeoIP, device traces
+            # and request.is_secure.
             _proxy_fix(environ, _noop_start_response)
 
         with HTTPRequest(environ) as httprequest:
-            request = Request(httprequest)
-            _request_stack.push(request)
-
+            # Build Request and push to the stack *inside* the try so early
+            # failures (e.g. bad environ) are converted to an Odoo error
+            # response instead of bubbling raw to the WSGI server.
+            request: Request | None = None
+            pushed = False
             try:
+                request = Request(httprequest)
+                _request_stack.push(request)
+                pushed = True
+
                 request._post_init()
                 current_thread.url = httprequest.url
 
@@ -261,12 +297,24 @@ class Application:
                 if not hasattr(exc, "error_response"):
                     if isinstance(exc, AccessDenied):
                         exc.suppress_traceback()
-                    exc.error_response = request.dispatcher.handle_error(exc)
+                    if request is not None:
+                        exc.error_response = request.dispatcher.handle_error(exc)
+                    else:
+                        # Request never built — fall back to a generic 500
+                        # wrapped in an HTTPException handler.
+                        from werkzeug.exceptions import InternalServerError
+
+                        # ``str(Exception()) == ""``; pass ``None`` (not the
+                        # empty string) so werkzeug uses its built-in
+                        # description for the 500 page instead of rendering
+                        # an empty <p>.
+                        exc.error_response = InternalServerError(str(exc) or None)
 
                 return exc.error_response(environ, start_response)
 
             finally:
-                _request_stack.pop()
+                if pushed:
+                    _request_stack.pop()
 
 
 root = Application()

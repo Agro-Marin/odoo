@@ -253,11 +253,16 @@ class Properties(Field):
     ) -> list[typing.Any]:
         if not records:
             return values
-        assert len(values) == len(records)
+        # raise (not assert) — under python -O len mismatch would slip past
+        # this contract and silently truncate the result list.
+        if len(values) != len(records):
+            raise ValueError(
+                f"convert_to_record: expected {len(records)} values, got {len(values)}"
+            )
 
         # each value is either False or a dict
         result = []
-        for record, value in zip(records, values, strict=False):
+        for record, value in zip(records, values, strict=True):
             value = (
                 value._values if isinstance(value, Property) else value
             )  # Property -> dict
@@ -934,7 +939,7 @@ class Properties(Field):
         try:
             sql_operator = SQL_OPERATORS[operator]
         except KeyError:
-            raise ValueError(f"Invalid operator {operator} for Properties")
+            raise ValueError(f"Invalid operator {operator} for Properties") from None
 
         if isinstance(value, str):
             sql_left = SQL(
@@ -1186,13 +1191,22 @@ class PropertiesDefinition(Field):
                 elif property_domain := property_definition.get("domain"):
                     # some fields in the domain might have been removed
                     # (e.g. if the module has been uninstalled)
-                    # check if the domain is still valid
-                    try:
-                        dom = Domain(ast.literal_eval(property_domain))
-                        model = record.env[property_model]
-                        dom.validate(model)
-                    except ValueError:
+                    # check if the domain is still valid.
+                    #
+                    # ast.literal_eval is safe from code execution but accepts
+                    # arbitrarily-nested literals.  Bound the input length so
+                    # a malicious property definition cannot DoS the server
+                    # by submitting a 10 MB nested-list string.  Real domain
+                    # strings are short (a few hundred chars at most).
+                    if len(property_domain) > 8192:
                         del property_definition["domain"]
+                    else:
+                        try:
+                            dom = Domain(ast.literal_eval(property_domain))
+                            model = record.env[property_model]
+                            dom.validate(model)
+                        except (ValueError, SyntaxError, MemoryError):
+                            del property_definition["domain"]
 
             elif type_ in ("selection", "tags"):
                 # always set at least an empty array if there's no option

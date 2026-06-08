@@ -33,7 +33,13 @@ class IrLogging(models.Model):
     message = fields.Text(required=True)
     path = fields.Char(required=True)
     func = fields.Char(string="Function", required=True)
-    line = fields.Char(required=True)
+    # ILOG-M1: stored as Char (not Integer) on purpose -- client-side line refs
+    # can be non-numeric (e.g. minified bundle positions). The server writer in
+    # logutils passes an int ``lineno`` which PostgreSQL coerces to text.
+    line = fields.Char(
+        required=True,
+        help="Source line. Text rather than integer because client/minified line references may be non-numeric.",
+    )
 
     def init(self) -> None:
         super().init()

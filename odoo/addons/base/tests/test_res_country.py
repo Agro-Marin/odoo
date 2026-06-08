@@ -71,3 +71,22 @@ class TestResCountryState(TransactionCase):
                     self.env["res.country.state"].name_search(name, operator="in"),
                     [(altan.id, altan.display_name)],
                 )
+
+
+@tagged("-at_install", "post_install")
+class TestGetAddressFields(TransactionCase):
+    def test_get_address_fields_default_format(self):
+        """get_address_fields parses the placeholders of the default format."""
+        country = self.env["res.country"].create({"name": "Arstotzka", "code": "AA"})
+        self.assertEqual(
+            country.get_address_fields(),
+            ["street", "street2", "city", "state_code", "zip", "country_name"],
+        )
+
+    def test_get_address_fields_empty_format(self):
+        """get_address_fields returns [] (no TypeError) when the format is False."""
+        country = self.env["res.country"].create(
+            {"name": "Arstotzka", "code": "AA", "address_format": False}
+        )
+        self.assertFalse(country.address_format)
+        self.assertEqual(country.get_address_fields(), [])

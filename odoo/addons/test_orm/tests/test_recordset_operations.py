@@ -388,6 +388,42 @@ class TestRecordsetIteration(TransactionCase):
         self.assertEqual(len(self.cat_a), 1)
         self.assertEqual(len(self.env["test_orm.category"]), 0)
 
+    def test_index_returns_position(self):
+        """``recordset.index(rec)`` returns the position of a singleton."""
+        self.assertEqual(self.records.index(self.cat_a), 0)
+        self.assertEqual(self.records.index(self.cat_b), 1)
+        self.assertEqual(self.records.index(self.cat_c), 2)
+
+    def test_index_raises_on_missing(self):
+        """``index`` raises ValueError when the singleton is absent."""
+        other = self.env["test_orm.category"].create({"name": "other"})
+        with self.assertRaises(ValueError):
+            self.records.index(other)
+
+    def test_index_negative_start_normalized(self):
+        """Negative ``start`` matches ``list.index`` semantics.
+
+        Regression: the implementation passed ``start=-1`` directly to
+        ``range()`` and returned ``-1`` literally via ``ids[-1]`` instead of
+        normalizing to ``len(ids)+start`` like CPython ``list.index``.
+        """
+        # list.index([id_a, id_b, id_c], id_c, -1) == 2 (CPython)
+        self.assertEqual(self.records.index(self.cat_c, -1), 2)
+        # start=-3 (== 0) covers the whole sequence
+        self.assertEqual(self.records.index(self.cat_a, -3), 0)
+        # start=-1 with a non-last target raises (only the last index is
+        # searched after normalization, just like list.index)
+        with self.assertRaises(ValueError):
+            self.records.index(self.cat_a, -1)
+
+    def test_index_negative_stop_normalized(self):
+        """Negative ``stop`` excludes the tail per ``list.index`` semantics."""
+        # stop=-1 excludes the last element; cat_c is unfindable
+        with self.assertRaises(ValueError):
+            self.records.index(self.cat_c, 0, -1)
+        # cat_a still findable in [0, len-1)
+        self.assertEqual(self.records.index(self.cat_a, 0, -1), 0)
+
     def test_bool_empty(self):
         """Empty recordset is falsy."""
         empty = self.env["test_orm.category"]

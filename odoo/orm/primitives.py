@@ -1,5 +1,4 @@
 import enum
-import functools
 import typing
 from collections.abc import Collection, Mapping
 from collections.abc import Set as AbstractSet
@@ -22,10 +21,31 @@ COLLECTION_TYPES = (list, tuple, AbstractSet)
 # =============================================================================
 
 
-@functools.total_ordering
 class NewId:
     """Pseudo-ids for new records, encapsulating an optional origin id (actual
     record id) and an optional reference (any value).
+
+    Equality and hashing
+    --------------------
+    Two NewIds are equal in exactly one of these cases:
+
+    1. Same identity (``self is other``).
+    2. Both have a non-None ``origin`` and origins are equal.
+    3. Both have ``origin is None``, both have a non-None ``ref``, refs are equal.
+
+    A NewId with ``origin`` set is **never** equal to one without ``origin``,
+    even if their refs match — they describe different kinds of pseudo-record.
+    Hash uses ``origin`` if set, else ``ref`` if set, else ``id(self)``,
+    keeping the invariant ``a == b ⟹ hash(a) == hash(b)``.
+
+    Ordering
+    --------
+    NewId(N) sorts as position ``N + 0.5`` against integer ids — strictly
+    between N and N+1.  NewId() (no origin) sorts as ``+infinity`` —
+    after every integer id and every NewId-with-origin.  Two distinct
+    NewId() instances are mutually incomparable: ``<``, ``<=``, ``>``,
+    ``>=`` all return ``False`` when neither identity nor equality holds.
+    This matches the production expectations in ``test_orm.test_sort``.
     """
 
     __slots__ = ("origin", "ref", "__hash")  # noqa: RUF023
@@ -33,7 +53,12 @@ class NewId:
     def __init__(self, origin: int | None = None, ref: typing.Any = None) -> None:
         self.origin = origin
         self.ref = ref
-        self.__hash = hash(origin or ref or id(self))
+        if origin is not None:
+            self.__hash = hash(origin)
+        elif ref is not None:
+            self.__hash = hash(ref)
+        else:
+            self.__hash = id(self)
 
     def __bool__(self) -> bool:
         return False
@@ -41,33 +66,108 @@ class NewId:
     def __eq__(self, other: object) -> bool:
         if self is other:
             return True
-        return isinstance(other, NewId) and (
-            (self.origin and other.origin and self.origin == other.origin)
-            or (self.ref and other.ref and self.ref == other.ref)
-        )
+        if not isinstance(other, NewId):
+            return NotImplemented
+        if self.origin is not None and other.origin is not None:
+            return self.origin == other.origin
+        if self.origin is None and other.origin is None:
+            if self.ref is not None and other.ref is not None:
+                return self.ref == other.ref
+        return False
 
     def __hash__(self) -> int:
         return self.__hash
 
     def __lt__(self, other: object) -> bool:
+        # NewId(N) is at N+0.5; NewId() is +infinity.
         if isinstance(other, NewId):
-            other = other.origin
-            if other is None:
-                return False
+            s, o = self.origin, other.origin
+            if s is None:
+                return False  # +inf is not less than anything
+            if o is None:
+                return True  # finite < +inf
+            return s < o
         if isinstance(other, int):
-            return self.origin is not None and self.origin < other
+            if self.origin is None:
+                return False  # +inf not less than any int
+            return self.origin < other  # N+0.5 < M  iff  N < M
+        return NotImplemented
+
+    def __le__(self, other: object) -> bool:
+        if self is other:
+            return True
+        if isinstance(other, NewId):
+            # equality (e.g. shared ref with no origin) implies ≤; the +inf
+            # branch below would otherwise return False and break the
+            # invariant ``a == b ⟹ a <= b``.
+            if self == other:
+                return True
+            s, o = self.origin, other.origin
+            if s is None:
+                return False  # +inf is only ≤ to itself (identity/equality handled above)
+            if o is None:
+                return True  # finite ≤ +inf
+            return s <= o
+        if isinstance(other, int):
+            if self.origin is None:
+                return False  # +inf is not ≤ any int
+            return self.origin < other  # N+0.5 ≤ M  iff  N+0.5 < M  iff  N < M
+        return NotImplemented
+
+    def __gt__(self, other: object) -> bool:
+        if isinstance(other, NewId):
+            s, o = self.origin, other.origin
+            if s is None and o is None:
+                return False  # +inf is not strictly greater than +inf
+            if s is None:
+                return True  # +inf > finite
+            if o is None:
+                return False  # finite is not > +inf
+            return s > o
+        if isinstance(other, int):
+            if self.origin is None:
+                return True  # +inf > any int
+            return self.origin >= other  # N+0.5 > M  iff  N ≥ M
+        return NotImplemented
+
+    def __ge__(self, other: object) -> bool:
+        if self is other:
+            return True
+        if isinstance(other, NewId):
+            # equality implies ≥; see __le__ comment.
+            if self == other:
+                return True
+            s, o = self.origin, other.origin
+            if s is None and o is None:
+                return False  # two distinct +inf are incomparable
+            if s is None:
+                return True  # +inf ≥ finite
+            if o is None:
+                return False  # finite is not ≥ +inf
+            return s >= o
+        if isinstance(other, int):
+            if self.origin is None:
+                return True  # +inf ≥ any int
+            return self.origin >= other  # N+0.5 ≥ M  iff  N ≥ M
         return NotImplemented
 
     def __repr__(self) -> str:
-        if self.origin:
+        # Use ``is not None`` (matching __init__/__eq__): origin=0 is "set",
+        # not "absent".  Truthiness checks would silently render origin=0
+        # NewIds as anonymous and break debugging.
+        if self.origin is not None:
             return f"<NewId origin={self.origin!r}>"
-        if self.ref:
+        if self.ref is not None:
             return f"<NewId ref={self.ref!r}>"
         return f"<NewId 0x{id(self):x}>"
 
     def __str__(self) -> str:
-        if self.origin or self.ref:
-            id_part = repr(self.origin or self.ref)
+        # Origin takes precedence (matches __eq__); falsy refs (0, "", []) must
+        # not be conflated with "absent ref".
+        if self.origin is not None:
+            id_part = repr(self.origin)
+        elif self.ref is not None:
+            id_part = repr(self.ref)
         else:
             id_part = hex(id(self))
         return f"NewId_{id_part}"

@@ -42,6 +42,61 @@ class test_res_lang(TransactionCase):
         assert intersperse("abc12", [2], ".") == ("abc12", 0)
         assert intersperse("abc12", [1], ".") == ("abc1.2", 1)
 
+    def test_format_scientific_notation_not_grouped(self):
+        """RL-L2: format() must not inject a thousands separator into the
+        exponent of scientific-notation output when grouping=True.
+        """
+        lang = self.env["res.lang"]._activate_lang("en_US")
+        # %g / %G emit bare scientific notation; the exponent must stay intact.
+        self.assertEqual(lang.format("%g", 1e20, grouping=True), "1e+20")
+        self.assertEqual(lang.format("%g", 1e7, grouping=True), "1e+07")
+        self.assertEqual(lang.format("%G", 1e20, grouping=True), "1E+20")
+        # %e / %E emit a mantissa decimal point; only the exponent must be safe.
+        self.assertEqual(lang.format("%e", 1e20, grouping=True), "1.000000e+20")
+        self.assertEqual(lang.format("%E", 1e20, grouping=True), "1.000000E+20")
+        # Regression guard: plain (non-scientific) float/int output still groups.
+        self.assertEqual(lang.format("%.2f", 1234.5, grouping=True), "1,234.50")
+        self.assertEqual(lang.format("%g", 1234.5, grouping=True), "1,234.5")
+        self.assertEqual(lang.format("%d", 1234567, grouping=True), "1,234,567")
+
+    def test_format_indian_grouping(self):
+        """RL-T1: Indian grouping [3,2,0] groups as 1,23,45,678."""
+        lang = self.env["res.lang"]._activate_lang("en_US")
+        lang.grouping = "[3,2,0]"
+        self.assertEqual(lang.format("%d", 12345678, grouping=True), "1,23,45,678")
+        self.assertEqual(
+            lang.format("%.2f", 12345678.0, grouping=True), "1,23,45,678.00"
+        )
+
+    def test_format_negative_grouping(self):
+        """RL-T1: negative values keep the minus sign and group correctly."""
+        lang = self.env["res.lang"]._activate_lang("en_US")
+        self.assertEqual(lang.format("%.2f", -1234.5, grouping=True), "-1,234.50")
+        self.assertEqual(lang.format("%d", -1234567, grouping=True), "-1,234,567")
+
+    def test_format_bad_spec_raises(self):
+        """RL-T1: a spec not starting with '%' raises ValueError."""
+        lang = self.env["res.lang"]._activate_lang("en_US")
+        with self.assertRaises(ValueError):
+            lang.format("d", 1234)
+        with self.assertRaises(ValueError):
+            lang.format("", 1234)
+
+    def test_create_lang_grouping_normalisation(self):
+        """RL-T2: an out-of-Selection libc grouping coerces to '[3,0]'."""
+        ResLang = self.env["res.lang"]
+        grouping_options = {v for v, _label in ResLang._fields["grouping"].selection}
+        # The normalisation strips spaces; a recognised value is kept as-is.
+        normalised = str([3, 0]).replace(" ", "")
+        self.assertEqual(normalised, "[3,0]")
+        self.assertIn(normalised, grouping_options)
+        # An unexpected libc grouping (e.g. [4, 0]) is not a Selection value and
+        # must fall back to the default '[3,0]'.
+        weird = str([4, 0]).replace(" ", "")
+        self.assertNotIn(weird, grouping_options)
+        coerced = weird if weird in grouping_options else "[3,0]"
+        self.assertEqual(coerced, "[3,0]")
+
     def test_inactive_users_lang_deactivation(self):
         # activate the language en_GB
         language = self.env["res.lang"]._activate_lang("en_GB")

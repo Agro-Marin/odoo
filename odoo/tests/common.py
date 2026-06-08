@@ -9,6 +9,7 @@ import binascii
 import concurrent.futures
 import contextlib
 import difflib
+import gc
 import importlib
 import inspect
 import itertools
@@ -69,7 +70,7 @@ from odoo.tools import (
     mute_logger,
     profiler,
 )
-from odoo.tools.cache import _COUNTERS, ormcache_counter
+from odoo.tools.cache import _COUNTERS
 from odoo.tools.mail import single_email_re
 from odoo.tools.misc import find_in_path, lower_logging
 from odoo.tools.password import CryptContext
@@ -474,10 +475,11 @@ class BaseCase(case.TestCase):
             # descriptor whose __get__ creates a bound method, so `session`
             # is correctly forwarded as `s`.
             # pylint: disable=unnecessary-lambda
+            # ruff: noqa: B023 — classmethod passthrough needs the lambda
             patcher = patch.object(
                 requests.sessions.Session,
                 "send",
-                lambda s, r, **kwargs: cls._request_handler(s, r, **kwargs),
+                lambda s, r, **kw: cls._request_handler(s, r, **kw),
             )
             patcher.start()
             cls.addClassCleanup(patcher.stop)
@@ -1555,12 +1557,28 @@ class ChromeBrowser:
             "Page.frameStoppedLoading": self._handle_frame_stopped_loading,
             "Page.screencastFrame": self.screencaster,
         }
-        self._receiver = threading.Thread(
-            target=self._receive,
-            name="WebSocket events consumer",
-            args=(get_db_name(),),
-        )
-        self._receiver.start()
+        # Python 3.14 intermittently refuses pthread_create under test-suite
+        # load (even with only a handful of active threads), and it stays in
+        # that refusing state across tests — the first Chrome browser starts
+        # fine, the second errors at _receiver.start(). Retry with a fresh
+        # Thread object after gc + short sleep; the refusal clears within a
+        # few hundred milliseconds. Python's Thread.start() only accepts one
+        # call per instance, so each retry needs a new Thread.
+        for attempt in range(5):
+            self._receiver = threading.Thread(
+                target=self._receive,
+                name="WebSocket events consumer",
+                args=(get_db_name(),),
+                daemon=True,
+            )
+            try:
+                self._receiver.start()
+                break
+            except RuntimeError:
+                gc.collect()
+                time.sleep(0.2 * (attempt + 1))
+        else:
+            self._receiver.start()  # surface the original error
         self._logger.info("Enable chrome headless console log notification")
         self._websocket_send("Runtime.enable")
         self._websocket_request("Fetch.enable")
@@ -1761,7 +1779,7 @@ class ChromeBrowser:
         try:
             proc, devtools_port = self._spawn_chrome(cmd)
         except OSError:
-            raise unittest.SkipTest("%s not found" % cmd[0])
+            raise unittest.SkipTest("%s not found" % cmd[0]) from None
         self._logger.info("Chrome pid: %s", proc.pid)
         self._logger.info(
             "Chrome headless temporary user profile dir: %s", self.user_data_dir
@@ -1921,7 +1939,7 @@ class ChromeBrowser:
         try:
             return f.result(timeout=timeout * self.throttling_factor)
         except concurrent.futures.TimeoutError:
-            raise TimeoutError(f"{method}({params or ''})")
+            raise TimeoutError(f"{method}({params or ''})") from None
 
     def _websocket_send(
         self, method: str, *, params: dict | None = None, with_future: bool = False
@@ -2140,9 +2158,26 @@ which leads to stray network requests and inconsistencies."""
             f.add_done_callback(handler)
         return f
 
-    def set_cookie(self, name: str, value: str, path: str, domain: str) -> None:
-        """Set a cookie in the Chrome browser via DevTools."""
+    def set_cookie(
+        self,
+        name: str,
+        value: str,
+        path: str,
+        domain: str,
+        *,
+        http_only: bool = False,
+    ) -> None:
+        """Set a cookie in the Chrome browser via DevTools.
+
+        :param http_only: when True, the cookie is hidden from
+            ``document.cookie`` reads (HTML spec). Use this for cookies
+            that exist purely for server-side correlation and would
+            otherwise leak into JS-visible state — notably the
+            ``test_request_key`` cookie used by the test-cursor lock.
+        """
         params = {"name": name, "value": value, "path": path, "domain": domain}
+        if http_only:
+            params["httpOnly"] = True
         self._websocket_request("Network.setCookie", params=params)
 
     def delete_cookie(self, name: str, **kwargs: str) -> None:
@@ -2625,11 +2660,21 @@ class HttpCase(TransactionCase):
                 defer.callback(self.opener.cookies.pop, TEST_CURSOR_COOKIE_NAME, None)
             self.opener.cookies[TEST_CURSOR_COOKIE_NAME] = new_key
             if browser:
+                # ``http_only=True`` keeps this cookie out of
+                # ``document.cookie`` reads. The cookie exists solely so
+                # the HTTP worker can correlate a request with the
+                # running test cursor — JS never needs to read it.
+                # Without this flag the cookie leaks into the page's
+                # JS-visible cookie jar, which in turn pollutes HOOT's
+                # ``MockCookie._jar`` and breaks the framework's own
+                # ``setup network values`` / ``values are reset between
+                # test`` self-tests that assert on a clean cookie state.
                 browser.set_cookie(
                     TEST_CURSOR_COOKIE_NAME,
                     self.http_request_key,
                     "/",
                     HOST,
+                    http_only=True,
                 )
             yield
 
@@ -2813,7 +2858,19 @@ class HttpCase(TransactionCase):
         self.opener.cookies.set("session_id", session.sid, domain=HOST)
         if browser:
             self._logger.info("Setting session cookie in browser")
-            browser.set_cookie("session_id", session.sid, "/", HOST)
+            # ``http_only=True`` matches the server-side
+            # ``response.set_cookie("session_id", ..., httponly=True)`` in
+            # ``http/request_class.py`` and ``http/dispatcher.py``. JS code
+            # never reads the session cookie (Odoo derives it from the
+            # session service, which is server-rendered into the page);
+            # leaving it JS-visible only here leaks it into
+            # ``document.cookie`` during browser tests, where it pollutes
+            # HOOT's ``MockCookie._jar`` and breaks the framework's own
+            # ``setup network values`` / ``values are reset between
+            # test`` self-tests.
+            browser.set_cookie(
+                "session_id", session.sid, "/", HOST, http_only=True
+            )
 
         return session
 

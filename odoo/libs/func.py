@@ -1,6 +1,6 @@
 import functools
 import warnings
-from collections.abc import Callable  # noqa: TC003
+from collections.abc import Callable
 from inspect import Parameter, getsourcefile, signature
 from typing import TYPE_CHECKING, Any
 
@@ -125,7 +125,7 @@ class classproperty[T]:
     def __init__(self, fget: Callable[[Any], T]) -> None:
         self.fget = classmethod(fget)
 
-    def __get__(self, cls, owner: type | None = None, /) -> T:
+    def __get__(self, cls: Any, owner: type | None = None, /) -> T:
         return self.fget.__get__(None, owner)()
 
     @property
@@ -136,7 +136,7 @@ class classproperty[T]:
 class lazy_classproperty[T](classproperty[T]):
     """Similar to :class:`lazy_property`, but for classes."""
 
-    def __get__(self, cls, owner: type | None = None, /) -> T:
+    def __get__(self, cls: Any, owner: type | None = None, /) -> T:
         val = super().__get__(cls, owner)
         setattr(owner, self.fget.__name__, val)
         return val

@@ -207,3 +207,16 @@ class TestIrDefault(TransactionCase):
                     "json_value": '{"name":"John", }',
                 }
             )
+        # IDEF-C1: an out-of-int4-bounds integer default must be rejected by the
+        # constraint too (not only by set()), since the constraint is the sole
+        # guard on a direct create/write (e.g. from the form view).
+        color_field = self.env["ir.model.fields"].search(
+            [("model", "=", "res.partner"), ("name", "=", "color")]
+        )
+        with self.assertRaises(ValidationError):
+            IrDefault.create(
+                {
+                    "field_id": color_field.id,
+                    "json_value": "2147483648",
+                }
+            )

@@ -8,4 +8,4 @@ class ResPartnerIndustry(models.Model):
 
     name = fields.Char("Name", required=True, translate=True)
     full_name = fields.Char("Full Name", translate=True)
-    active = fields.Boolean("Active", default=True)
+    active = fields.Boolean(default=True)

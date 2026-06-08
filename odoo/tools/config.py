@@ -9,7 +9,6 @@ import os
 import sys
 import tempfile
 import warnings
-from collections.abc import Iterator
 from os.path import expandvars, normcase
 from pathlib import Path
 from typing import TYPE_CHECKING, Any

@@ -2,7 +2,9 @@ import functools
 import inspect
 import logging
 import warnings
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Generator, Iterable
+from types import MappingProxyType
+from typing import Any
 
 from odoo.libs.func import filter_kwargs
 from odoo.tools import unique
@@ -10,9 +12,6 @@ from odoo.tools import unique
 from .controller import Controller
 from .dispatcher import _dispatchers
 from .wrappers import Response
-
-if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Iterable
 
 _logger = logging.getLogger(__name__)
 
@@ -58,9 +57,13 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
     :param bool csrf: Whether CSRF protection should be enabled for the
         route. Enabled by default for ``'http'``-type requests, disabled
         by default for ``'jsonrpc'``-type requests.
-    :param bool | Callable[[registry, request], bool] readonly:
+    :param bool | Callable[[Controller, rule, dict], bool] readonly:
         Whether this endpoint should open a cursor on a read-only
         replica instead of (by default) the primary read/write database.
+        When callable, it is invoked as ``readonly(controller, rule, args)``
+        where ``controller`` is the controller instance, ``rule`` is the
+        matched werkzeug routing rule, and ``args`` is the dict of URL
+        path parameters. It must return a boolean.
     :param Callable[[Exception], Response] handle_params_access_error:
         Implement a custom behavior if an error occurred when retrieving
         the record from the URL parameters (access error or missing error).
@@ -70,6 +73,11 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
     :param bool save_session: Whether it should set a session_id cookie
         on the http response and save dirty session on disk. ``False``
         by default for ``auth='bearer'``. ``True`` by default otherwise.
+    :param int | Callable[[Controller], int] max_content_length:
+        Per-route override for the request body size limit (in bytes).
+        When callable, it is invoked as ``max_content_length(controller)``
+        and must return the limit as an int. If omitted, the default
+        :data:`DEFAULT_MAX_CONTENT_LENGTH` applies.
     """
 
     def decorator(endpoint: Callable) -> Callable:
@@ -83,9 +91,13 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 stacklevel=2,
             )
             routing["type"] = "jsonrpc"
-        assert routing.get("type", "http") in _dispatchers, (
-            f"@route(type={routing['type']!r}) is not one of {_dispatchers.keys()}"
-        )
+        route_type = routing.get("type", "http")
+        if route_type not in _dispatchers:
+            # Use a real exception rather than ``assert`` so ``python -O`` does
+            # not let unknown types through to a later KeyError at dispatch.
+            raise ValueError(
+                f"@route(type={route_type!r}) is not one of {list(_dispatchers)}"
+            )
         if route:
             routing["routes"] = [route] if isinstance(route, str) else route
         wrong = routing.pop("method", None)
@@ -183,7 +195,7 @@ def _generate_routing_rules(
         for method_name, method in inspect.getmembers(ctrl, inspect.ismethod):
             # Skip this method if it is not @route decorated anywhere in
             # the hierarchy
-            def is_method_a_route(cls: type) -> bool:
+            def is_method_a_route(cls: type, method_name: str = method_name) -> bool:
                 return (
                     getattr(
                         getattr(cls, method_name, None),
@@ -203,17 +215,30 @@ def _generate_routing_rules(
                 "routes": [],
             }
 
-            for cls in unique(reversed(type(ctrl).mro()[:-2])):  # ancestors first
+            # Walk the MRO ancestors-first, but skip Controller itself and
+            # object. Using a slice like ``mro()[:-2]`` silently drops mixins
+            # that appear after Controller in the base list; filter by identity
+            # instead so those mixins' ``@route`` decorators merge correctly.
+            ancestors = [
+                cls
+                for cls in reversed(type(ctrl).mro())
+                if cls is not Controller and cls is not object
+            ]
+            for cls in unique(ancestors):  # ancestors first
                 if method_name not in cls.__dict__:
                     continue
                 submethod = getattr(cls, method_name)
 
                 if not hasattr(submethod, "original_routing"):
+                    # An override that forgot to re-apply @route. Log once and
+                    # skip: auto-decorating with route() produced an empty
+                    # routing dict that contributed nothing to the merged
+                    # routing while silently masking the missing decorator.
                     _logger.warning(
-                        "The endpoint %s is not decorated by @route(), decorating it myself.",
+                        "The endpoint %s is overridden without @route(); skipping this override.",
                         f"{cls.__module__}.{cls.__name__}.{method_name}",
                     )
-                    submethod = route()(submethod)
+                    continue
 
                 _check_and_complete_route_definition(cls, submethod, merged_routing)
 
@@ -229,6 +254,14 @@ def _generate_routing_rules(
             if nodb_only and merged_routing["auth"] != "none":
                 continue
 
+            # Freeze the merged routing so dispatchers cannot accidentally
+            # mutate it at request time. The ``methods`` value (a list)
+            # remains mutable; convert to a tuple to lock the externally
+            # observable contract.
+            if isinstance(merged_routing.get("methods"), list):
+                merged_routing["methods"] = tuple(merged_routing["methods"])
+            frozen_routing = MappingProxyType(merged_routing)
+
             for url in merged_routing["routes"]:
                 # duplicates the function (partial) with a copy of the
                 # original __dict__ (update_wrapper) to keep a reference
@@ -237,7 +270,7 @@ def _generate_routing_rules(
                 # ensure method's immutability.
                 endpoint = functools.partial(method)
                 functools.update_wrapper(endpoint, method)
-                endpoint.routing = merged_routing
+                endpoint.routing = frozen_routing
 
                 yield (url, endpoint)
 
@@ -246,6 +279,11 @@ def _check_and_complete_route_definition(
     controller_cls: type, submethod: Any, merged_routing: dict[str, Any]
 ) -> None:
     """Verify and complete the route definition.
+
+    **Mutates** ``submethod.original_routing`` in place to fill in inferred
+    ``type`` / ``readonly`` keys so subsequent ancestor passes see the same
+    completed routing dict — the function is named ``_complete_`` to flag
+    that side effect, even though it reads as a validation step.
 
     * Ensure 'type' is defined on each method's own routing.
     * Ensure overrides don't change the routing type or the read/write mode

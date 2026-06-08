@@ -1,26 +1,30 @@
 import os
 import re
 import sys
-from collections.abc import Iterator
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
 
 import jinja2
 
 from . import Command
 
-if TYPE_CHECKING:
-    from collections.abc import Generator
-
 
 class Scaffold(Command):
     """Generates an Odoo module skeleton."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self.epilog = f"Built-in templates available are: {
-            ', '.join(d.name for d in _builtins_dir().iterdir() if d.name != 'base')
-        }"
+    def __init__(self) -> None:
+        super().__init__()
+        # Probe templates/ lazily — iterdir() in __init__ would crash every
+        # invocation (including --help) if the directory were missing.
+        try:
+            templates = sorted(d.name for d in _builtins_dir().iterdir() if d.is_dir())
+        except OSError:
+            templates = []
+        self.epilog = (
+            f"Built-in templates available are: {', '.join(templates)}"
+            if templates
+            else "No built-in templates found (templates/ directory missing)."
+        )
 
     def run(self, cmdargs: list[str]) -> None:
         # TODO: bash completion file
@@ -41,18 +45,14 @@ class Scaffold(Command):
             help="Directory to create the module in (default: %(default)s)",
         )
 
-        if not cmdargs:
-            sys.exit(parser.print_help())
         args = parser.parse_args(args=cmdargs)
 
-        if args.template.id == "l10n_payroll":
-            name_split = args.name.split("-")
-            params = {"name": name_split[0], "code": name_split[1]}
-        else:
-            params = {"name": args.name}
-
+        try:
+            params = args.template.parse_params(args.name)
+        except ValueError as err:
+            parser.error(str(err))
         args.template.render_to(
-            snake(args.name),
+            args.template.modname_for(args.name, params),
             directory(args.dest, create=True),
             params=params,
         )
@@ -65,12 +65,21 @@ def _builtins_dir(*parts: str) -> Path:
 
 
 def snake(s: str) -> str:
-    """Convert ``s`` to snake_case.
+    """Convert ``s`` to snake_case, including initialisms.
 
-    Inserts underscores before uppercase letters preceded by a
-    non-uppercase letter, then lowercases and joins on whitespace.
+    Examples:
+        FooBar     -> foo_bar
+        APITest    -> api_test
+        APIMyTest  -> api_my_test
+        HTTPServer -> http_server
     """
-    s = re.sub(r"(?<=[^A-Z])\B([A-Z])", r" \1", s)
+    # First pass: split an initialism from the following capitalised word
+    # (e.g. 'APITest' -> 'API Test'), by inserting a space before the last
+    # uppercase of a run that is followed by a lowercase.
+    s = re.sub(r"(?<=[A-Z])([A-Z][a-z])", r" \1", s)
+    # Second pass: split a lowercase/digit -> uppercase boundary
+    # (e.g. 'FooBar' -> 'Foo Bar', 'api2Test' -> 'api2 Test').
+    s = re.sub(r"(?<=[a-z0-9])([A-Z])", r" \1", s)
     return "_".join(s.lower().split())
 
 
@@ -125,6 +134,37 @@ class Template:
                 filepath = dirpath / f
                 yield filepath, filepath.read_bytes()
 
+    def parse_params(self, name: str) -> dict[str, str]:
+        """Parse the user-supplied ``name`` into Jinja rendering params.
+
+        Most templates just need ``{'name': name}``. Specialised templates
+        (like ``l10n_payroll``, which encodes both a country and its locale
+        code in a single argument) override the default here.
+
+        Raises ``ValueError`` for malformed input; the caller should route
+        the message through its argparse error handler.
+        """
+        if self.id == "l10n_payroll":
+            if "-" not in name:
+                raise ValueError(
+                    "l10n_payroll template requires a name of the form "
+                    f"'<country>-<code>' (e.g. 'mexico-mx'); got {name!r}"
+                )
+            country, _, code = name.partition("-")
+            return {"name": country, "code": code}
+        return {"name": name}
+
+    def modname_for(self, name: str, params: dict[str, str]) -> str:
+        """Resolve the on-disk module directory name from ``name``/``params``.
+
+        Mirrors ``parse_params``: same special-cases, same id-based dispatch.
+        Keeping both here (rather than scattering through ``Scaffold.run``)
+        means adding a new template-with-naming-convention touches one class.
+        """
+        if self.id == "l10n_payroll":
+            return f"l10n_{params['code']}_hr_payroll"
+        return snake(name)
+
     def render_to(
         self, modname: str, directory: Path, params: dict[str, str] | None = None
     ) -> None:
@@ -138,8 +178,6 @@ class Template:
             ext = rendered.suffix
             if ext == ".template":
                 local = local.with_suffix("")
-            if self.id == "l10n_payroll":
-                modname = f"l10n_{params['code']}_hr_payroll"
             dest = Path(directory) / modname / local
             dest.parent.mkdir(parents=True, exist_ok=True)
 

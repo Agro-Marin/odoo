@@ -11,7 +11,7 @@ from odoo.fields import Command
 from odoo.libs.datetime.tz import timezone
 from odoo.libs.numbers.float_utils import float_compare
 from odoo.orm._typing import ValuesType
-from odoo.tools import SQL, _, frozendict
+from odoo.tools import _, frozendict
 from odoo.tools.safe_eval import safe_eval
 
 _RX_ACTION_PATH = re.compile(r"[a-z][a-z0-9_-]*")
@@ -217,6 +217,10 @@ class IrActionsActions(models.Model):
             action_ids = [e[0] for e in entries]
             binding_map = dict(entries)  # action_id -> binding_type
 
+            # Standard ORM exists() (correct post-flush; _get_bindings already
+            # flushed and is itself ormcached). The act_window-specific exists()
+            # override that cached an id-set was removed: it was unsafe for
+            # NewId / unflushed records (IRA-L1).
             actions = self.env[action_model].sudo().browse(action_ids).exists()
             if not actions:
                 continue
@@ -481,19 +485,9 @@ class IrActionsAct_Window(models.Model):
                     )
         return result
 
-    def exists(self) -> Self:
-        ids = self._existing()
-        return self.filtered(lambda rec: rec.id in ids)
-
     def unlink(self) -> bool:
         self.env.registry.clear_cache()
         return super().unlink()
-
-    @api.model
-    @tools.ormcache()
-    def _existing(self) -> set[int]:
-        self.env.cr.execute(SQL("SELECT id FROM %s", SQL.identifier(self._table)))
-        return {row[0] for row in self.env.cr.fetchall()}
 
     def _get_readable_fields(self) -> set[str]:
         return super()._get_readable_fields() | {
@@ -546,7 +540,6 @@ class IrActionsAct_WindowView(models.Model):
     _rec_name = "view_id"
     _order = "sequence,id"
     _allow_sudo_commands = False
-
 
     sequence = fields.Integer()
     view_id = fields.Many2one("ir.ui.view", string="View")
@@ -608,6 +601,8 @@ class IrActionsAct_Url(models.Model):
         return super()._get_readable_fields() | {
             "target",
             "url",
+            # 'close' is not a stored field; the act_url JS executor reads it to
+            # dispatch a follow-up window-close (ir.actions.act_window_close).
             "close",
         }
 

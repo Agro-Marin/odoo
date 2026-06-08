@@ -1,7 +1,7 @@
 import threading
 from collections.abc import Iterable, Iterator, MutableMapping
 
-from .iteration.sentinel import SENTINEL
+from .iteration.sentinel import SENTINEL, Sentinel
 
 __all__ = ["LRU"]
 
@@ -106,7 +106,7 @@ class LRU[K, V](MutableMapping[K, V]):
                 result.update(values)
         return result
 
-    def pop(self, key: K, /, default=SENTINEL) -> V:
+    def pop(self, key: K, /, default: V | Sentinel = SENTINEL) -> V:
         with self._lock:
             self._ordering.pop(key, None)
             if default is SENTINEL:

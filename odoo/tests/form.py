@@ -609,7 +609,7 @@ class Form:
                 else:
                     subview = field_info["edition_view"]
                     value = value.to_commands(
-                        lambda vals: self._get_values(
+                        lambda vals, subview=subview, field_info=field_info: self._get_values(
                             mode,
                             vals,
                             subview,

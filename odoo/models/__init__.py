@@ -8,7 +8,7 @@ from odoo.orm.constants import (
     READ_GROUP_NUMBER_GRANULARITY,
     READ_GROUP_TIME_GRANULARITY,
 )
-from odoo.orm.primitives import LOG_ACCESS_COLUMNS, MAGIC_COLUMNS
+from odoo.orm.primitives import LOG_ACCESS_COLUMNS, MAGIC_COLUMNS, ValuesType
 from odoo.orm.parsing import regex_order
 
 # Model classes

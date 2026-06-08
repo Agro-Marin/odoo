@@ -3,13 +3,16 @@ import secrets
 import textwrap
 import time
 from contextlib import closing
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from freezegun import freeze_time
 
+import odoo
 from odoo import fields
-from odoo.tests.common import Like, RecordCapturer, TransactionCase
+from odoo.modules.registry import Registry
+from odoo.tests import common
+from odoo.tests.common import BaseCase, Like, RecordCapturer, TransactionCase, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.base.models.ir_cron import (
@@ -720,9 +723,9 @@ class TestIrCron(TransactionCase, CronMixinCase):
     def patch_cron_process_jobs_loop(self):
         """Yield a simplified function for testing `_process_jobs_loop`."""
         self.cron.active = True
-        self.cron.search([("id", "not in", self.cron.ids)]).active = (
-            False  # deactivate all other for the test
-        )
+        self.cron.search(
+            [("id", "not in", self.cron.ids)]
+        ).active = False  # deactivate all other for the test
         with (
             self.enter_registry_test_mode(),
             self.registry.cursor() as cr,
@@ -897,3 +900,103 @@ class TestIrCronUser(TransactionCaseWithUserDemo, TestIrCron):
                 )
 
         self.assertEqual(cron.failure_count, 1, "The cron should have failed once")
+
+
+@tagged("post_install", "-at_install")
+class TestIrCronAcquireLock(BaseCase):
+    """Real two-connection regression coverage for the
+    ``FOR NO KEY UPDATE ... SKIP LOCKED`` lock in
+    :meth:`ir.cron._acquire_one_job` (CRON-T1).
+
+    Unlike :class:`TestIrCron`, these tests must run on genuinely independent
+    database connections (not registry-test-mode savepoints, which reuse a
+    single cursor and would never contend for a row lock). They therefore
+    commit a dedicated cron and clean it up explicitly, mirroring
+    ``test_ir_sequence.py``'s ``environment()`` pattern.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.registry = Registry(common.get_db_name())
+        # Commit a dedicated, ready cron so that two separate connections both
+        # see the row. nextcall is set in the past so the readiness WHERE
+        # clause (the real worker path) matches without relying on frozen time.
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            cron = env["ir.cron"].create(
+                {
+                    "name": f"Audit lock cron {secrets.token_urlsafe(8)}",
+                    "state": "code",
+                    "code": "",
+                    "model_id": env.ref("base.model_res_partner").id,
+                    "user_id": env.uid,
+                    "active": True,
+                    "interval_number": 1,
+                    "interval_type": "days",
+                    "nextcall": datetime(2000, 1, 1, 0, 0, 0),
+                }
+            )
+            self.cron_id = cron.id
+            cr.commit()
+        # Drop the committed cron once the test finishes, on its own cursor.
+        self.addCleanup(self._drop_cron)
+
+    def _drop_cron(self):
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            env["ir.cron"].browse(self.cron_id).unlink()
+            cr.commit()
+
+    def test_acquire_one_job_skips_locked_row(self):
+        """A second connection skips a cron whose row is locked by the first.
+
+        Connection A acquires (and locks) the cron via ``_acquire_one_job``
+        without committing, so the ``FOR NO KEY UPDATE`` lock is held.
+        Connection B's identical ``_acquire_one_job`` must return ``None``
+        (``SKIP LOCKED`` skips the locked row) rather than block on it or
+        return the same job — which is the sole guarantee preventing two
+        workers from running the same job.
+        """
+        IrCronModel = self.registry["ir.cron"]
+        with self.registry.cursor() as cr_a, self.registry.cursor() as cr_b:
+            # Connection A locks the row (no commit -> lock held).
+            job_a = IrCronModel._acquire_one_job(cr_a, self.cron_id)
+            self.assertIsNotNone(job_a, "connection A should acquire the ready job")
+            self.assertEqual(job_a["id"], self.cron_id)
+
+            # Connection B must be skipped by SKIP LOCKED (returns immediately,
+            # no block, no row). If the lock were broken this would return the
+            # job; if SKIP LOCKED were absent this would block until timeout.
+            job_b = IrCronModel._acquire_one_job(cr_b, self.cron_id)
+            self.assertIsNone(
+                job_b,
+                "connection B must skip the row locked by connection A",
+            )
+
+            # Release both locks explicitly; the cron stays committed for the
+            # cleanup cursor to remove.
+            cr_a.rollback()
+            cr_b.rollback()
+
+    def test_acquire_one_job_after_release(self):
+        """Once the lock holder commits, the row becomes acquirable again.
+
+        Confirms the SKIP LOCKED skip in
+        :meth:`test_acquire_one_job_skips_locked_row` is due to the live lock,
+        not a permanent condition: after connection A commits (releasing the
+        lock), a fresh connection can acquire the same still-ready job.
+        """
+        IrCronModel = self.registry["ir.cron"]
+        with self.registry.cursor() as cr_a:
+            job_a = IrCronModel._acquire_one_job(cr_a, self.cron_id)
+            self.assertIsNotNone(job_a)
+            cr_a.commit()  # release the lock
+
+        with self.registry.cursor() as cr_b:
+            job_b = IrCronModel._acquire_one_job(cr_b, self.cron_id)
+            self.assertIsNotNone(
+                job_b,
+                "the job must be acquirable again once the lock is released",
+            )
+            self.assertEqual(job_b["id"], self.cron_id)
+            cr_b.rollback()

@@ -54,7 +54,7 @@ CREATE TABLE ir_module_module (
     author character varying,
     icon varchar,
     state character varying(16),
-    latest_version character varying,
+    db_version character varying,
     shortdesc jsonb,
     category_id integer REFERENCES ir_module_category ON DELETE SET NULL,
     description jsonb,

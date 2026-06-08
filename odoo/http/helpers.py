@@ -2,7 +2,8 @@ import logging
 import re
 import threading
 import traceback
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Iterable, Mapping
+from typing import Any
 from urllib.parse import quote as url_quote
 
 import psycopg
@@ -14,9 +15,6 @@ from odoo.tools import config
 
 from .constants import SESSION_LIFETIME
 from .core import borrow_request
-
-if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
 
 _logger = logging.getLogger(__name__)
 
@@ -59,6 +57,18 @@ def db_filter(dbs: Iterable[str], host: str | None = None) -> list[str]:
     Return the subset of ``dbs`` that match the dbfilter or the dbname
     server configuration. In case neither are configured, return ``dbs``
     as-is.
+
+    Result ordering depends on which mode is active:
+
+    * ``dbfilter`` regex set → preserves the input order of ``dbs`` (which
+      is itself the order returned by :func:`~odoo.service.db.list_dbs`,
+      typically alphabetical from PostgreSQL).
+    * ``db_name`` set (no ``dbfilter``) → sorted alphabetically (set
+      intersection plus explicit ``sorted``).
+    * Neither set → preserves the input order.
+
+    Callers that need a stable, mode-independent order should sort the
+    result themselves.
 
     :param Iterable[str] dbs: The list of database names to filter.
     :param host: The Host used to replace %h and %d in the dbfilters
@@ -120,23 +130,38 @@ def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> A
     :return: the return value of the called method
     :rtype: Any
     """
+    thread = threading.current_thread()
+    prev_uid = getattr(thread, "uid", None)
+    prev_dbname = getattr(thread, "dbname", None)
     with borrow_request():
-        threading.current_thread().uid = None
-        threading.current_thread().dbname = None
-
-        dispatch = _get_rpc_dispatcher(service_name)
-        return dispatch(method, params)
+        thread.uid = None
+        thread.dbname = None
+        try:
+            dispatch = _get_rpc_dispatcher(service_name)
+            return dispatch(method, params)
+        finally:
+            # Restore caller thread-local state so downstream code in the
+            # same request does not observe ``None`` for uid/dbname.
+            thread.uid = prev_uid
+            thread.dbname = prev_dbname
 
 
 def get_session_max_inactivity(env: Any) -> int:
     """Get the maximum session inactivity time in seconds."""
-    if not env or env.cr._closed:
+    if not env or env.cr.closed:
         return SESSION_LIFETIME
 
     ICP = env["ir.config_parameter"].sudo()
 
     try:
-        return int(ICP.get_param("sessions.max_inactivity_seconds", SESSION_LIFETIME))
+        value = int(ICP.get_param("sessions.max_inactivity_seconds", SESSION_LIFETIME))
+        if value <= 0:
+            _logger.warning(
+                "Non-positive value for 'sessions.max_inactivity_seconds' (%r), using default value.",
+                value,
+            )
+            return SESSION_LIFETIME
+        return value
     except ValueError:
         _logger.warning(
             "Invalid value for 'sessions.max_inactivity_seconds', using default value."

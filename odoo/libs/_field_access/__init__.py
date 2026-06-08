@@ -11,13 +11,13 @@ __all__ = [
     "sort_ids_by_values",
 ]
 
-ACCELERATED: bool
-
 # scalar_cache_get always uses the Python fallback — the hit path (3 dict
 # subscripts) compiles to C-level PyDict_GetItem via BINARY_SUBSCR and is
 # faster than calling into Rust due to PyO3 function-call boundary overhead
 # (~35ns).  The batch functions amortize that cost over N iterations.
 from ._fallback import scalar_cache_get  # type: ignore[assignment]
+
+ACCELERATED: bool
 
 try:
     from odoo_rust import (  # type: ignore[import-untyped]

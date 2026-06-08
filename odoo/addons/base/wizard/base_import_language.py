@@ -35,6 +35,10 @@ class BaseLanguageImport(models.TransientModel):
         for overwrite, base_lang_imports in tools.groupby(
             self, operator.itemgetter("overwrite")
         ):
+            # BLIMP-SEC-1: TranslationImporter applies translations with elevated
+            # privilege; the base.group_system model ACL is the sole access guard
+            # and must not be widened. TranslationImporter._load's field filter
+            # (translatable + stored fields only) is the secondary safety net.
             translation_importer = TranslationImporter(self.env.cr)
             for base_lang_import in base_lang_imports:
                 if not Lang._activate_lang(base_lang_import.code):

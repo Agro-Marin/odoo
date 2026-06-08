@@ -1,17 +1,11 @@
-"""
-Database cursor classes for PostgreSQL transactions.
-
-This module provides cursor classes that manage database transactions,
-savepoints, and pre/post commit hooks.
-"""
-
 import itertools
 import logging
 import os
 import re as _re
 import threading
 import warnings
-from contextlib import contextmanager
+from collections.abc import Generator, Iterable
+from contextlib import contextmanager, suppress
 from contextlib import nullcontext as _nullcontext
 from datetime import datetime, timedelta
 from decimal import Decimal as _Decimal
@@ -36,12 +30,10 @@ try:
 except ImportError:
     _rows_to_dicts = None
 
+from .pool import ConnectionPool
+
 if TYPE_CHECKING:
-    from collections.abc import Generator
-
     from odoo.orm.runtime import Transaction
-
-    from .pool import ConnectionPool
 
     # when type checking, the BaseCursor exposes methods of the psycopg cursor
     _CursorProtocol = psycopg.Cursor
@@ -73,6 +65,11 @@ _column_type_cache: dict[tuple[str, tuple[str, ...]], list[str]] = {}
 # value positions (WHERE, INSERT VALUES, etc.).  DDL structural
 # positions (column types, constraints, comments, sequence options)
 # reject parameterized values outright.
+#
+# Intentionally excluded: TRUNCATE, SET, VACUUM, ANALYZE, REINDEX,
+# CLUSTER, LOCK — these also reject server-side parameters, but Odoo
+# never parameterizes them.  If a future caller does, extend BOTH the
+# regex AND ``_DDL_PREFIXES`` (the 2-char prefix gate below).
 _RE_DDL = _re.compile(
     r"^\s*(?:CREATE|ALTER|DROP|COMMENT|GRANT|REVOKE|DO)\b",
     _re.IGNORECASE,
@@ -155,12 +152,14 @@ class _FlushingSavepoint(Savepoint):
         # default_env and registry_sequence are the only durable state.
         txn = cr.transaction
         self._saved_default_env = txn.default_env if txn else None
-        self._saved_registry_seq = (
-            txn.registry.registry_sequence if txn else -1
-        )
+        self._saved_registry_seq = txn.registry.registry_sequence if txn else -1
+        # Increment depth only after the SAVEPOINT SQL succeeds — otherwise
+        # a failing connection leaves the counter +1 with nothing to roll
+        # back, wedging every subsequent commit/rollback on the `assert
+        # savepoint_depth == 0` check.
+        super().__init__(cr)
         if txn is not None:
             txn.savepoint_depth += 1
-        super().__init__(cr)
 
     def rollback(self) -> None:
         cr = self._cr
@@ -183,13 +182,20 @@ class _FlushingSavepoint(Savepoint):
         cr = self._cr
         assert isinstance(cr, BaseCursor)
         try:
-            if not rollback:
-                cr.flush()
-        except Exception:
-            rollback = True
-            raise
+            try:
+                if not rollback:
+                    cr.flush()
+            except Exception:
+                rollback = True
+                raise
+            finally:
+                super()._close(rollback)
         finally:
-            super()._close(rollback)
+            # Balance __init__'s +=1 unconditionally.  If this decrement
+            # is skipped after a RELEASE/ROLLBACK TO SAVEPOINT failure,
+            # savepoint_depth stays +1 and every subsequent commit or
+            # rollback asserts on ``savepoint_depth == 0``, wedging the
+            # cursor for its remaining lifetime.
             if cr.transaction is not None:
                 cr.transaction.savepoint_depth -= 1
 
@@ -243,7 +249,12 @@ class BaseCursor(_CursorProtocol):
         if self.transaction is not None:
             self.transaction.reset()
 
-    def execute(self, query, params=None, log_exceptions: bool = True) -> None:
+    def execute(
+        self,
+        query: str | SQL,
+        params: tuple | list | dict | None = None,
+        log_exceptions: bool = True,
+    ) -> None:
         """Execute a query inside the current transaction."""
         raise NotImplementedError
 
@@ -321,7 +332,9 @@ class BaseCursor(_CursorProtocol):
         if self._now is None:
             self.execute("SELECT (now() AT TIME ZONE 'UTC')")
             row = self.fetchone()
-            assert row
+            # Explicit check survives ``python -O`` where ``assert`` is stripped.
+            if row is None:
+                raise RuntimeError("SELECT now() returned no row — connection broken?")
             self._now = row[0]
         return self._now
 
@@ -410,8 +423,20 @@ class Cursor(BaseCursor):
             # See the docstring of this class.
             self._cnx.isolation_level = IsolationLevel.REPEATABLE_READ
             self._cnx.read_only = pool.readonly
+            # Cache the mode on the cursor itself — after _close() returns
+            # _cnx to the pool, another cursor may own the same connection
+            # and flip read_only.  Reading it off _cnx post-close returns
+            # stale or foreign state.
+            self._readonly = bool(pool.readonly)
             self._closed = False  # only after all setup succeeds
         except Exception:
+            # If _obj was created before the setter failed, close it before
+            # returning the connection — psycopg_pool's reset() only rolls
+            # back the transaction, it does not close open cursors.
+            obj = getattr(self, "_obj", None)
+            if obj is not None:
+                with suppress(Exception):
+                    obj.close()
             pool.give_back(self._cnx)
             raise
 
@@ -431,7 +456,12 @@ class Cursor(BaseCursor):
         if row is None:
             return None
         desc = self._obj.description
-        assert desc, "Query does not have results"
+        # Explicit check survives ``python -O`` where ``assert`` is stripped.
+        if not desc:
+            raise RuntimeError(
+                "dictfetchone: cursor has no result description "
+                "(query did not produce a result set)"
+            )
         return {col.name: val for col, val in zip(desc, row, strict=False)}
 
     def _col_names(self) -> tuple[str, ...]:
@@ -482,7 +512,13 @@ class Cursor(BaseCursor):
     def connection(self) -> psycopg.Connection:
         return self._cnx
 
-    def copy(self, statement: Any, params: Any = None, *, writer: Any = None) -> Any:
+    def copy(
+        self,
+        statement: str | bytes | _sql.Composable,
+        params: tuple | list | dict | None = None,
+        *,
+        writer: Any = None,
+    ) -> Any:  # psycopg.Copy — not imported to keep the module surface small
         return self._obj.copy(statement, params, writer=writer)
 
     def __del__(self) -> None:
@@ -498,7 +534,7 @@ class Cursor(BaseCursor):
             else:
                 msg += "Please enable sql debugging to trace the caller."
             _logger.warning(msg)
-            self._close(True)
+            self._close()
 
     def _format(self, query: Any, params: Any = None) -> str:
         """Format a query for debug logging (approximate, not for execution)."""
@@ -531,7 +567,7 @@ class Cursor(BaseCursor):
         :param params: The query parameters (passed to hooks, may be None)
         :param start: Monotonic timestamp before execution (passed to hooks)
         """
-        global sql_counter
+        global sql_counter  # noqa: PLW0603 — intentionally process-global
         self.sql_log_count += count
         sql_counter += count
         # NB: hasattr() calls below look like optimization candidates (try/except
@@ -545,39 +581,64 @@ class Cursor(BaseCursor):
         for hook in getattr(t, "query_hooks", ()):
             hook(self, query, params, start, delay)
 
-    def execute(self, query, params=None, log_exceptions: bool = True) -> None:
+    def execute(
+        self,
+        query: str | SQL,
+        params: tuple | list | dict | None = None,
+        log_exceptions: bool = True,
+    ) -> None:
+        # NB: no `self._thread is threading.current_thread()` assertion here.
+        # The actual invariant is "no CONCURRENT execute on the same
+        # connection", not "only the creating thread may execute".  Odoo's
+        # TestCursor (odoo.tests.test_cursor.TestCursor) deliberately shares
+        # the underlying real cursor across the main test thread and HTTP
+        # worker threads, serializing access through an RLock so the shared
+        # transaction is visible to the HTTP handlers.  A creating-thread
+        # check fires false positives on that path.  See ``self._thread``
+        # (set in ``__init__``) — it is retained purely for the query-count
+        # / query-time metrics to pin stats to the originating thread.
+
         if isinstance(query, SQL):
             assert params is None, "Unexpected parameters for SQL query object"
             query, params = query.code, query.params
         elif params:
             if not isinstance(params, (tuple, list, dict)):
-                raise ValueError(
+                raise ValueError(  # noqa: TRY004 — legacy contract, exercised by tests
                     f"SQL query parameters should be a tuple, list or dict; got {params!r}"
                 )
 
-        is_ddl = False
+        # Detect DDL once up-front. The prefix check (2-char compare against
+        # a frozenset) avoids the regex on the 99% of queries that are
+        # SELECT/INSERT/UPDATE/DELETE.  The flag is consumed twice: before
+        # execute (DDL structural positions reject server-side parameters,
+        # so params must be inlined client-side) and after (CREATE/ALTER
+        # change schema, so psycopg3's auto-prepared statement cache must
+        # be invalidated).
+        qs = query if isinstance(query, str) else str(query)
+        c = qs.lstrip()[:2].upper()
+        is_ddl = c in _DDL_PREFIXES and _RE_DDL.match(qs) is not None
 
-        if params:
-            # DDL statements cannot use server-side parameter binding.
-            # Format them client-side before sending to PostgreSQL.
-            # Fast prefix check avoids regex for 99% of queries (SELECT/INSERT/UPDATE).
-            qs = query if isinstance(query, str) else str(query)
-            c = qs.lstrip()[:2].upper()
-            if c in _DDL_PREFIXES and _RE_DDL.match(qs):
-                is_ddl = True
-                ctx = self._cnx
-                if isinstance(params, dict):
-                    query = qs % {k: str(_sql.quote(v, ctx)) for k, v in params.items()}
-                else:
-                    query = qs % tuple(str(_sql.quote(v, ctx)) for v in params)
-                params = None
+        if params and is_ddl:
+            ctx = self._cnx
+            # psycopg.sql.quote already returns str — no wrapper needed.
+            if isinstance(params, dict):
+                query = qs % {k: _sql.quote(v, ctx) for k, v in params.items()}
+            else:
+                query = qs % tuple(_sql.quote(v, ctx) for v in params)
+            params = None
 
         start = real_time()
         try:
             self._obj.execute(query, params)
         except Exception as e:
             if log_exceptions:
-                _logger.error("bad query: %s\nERROR: %s", query, e)
+                # ReadOnlySqlTransaction is recoverable: http._serve catches it
+                # and retries with a r/w cursor.  Log at WARNING so the path is
+                # observable without masquerading as a fault.
+                if isinstance(e, psycopg.errors.ReadOnlySqlTransaction):
+                    _logger.warning("read-only cursor cannot execute (caller may retry r/w): %s", query)
+                else:
+                    _logger.error("bad query: %s\nERROR: %s", query, e)
             raise
         finally:
             delay = real_time() - start
@@ -588,23 +649,19 @@ class Cursor(BaseCursor):
                     self._format(query, params),
                 )
 
-        # After DDL, invalidate psycopg3's auto-prepared statement cache.
-        # psycopg3's PrepareManager natively handles DROP/ROLLBACK, but
-        # CREATE/ALTER also change schema — making cached plans for
-        # SELECT * queries stale ("cached plan must not change result type").
-        # For DDL-with-params, is_ddl was set above during client-side formatting.
-        # For DDL-without-params (pre-formatted SQL), detect now.
-        if not is_ddl and not params:
-            qs = query if isinstance(query, str) else str(query)
-            c = qs.lstrip()[:2].upper()
-            is_ddl = c in _DDL_PREFIXES and _RE_DDL.match(qs)
         if is_ddl:
+            # psycopg3's PrepareManager natively handles DROP/ROLLBACK, but
+            # CREATE/ALTER also change schema — making cached plans for
+            # SELECT * queries stale ("cached plan must not change result type").
             # Private API: psycopg 3.x has no public method to invalidate
             # the auto-prepared statement cache.  _prepared.clear() queues a
-            # DEALLOCATE ALL on the next execute().  Pinned to psycopg >=3.1.
-            # If psycopg removes _prepared, set prepare_threshold=None on the
-            # connection after DDL instead (disables auto-prepare entirely).
-            self._cnx._prepared.clear()
+            # DEALLOCATE ALL on the next execute().  If a future psycopg
+            # removes the attribute, disable auto-prepare on this connection
+            # instead (covers the rest of its max_lifetime window).
+            try:
+                self._cnx._prepared.clear()
+            except AttributeError:
+                self._cnx.prepare_threshold = None
 
         self._record_metrics(delay, query=query, params=params, start=start)
 
@@ -625,7 +682,7 @@ class Cursor(BaseCursor):
 
     def execute_values(
         self,
-        query: Any,
+        query: str | _sql.Composable,
         argslist: list[Any],
         template: str | None = None,
         page_size: int = 100,
@@ -641,8 +698,23 @@ class Cursor(BaseCursor):
         """
         if isinstance(query, _sql.Composable):
             query = query.as_string(self._obj)
+        # Reject non-positive page_size BEFORE touching argslist — page_size=0
+        # later crashes range() with a cryptic "arg 3 must not be zero", and
+        # page_size<0 produces an empty range() that silently drops every
+        # row the caller asked to insert (confirmed data-loss path).
+        if page_size <= 0:
+            raise ValueError(f"execute_values page_size must be >= 1, got {page_size}")
         if not argslist:
             return [] if fetch else None
+        # The template must have exactly one `%s` marker — it's the position
+        # where the batched VALUES row-list gets expanded.  Any other `%s`
+        # would survive the `.replace(..., 1)` below and produce malformed
+        # SQL with a parameter-count mismatch at best.
+        if isinstance(query, str) and query.count("%s") != 1:
+            raise ValueError(
+                f"execute_values requires exactly one '%s' marker in the "
+                f"template (for the VALUES list); got {query.count('%s')}."
+            )
         results = []
         batches = range(0, len(argslist), page_size)
         # Pipeline multi-batch non-fetch executions for single round-trip
@@ -672,8 +744,8 @@ class Cursor(BaseCursor):
 
     def executemany(
         self,
-        query: Any,
-        params_seq: list[Any] | tuple[Any, ...],
+        query: str | SQL,
+        params_seq: Iterable[tuple | list | dict],
         returning: bool = False,
     ) -> None:
         """Execute a query with multiple parameter sets using pipeline mode.
@@ -688,7 +760,14 @@ class Cursor(BaseCursor):
             Use ``fetchall()`` + ``nextset()`` loop to read all result sets.
         """
         if isinstance(query, SQL):
-            query, _ = query.code, query.params
+            # executemany's params come from params_seq, not the SQL object.
+            # Silently dropping embedded params hides caller bugs.
+            if query.params:
+                raise ValueError(
+                    "executemany does not support SQL objects with embedded "
+                    "params; pass the per-row params via params_seq instead."
+                )
+            query = query.code
 
         if not params_seq:
             return
@@ -697,7 +776,11 @@ class Cursor(BaseCursor):
         try:
             self._obj.executemany(query, params_seq, returning=returning)
         except Exception as e:
-            _logger.error("bad query: %s\nERROR: %s", query, e)
+            # See execute() above — same recoverable RO case.
+            if isinstance(e, psycopg.errors.ReadOnlySqlTransaction):
+                _logger.warning("read-only cursor cannot executemany (caller may retry r/w): %s", query)
+            else:
+                _logger.error("bad query: %s\nERROR: %s", query, e)
             raise
         finally:
             delay = real_time() - start
@@ -753,15 +836,40 @@ class Cursor(BaseCursor):
         :param returning_ids: If True, pre-generate IDs via the table's
             serial sequence and return them.  ``'id'`` is prepended to
             *columns* automatically.
+
+            .. warning::
+                When ``returning_ids=True``, *rows* is materialized into
+                a list to count it before calling ``nextval()``.  For
+                very large imports (millions of rows), this defeats
+                streaming and may exhaust memory.  For memory-bounded
+                imports that still need IDs, chunk the input externally
+                or use ``returning_ids=False`` plus batched
+                ``INSERT ... RETURNING id``.
         :param binary: If True, use binary COPY format (faster but requires
             exact type matching via ``set_types()``). Column types are looked
             up from ``pg_attribute`` and cached per table.
         :param on_error: Error handling for data type conversion errors
             (PG17+, text/CSV mode only).  ``'ignore'`` skips malformed rows
             instead of aborting the entire operation.  Useful for fault-
-            tolerant data imports.  Has no effect with ``binary=True``.
+            tolerant data imports.  Rejected with ``binary=True`` (the
+            option has no effect in binary mode) or ``returning_ids=True``
+            (the pre-allocated sequence IDs cannot be reconciled with
+            server-side row skipping — use batched INSERT … RETURNING).
         :return: list of generated IDs when *returning_ids* is True, else None
         """
+        if on_error and binary:
+            raise ValueError(
+                "copy_from: on_error is not supported with binary=True; "
+                "binary COPY has no ON_ERROR clause."
+            )
+        if on_error == "ignore" and returning_ids:
+            raise ValueError(
+                "copy_from: on_error='ignore' is incompatible with "
+                "returning_ids=True — pre-allocated sequence IDs cannot be "
+                "reconciled with rows silently dropped by the server. "
+                "Use batched INSERT ... RETURNING id for fault-tolerant "
+                "inserts that need IDs."
+            )
         if returning_ids:
             rows = list(rows)
             count = len(rows)
@@ -950,11 +1058,14 @@ class Cursor(BaseCursor):
         self.sql_log_count = 0
 
     def close(self) -> None:
-        if not self.closed:
-            return self._close(False)
-        return None
+        # Intentionally test self._closed, NOT self.closed.  The property
+        # also returns True when _cnx.closed flips (network failure, peer
+        # drop).  If we short-circuit on it, _close() never runs and the
+        # semaphore slot plus self._obj leak for the life of the process.
+        if not self._closed:
+            self._close()
 
-    def _close(self, leak: bool = False) -> None:
+    def _close(self) -> None:
         if not self._obj:
             return
 
@@ -1032,7 +1143,10 @@ class Cursor(BaseCursor):
         self.postrollback.run()
 
     def __getattr__(self, name: str) -> Any:
-        if self._closed and name == "_obj":
+        # Short-circuit on closed: any attribute access on a dead cursor
+        # raises cleanly, instead of emitting a misleading deprecation
+        # warning about the attribute name en route to InterfaceError.
+        if self._closed:
             msg = "Cursor already closed"
             raise psycopg.InterfaceError(msg)
         warnings.warn(
@@ -1048,5 +1162,17 @@ class Cursor(BaseCursor):
         return self._closed or bool(self._cnx.closed)
 
     @property
+    def connection(self) -> psycopg.Connection:
+        """The underlying psycopg connection.
+
+        Exposed as an explicit property — not generic ``__getattr__`` forwarding —
+        because cron workers hold a long-lived reference for ``LISTEN``/``NOTIFY``
+        and selector registration. Routing through ``__getattr__`` would emit a
+        ``DeprecationWarning`` on every poll, and opaque forwarding makes the
+        connection's lifetime relative to the cursor harder to reason about.
+        """
+        return self._cnx
+
+    @property
     def readonly(self) -> bool:
-        return bool(self._cnx.read_only)
+        return self._readonly

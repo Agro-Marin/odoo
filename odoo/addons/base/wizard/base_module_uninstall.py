@@ -40,14 +40,14 @@ class BaseModuleUninstall(models.TransientModel):
             )
 
     @api.model
-    def _modules_to_display(self, modules: Any) -> Any:
+    def _modules_to_display(self, modules: Self) -> Self:
         return modules.filtered("application")
 
     def _get_models(self) -> Any:
         """Return the models (ir.model) to consider for the impact."""
         return self.env["ir.model"].search([("transient", "=", False)])
 
-    @api.depends("impacted_module_ids")
+    @api.depends("module_ids")
     def _compute_model_ids(self) -> None:
         ir_models = self._get_models()
         ir_models_xids = ir_models._get_external_ids()

@@ -146,6 +146,127 @@ class TestResCurrency(TransactionCase):
                 200,
             )
 
+    def test_convert_rounding_to_target_precision(self):
+        """RCUR-T1: _convert rounds the result to the target currency precision."""
+        # Source 2-dp, target 0-dp (rounding factor 1.0 → 0 decimal places).
+        source, target = self.env["res.currency"].create(
+            [
+                {
+                    "name": "SRC",
+                    "symbol": "S",
+                    "rounding": 0.01,
+                    "rate_ids": [Command.create({"name": "2009-09-09", "rate": 1})],
+                },
+                {
+                    "name": "TGT",
+                    "symbol": "T",
+                    "rounding": 1.0,
+                    "rate_ids": [Command.create({"name": "2009-09-09", "rate": 3})],
+                },
+            ]
+        )
+        self.assertEqual(target.decimal_places, 0)
+        # 10.0 * 3 = 30.0 → rounded to 0-dp target stays 30.0
+        self.assertEqual(
+            source._convert(10.0, target, self.env.company, "2010-10-10"), 30.0
+        )
+        # A value that would carry fractions: 10.5 * 3 = 31.5 → 0-dp rounds to 32.0
+        self.assertEqual(
+            source._convert(10.5, target, self.env.company, "2010-10-10"), 32.0
+        )
+
+    def test_convert_round_false_returns_unrounded(self):
+        """RCUR-T1: round=False returns the raw (unrounded) converted amount."""
+        source, target = self.env["res.currency"].create(
+            [
+                {
+                    "name": "SR2",
+                    "symbol": "S2",
+                    "rounding": 0.01,
+                    "rate_ids": [Command.create({"name": "2009-09-09", "rate": 1})],
+                },
+                {
+                    "name": "TG2",
+                    "symbol": "T2",
+                    "rounding": 1.0,
+                    "rate_ids": [Command.create({"name": "2009-09-09", "rate": 3})],
+                },
+            ]
+        )
+        # 10.5 * 3 = 31.5; with round=False the fractional part survives.
+        self.assertEqual(
+            source._convert(10.5, target, self.env.company, "2010-10-10", round=False),
+            31.5,
+        )
+        # With round=True the same conversion rounds to the 0-dp target.
+        self.assertEqual(
+            source._convert(10.5, target, self.env.company, "2010-10-10", round=True),
+            32.0,
+        )
+
+    def test_convert_rate_date_boundary(self):
+        """RCUR-T1: _convert picks the latest rate with name <= date."""
+        source, target = self.env["res.currency"].create(
+            [
+                {
+                    "name": "SR3",
+                    "symbol": "S3",
+                    "rate_ids": [Command.create({"name": "2009-09-09", "rate": 1})],
+                },
+                {
+                    "name": "TG3",
+                    "symbol": "T3",
+                    "rate_ids": [
+                        Command.create({"name": "2009-09-09", "rate": 2}),
+                        Command.create({"name": "2011-11-11", "rate": 5}),
+                    ],
+                },
+            ]
+        )
+        # Exactly on the later boundary -> the 2011 rate (5) applies.
+        self.assertEqual(
+            source._convert(100, target, self.env.company, "2011-11-11"), 500
+        )
+        # The day before the later boundary -> still the earlier rate (2).
+        self.assertEqual(
+            source._convert(100, target, self.env.company, "2011-11-10"), 200
+        )
+
+    def test_convert_no_rate_uses_earliest_then_identity(self):
+        """RCUR-T1 / RCUR-L1: a date before the first rate uses the earliest rate;
+        a currency with no rate at all uses the COALESCE -> 1.0 identity path.
+        """
+        # Currency with a single rate dated 2011: a 2010 date precedes it and
+        # must fall back to that earliest known rate (RCUR-L1).
+        with_rate = self.env["res.currency"].create(
+            {
+                "name": "WR1",
+                "symbol": "W1",
+                "rate_ids": [Command.create({"name": "2011-11-11", "rate": 4})],
+            }
+        )
+        company_currency = self.env.company.currency_id
+        self.assertEqual(
+            company_currency._convert(100, with_rate, self.env.company, "2010-10-10"),
+            400,
+        )
+        # Currency with NO rate at all -> COALESCE(..., 1.0) identity rate.
+        no_rate = self.env["res.currency"].create({"name": "NR1", "symbol": "N1"})
+        self.assertFalse(no_rate.rate_ids)
+        self.assertEqual(
+            company_currency._convert(100, no_rate, self.env.company, "2010-10-10"),
+            100,
+        )
+
+    def test_amount_to_text_negative(self):
+        """RCUR-T2: amount_to_text on an amount in (-1, 0) keeps the sign."""
+        currency = self.env.ref("base.USD")
+        text = currency.amount_to_text(-0.5)
+        self.assertTrue(
+            text.startswith("Minus"),
+            f"expected a 'Minus' prefix for a negative sub-unit amount, got {text!r}",
+        )
+
     def test_res_currency_name_search(self):
         currency_A, currency_B = self.env["res.currency"].create(
             [

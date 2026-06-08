@@ -4,10 +4,12 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
-from odoo.cli.command import Command, build_config_args, odoo_env
+from odoo.api import Environment
 from odoo.modules.loading import force_demo
 from odoo.modules.module import get_module_path, initialize_sys_path
 from odoo.tools import OrderedSet, config, parse_version
+
+from . import Command, build_config_args, odoo_env
 
 _logger = logging.getLogger(__name__)
 
@@ -15,8 +17,8 @@ _logger = logging.getLogger(__name__)
 class Module(Command):
     """Manage modules, install demo data"""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self) -> None:
+        super().__init__()
         subparsers = self.parser.add_subparsers(
             dest="subcommand", required=True, help="Subcommands help"
         )
@@ -112,15 +114,15 @@ class Module(Command):
             if get_module_path(module) or self._get_zip_path(module)
         }
 
-    def _get_module_model(self, env: Any) -> Any:
+    def _get_module_model(self, env: Environment) -> Any:
         Module = env["ir.module.module"]
         Module.update_list()
         return Module
 
-    def _get_all_installed_modules(self, env: Any) -> Any:
+    def _get_all_installed_modules(self, env: Environment) -> Any:
         return self._get_module_model(env).search([["state", "=", "installed"]])
 
-    def _get_modules(self, env: Any, module_names: set[str]) -> Any:
+    def _get_modules(self, env: Environment, module_names: set[str]) -> Any:
         return self._get_module_model(env).search([("name", "in", module_names)])
 
     def _install(self, parsed_args: argparse.Namespace) -> None:
@@ -140,6 +142,16 @@ class Module(Command):
                 for module in non_installable_modules
                 if (fullpath := self._get_zip_path(module))
             ]
+            unknown_modules = [
+                m for m in non_installable_modules if not self._get_zip_path(m)
+            ]
+            if unknown_modules:
+                _logger.warning(
+                    "Ignoring %d unrecognised module name(s) (not found on disk "
+                    "and not a readable .zip): %s",
+                    len(unknown_modules),
+                    ", ".join(unknown_modules),
+                )
             if importable_zipfiles:
                 if "imported" not in env["ir.module.module"]._fields:
                     _logger.warning(
@@ -157,14 +169,9 @@ class Module(Command):
                 valid_module_names = self._get_module_names(parsed_args.modules)
                 upgradable_modules = self._get_modules(env, valid_module_names)
             if parsed_args.outdated:
-                # NOTE: field names are swapped in ir.module.module (see base/models/ir_module.py:334):
-                #   installed_version = disk version, latest_version = database version.
-                # So installed_version > latest_version correctly finds modules where
-                # the on-disk version is newer than what's in the database.
                 upgradable_modules = upgradable_modules.filtered(
                     lambda x: (
-                        parse_version(x.installed_version)
-                        > parse_version(x.latest_version)
+                        parse_version(x.manifest_version) > parse_version(x.db_version)
                     ),
                 )
             if upgradable_modules:

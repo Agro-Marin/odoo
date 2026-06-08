@@ -96,8 +96,8 @@ class LazyCompiledBuilder:
     def __get__(self, *args: Any) -> LazyCompiledBuilder:
         # Rule.compile will actually call
         #
-        #   self._build = self._compile_builder(False).__get__(self, None)  # noqa: ERA001
-        #   self._build_unknown = self._compile_builder(True).__get__(self, None)  # noqa: ERA001
+        #   self._build = self._compile_builder(False).__get__(self, None)
+        #   self._build_unknown = self._compile_builder(True).__get__(self, None)
         #
         # meaning the _build and _build_unknown will contain _compile_builder().__get__(self, None).
         # This is why this override of __get__ is needed.
@@ -115,10 +115,10 @@ class LazyCompiledBuilder:
 
 
 class FasterRule(werkzeug.routing.Rule):
-    """
-    _compile_builder is a major part of the routing map generation and rules
-    are actually not build so often.
-    This classe makes calls to _compile_builder lazy
+    """Make calls to ``_compile_builder`` lazy.
+
+    ``_compile_builder`` is a major part of the routing map generation and
+    rules are actually not built so often.
     """
 
     def _compile_builder(self, append_unknown: bool = True) -> LazyCompiledBuilder:
@@ -218,7 +218,8 @@ class IrHttp(models.AbstractModel):
             # check header directly
             header = headers.get("Authorization")
             if header and (m := re.match(r"^bearer\s+(.+)$", header, re.IGNORECASE)):
-                return m.group(1)
+                # strip trailing whitespace so it does not leak into the token
+                return m.group(1).strip()
             return None
 
         def check_sec_headers() -> bool:
@@ -291,7 +292,14 @@ class IrHttp(models.AbstractModel):
                     request.env = api.Environment(
                         request.env.cr, None, request.session.context
                     )
-            getattr(cls, f"_auth_method_{auth}")()
+            # `auth` comes from trusted route metadata, never request input;
+            # an unknown value means a misconfigured @http.route. Fail closed
+            # with a clear message instead of a confusing AttributeError log.
+            auth_method = getattr(cls, f"_auth_method_{auth}", None)
+            if auth_method is None:
+                msg = f"Unknown authentication method: {auth!r}"
+                raise AccessDenied(msg)
+            auth_method()
         except (
             AccessDenied,
             http.SessionExpiredException,
@@ -318,17 +326,17 @@ class IrHttp(models.AbstractModel):
         # ICP value. Do it before calling http's generic pre_dispatch
         # so that the per-route limit @route(..., max_content_length=x)
         # takes over.
-        try:
-            key = "web.max_file_upload_size"
-            if (value := ICP.get_param(key, None)) is not None:
+        key = "web.max_file_upload_size"
+        if (value := ICP.get_param(key, None)) is not None:
+            try:
                 request.httprequest.max_content_length = int(value)
-        except ValueError:  # better not crash on ALL requests
-            _logger.error(
-                "invalid %s: %r, using %s instead",
-                key,
-                value,
-                request.httprequest.max_content_length,
-            )
+            except ValueError:  # better not crash on ALL requests
+                _logger.error(
+                    "invalid %s: %r, using %s instead",
+                    key,
+                    value,
+                    request.httprequest.max_content_length,
+                )
 
         request.dispatcher.pre_dispatch(rule, args)
 
@@ -401,7 +409,14 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _serve_fallback(cls) -> Response | None:
         model = request.env["ir.attachment"]
-        attach = model.sudo()._get_serve_attachment(request.httprequest.path)
+        # Only public attachments may be served by the URL fallback: the search
+        # runs under sudo(), so without this filter any binary attachment whose
+        # url collides with an unmatched path would be served to anonymous
+        # callers. This matches the hardening recommended by
+        # ir_attachment._audit_url_attachments. See IHTTP-L3.
+        attach = model.sudo()._get_serve_attachment(
+            request.httprequest.path, extra_domain=[("public", "=", True)]
+        )
         if attach and (attach.store_fname or attach.db_datas):
             return attach._to_http_stream().get_response()
         return None
@@ -423,10 +438,9 @@ class IrHttp(models.AbstractModel):
             odoo.tools.config["server_wide_modules"]
         )
         mods = sorted(installed)
-        # Note : when routing map is generated, we put it on the class `cls`
-        # to make it available for all instance. Since `env` create an new instance
-        # of the model, each instance will regenared its own routing map and thus
-        # regenerate its EndPoint. The routing map should be static.
+        # The @tools.ormcache(cache="routing") decorator caches and shares this
+        # map across instances; it is rebuilt only on a cache clear (every
+        # registry _setup_models__, i.e. every module install/upgrade/uninstall).
         routing_map = werkzeug.routing.Map(
             strict_slashes=False, converters=self._get_converters()
         )
@@ -503,7 +517,7 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _is_allowed_cookie(cls, cookie_type: str) -> bool:
-        return True if cookie_type == "required" else bool(request.env.user)
+        return cookie_type == "required" or bool(request.env.user)
 
     @api.model
     def _verify_request_recaptcha_token(self, action: str) -> None:

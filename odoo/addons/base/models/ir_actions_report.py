@@ -42,6 +42,8 @@ from odoo.tools import config, is_html_empty
 from odoo.tools.pdf import PdfFileReader, PdfFileWriter, PdfReadError
 from odoo.tools.safe_eval import safe_eval, time
 
+from odoo.addons.base.models.report_paperformat import PAPER_SIZES
+
 # WeasyPrint logs thousands of CSS warnings (box-shadow, @keyframes, vendor
 # pseudo-elements, responsive @media queries, etc.) because the full web client
 # CSS bundle includes Bootstrap and theme CSS designed for browsers, not paged
@@ -116,7 +118,8 @@ def _write_pdf_tolerant_fonts(html_string, url_fetcher, stylesheets):
         dropped = bits - sanitized if isinstance(bits, set) else set(bits) - sanitized
         if dropped:
             _logger.warning(
-                "Dropped invalid OS/2 unicode range bits: %s", sorted(dropped),
+                "Dropped invalid OS/2 unicode range bits: %s",
+                sorted(dropped),
             )
         return _orig(self, sanitized)
 
@@ -405,12 +408,15 @@ class OdooURLFetcher(URLFetcher):
         module_name = parts[0]
         static_path = "/".join(parts[1:])
         for addons_path in self._addons_paths:
-            root = Path(addons_path.strip()).resolve()
-            candidate = (root / module_name / static_path).resolve()
+            # Local var deliberately named addons_root, not root, to avoid
+            # shadowing the module-level `root` imported from odoo.http (the
+            # session store used elsewhere in this fetcher).
+            addons_root = Path(addons_path.strip()).resolve()
+            candidate = (addons_root / module_name / static_path).resolve()
             # Ensure resolved path stays within the addons directory.
             # Use is_relative_to() for proper path-component checking —
             # str.startswith() would accept sibling dirs (e.g. addons-private).
-            if not candidate.is_relative_to(root):
+            if not candidate.is_relative_to(addons_root):
                 continue
             if candidate.is_file():
                 mime = mimetypes.guess_type(candidate)[0] or "application/octet-stream"
@@ -419,7 +425,10 @@ class OdooURLFetcher(URLFetcher):
         return None
 
     def _resolve_web_image(
-        self, url: str, path: str, query: str,
+        self,
+        url: str,
+        path: str,
+        query: str,
     ) -> URLFetcherResponse | None:
         """Resolve ``/web/image/`` URLs directly from the database/filestore.
 
@@ -431,7 +440,10 @@ class OdooURLFetcher(URLFetcher):
             ir_binary = self._env["ir.binary"]
             record = ir_binary._find_record(res_model=model, res_id=res_id, field=field)
             stream = ir_binary._get_image_stream_from(
-                record, field, width=width, height=height,
+                record,
+                field,
+                width=width,
+                height=height,
             )
             data = stream.read()
             if data:
@@ -441,7 +453,10 @@ class OdooURLFetcher(URLFetcher):
         return None
 
     def _resolve_barcode(
-        self, url: str, path: str, query: str,
+        self,
+        url: str,
+        path: str,
+        query: str,
     ) -> URLFetcherResponse | None:
         """Resolve ``/report/barcode/`` URLs by generating the barcode directly.
 
@@ -461,14 +476,25 @@ class OdooURLFetcher(URLFetcher):
                 return None
 
             kwargs = {}
-            for key in ("width", "height", "humanreadable", "quiet", "mask", "barLevel"):
+            for key in (
+                "width",
+                "height",
+                "humanreadable",
+                "quiet",
+                "mask",
+                "barLevel",
+            ):
                 val = params.get(key, [None])[0]
                 if val is not None:
                     kwargs[key] = val
 
             barcode_bytes = (
-                self._env["ir.actions.report"].sudo().barcode(
-                    barcode_type, value, **kwargs,
+                self._env["ir.actions.report"]
+                .sudo()
+                .barcode(
+                    barcode_type,
+                    value,
+                    **kwargs,
                 )
             )
             if barcode_bytes:
@@ -759,6 +785,15 @@ class IrActionsReport(models.Model):
         return self.paperformat_id or self.env.company.paperformat_id
 
     def get_paperformat_by_xmlid(self, xml_id: str) -> Any:
+        """Resolve a paperformat from an action XML id, for use from QWeb templates.
+
+        Called from ``web.report_templates`` (``report_templates.xml``) to read
+        ``css_margins`` on the report tied to ``xml_id``; falls back to the
+        company paperformat when ``xml_id`` is falsy.
+
+        :param str xml_id: external id of the report action
+        :return: report.paperformat record
+        """
         return (
             self.env.ref(xml_id).get_paperformat()
             if xml_id
@@ -837,11 +872,6 @@ class IrActionsReport(models.Model):
             if fmt in self._WEASYPRINT_PAGE_SIZES:
                 size_css = f"{fmt} {orientation}"
             else:
-                # Use explicit dimensions from PAPER_SIZES
-                from odoo.addons.base.models.report_paperformat import (
-                    PAPER_SIZES,
-                )
-
                 ps = next(
                     (p for p in PAPER_SIZES if p["key"] == paperformat_id.format),
                     None,
@@ -860,12 +890,28 @@ class IrActionsReport(models.Model):
         else:
             size_css = f"A4 {orientation}"
 
-        # Margins (data-report-* overrides take priority)
-        margin_top = float(
-            args.get("data-report-margin-top", paperformat_id.margin_top)
-        )
-        margin_bottom = float(
-            args.get("data-report-margin-bottom", paperformat_id.margin_bottom)
+        # Margins (data-report-* overrides take priority).
+        # The override value is a template-supplied string and may be malformed
+        # (e.g. "2cm" instead of a bare number). Fall back to the paperformat
+        # record value with a warning rather than letting the float() cast raise
+        # a ValueError mid-render and surface as an uncaught HTTP 500.
+        def _margin(attr, fallback):
+            raw = args.get(attr, fallback)
+            try:
+                return float(raw)
+            except TypeError, ValueError:
+                _logger.warning(
+                    "_paperformat_to_css: %r=%r is not a valid number; "
+                    "falling back to the paperformat value %r.",
+                    attr,
+                    raw,
+                    fallback,
+                )
+                return float(fallback)
+
+        margin_top = _margin("data-report-margin-top", paperformat_id.margin_top)
+        margin_bottom = _margin(
+            "data-report-margin-bottom", paperformat_id.margin_bottom
         )
         margin_left = float(paperformat_id.margin_left)
         margin_right = float(paperformat_id.margin_right)
@@ -941,7 +987,9 @@ class IrActionsReport(models.Model):
             # No article tags — render the entire body as one document
             main_nodes = _xpath_main(root)
             if not main_nodes:
-                raise UserError(_("Report HTML has no <main> element. Check the report template."))
+                raise UserError(
+                    _("Report HTML has no <main> element. Check the report template.")
+                )
             body_parent = main_nodes[0]
             body_html = "".join(
                 lxml.html.tostring(c, encoding="unicode") for c in body_parent
@@ -1073,7 +1121,7 @@ class IrActionsReport(models.Model):
                 html_with_css = self._inject_page_css(body, page_css)
                 if parsed_css_urls:
                     html_with_css = _RE_CSS_LINK.sub(
-                        lambda m: ("" if m.group(1) in parsed_css_urls else m.group(0)),
+                        lambda m: "" if m.group(1) in parsed_css_urls else m.group(0),
                         html_with_css,
                     )
                 return html_with_css
@@ -1193,7 +1241,6 @@ class IrActionsReport(models.Model):
             return html_str.replace("</head>", f"{style_tag}</head>", 1)
         return f"{style_tag}{html_str}"
 
-
     def _render_html_to_image(
         self,
         bodies: list[str],
@@ -1219,9 +1266,11 @@ class IrActionsReport(models.Model):
         with self._build_url_fetcher() as fetcher:
             for body in bodies:
                 try:
-                    png_bytes = weasyprint.HTML(string=body, url_fetcher=fetcher).write_png()
-                    img = Image.open(io.BytesIO(png_bytes))
-                    img = img.resize((width, height), Image.Resampling.LANCZOS)
+                    png_bytes = weasyprint.HTML(
+                        string=body, url_fetcher=fetcher
+                    ).write_png()
+                    with Image.open(io.BytesIO(png_bytes)) as src:
+                        img = src.resize((width, height), Image.Resampling.LANCZOS)
 
                     buf = io.BytesIO()
                     if image_format == "png":
@@ -1511,9 +1560,9 @@ class IrActionsReport(models.Model):
 
                         # Ensure the stream can be saved in Image.
                         if attachment.mimetype.startswith("image"):
-                            img = Image.open(stream)
                             new_stream = io.BytesIO()
-                            img.convert("RGB").save(new_stream, format="pdf")
+                            with Image.open(stream) as img:
+                                img.convert("RGB").save(new_stream, format="pdf")
                             stream.close()
                             stream = new_stream
 
@@ -1622,9 +1671,9 @@ class IrActionsReport(models.Model):
 
                 # Single record without split: assign directly
                 if len(res_ids_wo_stream) == 1:
-                    collected_streams[res_ids_wo_stream[0]][
-                        "stream"
-                    ] = pdf_content_stream
+                    collected_streams[res_ids_wo_stream[0]]["stream"] = (
+                        pdf_content_stream
+                    )
                 else:
                     # Multiple records but can't split — return as unsplit
                     collected_streams[False] = {
@@ -1772,6 +1821,11 @@ class IrActionsReport(models.Model):
                 pdf_content = pdf_merged_stream.getvalue()
 
         if error_record_ids:
+            # Unsplit multi-record batches are keyed by False (no per-record id),
+            # so a RedirectWarning would build a meaningless [('id','in',[False])]
+            # domain. Fall back to the generic merge error in that case.
+            if not any(error_record_ids):
+                self._handle_merge_pdfs_error()
             action = {
                 "type": "ir.actions.act_window",
                 "name": _("Problematic record(s)"),
@@ -1802,8 +1856,10 @@ class IrActionsReport(models.Model):
         if res_ids:
             _logger.info(
                 '"%s" (%s) generated for %s %s.',
-                report_sudo.name, report_sudo.report_name,
-                report_sudo.model, res_ids,
+                report_sudo.name,
+                report_sudo.report_name,
+                report_sudo.model,
+                res_ids,
             )
 
         return pdf_content, "pdf"

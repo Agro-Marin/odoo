@@ -15,8 +15,23 @@ from odoo.exceptions import AccessError, ValidationError
 # =============================================================================
 
 regex_alphanumeric = re.compile(r"^[a-z0-9_]+$")
-regex_object_name = re.compile(r"^[a-z0-9_.]+$")
-regex_pg_name = re.compile(r"^[a-z_][a-z0-9_$]*$", re.IGNORECASE)
+# First segment must start with a letter or underscore (it becomes the prefix
+# of the generated PostgreSQL table name, which IS an SQL identifier and
+# requires letter/underscore start).  SUBSEQUENT segments may start with a
+# digit because they only join into the table name via ``_`` (e.g.
+# ``l10n_us.1099_box`` → table ``l10n_us_1099_box``, valid).  The asymmetry
+# rejects ``"1invalid"`` while accepting legitimate names like
+# ``"l10n_us.1099_box"`` whose digit-leading second segment encodes a US
+# tax-form number, not a Python identifier.  Pathological inputs (``"."``,
+# ``".."``, ``"res."``, ``".res"``, ``"res..partner"``) are still rejected
+# because every segment must be non-empty.
+regex_object_name = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z0-9_]+)*$")
+# Lowercase only — PostgreSQL folds unquoted identifiers to lowercase, so
+# ``MyTable`` and ``mytable`` would silently collide.  This matches the rule
+# documented for :func:`check_object_name`.  ``re.IGNORECASE`` was previously
+# applied here, contradicting that policy; survey of core/enterprise/agromarin
+# found no model with an uppercase ``_table``, so tightening is safe.
+regex_pg_name = re.compile(r"^[a-z_][a-z0-9_$]*$")
 
 # Match private methods, to prevent their remote invocation
 regex_private = re.compile(r"^(_.*|init)$")

@@ -32,6 +32,12 @@ class ChangePasswordWizard(models.TransientModel):
     )
 
     def change_password_button(self) -> dict[str, str]:
+        """Apply the new password to every wizard line and close the wizard.
+
+        :return: a client reload action if the acting user changed their own
+            password, otherwise a window-close action.
+        :rtype: dict
+        """
         self.ensure_one()
         self.user_ids.change_password_button()
         if self.env.user in self.user_ids.user_id:
@@ -57,6 +63,16 @@ class ChangePasswordUser(models.TransientModel):
     new_passwd = fields.Char(string="New Password", default="")
 
     def change_password_button(self) -> None:
+        """Write each line's new password onto its target user.
+
+        Cross-user password setting is blocked upstream of this method by three
+        independent layers (do not weaken any of them): the ``change.password.user``
+        ACL is restricted to ``base.group_erp_manager``, the ``change_password_rule``
+        record rule limits visible lines to ``[('create_uid', '=', user.id)]``, and
+        the final ``self.password`` write performed by ``_change_password`` requires
+        genuine ORM write rights on ``res.users`` (``password`` is not in
+        ``SELF_WRITEABLE_FIELDS``).
+        """
         for line in self:
             if line.new_passwd:
                 line.user_id._change_password(line.new_passwd)
@@ -65,6 +81,13 @@ class ChangePasswordUser(models.TransientModel):
 
 
 class ChangePasswordOwn(models.TransientModel):
+    """A wizard letting a user change only their own password.
+
+    Unlike ``change.password.user`` this model has no ``user_id`` field: it is
+    hard-bound to ``self.env.user`` and additionally protected by
+    ``@check_identity``, so it can never target another user's record.
+    """
+
     _name = "change.password.own"
     _description = "User, change own password wizard"
     _transient_max_hours = 0.1

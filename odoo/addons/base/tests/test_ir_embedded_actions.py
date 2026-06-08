@@ -81,7 +81,117 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
         )
 
     def test_cannot_delete_default_embedded_action(self):
-        return
+        # A record seeded from a data file (external id not __export__/__custom__)
+        # is not deletable and must raise UserError on unlink.
+        seeded_action = self.env["ir.embedded.actions"].create(
+            {
+                "name": "SeededEmbeddedAction",
+                "parent_res_model": "res.partner",
+                "parent_action_id": self.parent_action.id,
+                "action_id": self.action_2.id,
+            }
+        )
+        self.env["ir.model.data"].create(
+            {
+                "name": "seeded_embedded_action",
+                "module": "base",
+                "model": "ir.embedded.actions",
+                "res_id": seeded_action.id,
+            }
+        )
+        seeded_action.invalidate_recordset(["is_deletable"])
+        self.assertFalse(
+            seeded_action.is_deletable,
+            "A record seeded from a data file should not be deletable",
+        )
+        with self.assertRaises(UserError):
+            seeded_action.unlink()
+
+    def test_python_method_visibility(self):
+        # An embedded action whose python_method does not exist on the parent
+        # model is hidden; one whose python_method exists is shown.
+        invalid_method_action = self.env["ir.embedded.actions"].create(
+            {
+                "name": "InvalidMethodAction",
+                "parent_res_model": "res.partner",
+                "parent_action_id": self.parent_action.id,
+                "python_method": "this_method_does_not_exist",
+            }
+        )
+        valid_method_action = self.env["ir.embedded.actions"].create(
+            {
+                "name": "ValidMethodAction",
+                "parent_res_model": "res.partner",
+                "parent_action_id": self.parent_action.id,
+                "python_method": "read",
+            }
+        )
+        self.assertFalse(
+            invalid_method_action.with_context(self.context).is_visible,
+            "An embedded action with a non-existent python_method should be hidden",
+        )
+        self.assertTrue(
+            valid_method_action.with_context(self.context).is_visible,
+            "An embedded action with an existing python_method should be visible",
+        )
+
+    def test_malformed_domain_visibility(self):
+        # A malformed domain literal must be caught (ValueError/SyntaxError) and
+        # yield is_visible=False without raising a traceback.
+        malformed_action = self.env["ir.embedded.actions"].create(
+            {
+                "name": "MalformedDomainAction",
+                "parent_res_model": "res.partner",
+                "parent_action_id": self.parent_action.id,
+                "action_id": self.action_2.id,
+                "domain": "[(",
+            }
+        )
+        self.assertFalse(
+            malformed_action.with_context(self.context).is_visible,
+            "An embedded action with a malformed domain should be hidden",
+        )
+
+    def test_user_id_scoping_visibility(self):
+        # A personal embedded action (user_id set) is visible only to its owner;
+        # a shared action (user_id empty) is visible to any user.
+        owner = self.user_demo
+        other_user = self.env["res.users"].create(
+            {
+                "name": "OtherUser",
+                "login": "other_user_embedded",
+                "group_ids": [(6, 0, [self.ref("base.group_user")])],
+            }
+        )
+        personal_action = self.env["ir.embedded.actions"].create(
+            {
+                "name": "PersonalEmbeddedAction",
+                "parent_res_model": "res.partner",
+                "parent_action_id": self.parent_action.id,
+                "action_id": self.action_2.id,
+                "user_id": owner.id,
+            }
+        )
+        shared_action = self.env["ir.embedded.actions"].create(
+            {
+                "name": "SharedEmbeddedAction",
+                "parent_res_model": "res.partner",
+                "parent_action_id": self.parent_action.id,
+                "action_id": self.action_1.id,
+            }
+        )
+        self.assertTrue(
+            personal_action.with_user(owner).with_context(self.context).is_visible,
+            "A personal embedded action should be visible to its owner",
+        )
+        self.assertFalse(
+            personal_action.with_user(other_user).with_context(self.context).is_visible,
+            "A personal embedded action should be hidden from a non-owner",
+        )
+        self.assertTrue(
+            shared_action.with_user(other_user).with_context(self.context).is_visible,
+            "A shared embedded action should be visible to any user",
+        )
 
     def test_can_delete_custom_embedded_action(self):
         embedded_action_custo = self.env["ir.embedded.actions"].create(

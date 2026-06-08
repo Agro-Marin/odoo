@@ -116,13 +116,17 @@ class TestNewId(TransactionCase):
         self.assertFalse(NewId() < 100)
 
     def test_lt_origin_vs_none_origin(self):
-        """NewId with origin compared to NewId without origin must not crash.
+        """NewId(N) is at position N+0.5; NewId() is +infinity.
 
-        Regression test: previously raised TypeError because the code
-        evaluated ``None > self.origin`` when other.origin was None.
+        Therefore ``NewId(5) < NewId()`` is True (finite < +infinity).
+
+        Regression test: an earlier implementation evaluated
+        ``None > self.origin`` when other.origin was None, raising
+        TypeError.  The fix returned False to avoid the crash, but the
+        correct semantic is True (consistent with test_orm.test_sort
+        expectations and with NewIds sorting after all real ids).
         """
-        # NewId(origin=5) < NewId(origin=None) — should return False, not crash
-        self.assertFalse(NewId(origin=5) < NewId())
+        self.assertTrue(NewId(origin=5) < NewId())
 
     def test_lt_none_origin_vs_origin(self):
         """NewId without origin compared to NewId with origin."""
@@ -182,7 +186,7 @@ class TestNewId(TransactionCase):
         self.assertTrue(s.startswith("NewId_0x"))
 
     def test_total_ordering(self):
-        """NewId supports all comparison operators via @total_ordering."""
+        """NewId supports all comparison operators."""
         a = NewId(origin=1)
         b = NewId(origin=2)
         self.assertTrue(a < b)
@@ -191,6 +195,121 @@ class TestNewId(TransactionCase):
         self.assertTrue(b >= a)
         self.assertTrue(a <= NewId(origin=1))
         self.assertTrue(a >= NewId(origin=1))
+
+    # ------------------------------------------------------------------
+    # Regression — hash invariant and ordering safety
+    # ------------------------------------------------------------------
+
+    def test_eq_origin_set_vs_unset_with_matching_ref(self):
+        """A NewId with origin and one without origin must NOT compare equal,
+        even when refs match.
+
+        Regression: previously eq() returned True via the ref-only branch,
+        but hash() used the origin, breaking ``a == b ⟹ hash(a) == hash(b)``.
+        """
+        a = NewId(origin=5, ref="foo")
+        b = NewId(origin=None, ref="foo")
+        self.assertNotEqual(a, b)
+        # A False answer must be the literal False, never None
+        self.assertIs(a == b, False)
+
+    def test_eq_returns_bool_for_originless_pair(self):
+        """__eq__ on two distinct origin-less NewIds returns False, not None.
+
+        Returning None violates Python's data model (``__eq__`` must return
+        True/False/NotImplemented).  Caused contradictory ``a > b AND b > a``
+        through ``functools.total_ordering`` derivation.
+        """
+        a = NewId()
+        b = NewId()
+        self.assertIs(a == b, False)
+
+    def test_no_ordering_contradiction_for_originless(self):
+        """For two distinct origin-less NewIds, ``a > b`` and ``b > a`` cannot
+        both be True (contradicts strict weak ordering).
+        """
+        a = NewId()
+        b = NewId()
+        self.assertFalse(a > b and b > a)
+        self.assertFalse(a < b and b < a)
+
+    def test_hash_invariant_under_set(self):
+        """Hash invariant: equal NewIds deduplicate in a set.
+
+        Tests the previously-broken case where origin-and-ref vs ref-only
+        leaked into a set as two items.
+        """
+        a = NewId(origin=5, ref="foo")
+        b = NewId(origin=5, ref="bar")
+        # Both have the same origin → equal → set has 1 element
+        self.assertEqual(a, b)
+        self.assertEqual(len({a, b}), 1)
+
+    def test_hash_invariant_under_dict_lookup(self):
+        """Equal NewIds find each other through a dict lookup."""
+        a = NewId(origin=5)
+        b = NewId(origin=5, ref="anything")
+        self.assertEqual(a, b)
+        self.assertEqual({a: "x"}.get(b), "x")
+
+    def test_le_ge_equality_contract_originless_ref(self):
+        """``a == b ⟹ a <= b ∧ a >= b`` for equal-by-ref originless NewIds.
+
+        Regression: removing ``functools.total_ordering`` and restoring +inf
+        ordering left ``__le__``/``__ge__`` short-circuiting only on identity,
+        not equality.  Two distinct ``NewId(ref='x')`` were equal by
+        ``__eq__`` but ``a <= b`` and ``a >= b`` returned False, breaking
+        the data-model invariant.
+        """
+        a = NewId(ref="x")
+        b = NewId(ref="x")
+        self.assertEqual(a, b)
+        self.assertTrue(a <= b)
+        self.assertTrue(a >= b)
+        self.assertFalse(a < b)
+        self.assertFalse(a > b)
+
+    def test_le_ge_equality_contract_same_origin(self):
+        """Same-origin distinct NewIds satisfy ``a <= b`` and ``a >= b``."""
+        a = NewId(origin=42)
+        b = NewId(origin=42)
+        self.assertEqual(a, b)
+        self.assertTrue(a <= b)
+        self.assertTrue(a >= b)
+
+    def test_le_ge_distinct_originless_unequal_refs_remain_incomparable(self):
+        """Distinct originless NewIds with different refs stay incomparable.
+
+        Two ``+inf`` points with different refs are not equal and remain
+        mutually incomparable for ``<``/``<=``/``>``/``>=``.
+        """
+        a = NewId(ref="x")
+        b = NewId(ref="y")
+        self.assertNotEqual(a, b)
+        self.assertFalse(a <= b)
+        self.assertFalse(a >= b)
+        self.assertFalse(b <= a)
+        self.assertFalse(b >= a)
+
+    def test_repr_origin_zero_is_set(self):
+        """``NewId(origin=0)`` renders with origin, not as anonymous.
+
+        Regression: ``__repr__`` used ``if self.origin:`` (truthiness),
+        treating ``origin=0`` as absent and rendering hex address.
+        ``__init__``/``__eq__`` use ``is not None``, so the renderers must
+        match.
+        """
+        n = NewId(origin=0)
+        self.assertEqual(repr(n), "<NewId origin=0>")
+        self.assertEqual(str(n), "NewId_0")
+
+    def test_str_origin_takes_precedence_over_ref(self):
+        """When both origin and ref are set, ``__str__`` shows origin
+        (matching ``__eq__`` semantics where origin wins).
+        """
+        n = NewId(origin=5, ref="abc")
+        self.assertEqual(str(n), "NewId_5")
+        self.assertEqual(repr(n), "<NewId origin=5>")
 
 
 class TestCommand(TransactionCase):
@@ -340,3 +459,47 @@ class TestOriginIds(TransactionCase):
         first = list(oids)
         second = list(oids)
         self.assertEqual(first, second)
+
+
+class TestParseFieldExpr(TransactionCase):
+    """Regression tests for ``parse_field_expr`` malformed-input rejection."""
+
+    def setUp(self):
+        super().setUp()
+        # Clear functools.cache so the tests see the current implementation.
+        from odoo.orm.parsing import parse_field_expr
+        parse_field_expr.cache_clear()
+
+    def test_simple(self):
+        from odoo.orm.parsing import parse_field_expr
+        self.assertEqual(parse_field_expr("amount"), ("amount", None))
+
+    def test_dotted(self):
+        from odoo.orm.parsing import parse_field_expr
+        self.assertEqual(parse_field_expr("partner_id.name"), ("partner_id", "name"))
+
+    def test_multi_dotted(self):
+        from odoo.orm.parsing import parse_field_expr
+        self.assertEqual(parse_field_expr("a.b.c"), ("a", "b.c"))
+
+    def test_reject_trailing_dot(self):
+        """Regression: previously accepted, returning ('name', '')."""
+        from odoo.orm.parsing import parse_field_expr
+        with self.assertRaises(ValueError):
+            parse_field_expr("name.")
+
+    def test_reject_double_dot(self):
+        """Regression: previously accepted 'x..y' returning ('x', '.y')."""
+        from odoo.orm.parsing import parse_field_expr
+        with self.assertRaises(ValueError):
+            parse_field_expr("x..y")
+
+    def test_reject_leading_dot(self):
+        from odoo.orm.parsing import parse_field_expr
+        with self.assertRaises(ValueError):
+            parse_field_expr(".name")
+
+    def test_reject_empty(self):
+        from odoo.orm.parsing import parse_field_expr
+        with self.assertRaises(ValueError):
+            parse_field_expr("")

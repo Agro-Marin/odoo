@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import typing
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import IO, Any
@@ -14,9 +15,13 @@ import odoo.addons
 from .config import config
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Generator
-
     from odoo.api import Environment
+else:
+    # Environment lives in odoo.orm.runtime, which imports from odoo.tools.
+    # Runtime-importing it here would cycle.  Fall back to ``Any`` so
+    # introspection tools can resolve the annotation; type checkers still
+    # see the real class via the branch above.
+    Environment = typing.Any
 
 
 def file_path(

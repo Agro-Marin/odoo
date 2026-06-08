@@ -448,8 +448,24 @@ class Many2one(_Relational):
                 raise ValueError(f"Wrong value for {self}: {value!r}")
             id_ = value._ids[0] if value._ids else None
         elif isinstance(value, tuple):
-            # value is either a pair (id, name), or a tuple of ids
-            id_ = value[0] if value else None
+            # value is either a pair (id, name), or a tuple of ids.  Reject
+            # x2many Command tuples (length 3 with int command id at [0]):
+            # they would silently degrade to ``id_ = command_int`` (e.g.
+            # CREATE → 0 → None) and corrupt the M2O without an error.
+            if validate and len(value) == 3 and isinstance(value[0], int):
+                from ..primitives import Command
+
+                if value[0] in Command._value2member_map_:
+                    raise ValueError(
+                        f"Wrong value for {self}: x2many Command tuple "
+                        f"{value!r} cannot be assigned to a many2one field"
+                    )
+            # Normalise falsy ids to ``None``: web clients send ``(False, "")``
+            # to mean "no value", and the read format encodes "no relation" as
+            # the same shape.  Storing the literal ``False`` / ``0`` would
+            # build a recordset with ``_ids=(False,)`` whose ``len() == 1``
+            # but ``bool() == False`` — an inconsistent state.
+            id_ = (value[0] or None) if value else None
         elif isinstance(value, dict):
             # return a new record (with the given field 'id' as origin)
             comodel = record.env[self.comodel_name]
@@ -787,8 +803,17 @@ class _RelationalMulti(_Relational):
             else:
                 browse = comodel.browse
             # determine the value ids: in case of a real record or a new record
-            # with origin, take its current value
-            ids = OrderedSet(record[self.name]._ids if record._origin else ())
+            # with origin, take its current value.  Read through the origin
+            # with ``active_test=False`` so archived lines survive the
+            # round-trip — the class docstring above explicitly states the
+            # cache must include inactive ids; ``convert_to_record`` will
+            # filter them when consumers read the field.
+            if record._origin:
+                ids = OrderedSet(
+                    record.with_context(active_test=False)[self.name]._ids
+                )
+            else:
+                ids = OrderedSet()
             # modify ids with the commands
             for command in value:
                 if isinstance(command, (tuple, list)):
@@ -1188,7 +1213,7 @@ class One2many(_RelationalMulti):
             except KeyError:
                 raise ValueError(
                     f"{self.inverse_name!r} declared in {self!r} does not exist on {comodel._name!r}."
-                )
+                ) from None
 
     @override
     def setup_inverses(
@@ -1932,7 +1957,7 @@ class Many2many(_RelationalMulti):
             if to_create:
                 # create lines in batch, and link them
                 lines = comodel.create([vals for ids, vals in to_create])
-                for line, (ids, _vals) in zip(lines, to_create, strict=False):
+                for line, (ids, _vals) in zip(lines, to_create, strict=True):
                     relation_add(ids, line.id)
 
             if to_delete:
@@ -1953,7 +1978,7 @@ class Many2many(_RelationalMulti):
             except AccessError as e:
                 raise AccessError(
                     model.env._("Failed to write field %s", self) + "\n" + str(e)
-                )
+                ) from e
 
         # update the cache of self
         for record in records:
