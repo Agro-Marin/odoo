@@ -392,7 +392,7 @@ export class PropertyValue extends Component {
     async _openRecord(recordModel, recordId) {
         const action = await this.orm.call(
             recordModel,
-            "get_record_default_action",
+            "get_formview_action",
             [[recordId]],
             {
                 context: this.props.context,
