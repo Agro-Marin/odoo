@@ -36,7 +36,7 @@ class Base(models.AbstractModel):
             on self. Used in overrides, notably with portal / website addons.
         """
         self.ensure_one()
-        return self.get_record_default_action(access_uid=access_uid)
+        return self.get_formview_action(access_uid=access_uid)
 
     @api.model
     def get_empty_list_help(self, help_message: str) -> str:
@@ -634,9 +634,7 @@ class Base(models.AbstractModel):
         return False
 
     @api.readonly
-    def get_record_default_action(
-        self, access_uid: int | None = None
-    ) -> dict[str, Any]:
+    def get_formview_action(self, access_uid: int | None = None) -> dict[str, Any]:
         """Return an action to open the document ``self``. This method is meant
             to be overridden in addons that want to give specific view ids for
             example.

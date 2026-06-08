@@ -445,21 +445,6 @@ class ProjectTask(models.Model):
         export_string_translation=False,
         help="Sum of the planned hours for all the sub-tasks (and their own sub-tasks) linked to this task. Usually less than or equal to the planned hours of this task.",
     )
-    # ---- Resource reservations ----
-    reservation_ids = fields.One2many(
-        "resource.reservation",
-        compute="_compute_reservation_ids",
-        string="Reservations",
-    )
-    # Label is "Reservation Conflicts" (not "Scheduling Conflicts") so it
-    # disambiguates from the mixin-inherited ``schedule_overlap_count`` that
-    # ``project_enterprise`` adds via ``resource.scheduling.mixin``: the
-    # mixin field counts overlaps on the task-as-schedulable, while this
-    # one aggregates overlap counts across the task's reservations.
-    schedule_conflict_count = fields.Integer(
-        "Reservation Conflicts",
-        compute="_compute_schedule_conflict_count",
-    )
     # User names displayed in project sharing views
     portal_user_names = fields.Char(
         compute="_compute_portal_user_names",
