@@ -64,6 +64,41 @@ class TestHttpSession(TestHttpBase):
                 msg = f"save() was called with args: {mock_save.call_args}"
                 raise AssertionError(msg) from exc
 
+    def test_session02_csrf_token_persists_session(self):
+        # Issuing a CSRF token must persist the (anonymous) session that
+        # signed it. Otherwise the session cookie references a session that
+        # was never stored, and ``renew_missing`` hands out a fresh sid on
+        # the next request.
+        self.assertFalse(odoo.http.root.session_store.store)
+        res = self.db_url_open("/test_http/csrf-token")
+        res.raise_for_status()
+        self.assertTrue(res.text.strip(), "the GET should issue a CSRF token")
+        self.assertTrue(
+            odoo.http.root.session_store.store,
+            "issuing a CSRF token should persist the anonymous session",
+        )
+
+    def test_session02_csrf_anonymous_roundtrip(self):
+        # Regression: an anonymous CSRF token issued on one request must
+        # still validate on the next. The token is signed over the sid
+        # static prefix; if the session is not persisted, the cookie's sid
+        # is rotated away by ``renew_missing`` and the prefix no longer
+        # matches, yielding a spurious "Session expired (invalid CSRF
+        # token)" on every anonymous login / website form POST.
+        res = self.db_url_open("/test_http/csrf-token")
+        res.raise_for_status()
+        csrf_token = res.text.strip()
+
+        res = self.db_url_open(
+            "/test_http/echo-http-csrf", data={"csrf_token": csrf_token}
+        )
+        self.assertEqual(
+            res.status_code,
+            200,
+            "an anonymous CSRF token issued on a prior request must "
+            f"validate; got {res.status_code}: {res.text[:200]}",
+        )
+
     def test_session03_logout_15_0_geoip(self):
         session = self.authenticate(None, None)
         session["db"] = "idontexist"

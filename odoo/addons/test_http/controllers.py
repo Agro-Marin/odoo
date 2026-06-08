@@ -121,6 +121,18 @@ class TestHttp(http.Controller):
         return str(kwargs)
 
     @http.route(
+        "/test_http/csrf-token",
+        type="http",
+        auth="none",
+        methods=["GET"],
+        csrf=False,
+    )
+    def csrf_token(self, **kwargs):
+        # Issue a CSRF token for the current (possibly anonymous) session,
+        # mirroring what a rendered form does via ``request.csrf_token()``.
+        return request.csrf_token()
+
+    @http.route(
         "/test_http/echo-http-context-lang",
         type="http",
         auth="public",

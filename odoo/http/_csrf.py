@@ -22,7 +22,10 @@ from .constants import CSRF_TOKEN_MAX_AGE, STORED_SESSION_BYTES
 class _RequestCsrfMixin:
     """CSRF token issuance and validation for :class:`Request`.
 
-    Reads ``self.session``, ``self.env``. Has no state.
+    Reads ``self.session`` and ``self.env``. Issuing a token via
+    :meth:`csrf_token` marks the session dirty (``touch``) so its sid is
+    persisted and survives to the validating request; :meth:`validate_csrf`
+    has no side effects.
     """
 
     def csrf_token(self, time_limit: int | None = None) -> str:
@@ -51,6 +54,18 @@ class _RequestCsrfMixin:
         msg = f"{self.session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
 
         hm = hmac.new(secret.encode("ascii"), msg, hashlib.sha256).hexdigest()
+
+        # Issuing a token binds it to this session's static sid prefix. The
+        # validating request (e.g. the form POST) MUST load the same session
+        # file so the prefix still matches. A brand-new anonymous session is
+        # never dirtied by a plain GET (``is_dirty`` is reset in
+        # ``_get_session_and_dbname`` and it has no ``uid`` to trigger
+        # rotation), so without this touch it is never written to disk: the
+        # next request's ``renew_missing`` hands out a fresh sid whose prefix
+        # no longer matches the token, yielding a spurious "Session expired
+        # (invalid CSRF token)". Persisting only when a token is actually
+        # issued keeps pure API/asset hits from creating session files.
+        self.session.touch()
         return f"{hm}o{max_ts}"
 
     def validate_csrf(self, csrf: str | None) -> bool:
