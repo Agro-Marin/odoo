@@ -1423,6 +1423,14 @@ class AssetsBundle:
             "--minify",
             "--keep-names",
             "--external:@odoo/*",
+            # Vendored libraries under /web/static/lib are runtime assets
+            # served by the static handler and pulled in via lazy
+            # ``import("/web/static/lib/.../x.esm.js")`` calls (e.g. Chart,
+            # FullCalendar). esbuild runs with cwd=odoo_root, so a leading-/
+            # specifier resolves as a filesystem-absolute path that never
+            # exists and the build fails. Mark them external so esbuild emits
+            # the import verbatim for the browser to resolve at request time.
+            "--external:/web/static/lib/*",
             *external_flags,
             f"--target={target}",
             "--resolve-extensions=.js,.mjs,.json",
