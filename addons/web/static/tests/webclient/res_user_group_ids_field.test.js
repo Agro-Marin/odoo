@@ -22,6 +22,23 @@ import {
 const { ResCompany, ResGroups, ResPartner, ResUsers } = webModels;
 
 defineModels([ResCompany, ResGroups, ResPartner, ResUsers]);
+// NOTE — 5 tests in this file fail with "Cannot find a definition for
+// model 'mail.thread'" because ``res.users``/``res.partner`` server-side
+// inherit ``mail.thread``.  Tried two approaches that didn't work:
+//   1. Hand-rolled ``class MailThread extends models.Model`` stub →
+//      passed the "missing definition" check but failed at the next
+//      level with ``Cannot read properties of undefined (reading 'call')``
+//      because the form view reaches into inherited methods.
+//   2. Importing the real mock from
+//      ``@mail/../tests/mock_server/mock_models/mail_thread`` → fixed
+//      the 5 here but REGRESSED 20+ other tests in this file (presumably
+//      because ``MailThread``'s side effects on the registry interact
+//      with ``ResUsers`` / ``ResPartner`` mocks in ways the other tests
+//      did not account for).
+// The right fix is either (a) exporting a curated mail-mock subset
+// through ``webModels`` that's safe for web-only tests, or (b)
+// moving these 5 tests into a separate file that loads the full
+// mail-test fixture.  Deferred until that scope is justified.
 
 beforeEach(() => {
     ResPartner._records = [{ id: 1, name: "Partner" }];

@@ -5,7 +5,9 @@
 
 import { Component, reactive, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { ModelEvent } from "@web/core/events";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
+import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { useModelWithSampleData } from "@web/model/model";
@@ -26,8 +28,6 @@ import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
 import { CalendarMobileFilterPanel } from "./mobile_filter_panel/calendar_mobile_filter_panel.js";
 import { CalendarQuickCreate } from "./quick_create/calendar_quick_create.js";
-
-const { DateTime } = globalThis.luxon ?? {};
 
 export const SCALE_LABELS = {
     day: _t("Day"),
@@ -83,26 +83,31 @@ export class CalendarController extends Component {
         this.displayDialog = useUniqueDialog();
 
         /** @type {any} */
-        this.model = useModelWithSampleData(this.props.Model, this.modelParams);
+        this.model = useState(useModelWithSampleData(this.props.Model, this.modelParams));
 
         useSetupAction({
             getLocalState: () => this.model.exportedState,
         });
 
+        // Both flags are boolean-only and persisted via String(value) below
+        // (or by Storage's implicit toString on legacy writes). Reading them
+        // back as JSON is brittle: if storage ever holds the literal string
+        // "undefined" (e.g. from a stray setItem(key, undefined) anywhere
+        // in the codebase) JSON.parse throws and breaks the calendar mount.
+        // Plain "is the stored value the string 'false'?" handles null,
+        // "true", "false", boolean false (test mocks), and "undefined"
+        // (pollution) without surprises.
+        const storedWeekendVisible =
+            browser.localStorage.getItem("calendar.isWeekendVisible");
         const sessionShowSidebar =
             browser.sessionStorage.getItem("calendar.showSideBar");
         this.state = useState({
             isWeekendVisible:
-                browser.localStorage.getItem("calendar.isWeekendVisible") != null
-                    ? JSON.parse(
-                          browser.localStorage.getItem("calendar.isWeekendVisible"),
-                      )
-                    : true,
+                storedWeekendVisible !== "false" && storedWeekendVisible !== false,
             showSideBar:
                 !this.env.isSmall &&
-                Boolean(
-                    sessionShowSidebar != null ? JSON.parse(sessionShowSidebar) : true,
-                ),
+                sessionShowSidebar !== "false" &&
+                sessionShowSidebar !== false,
         });
 
         this.searchBarToggler = useSearchBarToggler();
@@ -270,7 +275,7 @@ export class CalendarController extends Component {
         this._baseRendererProps.cleanSquareSelection =
             this.cleanSquareSelection.bind(this);
 
-        useBus(this.model.bus, "update", this.cleanSquareSelection.bind(this));
+        useBus(this.model.bus, ModelEvent.UPDATE, this.cleanSquareSelection.bind(this));
     }
 
     updateMultiSelection(selectedCells) {
@@ -420,7 +425,7 @@ export class CalendarController extends Component {
     getDates(selectedCells) {
         const dates = [];
         for (const element of selectedCells) {
-            const date = globalThis.luxon.DateTime.fromISO(element.dataset.date);
+            const date = DateTime.fromISO(element.dataset.date);
             if (!(/** @type {any} */ (date).invalid)) {
                 dates.push(date);
             }
@@ -455,6 +460,7 @@ export class CalendarController extends Component {
      */
     async setDate(move) {
         let date = null;
+        let scrollToCurrentHour = false;
         switch (move) {
             case "next":
                 date = this.model.date.plus({ [`${this.model.scale}s`]: 1 });
@@ -463,13 +469,22 @@ export class CalendarController extends Component {
                 date = this.model.date.minus({ [`${this.model.scale}s`]: 1 });
                 break;
             case "today":
-                date = globalThis.luxon.DateTime.local().startOf("day");
-                if (/** @type {any} */ (date).ts === this.date.startOf("day").ts) {
-                    this.model.bus.trigger("SCROLL_TO_CURRENT_HOUR", false);
-                }
+                date = DateTime.local().startOf("day");
+                scrollToCurrentHour =
+                    /** @type {any} */ (date).ts === this.date.startOf("day").ts;
                 break;
         }
         await this.model.load({ date });
+        // ``load`` triggers an OWL patch which routes through
+        // ``useFullCalendar.onPatched`` and calls ``gotoDate(targetDate)``.
+        // v7's ``gotoDate`` resets the timegrid scroll position back to the
+        // ``scrollTime`` default, so a ``SCROLL_TO_CURRENT_HOUR`` bus event
+        // fired BEFORE the load is clobbered by the time the patch lands.
+        // Trigger AFTER load so the renderer's listener runs after the
+        // gotoDate reset.
+        if (scrollToCurrentHour) {
+            this.model.bus.trigger(ModelEvent.SCROLL_TO_CURRENT_HOUR, false);
+        }
     }
 
     get scales() {
@@ -486,7 +501,7 @@ export class CalendarController extends Component {
         this.state.isWeekendVisible = !this.state.isWeekendVisible;
         browser.localStorage.setItem(
             "calendar.isWeekendVisible",
-            this.state.isWeekendVisible,
+            String(this.state.isWeekendVisible),
         );
     }
 }

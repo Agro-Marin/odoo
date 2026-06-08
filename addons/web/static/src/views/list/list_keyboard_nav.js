@@ -5,6 +5,7 @@
 
 /** @odoo-module native */
 
+import { ModelEvent } from "@web/core/events";
 import { getTabableElements } from "@web/core/utils/dom/ui";
 import { useBus } from "@web/core/utils/hooks";
 
@@ -57,13 +58,20 @@ function focusAtPosition(tableRef, { rowIndex, colIndex }) {
  * @param {() => import("./list_renderer").ListRendererProps} options.getProps
  * @param {() => object} options.getEnv
  * @param {() => import("./list_grid_state").ListGridState | undefined} [options.getGridState]
+ * @param {() => object | null} [options.getEditedRecord]
  * @param {(group: object) => void} options.onToggleGroup
  * @param {(record: object) => void} options.onToggleRecordSelection
+ * @param {(params?: object) => void} [options.onAdd]
  * @param {(record: object) => void} options.onOpenRecord
  * @param {(record: object) => void} options.onDeleteRecord
+ * @param {(record: object, group?: object) => any} [options.onEditNextRecord]
  * @param {(record: object) => boolean} options.isInlineEditable
+ * @param {(column: any, record: object) => boolean} [options.isCellReadonly]
  * @param {(record: object, direction: string) => boolean} options.expandCheckboxes
- * @param {() => object} options.getSel - selection hook
+ * @param {() => object} [options.getSel] - selection hook
+ * @param {() => boolean} [options.getCanCreate]
+ * @param {() => boolean} [options.getDisplayRowCreates]
+ * @param {() => any[]} [options.getControls]
  * @param {() => import("./list_virtualization").ListVirtualization | undefined} [options.getVirtualization]
  * @returns {any}
  */
@@ -526,7 +534,7 @@ export function useListKeyboardNavigation(tableRef, options) {
     // Track field dirtiness for edit-mode navigation decisions.
     useBus(
         getProps().list.model.bus,
-        "FIELD_IS_DIRTY",
+        ModelEvent.FIELD_IS_DIRTY,
         (ev) => (self.lastIsDirty = ev.detail),
     );
 

@@ -3,8 +3,7 @@
 
 /** @module @web/fields/specialized/properties/calendar_properties_field - Calendar-view read-only variant of the properties field */
 
-import { registry } from "@web/core/registry";
-
+import { registerField } from "@web/fields/_registry";
 import { PropertiesField, propertiesField } from "./properties_field.js";
 export class CalendarPropertiesField extends PropertiesField {
     static template = "web.CalendarPropertiesField";
@@ -19,4 +18,4 @@ export const calendarPropertiesField = {
     component: CalendarPropertiesField,
 };
 
-registry.category("fields").add("calendar.properties", calendarPropertiesField);
+registerField({ name: "properties", view: "calendar" }, calendarPropertiesField);

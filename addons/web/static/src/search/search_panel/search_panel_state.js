@@ -18,8 +18,15 @@ import {
 } from "./search_panel_fetch.js";
 import { hasValues } from "../search_state.js";
 
-/** @import { SearchModel, Category, Filter, Section, SectionPredicate } from "@web/search/search_model" */
+/** @import { Section } from "@web/search/search_model" */
 /** @import { DomainListRepr } from "@web/core/domain" */
+/** SearchModel widened with `Record<string, any>` so this delegate module can
+ * read instance state set across SearchModel's many methods. The strict
+ * SearchModel class shape is recovered when reading the import directly. */
+/** @typedef {any} SearchModel */
+/** @typedef {Section & { type: "category" }} Category */
+/** @typedef {Section & { type: "filter" }} Filter */
+/** @typedef {(section: Section) => boolean} SectionPredicate */
 
 /**
  * Set the active value of a category.

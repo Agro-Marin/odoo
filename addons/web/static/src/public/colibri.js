@@ -7,6 +7,11 @@
 
 import { Component, markup } from "@odoo/owl";
 
+// Markup class is not exported by @odoo/owl; derive it once from a markup()
+// instance.  The pre-ESM code looked it up lazily via `owl.markup` (global
+// `owl` object), which fails under strict-mode ESM where there is no global.
+const Markup = markup("").constructor;
+
 export const INITIAL_VALUE = Symbol("initial value");
 // Return this from event handlers to skip updateContent.
 export const SKIP_IMPLICIT_UPDATE = Symbol();
@@ -210,7 +215,7 @@ export class Colibri {
      * Mounts an OWL component inside `node` and registers cleanup.
      *
      * @param {HTMLElement} node
-     * @param {typeof import("@odoo/owl").Component} C
+     * @param {import("@odoo/owl").ComponentConstructor} C
      * @param {Record<string, any>} [props]
      * @param {InsertPosition} [position]
      * @returns {() => void} cleanup function
@@ -234,17 +239,13 @@ export class Colibri {
         if (value === INITIAL_VALUE) {
             value = initialValue;
         }
-        if (!Markup) {
-            if (owl) {
-                Markup = owl.markup("").constructor;
-            }
-        }
-        if (Markup && value instanceof Markup) {
+        if (value instanceof Markup) {
             let nodes = el === this.interaction.el ? el.children : [el];
             for (const node of nodes) {
                 this.core.env.services["public.interactions"].stopInteractions(node);
             }
-            el.innerHTML = value;
+            // Markup wraps a string; .toString() returns the underlying HTML.
+            el.innerHTML = value.toString();
             if (el === this.interaction.el) {
                 nodes = el.children;
             }
@@ -392,7 +393,7 @@ export class Colibri {
                     } else {
                         for (const node of nodes) {
                             const [C, props, pos] =
-                                /** @type {[typeof import("@odoo/owl").Component, Record<string, any>?, InsertPosition?]} */ (
+                                /** @type {[import("@odoo/owl").ComponentConstructor, Record<string, any>?, InsertPosition?]} */ (
                                     value(node)
                                 );
                             this.mountComponent(node, C, props, pos);

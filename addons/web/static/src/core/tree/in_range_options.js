@@ -5,7 +5,7 @@
 
 import { _t } from "@web/core/l10n/translation";
 
-/** @type {Array<[string, import("@web/core/l10n/translation").LazyTranslatedString]>} */
+/** @type {Array<[string, string | import("@web/core/l10n/translation").TranslatedString]>} */
 export const IN_RANGE_OPTIONS = [
     ["today", _t("Today")],
     ["last 7 days", _t("Last 7 days")],

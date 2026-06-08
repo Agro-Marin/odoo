@@ -95,7 +95,7 @@ export class AnimatedNumber extends Component {
         const { currencies } = this.props;
         if (currencies?.length) {
             return currencies.length > 1
-                ? user.activeCompany.currency_id
+                ? user.activeCompany?.currency_id
                 : currencies[0];
         }
         return false;

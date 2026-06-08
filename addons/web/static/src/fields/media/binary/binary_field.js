@@ -6,7 +6,8 @@
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { download } from "@web/core/network/download";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { isBinarySize, toBase64Length } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { FileUploader } from "@web/fields/file_handler";
@@ -113,5 +114,5 @@ export const listBinaryField = {
     component: ListBinaryField,
 };
 
-registry.category("fields").add("binary", binaryField);
-registry.category("fields").add("list.binary", listBinaryField);
+registerField("binary", binaryField);
+registerField({ name: "binary", view: "list" }, listBinaryField);

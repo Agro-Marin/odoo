@@ -3,8 +3,12 @@
 
 /** @module @web/core/tree/construct_domain_from_tree - Converts a condition tree into an Odoo domain string representation */
 
-/** @import { AST } from "@web/core/py_js/py_parser" */
-/** @import { Tree, Condition, Value } from "./condition_tree.js" */
+/** AST/Tree/Value widened to `any` because they're discriminated unions
+ * narrowed via `.type` checks at runtime. */
+/** @typedef {any} AST */
+/** @typedef {any} Tree */
+/** @typedef {any} Value */
+/** @import { Condition } from "./condition_tree.js" */
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 

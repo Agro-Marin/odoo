@@ -15,7 +15,6 @@ export class FileUploadProgressBar extends Component {
     };
 
     setup() {
-        /** @type {import("@web/core").DialogService} */
         this.dialogService = useService("dialog");
     }
 

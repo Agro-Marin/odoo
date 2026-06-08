@@ -29,7 +29,7 @@ export const bottomSheetService = {
          * Signals the manager to add a popover.
          *
          * @param {HTMLElement} target
-         * @param {typeof import("@odoo/owl").Component} component
+         * @param {import("@odoo/owl").ComponentConstructor} component
          * @param {object} [props]
          * @param {BottomSheetServiceAddOptions} [options]
          * @returns {() => void}

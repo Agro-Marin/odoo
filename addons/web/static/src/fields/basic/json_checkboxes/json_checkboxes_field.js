@@ -6,7 +6,8 @@
 import { Component, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { debounce } from "@web/core/utils/timing";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
@@ -64,4 +65,4 @@ export const jsonCheckboxes = {
     },
 };
 
-registry.category("fields").add("json_checkboxes", jsonCheckboxes);
+registerField("json_checkboxes", jsonCheckboxes);

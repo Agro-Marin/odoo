@@ -8,16 +8,10 @@ import { Domain } from "@web/core/domain";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
-import { exprToBoolean } from "@web/core/utils/format/strings";
-import { X2M_TYPES } from "@web/fields/field_types";
 import { getFieldContext } from "@web/model/relational_model/utils";
-import { utils } from "@web/ui/block/ui_service";
 
 import { getTooltipInfo } from "./field_tooltip.js";
 
-const isSmall = utils.isSmall;
-
-const viewRegistry = registry.category("views");
 const fieldRegistry = registry.category("fields");
 
 const validFieldTypes = [
@@ -143,7 +137,7 @@ class DefaultField extends Component {
  * @param {string} [widget] - Widget override from the XML `widget` attribute
  * @param {string} [viewType] - View type prefix for scoped lookups (e.g. "list", "form")
  * @param {string} [jsClass] - JS class prefix for compound lookups (e.g. "sale_order")
- * @returns {{ component: typeof Component, extractProps?: Function, supportedTypes?: string[], isEmpty?: Function, isValid?: Function, additionalClasses?: string[], relatedFields?: Array | Function, useSubView?: boolean, [key: string]: any }}
+ * @returns {{ component: import("@odoo/owl").ComponentConstructor, extractProps?: Function, supportedTypes?: string[], isEmpty?: Function, isValid?: Function, additionalClasses?: string[], relatedFields?: Array | Function, useSubView?: boolean, [key: string]: any }}
  */
 export function getFieldFromRegistry(fieldType, widget, viewType, jsClass) {
     const prefixes = jsClass ? [jsClass, viewType, ""] : [viewType, ""];
@@ -220,6 +214,10 @@ export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
 export function getPropertyFieldInfo(propertyField) {
     const { name, relatedPropertyField, string, type, widget } = propertyField;
 
+    // ``field`` is assigned below from ``getFieldFromRegistry``; TS infers
+    // the literal type without it and complains at the return. Widen with
+    // ``any`` so the post-assignment shape matches the declared return.
+    /** @type {any} */
     const fieldInfo = {
         name,
         string,
@@ -274,172 +272,19 @@ export function getPropertyFieldInfo(propertyField) {
 
     return fieldInfo;
 }
-/** Generic Field component that resolves the appropriate widget from the field registry and renders it. */
+/**
+ * Generic Field component that resolves the appropriate widget from the
+ * field registry and renders it.
+ *
+ * Arch parsing (the static ``parseFieldNode`` that used to live here as
+ * a class member) moved to ``@web/views/field_arch`` because the
+ * XML→fieldInfo translation is a view-layer concern, not a component
+ * concern. Callers that previously did ``Field.parseFieldNode(...)``
+ * now do ``import { parseFieldNode } from "@web/views/field_arch"``.
+ */
 export class Field extends Component {
     static template = "web.Field";
     static props = ["fieldInfo?", "*"];
-    /**
-     * Parses an XML `<field>` node from a view arch into a normalized fieldInfo object,
-     * resolving widget, options, decorations, x2many sub-views, and related fields.
-     *
-     * @param {Element} node - XML `<field>` element from the view arch
-     * @param {Record<string, { fields: Record<string, { type: string, string?: string, relation?: string, readonly?: boolean, [k: string]: any }> }>} models - Model metadata keyed by model name
-     * @param {string} modelName - Technical model name (e.g. "res.partner")
-     * @param {string} viewType - View type (e.g. "list", "form", "kanban")
-     * @param {string} [jsClass] - JS class prefix for compound registry lookup
-     * @returns {{ name: string, type: string, viewType: string, widget: string | null, field: ReturnType<typeof getFieldFromRegistry>, context: string, string?: string, help?: string, onChange: boolean, forceSave: boolean, options: Object, decorations: Record<string, string>, attrs: Record<string, string>, domain?: string, readonly?: string | null, required?: string | null, invisible?: string | null, column_invisible?: string | null, viewMode?: string, views?: Object, relatedFields?: Object, isHandle?: boolean }}
-     */
-    static parseFieldNode = function (node, models, modelName, viewType, jsClass) {
-        const name = node.getAttribute("name");
-        const widget = node.getAttribute("widget");
-        const fields = models[modelName].fields;
-        if (!fields[name]) {
-            throw new Error(`"${modelName}"."${name}" field is undefined.`);
-        }
-        const field = getFieldFromRegistry(
-            fields[name].type,
-            widget,
-            viewType,
-            jsClass,
-        );
-        const fieldInfo = {
-            name,
-            type: fields[name].type,
-            viewType,
-            widget,
-            field,
-            context: "{}",
-            string: fields[name].string,
-            help: undefined,
-            onChange: false,
-            forceSave: false,
-            options: {},
-            decorations: {},
-            attrs: {},
-            domain: undefined,
-        };
-
-        for (const attr of ["invisible", "column_invisible", "readonly", "required"]) {
-            fieldInfo[attr] = node.getAttribute(attr);
-            if (fieldInfo[attr] === "True") {
-                if (attr === "column_invisible") {
-                    fieldInfo.invisible = "True";
-                }
-            } else if (fieldInfo[attr] === null && fields[name][attr]) {
-                fieldInfo[attr] = "True";
-            }
-        }
-
-        for (const { name, value } of node.attributes) {
-            if (["name", "widget"].includes(name)) {
-                // avoid adding name and widget to attrs
-                continue;
-            }
-            if (["context", "string", "help", "domain"].includes(name)) {
-                fieldInfo[name] = value;
-            } else if (name === "on_change") {
-                fieldInfo.onChange = exprToBoolean(value);
-            } else if (name === "options") {
-                fieldInfo.options = evaluateExpr(value);
-            } else if (name === "force_save") {
-                fieldInfo.forceSave = exprToBoolean(value);
-            } else if (name.startsWith("decoration-")) {
-                // prepare field decorations
-                fieldInfo.decorations[name.replace("decoration-", "")] = value;
-            } else if (!name.startsWith("t-att")) {
-                // all other (non dynamic) attributes
-                fieldInfo.attrs[name] = value;
-            }
-        }
-        if (name === "id") {
-            fieldInfo.readonly = "True";
-        }
-
-        if (widget === "handle") {
-            fieldInfo.isHandle = true;
-        }
-
-        if (X2M_TYPES.includes(fields[name].type)) {
-            const views = {};
-            let relatedFields = fieldInfo.field.relatedFields;
-            if (relatedFields) {
-                if (relatedFields instanceof Function) {
-                    relatedFields = relatedFields(fieldInfo);
-                }
-                for (const relatedField of relatedFields) {
-                    if (!("readonly" in relatedField)) {
-                        relatedField.readonly = true;
-                    }
-                }
-                relatedFields = Object.fromEntries(
-                    relatedFields.map((f) => [f.name, f]),
-                );
-                views.default = {
-                    fieldNodes: relatedFields,
-                    fields: relatedFields,
-                };
-                if (!fieldInfo.field.useSubView) {
-                    fieldInfo.viewMode = "default";
-                }
-            }
-            for (const child of node.children) {
-                const viewType = child.tagName;
-                const { ArchParser } = /** @type {any} */ (viewRegistry.get(viewType));
-                // We copy and hence isolate the subview from the main view's tree
-                // This way, the subview's tree is autonomous and CSS selectors will work normally
-                const childCopy = child.cloneNode(true);
-                const archInfo = new ArchParser().parse(
-                    childCopy,
-                    models,
-                    fields[name].relation,
-                );
-                views[viewType] = {
-                    ...archInfo,
-                    limit: archInfo.limit || 40,
-                    fields: models[fields[name].relation].fields,
-                };
-            }
-
-            let viewMode = node.getAttribute("mode");
-            if (viewMode) {
-                if (viewMode.split(",").length !== 1) {
-                    viewMode = isSmall() ? "kanban" : "list";
-                }
-            } else {
-                if (views.list && !views.kanban) {
-                    viewMode = "list";
-                } else if (!views.list && views.kanban) {
-                    viewMode = "kanban";
-                } else if (views.list && views.kanban) {
-                    viewMode = isSmall() ? "kanban" : "list";
-                }
-            }
-            if (viewMode) {
-                fieldInfo.viewMode = viewMode;
-            }
-            if (Object.keys(views).length) {
-                fieldInfo.relatedFields = models[fields[name].relation]?.fields;
-                fieldInfo.views = views;
-            }
-        }
-        if (["many2one", "many2one_reference"].includes(fields[name].type)) {
-            let relatedFields = fieldInfo.field.relatedFields;
-            if (relatedFields) {
-                relatedFields = Object.fromEntries(
-                    relatedFields.map((f) => [f.name, f]),
-                );
-                fieldInfo.viewMode = "default";
-                fieldInfo.views = {
-                    default: {
-                        fieldNodes: relatedFields,
-                        fields: relatedFields,
-                    },
-                };
-            }
-        }
-
-        return fieldInfo;
-    };
 
     setup() {
         if (this.props.fieldInfo) {

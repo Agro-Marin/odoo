@@ -11,20 +11,24 @@
  * controllers from router state.
  */
 
+import { browser } from "@web/core/browser/browser";
+import { rpc } from "@web/core/network/rpc";
+import { registry } from "@web/core/registry";
+import { zip } from "@web/core/utils/collections/arrays";
+import { pick } from "@web/core/utils/collections/objects";
+
+const actionRegistry = registry.category("actions");
+
+/** @import { ActionManager } from "./action_service.js" */
+
 /**
  * Given a controller stack, return the list of breadcrumb items.
  *
  * @param {Object[]} stack the controller stack
- * @param {Object} callbacks
- * @param {Function} callbacks.stateToUrl convert a state object to a URL string
- * @param {Function} callbacks.restore restore a controller by its jsId
+ * @param {ActionManager} am
  * @returns {Object[]} breadcrumb items
  */
-
-import { rpc } from "@web/core/network/rpc";
-import { zip } from "@web/core/utils/collections/arrays";
-import { pick } from "@web/core/utils/collections/objects";
-export function buildBreadcrumbs(stack, { stateToUrl, restore }) {
+export function buildBreadcrumbs(stack, am) {
     return stack
         .filter((controller) => controller.action.tag !== "menu")
         .map((controller) => ({
@@ -36,10 +40,10 @@ export function buildBreadcrumbs(stack, { stateToUrl, restore }) {
                 return controller.props?.type === "form";
             },
             get url() {
-                return stateToUrl(controller.state);
+                return am.router.stateToUrl(controller.state);
             },
             onSelected() {
-                restore(controller.jsId);
+                am.restore(controller.jsId);
             },
         }));
 }
@@ -116,25 +120,20 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
 /**
  * Create an array of virtual controllers based on the given router state.
  *
+ * Reads ``browser.sessionStorage`` and the singleton client-action
+ * ``registry.category("actions")`` directly; only the per-instance state
+ * (``router.stateToUrl``, ``_makeController``, ``breadcrumbCache``) comes
+ * off the action manager.
+ *
  * @param {Object} state the router state
- * @param {Object} ctx
- * @param {Storage} ctx.sessionStorage browser session storage
- * @param {Function} ctx.stateToUrl convert state to URL string
- * @param {Function} ctx.makeController factory to create a controller object
- * @param {Object} ctx.actionRegistry the client action registry
- * @param {Object} ctx.breadcrumbCache mutable breadcrumb cache
+ * @param {ActionManager} am
  * @returns {Promise<Object[]>} array of virtual controllers
  */
-export async function controllersFromState(state, ctx) {
-    const {
-        sessionStorage,
-        stateToUrl,
-        makeController,
-        actionRegistry,
-        breadcrumbCache,
-    } = ctx;
-    const currentState = JSON.parse(sessionStorage.getItem("current_state") || "{}");
-    if (stateToUrl(currentState) === stateToUrl(state)) {
+export async function controllersFromState(state, am) {
+    const currentState = JSON.parse(
+        browser.sessionStorage.getItem("current_state") || "{}",
+    );
+    if (am.router.stateToUrl(currentState) === am.router.stateToUrl(state)) {
         state = currentState;
     }
     if (!state?.actionStack?.length) {
@@ -144,7 +143,7 @@ export async function controllersFromState(state, ctx) {
     const controllers = state.actionStack
         .slice(0, -1)
         .map((actionState, index) => {
-            const controller = makeController({
+            const controller = am._makeController({
                 displayName: actionState.displayName,
                 virtual: true,
                 action: {},
@@ -208,10 +207,10 @@ export async function controllersFromState(state, ctx) {
         // the form view and the multi-record view.
         const bcControllers = await loadBreadcrumbs(
             controllers.slice(0, -1),
-            breadcrumbCache,
+            am.breadcrumbCache,
         );
         controllers.at(-1).lazy = true;
         return [...bcControllers, controllers.at(-1)];
     }
-    return loadBreadcrumbs(controllers, breadcrumbCache);
+    return loadBreadcrumbs(controllers, am.breadcrumbCache);
 }

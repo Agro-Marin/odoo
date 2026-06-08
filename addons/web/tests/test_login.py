@@ -1,12 +1,5 @@
 from odoo import http
-from odoo.tests.common import (
-    HOST,
-    HttpCase,
-    Opener,
-    get_db_name,
-    new_test_user,
-    tagged,
-)
+from odoo.tests.common import HttpCase, new_test_user, tagged
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
@@ -20,11 +13,13 @@ class TestWebLoginCommon(HttpCase):
         new_test_user(cls.env, "portal_user", groups="base.group_portal")
 
     def setUp(self):
+        # Delegate session bootstrap to HttpCase.authenticate so the session
+        # is persisted in the store. The previous inline setUp created a
+        # session via session_store.new() but never .save()'d it, leaving
+        # the CSRF token signed against a sid the server could not load —
+        # producing 400 BAD REQUEST on every login POST.
         super().setUp()
-        self.session = http.root.session_store.new()
-        self.session.update(http.get_default_session(), db=get_db_name())
-        self.opener = Opener(self)
-        self.opener.cookies.set("session_id", self.session.sid, domain=HOST, path="/")
+        self.authenticate(None, None)
 
     def login(self, username, password, csrf_token=None):
         """Log in with provided credentials and return response to POST request or raises for status."""

@@ -67,3 +67,12 @@ export async function scanBarcode(env, facingMode = "environment") {
     });
     return promise;
 }
+
+// Named-object export so tests can patch `scanBarcode` via patchWithCleanup.
+// `import * as BarcodeScanner` returns an ESM module-namespace whose
+// properties are non-configurable (per spec) and reject defineProperty —
+// the previous test pattern. A plain object's properties are configurable,
+// so `import { BarcodeScanner }; patchWithCleanup(BarcodeScanner, {...})`
+// works. The standalone `scanBarcode` function export above stays for the
+// 3 consumer addons that already do `import { scanBarcode } from ...`.
+export const BarcodeScanner = { scanBarcode };

@@ -11,6 +11,7 @@ import {
     toLocaleDateTimeString,
 } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
+import { DateTime } from "@web/core/l10n/luxon";
 import { renderToElement } from "@web/core/utils/render";
 
 let _dateWidths = null;
@@ -80,28 +81,28 @@ function computeOptimalDateWidths() {
         numericDatetime: [],
     };
     for (let month = 1; month <= 12; month++) {
-        values.date.push(toLocaleDateString(globalThis.luxon.DateTime.local(2017, month, 20)));
+        values.date.push(toLocaleDateString(DateTime.local(2017, month, 20)));
         values.datetime.push(
-            toLocaleDateTimeString(globalThis.luxon.DateTime.local(2017, month, 25, 10, 0, 0), {
+            toLocaleDateTimeString(DateTime.local(2017, month, 25, 10, 0, 0), {
                 showSeconds: true,
             }),
         );
         if (timeFormat === "hh:mm:ss a") {
             values.datetime.push(
                 toLocaleDateTimeString(
-                    globalThis.luxon.DateTime.local(2017, month, 25, 22, 0, 0),
+                    DateTime.local(2017, month, 25, 22, 0, 0),
                     { showSeconds: true },
                 ),
             );
         }
     }
-    values.numericDate.push(formatDate(globalThis.luxon.DateTime.local(2017, 1, 1)));
+    values.numericDate.push(formatDate(DateTime.local(2017, 1, 1)));
     values.numericDatetime.push(
-        formatDateTime(globalThis.luxon.DateTime.local(2017, 1, 1, 10, 0, 0)),
+        formatDateTime(DateTime.local(2017, 1, 1, 10, 0, 0)),
     );
     if (timeFormat === "hh:mm:ss a") {
         values.numericDatetime.push(
-            formatDateTime(globalThis.luxon.DateTime.local(2017, 1, 1, 22, 0, 0)),
+            formatDateTime(DateTime.local(2017, 1, 1, 22, 0, 0)),
         );
     }
 

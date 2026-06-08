@@ -11,7 +11,7 @@ import { browser } from "@web/core/browser/browser";
 import { _t, translationIsReady } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getOrigin } from "@web/core/utils/urls";
-const scssErrorNotificationService = {
+export const scssErrorNotificationService = {
     dependencies: ["notification"],
     /**
      * @param {import("@web/env").OdooEnv} env

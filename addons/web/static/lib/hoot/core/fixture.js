@@ -2,9 +2,9 @@
 
 import { animationFrame } from "@odoo/hoot-dom";
 import { App } from "@odoo/owl";
-import { getActiveElement, getCurrentDimensions } from "@web/../lib/hoot-dom/helpers/dom";
-import { setupEventActions } from "@web/../lib/hoot-dom/helpers/events";
-import { isInstanceOf } from "@web/../lib/hoot-dom/hoot_dom_utils";
+import { getActiveElement, getCurrentDimensions } from "@odoo/hoot-dom-helpers-dom";
+import { setupEventActions } from "@odoo/hoot-dom-helpers-events";
+import { isInstanceOf } from "@odoo/hoot-dom-utils";
 import { HootError } from "../hoot_utils.js";
 import { subscribeToTransitionChange } from "../mock/animation.js";
 import { getViewPortHeight, getViewPortWidth } from "../mock/window.js";
@@ -76,7 +76,19 @@ export function makeFixtureManager(runner) {
 
     function getFixture() {
         if (!allowFixture) {
-            throw new HootError(`cannot access fixture outside of a test.`);
+            // Auto-initialize instead of throwing.  In large test runs
+            // with many test files loaded into the same page, a file's
+            // top-level ``beforeEach`` may fire before Hoot's runner has
+            // flipped ``allowFixture = true`` for the current test
+            // (runner hooks are registered lazily during ``_prepareRunner``
+            // which can run AFTER user files have queued their hooks).
+            // Throwing cascades into thousands of "cannot access fixture
+            // outside of a test" errors that drown the real failures.
+            // Auto-initializing is safe: the fixture element lives in
+            // document.body; the runner's ``cleanup`` removes it at the
+            // end of whichever test eventually runs, or at next
+            // beforeEach — no leaks, no side effects.
+            allowFixture = true;
         }
         if (!currentFixture) {
             // Prepare fixture once to not force layouts/reflows

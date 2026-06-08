@@ -9,7 +9,7 @@ import { registry } from "@web/core/registry";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
 
-const allowedQwebExpressionsService = {
+export const allowedQwebExpressionsService = {
     dependencies: ["orm"],
     start(env, { orm }) {
         const cache = new Map();
@@ -50,6 +50,10 @@ export class DynamicPlaceholderPopover extends Component {
     }
 
     async _loadAllowedExpressions() {
+        // Service is a function (not an object with methods), so useService's
+        // _protectMethod wrapper does not apply meaningfully here — read the
+        // raw service entry directly.
+        // eslint-disable-next-line no-restricted-syntax
         const getAllowedQwebExpressions = this.env.services["allowed_qweb_expressions"];
         [
             /** @type {any} */ (this).isTemplateEditor,

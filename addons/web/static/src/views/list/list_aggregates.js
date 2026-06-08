@@ -197,7 +197,7 @@ export function useListAggregates({
                             const currencies = self.getFieldCurrencies(fieldName);
                             if (currencies.size > 1) {
                                 multiCurrency = true;
-                                currencyId = user.activeCompany.currency_id;
+                                currencyId = user.activeCompany?.currency_id;
                                 for (let i = 0; i < values.length; i++) {
                                     let currency = values[i][currencyField]?.id;
                                     if (
@@ -281,7 +281,7 @@ export function useListAggregates({
             if (field.type === "monetary") {
                 const currencies = group.aggregates[field.currency_field];
                 if (currencies.length > 1 && aggregateValue !== false) {
-                    formatOptions.currencyId = user.activeCompany.currency_id;
+                    formatOptions.currencyId = user.activeCompany?.currency_id;
                     return {
                         value: formatter
                             ? formatter(aggregateValue, formatOptions)

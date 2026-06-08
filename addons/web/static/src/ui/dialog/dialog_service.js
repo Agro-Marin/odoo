@@ -5,10 +5,26 @@
 
 import { Component, markRaw, reactive, useChildSubEnv, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+
+// The "dialogs" registry stores reusable dialog Component classes (form_view,
+// select_create, ...) looked up by string key from the dialog service's add().
+registry
+    .category("dialogs")
+    .addValidation((entry) => entry?.prototype instanceof Component);
+
 /** Internal wrapper that injects dialogData into the child environment. */
 class DialogWrapper extends Component {
     static template = xml`<t t-component="props.subComponent" t-props="props.subProps" />`;
-    static props = ["*"];
+    // Internal-only wrapper instantiated by the dialog service's ``add()``
+    // (see ``overlay.add(DialogWrapper, { subComponent, subProps, subEnv })``
+    // ~30 lines below). The contract is private to this file — no external
+    // caller constructs ``DialogWrapper`` directly — so the prop shape is
+    // bounded and worth typing for typo-safety inside the service.
+    static props = {
+        subComponent: Function,
+        subProps: Object,
+        subEnv: Object,
+    };
     setup() {
         useChildSubEnv({ dialogData: this.props.subEnv });
     }
@@ -22,7 +38,7 @@ class DialogWrapper extends Component {
 /**
  *  @typedef {{
  *      add(
- *          Component: typeof import("@odoo/owl").Component,
+ *          Component: import("@odoo/owl").ComponentConstructor,
  *          props: {},
  *          options?: DialogServiceInterfaceAddOptions
  *      ): () => void;

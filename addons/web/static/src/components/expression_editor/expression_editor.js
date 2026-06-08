@@ -40,8 +40,9 @@ export class ExpressionEditor extends Component {
             ),
         );
         try {
-            this.tree = treeFromExpression(props.expression, {
-                getFieldDef: (name) => this.getFieldDef(name, props),
+            this.tree = treeFromExpression(/** @type {string} */ (props.expression), {
+                getFieldDef: (name) =>
+                    this.getFieldDef(/** @type {string | number} */ (name), props),
                 distributeNot: !this.isDebugMode,
                 generateSmartDates: false,
             });
@@ -83,7 +84,7 @@ export class ExpressionEditor extends Component {
 
     /**
      * @param {Object} fieldDef - field definition
-     * @returns {{ operators: string[], operatorGroups: Object[] }} editor info with filtered operators
+     * @returns {any} editor info with filtered operators (OperatorEditorInfo from tree_editor_operator_editor)
      */
     getOperatorEditorInfo(fieldDef) {
         const operators = getExpressionDisplayedOperators(fieldDef);
@@ -142,8 +143,9 @@ export class ExpressionEditor extends Component {
      * @param {Object} tree - condition tree to serialize into a Python expression
      */
     update(tree) {
-        const expression = expressionFromTree(tree, {
-            getFieldDef: (name) => this.getFieldDef(name),
+        const expression = expressionFromTree(/** @type {any} */ (tree), {
+            getFieldDef: (name) =>
+                this.getFieldDef(/** @type {string | number} */ (name)),
             generateSmartDates: false,
         });
         this.props.update(expression);

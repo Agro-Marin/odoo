@@ -4,6 +4,7 @@
 /** @module @web/fields/input_field_hook - OWL hook that syncs an input element with the ORM record and handles dirty/parse/save lifecycle */
 
 import { useComponent, useEffect, useRef } from "@odoo/owl";
+import { ModelEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
@@ -58,7 +59,7 @@ export function useInputField(params) {
         if (params.preventLineBreaks && ev.inputType === "insertFromPaste") {
             ev.target.value = ev.target.value.replace(/[\r\n]+/g, " ");
         }
-        component.props.record.model.bus.trigger("FIELD_IS_DIRTY", isDirty);
+        component.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
         if (!component.props.record.isValid) {
             component.props.record.resetFieldValidity(fieldName);
         }
@@ -91,7 +92,7 @@ export function useInputField(params) {
                         { save: shouldSave() },
                     );
                     pendingUpdate = false;
-                    component.props.record.model.bus.trigger("FIELD_IS_DIRTY", isDirty);
+                    component.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
                 } else {
                     inputRef.el.value = params.getValue();
                 }
@@ -150,8 +151,15 @@ export function useInputField(params) {
     });
 
     const { model } = component.props.record;
-    useBus(model.bus, "WILL_SAVE_URGENTLY", () => commitChanges(true));
-    useBus(model.bus, "NEED_LOCAL_CHANGES", (ev) =>
+    useBus(model.bus, ModelEvent.WILL_SAVE_URGENTLY, (ev) => {
+        // Re-commit synchronously (unchanged behaviour) AND expose the promise
+        // so the urgent-save coordinator can await it before reading changes:
+        // the re-commit's value must land in ``_changes`` before the sendBeacon
+        // save serialises them.
+        const prom = commitChanges(true);
+        ev.detail?.proms?.push(prom);
+    });
+    useBus(model.bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) =>
         ev.detail.proms.push(commitChanges()),
     );
 
@@ -191,7 +199,7 @@ export function useInputField(params) {
                     { [fieldName]: val },
                     { save: shouldSave() },
                 );
-                component.props.record.model.bus.trigger("FIELD_IS_DIRTY", false);
+                component.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, false);
             } else {
                 inputRef.el.value = params.getValue();
             }

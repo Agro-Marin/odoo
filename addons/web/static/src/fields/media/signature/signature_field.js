@@ -6,7 +6,8 @@
 import { Component, useState } from "@odoo/owl";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
@@ -192,4 +193,4 @@ export const signatureField = {
     }),
 };
 
-registry.category("fields").add("signature", signatureField);
+registerField("signature", signatureField);

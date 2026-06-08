@@ -3,8 +3,12 @@
 
 /** @module @web/core/tree/construct_expression_from_tree - Converts a condition tree into a Python expression string */
 
-/** @import { AST } from "@web/core/py_js/py_parser" */
-/** @import { Tree, Condition, Options } from "@web/core/tree/condition_tree" */
+/** Local Tree/AST aliases widened to `any` because the canonical types are
+ * discriminated unions narrowed via `.type` checks at runtime; TS can't
+ * track the narrowing through helper boundaries.
+ * @typedef {any} AST */
+/** @typedef {any} Tree */
+/** @import { Condition, Options } from "@web/core/tree/condition_tree" */
 
 import { formatAST } from "@web/core/py_js/py";
 

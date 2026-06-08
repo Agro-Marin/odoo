@@ -14,7 +14,7 @@ import {
 } from "@odoo/owl";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
-import { deepCopy, pick } from "@web/core/utils/collections/objects";
+import { deepCopy } from "@web/core/utils/collections/objects";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { nbsp } from "@web/core/utils/format/strings";
@@ -110,7 +110,28 @@ viewRegistry.addValidation({
  * been provided in the env, which can happen with standalone views.
  */
 export function getDefaultConfig() {
-    let displayName;
+    // Store the display name directly on the breadcrumb entry inside the
+    // ``breadcrumbs`` reactive — not on a sibling ``nameState`` reactive.
+    // Why this matters: OWL's reactive system tracks subscriptions through
+    // property reads on the SAME reactive proxy. When the Breadcrumbs
+    // component renders ``breadcrumb.name``, it subscribes to the
+    // ``breadcrumbs[0]`` proxy.  If ``name`` is a getter that internally
+    // reads from a DIFFERENT reactive (``nameState.displayName``), OWL
+    // does NOT propagate the subscription across the proxy boundary —
+    // updates to ``nameState`` notify nameState's observers, but the
+    // Breadcrumbs component is observing the breadcrumbs proxy and never
+    // sees the change. The form view's
+    // ``onRendered → setDisplayName(newName)`` would then update
+    // ``nameState`` but the breadcrumb in the DOM stayed stale (visible
+    // as ``MobileWebSuite.test_form/switching to another record``
+    // failing with breadcrumb "first record" instead of "second record").
+    // Pre-2026-05 the breadcrumbs array was poked via ``push(undefined);
+    // pop()`` to force a notification; that hack got removed when the
+    // value moved to ``nameState``.  Putting the value on the same proxy
+    // the component reads achieves the same effect without the hack.
+    const breadcrumbReactive = reactive([
+        { name: undefined },
+    ]);
     const config = {
         actionId: false,
         actionType: false,
@@ -119,22 +140,13 @@ export function getDefaultConfig() {
         embeddedActions: [],
         currentEmbeddedActionId: false,
         parentActionId: false,
-        breadcrumbs: reactive([
-            {
-                get name() {
-                    return displayName;
-                },
-            },
-        ]),
+        breadcrumbs: breadcrumbReactive,
         disableSearchBarAutofocus: false,
-        getDisplayName: () => displayName,
+        getDisplayName: () => breadcrumbReactive[0].name,
         historyBack: () => {},
         pagerProps: {},
         setDisplayName: (newDisplayName) => {
-            displayName = newDisplayName;
-            // This is a hack to force the reactivity when a new displayName is set
-            config.breadcrumbs.push(undefined);
-            config.breadcrumbs.pop();
+            breadcrumbReactive[0].name = newDisplayName;
         },
         viewSwitcherEntries: [],
         views: [],
@@ -314,6 +326,11 @@ export class View extends Component {
             (searchViewId !== undefined && !searchViewArch) ||
             (!irFilters && loadIrFilters);
 
+        // Widened to ``any`` because the initial literal narrows to
+        // ``{viewId, resModel, type}`` but the assignment below replaces it
+        // with a server-returned ViewDescription that has a different shape
+        // (arch, fields, model, etc.).
+        /** @type {any} */
         let viewDescription = { viewId, resModel, type };
         let searchViewDescription;
         if (loadView || loadSearchView) {
@@ -499,9 +516,15 @@ export class View extends Component {
      * @param {ViewProps} nextProps
      */
     onWillUpdateProps(nextProps) {
-        const oldProps = pick(this.props, "arch", "type", "resModel");
-        const newProps = pick(nextProps, "arch", "type", "resModel");
-        if (JSON.stringify(oldProps) !== JSON.stringify(newProps)) {
+        // arch / type / resModel are all server-supplied primitives (XML string,
+        // view-type string, model name); reference equality is sufficient and
+        // skips two ``pick`` allocations plus two ``JSON.stringify`` passes per
+        // update.
+        if (
+            this.props.arch !== nextProps.arch
+            || this.props.type !== nextProps.type
+            || this.props.resModel !== nextProps.resModel
+        ) {
             return this.loadView(nextProps);
         }
         // we assume that nextProps can only vary in the search keys:

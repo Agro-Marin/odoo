@@ -21,7 +21,7 @@ import {
 
 import { BUTTON_CLICK_PARAMS } from "./view_buttons.js";
 import { toStringExpression } from "./view_utils.js";
-const BUTTON_STRING_PROPS = ["string", "size", "title", "icon", "id", "disabled"];
+const BUTTON_STRING_PROPS = ["string", "size", "title", "icon", "id"];
 const INTERP_REGEXP = /(\{\{|#\{)(.*?)(\}{1,2})/g;
 
 /**
@@ -338,6 +338,13 @@ export class ViewCompiler {
         for (const { name, value } of el.attributes) {
             if (BUTTON_CLICK_PARAMS.includes(name)) {
                 clickParams[name] = value;
+            } else if (name === "disabled") {
+                // ViewButton.disabled is a Boolean prop. View-arch buttons carry an
+                // HTML-style string ("disabled", "1", ...), so coerce it to a boolean
+                // literal at compile time — preserving the historical truthiness where
+                // an empty value means "not disabled" — instead of forwarding the raw
+                // string (which fails the prop's Boolean validation).
+                button.setAttribute("disabled", value ? "true" : "false");
             } else if (BUTTON_STRING_PROPS.includes(name)) {
                 button.setAttribute(name, toStringExpression(value));
             } else if (!name.startsWith("t-")) {
@@ -483,7 +490,7 @@ export function useViewCompiler(ViewCompiler, templates, params) {
             // Register with a deterministic name: same arch always maps to the
             // same globalTemplates slot, so clearing templateCache and
             // re-compiling overwrites rather than accumulates OWL entries.
-            App.registerTemplate(key, compiledOuterHTML);
+            /** @type {any} */ (App).registerTemplate(key, compiledOuterHTML);
             templateCache[key] = key;
         }
         compiledTemplates[tname] = templateCache[key];

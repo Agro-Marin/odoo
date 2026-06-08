@@ -4,13 +4,13 @@
 /** @module @web/model/relational_model/datapoint - Abstract reactive base class for all data model nodes (records, lists, groups) */
 
 import { markRaw } from "@odoo/owl";
-import { Reactive } from "@web/core/utils/reactive";
+import { SignalStore } from "@web/core/utils/reactive";
 
 import { getId } from "./field_context.js";
 /** @import { Field, FieldInfo } from "@web/model/types" */
 /** @import { RelationalModel, RelationalModelConfig } from "./relational_model.js" */
 
-export class DataPoint extends Reactive {
+export class DataPoint extends SignalStore {
     /**
      * @param {RelationalModel} model
      * @param {RelationalModelConfig} config
@@ -46,14 +46,17 @@ export class DataPoint extends Reactive {
     }
 
     get fieldNames() {
-        const af = this.activeFields;
-        if (!this._fieldNames || this._fieldNamesSource !== af) {
-            this._fieldNamesSource = af;
-            this._fieldNames = Object.keys(af).filter(
-                (fieldName) => !this.fields[fieldName].relatedPropertyField,
-            );
-        }
-        return this._fieldNames;
+        // Do NOT memoize on `this`: this datapoint is a reactive SignalStore, so
+        // caching the result (writing `this._fieldNames`/`_fieldNamesSource`) during
+        // this getter mutates reactive state *while rendering*. Any component that
+        // reads `record.fieldNames` in its render (e.g. DomainField via getResModel)
+        // would then re-render → recompute → re-write → infinite render loop. Reading
+        // `activeFields` through the reactive proxy yields a fresh reference each call,
+        // so the identity guard never holds anyway. Per reactive.js's `derived()`
+        // contract, derived state is recomputed each access, not cached.
+        return Object.keys(this.activeFields).filter(
+            (fieldName) => !this.fields[fieldName].relatedPropertyField,
+        );
     }
 
     get resModel() {

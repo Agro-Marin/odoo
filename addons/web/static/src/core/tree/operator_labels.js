@@ -138,10 +138,7 @@ export function toOperator(key) {
  */
 function getOperatorDescription(operator, fieldDefType) {
     const description = OPERATOR_DESCRIPTIONS[operator];
-    if (
-        typeof description === "function" &&
-        description.constructor?.name !== "LazyTranslatedString"
-    ) {
+    if (typeof description === "function") {
         return description(fieldDefType);
     }
     return description;

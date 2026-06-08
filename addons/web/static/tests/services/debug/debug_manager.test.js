@@ -59,8 +59,16 @@ onRpc("ir.attachment", "regenerate_assets_bundles", () => {
     return true;
 });
 beforeEach(() => {
-    // Remove this service to clear the debug menu from anything else than what the test insert into
+    // Remove these services so the debug menu only carries items the test
+    // explicitly inserts.  Each service's `start` adds entries to
+    // `registry.category("debug").category("default")` (profiling adds a
+    // profiling toggle; tour_service adds an "Onboarding" item via its
+    // module-load `debugMenuRegistry.add("onboardingItem", …)`).  Without
+    // removal the service starts when the env is built during
+    // mountWithCleanup and re-populates the cleared registry, leaving an
+    // extra item visible at assertion time.
     registry.category("services").remove("profiling");
+    registry.category("services").remove("tour_service");
     clearRegistry(debugRegistry.category("default"));
     clearRegistry(debugRegistry.category("custom"));
 });

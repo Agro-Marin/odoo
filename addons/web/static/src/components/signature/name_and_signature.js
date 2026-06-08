@@ -8,7 +8,7 @@
 import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { loadJS } from "@web/core/assets";
+import { loadBundle } from "@web/core/assets";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { rpc } from "@web/core/network/rpc";
 import { useAutofocus } from "@web/core/utils/hooks";
@@ -70,7 +70,7 @@ export class NameAndSignature extends Component {
         });
 
         onWillStart(async () => {
-            await loadJS("/web/static/lib/signature_pad/signature_pad.umd.js");
+            await loadBundle("web.assets_signature_pad_lib");
         });
 
         this.signatureRef = useRef("signature");

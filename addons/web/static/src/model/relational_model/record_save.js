@@ -11,6 +11,7 @@
 
 import { markRaw, markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+import { modelLog } from "@web/core/utils/asset_log";
 import { FetchRecordError } from "./errors.js";
 import { getBasicEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
@@ -25,6 +26,7 @@ import { getFieldsSpec } from "./field_spec.js";
  * @returns {Promise<boolean>}
  */
 export async function save(record, { reload = true, onError, nextId } = {}) {
+    modelLog("save", record.resModel, record.resId || "(new)");
     if (record.model._closeUrgentSaveNotification) {
         record.model._closeUrgentSaveNotification();
     }
@@ -52,15 +54,19 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     delete changes.id; // id never changes, and should not be written
     if (!creation && !Object.keys(changes).length) {
         if (nextId) {
-            return record.model.load({ resId: nextId });
+            // No changes — caller wants to navigate to ``nextId``. Run the
+            // load to completion before returning so the save-flow's
+            // ``Promise<boolean>`` contract holds (the load result is
+            // ``Promise<void>`` which TS can't fold into ``boolean``).
+            await record.model.load({ resId: nextId });
+            return true;
         }
-        record._changes = markRaw({});
+        record._clearChanges();
         record.data = { ...record._values };
-        record.dirty = false;
         return true;
     }
     if (
-        record.model._urgentSave &&
+        record.model.urgentSave.isActive &&
         record.model.useSendBeaconToSaveUrgently &&
         !record.model.env.inDialog &&
         record.resId // sendBeacon cannot return the new ID for creation
@@ -72,11 +78,21 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         // payload (typically < 64k). So we try to save with sendBeacon, and if it
         // doesn't work, we will prevent the page from unloading.
         const route = `/web/dataset/call_kw/${record.resModel}/web_save`;
+        // Optimistic locking: mirror the normal-save path (see :135) so the
+        // server can reject concurrent edits even when the save was initiated
+        // by sendBeacon on tab close. The urgent path is gated on
+        // `record.resId` being truthy (see :66), so we only need to guard on
+        // the presence of write_date in _values.
+        const urgentKwargs = { context: record.context, specification: {} };
+        if (record._values.write_date) {
+            const wd = record._values.write_date;
+            urgentKwargs.last_write_date = typeof wd === "string" ? wd : wd.toISO();
+        }
         const params = {
             model: record.resModel,
             method: "web_save",
             args: [record.resId ? [record.resId] : [], changes],
-            kwargs: { context: record.context, specification: {} },
+            kwargs: urgentKwargs,
         };
         const data = { jsonrpc: "2.0", method: "call", params };
         const blob = new Blob([JSON.stringify(data)], {
@@ -85,11 +101,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         const succeeded = navigator.sendBeacon(route, blob);
         if (succeeded) {
             record._values = markRaw({ ...record._values, ...record._changes });
-            record._changes = markRaw({});
-            record.dirty = false;
+            record._clearChanges();
         } else {
             record.model._closeUrgentSaveNotification =
-                record.model.hooks.onDisplayUrgentSave(
+                record.model.hooks.ui.onDisplayUrgentSave(
                     _t(
                         `Heads up! Your recent changes are too large to save automatically. Please click the %(upload_icon)s button now to ensure your work is saved before you exit this tab.`,
                         {
@@ -100,7 +115,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         }
         return succeeded;
     }
-    const canProceed = await record.model.hooks.onWillSaveRecord(record, changes);
+    const canProceed = await record.model.hooks.lifecycle.onWillSaveRecord(record, changes);
     if (canProceed === false) {
         return false;
     }
@@ -163,7 +178,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         const resIds = [...record.resIds, resId];
         record.model._updateConfig(record.config, { resId, resIds }, { reload: false });
     }
-    await record.model.hooks.onRecordSaved(record, changes);
+    await record.model.hooks.lifecycle.onRecordSaved(record, changes);
     if (reload) {
         if (record.resId) {
             record.model._updateSimilarRecords(record, records[0]);
@@ -176,7 +191,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             );
         }
         if (record.config.isRoot) {
-            record.model.hooks.onWillLoadRoot(record.config);
+            record.model.hooks.lifecycle.onWillLoadRoot(record.config);
         }
         record._setData(records[0], { orderBys });
     } else {
@@ -193,9 +208,8 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
                 record._changes[fieldName]?._clearCommands();
             }
         }
-        record._changes = markRaw({});
+        record._clearChanges();
         record.data = { ...record._values };
-        record.dirty = false;
     }
     return true;
 }

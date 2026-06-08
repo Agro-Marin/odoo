@@ -3,7 +3,13 @@
 
 /** @module @web/core/utils/dom/html - Safe HTML creation, text highlighting, and markup-aware content helpers */
 
-import { htmlEscape, markup } from "@odoo/owl";
+import { htmlEscape as _htmlEscape, markup } from "@odoo/owl";
+
+// owl's htmlEscape signature is `(s: string) => string` but at runtime it
+// also accepts Markup (a String subclass) and any String-coercible value.
+// Wrap it so callers can pass `string | Markup` without casting at every site.
+/** @type {(value: any) => string} */
+const htmlEscape = _htmlEscape;
 import { formatList, normalizedMatches } from "@web/core/l10n/utils";
 import { unique } from "@web/core/utils/collections/arrays";
 import {

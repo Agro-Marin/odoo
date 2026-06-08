@@ -4,8 +4,7 @@
 /** @module @web/core/l10n/time - Time class for 24h time representation with locale-aware parsing */
 
 import { localization } from "@web/core/l10n/localization";
-
-const { DateTime } = globalThis.luxon ?? {};
+import { DateTime } from "@web/core/l10n/luxon";
 
 const NUMERAL_MAPS = [
     "٠١٢٣٤٥٦٧٨٩", // Arabic

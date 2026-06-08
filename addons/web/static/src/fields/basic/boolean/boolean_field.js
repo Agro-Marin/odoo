@@ -6,7 +6,9 @@
 import { Component, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 
@@ -18,6 +20,7 @@ export class BooleanField extends Component {
     };
 
     setup() {
+        useRenderCounter("fields.BooleanField");
         this.state = useState(/** @type {{ value?: boolean }} */ ({}));
         useRecordObserver((record) => {
             this.state.value = record.data[this.props.name];
@@ -40,4 +43,4 @@ export const booleanField = {
     isEmpty: () => false,
 };
 
-registry.category("fields").add("boolean", /** @type {any} */ (booleanField));
+registerField("boolean", /** @type {any} */ (booleanField));

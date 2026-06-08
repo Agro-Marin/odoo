@@ -12,6 +12,10 @@ import { Component, onWillDestroy, xml } from "@odoo/owl";
 /**
  * Thin OWL wrapper that listens for ACTION_MANAGER:UPDATE events on `env.bus`
  * and renders the current action's component inside the `.o_action_manager` div.
+ *
+ * Controller swaps are wrapped in ``document.startViewTransition`` so that the
+ * cross-fade between actions is handled by the browser. Falls through to a
+ * plain render when the API is unavailable or the user prefers reduced motion.
  */
 export class ActionContainer extends Component {
     static props = {};
@@ -29,7 +33,7 @@ export class ActionContainer extends Component {
         /** @param {CustomEvent} event */
         this.onActionManagerUpdate = ({ detail: info }) => {
             this.info = info;
-            this.render();
+            this._renderWithViewTransition();
         };
         this.env.bus.addEventListener(
             "ACTION_MANAGER:UPDATE",
@@ -41,5 +45,19 @@ export class ActionContainer extends Component {
                 this.onActionManagerUpdate,
             );
         });
+    }
+
+    /**
+     * Render through the View Transitions API when supported, falling back to
+     * a plain render when the API is unavailable or the user has requested
+     * reduced motion.
+     */
+    _renderWithViewTransition() {
+        const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (typeof document.startViewTransition === "function" && !reducedMotion) {
+            document.startViewTransition(() => this.render());
+        } else {
+            this.render();
+        }
     }
 }

@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any
 
 import psycopg
@@ -11,7 +12,7 @@ from odoo.exceptions import AccessError
 from odoo.http import Response, request
 from odoo.libs.json import dumps as json_dumps
 from odoo.service import security
-from odoo.tools import str2bool
+from odoo.tools import config, str2bool
 from odoo.tools.misc import hmac
 from odoo.tools.translate import LazyTranslate, _
 
@@ -255,6 +256,12 @@ class Home(http.Controller):
 
     @http.route("/web/health", type="http", auth="none", save_session=False)
     def health(self, db_server_status: bool | str = False) -> Response:
+        """Combined health endpoint, kept for backward compatibility.
+
+        New deployments should target ``/web/healthz`` for liveness and
+        ``/web/readyz`` for readiness — those follow Kubernetes/Nomad
+        probe conventions and return 503 (not 500) when not ready.
+        """
         health_info = {"status": "pass"}
         status = 200
         if str2bool(db_server_status, False):
@@ -266,12 +273,56 @@ class Home(http.Controller):
                 health_info["db_server_status"] = False
                 health_info["status"] = "fail"
                 status = 500
-        data = json_dumps(health_info)
-        headers = [
-            ("Content-Type", "application/json"),
-            ("Cache-Control", "no-store"),
-        ]
-        return request.make_response(data, headers, status=status)
+        return self._health_response(health_info, status)
+
+    @http.route("/web/healthz", type="http", auth="none", save_session=False)
+    def healthz(self) -> Response:
+        """Liveness probe — 200 iff the worker process can answer requests.
+
+        Performs no I/O (no DB connection, no filestore read).  A failing
+        ``healthz`` indicates the process should be restarted; orchestrators
+        such as Kubernetes and Nomad consume this on the liveness probe.
+        """
+        return self._health_response({"status": "pass"}, 200)
+
+    @http.route("/web/readyz", type="http", auth="none", save_session=False)
+    def readyz(self) -> Response:
+        """Readiness probe — 200 iff every subsystem can serve traffic.
+
+        Checks PostgreSQL reachability (``postgres`` system DB cursor) and
+        ``data_dir`` writability.  Returns 503 with a per-subsystem
+        ``checks`` map otherwise — a failing ``readyz`` removes the
+        worker from the load balancer without restarting it.
+        """
+        checks: dict[str, str] = {}
+        status = 200
+        try:
+            with odoo.db.db_connect("postgres").cursor():
+                pass
+            checks["db"] = "pass"
+        except psycopg.Error:
+            checks["db"] = "fail"
+            status = 503
+        if os.access(config["data_dir"], os.W_OK):
+            checks["data_dir"] = "pass"
+        else:
+            checks["data_dir"] = "fail"
+            status = 503
+        return self._health_response(
+            {"status": "pass" if status == 200 else "fail", "checks": checks},
+            status,
+        )
+
+    def _health_response(self, payload: dict[str, Any], status: int) -> Response:
+        """Build a JSON health-check response with no-store headers."""
+        return request.make_response(
+            json_dumps(payload),
+            [
+                ("Content-Type", "application/json"),
+                ("Cache-Control", "no-store"),
+            ],
+            status=status,
+        )
 
     @http.route(["/robots.txt"], type="http", auth="none")
     def robots(self, **kwargs: Any) -> Response:

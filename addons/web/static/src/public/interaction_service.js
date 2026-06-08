@@ -3,7 +3,7 @@
 
 /** @module @web/public/interaction_service - Core service that discovers, mounts, and manages Interaction instances on DOM elements */
 
-import { App } from "@odoo/owl";
+import { App, Component } from "@odoo/owl";
 import { appTranslateFn } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
@@ -11,6 +11,20 @@ import { getTemplate } from "@web/core/templates";
 import { Colibri } from "./colibri.js";
 import { Interaction } from "./interaction.js";
 import { PairSet } from "./utils.js";
+
+// Public-frontend interactions are either subclasses of `Interaction`
+// (declarative dom manipulation + event handlers, owl-free) or Owl
+// `Component` subclasses. `_startInteraction` dispatches on the prototype
+// chain: Interactions are instantiated through `Colibri`, Components are
+// mounted through `_mountComponent`. The validator mirrors that dispatch.
+registry
+    .category("public.interactions")
+    .addValidation(
+        (entry) =>
+            entry?.prototype instanceof Interaction ||
+            entry?.prototype instanceof Component,
+    );
+
 /**
  * Website Core
  *
@@ -67,10 +81,10 @@ class InteractionService {
      * Prepares a mountable OWL component root inside the given element.
      *
      * @param {HTMLElement} el
-     * @param {typeof import("@odoo/owl").Component} C
+     * @param {import("@odoo/owl").ComponentConstructor} C
      * @param {Record<string, any>} [props]
      * @param {InsertPosition} [position]
-     * @returns {{ C: typeof import("@odoo/owl").Component, root: any, el: HTMLElement, mount: () => Promise<any>, destroy: () => void }}
+     * @returns {{ C: import("@odoo/owl").ComponentConstructor, root: any, el: HTMLElement, mount: () => Promise<any>, destroy: () => void }}
      */
     prepareRoot(el, C, props, position = "beforeend") {
         if (!this.owlApp) {
@@ -83,9 +97,13 @@ class InteractionService {
                 warnIfNoStaticProps: this.env.debug,
                 translatableAttributes: ["data-tooltip"],
             };
-            this.owlApp = new App(null, appConfig);
+            // ``App`` is typed for ``ComponentConstructor`` as the first arg,
+            // but interactions use ``createRoot`` afterwards (each public
+            // interaction mounts under its own owl-root); the null root is
+            // intentional. Cast keeps the call type-clean.
+            this.owlApp = new App(null, /** @type {any} */ (appConfig));
         }
-        const root = this.owlApp.createRoot(C, { props, env: this.env });
+        const root = /** @type {any} */ (this.owlApp).createRoot(C, { props, env: this.env });
         const rootEl = document.createElement("owl-root");
         rootEl.setAttribute("contenteditable", "false");
         rootEl.dataset.oeProtected = "true";
@@ -105,7 +123,7 @@ class InteractionService {
 
     /**
      * @param {HTMLElement} el
-     * @param {typeof import("@odoo/owl").Component} C
+     * @param {import("@odoo/owl").ComponentConstructor} C
      * @returns {Promise<void>}
      */
     async _mountComponent(el, C) {
@@ -202,7 +220,7 @@ class InteractionService {
             proms.push(
                 this._mountComponent(
                     el,
-                    /** @type {typeof import("@odoo/owl").Component} */ (
+                    /** @type {import("@odoo/owl").ComponentConstructor} */ (
                         /** @type {unknown} */ (I)
                     ),
                 ),
@@ -283,7 +301,9 @@ export const publicInteractionService = {
         const el = /** @type {HTMLElement} */ (
             document.querySelector("#wrapwrap") || document.querySelector("body")
         );
-        const Interactions = registry.category("public.interactions").getAll();
+        const Interactions = /** @type {(typeof Interaction)[]} */ (
+            registry.category("public.interactions").getAll()
+        );
         const service = new InteractionService(el, env);
         service.activate(Interactions);
         return service;

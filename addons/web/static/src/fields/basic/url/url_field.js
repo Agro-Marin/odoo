@@ -5,7 +5,9 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+import { isSafeUrlScheme } from "@web/core/utils/urls";
+
+import { registerField } from "@web/fields/_registry";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -27,14 +29,24 @@ export class UrlField extends Component {
         return this.props.record.data[this.props.name] || "";
     }
 
-    /** @returns {string} URL prefixed with http:// if no protocol is present */
+    /**
+     * @returns {string} a safe hyperlink target: the value prefixed with
+     * http:// when it carries no protocol, restricted to safe schemes. Unsafe
+     * values (javascript:/data:/vbscript:, protocol-relative //host) are
+     * dropped so they never reach the rendered t-att-href.
+     */
     get formattedHref() {
         let value = this.props.record.data[this.props.name];
-        if (value && !this.props.websitePath) {
+        if (!value) {
+            return "";
+        }
+        if (!this.props.websitePath) {
             const regex = /^((ftp|http)s?:\/)?\//i; // http(s)://... ftp(s)://... /...
             value = !regex.test(value) ? `http://${value}` : value;
         }
-        return value;
+        // Drop unsafe targets (javascript:/data:, protocol-relative //host) so
+        // they never reach the rendered t-att-href.
+        return isSafeUrlScheme(value) ? value : "";
     }
 }
 
@@ -65,7 +77,7 @@ export const urlField = {
     }),
 };
 
-registry.category("fields").add("url", urlField);
+registerField("url", urlField);
 
 class FormUrlField extends UrlField {
     static template = "web.FormUrlField";
@@ -76,4 +88,4 @@ export const formUrlField = {
     component: FormUrlField,
 };
 
-registry.category("fields").add("form.url", formUrlField);
+registerField({ name: "url", view: "form" }, formUrlField);

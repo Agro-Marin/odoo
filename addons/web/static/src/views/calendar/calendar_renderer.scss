@@ -22,6 +22,22 @@
         line-height: 0;
     }
 
+    // FC v7 collapses the all-day strip to height=0 when it contains no
+    // events because the strip row gets its height from its content
+    // (events) and the ``allDayText`` label is empty in this fork.
+    // Set a minimum height so users (and ``selectAllDayRange`` tests)
+    // can drag-to-create all-day events on an empty calendar. The
+    // strip is the first ``[role="row"]`` directly inside the timegrid
+    // view container; ``.fc-daygrid-row`` is on the inner ``DayGridRow``
+    // wrapper and matches both the all-day strip AND month-view week
+    // rows. Scope to time-grid views so month-view rows keep their
+    // dynamic content-driven height.
+    .fc-timeGridDay-view, .fc-timeGridWeek-view {
+        > [role="rowgroup"] > [role="row"]:first-child .fc-daygrid-row {
+            min-height: 22px;
+        }
+    }
+
     .fc-event {
         // `web/lib/fullcalendar/core/main.css` gives events with links and draggable events a hand mouse pointer,
         // but doesn't take into account that events have popovers.

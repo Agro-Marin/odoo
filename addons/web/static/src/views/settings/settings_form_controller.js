@@ -109,7 +109,10 @@ export class SettingsFormController extends formView.Controller {
     async beforeUnload(_ev) {}
 
     //This is needed to avoid the auto save when visibility change
-    beforeVisibilityChange() {}
+    /** @returns {Promise<any> | undefined} matches the base FormController signature; body intentionally no-op */
+    beforeVisibilityChange() {
+        return undefined;
+    }
 
     /**
      * @param {any} [_params]

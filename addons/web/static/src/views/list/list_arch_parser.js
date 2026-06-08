@@ -7,8 +7,8 @@ import { getDecoration } from "@web/core/utils/decorations";
 import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { stringToOrderBy } from "@web/core/utils/order_by";
-import { Field } from "@web/fields/field";
 import { combineModifiers } from "@web/model/relational_model/utils";
+import { parseFieldNode } from "@web/views/field_arch";
 import { processButton } from "@web/views/view_buttons";
 import { encodeObjectForTemplate } from "@web/views/view_compiler";
 import { getActiveActions } from "@web/views/view_utils";
@@ -43,7 +43,7 @@ class GroupListArchParser {
                 });
                 return false;
             } else if (node.tagName === "field") {
-                const fieldInfo = Field.parseFieldNode(
+                const fieldInfo = parseFieldNode(
                     node,
                     models,
                     modelName,
@@ -80,18 +80,18 @@ export class ListArchParser {
      * @returns {any} parsed field info
      */
     parseFieldNode(node, models, modelName) {
-        return Field.parseFieldNode(node, models, modelName, "list");
+        return parseFieldNode(node, models, modelName, "list");
     }
 
     /**
      * Parse a `<widget>` node into a widget descriptor.
      *
      * @param {Element} node - the `<widget>` element
-     * @param {Record<string, any>} models - model metadata (unused, kept for API symmetry)
-     * @param {string} modelName - current model name (unused)
+     * @param {Record<string, any>} [_models] - model metadata (unused, kept for API symmetry)
+     * @param {string} [_modelName] - current model name (unused)
      * @returns {any} parsed widget info
      */
-    parseWidgetNode(node, models, modelName) {
+    parseWidgetNode(node, _models, _modelName) {
         return Widget.parseWidgetNode(node);
     }
 
@@ -123,7 +123,7 @@ export class ListArchParser {
      *   columns: any[],
      *   groupBy: { buttons: Record<string, any[]>, fields: Record<string, any> },
      *   xmlDoc: Element,
-     *   activeActions: Record<string, boolean>,
+     *   activeActions: Record<string, any>,
      *   [key: string]: any,
      * }}
      */
@@ -143,7 +143,12 @@ export class ListArchParser {
         const groupListArchParser = new GroupListArchParser();
         let buttonGroup;
         let handleField = null;
-        const treeAttr = {};
+        const treeAttr = {
+            /** @type {Record<string, any>} */
+            activeActions: {},
+            /** @type {any[]} */
+            defaultOrder: [],
+        };
         let nextId = 0;
         const fieldNextIds = {};
         visitXML(xmlDoc, (node) => {

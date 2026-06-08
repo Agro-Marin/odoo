@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class BooleanIconField extends Component {
@@ -44,4 +45,4 @@ export const booleanIconField = {
     }),
 };
 
-registry.category("fields").add("boolean_icon", booleanIconField);
+registerField("boolean_icon", booleanIconField);

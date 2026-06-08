@@ -15,6 +15,13 @@ import {
     sortBy as arraySortBy,
     unique,
 } from "@web/core/utils/collections/arrays";
+
+// Each `sample_server` entry is a mock implementation called as
+// `mockFunction.call(this, params)` from the lookup below; bind semantics
+// require a function (not an arrow without `this` context support).
+registry
+    .category("sample_server")
+    .addValidation((entry) => typeof entry === "function");
 import { parseServerValue } from "./relational_model/utils.js";
 import {
     DISPLAY_FORMATS,

@@ -9,7 +9,8 @@
         "lint-web": "eslint '**/web/**/*.js'",
         "format-staged": "lint-staged",
         "typecheck": "tsc -p jsconfig.json --noEmit",
-        "typecheck:watch": "tsc -p jsconfig.json --noEmit --watch"
+        "typecheck:watch": "tsc -p jsconfig.json --noEmit --watch",
+        "typecheck:ci": "bash addons/web/tooling/typecheck-ci.sh"
     },
     "devDependencies": {
         "eslint": "^10.0.2",

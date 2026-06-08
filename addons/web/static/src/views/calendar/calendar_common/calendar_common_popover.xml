@@ -22,7 +22,7 @@
  <span t-esc="props.record.title" t-att-data-tooltip="props.record.title"/>
  </span>
  <span class="o_cw_popover_close ms-4 mt-2 me-2" t-on-click.stop="() => props.close()">
- <i class="fc-close fc-icon fc-icon-x" />
+ <i class="fa-solid fa-xmark" />
  </span>
  </div>
  <div class="o_cw_body">

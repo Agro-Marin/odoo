@@ -5,6 +5,7 @@
 
 import { Component, EventBus, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { AppEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 /**
  * Full-screen overlay that blocks UI interaction during long-running operations.
@@ -57,8 +58,8 @@ export class BlockUI extends Component {
             line2: "",
         });
 
-        this.props.bus.addEventListener("BLOCK", this.block.bind(this));
-        this.props.bus.addEventListener("UNBLOCK", this.unblock.bind(this));
+        this.props.bus.addEventListener(AppEvent.BLOCK, this.block.bind(this));
+        this.props.bus.addEventListener(AppEvent.UNBLOCK, this.unblock.bind(this));
     }
 
     /** @param {number} index - message index in `messagesByDuration` */

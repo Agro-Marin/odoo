@@ -19,7 +19,7 @@
  *  selection?: [string | number, string][];
  *  relation?: string;
  *  relation_field?: string;
- *  relatedPropertyField?: string;
+ *  relatedPropertyField?: { name: string; id?: number; displayName?: string };
  *  definition_record?: string;
  *  definition_record_field?: string;
  *  context?: Context | string;
@@ -36,7 +36,8 @@
  *  aggregator?: string;
  *  [key: string]: any;
  * }} Field
- *
+ */
+/**
  * @typedef {{
  *  context: Context | string;
  *  forceSave?: boolean;
@@ -48,10 +49,11 @@
  *  related?: { activeFields: Record<string, FieldInfo>; fields: Record<string, Field> };
  *  limit?: number;
  *  defaultOrderBy?: OrderTerm[];
- *  relatedPropertyField?: string;
+ *  relatedPropertyField?: { name: string; id?: number; displayName?: string };
  *  [key: string]: any;
  * }} FieldInfo
- *
+ */
+/**
  * @typedef {{
  *  context: Context;
  *  domain: DomainListRepr;
@@ -64,3 +66,7 @@
  *  [key: string]: any;
  * }} SearchParams
  */
+
+// Mark this file as a module so the JSDoc typedefs above are visible to
+// `import { Field, FieldInfo, SearchParams } from "@web/model/types"` callers.
+export {};

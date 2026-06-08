@@ -36,7 +36,7 @@ function enrichOptions(options, selectedIds) {
  *
  * @param {Object} searchItem
  * @param {Object[]} query - current query elements
- * @param {import("luxon").DateTime} referenceMoment
+ * @param {any} referenceMoment
  * @param {Object[]} intervalOptions
  * @returns {Object | null}
  */

@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { formatFloat } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -32,4 +33,4 @@ export const percentPieField = {
     extractProps: ({ string }) => ({ string }),
 };
 
-registry.category("fields").add("percentpie", percentPieField);
+registerField("percentpie", percentPieField);

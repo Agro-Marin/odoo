@@ -5,7 +5,8 @@
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -40,7 +41,7 @@ export const emailField = {
     }),
 };
 
-registry.category("fields").add("email", emailField);
+registerField("email", emailField);
 
 class FormEmailField extends EmailField {
     static template = "web.FormEmailField";
@@ -51,4 +52,4 @@ export const formEmailField = {
     component: FormEmailField,
 };
 
-registry.category("fields").add("form.email", formEmailField);
+registerField({ name: "email", view: "form" }, formEmailField);

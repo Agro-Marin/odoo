@@ -5,6 +5,7 @@
 
 import { Component, useComponent, useEffect, useEnv, useSubEnv } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
+import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -56,7 +57,7 @@ export class X2ManyFieldDialog extends Component {
         useSubEnv({ config: this.props.config });
         this.env.dialogData.dismiss = () => this.discard();
 
-        useBus(this.record.model.bus, "update", () => this.render(true));
+        useBus(this.record.model.bus, ModelEvent.UPDATE, () => this.render(true));
 
         this.modalRef = useChildRef();
 

@@ -470,6 +470,10 @@ test("pivot rendering with invisible attribute on field", async () => {
     expect('.o-dropdown--menu a[data-field="foo2"]').toHaveCount(0);
 });
 
+// Desktop-only: ``web_enterprise`` deliberately strips pivot tooltips on small
+// screens (PivotRenderer patch, ``if (this.env.isSmall)``), so the group-header
+// ``data-tooltip`` only exists on desktop when enterprise is installed.
+test.tags("desktop");
 test("group headers should have a tooltip", async () => {
     await mountView({
         type: "pivot",

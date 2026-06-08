@@ -59,6 +59,12 @@ export async function post(route, params = {}, readMethod = "json") {
 }
 
 export const httpService = {
+    // Both ``get`` and ``post`` return Promises.  Listing them here
+    // wires destroy-protection at ``useService("http")`` time: a
+    // component awaiting an http call that unmounts mid-fetch won't
+    // resume into destroyed state when the response lands.  See
+    // ``hooks.js:_protectMethod`` for the wrapper semantics.
+    async: ["get", "post"],
     start() {
         return { get, post };
     },

@@ -6,7 +6,8 @@
 import { Component } from "@odoo/owl";
 import { FileInput } from "@web/components/file_input/file_input";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -118,4 +119,4 @@ export const many2ManyBinaryField = {
     }),
 };
 
-registry.category("fields").add("many2many_binary", many2ManyBinaryField);
+registerField("many2many_binary", many2ManyBinaryField);

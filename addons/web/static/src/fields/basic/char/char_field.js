@@ -5,7 +5,9 @@
 
 import { useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+
+import { registerField } from "@web/fields/_registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useDynamicPlaceholder } from "@web/fields/dynamic_placeholder_hook";
 import { formatChar } from "@web/fields/formatters";
@@ -32,10 +34,11 @@ export class CharField extends TextInputFieldBase {
 
     /** @returns {HTMLInputElement | null} */
     get inputEl() {
-        return this.input.el;
+        return /** @type {HTMLInputElement | null} */ (this.input.el);
     }
 
     setup() {
+        useRenderCounter("fields.CharField");
         this.input = useRef("input");
         if (this.props.dynamicPlaceholder) {
             this.dynamicPlaceholder = useDynamicPlaceholder(this.input);
@@ -94,6 +97,16 @@ export class CharField extends TextInputFieldBase {
 export const charField = {
     component: CharField,
     displayName: _t("Text"),
+    // ``char`` and ``text`` server types both render sensibly in a
+    // single-line input — line breaks in a stored ``text`` value are
+    // collapsed by the input element, which is the intended UX for
+    // short-string columns the user wants to surface compactly.  The
+    // overlap with ``textField.supportedTypes`` (which lists the same
+    // two types plus ``html``) is intentional polymorphism: either
+    // widget can render either field type, and the arch-author picks
+    // by aesthetic.  The ``getFieldFromRegistry`` warning at
+    // ``field.js:162`` only fires for genuinely incompatible
+    // combinations like ``widget="char"`` on an integer field.
     supportedTypes: ["char", "text"],
     supportedOptions: [
         {
@@ -116,4 +129,4 @@ export const charField = {
     }),
 };
 
-registry.category("fields").add("char", charField);
+registerField("char", charField);

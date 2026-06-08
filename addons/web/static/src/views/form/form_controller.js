@@ -15,6 +15,7 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { AppEvent, ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { createElement } from "@web/core/utils/dom/xml";
@@ -31,7 +32,6 @@ import { useSetupAction } from "@web/core/action_hook";
 import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
 import { useDebugCategory } from "@web/services/debug/debug_context";
-import { user } from "@web/services/user";
 import { SIZES } from "@web/ui/block/ui_service";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { standardViewProps } from "@web/views/standard_view_props";
@@ -49,6 +49,7 @@ import { ButtonBox } from "./button_box/button_box.js";
 import { FormCogMenu } from "./form_cog_menu/form_cog_menu.js";
 import { FormCompiler } from "./form_compiler.js";
 import { FormErrorDialog } from "./form_error_dialog/form_error_dialog.js";
+import { FormSaveCoordinator } from "./form_save_coordinator.js";
 import { FormStatusIndicator } from "./form_status_indicator/form_status_indicator.js";
 import { loadSubViews, useFormViewInDialog } from "./form_utils.js";
 
@@ -103,7 +104,9 @@ export class FormController extends Component {
         this._uiHooks = uiHooks;
         this.viewService = useService("view");
         this.ui = useService("ui");
-        useBus(this.ui.bus, "resize", /** @type {any} */ (this.render));
+        this.multiCompanyRecovery = useService("multi_company_recovery");
+        this.formDialogStack = useService("form_dialog_stack");
+        useBus(this.ui.bus, AppEvent.RESIZE, /** @type {any} */ (this.render));
 
         this.archInfo = this.props.archInfo;
         const { create, edit } = this.archInfo.activeActions;
@@ -115,18 +118,6 @@ export class FormController extends Component {
         if (this.env.inDialog) {
             this.display.controlPanel = false;
         }
-
-        this.formInDialog = 0;
-        useBus(
-            this.env.bus,
-            "FORM-CONTROLLER:FORM-IN-DIALOG:ADD",
-            () => this.formInDialog++,
-        );
-        useBus(
-            this.env.bus,
-            "FORM-CONTROLLER:FORM-IN-DIALOG:REMOVE",
-            () => this.formInDialog--,
-        );
 
         // Wait to be mounted before displaying dialog/notification for onchange warnings returned
         // by the first onchange, for 2 reasons:
@@ -160,6 +151,43 @@ export class FormController extends Component {
         this.model = useState(
             useModel(this.props.Model, this.modelParams, { beforeFirstLoad }),
         );
+        // Centralizes the 9 historical save-related entry points
+        // (onPagerUpdate / beforeVisibilityChange / beforeLeave /
+        // beforeUnload / shouldExecuteAction / beforeExecuteActionButton /
+        // create / save / saveButtonClicked) into one observable surface.
+        // See ``form_save_coordinator.js`` for the full rationale and the
+        // public API.
+        this.saveCoordinator = useState(
+            new FormSaveCoordinator(this.model, {
+                onSaveError: (error, callbacks) =>
+                    this._renderSaveErrorDialog(error, callbacks),
+                // ``onWillSave`` is intentionally NOT wired here.
+                // ``onWillSaveRecord`` is already a model-level hook
+                // (see modelParams.hooks.lifecycle.onWillSaveRecord); the
+                // model fires it AFTER validation, BEFORE web_save. Wiring
+                // it again at the coordinator level would (a) fire it
+                // twice and (b) fire it BEFORE validation runs (the
+                // coordinator runs the hook before record.save which
+                // is where _checkValidity lives).  The integration
+                // tests "execute an action before and after each
+                // valid save" and "don't exec a valid save with
+                // onWillSaveRecord" assert the validation-first
+                // ordering.
+                //
+                // ``onSaved`` is intentionally NOT wired here.
+                // Historical semantics: ``props.onSave`` was called
+                // only by 4 of the 9 entry points (beforeLeave,
+                // beforeExecuteActionButton, save, saveButtonClicked)
+                // — not by onPagerUpdate, beforeVisibilityChange,
+                // shouldExecuteAction, or create.  To preserve that,
+                // the controller invokes ``props.onSave`` explicitly
+                // at those 4 call sites instead of having every
+                // requestSave fire it.
+                onUrgentSaveFailed: () => this._onUrgentSaveFailed(),
+                recoverFromSaveError: (error, model) =>
+                    this.multiCompanyRecovery.recoverFromSaveError(error, model),
+            }),
+        );
         useSubEnv({ model: this.model });
         onMounted(() => {
             effect(
@@ -175,19 +203,15 @@ export class FormController extends Component {
         });
 
         onError((error) => {
-            const suggestedCompany = error.cause?.data?.context?.suggested_company;
             if (
-                error.cause?.data?.name === "odoo.exceptions.AccessError" &&
-                suggestedCompany &&
-                !this.env.inDialog
+                this.multiCompanyRecovery.recoverFromLifecycleError(error, {
+                    inDialog: this.env.inDialog,
+                    env: /** @type {import("@web/env").OdooEnv} */ (this.env),
+                })
             ) {
-                this.env.pushStateBeforeReload();
-                const activeCompanyIds = user.activeCompanies.map((c) => c.id);
-                activeCompanyIds.push(suggestedCompany.id);
-                user.activateCompanies(activeCompanyIds);
-            } else {
-                throw error;
+                return;
             }
+            throw error;
         });
 
         // select footers that are not in subviews and move them to another arch
@@ -300,7 +324,7 @@ export class FormController extends Component {
             isDomainSelected: this.model.root.isDomainSelected,
             resModel: this.model.root.resModel,
             domain: this.props.domain,
-            onActionExecuted: ({ noReload } = /** @type {any} */ ({})) => {
+            onActionExecuted: (/** @type {{ noReload?: boolean }} */ { noReload } = {}) => {
                 if (!noReload) {
                     const { resId, resIds } = this.model.root;
                     return this.model.load({ resId: resId, resIds: resIds });
@@ -325,12 +349,14 @@ export class FormController extends Component {
             },
             state: this.props.state?.modelState,
             hooks: {
-                ...this._uiHooks,
-                onWillLoadRoot: this.onWillLoadRoot.bind(this),
-                onWillSaveRecord: this.onWillSaveRecord.bind(this),
-                onRecordSaved: this.onRecordSaved.bind(this),
-                onWillDisplayOnchangeWarning:
-                    this.onWillDisplayOnchangeWarning.bind(this),
+                lifecycle: {
+                    onWillLoadRoot: this.onWillLoadRoot.bind(this),
+                    onWillSaveRecord: this.onWillSaveRecord.bind(this),
+                    onRecordSaved: this.onRecordSaved.bind(this),
+                    onWillDisplayOnchangeWarning:
+                        this.onWillDisplayOnchangeWarning.bind(this),
+                },
+                ui: this._uiHooks,
             },
             useSendBeaconToSaveUrgently: true,
         };
@@ -378,56 +404,56 @@ export class FormController extends Component {
     async onWillSaveRecord() {}
 
     /**
-     * Handle save errors. Shows a FormErrorDialog when leaving, or re-throws
-     * the error otherwise. Handles AccessError with suggested_company by
-     * activating the missing company and retrying.
+     * Render the save-error dialog UX (``FormErrorDialog`` with discard /
+     * redirect / stay choices).  Wired into the save coordinator's
+     * ``onSaveError`` hook; called only when ``recoverFromSaveError``
+     * returned false (the coordinator pre-checks recovery itself, so
+     * this method does not).
+     *
+     * Historical context: this used to be ``onSaveError(error, opts,
+     * showErrorDialog)`` — a tri-mode method that did recovery +
+     * dialog-or-rethrow based on a positional boolean.  The semantics
+     * drifted across its 5+ call sites (renamed in 2026-05).  The
+     * coordinator now owns the dispatch, so this method is single-purpose.
      *
      * @param {Object} error - the RPC error
      * @param {{ discard: Function, retry: Function }} callbacks
-     * @param {boolean} leaving - whether the user is navigating away
-     * @returns {Promise<boolean>} whether to proceed with leaving
+     * @returns {Promise<boolean>} true if user chose discard (caller may
+     *     proceed); false if user chose redirect or stay (caller blocks)
      */
-    async onSaveError(error, { discard, retry }, leaving) {
-        const suggestedCompany = error.data?.context?.suggested_company;
-        const activeCompanyIds = user.activeCompanies.map((c) => c.id);
-        if (
-            error.data?.name === "odoo.exceptions.AccessError" &&
-            suggestedCompany &&
-            !activeCompanyIds.includes(suggestedCompany.id)
-        ) {
-            // update the context with the needed company
-            this.model.config.context.allowed_company_ids.push(suggestedCompany.id);
-            // activate the company without reloading !
-            activeCompanyIds.push(suggestedCompany.id);
-            user.activateCompanies(activeCompanyIds, { reload: false });
-            return retry();
-        }
-        if (leaving) {
-            const proceed = await new Promise((resolve) => {
-                this.dialogService.add(FormErrorDialog, {
-                    message: error.data.message,
-                    data: error.data,
-                    onDiscard: () => {
-                        discard();
-                        resolve(true);
-                    },
-                    onRedirect: async ({ action, additionalContext }) => {
-                        try {
-                            await this.actionService.doAction(action, {
-                                additionalContext,
-                                forceLeave: true,
-                            });
-                        } finally {
-                            resolve(false);
-                        }
-                    },
-                    onStayHere: () => resolve(false),
-                });
+    _renderSaveErrorDialog(error, { discard, retry }) {
+        return new Promise((resolve) => {
+            this.dialogService.add(FormErrorDialog, {
+                message: error.data.message,
+                data: error.data,
+                onDiscard: () => {
+                    discard();
+                    resolve(true);
+                },
+                onRedirect: async ({ action, additionalContext }) => {
+                    try {
+                        await this.actionService.doAction(action, {
+                            additionalContext,
+                            forceLeave: true,
+                        });
+                    } finally {
+                        resolve(false);
+                    }
+                },
+                onStayHere: () => resolve(false),
             });
-            return proceed;
-        }
-        throw error;
+        });
     }
+
+    /**
+     * Coordinator hook: invoked when the urgent (sendBeacon) save path
+     * fails — typically because the payload exceeded the browser's
+     * sendBeacon budget.  The caller (``beforeUnload``) is also informed
+     * via the false return value of ``requestUrgentSave``, so it can
+     * ``ev.preventDefault()`` on the unload event.  No-op here for now;
+     * left as an extension point for future telemetry / notifications.
+     */
+    _onUrgentSaveFailed() {}
 
     /** @returns {string} the display name for the breadcrumb (record name or "New") */
     displayName() {
@@ -444,15 +470,13 @@ export class FormController extends Component {
      * @param {{ offset: number, resIds: number[] }} params
      */
     async onPagerUpdate({ offset, resIds }) {
-        const dirty = await this.model.root.isDirty();
+        const nextId = resIds[offset];
         try {
-            if (dirty) {
-                await this.model.root.save({
-                    onError: (error, options) => this.onSaveError(error, options, true),
-                    nextId: resIds[offset],
-                });
+            const isDirty = await this.model.root.isDirty();
+            if (isDirty) {
+                await this.saveCoordinator.requestSave({ nextId });
             } else {
-                await this.model.load({ resId: resIds[offset] });
+                await this.model.load({ resId: nextId });
             }
         } catch (e) {
             if (e instanceof FetchRecordError) {
@@ -469,26 +493,33 @@ export class FormController extends Component {
     beforeVisibilityChange() {
         if (
             document.visibilityState === "hidden" &&
-            this.formInDialog === 0 &&
+            this.formDialogStack.isEmpty &&
             !this.model.root.isNew
         ) {
-            return this.model.root
-                .save()
+            return this.saveCoordinator
+                .requestSave({ errorMode: "silent" })
                 .catch((e) => console.warn("Auto-save on tab switch failed:", e));
         }
     }
 
-    async beforeLeave({ forceLeave } = /** @type {any} */ ({})) {
-        if ((await this.model.root.isDirty()) && !forceLeave) {
-            return this.save({
-                reload: false,
-                onError: (error, options) => this.onSaveError(error, options, true),
-            });
+    /** @param {{ forceLeave?: boolean }} [options] */
+    async beforeLeave({ forceLeave } = {}) {
+        if (forceLeave) {
+            return;
         }
+        const saved = await this.saveCoordinator.requestSave({
+            checkDirty: true,
+            reload: false,
+            saveOverride: this.props.saveRecord,
+        });
+        if (saved && this.props.onSave) {
+            this.props.onSave(this.model.root, { reload: false });
+        }
+        return saved;
     }
 
     async beforeUnload(ev) {
-        const succeeded = await this.model.root.urgentSave();
+        const succeeded = await this.saveCoordinator.requestUrgentSave();
         if (!succeeded) {
             ev.preventDefault();
             ev.returnValue = "Unsaved changes";
@@ -503,7 +534,7 @@ export class FormController extends Component {
                 sequence: 10,
                 icon: "fa-solid fa-cogs",
                 description: _t("Edit Properties"),
-                callback: () => this.model.bus.trigger("PROPERTY_FIELD:EDIT"),
+                callback: () => this.model.bus.trigger(ModelEvent.PROPERTY_FIELD_EDIT),
             },
             duplicate: {
                 isAvailable: () => activeActions.create && activeActions.duplicate,
@@ -571,14 +602,13 @@ export class FormController extends Component {
     async shouldExecuteAction(item) {
         const dirty = await this.model.root.isDirty();
         if ((dirty || this.model.root.isNew) && !item.skipSave) {
-            let hasError = false;
-            const isSaved = await this.model.root.save({
-                onError: (error, options) => {
-                    hasError = true;
-                    return this.onSaveError(error, options, true);
-                },
-            });
-            return isSaved && !hasError;
+            const saved = await this.saveCoordinator.requestSave();
+            // Block the menu action if the save errored at all — even
+            // when the dialog UX resolved it via "discard".  Historical
+            // behavior preserved: action menus (Duplicate, Archive,
+            // etc.) should not run when the in-flight save hit a server
+            // error, regardless of how the user dismissed the dialog.
+            return saved !== false && !this.saveCoordinator.lastError;
         }
         return true;
     }
@@ -610,12 +640,22 @@ export class FormController extends Component {
         if (clickParams.special !== "cancel") {
             let saved;
             if (clickParams.special === "save" && this.props.saveRecord) {
+                // Direct delegation to the embedder's saveRecord — no
+                // coordinator dispatch.  The embedder owns the entire
+                // lifecycle for special="save" buttons.
                 saved = await this.props.saveRecord(record, clickParams);
             } else {
-                const params = {
+                // Plain save without dirty pre-check, no error dialog UX
+                // (the action button caller surfaces its own error
+                // handling via ``useViewButtons``).  Errors propagate so
+                // ``executeButtonCallback`` can release the UI lock and
+                // show a server-error notification.  Reload is conditional
+                // on whether we'll close the embedding dialog after the
+                // action.
+                saved = await this.saveCoordinator.requestSave({
                     reload: !(this.env.inDialog && clickParams.close),
-                };
-                saved = await record.save(params);
+                    errorMode: "rethrow",
+                });
             }
             if (saved !== false && this.props.onSave) {
                 this.props.onSave(record, clickParams);
@@ -629,35 +669,37 @@ export class FormController extends Component {
     async afterExecuteActionButton(clickParams) {}
 
     async create() {
-        const dirty = await this.model.root.isDirty();
-        const onError = (error, options) => this.onSaveError(error, options, true);
-        const canProceed = !dirty || (await this.model.root.save({ onError }));
+        const canProceed = await this.saveCoordinator.requestSave({
+            checkDirty: true,
+        });
         // TODO: UI should be blocked during pager navigation (disable/enable not done in onPagerUpdate)
         if (canProceed) {
-            await executeButtonCallback(this.ui.activeElement, () =>
-                this.model.load({ resId: false }),
+            await executeButtonCallback(
+                /** @type {any} */ (this.ui.activeElement),
+                () => this.model.load({ resId: false }),
             );
         }
     }
 
     /**
      * Save the current record. Delegates to `props.saveRecord` if provided,
-     * otherwise calls `record.save()` directly.
+     * otherwise routes through the save coordinator.
+     *
+     * Historical note: prior to the FormSaveCoordinator extraction this
+     * method assembled its own ``record.save({onError, ...params})`` call
+     * with the rethrow-mode error handler.  The coordinator's
+     * ``errorMode: "rethrow"`` produces the same observable behavior.
      *
      * @param {Object} [params] - save options (e.g. { reload: false })
      * @returns {Promise<boolean>} whether the save succeeded
      */
     async save(params) {
         const record = this.model.root;
-        let saved;
-        if (this.props.saveRecord) {
-            saved = await this.props.saveRecord(record, params);
-        } else {
-            saved = await record.save({
-                onError: (error, options) => this.onSaveError(error, options, false),
-                ...params,
-            });
-        }
+        const saved = await this.saveCoordinator.requestSave({
+            saveOverride: this.props.saveRecord,
+            errorMode: "rethrow",
+            params,
+        });
         if (saved && this.props.onSave) {
             this.props.onSave(record, params);
         }
@@ -665,7 +707,10 @@ export class FormController extends Component {
     }
 
     saveButtonClicked(params = {}) {
-        return executeButtonCallback(this.ui.activeElement, () => this.save(params));
+        return executeButtonCallback(
+            /** @type {any} */ (this.ui.activeElement),
+            () => this.save(params),
+        );
     }
 
     async discard() {
@@ -673,7 +718,7 @@ export class FormController extends Component {
             this.props.discardRecord(this.model.root);
             return;
         }
-        await this.model.root.discard();
+        await this.saveCoordinator.requestDiscard();
         if (this.props.onDiscard) {
             this.props.onDiscard(this.model.root);
         }

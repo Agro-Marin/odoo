@@ -16,5 +16,10 @@ import { eliminateVirtualOperators } from "@web/core/tree/virtual_operators";
  */
 export function expressionFromTree(tree, options = {}) {
     const simplifiedTree = eliminateVirtualOperators(tree, options);
-    return constructExpressionFromTree(simplifiedTree, options);
+    // ``constructExpressionFromTree`` is typed ``string | Error`` but
+    // production callers (expression_editor.js) and existing tests treat
+    // it as ``string`` — Error returns never surface in practice. Keep
+    // the narrowing here; widen the return type if a real Error path
+    // ever needs to be handled.
+    return /** @type {string} */ (constructExpressionFromTree(simplifiedTree, options));
 }

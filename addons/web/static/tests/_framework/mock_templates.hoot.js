@@ -2,19 +2,50 @@
 
 // ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
 
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
+/**
+ * Per-element placeholder a template's `src` should be rewritten to in
+ * tests so the browser's native image loader doesn't fire HTTP requests
+ * during a unit test.  A 1×1 fuchsia PNG: small, deterministic, harmless
+ * if it accidentally renders.
+ */
+const ONE_FUSCHIA_PIXEL_IMG =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z9DwHwAGBQKA3H7sNwAAAABJRU5ErkJggg==";
 
 /**
- * We remove all the `src` attributes (and derived forms) from the template and
- * replace them by data attributes (e.g. `src` to `data-src`, `t-att-src` to
- * `t-att-data-src`). This is done to ensure images will not trigger an actual request
- * on the server.
+ * Tag-name → `src`-replacement-value pairs.  `<iframe>` gets an empty
+ * `src` (no document loaded); `<img>` gets the 1px placeholder.
+ */
+const SRC_REPLACERS = [
+    ["iframe", ""],
+    ["img", ONE_FUSCHIA_PIXEL_IMG],
+];
+
+/**
+ * Owl supports two attribute-binding prefixes for templates:
+ * - `t-att-` (single-binding, e.g. `t-att-src="expr"`)
+ * - `t-attf-` (interpolation, e.g. `t-attf-src="prefix-{{var}}"`)
+ * Plus the literal attribute itself (no prefix).  We rename all three
+ * forms uniformly so any author style is handled.
+ */
+const ATTRIBUTE_PREFIXES = ["", "t-att-", "t-attf-"];
+
+/**
+ * Strip every `src` (and `t-att-src` / `t-attf-src`) from `<img>` /
+ * `<iframe>` elements in the template, moving the original value to
+ * `data-src` (resp. `t-att-data-src` / `t-attf-data-src`) and replacing
+ * the visible `src` with a deterministic placeholder.  Tests assert
+ * against `data-src` to verify the URL the component WOULD have
+ * requested, without the browser actually fetching it.
+ *
+ * Why static placeholder + data-src instead of intercepting fetch?
+ * `<img src=...>` HTTP requests bypass the JS `_onRoute` mock in
+ * `mock_server.js` — Chrome's native image loader doesn't go through
+ * `fetch`.  Rewriting the templates is the only way to keep the page
+ * fully offline during tests.
  *
  * @param {Element} template
  */
-const replaceAttributes = (template) => {
+function replaceAttributes(template) {
     for (const [tagName, value] of SRC_REPLACERS) {
         for (const prefix of ATTRIBUTE_PREFIXES) {
             const targetAttribute = `${prefix}src`;
@@ -33,75 +64,35 @@ const replaceAttributes = (template) => {
             }
         }
     }
-};
-
-const ONE_FUSCHIA_PIXEL_IMG =
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z9DwHwAGBQKA3H7sNwAAAABJRU5ErkJggg==";
-
-const SRC_REPLACERS = [
-    ["iframe", ""],
-    ["img", ONE_FUSCHIA_PIXEL_IMG],
-];
-const ATTRIBUTE_PREFIXES = ["", "t-att-", "t-attf-"];
-
-const { loader } = odoo;
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
+}
 
 /**
- * @param {string} name
- * @param {OdooModuleFactory} factory
+ * Register the `src → data-src` template processor on
+ * `@web/core/templates` so it runs at parse time for every template.
+ *
+ * Idempotent — pushes the processor once.  Must be called BEFORE any
+ * component mounts (so the processor is in `templateProcessors` when
+ * `_getTemplate` first parses a template).  `setupTestEnvironment`
+ * invokes this after `start.hoot.js`'s top-level imports complete and
+ * before the test loader starts importing test files.
+ *
+ * If templates were already processed (e.g. someone forced a render
+ * during module load), the cache is cleared so they're re-parsed with
+ * the processor in effect.
+ *
+ * @param {{ modules: Map<string, any> }} loader
  */
-export function makeTemplateFactory(name, factory) {
-    return () => {
-        if (loader.modules.has(name)) {
-            return loader.modules.get(name);
-        }
-
-        /** @type {Map<string, function>} */
-        const compiledTemplates = new Map();
-
-        const factoryFn = factory.fn;
-        factory.fn = (...args) => {
-            const exports = factoryFn(...args);
-            const { clearProcessedTemplates, getTemplate } = exports;
-
-            // Patch "getTemplates" to access local cache
-            exports.getTemplate = function mockedGetTemplate(name) {
-                if (!this) {
-                    // Used outside of Owl.
-                    return getTemplate(name);
-                }
-                const rawTemplate = getTemplate(name) || this.rawTemplates[name];
-                if (
-                    typeof rawTemplate === "function" &&
-                    !(rawTemplate instanceof Element)
-                ) {
-                    return rawTemplate;
-                }
-                if (!compiledTemplates.has(rawTemplate)) {
-                    compiledTemplates.set(
-                        rawTemplate,
-                        this._compileTemplate(name, rawTemplate),
-                    );
-                }
-                return compiledTemplates.get(rawTemplate);
-            };
-
-            // Patch "clearProcessedTemplates" to clear local template cache
-            exports.clearProcessedTemplates = function mockedClearProcessedTemplates() {
-                compiledTemplates.clear();
-                return clearProcessedTemplates(...arguments);
-            };
-
-            // Replace alt & src attributes by default on all templates
-            exports.registerTemplateProcessor(replaceAttributes);
-
-            return exports;
-        };
-
-        return loader.startModule(name);
-    };
+export function setupMockTemplates(loader) {
+    const templatesModule = loader.modules.get("@web/core/templates");
+    if (!templatesModule?.registerTemplateProcessor) {
+        return;
+    }
+    if (templatesModule._mockTemplatesRegistered) {
+        return;
+    }
+    templatesModule.registerTemplateProcessor(replaceAttributes);
+    if (typeof templatesModule.clearProcessedTemplates === "function") {
+        templatesModule.clearProcessedTemplates();
+    }
+    templatesModule._mockTemplatesRegistered = true;
 }

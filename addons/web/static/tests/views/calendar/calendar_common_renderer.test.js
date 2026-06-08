@@ -1,7 +1,7 @@
 // @ts-check
 
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { queryAllTexts, queryFirst, queryRect } from "@odoo/hoot-dom";
+import { animationFrame, queryAllTexts, queryFirst, queryRect } from "@odoo/hoot-dom";
 import { runAllTimers } from "@odoo/hoot-mock";
 import {
     mockService,
@@ -38,7 +38,17 @@ async function start(props = {}, target) {
 
 preloadBundle("web.fullcalendar_lib");
 beforeEach(() => {
-    luxon.Settings.defaultZone = "UTC+1";
+    // Upstream uses ``"UTC+1"``, but Luxon turns that into a
+    // ``FixedOffsetZone`` whose name (``"UTC+1"``) is rejected by
+    // ``new Intl.DateTimeFormat({ timeZone })`` — FullCalendar reads
+    // ``zone.name`` and fails to mount. ``"Africa/Algiers"`` is the
+    // canonical IANA zone that stays UTC+1 year-round (no DST since
+    // 1981): it satisfies both FullCalendar's IANA-name requirement and
+    // the millisecond assertions in this file, which assume
+    // ``DEFAULT_DATE`` resolves to start-of-day at UTC+1 regardless of
+    // month. ``Europe/Brussels`` would switch to UTC+2 (CEST) in July
+    // and break ``record.start.valueOf()`` comparisons by one hour.
+    luxon.Settings.defaultZone = "Africa/Algiers";
 });
 
 test(`mount a CalendarCommonRenderer`, async () => {
@@ -63,8 +73,13 @@ test(`Month: mount a CalendarCommonRenderer`, async () => {
 
 test(`Day: check week number`, async () => {
     await start({ model: { ...FAKE_MODEL, scale: "day" } });
-    expect(`[aria-label^="Week "]`).toHaveCount(1);
-    expect(`[aria-label^="Week "]`).toHaveText(/(Week )?28/);
+    // v7's timegrid week label is split between the outer cell
+    // (carrying our injected ``fc-week-number`` class via
+    // ``weekNumberHeaderClass``) and an inner generic ``<div>`` — both
+    // inherit the ``aria-label="Week N"`` attribute.  The visible /
+    // tested element is the outer ``.fc-week-number``.
+    expect(`.fc-week-number`).toHaveCount(1);
+    expect(`.fc-week-number`).toHaveText(/(Week )?28/);
 });
 
 test(`Day: check date`, async () => {
@@ -129,10 +144,11 @@ test(`Day: click on event`, async () => {
 
 test(`Week: check week number`, async () => {
     await start({ model: { ...FAKE_MODEL, scale: "week" } });
-    expect(`.fc-scrollgrid-section-header .fc-timegrid-axis-cushion`).toHaveCount(1);
-    expect(`.fc-scrollgrid-section-header .fc-timegrid-axis-cushion`).toHaveText(
-        /(Week )?28/,
-    );
+    // v7 dropped the v6 ``fc-scrollgrid-section-header`` /
+    // ``fc-timegrid-axis-cushion`` containers; the week-label cell is
+    // emitted with the ``fc-week-number`` class directly.
+    expect(`.fc-week-number`).toHaveCount(1);
+    expect(`.fc-week-number`).toHaveText(/(Week )?28/);
 });
 
 test(`Week: check dates`, async () => {
@@ -161,23 +177,33 @@ test(`Week: check dates`, async () => {
 test(`Day: automatically scroll to 6am`, async () => {
     await mountWithCleanup(`<div class="scrollable" style="height: 500px;"/>`);
     await start({ model: { ...FAKE_MODEL, scale: "day" } }, queryFirst(`.scrollable`));
-
-    const containerDimensions = queryRect(`.fc-scrollgrid-section-liquid .fc-scroller`);
-    const dayStartDimensions = queryRect(
-        `.fc-timegrid-slot[data-time="06:00:00"]:eq(0)`,
-    );
-    expect(Math.abs(dayStartDimensions.y - containerDimensions.y)).toBeLessThan(2);
+    // FC v7's ``applyTimeScroll`` defers via ``afterSize`` →
+    // ``requestAnimationFrame``. Flush one RAF so the auto-scroll
+    // lands before we assert position.
+    await animationFrame();
+    // v7 hashes class names, but ``viewDidMount`` in
+    // ``calendar_common_renderer.js`` re-injects ``fc-scroller`` /
+    // ``fc-scroller-liquid-y`` on the vertical time-grid scroller.
+    // After auto-scroll, the 6am slot lane sits at the top of THAT
+    // scroller — not at the top of the outer ``.fc-timeGridDay-view``,
+    // which in v7 wraps the scroller plus a column header row above
+    // it (and an optional all-day strip).
+    const scrollerY = queryRect(`.fc-scroller-liquid-y`).y;
+    const slotY = queryRect(`[data-time="06:00:00"]:eq(0)`).y;
+    expect(Math.abs(slotY - scrollerY)).toBeLessThan(2);
 });
 
 test(`Week: automatically scroll to 6am`, async () => {
     await mountWithCleanup(`<div class="scrollable" style="height: 500px;"/>`);
     await start({ model: { ...FAKE_MODEL, scale: "week" } }, queryFirst(`.scrollable`));
-
-    const containerDimensions = queryRect(`.fc-scrollgrid-section-liquid .fc-scroller`);
-    const dayStartDimensions = queryRect(
-        `.fc-timegrid-slot[data-time="06:00:00"]:eq(0)`,
-    );
-    expect(Math.abs(dayStartDimensions.y - containerDimensions.y)).toBeLessThan(2);
+    await runAllTimers();
+    await animationFrame();
+    // See Day-version comment: ``.fc-scroller-liquid-y`` is the
+    // vertical time-grid scroller, tagged by ``viewDidMount`` so
+    // tests can target it stably across FC v7 hash changes.
+    const scrollerY = queryRect(`.fc-scroller-liquid-y`).y;
+    const slotY = queryRect(`[data-time="06:00:00"]:eq(0)`).y;
+    expect(Math.abs(slotY - scrollerY)).toBeLessThan(2);
 });
 
 test("Month: remove row when no day of current month", async () => {

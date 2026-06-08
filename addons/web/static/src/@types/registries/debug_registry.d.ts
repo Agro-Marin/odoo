@@ -1,5 +1,5 @@
 declare module "registries" {
-    import { Component } from "@odoo/owl";
+    import { Component, ComponentConstructor } from "@odoo/owl";
     import { OdooEnv } from "@web/env";
 
     interface AccessRights {
@@ -16,7 +16,7 @@ declare module "registries" {
 
     interface DebugComponent {
         type: "component";
-        Component: typeof Component;
+        Component: ComponentConstructor;
         props: object;
         sequence: number;
         section?: string;

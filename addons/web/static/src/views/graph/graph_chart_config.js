@@ -222,12 +222,26 @@ export function styleLineChartData(data, metaData) {
         dataset.hoverBackgroundColor = dataset.borderColor;
         dataset.pointRadius = 3;
         dataset.pointHoverRadius = 6;
-        if (cumulated) {
+        if (cumulated && !dataset._fcCumulated) {
+            // Idempotent: this function mutates ``dataset.data`` in place,
+            // and the renderer invokes ``getLineChartData`` once per render
+            // — but lazy mount produces two renders during initial load
+            // (mount with empty root, then with real root + isReady), so
+            // a second pass would treat the previously-cumulated values
+            // as fresh per-period deltas and accumulate them again on top
+            // of ``cumulatedStart``.  Symptom: ``[4, 4, 4]`` with
+            // ``cumulatedStart = 2`` cumulates to ``[6, 10, 14]`` on the
+            // second pass (test ``Cumulative prop and cumulated start``).
+            // The ``_fcCumulated`` sentinel marks "this dataset has
+            // already been cumulated" and short-circuits.  When the model
+            // re-loads, it produces a fresh ``data.datasets`` array with
+            // no sentinel, so re-cumulation correctly runs on new data.
             let accumulator = dataset.cumulatedStart;
             dataset.data = dataset.data.map((value) => {
                 accumulator += value;
                 return accumulator;
             });
+            dataset._fcCumulated = true;
         }
         if (data.labels.length === 1) {
             // shift of the real value to right. This is done to
@@ -251,6 +265,25 @@ export function styleLineChartData(data, metaData) {
  * @returns {Object}
  */
 export function stylePieChartData(data) {
+    // Idempotent: this function mutates ``data`` in place (the calling
+    // renderer hands us ``this.model.data`` directly), and ``getPieChartData``
+    // is invoked once per render.  When the component re-renders (which
+    // happens at least twice during normal mount in v7 — see the broader
+    // double-render pattern affecting list/kanban render-count tests), a
+    // second pass on already-styled data would see the no-data placeholder
+    // dataset we pushed last time and treat it as real data — overwriting
+    // ``backgroundColor`` with palette colors and turning the "No data"
+    // gray slice into a coloured one.  Detect that prior pass by looking
+    // for the ``NO_DATA`` label at the end of ``data.labels`` (the marker
+    // we added on the first call) and return early — the existing dataset
+    // already carries the correct ``[NO_DATA_COLOR]`` styling.
+    const hasNoDataPlaceholder =
+        data.labels.length > 0 &&
+        data.labels[data.labels.length - 1] === NO_DATA &&
+        data.datasets.length === 1;
+    if (hasNoDataPlaceholder) {
+        return data;
+    }
     // style/complete data
     // give same color to same groups from different origins
     const colors = data.labels.map((_, index) =>
@@ -401,7 +434,7 @@ export function buildScaleOptions(data, metaData) {
             text: measures[measure].string,
             color:
                 cookie.get("color_scheme") === "dark"
-                    ? getColor(15, cookie.get("color_scheme"))
+                    ? getColor(15, cookie.get("color_scheme"), "xl")
                     : null,
         },
         ticks: {

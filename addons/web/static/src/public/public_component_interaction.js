@@ -6,6 +6,13 @@
 import { registry } from "@web/core/registry";
 
 import { Interaction } from "./interaction.js";
+
+// `public_components` holds OWL Component classes mountable inside frontend
+// `<owl-component name="…">` elements; lookup happens in `get Component()` below.
+registry
+    .category("public_components")
+    .addValidation((entry) => typeof entry === "function");
+
 export class PublicComponentInteraction extends Interaction {
     static selector = "owl-component[name]";
 
@@ -17,7 +24,7 @@ export class PublicComponentInteraction extends Interaction {
         this.el.replaceChildren();
         this.mountComponent(
             this.el,
-            /** @type {typeof import("@odoo/owl").Component} */ (this.Component),
+            /** @type {import("@odoo/owl").ComponentConstructor} */ (this.Component),
             props,
         );
     }

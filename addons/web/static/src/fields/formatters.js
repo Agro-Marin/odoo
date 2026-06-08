@@ -11,7 +11,7 @@ import {
     toLocaleDateTimeString,
 } from "@web/core/l10n/dates";
 import { localization as l10n } from "@web/core/l10n/localization";
-import { _t } from "@web/core/l10n/translation";
+import { _pl, _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { isBinarySize } from "@web/core/utils/format/binary";
 import {
@@ -301,17 +301,14 @@ export function formatMany2one(value, options) {
  * @returns {string}
  */
 export function formatX2many(value) {
-    if (!value) {
-        return _t("No records");
-    }
-    const count = value.currentIds.length;
+    const count = value?.currentIds?.length ?? 0;
     if (count === 0) {
         return _t("No records");
-    } else if (count === 1) {
-        return _t("1 record");
-    } else {
-        return _t("%s records", count);
     }
+    return _pl(count, {
+        one: _t("1 record"),
+        other: _t("%s records", count),
+    });
 }
 
 /**
@@ -476,3 +473,11 @@ registry
     .add("reference", formatReference)
     .add("selection", formatSelection)
     .add("text", formatText);
+
+// Every formatter must be a callable. The optional ``.extractOptions``
+// static is duck-typed by callers (form/list arch parsers) and not
+// enforced here. Predicate runs against the existing entries above and
+// against any third-party additions; in debug mode a bad registration
+// throws, in production it is downgraded to a ``console.warn`` so a
+// single mis-shaped entry does not crash the page.
+registry.category("formatters").addValidation((v) => typeof v === "function");

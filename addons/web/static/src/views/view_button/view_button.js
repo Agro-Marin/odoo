@@ -64,25 +64,29 @@ function iconFromString(iconString) {
 /** Renders a button from a view arch (`<button>` or `<a>` tag) with debouncing, tooltips, and Bootstrap class resolution. */
 export class ViewButton extends Component {
     static template = "web.views.ViewButton";
-    static props = [
-        "id?",
-        "tag?",
-        "record?",
-        "attrs?",
-        "className?",
-        "context?",
-        "clickParams?",
-        "icon?",
-        "defaultRank?",
-        "disabled?",
-        "size?",
-        "tabindex?",
-        "title?",
-        "style?",
-        "string?",
-        "slots?",
-        "onClick?",
-    ];
+    // Typed prop shape (types verified against real call sites in list/kanban
+    // renderers, x2many controls, and payrun cards). Notably icon may be the
+    // literal `false` from processButton, and tabindex/id arrive as strings
+    // from the arch — hence the unions.
+    static props = {
+        id: { type: [String, Number], optional: true },
+        tag: { type: String, optional: true },
+        record: { type: Object, optional: true },
+        attrs: { type: Object, optional: true },
+        className: { type: String, optional: true },
+        context: { type: [Object, String], optional: true },
+        clickParams: { type: Object, optional: true },
+        icon: { type: [String, Boolean], optional: true },
+        defaultRank: { type: String, optional: true },
+        disabled: { type: Boolean, optional: true },
+        size: { type: String, optional: true },
+        tabindex: { type: [String, Number], optional: true },
+        title: { type: String, optional: true },
+        style: { type: String, optional: true },
+        string: { type: String, optional: true },
+        slots: { type: Object, optional: true },
+        onClick: { type: Function, optional: true },
+    };
     static defaultProps = {
         tag: "button",
         className: "",
@@ -98,7 +102,31 @@ export class ViewButton extends Component {
         if (debounce) {
             this.onClick = debounceFn(this.onClick.bind(this), debounce, true);
         }
-        this.tooltip = JSON.stringify({
+        this.dropdownControl = useDropdownCloser();
+    }
+
+    get clickParams() {
+        return { context: this.props.context, ...this.props.clickParams };
+    }
+
+    get hasBigTooltip() {
+        return Boolean(odoo.debug) || this.clickParams.help;
+    }
+
+    get hasSmallToolTip() {
+        return !this.hasBigTooltip && this.props.title;
+    }
+
+    /**
+     * Serialized tooltip descriptor, read by the template only when
+     * {@link hasBigTooltip} is true.
+     * @returns {string}
+     */
+    get tooltip() {
+        // Lazy: the common case (production, no help text) never reads this,
+        // so it must not pay the JSON.stringify cost up front — ViewButton is
+        // instantiated once per button cell per list row.
+        return JSON.stringify({
             debug: Boolean(odoo.debug),
             button: {
                 string: this.props.string,
@@ -116,19 +144,6 @@ export class ViewButton extends Component {
             context: this.props.record && this.props.record.context,
             model: this.props.record && this.props.record.resModel,
         });
-        this.dropdownControl = useDropdownCloser();
-    }
-
-    get clickParams() {
-        return { context: this.props.context, ...this.props.clickParams };
-    }
-
-    get hasBigTooltip() {
-        return Boolean(odoo.debug) || this.clickParams.help;
-    }
-
-    get hasSmallToolTip() {
-        return !this.hasBigTooltip && this.props.title;
     }
 
     get disabled() {

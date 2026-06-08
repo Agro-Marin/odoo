@@ -5,7 +5,8 @@
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     extractM2OFieldProps,
@@ -115,7 +116,7 @@ export class ReferenceField extends Component {
             return modelName;
         }
 
-        const value = this.getValue();
+        const value = /** @type {any} */ (this.getValue());
         if (value?.resModel) {
             return value.resModel;
         } else {
@@ -257,7 +258,7 @@ export const referenceField = {
         },
     ],
     supportedTypes: ["reference", "char"],
-    extractProps({ options }) {
+    extractProps(staticInfo, dynamicInfo) {
         /*
         1 - <field name="ref" options="{'model_field': 'model_id'}" />
         2 - <field name="ref" options="{'hide_model': True}" />
@@ -266,11 +267,12 @@ export const referenceField = {
 
         We want to display the model selector only in the 4th case.
         */
-        const props = extractM2OFieldProps(...arguments);
+        const { options } = staticInfo;
+        const props = extractM2OFieldProps(staticInfo, dynamicInfo);
         props.hideModel = !!options.hide_model;
         props.modelField = options.model_field;
         return props;
     },
 };
 
-registry.category("fields").add("reference", referenceField);
+registerField("reference", referenceField);

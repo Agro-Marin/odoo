@@ -5,6 +5,7 @@
 
 import { EventBus, reactive, useEffect, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { getTabableElements, isFocusable } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
@@ -172,8 +173,9 @@ const bus = new EventBus();
  * @returns {Function} unsubscribe
  */
 export function listenSizeChange(callback) {
-    bus.addEventListener("resize", callback);
-    return () => bus.removeEventListener("resize", callback);
+    bus.addEventListener(AppEvent.RESIZE, /** @type {EventListener} */ (callback));
+    return () =>
+        bus.removeEventListener(AppEvent.RESIZE, /** @type {EventListener} */ (callback));
 }
 
 /**
@@ -196,7 +198,7 @@ export const uiService = {
             // TODO could probably be improved to handle multiple block demands
             // but that have different messages and delays
             if (blockCount === 1) {
-                bus.trigger("BLOCK", {
+                bus.trigger(AppEvent.BLOCK, {
                     message: data?.message,
                     delay: data?.delay,
                 });
@@ -211,7 +213,7 @@ export const uiService = {
                 blockCount = 0;
             }
             if (blockCount === 0) {
-                bus.trigger("UNBLOCK");
+                bus.trigger(AppEvent.UNBLOCK);
             }
         }
 
@@ -220,11 +222,11 @@ export const uiService = {
 
         function activateElement(el) {
             activeElems.push(el);
-            bus.trigger("active-element-changed", el);
+            bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, el);
         }
         function deactivateElement(el) {
             activeElems = activeElems.filter((x) => x !== el);
-            bus.trigger("active-element-changed", ui.activeElement);
+            bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, ui.activeElement);
         }
         function getActiveElementOf(el) {
             for (const activeElement of activeElems.toReversed()) {
@@ -257,7 +259,7 @@ export const uiService = {
             ui.size = utils.getSize();
             if (ui.size !== prevSize) {
                 ui.isSmall = utils.isSmall(ui);
-                bus.trigger("resize");
+                bus.trigger(AppEvent.RESIZE);
             }
         };
         browser.addEventListener("resize", throttleForAnimation(updateSize));

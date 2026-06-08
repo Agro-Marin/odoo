@@ -201,7 +201,7 @@ export class DynamicList extends DataPoint {
                 }
             } else {
                 let isValid = true;
-                if (!this.model._urgentSave) {
+                if (!this.model.urgentSave.isActive) {
                     isValid = await editedRecord.checkValidity();
                     editedRecord = this.editedRecord;
                     if (!editedRecord) {
@@ -276,7 +276,7 @@ export class DynamicList extends DataPoint {
     toggleArchiveWithConfirmation(archive, dialogProps = {}) {
         const isSelected = this.isDomainSelected || this.selection.length;
         if (archive) {
-            this.model.hooks.onConfirmArchive(
+            this.model.hooks.ui.onConfirmArchive(
                 isSelected,
                 () => this.archive(isSelected),
                 () => this.unarchive(isSelected),
@@ -310,14 +310,14 @@ export class DynamicList extends DataPoint {
             );
 
             if (resIds.length > copiedRecords.length) {
-                this.model.hooks.onDisplayLimitNotification(
+                this.model.hooks.ui.onDisplayLimitNotification(
                     _t("Some records could not be duplicated"),
                 );
             }
             return this.model.load();
         };
 
-        await this.model.hooks.onConfirmDuplicate(resIds, copy);
+        await this.model.hooks.ui.onConfirmDuplicate(resIds, copy);
     }
 
     async _deleteRecords(records) {
@@ -342,7 +342,7 @@ export class DynamicList extends DataPoint {
                 "Only the first %(count)s records have been deleted (out of %(total)s selected)",
                 { count: resIds.length, total: this.count },
             );
-            this.model.hooks.onDisplayLimitNotification(msg);
+            this.model.hooks.ui.onDisplayLimitNotification(msg);
         }
         await this.model.load();
         return unlinked;
@@ -359,7 +359,7 @@ export class DynamicList extends DataPoint {
         if (!Object.keys(changes).length || editedRecord === this._recordToDiscard) {
             return;
         }
-        let canProceed = await this.model.hooks.onWillSaveMulti(editedRecord, changes);
+        let canProceed = await this.model.hooks.lifecycle.onWillSaveMulti(editedRecord, changes);
         if (canProceed === false) {
             return false;
         }
@@ -471,7 +471,7 @@ export class DynamicList extends DataPoint {
         discardInvalidRecords();
 
         // ask confirmation
-        canProceed = await this.model.hooks.onAskMultiSaveConfirmation(
+        canProceed = await this.model.hooks.lifecycle.onAskMultiSaveConfirmation(
             _changes,
             validRecords,
         );
@@ -507,7 +507,7 @@ export class DynamicList extends DataPoint {
             { mode: "readonly" },
             { reload: false },
         );
-        this.model.hooks.onSavedMulti(validRecords);
+        this.model.hooks.lifecycle.onSavedMulti(validRecords);
         return true;
     }
 
@@ -565,10 +565,10 @@ export class DynamicList extends DataPoint {
                     firstRecords: resIds.length,
                 },
             );
-            this.model.hooks.onDisplayLimitNotification(msg);
+            this.model.hooks.ui.onDisplayLimitNotification(msg);
         }
         const reload = () => this.model.load();
-        return this.model.hooks.onDisplayArchiveAction(action, reload);
+        return this.model.hooks.ui.onDisplayArchiveAction(action, reload);
     }
 
     async _toggleSelection() {

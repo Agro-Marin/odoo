@@ -4,7 +4,8 @@
 /** @module @web/fields/relational/x2many/list_x2many_field - Read-only list-view summary field for One2many and Many2many columns */
 
 import { Component } from "@odoo/owl";
-import { registry } from "@web/core/registry";
+
+import { registerField } from "@web/fields/_registry";
 import { formatX2many } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -23,5 +24,5 @@ export const listX2ManyField = {
     useSubView: false,
 };
 
-registry.category("fields").add("list.one2many", listX2ManyField);
-registry.category("fields").add("list.many2many", listX2ManyField);
+registerField({ name: "one2many", view: "list" }, listX2ManyField);
+registerField({ name: "many2many", view: "list" }, listX2ManyField);

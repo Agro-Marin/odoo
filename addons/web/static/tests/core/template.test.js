@@ -7,6 +7,8 @@ import {
     registerTemplate,
     registerTemplateExtension,
     setUrlFilters,
+    templates,
+    TemplateRegistry,
 } from "@web/core/templates";
 
 function makeTemplate({ name, content, inheritFrom }) {
@@ -487,4 +489,101 @@ test("translation-context: wrappers around texts do not affect xpaths (1)", asyn
             Hello (addon_A) World (addon_B)  Jamie (addon_C)
         </div>
     `);
+});
+
+// ---------------------------------------------------------------------------
+// TemplateRegistry class — scoped-instance contract
+// ---------------------------------------------------------------------------
+//
+// The module-level functions delegate to a singleton anchored on
+// ``globalThis.__odooTemplates__`` (see the rationale in templates.js).
+// Tests below verify the *class* contract directly: instantiating a
+// fresh ``TemplateRegistry`` gives a fully isolated template scope.
+// This unlocks future use cases like embedded apps that want to ship
+// with their own template registry rather than mutating the page's
+// shared one.
+
+test("TemplateRegistry: fresh instance has independent state from singleton", () => {
+    const scoped = new TemplateRegistry();
+    scoped.registerTemplate(
+        "tr-iso-1",
+        "/scoped_addon",
+        `<t t-name="tr-iso-1"><div>scoped</div></t>`,
+    );
+    expect("tr-iso-1" in scoped.templates).toBe(true);
+    expect("tr-iso-1" in templates.templates).toBe(false);
+});
+
+test("TemplateRegistry: module-level wrappers see the canonical singleton", () => {
+    // The exported ``templates`` object IS the one the wrappers delegate
+    // to. This is a load-bearing contract — ``boot/start.js`` passes
+    // ``getTemplate`` as a detached function reference to OWL's App
+    // constructor, so the wrapper must close over ``templates`` rather
+    // than rely on a ``this`` binding.
+    const unreg = registerTemplate(
+        "tr-canon-1",
+        "/canon_addon",
+        `<t t-name="tr-canon-1"/>`,
+    );
+    after(unreg);
+    expect("tr-canon-1" in templates.templates).toBe(true);
+});
+
+test("TemplateRegistry: unregister callback removes scoped entry", () => {
+    const scoped = new TemplateRegistry();
+    const unreg = scoped.registerTemplate(
+        "tr-unreg-1",
+        "/scoped_addon",
+        `<t t-name="tr-unreg-1"/>`,
+    );
+    expect("tr-unreg-1" in scoped.templates).toBe(true);
+    expect(typeof unreg).toBe("function");
+    unreg();
+    expect("tr-unreg-1" in scoped.templates).toBe(false);
+});
+
+test("TemplateRegistry: re-registering a key with different content throws", () => {
+    const scoped = new TemplateRegistry();
+    scoped.registerTemplate(
+        "tr-conflict",
+        "/addon_a",
+        `<t t-name="tr-conflict"><div/></t>`,
+    );
+    expect(() =>
+        scoped.registerTemplate(
+            "tr-conflict",
+            "/addon_b",
+            `<t t-name="tr-conflict"><span/></t>`,
+        ),
+    ).toThrow(/already exists/);
+});
+
+test("TemplateRegistry: re-registering the same key+content is idempotent", () => {
+    const scoped = new TemplateRegistry();
+    scoped.registerTemplate("tr-idem", "/addon_a", `<t t-name="tr-idem"/>`);
+    const sizeBefore = scoped.registered.size;
+    scoped.registerTemplate("tr-idem", "/addon_a", `<t t-name="tr-idem"/>`);
+    expect(scoped.registered.size).toBe(sizeBefore);
+});
+
+test("TemplateRegistry: setUrlFilters returns a restore callback", () => {
+    const scoped = new TemplateRegistry();
+    const before = scoped.urlFilters;
+    const restore = scoped.setUrlFilters([() => true]);
+    expect(scoped.urlFilters).not.toBe(before);
+    expect(scoped.urlFilters.length).toBe(1);
+    expect(typeof restore).toBe("function");
+    restore();
+    expect(scoped.urlFilters).toBe(before);
+});
+
+test("TemplateRegistry: blockId cursor advances when register type alternates", () => {
+    const scoped = new TemplateRegistry();
+    scoped.registerTemplate("tr-cur-1", "/a", `<t t-name="tr-cur-1"/>`);
+    const after1 = scoped.blockId;
+    scoped.registerTemplateExtension("tr-cur-1", "/b", `<t/>`);
+    const after2 = scoped.blockId;
+    expect(after2).toBeGreaterThan(after1);
+    scoped.registerTemplate("tr-cur-2", "/c", `<t t-name="tr-cur-2"/>`);
+    expect(scoped.blockId).toBeGreaterThan(after2);
 });

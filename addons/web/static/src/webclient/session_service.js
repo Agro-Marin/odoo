@@ -4,13 +4,14 @@
 /** @module @web/webclient/session_service - Service that lazy-loads additional session info after the web client is ready */
 
 /** Service that lazy-loads session info after the web client is ready. */
+import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { deepCopy } from "@web/core/utils/collections/objects";
 export const lazySession = {
     dependencies: ["orm"],
     /**
-     * @param {import("@odoo/owl").OdooEnv} env
-     * @param {{ orm: import("@web/core").ORM }} services
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ orm: import("@web/services/orm_service").ORM }} services
      * @returns {{ getValue: (key: string, callback: (value: any) => void) => void }}
      */
     start(env, { orm }) {
@@ -24,7 +25,7 @@ export const lazySession = {
             return orm.call("ir.http", "lazy_session_info");
         };
         const webClientReadyPromise = new Promise((r) => (resolveWebClientReady = r));
-        env.bus.addEventListener("WEB_CLIENT_READY", resolveWebClientReady, {
+        env.bus.addEventListener(AppEvent.WEB_CLIENT_READY, resolveWebClientReady, {
             once: true,
         });
         return {

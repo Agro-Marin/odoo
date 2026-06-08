@@ -563,7 +563,7 @@ test("multi_create: input validation (datetime field)", async () => {
 
 test.tags("desktop");
 test("multi_create: use state to keep values of inputs", async () => {
-    onRpc("event.type", "get_formview_action", ({ args, model }) => ({
+    onRpc("event.type", "get_record_default_action", ({ args, model }) => ({
         type: "ir.actions.act_window",
         res_model: model,
         target: "current",
@@ -812,19 +812,28 @@ test("multi_create: avoid trigger add/del event on specific element", async () =
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
 
-    await click(".fc-more-cell a");
+    // v7 dropped ``.fc-more-cell`` (the wrapper) and emits the link
+    // directly with ``.fc-more-link`` (re-injected via our
+    // ``columnMoreLinkClass``).  The popover that shows on click is
+    // tagged ``.fc-popover`` in v7; ``.fc-more-popover`` was v6 only.
+    await click(".fc-more-link");
     await animationFrame();
-    expect(".fc-more-popover").toHaveCount(1);
+    expect(".fc-popover").toHaveCount(1);
     expect(".o_multi_selection_buttons").toHaveCount(0);
 
-    await click(".fc-popover-title");
+    // v7 dropped ``.fc-popover-title`` (no class hook on the title
+    // element).  The title is now a ``<div>`` whose ``id`` ends in
+    // ``-title`` (FC v7 builds it as ``popoverId + '-title'`` for
+    // ``aria-labelledby``); see fullcalendar.global.js:9573-9579.
+    // Match by id-suffix to stay v7-correct.
+    await click(`.fc-popover [id$="-title"]`);
     await animationFrame();
-    expect(".fc-more-popover").toHaveCount(1);
+    expect(".fc-popover").toHaveCount(1);
     expect(".o_multi_selection_buttons").toHaveCount(0);
 
     await click(".fc-popover-close");
     await animationFrame();
-    expect(".fc-more-popover").toHaveCount(0);
+    expect(".fc-popover").toHaveCount(0);
     expect(".o_multi_selection_buttons").toHaveCount(0);
 });
 

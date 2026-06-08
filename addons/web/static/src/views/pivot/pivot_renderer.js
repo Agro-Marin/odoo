@@ -14,6 +14,7 @@ import { download } from "@web/core/network/download";
 import { registry } from "@web/core/registry";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { useService } from "@web/core/utils/hooks";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
 import { getIntervalOptions } from "@web/search/utils/dates";
@@ -54,6 +55,7 @@ export class PivotRenderer extends Component {
     static props = ["model", "buttonTemplate"];
 
     setup() {
+        useRenderCounter("pivot.PivotRenderer");
         this.actionService = useService("action");
         this.model = this.props.model;
         this.table = this.model.getTable();
@@ -116,7 +118,7 @@ export class PivotRenderer extends Component {
         }
         if (formatType === "monetary") {
             if (cell.currencyIds.length > 1) {
-                formatOptions.currencyId = user.activeCompany.currency_id;
+                formatOptions.currencyId = user.activeCompany?.currency_id;
                 return /** @type {any} */ ({
                     rawValue: cell.value,
                     value: formatter(cell.value, formatOptions),

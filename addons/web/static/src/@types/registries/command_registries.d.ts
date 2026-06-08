@@ -11,9 +11,9 @@ declare module "registries" {
 
     export interface CommandSetupRegistryItemShape {
         debounceDelay?: number,
-        emptyMessage: string,
-        name: string;
-        placeholder: string,
+        emptyMessage?: string,
+        name?: string,
+        placeholder?: string,
     }
 
     interface GlobalRegistryCategories {

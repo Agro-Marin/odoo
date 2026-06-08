@@ -13,13 +13,13 @@ import { session } from "@web/session";
  */
 /**
  * Swallow all errors for non-internal users (except in debug/test mode).
- * @param {import("@odoo/owl").OdooEnv} env
+ * @param {import("@web/env").OdooEnv} env
  * @param {Error} error - The wrapped error
  * @param {Error} originalError - The original unwrapped error
  * @returns {true | undefined} `true` to swallow the error, `undefined` to pass through
  */
 export function swallowAllVisitorErrors(env, error, originalError) {
-    if (!user.isInternalUser && !odoo.debug && !session.test_mode) {
+    if (!user.isInternalUser && !env.debug && !session.test_mode) {
         return true;
     }
 }

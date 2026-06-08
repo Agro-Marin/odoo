@@ -10,6 +10,7 @@ import {
     omit,
     pick,
     shallowEqual,
+    toRawDeep,
 } from "@web/core/utils/collections/objects";
 
 describe.current.tags("headless");
@@ -107,9 +108,10 @@ test("deepCopy", () => {
     expect(mapCopy).not.toBe(map);
     expect(mapCopy.get("a")).toBe(1);
 
-    // OWL reactive proxies: structuredClone cannot clone Proxy objects (they
-    // lack internal slots), so deepCopy falls back to JSON round-trip which
-    // reads through the proxy's get trap transparently.
+    // OWL reactive proxies: structuredClone cannot clone Proxy objects
+    // (they lack internal slots), so deepCopy pre-unwraps via toRawDeep,
+    // then re-attempts structuredClone — preserving Date/Map/Set through
+    // the reactive wrapper instead of dropping them via JSON fallback.
     const reactiveObj = reactive({
         ids: [1, 2, 3],
         name: "test",
@@ -126,6 +128,92 @@ test("deepCopy", () => {
     const contextCopy = deepCopy(context);
     expect(contextCopy).toEqual({ default_tag_ids: [4, 5, 6], default_name: "subtask" });
     expect(contextCopy.default_tag_ids).not.toBe(context.default_tag_ids);
+});
+
+test("deepCopy preserves structured types through reactive wrapper", () => {
+    // The pre-toRawDeep behavior would fall through to JSON.parse(JSON.stringify(...))
+    // on reactive input, silently mangling Date/Map/Set. These assertions verify
+    // the structured types survive after the unwrap-then-clone path.
+    const date = new Date("2026-05-12T00:00:00Z");
+    const set = new Set(["urgent", "billable"]);
+    const map = new Map([["k", 1]]);
+    const r = reactive({ created: date, tags: set, meta: map });
+
+    const copy = deepCopy(r);
+
+    expect(Object.prototype.toString.call(copy.created)).toBe("[object Date]");
+    expect(copy.created.getTime()).toBe(date.getTime());
+    expect(copy.created).not.toBe(date);
+
+    expect(copy.tags).toBeInstanceOf(Set);
+    expect([...copy.tags].sort()).toEqual(["billable", "urgent"]);
+
+    expect(copy.meta).toBeInstanceOf(Map);
+    expect(copy.meta.get("k")).toBe(1);
+});
+
+describe("toRawDeep", () => {
+    test("returns primitives unchanged", () => {
+        expect(toRawDeep(null)).toBe(null);
+        expect(toRawDeep(undefined)).toBe(undefined);
+        expect(toRawDeep(42)).toBe(42);
+        expect(toRawDeep("hello")).toBe("hello");
+        expect(toRawDeep(true)).toBe(true);
+    });
+
+    test("unwraps reactive objects recursively", () => {
+        const target = { a: [{ b: 1 }, { b: 2 }] };
+        const r = reactive(target);
+        const raw = toRawDeep(r);
+        expect(raw).toEqual({ a: [{ b: 1 }, { b: 2 }] });
+        expect(raw).not.toBe(r);
+        expect(raw.a).not.toBe(r.a);
+        expect(raw.a[0]).not.toBe(r.a[0]);
+    });
+
+    test("preserves cycles", () => {
+        /** @type {any} */
+        const a = { name: "a" };
+        a.self = a;
+        const r = reactive(a);
+        const raw = toRawDeep(r);
+        expect(raw.name).toBe("a");
+        expect(raw.self).toBe(raw);
+    });
+
+    test("rebuilds Map and Set", () => {
+        const m = new Map([["k", 1]]);
+        const s = new Set([1, 2]);
+        const r = reactive({ m, s });
+        const raw = toRawDeep(r);
+        expect(raw.m).toBeInstanceOf(Map);
+        expect(raw.m).not.toBe(m);
+        expect(raw.m.get("k")).toBe(1);
+        expect(raw.s).toBeInstanceOf(Set);
+        expect(raw.s).not.toBe(s);
+        expect([...raw.s]).toEqual([1, 2]);
+    });
+
+    test("passes Date, RegExp by reference", () => {
+        // toRawDeep intentionally does not clone Date / RegExp — the trailing
+        // structuredClone in deepCopy handles their cloning. toRawDeep only
+        // needs to ensure the value at this slot is non-reactive.
+        const date = new Date();
+        const regex = /foo/g;
+        const r = reactive({ date, regex });
+        const raw = toRawDeep(r);
+        expect(raw.date).toBe(date);
+        expect(raw.regex).toBe(regex);
+    });
+
+    test("supports null-prototype objects", () => {
+        const np = Object.create(null);
+        np.a = 1;
+        const r = reactive({ wrap: np });
+        const raw = toRawDeep(r);
+        expect(Object.getPrototypeOf(raw.wrap)).toBe(null);
+        expect(raw.wrap.a).toBe(1);
+    });
 });
 
 test("isObject", () => {

@@ -5,6 +5,7 @@
 
 import { EventBus, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { FileUploadEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 /**
@@ -84,7 +85,7 @@ export const fileUploadService = {
                 }
                 delete uploads[upload.id];
                 upload.state = "loaded";
-                bus.trigger("FILE_UPLOAD_LOADED", { upload });
+                bus.trigger(FileUploadEvent.LOADED, { upload });
             });
 
             /**
@@ -156,7 +157,7 @@ export const fileUploadService = {
                         sticky: true,
                     });
                 }
-                bus.trigger("FILE_UPLOAD_ERROR", { upload });
+                bus.trigger(FileUploadEvent.ERROR, { upload });
             }
             // Error listener
             xhr.addEventListener("error", (ev) =>
@@ -166,10 +167,10 @@ export const fileUploadService = {
             xhr.addEventListener("abort", async () => {
                 delete uploads[upload.id];
                 upload.state = "abort";
-                bus.trigger("FILE_UPLOAD_ERROR", { upload });
+                bus.trigger(FileUploadEvent.ERROR, { upload });
             });
             xhr.send(formData);
-            bus.trigger("FILE_UPLOAD_ADDED", { upload });
+            bus.trigger(FileUploadEvent.ADDED, { upload });
             return upload;
         };
 
