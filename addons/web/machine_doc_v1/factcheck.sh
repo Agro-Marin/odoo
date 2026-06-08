@@ -32,18 +32,18 @@ assert_range() {
 #            action_executors/{act_url,act_window,client,close,server}.js,
 #            action_state.js, action_button_executor.js, client_actions.js)
 #            and 1 new file in core/ alongside the executor extraction.
-assert_eq "JS file count" "$(find "$WEB/static/src" -name "*.js" -type f | wc -l)" "630"
+assert_eq "JS file count" "$(find "$WEB/static/src" -name "*.js" -type f | wc -l)" "649"
 
 # ------- Type coverage -------
 # 628 = 630 total - 2 intentional exclusions (module_loader + service_worker)
 assert_eq "@ts-check coverage" \
-    "$(grep -rl "@ts-check" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "628"
+    "$(grep -rl "@ts-check" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "647"
 assert_eq "Untyped JS files (intentional: module_loader + service_worker)" \
     "$(find "$WEB/static/src" -name "*.js" -type f -exec grep -L "@ts-check" {} + 2>/dev/null | wc -l)" "2"
 
 # ------- Test scope -------
 # 332 = 331 baseline + 1 paired test for the executor extraction.
-assert_eq "Hoot test files" "$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)" "332"
+assert_eq "Hoot test files" "$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)" "344"
 assert_eq "Legacy QUnit JS files" "$(find "$WEB/static/tests/legacy" -name "*.js" 2>/dev/null | wc -l)" "28"
 assert_eq "Files with QUnit. references" \
     "$(grep -rl "QUnit\." "$WEB/static/tests" --include="*.js" 2>/dev/null | wc -l)" "14"
@@ -86,7 +86,7 @@ reactive_web=$(grep -rEln "$REACTIVE_PATTERN" "$WEB/static/src" 2>/dev/null | wc
 assert_eq "Reactive class declarations in core/addons/web" "$reactive_web" "0"
 
 signalstore=$(count_prod_decls "$SIGNALSTORE_PATTERN")
-assert_eq "SignalStore class declarations (production code)" "$signalstore" "23"
+assert_eq "SignalStore class declarations (production code)" "$signalstore" "27"
 
 # Verify web_studio's parallel Reactive class is gone — replaced by SignalStore + toRaw().
 web_studio_reactive_class=$(grep -c "^export class Reactive {" \
@@ -115,7 +115,7 @@ assert_eq "PerformanceObserver/web-vitals (RUM Phase 1)" "$rum_telemetry" "1"
 # All five are part of the same urgent-save call graph; only #1 actually
 # invokes navigator.sendBeacon().  #2 is the unrelated RUM beacon.
 sendbeacon_files=$(grep -rln "sendBeacon" "$WEB/static/src" 2>/dev/null | wc -l)
-assert_eq "sendBeacon usages (record_save + web_vitals + coordinator chain)" "$sendbeacon_files" "5"
+assert_eq "sendBeacon usages (record_save + web_vitals + coordinator chain)" "$sendbeacon_files" "10"
 
 # Verify the observability controller is wired in.
 observability_controller=$([ -f "$WEB/controllers/observability.py" ] && echo 1 || echo 0)
@@ -280,8 +280,8 @@ fi
 # 1. Urgent-save optimistic locking — STATE_MANAGEMENT.md must reflect the fix.
 assert_eq "STATE_MANAGEMENT urgent-save: stale 'divergence' wording removed" \
     "$(grep -c 'Optimistic-locking divergence' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "0"
-assert_eq "STATE_MANAGEMENT urgent-save: 'parity (resolved 2026-05-08)' marker present" \
-    "$(grep -c 'Optimistic-locking parity (resolved 2026-05-08)' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
+assert_eq "STATE_MANAGEMENT urgent-save: optimistic-locking parity documented" \
+    "$(grep -c 'Optimistic-locking parity' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
 # Cite-fingerprint: the doc cites record_save.js:79-83; verify that line range
 # still actually contains the urgentKwargs.last_write_date assignment.
 assert_eq "record_save.js urgent path sets last_write_date (parity with normal path)" \
@@ -291,7 +291,7 @@ assert_eq "record_save.js urgent path sets last_write_date (parity with normal p
 assert_eq "CONVENTIONS gotcha #12: stale '5 \`true\` call sites' wording removed" \
     "$(grep -c '5 \`true\` call sites' "$WEB/machine_doc_v1/CONVENTIONS.md")" "0"
 assert_eq "CONVENTIONS gotcha #12: mentions FormSaveCoordinator" \
-    "$(grep -c 'FormSaveCoordinator' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
+    "$(grep -c 'FormSaveCoordinator' "$WEB/machine_doc_v1/CONVENTIONS.md")" "2"
 # Cite-fingerprint: the doc cites form_save_coordinator.js; verify the file
 # exists and exports a FormSaveCoordinator class extending SignalStore.
 assert_eq "form_save_coordinator.js exports FormSaveCoordinator class" \
@@ -310,17 +310,17 @@ assert_eq "ARCHITECTURE.md no stale '615' JS file count" \
     "$(grep -cE '615 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
 assert_eq "ARCHITECTURE.md no stale '621' JS file count" \
     "$(grep -cE '621 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
-assert_eq "ARCHITECTURE.md JS count cited at two prose sites" \
-    "$(grep -cE '630 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "2"
+assert_eq "ARCHITECTURE.md JS count cited in prose" \
+    "$(grep -cE '649 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 # (The third site is in a markdown table cell `| JavaScript (src) | 630 |` —
 # pattern above won't match because of the pipe layout, so check it separately.)
 assert_eq "ARCHITECTURE.md JS table cell" \
-    "$(grep -cE '\| JavaScript \(src\) \| 630 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+    "$(grep -cE '\| JavaScript \(src\) \| 649 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 
 # 4. Pattern 4 inventory — STATE_MANAGEMENT.md should enumerate verified sites
 #    rather than implying an open population.
-assert_eq "STATE_MANAGEMENT lists Pattern 4 verified-inventory table" \
-    "$(grep -c 'Verified inventory (2026-05-09, revised)' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
+assert_eq "STATE_MANAGEMENT lists Pattern 4 sites table" \
+    "$(grep -c 'Pattern 4 sites' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "1"
 
 # 5. Reactive BC alias dropped 2026-05-09.  After the drop:
 #    - reactive.js exports SignalStore only (no `export const Reactive`)
@@ -338,32 +338,25 @@ assert_eq "reactive.test.js does not import Reactive" \
 assert_eq "eslint.config.mjs no longer carries the Reactive-import rule" \
     "$(grep -c "imported.name='Reactive'" /home/marin/Odoo/addons/core/eslint.config.mjs)" "0"
 
-# 6. JS_FILE_INDEX.md per-section subtotals — lock the post-refactor numbers.
-#    The doc keeps a Claimed/Actual/Δ table that's hand-maintained; if the
-#    actual file count drifts from the doc's "Actual" column, this assertion
-#    fires.  Bumping the assertion forces the contributor to also bump the
-#    doc, keeping the two in lockstep.
-assert_eq "JS_FILE_INDEX top-line: 630 files" \
-    "$(grep -cE '\*\*630 files\*\*' "$WEB/machine_doc_v1/JS_FILE_INDEX.md")" "1"
-assert_eq "JS_FILE_INDEX no stale '621 files' top-line" \
-    "$(grep -cE '\*\*621 files\*\*' "$WEB/machine_doc_v1/JS_FILE_INDEX.md")" "0"
-assert_eq "JS_FILE_INDEX no stale '615 files' top-line" \
-    "$(grep -cE '\*\*615 files\*\*' "$WEB/machine_doc_v1/JS_FILE_INDEX.md")" "0"
+# 6. Per-section JS file counts — reality checks against the filesystem.
+#    (Top-line total is covered by "JS file count" above.  The former
+#    JS_FILE_INDEX.md per-file index was deleted 2026-06-02 — redundant with
+#    DIRECTORY_MAP.md's per-directory map.)
 # Per-section actual subtotals — three drifted (views, model, services) and
 # the others held.  Lock all eight so future drift trips on commit.
 for section_check in \
     "components/:74" \
-    "core/:102" \
-    "fields/:111" \
-    "views/:144" \
-    "webclient/:54" \
-    "model/:34" \
-    "services/:35" \
+    "core/:103" \
+    "fields/:112" \
+    "views/:149" \
+    "webclient/:55" \
+    "model/:43" \
+    "services/:37" \
     "ui/:20"; do
     section="${section_check%:*}"
     expected="${section_check##*:}"
     actual=$(find "$WEB/static/src/$section" -name "*.js" -type f 2>/dev/null | wc -l)
-    assert_eq "static/src/$section JS count matches JS_FILE_INDEX 'Actual'" \
+    assert_eq "static/src/$section JS count" \
         "$actual" "$expected"
 done
 
@@ -379,8 +372,8 @@ assert_eq "form_controller archiveEnabled has x_active fallback" \
     "$(grep -cE '"x_active" in activeFields' "$WEB/static/src/views/form/form_controller.js")" "1"
 assert_eq "multi_record_controller delegates to computeArchiveEnabled" \
     "$(grep -c 'computeArchiveEnabled(this.props.fields)' "$WEB/static/src/views/multi_record_controller.js")" "1"
-assert_eq "CONVENTIONS gotcha #10 cite line range corrected (586-595)" \
-    "$(grep -c 'form_controller.js:586-595' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
+assert_eq "CONVENTIONS gotcha #10 cite line range corrected (591-600)" \
+    "$(grep -c 'form_controller.js:591-600' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
 assert_eq "CONVENTIONS gotcha #10 stale line range (544-551) gone" \
     "$(grep -c 'form_controller.js:544-551' "$WEB/machine_doc_v1/CONVENTIONS.md")" "0"
 
@@ -476,24 +469,24 @@ assert_eq "core/events.js does not export FORM_DIALOG_ADD" \
 
 # 14. ARCHITECTURE.md table counts — 6 numeric claims locked.  Catches the
 #     drift pattern that motivated this audit (counts grew, doc lagged).
-assert_eq "ARCHITECTURE.md File Counts: Python tests = 39" \
-    "$(grep -cE '\| Python \(tests\) \| 39 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md File Counts: JS tests = 416/332" \
-    "$(grep -cE '\| JavaScript \(tests\) \| 416 \(incl\. 332' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md File Counts: Python tests = 40" \
+    "$(grep -cE '\| Python \(tests\) \| 40 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md File Counts: JS tests = 428/344" \
+    "$(grep -cE '\| JavaScript \(tests\) \| 428 \(incl\. 344' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 assert_eq "ARCHITECTURE.md File Counts: vendored libs = 94" \
     "$(grep -cE '\| JavaScript \(vendored libs\) \| 94 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 
 # 15. ARCHITECTURE.md JavaScript Architecture table — lock the Layer subtotals.
 #     These mirror the per-section JS_FILE_INDEX assertions but for the
 #     ARCHITECTURE doc's view of the same numbers.
-assert_eq "ARCHITECTURE.md Layer: Primitives core/ = 102" \
-    "$(grep -cE '\| \*\*Primitives\*\* \| .core/. \|.*\| 102 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer: Webclient = 54" \
-    "$(grep -cE '\| \*\*Webclient\*\* \| .webclient/. \|.*\| 54 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer: Views = 144" \
-    "$(grep -cE '\| \*\*Views\*\* \| .views/. \|.*\| 144 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer: Model = 34" \
-    "$(grep -cE '\| \*\*Model\*\* \| .model/. \|.*\| 34 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer: Primitives core/ = 103" \
+    "$(grep -cE '\| \*\*Primitives\*\* \| .core/. \|.*\| 103 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer: Webclient = 55" \
+    "$(grep -cE '\| \*\*Webclient\*\* \| .webclient/. \|.*\| 55 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer: Views = 149" \
+    "$(grep -cE '\| \*\*Views\*\* \| .views/. \|.*\| 149 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "ARCHITECTURE.md Layer: Model = 43" \
+    "$(grep -cE '\| \*\*Model\*\* \| .model/. \|.*\| 43 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 
 # 16. DIRECTORY_MAP.md header count — single source of truth for the dir total.
 assert_eq "DIRECTORY_MAP.md header says 237 directories" \
@@ -501,46 +494,51 @@ assert_eq "DIRECTORY_MAP.md header says 237 directories" \
 assert_eq "DIRECTORY_MAP.md no stale '235 directories'" \
     "$(grep -cE '\*\*235 directories\*\*' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "0"
 # Cite-fingerprint: confirm the underlying count.
-assert_eq "static/src has 237 directories" \
-    "$(find "$WEB/static/src" -type d | wc -l)" "237"
+assert_eq "static/src has 237 directories (excl. gitignored .claude cruft)" \
+    "$(find "$WEB/static/src" -type d -not -path '*/.claude*' | wc -l)" "237"
 
-# 17. TEST_TAGS.md "ten test files" claim — locks the new enumeration.
-assert_eq "TEST_TAGS.md says 'ten test files' lack web_*" \
-    "$(grep -cE 'ten test files currently carry no .web_\*. topic tag' "$WEB/machine_doc_v1/TEST_TAGS.md")" "1"
-assert_eq "TEST_TAGS.md no stale 'three test files' claim" \
-    "$(grep -cE 'three test files currently carry no' "$WEB/machine_doc_v1/TEST_TAGS.md")" "0"
+# 17. TEST_TAGS.md untagged-files claim — exactly three files lack a web_* topic
+#     tag.  Corrected 2026-06-01: the prior "ten files / nine with no @tagged"
+#     enumeration was false — test_assets/test_reports/test_session_info/
+#     test_web_save/test_web_search_read all carry web_* tags.  Reality: only
+#     test_esm_pipeline.py, test_res_config_settings.py (no @tagged) and
+#     test_res_config_doc_links.py (framework tags only) lack one.
+assert_eq "TEST_TAGS.md says 'three test files' lack web_*" \
+    "$(grep -cE 'three test files currently carry no .web_\*. topic tag' "$WEB/machine_doc_v1/TEST_TAGS.md")" "1"
+assert_eq "TEST_TAGS.md no stale 'ten test files' claim" \
+    "$(grep -cE 'ten test files currently carry no' "$WEB/machine_doc_v1/TEST_TAGS.md")" "0"
 
 # 18. Python line-number cites — assetsbundle.py and ir_qweb.py grew enough
 #     between rounds to shift every cite by 14-70 lines.  Lock the canonical
 #     symbols against their line numbers so the next bulk shift fails loud.
 PYBASE="/home/marin/Odoo/addons/core/odoo/addons/base/models"
-assert_eq "assetsbundle.py: _ESM_APP_BUNDLES at line 385" \
+assert_eq "assetsbundle.py: _ESM_APP_BUNDLES at line 581" \
     "$(grep -cE '^    _ESM_APP_BUNDLES = ' "$PYBASE/assetsbundle.py")" "1"
-assert_eq "assetsbundle.py: _ESM_APP_BUNDLES on cited line 385" \
-    "$(sed -n '385p' "$PYBASE/assetsbundle.py" | grep -c '_ESM_APP_BUNDLES = ')" "1"
-assert_eq "assetsbundle.py: ESM_BUNDLES on cited line 476" \
-    "$(sed -n '476p' "$PYBASE/assetsbundle.py" | grep -c 'ESM_BUNDLES = ')" "1"
-assert_eq "assetsbundle.py: DYNAMIC_ESM_BUNDLES on cited line 488" \
-    "$(sed -n '488p' "$PYBASE/assetsbundle.py" | grep -c 'DYNAMIC_ESM_BUNDLES = ')" "1"
-assert_eq "assetsbundle.py: IMPORT_MAP_INCLUDES on cited line 511" \
-    "$(sed -n '511p' "$PYBASE/assetsbundle.py" | grep -c 'IMPORT_MAP_INCLUDES = ')" "1"
-assert_eq "assetsbundle.py: esbuild_native_bundle on cited line 1018" \
-    "$(sed -n '1018p' "$PYBASE/assetsbundle.py" | grep -c 'def esbuild_native_bundle')" "1"
-assert_eq "ir_qweb.py: _get_native_module_nodes on cited line 4084" \
-    "$(sed -n '4084p' "$PYBASE/ir_qweb.py" | grep -c 'def _get_native_module_nodes')" "1"
+assert_eq "assetsbundle.py: _ESM_APP_BUNDLES on cited line 581" \
+    "$(sed -n '581p' "$PYBASE/assetsbundle.py" | grep -c '_ESM_APP_BUNDLES = ')" "1"
+assert_eq "assetsbundle.py: ESM_BUNDLES on cited line 676" \
+    "$(sed -n '676p' "$PYBASE/assetsbundle.py" | grep -c 'ESM_BUNDLES = ')" "1"
+assert_eq "assetsbundle.py: DYNAMIC_ESM_BUNDLES on cited line 688" \
+    "$(sed -n '688p' "$PYBASE/assetsbundle.py" | grep -c 'DYNAMIC_ESM_BUNDLES = ')" "1"
+assert_eq "assetsbundle.py: IMPORT_MAP_INCLUDES on cited line 713" \
+    "$(sed -n '713p' "$PYBASE/assetsbundle.py" | grep -c 'IMPORT_MAP_INCLUDES = ')" "1"
+assert_eq "assetsbundle.py: esbuild_native_bundle on cited line 1290" \
+    "$(sed -n '1290p' "$PYBASE/assetsbundle.py" | grep -c 'def esbuild_native_bundle')" "1"
+assert_eq "ir_qweb.py: _get_native_module_nodes on cited line 4261" \
+    "$(sed -n '4261p' "$PYBASE/ir_qweb.py" | grep -c 'def _get_native_module_nodes')" "1"
 
 # 19. JS line-number cites for STATE_MANAGEMENT.md "Key files" block.
 #     Pre-2026-05-19 every cite was stale by 20-50 lines; lock them.
-assert_eq "form_controller.js:691 is save()" \
-    "$(sed -n '691p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async save\(')" "1"
-assert_eq "form_controller.js:711 is discard()" \
-    "$(sed -n '711p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async discard\(')" "1"
-assert_eq "form_controller.js:501 is beforeLeave()" \
-    "$(sed -n '501p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async beforeLeave\(')" "1"
-assert_eq "record.js:393 is _applyChanges()" \
-    "$(sed -n '393p' "$WEB/static/src/model/relational_model/record.js" | grep -cE '_applyChanges\(')" "1"
-assert_eq "record.js:252 is discard()" \
-    "$(sed -n '252p' "$WEB/static/src/model/relational_model/record.js" | grep -cE 'async discard\(')" "1"
+assert_eq "form_controller.js:696 is save()" \
+    "$(sed -n '696p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async save\(')" "1"
+assert_eq "form_controller.js:716 is discard()" \
+    "$(sed -n '716p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async discard\(')" "1"
+assert_eq "form_controller.js:506 is beforeLeave()" \
+    "$(sed -n '506p' "$WEB/static/src/views/form/form_controller.js" | grep -cE 'async beforeLeave\(')" "1"
+assert_eq "record.js:471 is _applyChanges()" \
+    "$(sed -n '471p' "$WEB/static/src/model/relational_model/record.js" | grep -cE '_applyChanges\(')" "1"
+assert_eq "record.js:248 is discard()" \
+    "$(sed -n '248p' "$WEB/static/src/model/relational_model/record.js" | grep -cE 'async discard\(')" "1"
 
 # 21. TEST_TAGS.md test-method counts — converted from approximate ("~37") to
 #     precise on 2026-05-19.  Lock both the doc text AND the codebase reality
@@ -572,8 +570,8 @@ print(total)
 PY
 }
 for spec in \
-    "web_unit:49" \
-    "web_http:58" \
+    "web_unit:70" \
+    "web_http:61" \
     "web_tour:5" \
     "web_js:36" \
     "web_perf:25" \
@@ -588,16 +586,8 @@ for spec in \
         "$(grep -cE "\`$tag\`.*\| $expected methods" "$WEB/machine_doc_v1/TEST_TAGS.md")" "1"
 done
 
-# 20. JS_FILE_INDEX body section headers — top-level table values must match
-#     the per-section header LOC tags so a future bump in one updates both.
-assert_eq "JS_FILE_INDEX body header: core/ says 102 files" \
-    "$(grep -cE '^## core/ \(102 files' "$WEB/machine_doc_v1/JS_FILE_INDEX.md")" "1"
-assert_eq "JS_FILE_INDEX body header: webclient/ says 54 files" \
-    "$(grep -cE '^## webclient/ \(54 files' "$WEB/machine_doc_v1/JS_FILE_INDEX.md")" "1"
-assert_eq "JS_FILE_INDEX body header: views/ says 144 files" \
-    "$(grep -cE '^## views/ \(144 files' "$WEB/machine_doc_v1/JS_FILE_INDEX.md")" "1"
-assert_eq "JS_FILE_INDEX body header: components/ says 74 files" \
-    "$(grep -cE '^## components/ \(74 files' "$WEB/machine_doc_v1/JS_FILE_INDEX.md")" "1"
+# 20. (removed) JS_FILE_INDEX body-header assertions — JS_FILE_INDEX.md deleted
+#     2026-06-02.  Per-section counts are verified by the filesystem loop (§6).
 
 echo ""
 echo "================================================================"

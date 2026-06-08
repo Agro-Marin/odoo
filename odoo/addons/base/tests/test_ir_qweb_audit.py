@@ -38,6 +38,32 @@ class TestQwebPostProcessingAtt(TransactionCase):
         )
         self.assertEqual(atts, {"href": "javascript:alert(1)"})
 
+    def test_control_char_obfuscated_scheme_blanked(self):
+        # Browsers strip C0 control chars (TAB/LF/CR/NUL) from a URL before
+        # resolving its scheme, so these collapse to ``javascript:`` and execute.
+        # The guard must catch them even though the literal substring differs.
+        for payload in (
+            "java\tscript:alert(1)",
+            "java\nscript:alert(1)",
+            "java\rscript:alert(1)",
+            "java\x00script:alert(1)",
+            "jav\tascript:alert(1)",
+        ):
+            atts = self.qweb._post_processing_att("a", {"href": payload})
+            self.assertEqual(
+                atts["href"],
+                "",
+                f"control-char obfuscated scheme not blanked: {payload!r}",
+            )
+
+    def test_control_char_in_benign_url_preserved(self):
+        # Stripping is for detection only: a non-javascript URL that merely
+        # contains a stray control character must not be blanked.
+        atts = self.qweb._post_processing_att(
+            "a", {"href": "https://example.com/a\tb"}
+        )
+        self.assertEqual(atts["href"], "https://example.com/a\tb")
+
     def test_compile_expr_cache_is_bounded_lru(self):
         # QWEB-P1: the compile-expr cache is a bounded LRU (not a plain dict
         # cleared wholesale at the cap, which caused recompile stampedes), and it

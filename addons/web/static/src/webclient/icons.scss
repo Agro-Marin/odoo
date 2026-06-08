@@ -49,6 +49,18 @@ $oi-sizes: (
  text-align: center;
 }
 
+// Icon-only buttons carry the icon family class on the button itself, so the
+// glyph is the button's ::before rather than a child element. FontAwesome 7
+// glyphs have asymmetric side-bearings, so the default text flow leaves them
+// off-centre inside the button box (visible against the active-state
+// background). Center the glyph explicitly. Scoped to the family class on the
+// button to avoid touching buttons that wrap an <i> icon child.
+.btn.oi, .btn.fa, .btn.fa-solid, .btn.fa-regular, .btn.fa-brands {
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+}
+
 // Print CSS variables for each size/breakpoint
 // ----------------------------------------------------------------------------
 @each $breakpoint in map-keys($grid-breakpoints) {

@@ -188,6 +188,13 @@ $_luminance-list: .0008 .001 .0011 .0013 .0015 .0017 .002 .0022 .0025 .0027 .003
   );
 
   @each $name, $value in $rgb {
+    // Fork patch (Dart Sass): color.adjust()/increase-contrast() can produce
+    // out-of-gamut channels where red()/green()/blue() exceed 255, overflowing
+    // the 256-element $_luminance-list. libsass clamped channels to integer
+    // [0, 255]; Dart Sass does not, so clamp here before indexing.
+    $value: round($value);
+    @if $value < 0 { $value: 0; }
+    @if $value > 255 { $value: 255; }
     $value: if(divide($value, 255) < .04045, divide(divide($value, 255), 12.92), nth($_luminance-list, $value + 1));
     $rgb: map-merge($rgb, ($name: $value));
   }
