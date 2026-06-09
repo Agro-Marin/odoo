@@ -52,6 +52,25 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     }
     const changes = record._getChanges();
     delete changes.id; // id never changes, and should not be written
+    // Field-scoped optimistic locking: capture the originally-loaded (baseline)
+    // value of each field being written, so the server rejects only a genuine
+    // per-field conflict and ignores concurrent writes to OTHER fields (e.g.
+    // background stored-compute recomputations). Types whose value can't be
+    // compared safely (x2many, binary, html, date/datetime, ...) are omitted;
+    // the server skips any field it has no baseline for (fails open).
+    const concurrencyBaseline = {};
+    for (const fieldName of Object.keys(changes)) {
+        const fieldType = record.fields[fieldName]?.type;
+        if (
+            fieldType &&
+            ![
+                "one2many", "many2many", "binary", "html",
+                "date", "datetime", "json", "properties", "reference",
+            ].includes(fieldType)
+        ) {
+            concurrencyBaseline[fieldName] = record._values[fieldName];
+        }
+    }
     if (!creation && !Object.keys(changes).length) {
         if (nextId) {
             // No changes — caller wants to navigate to ``nextId``. Run the
@@ -78,17 +97,17 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         // payload (typically < 64k). So we try to save with sendBeacon, and if it
         // doesn't work, we will prevent the page from unloading.
         const route = `/web/dataset/call_kw/${record.resModel}/web_save`;
-        // Optimistic locking: mirror the normal-save path's last_write_date
-        // logic (below) so the server can reject concurrent edits even when the
-        // save was initiated by sendBeacon on tab close. The normal path guards
-        // on `record.resId && write_date`; here a present `write_date` already
-        // implies the record was persisted (so resId is truthy), so guarding on
-        // write_date alone is sufficient.
-        const urgentKwargs = { context: record.context, specification: {} };
-        if (record._values.write_date) {
-            const wd = record._values.write_date;
-            urgentKwargs.last_write_date = typeof wd === "string" ? wd : wd.toISO();
-        }
+        // Field-scoped optimistic locking: mirror the normal-save path so the
+        // server can reject a genuine concurrent edit even when the save was
+        // initiated by sendBeacon on tab close. This branch only runs for an
+        // existing record (resId truthy), so the baseline is meaningful; an
+        // empty baseline (e.g. only x2many changed) simply skips the check —
+        // the right call on tab close, where we must never drop the user's work.
+        const urgentKwargs = {
+            context: record.context,
+            specification: {},
+            known_values: concurrencyBaseline,
+        };
         const params = {
             model: record.resModel,
             method: "web_save",
@@ -144,11 +163,11 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         specification: fieldSpec,
         next_id: nextId,
     };
-    // Optimistic locking: send write_date so the server can detect concurrent edits
-    if (record.resId && record._values.write_date) {
-        const wd = record._values.write_date;
-        // write_date may be a Luxon DateTime or a string
-        kwargs.last_write_date = typeof wd === "string" ? wd : wd.toISO();
+    // Field-scoped optimistic locking: send the baseline values of the fields
+    // being written so the server rejects only genuine per-field conflicts and
+    // ignores concurrent writes to other fields. (Empty baseline => no check.)
+    if (record.resId) {
+        kwargs.known_values = concurrencyBaseline;
     }
     /** @type {Record<string, any>[]} */
     let records;
