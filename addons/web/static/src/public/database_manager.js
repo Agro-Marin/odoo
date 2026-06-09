@@ -45,10 +45,11 @@ document.addEventListener("DOMContentLoaded", function () {
     // db modal
     document.body.addEventListener("click", function (ev) {
         const target = /** @type {HTMLElement} */ (ev.target);
-        if (target.classList.contains("o_database_action")) {
+        const action = target.closest(".o_database_action");
+        if (action) {
             ev.preventDefault();
-            const db = target.getAttribute("data-db");
-            const bsTarget = target.getAttribute("data-bs-target");
+            const db = action.getAttribute("data-db");
+            const bsTarget = action.getAttribute("data-bs-target");
             const modal = Modal.getOrCreateInstance(document.querySelector(bsTarget));
             const inputName = modal._element.querySelector("input[name=name]");
             if (inputName) {

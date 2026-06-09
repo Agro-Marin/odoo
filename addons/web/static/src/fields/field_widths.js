@@ -50,12 +50,12 @@ export const FIELD_WIDTHS = Object.freeze({
         }
         return _dateWidths.numericDatetime;
     },
-    float: 93,
-    integer: 71,
+    float: [120, 200],
+    integer: [100, 180],
     many2many: [80],
     many2one_reference: [80],
     many2one: [80],
-    monetary: 105,
+    monetary: [140, 240],
     one2many: [80],
     reference: [80],
     selection: [80],

@@ -10,10 +10,9 @@ from typing import Any
 
 from odoo import api, models
 from odoo.api import DomainType, NewId
-from odoo.exceptions import AccessError, ConcurrencyError
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Datetime as FieldsDatetime
 from odoo.tools import OrderedSet
-
 from odoo.tools.cache_version import versioned, versioned_envelope
 
 
@@ -131,18 +130,37 @@ class Base(models.AbstractModel):
         }
 
     def web_save(
-        self, vals, specification: dict[str, dict], next_id=None, last_write_date=None
+        self,
+        vals,
+        specification: dict[str, dict],
+        next_id=None,
+        last_write_date=None,
+        known_values=None,
     ) -> list[dict]:
         """Create or write a record and return it formatted per *specification*.
 
-        When *last_write_date* is provided (ISO 8601 string), the method
-        verifies that the record has not been modified by another user since
-        the client last read it.  A ``ConcurrencyError`` is raised if the
-        server's ``write_date`` is more recent, preventing silent data loss
-        from concurrent edits.
+        Optimistic concurrency control:
+
+        * *known_values* — a ``{field: baseline_value}`` map of the fields being
+          written, as the client originally read them.  Triggers a
+          **field-scoped** check: ``UserError`` is raised only if one of *those*
+          fields was changed on the server since the client read it.  Concurrent
+          writes to *other* fields (e.g. stored-compute recomputations triggered
+          by related records) touch disjoint columns, cannot cause a lost
+          update, and are ignored.  The comparison is type-aware and fails
+          OPEN — any field that cannot be safely compared is skipped rather than
+          risk a false conflict.
+        * *last_write_date* — legacy / urgent (sendBeacon) fallback: a coarser
+          row-level ``write_date`` check.
+
+        Both prevent silent data loss from concurrent edits; the field-scoped
+        path additionally avoids false conflicts from unrelated background
+        writes.
         """
         if self:
-            if last_write_date and 'write_date' in self._fields:
+            if known_values is not None:
+                self._check_concurrent_field_changes(vals, known_values)
+            elif last_write_date and 'write_date' in self._fields:
                 # Read directly from DB to avoid ORM cache (which may be stale
                 # if another user's write happened in a different transaction).
                 self.env.cr.execute(
@@ -162,13 +180,21 @@ class Base(models.AbstractModel):
                 # with .000 milliseconds, losing the microsecond precision
                 # that PostgreSQL stores.  Without this, the server value
                 # is always ~0-1s "newer" and every save triggers a false
-                # ConcurrencyError.
+                # concurrency error.
                 if server_write_date:
                     server_write_date = server_write_date.replace(microsecond=0)
                 if client_dt:
                     client_dt = client_dt.replace(microsecond=0)
                 if server_write_date and client_dt and server_write_date > client_dt:
-                    raise ConcurrencyError(
+                    # A stale read is deterministic, not a transient DB
+                    # conflict: retrying re-runs the request with the SAME
+                    # client write_date against a server write_date that only
+                    # moves forward, so it can never succeed. Raise UserError
+                    # (which retrying() does not catch) to fail fast and tell
+                    # the user to reload — NOT ConcurrencyError, whose upstream
+                    # contract marks it retryable, so retrying() would burn its
+                    # ~5x exponential backoff (~10-30s) before failing anyway.
+                    raise UserError(
                         "This record was modified by another user.\n"
                         "Please reload and re-apply your changes."
                     )
@@ -179,6 +205,98 @@ class Base(models.AbstractModel):
         if next_id:
             record = self.browse(next_id)
         return record.with_context(bin_size=True).web_read(specification)
+
+    def _check_concurrent_field_changes(self, vals, known_values):
+        """Field-scoped optimistic lock for :meth:`web_save`.
+
+        Raise ``UserError`` if a field being written (*vals*) was changed on the
+        server since the client read it (*known_values* holds the client's
+        baseline for those fields).  Concurrent writes to *other* fields are
+        ignored — they touch disjoint columns and cannot lose the user's edit.
+        Comparison is type-aware and fails OPEN: any field that cannot be safely
+        compared is skipped, never producing a false conflict.
+        """
+        self.ensure_one()
+        # Only unambiguous primitives + many2one (compared by id). date/datetime
+        # are deliberately excluded: their client serialization (Luxon, tz/ms)
+        # vs the raw DB value risks a timezone-boundary mismatch — a *false*
+        # conflict, the very thing this check exists to avoid. Excluded types
+        # fall through unchecked (fail open).
+        SAFE_TYPES = frozenset((
+            "integer", "boolean", "char", "text", "selection",
+            "float", "monetary", "many2one",
+        ))
+        names = [
+            n for n in known_values
+            if n in vals
+            and n in self._fields
+            and self._fields[n].store
+            and self._fields[n].column_type
+            and self._fields[n].type in SAFE_TYPES
+        ]
+        if not names:
+            return
+        # Read current values straight from the DB, bypassing the ORM cache
+        # (which may be stale w.r.t. a write committed by another transaction)
+        # — same rationale as the legacy write_date check below.
+        cols = ", ".join('"%s"' % n for n in names)
+        self.env.cr.execute(
+            'SELECT %s FROM "%s" WHERE id = %%s' % (cols, self._table),
+            (self.id,),
+        )
+        row = self.env.cr.fetchone()
+        if not row:
+            return
+        conflicts = []
+        for name, server_raw in zip(names, row, strict=True):
+            try:
+                field = self._fields[name]
+                current = self._coerce_concurrency_value(field, server_raw)
+                baseline = self._coerce_concurrency_value(field, known_values[name])
+                new = self._coerce_concurrency_value(field, vals[name])
+                # Conflict only if the server moved this field away from the
+                # client's baseline AND the user's write would not land on the
+                # server's current value anyway.
+                if current not in (baseline, new):
+                    conflicts.append(field.string or name)
+            except Exception:  # noqa: S112 — fail OPEN, never a false conflict
+                continue
+        if conflicts:
+            raise UserError(self.env._(
+                "This record was modified by another user while you were "
+                "editing it.\nConflicting field(s): %s.\n"
+                "Please reload and re-apply your changes.",
+                ", ".join(conflicts),
+            ))
+
+    @staticmethod
+    def _coerce_concurrency_value(field, value):
+        """Normalise *value* to a canonical primitive for concurrency compare.
+
+        Handles the client's serialized form (m2o as ``{id, display_name}``,
+        dates as ISO strings) and the raw DB form (m2o as FK id, dates as
+        ``date`` objects) to the same primitive so equal values compare equal.
+        """
+        ftype = field.type
+        if value is None or value is False:
+            return {
+                "integer": 0, "float": 0.0, "monetary": 0.0,
+                "boolean": False, "many2one": False,
+            }.get(ftype, "")
+        if ftype == "many2one":
+            if isinstance(value, dict):
+                return value.get("id") or False
+            if isinstance(value, (list, tuple)):
+                return value[0] if value else False
+            return int(value) if isinstance(value, (int, float)) else False
+        if ftype == "integer":
+            return int(value)
+        if ftype in ("float", "monetary"):
+            return round(float(value), 6)
+        if ftype == "boolean":
+            return bool(value)
+        # char, text, selection
+        return str(value)
 
     def web_save_multi(
         self, vals_list: list[dict], specification: dict[str, dict]
