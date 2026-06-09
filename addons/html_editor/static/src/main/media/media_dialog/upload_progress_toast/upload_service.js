@@ -89,6 +89,9 @@ export const uploadService = {
                         id,
                         name: file.name,
                         size: fileSize,
+                        // fetch-based rpc() exposes no upload progress, so this
+                        // stays at 0 until the request resolves (spinner shown).
+                        progress: 0,
                     });
                 }
 
@@ -108,15 +111,11 @@ export const uploadService = {
                         continue;
                     }
                     try {
-                        const xhr = new XMLHttpRequest();
-                        xhr.upload.addEventListener("progress", (ev) => {
-                            const rpcComplete = (ev.loaded / ev.total) * 100;
-                            file.progress = rpcComplete;
-                        });
-                        xhr.upload.addEventListener("load", function () {
-                            // Don't show yet success as backend code only starts now
-                            file.progress = 100;
-                        });
+                        // rpc() is fetch-based since the native-ESM migration
+                        // and rejects unknown settings (the legacy { xhr }
+                        // progress handle now throws "Invalid RPC setting(s)").
+                        // Granular upload progress is therefore not available;
+                        // the toast falls back to the indeterminate spinner.
                         const attachment = await rpc(
                             "/html_editor/attachment/add_data",
                             {
@@ -127,8 +126,7 @@ export const uploadService = {
                                 is_image: !!isImage,
                                 width: 0,
                                 quality: 0,
-                            },
-                            { xhr }
+                            }
                         );
                         if (attachment.error) {
                             file.hasError = true;
@@ -159,8 +157,7 @@ export const uploadService = {
                                         is_image: true,
                                         width: 0,
                                         quality: 0,
-                                    },
-                                    { xhr }
+                                    }
                                 );
                             }
                             file.uploaded = true;
