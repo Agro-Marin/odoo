@@ -60,13 +60,18 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     // the server skips any field it has no baseline for (fails open).
     const concurrencyBaseline = {};
     for (const fieldName of Object.keys(changes)) {
-        const fieldType = record.fields[fieldName]?.type;
+        const field = record.fields[fieldName];
         if (
-            fieldType &&
+            field?.type &&
             ![
                 "one2many", "many2many", "binary", "html",
                 "date", "datetime", "json", "properties", "reference",
-            ].includes(fieldType)
+            ].includes(field.type) &&
+            // jsonb-backed columns: the server-side raw read returns a
+            // per-lang / per-company dict, never comparable to the scalar
+            // the client read — the server skips them, so don't send them.
+            !field.translate &&
+            !field.company_dependent
         ) {
             concurrencyBaseline[fieldName] = record._values[fieldName];
         }
