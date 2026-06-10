@@ -117,6 +117,35 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
         self.assertEqual(self.partner.phone, "222")
 
+    # -- jsonb-backed columns (translated / company-dependent) fail open -----
+    def test_translated_field_no_false_conflict(self):
+        """Editing a translated field must not self-conflict: the raw DB value
+        is a per-lang jsonb dict, never equal to the scalar the client read."""
+        category = self.env["res.partner.category"].create({"name": "Original"})
+        self.env.flush_all()
+        self.assertTrue(category._fields["name"].translate)  # guard the premise
+        category.web_save(
+            {"name": "Renamed"}, specification={"name": {}},
+            known_values={"name": "Original"},
+        )
+        self.assertEqual(category.name, "Renamed")
+
+    def test_translated_field_fails_open(self):
+        """A genuine concurrent change to a translated field is NOT detected
+        (fail open): the jsonb dict cannot be safely compared to the client's
+        scalar baseline, so the field is skipped rather than false-conflict."""
+        category = self.env["res.partner.category"].create({"name": "Original"})
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_partner_category SET name = %s WHERE id = %s",
+            ('{"en_US": "Changed Elsewhere"}', category.id),
+        )
+        category.web_save(
+            {"name": "Renamed"}, specification={"name": {}},
+            known_values={"name": "Original"},
+        )
+        self.assertEqual(category.name, "Renamed")
+
     # -- legacy row-level fallback still works -------------------------------
     def test_legacy_last_write_date_fallback(self):
         stale = self.partner.write_date - timedelta(seconds=10)

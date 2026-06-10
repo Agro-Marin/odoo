@@ -220,8 +220,11 @@ class Base(models.AbstractModel):
         # Only unambiguous primitives + many2one (compared by id). date/datetime
         # are deliberately excluded: their client serialization (Luxon, tz/ms)
         # vs the raw DB value risks a timezone-boundary mismatch — a *false*
-        # conflict, the very thing this check exists to avoid. Excluded types
-        # fall through unchecked (fail open).
+        # conflict, the very thing this check exists to avoid. jsonb-backed
+        # columns (translated / company-dependent fields) are excluded for the
+        # same reason: the raw DB value is a per-lang / per-company dict, not
+        # the scalar the client read. Excluded types fall through unchecked
+        # (fail open).
         SAFE_TYPES = frozenset((
             "integer", "boolean", "char", "text", "selection",
             "float", "monetary", "many2one",
@@ -232,6 +235,7 @@ class Base(models.AbstractModel):
             and n in self._fields
             and self._fields[n].store
             and self._fields[n].column_type
+            and self._fields[n].column_type[0] != "jsonb"
             and self._fields[n].type in SAFE_TYPES
         ]
         if not names:
