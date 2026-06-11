@@ -25,6 +25,40 @@ class TestMembership(TestSalesCommon):
         self.user_sales_leads.action_archive()
         self.assertFalse(self.sales_team_1_m1.active)
 
+    def test_archive_team_archives_team_member(self):
+        """Archiving a team archives its memberships (team-side mirror of user archive)."""
+        self.assertTrue(self.sales_team_1_m1.active)
+        self.assertTrue(self.sales_team_1_m2.active)
+        self.sales_team_1.action_archive()
+        self.assertFalse(self.sales_team_1_m1.active)
+        self.assertFalse(self.sales_team_1_m2.active)
+        # Asymmetric on purpose: restoring the team does not resurrect memberships,
+        # exactly like res.users.action_archive on the user side.
+        self.sales_team_1.action_unarchive()
+        self.assertFalse(self.sales_team_1_m1.active)
+        self.assertFalse(self.sales_team_1_m2.active)
+
+    def test_leader_can_read_led_team(self):
+        """A plain salesman reads a team they lead even without a membership."""
+        # crm_rule_personal_salesteam is a noupdate record, so `-u` does not refresh
+        # its domain on existing databases; the deploy-time migration replicates this
+        # write. Setting it here keeps the test deterministic on any database state.
+        leader_domain = "['|', ('user_id', '=', user.id), ('id', 'in', user.crm_team_ids.ids)]"
+        self.env.ref('sales_team.crm_rule_personal_salesteam').domain_force = leader_domain
+        salesman = self.user_sales_salesman  # group_sale_salesman -> rule 705 only
+        led_team = self.env['crm.team'].create({
+            'name': 'Led Not Member', 'company_id': False, 'user_id': salesman.id,
+        })
+        foreign_team = self.env['crm.team'].create({
+            'name': 'Foreign Team', 'company_id': False, 'user_id': self.user_sales_manager.id,
+        })
+        self.assertNotIn(salesman, led_team.member_ids, "leader must not be auto-added as member")
+        # leader-aware rule: the salesman reads the team they lead...
+        self.assertEqual(led_team.with_user(salesman).read(['name'])[0]['name'], 'Led Not Member')
+        # ...but still cannot read a team they neither lead nor belong to.
+        with self.assertRaises(exceptions.AccessError):
+            foreign_team.with_user(salesman).read(['name'])
+
     @users('user_sales_manager')
     def test_fields(self):
         self.assertTrue(self.sales_team_1.with_user(self.env.user).is_membership_multi)
