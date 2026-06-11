@@ -54,17 +54,19 @@
 
     <data noupdate="1">
 
+        <!-- A user accesses the teams they belong to (member) or lead (responsible),
+             matching the member-OR-responsible heuristic of crm.team._get_default_team_id. -->
         <record id="crm_rule_personal_salesteam" model="ir.rule">
             <field name="name">Personal Salesteam</field>
             <field name="model_id" ref="model_crm_team" />
-            <field name="domain_force">[('id', 'in', user.crm_team_ids.ids)]</field>
+            <field name="domain_force">['|', ('user_id', '=', user.id), ('id', 'in', user.crm_team_ids.ids)]</field>
             <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
         </record>
 
         <record id="crm_rule_team_salesteam" model="ir.rule">
             <field name="name">Team Salesteam</field>
             <field name="model_id" ref="model_crm_team" />
-            <field name="domain_force">[('id', 'in', user.crm_team_ids.ids)]</field>
+            <field name="domain_force">['|', ('user_id', '=', user.id), ('id', 'in', user.crm_team_ids.ids)]</field>
             <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman_team'))]" />
         </record>
 

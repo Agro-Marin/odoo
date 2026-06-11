@@ -230,6 +230,18 @@ class CrmTeam(models.Model):
             self._add_members_to_favorites()
         return res
 
+    def action_archive(self):
+        """Archive the teams and cascade the archive to their memberships.
+
+        Team-side mirror of :meth:`res.users.action_archive`: a membership
+        pointing to an archived team is dangling residue, so it is archived
+        too. This frees the members' ``crm_team_ids`` / ``sale_team_id`` to
+        recompute against live teams only. Restoring the team does not
+        resurrect the memberships, exactly like the user-side counterpart.
+        """
+        self.crm_team_member_ids.action_archive()
+        return super().action_archive()
+
     @api.ondelete(at_uninstall=False)
     def _unlink_except_default(self):
         default_teams = [
