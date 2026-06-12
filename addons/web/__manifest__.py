@@ -310,6 +310,17 @@ This module provides the core of the Odoo Web Client.
             ),
             "web/static/src/**/*.dark.scss",
         ],
+        "web.assets_backend_dark": [
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_backend_helpers",
+            ),
+            "web/static/src/**/*.dark.scss",
+        ],
         "web._assets_core": [
             "web/static/lib/luxon/luxon.js",
             "web/static/src/session.js",

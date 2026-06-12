@@ -228,13 +228,18 @@ _ESM_EXPORT_DEFAULT_RE_SRC = (
 )
 _ESM_EXPORT_DEFAULT_RE = re.compile(_ESM_EXPORT_DEFAULT_RE_SRC)
 
-# Import-discovery regex for ``_discover_bridge_specifiers``: the three import
-# shapes that pull a specifier from an ``@addon`` module, unified into ONE
-# alternation so each source file is scanned a single time (one ``finditer``)
-# instead of three.  Per-branch whitespace is preserved exactly — a default
-# import requires ``\s+`` around the binding while named/star allow ``\s*`` —
-# and the import kind is read from whichever named group matched.  Module-level
-# so it compiles once instead of on every bundle build.
+# Import-discovery regex for ``_discover_bridge_specifiers``: every import shape
+# that pulls a specifier from an ``@addon`` module, unified into ONE alternation
+# so each source file is scanned a single time (one ``finditer``).  Branches
+# 1-3 carry a binding and a ``from`` (named/star/default — the kind is read from
+# whichever named group matched); per-branch whitespace is preserved exactly, a
+# default import requires ``\s+`` around the binding while named/star allow
+# ``\s*``.  Branch 4 is the bindingless side-effect form ``import "@addon/…";``
+# (no ``from``), whose specifier lands in the ``side`` group: it matters because
+# a low-overlap dynamic child that only side-effect-imports a parent specifier
+# (t22867: Studio -> ``@mail/chatter/web/chatter_patch`` + two ``@web_enterprise``
+# patches) would otherwise never bridge it and fail at runtime with "Failed to
+# resolve module specifier".  Module-level so it compiles once per process.
 _IMPORT_ANY_RE = re.compile(
     r"import(?:"
     r"\s*(?P<named>\{[^}]+\})\s*"
@@ -242,6 +247,7 @@ _IMPORT_ANY_RE = re.compile(
     r"|\s+(?P<default>\w+)\s+"
     r")from\s*"
     r"""["'](?P<spec>@[^"']+)["']"""
+    r"""|import\s*["'](?P<side>@[^"']+)["']"""
 )
 
 
@@ -658,6 +664,7 @@ class AssetsBundle:
             "survey.survey_user_input_session_assets",
             "web_studio.report_assets",
             "web_studio.studio_assets",
+            "web_studio.studio_assets_dark",
             "web_studio.studio_assets_minimal",
             "web_tour.automatic",
             "web_tour.interactive",
@@ -703,6 +710,8 @@ class AssetsBundle:
                 "web.assets_emoji",
                 "web_tour.recorder",
                 "im_livechat.assets_livechat_support_tours",
+                "web_studio.studio_assets",
+                "web_studio.studio_assets_dark",
             ],
         }
     )
@@ -2005,11 +2014,12 @@ class AssetsBundle:
         ext_seen: set[str] = set()
         for asset in self.native_modules:
             # Single pass over each module's source: _IMPORT_ANY_RE matches the
-            # named / default / namespace import shapes in one finditer (was
-            # three separate full-source scans). The kind is read from whichever
-            # named group matched.
+            # named / default / namespace / bindingless-side-effect import shapes
+            # in one finditer. The kind is read from whichever named group
+            # matched; ``spec`` (binding+from) and ``side`` (side-effect) are
+            # mutually exclusive per match.
             for match in _IMPORT_ANY_RE.finditer(asset.raw_content):
-                specifier = match.group("spec")
+                specifier = match.group("spec") or match.group("side")
                 if specifier in ext_lib_names:
                     ext_seen.add(specifier)
                     continue
@@ -2019,7 +2029,13 @@ class AssetsBundle:
                     discovered.setdefault(specifier, set()).add("__default__")
                 elif match.group("star") is not None:
                     discovered.setdefault(specifier, set()).add("__star__")
-                else:  # named import — registers the specifier with no kind
+                else:
+                    # Named import OR bindingless side-effect import: register
+                    # the specifier with no kind. For a side-effect import the
+                    # shim still reads the source file's export surface, and the
+                    # side effect itself already ran in the parent bundle, so an
+                    # import-map entry to a valid (even export-only) shim is all
+                    # the child needs to resolve the specifier.
                     discovered.setdefault(specifier, set())
         return discovered, ext_seen
 
