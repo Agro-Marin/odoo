@@ -130,4 +130,14 @@ capabilities so portal pages can be rendered without the ``website`` module.
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        # portal.assets_chatter is deliberately NOT a dynamic child of
+        # web.assets_web: 472/494 modules overlap, and loading it as an
+        # ESM sibling causes dual instances and DuplicatedKeyError.
+        'bundles': [
+            'portal.assets_chatter',
+        ],
+    },
 }

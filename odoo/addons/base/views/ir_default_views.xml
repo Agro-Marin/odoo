@@ -1,6 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="ir_default_search_view" model="ir.ui.view">
+        <field name="name">ir.default search view</field>
+        <field name="model">ir.default</field>
+        <field name="arch" type="xml">
+            <search string="User-defined Defaults">
+                <field name="field_id" />
+                <field name="user_id" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <group>
+                    <filter string="User" name="groupby_user" domain="[]" context="{'group_by':'user_id'}" />
+                    <filter string="Company" name="groupby_company" domain="[]" context="{'group_by':'company_id'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="ir_default_tree_view" model="ir.ui.view">
+        <field name="name">ir.default list view</field>
+        <field name="model">ir.default</field>
+        <field name="arch" type="xml">
+            <list string="User-defined Defaults">
+                <field name="field_id" />
+                <field name="json_value" />
+                <field name="condition" optional="hide" />
+                <field name="user_id" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </list>
+        </field>
+    </record>
+
     <record id="ir_default_form_view" model="ir.ui.view">
         <field name="name">ir.default form view</field>
         <field name="model">ir.default</field>
@@ -20,36 +50,6 @@
                 </group>
             </sheet>
             </form>
-        </field>
-    </record>
-
-    <record id="ir_default_tree_view" model="ir.ui.view">
-        <field name="name">ir.default list view</field>
-        <field name="model">ir.default</field>
-        <field name="arch" type="xml">
-            <list string="User-defined Defaults">
-                <field name="field_id" />
-                <field name="json_value" />
-                <field name="condition" optional="hide" />
-                <field name="user_id" />
-                <field name="company_id" groups="base.group_multi_company" />
-            </list>
-        </field>
-    </record>
-
-    <record id="ir_default_search_view" model="ir.ui.view">
-        <field name="name">ir.default search view</field>
-        <field name="model">ir.default</field>
-        <field name="arch" type="xml">
-            <search string="User-defined Defaults">
-                <field name="field_id" />
-                <field name="user_id" />
-                <field name="company_id" groups="base.group_multi_company" />
-                <group>
-                    <filter string="User" name="groupby_user" domain="[]" context="{'group_by':'user_id'}" />
-                    <filter string="Company" name="groupby_company" domain="[]" context="{'group_by':'company_id'}" />
-                </group>
-            </search>
         </field>
     </record>
 

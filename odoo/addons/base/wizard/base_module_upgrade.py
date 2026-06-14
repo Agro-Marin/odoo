@@ -108,5 +108,5 @@ class BaseModuleUpgrade(models.TransientModel):
         return {"type": "ir.actions.act_window_close"}
 
     def config(self) -> dict[str, Any]:
-        # pylint: disable=next-method-called
-        return self.env["res.config"].next()
+        """Advance to the next pending configuration action."""
+        return self.env["res.config"]._next_todo_action()

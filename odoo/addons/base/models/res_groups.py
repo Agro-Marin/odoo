@@ -546,18 +546,21 @@ class ResGroups(models.Model):
     def _is_feature_enabled(self, group_reference: str) -> bool:
         """Return whether the feature identified by ``group_reference`` is enabled.
 
-        A feature is enabled when its group is transitively implied by
-        ``base.group_user``, meaning every internal user automatically gets it.
-        Uses the cached group definitions — no extra DB query on a warm cache.
+        A feature is enabled when the superuser belongs to its group, which is
+        the case as soon as the corresponding settings toggle implies the group
+        on ``base.group_user``.  Checking a single fixed user keeps the result
+        consistent for flows triggered by public/portal users and avoids cache
+        misses (upstream semantics — see odoo/odoo@d3e9e379ec9).
         """
-        defs = self._get_group_definitions()
-        feature_id = defs.get_id(group_reference)
-        if feature_id is None:
-            return False
-        group_user_id = defs.get_id("base.group_user")
-        if group_user_id is None:
-            return False
-        return feature_id in defs.get_superset_ids([group_user_id])
+        # Checking implication from base.group_user instead would ignore
+        # per-user grants, which feature gates must honour (it broke every
+        # test enabling features via `user.group_ids += group`).
+        return (
+            self.env["res.users"]
+            .sudo()
+            .browse(api.SUPERUSER_ID)
+            ._has_group(group_reference)
+        )
 
     @api.depends("all_user_ids")
     def _compute_all_users_count(self) -> None:

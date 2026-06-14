@@ -150,8 +150,8 @@ class WebClient(http.Controller):
 
         debug = bundle_params.get("debug", request.session.debug)
 
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
-        use_esm = bundle_name in AssetsBundle._DYNAMIC_BUNDLE_NAMES
+        from odoo.libs.esm_registry import esm_registry
+        use_esm = bundle_name in esm_registry().dynamic_bundle_names
         log_event(
             _http_log, logging.DEBUG, "bundle_request",
             bundle=bundle_name, debug=bool(debug), is_esm=use_esm,
@@ -170,32 +170,19 @@ class WebClient(http.Controller):
         ]
 
         if use_esm:
-            # ESM dynamic bundle: return specifiers for import()
-            assets_params = request.env["ir.asset"]._get_asset_params()
-            asset_bundle = request.env["ir.qweb"]._get_asset_bundle(
-                bundle_name, js=True, css=False, debug_assets=True,
-                assets_params=assets_params,
+            # ESM dynamic bundle: return specifiers for import().  The
+            # payload (import map incl. bridge entries for cross-bundle
+            # legacy imports, template attachment URL) is computed once and
+            # ormcached by ir.qweb — previously every runtime loadBundle()
+            # re-ran bridge discovery and the XML template parse here.
+            # Cached values are shared by reference: read-only below.
+            payload = request.env["ir.qweb"]._get_esm_bundle_payload(
+                bundle_name,
+                debug_assets=bool(debug) and "assets" in debug,
             )
-            native_data = asset_bundle.get_native_module_data()
-            specifiers = sorted(native_data["import_map"])
-
-            # Generate ESM template bundle and save as attachment.
-            # The template module self-registers via registerTemplate()
-            # when imported, so it just needs to be in the specifiers.
-            esm_tpl = asset_bundle.generate_esm_template_bundle(use_import=False)
-            tpl_url = None
-            if esm_tpl:
-                tpl_url = request.env["ir.qweb"]._save_esm_attachment(
-                    f"{bundle_name}.templates", esm_tpl, asset_bundle,
-                )
-
-            # Build the import map entries the target document needs in
-            # order to resolve this bundle's specifiers: the bundle's own
-            # native modules plus bridge data: URIs for any cross-bundle
-            # legacy imports (so dynamic consumers share instances with
-            # whichever bundle is already loaded in the target document).
-            import_map = dict(native_data["import_map"])
-            import_map.update(native_data.get("bridge_import_map", {}))
+            specifiers = payload["specifiers"]
+            import_map = payload["import_map"]
+            tpl_url = payload["template_url"]
 
             data = {
                 "is_esm": True,

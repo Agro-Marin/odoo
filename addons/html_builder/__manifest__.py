@@ -67,4 +67,12 @@
         ],
     },
     'license': 'LGPL-3',
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'html_builder.assets',
+            'html_builder.assets_inside_builder_iframe',
+        ],
+    },
 }

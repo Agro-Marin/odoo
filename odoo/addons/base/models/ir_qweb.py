@@ -400,11 +400,14 @@ from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.constants import (
     EXTERNAL_ASSET,
+    ODOO_EXTERNAL_LIBS,
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
     SUPPORTED_DEBUGGER,
     TEMPLATE_EXTENSIONS,
 )
+from odoo.libs.esbuild import EsbuildCompiler
+from odoo.libs.esm_registry import esm_registry
 from odoo.libs.lru import LRU
 from odoo.modules import Manifest
 from odoo.modules.registry import _REGISTRY_CACHES
@@ -423,7 +426,7 @@ from odoo.tools.safe_eval import (
 from odoo.tools.translate import FORMAT_REGEX
 from odoo.tools.urls import keep_query
 
-from odoo.addons.base.models.assetsbundle import AssetsBundle
+from odoo.addons.base.models.assetsbundle import AssetsBundle, BundleFileSpec
 
 _logger = logging.getLogger(__name__)
 
@@ -1519,7 +1522,7 @@ class IrQweb(models.AbstractModel):
                 # Convert WebP to JPEG for PDF rendering (WeasyPrint).
                 bin_source = base64.b64decode(base64_source)
                 Attachment = self.env["ir.attachment"]
-                checksum = Attachment._compute_checksum(bin_source)
+                checksum = Attachment._content_checksum(bin_source)
                 origins = Attachment.sudo().search(
                     [
                         [
@@ -3666,7 +3669,7 @@ class IrQweb(models.AbstractModel):
 
     def _get_asset_content(
         self, bundle: str, assets_params: dict[str, Any] | None = None
-    ) -> tuple[list[dict[str, Any]], list[str]]:
+    ) -> tuple[list[BundleFileSpec], list[str]]:
         if assets_params is None:
             assets_params = self.env["ir.asset"]._get_asset_params()  # website_id
         asset_paths = self.env["ir.asset"]._get_asset_paths(
@@ -3818,41 +3821,12 @@ class IrQweb(models.AbstractModel):
 
     # URL of the OWL ESM library — real ESM build, loaded via import map
     _OWL_ESM_URL = "/web/static/lib/owl/owl.es.js"
-    # URLs for @odoo/* libraries externalized by esbuild — must be in the
-    # import map so runtime import() can resolve them.
-    # @odoo/* libraries externalized by esbuild that need import map
-    # entries for runtime resolution.  @odoo/hoot-dom is aliased in
-    # esbuild (bundled inline) so it does NOT need an import map entry.
-    _ODOO_EXTERNAL_LIBS = {
-        "@odoo/owl": "/web/static/lib/owl/owl.es.js",
-        "@odoo/hoot": "/web/static/lib/hoot/hoot.js",
-        "@odoo/hoot-dom": "/web/static/lib/hoot-dom/hoot-dom.js",
-        "@odoo/hoot-mock": "/web/static/lib/hoot/hoot-mock.js",
-        # Deep-import aliases for hoot test-runner internals.  See the
-        # parallel block in ``AssetsBundle._LIB_CANDIDATES`` for the
-        # rationale (chrome rejects the legacy ``@web/../lib/...`` form
-        # in ``?debug=assets`` mode); both declarations are kept in
-        # sync by ``_validate_external_libs``.
-        "@odoo/hoot-dom-helpers-dom": "/web/static/lib/hoot-dom/helpers/dom.js",
-        "@odoo/hoot-dom-helpers-events": "/web/static/lib/hoot-dom/helpers/events.js",
-        "@odoo/hoot-dom-helpers-time": "/web/static/lib/hoot-dom/helpers/time.js",
-        "@odoo/hoot-dom-utils": "/web/static/lib/hoot-dom/hoot_dom_utils.js",
-        # @popperjs/core is imported by the bundled Bootstrap ESM
-        # (``bootstrap.esm.js:6``). esbuild aliases it internally via
-        # AssetsBundle._lib_candidates, but in debug mode the browser
-        # must resolve the bare specifier through the import map. Without
-        # this entry, ``bootstrap.esm.js`` fails to link, leaves Tooltip/
-        # Modal/etc as undefined on the re-export, and downstream code
-        # (``web/libs/bootstrap.js:33``) crashes reading ``Tooltip.Default``.
-        "@popperjs/core": "/web/static/lib/popper/popper.esm.js",
-        # luxon is shipped as a UMD IIFE that assigns window.luxon. The
-        # adapter at lib/luxon/luxon.esm.js re-exports each public class
-        # from that global so native ESM callers can
-        # ``import { DateTime } from "luxon"`` transparently. Required
-        # because several enterprise modules import luxon as ESM even
-        # though the vendored build is UMD.
-        "luxon": "/web/static/lib/luxon/luxon.esm.js",
-    }
+    # Import-map entries for esbuild-externalized libraries.  The
+    # canonical definition lives in ``odoo.libs.constants`` so that
+    # ``assetsbundle`` can read it without importing this module (the
+    # two used to form an import cycle patched with a deferred import);
+    # the class alias keeps the ``self._ODOO_EXTERNAL_LIBS`` read sites.
+    _ODOO_EXTERNAL_LIBS = ODOO_EXTERNAL_LIBS
 
     @staticmethod
     def _specifier_to_static_url(spec: str) -> str | None:
@@ -3911,6 +3885,77 @@ class IrQweb(models.AbstractModel):
             assets_params=assets_params,
         )
         return asset_bundle.get_native_module_data()
+
+    def _get_esm_bundle_payload(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None = None,
+        debug_assets: bool = False,
+    ) -> dict:
+        """Payload for the ``/web/bundle`` lazy-load endpoint (dispatch).
+
+        ``?debug=assets`` requests bypass the cache so file edits show up
+        immediately, mirroring the native-module-nodes dispatch. Cached
+        values are shared by reference — callers must treat the dict and
+        its members as immutable.
+        """
+        if assets_params is None:
+            assets_params = self.env["ir.asset"]._get_asset_params()
+        if debug_assets:
+            return self._esm_bundle_payload_impl(bundle, assets_params)
+        return self._get_esm_bundle_payload_cached(bundle, assets_params)
+
+    @tools.conditional(
+        "xml" not in tools.config["dev_mode"],
+        tools.ormcache(
+            "bundle",
+            "tuple(sorted(assets_params.items()))",
+            cache="assets",
+        ),
+    )
+    def _get_esm_bundle_payload_cached(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None = None,
+    ) -> dict:
+        """Cached variant of the lazy-bundle payload (see the dispatch)."""
+        return self._esm_bundle_payload_impl(bundle, assets_params)
+
+    def _esm_bundle_payload_impl(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+    ) -> dict:
+        """Compute the lazy ESM bundle payload.
+
+        Previously inlined in the ``/web/bundle`` controller and recomputed
+        per request: bundle construction, bridge discovery (regex over every
+        module source) and the XML template parse ran on every runtime
+        ``loadBundle()`` call. The template attachment is content-addressed,
+        so repeat computes reuse the same URL; the newest row per name
+        survives ``_gc_esm_assets``, keeping cached payload URLs valid.
+        """
+        asset_bundle = self._get_asset_bundle(
+            bundle,
+            js=True,
+            css=False,
+            debug_assets=True,
+            assets_params=assets_params,
+        )
+        native_data = asset_bundle.get_native_module_data()
+        import_map = dict(native_data["import_map"])
+        import_map.update(native_data.get("bridge_import_map", {}))
+        template_url = None
+        esm_tpl = asset_bundle.generate_esm_template_bundle(use_import=False)
+        if esm_tpl:
+            template_url = self._save_esm_attachment(
+                f"{bundle}.templates", esm_tpl, asset_bundle
+            )
+        return {
+            "specifiers": sorted(native_data["import_map"]),
+            "import_map": import_map,
+            "template_url": template_url,
+        }
 
     # Cache for the minified loader shim. Populated lazily by
     # _build_loader_shim_js() from the static source file on disk, and
@@ -4400,10 +4445,12 @@ class IrQweb(models.AbstractModel):
                 debug_assets=False,
                 assets_params=assets_params,
             )
-            esbuild_code = self._esm_run_esbuild(bundle, asset_bundle, assets_params)
+            esbuild_code, child_bundles = self._esm_run_esbuild(
+                bundle, asset_bundle, assets_params
+            )
             if esbuild_code:
                 return self._esm_prod_nodes(
-                    bundle, asset_bundle, esbuild_code, assets_params
+                    bundle, asset_bundle, esbuild_code, assets_params, child_bundles
                 )
             if _raise_on_decline:
                 raise _EsmFallbackError
@@ -4416,14 +4463,20 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         asset_bundle: AssetsBundle,
         assets_params: dict[str, Any] | None,
-    ) -> str:
+    ) -> tuple[str, list[AssetsBundle]]:
         """Run production esbuild bundling for ``bundle`` if allowed.
 
         Honors the admin force-fallback override, the per-bundle circuit
         breaker and the advisory build lock, and records circuit
-        success/failure. Returns the minified module-bundle source, or
-        ``""`` when the build is skipped or fails (the caller then degrades
-        to the debug-mode nodes).
+        success/failure.
+
+        :return: ``(esbuild_code, child_bundles)`` — the minified
+            module-bundle source (``""`` when the build is skipped or
+            fails; the caller then degrades to the debug-mode nodes) and
+            the dynamic-child ``AssetsBundle`` objects constructed for the
+            spec scan, for ``_esm_prod_nodes`` to reuse instead of
+            re-constructing all of them (empty when the build was skipped
+            — the prod-nodes path is not reached in that case).
         """
         # Admin override (``web.esbuild.force_fallback_bundles``). The node
         # cache is bypassed for these in the dispatcher, so reaching here
@@ -4432,6 +4485,7 @@ class IrQweb(models.AbstractModel):
 
         allow, circuit_reason = self._esbuild_circuit_state(bundle)
         esbuild_code = ""
+        child_bundles: list[AssetsBundle] = []
         if bundle in forced_bundles:
             log_event(
                 _fallback_log,
@@ -4470,32 +4524,31 @@ class IrQweb(models.AbstractModel):
             # and the cost is paid by the import-map merge below
             # anyway — handing the same data to esbuild costs only
             # a set comprehension.
-            from odoo.addons.base.models.assetsbundle import AssetsBundle as _AB
-
             _child_specs: set[str] = set()
-            for _child_name in _AB.DYNAMIC_ESM_BUNDLES.get(bundle, []):
+            for _child_name in esm_registry().dynamic_children.get(bundle, ()):
                 _child_ab = self._get_asset_bundle(
                     _child_name,
                     js=True,
                     css=False,
-                    debug_assets=(_child_name in _AB._DYNAMIC_BUNDLE_NAMES),
+                    debug_assets=(_child_name in esm_registry().dynamic_bundle_names),
                     assets_params=assets_params,
                 )
+                child_bundles.append(_child_ab)
                 _child_specs.update(a.module_path for a in _child_ab.native_modules)
             try:
                 esbuild_code = asset_bundle.esbuild_native_bundle(
                     timeout_s=self._get_esbuild_setting(
                         "timeout_s",
-                        default=asset_bundle._ESBUILD_TIMEOUT_S,
+                        default=EsbuildCompiler._ESBUILD_TIMEOUT_S,
                         cast=int,
                     ),
                     target=self._get_esbuild_setting(
                         "target",
-                        default=asset_bundle._ESBUILD_TARGET,
+                        default=EsbuildCompiler._ESBUILD_TARGET,
                     ),
                     source_maps=self._get_esbuild_setting(
                         "source_maps",
-                        default=asset_bundle._ESBUILD_SOURCE_MAPS,
+                        default=EsbuildCompiler._ESBUILD_SOURCE_MAPS,
                     ),
                     dynamic_child_specs=frozenset(_child_specs) or None,
                 )
@@ -4519,7 +4572,7 @@ class IrQweb(models.AbstractModel):
                     reason=type(e).__name__,
                 )
                 esbuild_code = ""
-        return esbuild_code
+        return esbuild_code, child_bundles
 
     def _esm_prod_nodes(
         self,
@@ -4527,6 +4580,7 @@ class IrQweb(models.AbstractModel):
         asset_bundle: AssetsBundle,
         esbuild_code: str,
         assets_params: dict[str, Any] | None,
+        child_bundles: list[AssetsBundle] | None = None,
     ) -> tuple[
         list[tuple[str, dict[str, Any]]],
         list[tuple[str, dict[str, Any]]],
@@ -4539,6 +4593,9 @@ class IrQweb(models.AbstractModel):
         bundle, and persists (or inlines, in read-only txns) the module and
         templates attachments.
 
+        :param list child_bundles: dynamic-child ``AssetsBundle`` objects
+            already constructed by ``_esm_run_esbuild`` (same construction
+            parameters as the fallback below); ``None`` constructs them.
         :return: ``(pre, post)`` flanking the legacy bundle
         """
         pre = []
@@ -4546,21 +4603,28 @@ class IrQweb(models.AbstractModel):
         # Import map: @odoo/* externals + dynamic bundle specifiers
         # so runtime import() can resolve them.
         prod_import_map = dict(self._ODOO_EXTERNAL_LIBS)
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
 
         # Collect dynamic ESM bundles and build bridges for
         # their @web/... dependencies (data: URI shims reading
         # from odoo.loader.modules — same instance, no dups).
+        # The child bundles were already constructed once by
+        # ``_esm_run_esbuild`` for the spec scan; reuse them here
+        # instead of re-running every child's ``__init__`` (15
+        # constructions saved per cold ``web.assets_web`` render).
+        if child_bundles is None:
+            child_bundles = [
+                self._get_asset_bundle(
+                    lazy_name,
+                    js=True,
+                    css=False,
+                    debug_assets=lazy_name in esm_registry().dynamic_bundle_names,
+                    assets_params=assets_params,
+                )
+                for lazy_name in esm_registry().dynamic_children.get(bundle, ())
+            ]
         dynamic_bundles = []
-        for lazy_name in AssetsBundle.DYNAMIC_ESM_BUNDLES.get(bundle, []):
-            is_dynamic = lazy_name in AssetsBundle._DYNAMIC_BUNDLE_NAMES
-            lazy_ab = self._get_asset_bundle(
-                lazy_name,
-                js=True,
-                css=False,
-                debug_assets=is_dynamic,
-                assets_params=assets_params,
-            )
+        for lazy_ab in child_bundles:
+            is_dynamic = lazy_ab.name in esm_registry().dynamic_bundle_names
             # Only ``import_map`` is consumed here — the combined
             # dynamic-child bridge is built separately below — so skip
             # the per-child bridge build + attachment persistence.
@@ -4578,20 +4642,18 @@ class IrQweb(models.AbstractModel):
             combined_modules = []
             for dyn_ab in dynamic_bundles:
                 combined_modules.extend(dyn_ab.native_modules)
-            # Use first bundle as host, temporarily swap modules
-            host = dynamic_bundles[0]
-            orig = host.native_modules
-            host.native_modules = combined_modules
-            bridge_map = host._build_native_to_legacy_bridge(
+            # The first bundle hosts the build (persistence env + log
+            # name); the combined module list is passed explicitly.
+            bridge_map = dynamic_bundles[0]._build_native_to_legacy_bridge(
                 set(prod_import_map),
+                modules=combined_modules,
             )
-            host.native_modules = orig
             prod_import_map.update(bridge_map)
 
         # Include import map entries from associated bundles
         # (e.g. test bundles that skip esbuild and rely on the
         # parent's import map for bare-specifier resolution).
-        include_names = AssetsBundle.IMPORT_MAP_INCLUDES.get(bundle, [])
+        include_names = esm_registry().import_map_includes.get(bundle, ())
         for include_name in include_names:
             # debug_assets=False here → reuse the ormcached native
             # module data (keyed by bundle + assets_params) instead of
@@ -4612,7 +4674,7 @@ class IrQweb(models.AbstractModel):
         # the parent's resolved URLs with the satellite's
         # bridge shims (which would create circular shim
         # references during the parent's bridge initialisation).
-        secondary_names = AssetsBundle.SECONDARY_IMPORT_MAP_INCLUDES.get(
+        secondary_names = esm_registry().secondary_import_map_includes.get(
             bundle,
             [],
         )
@@ -4792,9 +4854,7 @@ class IrQweb(models.AbstractModel):
             esb_base = esbuild_code
             sm_directive = ""
             _tail_idx = esbuild_code.rfind("//# sourceMappingURL=")
-            if _tail_idx != -1 and "\n" not in esbuild_code[_tail_idx:].rstrip(
-                "\n"
-            ):
+            if _tail_idx != -1 and "\n" not in esbuild_code[_tail_idx:].rstrip("\n"):
                 # Match spans from the directive marker to the
                 # end of file (possibly followed by a single
                 # trailing newline).  esbuild always emits the
@@ -4845,7 +4905,7 @@ class IrQweb(models.AbstractModel):
         # are already inlined into the main bundle and no
         # satellite needs them.
         _has_satellites = bool(
-            AssetsBundle.IMPORT_MAP_INCLUDES.get(bundle),
+            esm_registry().import_map_includes.get(bundle),
         )
         if esm_tpl and _has_satellites:
             if self.env.cr.readonly:
@@ -4891,9 +4951,7 @@ class IrQweb(models.AbstractModel):
             for v in prod_import_map.values()
             if v.startswith("/web/assets/esm/bridges/")
         )
-        _n_data_uri = sum(
-            1 for v in prod_import_map.values() if v.startswith("data:")
-        )
+        _n_data_uri = sum(1 for v in prod_import_map.values() if v.startswith("data:"))
         _n_real_url = len(prod_import_map) - _n_bridges - _n_data_uri
         log_event(
             _esm_log,
@@ -4946,10 +5004,9 @@ class IrQweb(models.AbstractModel):
         # Pre-register dynamic ESM bundle specifiers in the import map
         # so that runtime import() (after loadBundle) can resolve them.
         # Only URLs are added — modules are NOT eagerly loaded.
-        from odoo.addons.base.models.assetsbundle import AssetsBundle
 
         lazy_bundles = []
-        for lazy_name in AssetsBundle.DYNAMIC_ESM_BUNDLES.get(bundle, []):
+        for lazy_name in esm_registry().dynamic_children.get(bundle, ()):
             lazy_ab = self._get_asset_bundle(
                 lazy_name,
                 js=True,
@@ -4965,7 +5022,7 @@ class IrQweb(models.AbstractModel):
 
         # Include import map entries from associated bundles (e.g. test
         # bundles that skip esbuild and rely on the parent's import map).
-        for include_name in AssetsBundle.IMPORT_MAP_INCLUDES.get(bundle, []):
+        for include_name in esm_registry().import_map_includes.get(bundle, ()):
             include_ab = self._get_asset_bundle(
                 include_name,
                 js=True,
@@ -4973,16 +5030,47 @@ class IrQweb(models.AbstractModel):
                 debug_assets=debug_assets,
                 assets_params=assets_params,
             )
-            include_data = include_ab.get_native_module_data()
+            include_data = include_ab.get_native_module_data(with_bridges=False)
             import_map.update(include_data["import_map"])
-            import_map.update(include_data.get("bridge_import_map", {}))
+            # The include's modules import cross-bundle specifiers the map
+            # must resolve, but bridge SHIMS read ``odoo.loader.modules`` —
+            # non-functional in debug mode (same reason as the conversion
+            # loop below).  Merging them verbatim shadowed the parent's
+            # direct URLs and poisoned the whole module graph: verified
+            # 2026-06-10, the hoot runner failed all ~1311 tests under
+            # ``?debug=assets`` (vs 8 genuine failures in production mode)
+            # with every shim-routed export ``undefined``.  Discover the
+            # specifier KEYS only — building and persisting the shim values
+            # (~340 attachment writes per debug render) was pure waste once
+            # every entry gets converted anyway — and resolve each to a
+            # direct URL: keep an existing direct mapping, else derive the
+            # static URL, else drop for a clean "module not found".  The
+            # exclusion set is the include's own import-map keys, i.e. the
+            # exact ``native_specifiers`` the bridge build would have used.
+            discovered, _ext_seen = include_ab._discover_bridge_specifiers(
+                set(include_data["import_map"]),
+                set(self._ODOO_EXTERNAL_LIBS),
+            )
+            for _spec in discovered:
+                _current = import_map.get(_spec)
+                if _current and not _current.startswith(
+                    ("/web/assets/esm/bridges/", "data:")
+                ):
+                    continue
+                _resolved = self._ODOO_EXTERNAL_LIBS.get(
+                    _spec
+                ) or self._specifier_to_static_url(_spec)
+                if _resolved:
+                    import_map[_spec] = _resolved
+                elif _current:
+                    del import_map[_spec]
 
         # Include NEW import-map specifiers from secondary satellite
         # bundles (e.g. ``web.assets_tests`` loaded via the conditional
         # template).  Only specifiers not already in the parent are
         # added so we don't override the parent's resolved URLs with
         # the satellite's bridge shims.
-        for sec_name in AssetsBundle.SECONDARY_IMPORT_MAP_INCLUDES.get(bundle, []):
+        for sec_name in esm_registry().secondary_import_map_includes.get(bundle, ()):
             sec_ab = self._get_asset_bundle(
                 sec_name,
                 js=True,
@@ -5007,61 +5095,56 @@ class IrQweb(models.AbstractModel):
             all_native_specifiers.update(m.module_path for m in lazy_ab.native_modules)
             combined_native_modules.extend(lazy_ab.native_modules)
 
-        # Temporarily swap native_modules to build a combined bridge
-        orig_modules = asset_bundle.native_modules
-        asset_bundle.native_modules = combined_native_modules
-        bridge_map = asset_bundle._build_native_to_legacy_bridge(
-            all_native_specifiers,
-        )
-        asset_bundle.native_modules = orig_modules
-        # In debug mode, bridge shims (data: URIs reading from
+        # In debug mode, bridge shims (modules reading from
         # odoo.loader.modules) CANNOT work: there is no esbuild
         # bundle to pre-populate the modules map, so _m is undefined
-        # and the shim crashes.
-        #
-        # Strategy: convert every bridge_map entry to a direct URL.
+        # and the shim crashes.  Discover the specifier KEYS only —
+        # building and persisting shim attachments here was pure waste
+        # (same reasoning as the include-path conversion above) — and
+        # resolve each to a direct URL:
         # 1. If the specifier already has a direct URL in import_map
-        #    (from native_data or _ODOO_EXTERNAL_LIBS), just drop the
-        #    shim — the existing URL is already correct.
+        #    (from native_data or _ODOO_EXTERNAL_LIBS), keep it —
+        #    the existing URL is already correct.
         # 2. Otherwise, resolve the @addon/... specifier back to a
-        #    served static URL and replace the shim with that URL.
-        #    This is always safe in debug: browsers singleton ES
-        #    modules by URL, so every bundle that imports the same
-        #    specifier shares the exact same module instance.
-        # 3. If the specifier can't be resolved (unusual), drop it
-        #    entirely — the browser gets a clean "module not found"
+        #    served static URL.  This is always safe in debug:
+        #    browsers singleton ES modules by URL, so every bundle
+        #    that imports the same specifier shares the exact same
+        #    module instance.
+        # 3. If the specifier can't be resolved (unusual), leave it
+        #    out — the browser gets a clean "module not found"
         #    instead of the confusing undefined-property crash.
-
-        for _spec in list(bridge_map):
+        discovered, _ext_seen = asset_bundle._discover_bridge_specifiers(
+            all_native_specifiers,
+            set(self._ODOO_EXTERNAL_LIBS),
+            modules=combined_native_modules,
+        )
+        resolved_bridges = {}
+        for _spec in discovered:
             _current = import_map.get(_spec)
             # A "direct URL" here means a real source/asset URL pointing
             # at a file NOT generated by ``_persist_bridge_shims``
             # (i.e. anything outside ``/web/assets/esm/bridges/``).  If
-            # the spec already resolves to such a URL, the shim is
-            # redundant — the direct URL hits the source bytes, the
+            # the spec already resolves to such a URL, a bridge is
+            # redundant — the direct URL hits the source bytes, a
             # shim would only proxy through ``odoo.loader.modules``.
             if (
                 _current
                 and not _current.startswith("/web/assets/esm/bridges/")
                 and not _current.startswith("data:")
             ):
-                # Already has a direct URL — drop the shim
-                bridge_map.pop(_spec)
-            else:
-                # No direct URL — prefer the canonical mapping in
-                # _ODOO_EXTERNAL_LIBS (deep-import aliases like
-                # @odoo/hoot-dom-helpers-events resolve to a vendored
-                # path that the ``@addon/...`` → ``/addon/static/src/...``
-                # convention can't compute), then fall back to the
-                # convention-derived static URL.
-                _resolved = self._ODOO_EXTERNAL_LIBS.get(
-                    _spec
-                ) or self._specifier_to_static_url(_spec)
-                if _resolved:
-                    bridge_map[_spec] = _resolved
-                else:
-                    bridge_map.pop(_spec)
-        import_map.update(bridge_map)
+                continue
+            # No direct URL — prefer the canonical mapping in
+            # _ODOO_EXTERNAL_LIBS (deep-import aliases like
+            # @odoo/hoot-dom-helpers-events resolve to a vendored
+            # path that the ``@addon/...`` → ``/addon/static/src/...``
+            # convention can't compute), then fall back to the
+            # convention-derived static URL.
+            _resolved = self._ODOO_EXTERNAL_LIBS.get(
+                _spec
+            ) or self._specifier_to_static_url(_spec)
+            if _resolved:
+                resolved_bridges[_spec] = _resolved
+        import_map.update(resolved_bridges)
 
         # Check if a previous ESM bundle on this page already rendered
         # an import map (e.g. the setup bundle on the test page).
@@ -5216,7 +5299,7 @@ class IrQweb(models.AbstractModel):
             url=_n_real_url,
             bridges=_n_bridges,
             data=_n_data_uri,
-            bridge_shims=len(bridge_map),
+            bridge_shims=len(resolved_bridges),
             already_has_esm=bool(_already_has_esm),
         )
         return pre_nodes, post_nodes
@@ -5238,9 +5321,11 @@ class IrQweb(models.AbstractModel):
 
         The ``/web/assets/esm/`` path prefix distinguishes content-hashed
         ESM bundles from the legacy ``/web/assets/{version}/`` layout
-        used for concatenated ``.min.js`` bundles; the stale-cleanup
-        glob below matches both so an upgrade silently drops the old
-        ``/web/assets/<ver>/<bundle>.esm.js`` rows on first rebuild.
+        used for concatenated ``.min.js`` bundles; the stale-version
+        glob below matches both. Superseded rows are NOT deleted here —
+        deletion is deferred to ``IrAttachment._gc_esm_assets`` after a
+        grace window; this method only triggers the assets-cache clear
+        that version propagation requires.
         """
         IrAttachment = self.env["ir.attachment"]
         content_bytes = content.encode("utf-8")
@@ -5307,11 +5392,19 @@ class IrQweb(models.AbstractModel):
             ]
         )
         if stale:
-            stale.unlink()
+            # Deletion is DEFERRED to IrAttachment._gc_esm_assets: the
+            # superseded rows must keep serving in-flight pages, stale CDN
+            # HTML and workers that have not yet processed the cache-clear
+            # signal (the ESM serve path has no on-the-fly rebuild, so a
+            # deleted row is a hard 404 there). The cache clear itself —
+            # previously a side effect of stale.unlink() — must still
+            # happen so every worker re-renders its nodes with the new
+            # version's URL.
+            self.env.registry.clear_cache("assets")
             log_event(
                 _attach_log,
                 logging.INFO,
-                "stale_unlink",
+                "stale_deferred",
                 bundle=bundle,
                 count=len(stale),
             )
@@ -5329,7 +5422,7 @@ class IrQweb(models.AbstractModel):
         # ran; ``None`` means we're saving something other than the
         # main bundle (e.g. the ``.templates.esm.js`` attachment below,
         # which is generated by a different code path).
-        metafile = getattr(asset_bundle, "_last_metafile", None)
+        metafile = asset_bundle._last_metafile
         if metafile and url.endswith(".esm.js"):
             meta_url = url[: -len(".esm.js")] + ".meta.json"
             self._save_esm_sidecar(
@@ -5345,7 +5438,7 @@ class IrQweb(models.AbstractModel):
         # ``.esm.js`` -> ``.esm.js.map`` filename relationship esbuild
         # picks by default, so the comment in the bundle resolves
         # correctly relative to the bundle URL.
-        sourcemap = getattr(asset_bundle, "_last_sourcemap", None)
+        sourcemap = asset_bundle._last_sourcemap
         if sourcemap and url.endswith(".esm.js"):
             sm_url = url + ".map"
             self._save_esm_sidecar(
@@ -5457,22 +5550,6 @@ class IrQweb(models.AbstractModel):
                 if css:
                     css_bundles.add(asset)
         return (js_bundles, css_bundles)
-
-
-# ── Module-load-time cross-file validation ────────────────────────────
-#
-# Cross-check IrQweb._ODOO_EXTERNAL_LIBS against AssetsBundle._LIB_CANDIDATES
-# now that BOTH classes exist.  Running this at module-load (rather than
-# at first request) means a drift between the two declaration sites is
-# caught at server startup — operators learn about the problem before
-# any user hits it.  See ``AssetsBundle._validate_external_libs`` for
-# the full invariant list.
-from odoo.addons.base.models.assetsbundle import (  # noqa: E402
-    AssetsBundle as _AssetsBundle,
-)
-
-_AssetsBundle._validate_external_libs(set(IrQweb._ODOO_EXTERNAL_LIBS))
-del _AssetsBundle
 
 
 def render(

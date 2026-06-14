@@ -45,8 +45,8 @@ Odoo Web tours.
             'web_tour/static/tests/*.test.js',
         ],
         # ``web_tour.automatic`` is preloaded into ``web.assets_web`` via
-        # ``ir.qweb.assetsbundle.DYNAMIC_ESM_BUNDLES`` (separate ESM child
-        # bundle).  Including its modules into ``web.assets_tests`` again
+        # the ``esm.dynamic_children`` declaration at the bottom of this
+        # manifest (separate ESM child bundle).  Including its modules into ``web.assets_tests`` again
         # would bundle a SECOND copy of ``tour_helpers.js`` — each bundle
         # gets its own ``TourHelpers`` class, the patches in
         # ``tour_helpers_hoot.js`` apply to one prototype while
@@ -78,4 +78,20 @@ Odoo Web tours.
     'auto_install': True,
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'web_tour.automatic',
+            'web_tour.interactive',
+            'web_tour.recorder',
+        ],
+        'dynamic_children': {
+            'web.assets_web': [
+                'web_tour.automatic',
+                'web_tour.interactive',
+                'web_tour.recorder',
+            ],
+        },
+    },
 }

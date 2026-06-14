@@ -194,4 +194,19 @@ Help your customers with this chat, and analyse their feedback.
     },
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'im_livechat.assets_embed_core',
+            'im_livechat.assets_embed_cors',
+            'im_livechat.assets_embed_external',
+            'im_livechat.assets_livechat_support_tours',
+        ],
+        'dynamic_children': {
+            'web.assets_web': [
+                'im_livechat.assets_livechat_support_tours',
+            ],
+        },
+    },
 }

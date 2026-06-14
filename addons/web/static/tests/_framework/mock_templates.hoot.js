@@ -82,17 +82,23 @@ function replaceAttributes(template) {
  *
  * @param {{ modules: Map<string, any> }} loader
  */
+// Once-guard keyed by the templates module object itself. In debug mode
+// (`?debug=assets`) `loader.modules.get(...)` holds a REAL frozen ES-module
+// namespace — writing a marker property onto it throws TypeError — so the
+// guard must live outside the module object.
+const mockTemplatesRegistered = new WeakSet();
+
 export function setupMockTemplates(loader) {
     const templatesModule = loader.modules.get("@web/core/templates");
     if (!templatesModule?.registerTemplateProcessor) {
         return;
     }
-    if (templatesModule._mockTemplatesRegistered) {
+    if (mockTemplatesRegistered.has(templatesModule)) {
         return;
     }
     templatesModule.registerTemplateProcessor(replaceAttributes);
     if (typeof templatesModule.clearProcessedTemplates === "function") {
         templatesModule.clearProcessedTemplates();
     }
-    templatesModule._mockTemplatesRegistered = true;
+    mockTemplatesRegistered.add(templatesModule);
 }
