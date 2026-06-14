@@ -117,7 +117,9 @@ class FileAccessor:
     @property
     def content(self) -> str:
         if self._content is None:
-            self._content = self.path.read_text()
+            # Explicit utf-8: source files are utf-8 by convention and the
+            # default would follow the process locale (PEP 597).
+            self._content = self.path.read_text(encoding="utf-8")
         return self._content
 
     @content.setter
@@ -142,6 +144,10 @@ class FileManager:
             if path.suffix in AVAILABLE_EXT
             if path.is_file()
         }
+        # The progress line is written to stderr, so probe stderr — the
+        # previous import-time probe checked stdout AND froze the decision
+        # before any stream redirection could happen.
+        self._show_progress = sys.stderr.isatty()
 
     def __iter__(self) -> Iterator[FileAccessor]:
         return iter(self._files.values())
@@ -152,30 +158,21 @@ class FileManager:
     def get_file(self, path: str | Path) -> FileAccessor | None:
         return self._files.get(str(path))
 
-    if sys.stdout.isatty():
-
-        def print_progress(
-            self,
-            current: int,
-            total: int | None = None,
-            file_name: str | Path = "",
-        ) -> None:
-            total = total or len(self) or 1
-            print(
-                f"\033[K{current / total:>4.0%} \033[37m{file_name}\033[0m",
-                end="\r",
-                file=sys.stderr,
-            )
-
-    else:
-
-        def print_progress(
-            self,
-            current: int,
-            total: int | None = None,
-            file_name: str | Path = "",
-        ) -> None:
-            pass
+    def print_progress(
+        self,
+        current: int,
+        total: int | None = None,
+        file_name: str | Path = "",
+    ) -> None:
+        """Render a one-line progress indicator on interactive stderr."""
+        if not self._show_progress:
+            return
+        total = total or len(self) or 1
+        print(
+            f"\033[K{current / total:>4.0%} \033[37m{file_name}\033[0m",
+            end="\r",
+            file=sys.stderr,
+        )
 
 
 def get_upgrade_code_scripts(
@@ -218,7 +215,12 @@ def migrate(
         script_path = candidates[0] if candidates else None
         if not script_path:
             raise FileNotFoundError(script)
-        script_path.relative_to(UPGRADE)  # safeguard, prevent going up
+        # Safeguard against path traversal (e.g. `--script ../../etc/x`): the
+        # exact-stem branch above does `UPGRADE / f"{stem}.py"`, which a `..`
+        # in the stem can escape. Path.relative_to is purely lexical and does
+        # NOT raise for `..`, so resolve both sides and compare.
+        if not script_path.resolve().is_relative_to(UPGRADE.resolve()):
+            raise FileNotFoundError(f"--script {script!r} resolves outside {UPGRADE}")
         module = _load_module_from_file(script_path.name, script_path)
         modules = [(script_path.name, module)]
     else:
@@ -234,7 +236,7 @@ def migrate(
         if file.dirty:
             print(file.path)
             if not dry_run:
-                with file.path.open("w") as f:
+                with file.path.open("w", encoding="utf-8") as f:
                     f.write(file.content)
 
     return any(file.dirty for file in file_manager)
@@ -306,7 +308,17 @@ class UpgradeCode(Command):
             options.addons_path = [p for p in options.addons_path if p]
         if not options.addons_path:
             self.parser.error("--addons-path is required when used standalone")
-        is_dirty = migrate(**vars(options))
+        # Explicit kwargs, NOT migrate(**vars(options)): the splat coupled
+        # migrate's signature 1:1 to the argparse namespace, so any new CLI
+        # flag became an instant "unexpected keyword argument" TypeError.
+        is_dirty = migrate(
+            options.addons_path,
+            options.glob,
+            from_version=options.from_version,
+            to_version=options.to_version,
+            script=options.script,
+            dry_run=options.dry_run,
+        )
         sys.exit(int(is_dirty))
 
 

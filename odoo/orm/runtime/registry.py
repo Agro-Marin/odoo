@@ -1218,6 +1218,19 @@ class Registry(Mapping[str, type["BaseModel"]]):
                     _logger.info(
                         "Reloading the model registry after database signaling."
                     )
+                    # Another worker changed the schema.  This worker's idle
+                    # pooled connections hold auto-prepared statements from
+                    # before the change (first re-execute of a statement
+                    # whose result type changed fails with "cached plan
+                    # must not change result type"), and the schema caches
+                    # used by binary COPY may be stale (those do NOT
+                    # self-heal).  drain_all() in load_modules() only runs
+                    # in the worker that performed the upgrade — drain here
+                    # so this worker starts the new registry on fresh
+                    # connections.
+                    from odoo.db import drain_db
+
+                    drain_db(self.db_name)
                     self = Registry.new(self.db_name)
                     self.registry_sequence = db_registry_sequence
                     if _logger.isEnabledFor(logging.DEBUG):

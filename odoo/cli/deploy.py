@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import tempfile
@@ -8,6 +9,8 @@ from pathlib import Path
 import requests
 
 from . import Command
+
+_logger = logging.getLogger(__name__)
 
 # Directory names and file suffixes that should never ship in a module zip.
 # VCS metadata can leak credentials; build caches and dependency trees inflate
@@ -51,11 +54,23 @@ EXCLUDED_SUFFIXES = frozenset(
 # bypass TLS).
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "0.0.0.0", "::1"})
 
+# (connect, read) timeouts. requests has NO default timeout: without one a
+# stuck server hangs the command forever. Connect fails fast; the upload
+# read is unbounded because the server installs the module synchronously
+# and large modules legitimately take minutes (same rationale as `db load`).
+_LOGIN_TIMEOUT = (10, 30)
+_UPLOAD_TIMEOUT = (10, None)
+
 
 def _should_skip(filepath: Path, module_dir: Path) -> bool:
     """Return True if ``filepath`` should be excluded from the deploy zip."""
+    # Only the *parent* components are tested against EXCLUDED_DIR_NAMES, never
+    # the file's own basename: a legitimate module file named e.g. ``build`` or
+    # ``dist`` (no extension) must ship. The directory check is belt-and-braces
+    # — ``zip_module``'s walk already prunes excluded dirs in place — so it
+    # fires only if this helper is ever called outside that walk.
     rel_parts = filepath.relative_to(module_dir).parts
-    if any(p in EXCLUDED_DIR_NAMES for p in rel_parts):
+    if any(p in EXCLUDED_DIR_NAMES for p in rel_parts[:-1]):
         return True
     return filepath.suffix in EXCLUDED_SUFFIXES
 
@@ -96,10 +111,14 @@ class Deploy(Command):
     ) -> str:
         print("Uploading module file...")
         # urlencode the db name: a db containing '&' or '#' would otherwise
-        # inject extra query parameters into the login request.
-        encoded_db = urllib.parse.quote(db, safe="")
+        # inject extra query parameters into the login request. ``db`` may be
+        # "" when the server uses a db-filter and --db is omitted; quote(None)
+        # would raise TypeError, so coerce to "".
+        encoded_db = urllib.parse.quote(db or "", safe="")
         self.session.get(
-            f"{url}/web/login?db={encoded_db}", allow_redirects=False
+            f"{url}/web/login?db={encoded_db}",
+            allow_redirects=False,
+            timeout=_LOGIN_TIMEOUT,
         )  # this sets the db in the session
         endpoint = url + "/base_import_module/login_upload"
         post_data = {
@@ -109,7 +128,12 @@ class Deploy(Command):
             "force": "1" if force else "",
         }
         with Path(module_file).open("rb") as f:
-            res = self.session.post(endpoint, files={"mod_file": f}, data=post_data)
+            res = self.session.post(
+                endpoint,
+                files={"mod_file": f},
+                data=post_data,
+                timeout=_UPLOAD_TIMEOUT,
+            )
 
         if res.status_code == 404:
             raise requests.exceptions.HTTPError(
@@ -131,13 +155,43 @@ class Deploy(Command):
         os.close(fd)
         try:
             print("Zipping module directory...")
-            with zipfile.ZipFile(temp, "w") as zfile:
-                for filepath in module_dir.rglob("*"):
-                    if not filepath.is_file():
-                        continue
-                    if _should_skip(filepath, module_dir):
-                        continue
-                    zfile.write(filepath, filepath.relative_to(module_dir.parent))
+            # ZIP_DEFLATED: the default (ZIP_STORED) uploads source files
+            # uncompressed — several-fold larger for no benefit.
+            with zipfile.ZipFile(temp, "w", compression=zipfile.ZIP_DEFLATED) as zfile:
+                # walk() so excluded trees (node_modules, .git, …) are pruned
+                # in place and never traversed — rglob would enumerate every
+                # file inside them only to discard each one.
+                for dirpath, dirnames, filenames in module_dir.walk():
+                    kept_dirs = []
+                    for dirname in dirnames:
+                        if dirname in EXCLUDED_DIR_NAMES:
+                            continue
+                        if (dirpath / dirname).is_symlink():
+                            # walk(follow_symlinks=False) would not descend
+                            # anyway; prune loudly instead of silently.
+                            print(
+                                f"WARNING: skipping symlink {dirpath / dirname}",
+                                file=sys.stderr,
+                            )
+                            continue
+                        kept_dirs.append(dirname)
+                    dirnames[:] = kept_dirs
+                    for filename in filenames:
+                        filepath = dirpath / filename
+                        if filepath.is_symlink():
+                            # zfile.write would embed the *target's content* —
+                            # a link pointing outside the module (secrets,
+                            # build artifacts) must not leak into the upload.
+                            print(
+                                f"WARNING: skipping symlink {filepath}",
+                                file=sys.stderr,
+                            )
+                            continue
+                        if not filepath.is_file():
+                            continue
+                        if _should_skip(filepath, module_dir):
+                            continue
+                        zfile.write(filepath, filepath.relative_to(module_dir.parent))
         except Exception:
             Path(temp).unlink()
             raise
@@ -155,6 +209,7 @@ class Deploy(Command):
         parser.add_argument(
             "--db",
             dest="db",
+            default="",
             help="Database to use if server does not use db-filter.",
         )
         parser.add_argument(
@@ -221,4 +276,8 @@ class Deploy(Command):
             )
             print(result)
         except Exception as e:
+            # Keep the full traceback recoverable at DEBUG: a programming error
+            # (KeyError, AttributeError) would otherwise surface only as a bare
+            # "ERROR: <msg>" with no stack — matching obfuscate.py's pattern.
+            _logger.debug("deploy failed", exc_info=True)
             sys.exit(f"ERROR: {e}")

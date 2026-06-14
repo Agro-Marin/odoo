@@ -1268,13 +1268,29 @@ class Field[T]:
             # Model translation: reconstruct {lang: value} from per-lang sub-dicts
             # (mirrors the company_dependent pattern below).
             langs_dict = {}
+            flat_value = SENTINEL
             for cache_key, sub_cache in field_cache.items():
                 if not isinstance(sub_cache, dict):
-                    continue  # skip stale flat entries from before field_depends_context setup
+                    # Stale flat entry (``{id: scalar}``) written before
+                    # field_depends_context was populated — e.g. during a
+                    # _load_module_terms flush.  It still carries the
+                    # source-language value, so keep it as a fallback: a field
+                    # whose value survives ONLY in a flat entry must not be
+                    # flushed as SQL NULL.  That NULL raised NotNullViolation on
+                    # required translatable fields (the loyalty.reward.description
+                    # crash on -u base) and silently cleared others.
+                    if cache_key == record_id and sub_cache is not None:
+                        flat_value = sub_cache
+                    continue
                 if (value := sub_cache.get(record_id, SENTINEL)) is not SENTINEL:
                     lang = cache_key[0]
                     if value is not None:
                         langs_dict[lang] = value
+            if not langs_dict and flat_value is not SENTINEL:
+                # Only a stale flat entry held a value: preserve it under the
+                # current language (same key convention as line ~1246) rather
+                # than overwriting the column with NULL.
+                langs_dict[record.env.lang or "en_US"] = flat_value
             return PsycopgJson(langs_dict) if langs_dict else None
         if self.translate:
             # callable translate: single flat dict {id: {lang: value}}
@@ -1298,13 +1314,20 @@ class Field[T]:
             )
         # Company-dependent: collect values from all company contexts into JSONB
         values = {}
+        flat_value = SENTINEL
         for ctx_key, cache in field_cache.items():
             if not isinstance(cache, dict):
-                # Skip stale flat entries (id keys → scalar values) from
-                # before field_depends_context was populated.  See the same
-                # guard in _invalidate_cache and _get_all_cache_ids — without
-                # it, scalar None values crash with `'NoneType' object has no
-                # attribute 'get'` during _load_module_terms flushes.
+                # Stale flat entry (id → scalar) from before
+                # field_depends_context was populated (e.g. during a
+                # _load_module_terms flush).  Skipping it unconditionally loses
+                # the value and overwrites the column with NULL; keep a non-None
+                # one as a fallback so a value that survives ONLY in a flat
+                # entry is preserved.  (Same defect fixed in the
+                # ``translate is True`` branch above; the ``is not None`` guard
+                # still avoids the ``'NoneType' has no attribute 'get'`` crash
+                # the original skip was protecting against.)
+                if ctx_key == record_id and cache is not None:
+                    flat_value = cache
                 continue
             if (
                 value := cache.get(record_id, SENTINEL)
@@ -1312,6 +1335,13 @@ class Field[T]:
                 values[ctx_key[0]] = self._to_json_value(
                     self.convert_to_column(value, record)
                 )
+        if not values and flat_value is not SENTINEL:
+            # Only a stale flat entry held a value: preserve it under the current
+            # company (same key convention as the scalar company-dependent path)
+            # rather than overwriting the column with NULL.
+            values[record.env.company.id] = self._to_json_value(
+                self.convert_to_column(flat_value, record)
+            )
         return PsycopgJson(values) if values else None
 
     def convert_to_cache(
@@ -1517,7 +1547,17 @@ class Field[T]:
                         if isinstance(value, (str, int, float, bool)):
                             sql_default = value
                     except Exception:
-                        pass
+                        # Best-effort only: the default factory may need a real
+                        # record or context that is unavailable at post-init.
+                        # Skip the SQL DEFAULT optimization (sql_default stays
+                        # None and NOT NULL is applied without one) but log so
+                        # the swallowed failure is observable rather than silent.
+                        _logger.debug(
+                            "Could not derive a SQL DEFAULT for %s; "
+                            "applying NOT NULL without one",
+                            field,
+                            exc_info=True,
+                        )
 
                 def apply_not_null(cr):
                     sql.set_not_null(cr, model._table, field.name)
