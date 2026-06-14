@@ -1,16 +1,8 @@
-"""
-Order Invoice Integration Mixins
-
-Two abstract mixins that consolidate invoice tracking logic shared between
-sale.order/purchase.order and their respective line models.
-
-Classes:
-    OrderInvoiceMixin — order-level invoice tracking, state, and actions
-    OrderLineInvoiceMixin — line-level invoice fields and shared helpers
-"""
+from collections import defaultdict
 
 from odoo import api, fields, models
-
+from odoo.fields import Domain
+from odoo.tools import SQL
 
 INVOICE_STATE = [
     ("no", "Nothing to invoice"),
@@ -67,7 +59,6 @@ class OrderInvoiceMixin(models.AbstractModel):
     def _get_invoice_move_types(self):
         """Return invoice move_type values for this order type.
 
-        Derived from ``_get_order_type()``:
         sale → ``('out_invoice', 'out_refund')``,
         purchase → ``('in_invoice', 'in_refund')``.
         """
@@ -82,9 +73,6 @@ class OrderInvoiceMixin(models.AbstractModel):
     )
     def _compute_invoice_ids(self):
         """Batched 3-step pattern: collect, search orphan refunds, assign.
-
-        Identical in sale.order and purchase.order — only the move_type
-        filter differs (routed via ``_get_invoice_move_types()``).
 
         Orphan refunds are credit notes created via the "Credit Note" button
         on an invoice — they are not directly linked to order lines.
@@ -110,7 +98,7 @@ class OrderInvoiceMixin(models.AbstractModel):
                     ("reversed_entry_id", "in", list(all_invoice_ids)),
                     ("move_type", "=", refund_type),
                     ("id", "not in", list(all_invoice_ids)),
-                ]
+                ],
             )
             for refund in orphan_refunds:
                 orphan_refunds_by_reversed_id.setdefault(
@@ -129,12 +117,63 @@ class OrderInvoiceMixin(models.AbstractModel):
             order.invoice_count = len(invoice_ids)
 
     def _search_invoice_ids(self, operator, value):
-        """Generic ORM-based search for ``invoice_ids``.
+        """Search orders by their invoices.
 
-        Concrete models should override with SQL-optimized version for
-        the ``in`` operator (involves model-specific relation table names).
+        The ``in`` operator uses a SQL fast-path whose relation table and
+        column names are introspected from the line model's
+        ``invoice_line_ids`` field — no per-model override needed.
         """
+        if operator in Domain.NEGATIVE_OPERATORS:
+            return NotImplemented
         move_types = self._get_invoice_move_types()
+        if operator == "in" and value:
+            falsy_domain = []
+            if False in value:
+                # Special case for [('invoice_ids', '=', False)], i.e.
+                # "Invoices is not set".  We cannot just search
+                # [('line_ids.invoice_line_ids', '=', False)] because it
+                # returns orders with at least one uninvoiced line, which is
+                # not the same (some lines may have invoices and some don't).
+                falsy_domain = [
+                    (
+                        "line_ids",
+                        "not any",
+                        [
+                            (
+                                "invoice_line_ids.move_id.move_type",
+                                "in",
+                                move_types,
+                            ),
+                        ],
+                    ),
+                ]
+                if len(value) == 1:
+                    return falsy_domain
+            line_model = self.env[self._get_line_model()]
+            rel_field = line_model._fields["invoice_line_ids"]
+            rows = self.env.execute_query(
+                SQL(
+                    """
+                    SELECT array_agg(o.id)
+                      FROM %(order_table)s o
+                      JOIN %(line_table)s ol ON o.id = ol.order_id
+                      JOIN %(rel_table)s rel ON rel.%(rel_line_col)s = ol.id
+                      JOIN account_move_line aml ON aml.id = rel.%(rel_move_col)s
+                      JOIN account_move am ON am.id = aml.move_id
+                     WHERE am.move_type IN %(move_types)s
+                       AND am.id = ANY(%(move_ids)s)
+                    """,
+                    order_table=SQL.identifier(self._table),
+                    line_table=SQL.identifier(line_model._table),
+                    rel_table=SQL.identifier(rel_field.relation),
+                    rel_line_col=SQL.identifier(rel_field.column1),
+                    rel_move_col=SQL.identifier(rel_field.column2),
+                    move_types=tuple(move_types),
+                    move_ids=list(value),
+                ),
+            )
+            o_ids = rows[0][0] or []
+            return [("id", "in", o_ids)] + falsy_domain
         return [
             (
                 "line_ids.invoice_line_ids",
@@ -153,7 +192,9 @@ class OrderInvoiceMixin(models.AbstractModel):
         """Batched computation using ``_read_group`` over line invoice states.
 
         Priority: ``over done`` > ``to do`` > ``partial`` > ``done`` > ``no``.
-        Sale overrides to add ``_can_be_invoiced_alone()`` auxiliary line check.
+        The ``to do`` resolution is delegated to
+        ``_resolve_invoice_state_to_do()`` (sale downgrades to ``no`` when only
+        auxiliary lines remain).
         """
         confirmed_orders = self.filtered(lambda o: o.state == "done")
         (self - confirmed_orders).invoice_state = "no"
@@ -161,13 +202,12 @@ class OrderInvoiceMixin(models.AbstractModel):
             return
 
         # Batched: single _read_group query for all confirmed orders
-        line_model = f"{self._name}.line"
         lines_domain = [
             ("is_downpayment", "=", False),
             ("display_type", "=", False),
         ]
         line_invoice_state_all = {}
-        for order, invoice_state in self.env[line_model]._read_group(
+        for order, invoice_state in self.env[self._get_line_model()]._read_group(
             lines_domain + [("order_id", "in", confirmed_orders.ids)],
             ["order_id", "invoice_state"],
         ):
@@ -186,16 +226,33 @@ class OrderInvoiceMixin(models.AbstractModel):
             if "over done" in states:
                 order.invoice_state = "over done"
             elif "to do" in states:
-                order.invoice_state = "to do"
+                order.invoice_state = order._resolve_invoice_state_to_do(
+                    states,
+                    lines_domain,
+                )
             elif "partial" in states or states == {"done", "no"}:
                 order.invoice_state = "partial"
             else:
                 order.invoice_state = "no"
 
+    def _resolve_invoice_state_to_do(self, states, lines_domain):
+        """Resolve the order invoice state when at least one line is ``to do``.
+
+        Sale overrides to downgrade to ``no`` when the only lines left to
+        invoice cannot be invoiced alone (e.g. discount lines).
+
+        :param set states: distinct line invoice states for this order
+        :param list lines_domain: domain filtering the relevant order lines
+        :rtype: str
+        """
+        self.ensure_one()
+        return "to do"
+
     # ─── Invoice Action ────────────────────────────────────────────
 
+    @api.readonly
     def action_view_invoice(self, invoices=False):
-        """Open invoice/bill list or form view.
+        """Open the invoice/bill list or form view.
 
         Uses ``_get_order_type()`` to derive the action XML-ID and
         default move type.  Hook: ``_get_invoice_action_context()``
@@ -237,11 +294,7 @@ class OrderInvoiceMixin(models.AbstractModel):
         Purchase overrides to add ``invoice_origin``.
         """
         self.ensure_one()
-        pt_field = (
-            "property_payment_term_id"
-            if self._get_order_type() == "sale"
-            else "property_supplier_payment_term_id"
-        )
+        pt_field = self._get_partner_payment_term_field()
         return {
             "default_partner_id": self.partner_id.id,
             "default_invoice_payment_term_id": (
@@ -258,28 +311,36 @@ class OrderInvoiceMixin(models.AbstractModel):
     def _get_invoice_grouping_keys(self):
         """Return field names used to group orders into a single invoice.
 
-        Base: ``company_id``, ``partner_id``, ``currency_id``, ``fiscal_position_id``.
         Sale overrides to add ``partner_shipping_id``.
         """
         return ["company_id", "partner_id", "currency_id", "fiscal_position_id"]
 
+    def _get_invoice_partner(self):
+        """Return the partner to invoice.
+
+        Sale: ``partner_invoice_id``; purchase: the invoice address.
+        """
+        self.ensure_one()
+        return self.partner_id
+
     def _prepare_invoice_vals(self):
         """Prepare the base dict for creating an invoice from this order.
 
-        Provides the shared core keys.  Child models call ``super()``
-        and extend with model-specific values (UTM fields, partner_bank,
-        transaction_ids, etc.).
+        Child models call ``super()`` and extend with model-specific values
+        (UTM fields, partner_bank, transaction_ids, etc.).
         """
         self.ensure_one()
         direction = "out" if self._get_order_type() == "sale" else "in"
         move_type = self.env.context.get("default_move_type", f"{direction}_invoice")
+        invoice_partner = self._get_invoice_partner()
         values = {
             "company_id": self.company_id.id,
             "currency_id": self.currency_id.id,
+            "partner_id": invoice_partner.id,
             "invoice_payment_term_id": self.payment_term_id.id,
             "fiscal_position_id": (
                 self.fiscal_position_id
-                or self.fiscal_position_id._get_fiscal_position(self.partner_id)
+                or self.fiscal_position_id._get_fiscal_position(invoice_partner)
             ).id,
             "invoice_user_id": self.user_id.id,
             "move_type": move_type,
@@ -302,7 +363,7 @@ class OrderLineInvoiceMixin(models.AbstractModel):
 
     Provides:
     - Invoice line tracking (``invoice_line_ids``)
-    - Quantity and amount fields (``qty_invoiced``, ``amount_taxexc_invoiced``, etc.)
+    - Quantity and amount fields (``qty_invoiced``, ``amount_taxexc_invoiced``, ...)
     - Shared helpers (``_get_invoice_lines()``, ``_get_posted_invoice_lines()``)
 
     The compute methods ``_compute_invoice_amounts()`` and
@@ -311,7 +372,7 @@ class OrderLineInvoiceMixin(models.AbstractModel):
     direction sign, policy fields, over-invoicing semantics).
 
     Requires ``order_id``, ``company_id``, ``currency_id``, ``product_uom_id``
-    from the concrete model.
+    and ``_get_order_type()`` from the concrete model / companion mixins.
     """
 
     _name = "order.line.invoice.mixin"
@@ -343,6 +404,12 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         compute="_compute_invoice_amounts",
         store=True,
     )
+    # Same as `qty_invoiced` but non-stored and depending on the context.
+    qty_invoiced_at_date = fields.Float(
+        string="Invoiced",
+        digits="Product Unit",
+        compute="_compute_qty_invoiced_at_date",
+    )
 
     # ─── Invoice Amount Fields ─────────────────────────────────────
 
@@ -366,6 +433,10 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         compute="_compute_invoice_amounts",
         store=True,
     )
+    amount_to_invoice_at_date = fields.Float(
+        string="Amount",
+        compute="_compute_amount_to_invoice_at_date",
+    )
 
     # ─── Invoice State ─────────────────────────────────────────────
 
@@ -377,21 +448,35 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         store=True,
     )
 
+    # ─── Routing ───────────────────────────────────────────────────
+
+    def _get_invoice_move_types(self):
+        """Return ``(invoice, refund)`` move types for this order type."""
+        direction = "out" if self._get_order_type() == "sale" else "in"
+        return (f"{direction}_invoice", f"{direction}_refund")
+
+    def _get_invoice_policy_field(self):
+        """Return the product field name for invoice/bill policy.
+
+        sale → ``'invoice_policy'``, purchase → ``'bill_policy'``.
+        """
+        if self._get_order_type() == "sale":
+            return "invoice_policy"
+        return "bill_policy"
+
     # ─── Shared Helpers ────────────────────────────────────────────
 
     def _get_invoice_lines(self):
-        """Return invoice lines, filtered by accrual date if in context.
-
-        Identical in sale.order.line and purchase.order.line.
-        """
+        """Return invoice lines, filtered by accrual date if in context."""
         self.ensure_one()
         if self.env.context.get("accrual_entry_date"):
             accrual_date = fields.Date.from_string(
                 self.env.context["accrual_entry_date"],
             )
             return self.invoice_line_ids.filtered(
-                lambda l: l.move_id.invoice_date
-                and l.move_id.invoice_date <= accrual_date,
+                lambda l: (
+                    l.move_id.invoice_date and l.move_id.invoice_date <= accrual_date
+                ),
             )
         return self.invoice_line_ids
 
@@ -399,22 +484,58 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         """Return posted invoice lines for this order line.
 
         Filters to posted invoices and ``invoicing_legacy`` payment state.
-        Shared between sale and purchase.
         """
         self.ensure_one()
         return self._get_invoice_lines().filtered(
-            lambda l: l.parent_state == "posted"
-            or l.move_id.payment_state == "invoicing_legacy"
+            lambda l: (
+                l.parent_state == "posted"
+                or l.move_id.payment_state == "invoicing_legacy"
+            )
         )
 
-    def _get_invoice_policy_field(self):
-        """Return the product field name for invoice/bill policy.
+    def _prepare_qty_invoiced(self):
+        """Return the signed invoiced quantity per line (invoices - refunds).
 
-        Derived from the parent order's ``_get_order_type()``:
-        sale → ``'invoice_policy'``, purchase → ``'bill_policy'``.
+        :rtype: dict
         """
-        order_type = self.order_id._get_order_type()
-        return "invoice_policy" if order_type == "sale" else "bill_policy"
+        invoiced_qties = defaultdict(float)
+        invoice_type, refund_type = self._get_invoice_move_types()
+        for line in self:
+            for inv_line in line._get_invoice_lines():
+                if (
+                    inv_line.move_id.state != "cancel"
+                    or inv_line.move_id.payment_state == "invoicing_legacy"
+                ):
+                    qty = inv_line.product_uom_id._compute_quantity(
+                        inv_line.quantity,
+                        line.product_uom_id,
+                    )
+                    if inv_line.move_id.move_type == invoice_type:
+                        invoiced_qties[line] += qty
+                    elif inv_line.move_id.move_type == refund_type:
+                        invoiced_qties[line] -= qty
+        return invoiced_qties
+
+    # ─── At-Date Computes ──────────────────────────────────────────
+
+    @api.depends_context("accrual_entry_date")
+    @api.depends("qty_invoiced")
+    def _compute_qty_invoiced_at_date(self):
+        if not self._date_in_the_past():
+            for line in self:
+                line.qty_invoiced_at_date = line.qty_invoiced
+            return
+        invoiced_quantities = self._prepare_qty_invoiced()
+        for line in self:
+            line.qty_invoiced_at_date = invoiced_quantities[line]
+
+    @api.depends_context("accrual_entry_date")
+    @api.depends("price_unit", "qty_invoiced_at_date", "qty_transferred_at_date")
+    def _compute_amount_to_invoice_at_date(self):
+        for line in self:
+            line.amount_to_invoice_at_date = (
+                line.qty_transferred_at_date - line.qty_invoiced_at_date
+            ) * line.price_unit
 
     # ─── Compute Stubs (concrete models must override) ─────────────
 
@@ -437,17 +558,11 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         )
 
     def _compute_invoice_state(self):
-        """Compute per-line invoice state.
+        """Compute the per-line invoice state.
 
-        Implementations differ in:
-
-        - Policy field: ``invoice_policy`` (sale) vs ``bill_policy`` (purchase)
-        - Over-invoicing: sale marks delivery-based as ``'to do'``,
-          purchase always uses ``'over done'``
-        - Sale has combo line post-processing
-
-        Concrete models must override entirely with their own
-        ``@api.depends`` decorator.
+        Implementations differ in policy field (``invoice_policy`` vs
+        ``bill_policy``) and over-invoicing semantics.  Concrete models must
+        override entirely with their own ``@api.depends`` decorator.
         """
         raise NotImplementedError(
             f"{self._name} must implement _compute_invoice_state()"

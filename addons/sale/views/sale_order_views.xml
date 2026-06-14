@@ -63,7 +63,7 @@
                     domain="[('user_id', '=', uid)]" />
                 <separator />
                 <filter string="Quotations" name="draft"
-                    domain="[('state', 'in', ('draft', 'sent'))]" />
+                    domain="[('state', '=', 'draft')]" />
                 <filter string="Sales Orders" name="sales"
                     domain="[('state', '=', 'done')]" />
                 <separator />
@@ -244,7 +244,6 @@
                 <field name="state"
                     decoration-success="state == 'done'"
                     decoration-info="state == 'draft'"
-                    decoration-primary="state == 'sent'"
                     widget="badge"
                     optional="hide" />
                 <field name="invoice_state"
@@ -369,7 +368,7 @@
                         context="{'validate_analytic': True, 'check_document_layout': True}"
                         class="btn-primary"
                         data-hotkey="g"
-                        invisible="state != 'draft'" />
+                        invisible="state != 'draft' or sent" />
                     <button
                         string="Send PRO-FORMA Invoice"
                         id="send_proforma_primary"
@@ -387,7 +386,7 @@
                         context="{'validate_analytic': True}"
                         class="btn-primary"
                         data-hotkey="q"
-                        invisible="state != 'sent'" />
+                        invisible="state != 'draft' or not sent" />
                     <button
                         string="Print"
                         name="sale.action_report_saleorder"
@@ -400,7 +399,7 @@
                         type="object"
                         context="{'validate_analytic': True}"
                         data-hotkey="q"
-                        invisible="state != 'draft'" />
+                        invisible="state != 'draft' or sent" />
                     <button
                         string="Send PRO-FORMA Invoice"
                         id="send_proforma"
@@ -466,7 +465,7 @@
                 <div
                     class="alert alert-warning p-3 text-center"
                     role="alert"
-                    invisible="state not in ['draft', 'sent'] or not has_archived_products"
+                    invisible="state != 'draft' or not has_archived_products"
                 >
                     <span>Warning: This quote contains archived product(s)</span>
                 </div>
@@ -496,11 +495,14 @@
                         invisible="not locked">
                         <i class="fa-solid fa-lock" /> Locked </div>
                     <div class="oe_title">
-                        <h1>
+                        <span class="o_form_label" invisible="state != 'draft'">Quotation</span>
+                        <span class="o_form_label" invisible="state == 'draft'">Sales Order</span>
+                        <h1 class="d-flex">
+                            <field name="priority" widget="priority" class="me-3" />
                             <field name="name" readonly="1" />
                         </h1>
                     </div>
-                    <group name="sale_header">
+                    <group name="order_header">
                         <group name="partner_details">
                             <field name="partner_id"
                                 widget="res_partner_many2one"
@@ -588,7 +590,7 @@
                                                 <span
                                                     class="fa-solid fa-exclamation-triangle text-warning me-1"
                                                     title="This product is archived"
-                                                    invisible="state not in ['draft', 'sent'] or not product_is_archived"
+                                                    invisible="state != 'draft' or not product_is_archived"
                                                 />
                                                 <field name="product_id"
                                                     context="{
@@ -680,7 +682,7 @@
                                     string="Sales Order Lines"
                                     editable="bottom"
                                     limit="200"
-                                    decoration-warning="(state in ['draft', 'sent'] and product_is_archived) or sale_line_warn_msg"
+                                    decoration-warning="(state == 'draft' and product_is_archived) or sale_line_warn_msg"
                                 >
                                     <control>
                                         <create name="add_product_control" string="Add a product" />
@@ -870,7 +872,7 @@
                                                             <span
                                                                 class="fa-solid fa-exclamation-triangle text-warning me-1"
                                                                 title="This product is archived"
-                                                                invisible="state not in ['draft', 'sent'] or not product_is_archived"
+                                                                invisible="state != 'draft' or not product_is_archived"
                                                             />
                                                             <field name="product_id" class="fw-bold" />
                                                         </div>
@@ -943,7 +945,7 @@
                         </page>
                         <page string="Other Info" name="other_information">
                             <group>
-                                <group name="sales_person" string="Sales">
+                                <group name="responsible_info" string="Sales">
                                     <field name="user_id" widget="many2one_avatar_user" />
                                     <field name="team_id"
                                         context="{'kanban_view_ref': 'sales_team.crm_team_view_kanban'}"
@@ -968,7 +970,7 @@
                                     <field name="tag_ids" widget="many2many_tags"
                                         options="{'color_field': 'color', 'no_create_edit': True}" />
                                 </group>
-                                <group name="sale_info" string="Invoicing">
+                                <group name="invoice_info" string="Invoicing">
                                     <field name="show_update_fpos" invisible="1" />
                                     <label for="fiscal_position_id" />
                                     <div class="o_row">
@@ -1006,7 +1008,7 @@
                                             Expected: <field name="date_planned" class="oe_inline" /></span>
                                     </div>
                                 </group>
-                                <group name="sale_reporting" string="Tracking">
+                                <group name="tracking_info" string="Tracking">
                                     <field name="origin" />
                                     <field name="campaign_id"
                                         options="{'create_name_field': 'title'}" />

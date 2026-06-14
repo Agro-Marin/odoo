@@ -53,12 +53,12 @@
                     domain="[('priority', '=', '1')]" />
                 <separator />
                 <filter name="draft_rfqs" string="Quotations"
-                    domain="[('state', 'in', ('draft', 'sent'))]" />
+                    domain="[('state', '=', 'draft')]" />
                 <filter name="approved" string="Purchase Orders"
                     domain="[('state', '=', 'done')]" />
                 <separator />
                 <filter name="late" string="Late"
-                    domain="[('state', 'in', ['draft', 'sent']), ('date_order', '&lt;', 'now')]" />
+                    domain="[('state', '=', 'draft'), ('date_order', '&lt;', 'now')]" />
                 <filter name="not_acknowledged" string="Not Acknowledged"
                     domain="[('state', '=', 'done'), ('acknowledged', '=', False)]" />
                 <filter name="late_receipt" string="Late Receipts"
@@ -194,7 +194,7 @@
                 <field name="priority" optional="show" widget="priority" nolabel="1" />
                 <field name="partner_ref" optional="hide" />
                 <field name="name" string="Reference" readonly="1"
-                    decoration-info="state in ('draft','sent')" />
+                    decoration-info="state == 'draft'" />
                 <field name="date_order" column_invisible="not context.get('quotation_only', False)"
                     readonly="state in ['done', 'cancel']" optional="show" />
                 <field name="date_confirmed" column_invisible="context.get('quotation_only', False)"
@@ -228,7 +228,7 @@
         <field name="model">purchase.order</field>
         <field name="priority" eval="10" />
         <field name="arch" type="xml">
-            <list string="Purchase Orders" decoration-info="state in ['draft', 'sent']"
+            <list string="Purchase Orders" decoration-info="state == 'draft'"
                 decoration-muted="state == 'cancel'"
                 multi_edit="1"
                 class="o_purchase_order" js_class="purchase_dashboard_list" sample="1">
@@ -264,7 +264,7 @@
                     readonly="state in ['done', 'cancel']" />
                 <field name="state" optional="show" widget="badge"
                     decoration-success="state == 'done'"
-                    decoration-info="state == 'draft' or state == 'sent'" />
+                    decoration-info="state == 'draft'" />
                 <field name="invoice_state" optional="hide" />
             </list>
         </field>
@@ -288,7 +288,7 @@
                 <field name="priority" optional="show" widget="priority" nolabel="1" />
                 <field name="partner_ref" optional="hide" />
                 <field name="name" string="Reference" readonly="1" decoration-bf="1"
-                    decoration-info="state in ('draft','sent')" />
+                    decoration-info="state == 'draft'" />
                 <field name="date_confirmed" column_invisible="context.get('quotation_only', False)"
                     optional="show" />
                 <field name="partner_id" readonly="state in ['done', 'cancel']" />
@@ -326,30 +326,31 @@
                 <header>
                     <field name="locked" invisible="1" />
                     <button name="action_send_rfq" string="Send RFQ"
-                        type="object" class="oe_highlight"
+                        type="object" class="btn-primary"
                         context="{'send_rfq':True}"
                         data-hotkey="g"
                         invisible="state != 'draft'" />
                     <button id="confirm_button" name="action_confirm"
                         string="Confirm Order"
-                        type="object" class="oe_highlight"
+                        type="object" class="btn-primary"
                         data-hotkey="q"
                         context="{'validate_analytic': True}"
-                        invisible="state not in ('draft', 'sent')" />
+                        invisible="state != 'draft'" />
                     <widget name="purchase_file_uploader" invisible="state != 'done'" />
                     <button name="action_send_rfq" invisible="state != 'done'" string="Send PO"
                         type="object" context="{'send_rfq':False}" data-hotkey="g" />
                     <button name="action_acknowledge" string="Acknowledge" type="object"
                         invisible="acknowledged or state != 'done'" />
                     <button name="action_draft" invisible="state != 'cancel'" string="Set to Draft"
-                        type="object" data-hotkey="o" />
+                        type="object" data-hotkey="w" />
                     <button name="action_print_quotation" string="Print" type="object"
                         groups="base.group_user" data-hotkey="k" invisible="state == 'done'" />
                     <button name="%(purchase.action_report_purchase_order)d" string="Print"
                         type="action" groups="base.group_user" data-hotkey="k"
                         invisible="state != 'done'" />
                     <button name="action_cancel"
-                        invisible="state not in ('draft', 'sent', 'done')"
+                        invisible="state not in ('draft', 'done')"
+                        confirm="Are you sure you want to cancel this order?"
                         string="Cancel" type="object" data-hotkey="x" />
                     <!-- Lock button - visible only to users with lock permission -->
                     <button name="action_lock" type="object" string="Lock"
@@ -361,7 +362,7 @@
                         invisible="not locked"
                         groups="purchase.group_order_unlock"
                         data-hotkey="l" />
-                    <field name="state" widget="statusbar" statusbar_visible="draft,sent,purchase"
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done"
                         readonly="1" />
                 </header>
                 <div class="alert alert-warning" role="alert" invisible="not purchase_warning_text">
@@ -394,7 +395,7 @@
                         <button type="object" name="action_view_invoice"
                             class="oe_stat_button"
                             icon="fa-regular fa-pen-to-square"
-                            invisible="invoice_count == 0 or state in ('draft', 'sent')">
+                            invisible="invoice_count == 0 or state == 'draft'">
                             <field name="invoice_count" widget="statinfo" string="Vendor Bills" />
                             <field name='invoice_ids' invisible="1" />
                         </button>
@@ -411,17 +412,17 @@
                         invisible="not locked">
                         <i class="fa-solid fa-lock" /> Locked </div>
                     <div class="oe_title">
-                        <span class="o_form_label" invisible="state not in ('draft', 'sent')">Request
+                        <span class="o_form_label" invisible="state != 'draft'">Request
                             for Quotation </span>
-                        <span class="o_form_label" invisible="state in ('draft', 'sent')">Purchase
+                        <span class="o_form_label" invisible="state == 'draft'">Purchase
                             Order </span>
                         <h1 class="d-flex">
                             <field name="priority" widget="priority" class="me-3" />
                             <field name="name" readonly="1" />
                         </h1>
                     </div>
-                    <group>
-                        <group>
+                    <group name="order_header">
+                        <group name="partner_details">
                             <field name="partner_id" widget="res_partner_many2one"
                                 context="{'res_partner_search_mode': 'supplier', 'show_vat': True}"
                                 placeholder="Name, TIN, Email, or Reference"
@@ -436,7 +437,7 @@
                                 readonly="state in ['done', 'cancel']"
                                 groups="!base.group_multi_currency" />
                         </group>
-                        <group>
+                        <group name="order_details">
                             <field name="date_order" invisible="state  == 'done'"
                                 readonly="state in ['done', 'cancel']" />
                             <label for="date_confirmed" invisible="state != 'done'" />
@@ -641,7 +642,7 @@
                                     </templates>
                                 </kanban>
                             </field>
-                            <group>
+                            <group name="note_group">
                                 <group>
                                     <field colspan="2" name="notes" nolabel="1"
                                         placeholder="Define your terms and conditions ..." />
@@ -653,9 +654,9 @@
                             </group>
                             <div class="clearfix" />
                         </page>
-                        <page string="Other Info" name="purchase_delivery_invoice">
+                        <page string="Other Info" name="other_information">
                             <group>
-                                <group name="other_info" string="Purchasing">
+                                <group name="responsible_info" string="Purchasing">
                                     <field name="user_id" domain="[('share', '=', False)]"
                                         widget="many2one_avatar_user" />
                                     <field name="company_id" groups="base.group_multi_company"
@@ -664,14 +665,14 @@
                                 </group>
                                 <group name="invoice_info" string="Invoicing">
                                     <field name="invoice_state"
-                                        invisible="state in ('draft', 'sent', 'cancel')" />
+                                        invisible="state in ('draft', 'cancel')" />
                                     <field name="payment_term_id"
                                         readonly="invoice_state == 'done' or locked"
                                         options="{'no_create': True}" />
                                     <field name="fiscal_position_id" options="{'no_create': True}"
                                         readonly="invoice_state == 'done' or locked" />
                                 </group>
-                                <group name="purchase_reporting" string="Tracking">
+                                <group name="tracking_info" string="Tracking">
                                     <field name="origin" />
                                 </group>
                             </group>
@@ -701,7 +702,7 @@
                             <div class="m-1" />
                             <field name="state" widget="badge"
                                 decoration-success="state == 'done'"
-                                decoration-info="state == 'draft' or state == 'sent'" />
+                                decoration-info="state == 'draft'" />
                         </div>
                     </div>
                 </templates>
