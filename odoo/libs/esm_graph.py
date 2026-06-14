@@ -233,13 +233,17 @@ _ESM_EXPORT_DEFAULT_RE_SRC = (
 )
 _ESM_EXPORT_DEFAULT_RE = re.compile(_ESM_EXPORT_DEFAULT_RE_SRC)
 
-# Import-discovery regex for ``_discover_bridge_specifiers``: the three import
-# shapes that pull a specifier from an ``@addon`` module, unified into ONE
-# alternation so each source file is scanned a single time (one ``finditer``)
-# instead of three.  Per-branch whitespace is preserved exactly — a default
-# import requires ``\s+`` around the binding while named/star allow ``\s*`` —
-# and the import kind is read from whichever named group matched.  Module-level
-# so it compiles once instead of on every bundle build.
+# Import-discovery regex for ``_discover_bridge_specifiers``: every import shape
+# that pulls a specifier from an ``@addon`` module, unified into ONE alternation
+# so each source file is scanned a single time (one ``finditer``).  Branches 1-3
+# carry a binding and a ``from`` (named/star/default — the kind is read from
+# whichever named group matched); per-branch whitespace is preserved exactly, a
+# default import requires ``\s+`` around the binding while named/star allow
+# ``\s*``.  Branch 4 is the bindingless side-effect form ``import "@addon/…";``
+# (no ``from``), whose specifier lands in the ``side`` group: a low-overlap
+# dynamic child that only side-effect-imports a parent specifier (t22867) would
+# otherwise never bridge it and fail at runtime with "Failed to resolve module
+# specifier".  Module-level so it compiles once instead of on every bundle build.
 _IMPORT_ANY_RE = re.compile(
     r"import(?:"
     r"\s*(?P<named>\{[^}]+\})\s*"
@@ -247,6 +251,7 @@ _IMPORT_ANY_RE = re.compile(
     r"|\s+(?P<default>\w+)\s+"
     r")from\s*"
     r"""["'](?P<spec>@[^"']+)["']"""
+    r"""|import\s*["'](?P<side>@[^"']+)["']"""
 )
 
 
