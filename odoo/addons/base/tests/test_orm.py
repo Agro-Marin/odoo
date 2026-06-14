@@ -421,6 +421,36 @@ class TestInherits(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCompanyDependent(TransactionCase):
+    def test_flush_stale_flat_cache_entry_not_nulled(self):
+        """Regression: a company-dependent field whose value survives only in a
+        stale flat cache entry (``{id: scalar}`` — the layout used before
+        ``field_depends_context`` is populated, e.g. during a
+        ``_load_module_terms`` flush) must not be flushed as SQL ``NULL``,
+        which silently clears the stored value.
+
+        ``Field.get_column_update``'s company-dependent branch skipped flat
+        entries unconditionally and returned ``None``.  This mirrors the same
+        defect (and fix) in the ``translate is True`` branch — see
+        ``test_translate.TestTranslationWrite.test_flush_stale_flat_cache_entry_not_nulled``.
+        """
+        partner = self.env["res.partner"].create({"name": "Flat", "barcode": "BC-1"})
+        field = partner._fields["barcode"]
+        self.assertTrue(field.company_dependent, "barcode must be company_dependent")
+        core = self.env._core
+
+        # Reproduce the stale-flat-entry shape: a scalar value keyed directly by
+        # record id, with no nested ``{(company_id,): {id: value}}`` entry.
+        core.field_data(field).clear()
+        core.set_value(field, partner.id, "BC-1")
+
+        col_val = field.get_column_update(partner)
+        self.assertIsNotNone(
+            col_val,
+            "company-dependent field whose value lives only in a stale flat "
+            "cache entry was flushed as SQL NULL",
+        )
+        self.assertIn("BC-1", col_val.obj.values())
+
     def test_orm_ondelete_restrict(self):
         # model_A
         #  | field_a                           company dependent many2one is

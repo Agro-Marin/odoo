@@ -128,17 +128,18 @@ def connection_info_for(db_or_uri: str, readonly: bool = False) -> tuple[str, di
                 stacklevel=2,
             )
             db_name = us.hostname
-        # Only inject health-param keys NOT already present in the URI's
-        # query string.  psycopg applies kwargs over DSN values, so blindly
-        # spreading _HEALTH_PARAMS would silently override an operator's
-        # explicit ?connect_timeout=60 with our default 10.
+        # Only inject keys NOT already present in the URI's query string.
+        # psycopg applies kwargs over DSN values, so blindly spreading
+        # _HEALTH_PARAMS would silently override an operator's explicit
+        # ?connect_timeout=60 with our default 10.  Same courtesy for
+        # application_name: an explicit ?application_name=... in the URI
+        # wins over the db_app_name config default.
         uri_keys = {k for k, _ in parse_qsl(us.query)}
         merged = {k: v for k, v in _HEALTH_PARAMS.items() if k not in uri_keys}
-        return db_name, {
-            "dsn": db_or_uri,
-            "application_name": app_name,
-            **merged,
-        }
+        info = {"dsn": db_or_uri, **merged}
+        if "application_name" not in uri_keys:
+            info["application_name"] = app_name
+        return db_name, info
 
     connection_info = {"dbname": db_or_uri, "application_name": app_name}
     for p in ("host", "port", "user", "password", "sslmode"):

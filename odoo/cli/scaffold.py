@@ -1,3 +1,4 @@
+import argparse
 import os
 import re
 import sys
@@ -29,11 +30,15 @@ class Scaffold(Command):
     def run(self, cmdargs: list[str]) -> None:
         # TODO: bash completion file
         parser = self.parser
+        # A string default is converted through `type` by argparse only at
+        # the end of parsing — after --help has been handled. A Template
+        # instance here would probe templates/ on every invocation and kill
+        # even `--help` when the directory is missing.
         parser.add_argument(
             "-t",
             "--template",
             type=Template,
-            default=Template("default"),
+            default="default",
             help="Use a custom module template, can be a template name or the"
             " path to a module template (default: %(default)s)",
         )
@@ -122,7 +127,12 @@ class Template:
         self.path = Path(identifier)
         if self.path.is_dir():
             return
-        sys.exit(f"{identifier} is not a valid module template")
+        # ArgumentTypeError, not sys.exit: this runs as an argparse `type`
+        # callable, so argparse renders it as a standard usage error
+        # (usage line + exit code 2) instead of a bare exit-1 message.
+        raise argparse.ArgumentTypeError(
+            f"{identifier!r} is not a valid module template"
+        )
 
     def __str__(self) -> str:
         return self.id

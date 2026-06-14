@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import odoo
@@ -119,6 +119,7 @@ class TestCursor(BaseCursor):
             self._savepoint.close(rollback=self.readonly)
             self._savepoint = None
         self.clear()
+        self._now = None  # next simulated transaction gets a fresh timestamp
         self.prerollback.clear()
         self.postrollback.clear()
         self.postcommit.clear()  # TestCursor ignores post-commit hooks by default
@@ -126,6 +127,7 @@ class TestCursor(BaseCursor):
     def rollback(self) -> None:
         """Perform an SQL ``ROLLBACK``."""
         self.clear()
+        self._now = None  # next simulated transaction gets a fresh timestamp
         self.postcommit.clear()
         self.prerollback.run()
         if self._savepoint:
@@ -149,7 +151,15 @@ class TestCursor(BaseCursor):
         return self._cursor.dictfetchall()
 
     def now(self) -> datetime:
-        """Return the transaction's timestamp ``datetime.now()``."""
+        """Return the transaction's timestamp as naive UTC.
+
+        Mirrors the real :meth:`Cursor.now` (``SELECT now() AT TIME ZONE
+        'UTC'``) so test-created ``create_date``/``write_date`` carry the same
+        UTC semantics as production.  ``datetime.now()`` (local, naive) made
+        records on a non-UTC host land hours off — invisible under UTC CI but
+        wrong on developer machines.  The Python clock is used instead of a SQL
+        query to keep the savepoint/query counts clean.
+        """
         if self._now is None:
-            self._now = datetime.now()
+            self._now = datetime.now(UTC).replace(tzinfo=None)
         return self._now

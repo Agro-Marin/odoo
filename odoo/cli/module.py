@@ -7,14 +7,14 @@ from typing import Any
 from odoo.api import Environment
 from odoo.modules.loading import force_demo
 from odoo.modules.module import get_module_path, initialize_sys_path
-from odoo.tools import OrderedSet, config, parse_version
+from odoo.tools import OrderedSet, parse_version
 
-from . import Command, build_config_args, odoo_env
+from . import DatabaseCommand, odoo_env
 
 _logger = logging.getLogger(__name__)
 
 
-class Module(Command):
+class Module(DatabaseCommand):
     """Manage modules, install demo data"""
 
     def __init__(self) -> None:
@@ -94,9 +94,7 @@ class Module(Command):
 
     def run(self, cmdargs: list[str]) -> None:
         parsed_args = self.parser.parse_args(args=cmdargs)
-        config_args = build_config_args(parsed_args.config, parsed_args.db_name)
-        config.parse_config(config_args, setup_logging=True)
-        self.require_single_database(parsed_args)
+        self.bootstrap_config(parsed_args)
         parsed_args.func(parsed_args)
 
     def _get_zip_path(self, path: str) -> Path | None:
@@ -132,10 +130,11 @@ class Module(Command):
             if installable_modules:
                 installable_modules.button_immediate_install()
 
+            installed_names = set(installable_modules.mapped("name"))
             non_installable_modules = OrderedSet(
                 module
                 for module in parsed_args.modules
-                if module not in set(installable_modules.mapped("name"))
+                if module not in installed_names
             )
             importable_zipfiles = [
                 fullpath
@@ -168,6 +167,21 @@ class Module(Command):
             else:
                 valid_module_names = self._get_module_names(parsed_args.modules)
                 upgradable_modules = self._get_modules(env, valid_module_names)
+                # button_upgrade raises UserError for any module that is not
+                # installed, aborting the whole batch — including the valid
+                # ones. One typo'd or never-installed name must not poison
+                # the rest; skip with a warning instead. (Also keeps the
+                # --outdated comparison meaningful: db_version is False for
+                # uninstalled modules, which would always classify as
+                # outdated.)
+                if not_installed := upgradable_modules.filtered(
+                    lambda m: m.state not in ("installed", "to upgrade")
+                ):
+                    _logger.warning(
+                        "Skipping modules that are not installed: %s",
+                        ", ".join(not_installed.mapped("name")),
+                    )
+                    upgradable_modules -= not_installed
             if parsed_args.outdated:
                 upgradable_modules = upgradable_modules.filtered(
                     lambda x: (
@@ -179,7 +193,14 @@ class Module(Command):
 
     def _uninstall(self, parsed_args: argparse.Namespace) -> None:
         with odoo_env(parsed_args.db_name, new_registry=True) as env:
-            if modules := self._get_modules(env, parsed_args.modules):
+            modules = self._get_modules(env, parsed_args.modules)
+            # install and upgrade both warn on typo'd names; a silent
+            # uninstall "success" is worse — the user believes it happened.
+            if unknown := set(parsed_args.modules) - set(modules.mapped("name")):
+                _logger.warning(
+                    "Ignoring unknown modules: %s", ", ".join(sorted(unknown))
+                )
+            if modules:
                 modules.button_immediate_uninstall()
 
     def _force_demo(self, parsed_args: argparse.Namespace) -> None:

@@ -3,6 +3,7 @@ import textwrap
 import odoo.release
 
 from .command import (
+    DEFAULT_COMMAND,
     PROG_NAME,
     Command,
     commands,
@@ -14,9 +15,6 @@ from .command import (
 class Help(Command):
     """Display the list of available commands"""
 
-    # NOTE: ``server`` is referenced literally because it is the documented
-    # default command in ``cli.command.main`` (the ``else: command_name =
-    # "server"`` branch). If that default ever changes, update this template.
     template = textwrap.dedent("""\
         usage: {prog_name} [--addons-path=PATH,...] <command> [...]
 
@@ -25,7 +23,7 @@ class Help(Command):
 
         {command_list}
 
-        Use '{prog_name} server --help' for regular server options.
+        Use '{prog_name} {default_command} --help' for regular server options.
         Use '{prog_name} <command> --help' for other individual commands options.
     """)
 
@@ -34,8 +32,10 @@ class Help(Command):
         load_addons_commands()
 
         padding = max((len(cmd_name) for cmd_name in commands), default=0) + 2
+        # First docstring line only: a multi-line docstring on an addon
+        # command would otherwise break the table layout.
         name_desc = [
-            (cmd_name, (cmd.__doc__ or "").strip())
+            (cmd_name, (cmd.__doc__ or "").strip().partition("\n")[0].strip())
             for cmd_name, cmd in sorted(commands.items())
         ]
         command_list = "\n".join(
@@ -47,5 +47,6 @@ class Help(Command):
                 prog_name=PROG_NAME,
                 version=odoo.release.version,
                 command_list=command_list,
+                default_command=DEFAULT_COMMAND,
             )
         )

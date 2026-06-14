@@ -41,24 +41,34 @@ Then: ``odoo-bin greet world``.
 Public API
 ----------
 * :class:`Command` — base class to subclass for new commands
+* :class:`DatabaseCommand` — base for commands bound to a single database
 * :func:`main` — ``odoo-bin`` dispatcher entry point
 * :func:`build_config_args` — shape ``-c`` / ``-d`` for ``config.parse_config``
 * :func:`get_single_database` — validate the config supplies exactly one db
 * :func:`odoo_env` — context manager yielding an ``odoo.api.Environment``
 
-:data:`COMMAND` is set to the resolved command name while ``main()``
+:data:`COMMAND` is set to the requested command name while ``main()``
 runs (``None`` otherwise). Framework components read it to gate behavior
 on which subcommand is executing — see ``odoo.tests.common`` and
 ``odoo.tests.shell``.
+
+:data:`BOOTSTRAP_ADDONS_PATH` holds the raw ``--addons-path`` value that
+``main()`` extracted before dispatch (``None`` when the flag was absent).
+The bootstrap parser consumes the flag from ``sys.argv`` in *any*
+position, so commands that need to know whether the user supplied one
+(e.g. ``start``, which would otherwise override it with an auto-detected
+project path) must consult this instead of their own ``args``.
 """
 
 from .command import (
     Command,
+    DatabaseCommand,
     build_config_args,
     get_single_database,
     main,
     odoo_env,
 )
 
-# Set by main() before dispatch; see module docstring for consumers.
+# Both set by main() before dispatch; see module docstring for consumers.
 COMMAND: str | None = None
+BOOTSTRAP_ADDONS_PATH: str | None = None

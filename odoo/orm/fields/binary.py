@@ -388,7 +388,7 @@ class Image(Binary):
                 return value
             # Fetch resized version.
             Attachment = env["ir.attachment"]
-            checksum = Attachment._compute_checksum(img)
+            checksum = Attachment._content_checksum(img)
             origins = Attachment.search(
                 [
                     ["id", "!=", False],  # No implicit condition on res_field.

@@ -45,6 +45,7 @@ __all__ = [
     # Connection management
     "db_connect",
     "drain_all",
+    "drain_db",
     # Global counter — resolved dynamically via module __getattr__ below
     # so callers always see the current cursor.sql_counter value.
     "sql_counter",  # noqa: F822 — exposed via module __getattr__, not a name
@@ -58,6 +59,34 @@ _Pool_readonly: ConnectionPool | None = None
 _pool_lock = threading.Lock()
 
 
+def _get_pool(readonly: bool) -> ConnectionPool:
+    """Return the process-wide pool, creating it lazily.
+
+    Double-checked locking: the fast path is a plain read; only the first
+    caller per pool pays for the lock.  Config is immutable post-startup,
+    so no lock is needed around the maxconn reads.
+    """
+    global _Pool, _Pool_readonly  # noqa: PLW0603
+    pool = _Pool_readonly if readonly else _Pool
+    if pool is None:
+        with _pool_lock:
+            pool = _Pool_readonly if readonly else _Pool
+            if pool is None:
+                # NB: hasattr(odoo, "evented") is the standard pattern for
+                # detecting gevent mode — set once at startup, never changes.
+                maxconn = (
+                    tools.config["db_maxconn_gevent"]
+                    if hasattr(odoo, "evented") and odoo.evented
+                    else 0
+                ) or tools.config["db_maxconn"]
+                pool = ConnectionPool(int(maxconn), readonly=readonly)
+                if readonly:
+                    _Pool_readonly = pool
+                else:
+                    _Pool = pool
+    return pool
+
+
 def db_connect(to: str, allow_uri: bool = False, readonly: bool = False) -> Connection:
     """Connect to a PostgreSQL database.
 
@@ -69,49 +98,34 @@ def db_connect(to: str, allow_uri: bool = False, readonly: bool = False) -> Conn
     :return: Connection object
     :raises ValueError: If URI provided but allow_uri is False
     """
-    global _Pool, _Pool_readonly  # noqa: PLW0603
-
-    # NB: hasattr(odoo, "evented") is the standard pattern for detecting
-    # gevent mode — set once at startup, never changes.  Config is also
-    # immutable post-startup, so no lock is needed around maxconn reads.
-    maxconn = (
-        tools.config["db_maxconn_gevent"]
-        if hasattr(odoo, "evented") and odoo.evented
-        else 0
-    ) or tools.config["db_maxconn"]
-
-    if readonly:
-        if _Pool_readonly is None:
-            with _pool_lock:
-                if _Pool_readonly is None:
-                    _Pool_readonly = ConnectionPool(int(maxconn), readonly=True)
-        pool = _Pool_readonly
-    else:
-        if _Pool is None:
-            with _pool_lock:
-                if _Pool is None:
-                    _Pool = ConnectionPool(int(maxconn), readonly=False)
-        pool = _Pool
-
+    # Validate before touching pool state — a rejected URI must not
+    # instantiate the process-wide pool as a side effect.
     db, info = connection_info_for(to, readonly)
     if not allow_uri and db != to:
         msg = "URI connections not allowed"
         raise ValueError(msg)
-    return Connection(pool, db, info)
+    return Connection(_get_pool(readonly), db, info)
 
 
 def close_db(db_name: str) -> None:
     """Close all connections to a specific database.
+
+    Also drops the schema caches (column types, id sequences) for that
+    database — they would otherwise survive a drop/recreate cycle and
+    poison binary COPY on the recreated schema.
 
     You might want to call odoo.modules.registry.Registry.delete(db_name)
     along with this function.
 
     :param db_name: Name of the database to close connections for
     """
+    from .cursor import _clear_schema_caches
+
+    _clear_schema_caches(db_name)
     if _Pool:
-        _Pool.close_all(connection_info_for(db_name)[1])
+        _Pool.close_database(db_name)
     if _Pool_readonly:
-        _Pool_readonly.close_all(connection_info_for(db_name, readonly=True)[1])
+        _Pool_readonly.close_database(db_name)
 
 
 def close_all() -> None:
@@ -122,6 +136,25 @@ def close_all() -> None:
         _Pool_readonly.close_all()
 
 
+def drain_db(db_name: str) -> None:
+    """Drain pools and schema caches for one database.
+
+    Called when this worker learns (via registry signaling) that another
+    worker changed *db_name*'s schema: idle pooled connections hold
+    auto-prepared statements from before the change, and the schema caches
+    may describe columns that no longer exist with those types.  Unlike
+    :func:`drain_all`, other databases served by this process are left
+    untouched.
+    """
+    from .cursor import _clear_schema_caches
+
+    _clear_schema_caches(db_name)
+    if _Pool:
+        _Pool.drain_database(db_name)
+    if _Pool_readonly:
+        _Pool_readonly.drain_database(db_name)
+
+
 def drain_all() -> None:
     """Drain all pools — replace idle connections with fresh ones.
 
@@ -130,10 +163,9 @@ def drain_all() -> None:
     Also clears the column type cache used by binary COPY, since
     schema changes (e.g. ALTER COLUMN TYPE) make cached types stale.
     """
-    from .cursor import _column_type_cache, _id_sequence_cache
+    from .cursor import _clear_schema_caches
 
-    _column_type_cache.clear()
-    _id_sequence_cache.clear()
+    _clear_schema_caches()
     if _Pool:
         _Pool.drain()
     if _Pool_readonly:
