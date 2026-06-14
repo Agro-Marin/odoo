@@ -79,7 +79,7 @@ class Observability(Controller):
         """
         try:
             payload = json_loads(request.httprequest.data or b"{}")
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return Response("invalid json", status=400, mimetype="text/plain")
 
         if not isinstance(payload, dict):
@@ -90,8 +90,22 @@ class Observability(Controller):
         ttfb = _clamp_latency(payload.get("ttfb"))
         inp = _clamp_latency(payload.get("inp"))
         cls = _clamp_cls(payload.get("cls"))
-        url = (payload.get("url") or "")[:_MAX_URL_LEN] if isinstance(payload.get("url"), str) else ""
-        user_agent = (payload.get("user_agent") or "")[:_MAX_UA_LEN] if isinstance(payload.get("user_agent"), str) else ""
+        # Strip the query string before logging/persisting: ``location.search``
+        # can carry record ids and other PII that RUM does not need — only the
+        # route/path is useful for Web-Vitals aggregation. The first-party
+        # client (web_vitals_service) already sends ``location.pathname`` only;
+        # this strip is defense-in-depth for stale cached clients and
+        # hand-crafted beacons (the endpoint is CSRF-exempt and public).
+        raw_url = payload.get("url")
+        if isinstance(raw_url, str):
+            url = raw_url.split("?", 1)[0][:_MAX_URL_LEN]
+        else:
+            url = ""
+        user_agent = (
+            (payload.get("user_agent") or "")[:_MAX_UA_LEN]
+            if isinstance(payload.get("user_agent"), str)
+            else ""
+        )
 
         # Drop completely empty beacons (no metric survived validation).
         if lcp is None and fcp is None and ttfb is None and cls is None and inp is None:
@@ -157,7 +171,7 @@ class Observability(Controller):
         """
         try:
             payload = json_loads(request.httprequest.data or b"{}")
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return Response("invalid json", status=400, mimetype="text/plain")
 
         if not isinstance(payload, dict):
@@ -174,8 +188,16 @@ class Observability(Controller):
             # Empty-message beacons carry no signal; drop silently.
             return Response("", status=204)
 
-        kind = payload.get("kind") if payload.get("kind") in ("error", "unhandledrejection") else "error"
-        phase = payload.get("phase") if payload.get("phase") in ("pre_boot", "post_boot") else "unknown"
+        kind = (
+            payload.get("kind")
+            if payload.get("kind") in ("error", "unhandledrejection")
+            else "error"
+        )
+        phase = (
+            payload.get("phase")
+            if payload.get("phase") in ("pre_boot", "post_boot")
+            else "unknown"
+        )
         filename = _str_field(payload.get("filename"), _MAX_ERROR_FILENAME_LEN)
         url = _str_field(payload.get("url"), _MAX_URL_LEN)
         user_agent = _str_field(payload.get("user_agent"), _MAX_UA_LEN)

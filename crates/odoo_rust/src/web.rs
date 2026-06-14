@@ -19,7 +19,7 @@ use pyo3::types::{PyBool, PyBytes, PyList, PyString};
 /// Handles the same cell sanitization as Python's `CSVExport.from_data`:
 /// - `None` / `False` → empty string
 /// - `bytes` → UTF-8 decode
-/// - Strings starting with `=`, `-`, `+` → prefix with `'` (formula protection)
+/// - Strings starting with `=`, `-`, `+`, `@`, tab, or CR → prefix with `'` (formula protection)
 /// - All other types → `str()` conversion
 /// - Every cell is double-quoted with embedded `"` doubled (RFC 4180 / QUOTE_ALL)
 ///
@@ -82,6 +82,9 @@ pub fn csv_export(
 /// if isinstance(d, str) and d.startswith(('=', '-', '+')):
 ///     d = "'" + d
 /// ```
+///
+/// The Rust port hardens this beyond the original Python set to also guard `@`
+/// and leading tab/CR — the remaining OWASP CSV-injection prefixes.
 fn write_cell(
     buf: &mut String,
     cell: &Bound<'_, PyAny>,
@@ -118,11 +121,12 @@ fn write_cell(
 
 /// Write a string cell with formula protection.
 ///
-/// Spreadsheet apps interpret cells starting with `=`, `-`, or `+` as formulas.
-/// Prefixing with `'` prevents this (CSV injection / formula injection defense).
+/// Spreadsheet apps interpret cells starting with `=`, `-`, `+`, `@`, tab, or CR
+/// as formulas/commands. Prefixing with `'` prevents this (CSV injection /
+/// formula injection defense — OWASP guards `= + - @ \t \r`).
 #[inline]
 fn write_string_cell(buf: &mut String, val: &str) {
-    if !val.is_empty() && matches!(val.as_bytes()[0], b'=' | b'-' | b'+') {
+    if !val.is_empty() && matches!(val.as_bytes()[0], b'=' | b'-' | b'+' | b'@' | b'\t' | b'\r') {
         buf.push('"');
         buf.push('\'');
         write_escaped(buf, val);

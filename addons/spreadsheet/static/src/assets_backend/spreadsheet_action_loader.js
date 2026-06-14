@@ -2,6 +2,7 @@
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { loadBundle } from "@web/core/assets";
+import { ensureServicesStarted } from "@web/env";
 
 const actionRegistry = registry.category("actions");
 
@@ -18,6 +19,15 @@ export function addSpreadsheetActionLazyLoader(actionName, path, displayName) {
     const actionLazyLoader = async (env, action) => {
         // load the bundle which should redefine the action in the registry
         await loadBundle("spreadsheet.o_spreadsheet");
+
+        // loadBundle only guarantees the bundle's modules were evaluated, which
+        // merely *registers* the services they declare (e.g.
+        // spreadsheet_dashboard_loader). Starting them runs asynchronously
+        // afterwards, so without this await the action component below can mount
+        // and call useService(...) before the service exists — which throws and
+        // renders a blank action (notably: no dashboard ever shows). Force a
+        // full startup pass so the bundle's services are available first.
+        await ensureServicesStarted(env);
 
         if (actionRegistry.get(actionName) === actionLazyLoader) {
             // At this point, the real spreadsheet client action should be loaded and have

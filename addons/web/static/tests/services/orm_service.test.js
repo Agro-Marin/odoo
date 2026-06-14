@@ -544,3 +544,21 @@ test("Cache: can cache and update a orm call", async () => {
         'callback - hasChanged:true result:{"name":456}',
     ]);
 });
+
+test("retry and dedup are rejected on mutating methods", async () => {
+    const { services } = await makeMockEnv();
+    const orm = services.orm;
+    expect(() => orm.retry(1).write("res.partner", [3], { name: "x" })).toThrow(
+        /cannot be applied to mutating method "write"/,
+    );
+    expect(() => orm.dedup.unlink("res.partner", [3])).toThrow(
+        /cannot be applied to mutating method "unlink"/,
+    );
+    expect(() => orm.retry(1).call("res.partner", "web_resequence", [[3]])).toThrow(
+        /mutating method "web_resequence"/,
+    );
+    // Composing with other modifiers must not bypass the guard.
+    expect(() => orm.silent.retry(1).webSave("res.partner", [3], {})).toThrow(
+        /mutating method "web_save"/,
+    );
+});

@@ -394,7 +394,7 @@ export class SearchBar extends Component {
                     loadMore: () => {
                         this.state.subItemsLimits[searchItem.id] +=
                             SUB_ITEMS_DEFAULT_LIMIT;
-                        const newSubItems = [...this.subItems];
+                        const newSubItems = { ...this.subItems };
                         newSubItems[searchItem.id] = undefined;
                         this.computeState({ subItems: newSubItems });
                     },

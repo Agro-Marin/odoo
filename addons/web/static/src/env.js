@@ -217,6 +217,35 @@ export async function startServices(env) {
 }
 
 /**
+ * Force a complete service-startup pass over the current registry and resolve
+ * once every service whose dependencies are met has started.
+ *
+ * ``loadBundle`` resolves as soon as a (possibly lazy) bundle's modules have
+ * been evaluated — which only *registers* the services they declare. Actually
+ * *starting* those services happens asynchronously afterwards, driven by the
+ * registry UPDATE listener installed by ``startServices``. A caller that
+ * lazy-loads a bundle and then immediately mounts a component that reads one
+ * of its services in ``setup`` (``useService`` throws if the service is not
+ * yet in ``env.services``) can therefore race that background startup.
+ *
+ * Awaiting this after ``loadBundle`` closes that race deterministically:
+ * services with met dependencies are guaranteed started before the next line
+ * runs. Services whose deps are genuinely unregistered are left to the
+ * cascade-skip as usual (no throw, no hang); re-entrant calls are serialized
+ * via ``startServicesPromise``. This does NOT install a registry listener, so
+ * it is safe to call repeatedly over the page lifetime.
+ *
+ * @param {OdooEnv} env
+ * @returns {Promise<void>}
+ */
+export async function ensureServicesStarted(env) {
+    // Let any pending synchronous registrations land first, matching the
+    // microtask convention used by startServices / onRegistryUpdate.
+    await Promise.resolve();
+    await _startServices(env, new Map());
+}
+
+/**
  * Start all services in `toStart`, resolving dependencies with O(N+E)
  * dependency-counting and reverse-edge propagation.
  *
@@ -328,38 +357,42 @@ async function _startServices(env, toStart) {
             }
         }
         if (missingDeps.size) {
-            // Cascade-skip services whose declared dependencies cannot be
-            // met.  In production (``web.assets_web``) every JS file in
-            // the bundle is eagerly evaluated by esbuild at load time, so
-            // every service that registers itself does so alongside its
-            // declared deps — the missing-dep case is structurally
-            // impossible.  The only scenario where a service can be
-            // registered without its provider is the lazy-loaded test
-            // bundle (``web.assets_unit_tests``, listed in
-            // ``AssetsBundle.IMPORT_MAP_INCLUDES``): a test file's static
-            // ``import`` registers its consumer service, but if no other
-            // file in the running test set transitively imports the
-            // provider, the provider's ``registry.add(...)`` never
-            // executes.
+            // Cascade-skip services whose declared dependencies are not in
+            // the registry. A dependency can legitimately be absent here for
+            // two reasons — NOT only the test-bundle case originally assumed:
             //
-            // Pre-2026-05-22 this branch threw, cascade-failing every
-            // test in the run (a single offending test file would knock
-            // out the entire ``@web/core`` suite — see the
-            // ``spreadsheet_dashboard_loader`` <- ``geo_json_service``
-            // historical incident).  The corrective workaround at
-            // ``tests/_framework/module_set.hoot.js`` ran a service-
-            // cascade-removal pass at framework init, but it ran BEFORE
-            // test files lazy-loaded, so newly-registered services
-            // slipped through.
+            //   1. Lazy-loaded TEST bundle (``web.assets_unit_tests``): a
+            //      test file statically imports a consumer service, but no
+            //      file in the running set imports the provider, so the
+            //      provider's ``registry.add(...)`` never executes.
+            //   2. Lazy-loaded PRODUCTION bundle (e.g.
+            //      ``spreadsheet.o_spreadsheet``): under native ESM a
+            //      bundle's modules execute in import-graph order across
+            //      microtasks rather than in one synchronous pass, so a
+            //      consumer can register a microtask before its provider.
+            //      The provider DOES arrive shortly after, and the next
+            //      registry UPDATE re-runs this function and starts both —
+            //      the skip is transient and self-healing.
             //
-            // Skipping with a warning is the correct behavior because:
-            //   1. Production cannot reach this branch (esbuild eager
-            //      bundle).
-            //   2. In test mode, consumers of the skipped service that
-            //      actually need it will fail with a precise
-            //      "cannot read property of undefined" pointing at the
-            //      specific use site, which is more debuggable than a
-            //      global startup error.
+            // The original code asserted case 2 was "structurally impossible
+            // in production". It is not — that false assumption let a real
+            // production failure (blank spreadsheet dashboard:
+            // ``spreadsheet_dashboard_loader`` skipped, so ``dashboard_action``
+            // crashed on ``useService(...)``) be mis-triaged as test-only.
+            // A caller that lazy-loads such a bundle and then synchronously
+            // reads one of its services in a component ``setup`` must await
+            // ``ensureServicesStarted(env)`` after ``loadBundle`` to force a
+            // complete startup pass before mounting — see
+            // ``addSpreadsheetActionLazyLoader``.
+            //
+            // Pre-2026-05-22 this branch threw, cascade-failing every test in
+            // the run. Skipping (rather than throwing) is still correct:
+            //   1. A dep that never arrives (typo / never-loaded provider)
+            //      leaves its consumer unstarted; consumers that need it fail
+            //      at the precise use site, not as a global startup error.
+            //   2. A dep that arrives later is recovered by the next
+            //      startServices pass (a registry UPDATE, or an explicit
+            //      ensureServicesStarted call).
             //   3. Genuine circular dependencies still throw below — the
             //      cascade only removes services with truly missing deps,
             //      so leftover entries are guaranteed cyclical.
@@ -393,12 +426,16 @@ async function _startServices(env, toStart) {
                         `[env] Skipped ${skipped.length} service(s) with ` +
                             `unreachable dependencies: ${skipped.join(", ")}. ` +
                             `Missing: ${[...missingDeps].sort().join(", ")}. ` +
-                            `(Production bundles eagerly evaluate every file, ` +
-                            `so this branch only fires in lazy-loaded test ` +
-                            `bundles.  Components or tests that consume any of ` +
-                            `these services will see env.services.<name> === ` +
-                            `undefined at the use site.  This message dedupes ` +
-                            `per (skipped, missing) combination; subsequent ` +
+                            `(Fires for any lazy-loaded bundle — test OR ` +
+                            `production — whose provider has not been ` +
+                            `evaluated yet. If the provider arrives later the ` +
+                            `next startServices pass recovers it; if it never ` +
+                            `arrives, consumers see env.services.<name> === ` +
+                            `undefined at the use site. Callers that ` +
+                            `lazy-load a production bundle and read its ` +
+                            `services synchronously should await ` +
+                            `ensureServicesStarted(env) after loadBundle. ` +
+                            `Deduped per (skipped, missing) combination; ` +
                             `identical skips stay silent.)`,
                     );
                 }
