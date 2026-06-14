@@ -149,6 +149,10 @@ export function parseFloatTime(value) {
     }
     const hours = parseInteger(values[0]);
     const minutes = parseInteger(values[1]);
+    if (minutes < 0 || minutes >= 60) {
+        // The minutes component must be in [0, 59]; "1:90" is not 2.5 hours.
+        throw new InvalidNumberError(`"${value}" is not a correct number`);
+    }
     return sign * (hours + minutes / 60);
 }
 

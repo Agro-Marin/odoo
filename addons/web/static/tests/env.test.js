@@ -12,6 +12,7 @@ import {
 import { registry } from "@web/core/registry";
 import {
     _resetCascadeWarningCache,
+    ensureServicesStarted,
     makeEnv,
     mountComponent,
     startServices,
@@ -170,15 +171,16 @@ test(`can start two independant asynchronous services in parallel`, async () => 
 test(`startServices: skips services with unreachable deps and warns (no throw)`, async () => {
     // Behavior change (2026-05-22): previously this branch threw
     // "Some services could not be started: ... Missing dependencies: ...".
-    // In production (web.assets_web) the branch is structurally
-    // unreachable because esbuild eager-evaluates every file in the
-    // bundle, so every service registers alongside its declared deps.
-    // The only environment where the branch fires is the lazy-loaded
-    // test bundle (web.assets_unit_tests), where a test file's static
-    // import can register a consumer without the provider being
-    // transitively imported.  Skipping with a warning lets unrelated
-    // tests still run; consumers of the skipped service fail at the
-    // precise use site instead of cascading a global startup error.
+    // The branch fires whenever a service is registered before a declared
+    // dependency — in the lazy-loaded test bundle (a consumer imported
+    // without its provider) AND in lazy-loaded production bundles (native
+    // ESM evaluates modules across microtasks, so a consumer can register
+    // before its provider). Skipping (not throwing) lets the run continue;
+    // a provider that arrives later is recovered by the next startServices
+    // pass (see the recovery assertion below), and a dep that never arrives
+    // leaves its consumer to fail at the precise use site. Callers that must
+    // read a lazy bundle's service synchronously await ensureServicesStarted
+    // after loadBundle rather than relying on the background pass.
     const env = makeEnv();
     after(() => env.disposeServiceRegistryListener?.());
     registerService("b", ["a"], () => "b");
@@ -202,6 +204,26 @@ test(`startServices: skips services with unreachable deps and warns (no throw)`,
     registerService("a", [], () => "a");
     await startServices(env);
     expect(env.services).toEqual({ a: "a", b: "b" });
+});
+
+test(`ensureServicesStarted: starts late-registered services without a registry listener`, async () => {
+    // The lazy-bundle scenario (addSpreadsheetActionLazyLoader): services
+    // registered after startup must be guaranteed started by the time
+    // ensureServicesStarted resolves, independently of the background
+    // registry UPDATE listener — which is disposed here on purpose.
+    const env = makeEnv();
+    await startServices(env);
+    env.disposeServiceRegistryListener();
+    registerService("provider", [], () => "p");
+    registerService("consumer", ["provider"], (_env, deps) => `${deps.provider}-c`);
+    expect(env.services).toEqual({});
+
+    await ensureServicesStarted(env);
+    expect(env.services).toEqual({ provider: "p", consumer: "p-c" });
+
+    // Idempotent: a second pass with nothing new to start is a no-op.
+    await ensureServicesStarted(env);
+    expect(env.services).toEqual({ provider: "p", consumer: "p-c" });
 });
 
 test(`startServices: cascade-skips transitive consumers when a dep is missing`, async () => {

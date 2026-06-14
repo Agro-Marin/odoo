@@ -1,6 +1,6 @@
 import collections
 import logging
-from collections.abc import Iterator  # noqa: TC003 — runtime import required (PEP 649)
+from collections.abc import Iterator  # runtime import required (PEP 649)
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -24,8 +24,11 @@ def _is_local_url(url: str | None) -> bool:
     """
     if not url or not isinstance(url, str):
         return False
-    # Reject protocol-relative URLs and backslash tricks
-    if url.startswith(("//", "/\\")):
+    # Reject protocol-relative URLs and backslash tricks. Browsers normalize
+    # backslashes to forward slashes, so a leading "\" or "\\" is treated by the
+    # browser as a protocol-relative URL and enables an open redirect; urlsplit
+    # (RFC 3986) does NOT perform that normalization, so guard backslashes here.
+    if "\\" in url or url.startswith("//"):
         return False
     parsed = urlsplit(url)
     return not parsed.scheme and not parsed.netloc
