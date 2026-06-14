@@ -25,7 +25,7 @@ import threading
 import odoo
 from odoo import tools
 
-from .cursor import BaseCursor, Cursor, Savepoint
+from .cursor import BaseCursor, Cursor, Savepoint, _clear_schema_caches
 from .pool import Connection, ConnectionPool, PoolError
 from .utils import categorize_query, connection_info_for
 
@@ -124,8 +124,6 @@ def close_db(db_name: str) -> None:
 
     :param db_name: Name of the database to close connections for
     """
-    from .cursor import _clear_schema_caches
-
     _clear_schema_caches(db_name)
     if _Pool:
         _Pool.close_database(db_name)
@@ -164,8 +162,6 @@ def drain_db(db_name: str) -> None:
     :func:`drain_all`, other databases served by this process are left
     untouched.
     """
-    from .cursor import _clear_schema_caches
-
     _clear_schema_caches(db_name)
     if _Pool:
         _Pool.drain_database(db_name)
@@ -181,8 +177,6 @@ def drain_all() -> None:
     Also clears the column type cache used by binary COPY, since
     schema changes (e.g. ALTER COLUMN TYPE) make cached types stale.
     """
-    from .cursor import _clear_schema_caches
-
     _clear_schema_caches()
     if _Pool:
         _Pool.drain()
