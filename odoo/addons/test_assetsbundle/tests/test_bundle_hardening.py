@@ -27,6 +27,7 @@ from odoo.tools.misc import file_path
 from odoo.addons.base.models.assetsbundle import (
     ANY_UNIQUE,
     AssetAttachmentStore,
+    AssetError,
     AssetNotFoundError,
     AssetsBundle,
     CompileError,
@@ -852,3 +853,169 @@ class TestCompileCssImportSanitizeUnit(BaseCase):
             out, errs = self._sanitize('@import "./x.scss" screen;')
         self.assertEqual(out, "")
         self.assertTrue(errs)
+
+
+class _NativeStubBundle:
+    """Minimal bundle exposing only what ``get_native_module_data`` reads."""
+
+    name = "web.assets_test"
+
+    def __init__(self, modules):
+        self.native_modules = modules
+        self.bridge_input = None
+
+    def _build_native_to_legacy_bridge(self, specifiers, modules=None):
+        self.bridge_input = set(specifiers)
+        return {"@legacy/shim": "data:text/javascript,"}
+
+
+class TestNativeModuleDataSpecifiers(BaseCase):
+    """``get_native_module_data`` derives bridge specifiers from import-map keys.
+
+    The 2026-06 audit-follow-up dropped the parallel ``native_specifiers``
+    accumulator: every key written to ``import_map`` (module path, ``/index``
+    long form, declared alias) is one of the bundle's own specifiers, so the
+    import-map keys ARE the "owned by this bundle" set handed to the bridge
+    builder. These lock that equivalence, the ``/index`` long form that must
+    survive the simplification, and the ``with_bridges=False`` short-circuit.
+    """
+
+    def _asset(self, url):
+        # Inline source + url: module_path (from url) and parsed_header (from
+        # content) both resolve without an env or a live attachment.
+        return JavascriptAsset(
+            _NativeStubBundle([]), inline="export const x = 1;\n", url=url
+        )
+
+    def _data(self, urls, **kw):
+        bundle = _NativeStubBundle([self._asset(u) for u in urls])
+        return bundle, AssetsBundle.get_native_module_data(bundle, **kw)
+
+    def test_index_js_keeps_both_specifier_forms(self):
+        _, res = self._data(["/web/static/src/core/utils/index.js"], with_bridges=False)
+        self.assertIn("@web/core/utils", res["import_map"])
+        self.assertIn("@web/core/utils/index", res["import_map"])
+
+    def test_bridge_receives_exactly_import_map_keys(self):
+        bundle, res = self._data(
+            [
+                "/web/static/src/core/registry.js",
+                "/web/static/src/core/utils/index.js",
+            ],
+            with_bridges=True,
+        )
+        self.assertEqual(bundle.bridge_input, set(res["import_map"]))
+        self.assertTrue(res["bridge_import_map"])
+
+    def test_with_bridges_false_skips_builder(self):
+        bundle, res = self._data(
+            ["/web/static/src/core/registry.js"], with_bridges=False
+        )
+        self.assertEqual(res["bridge_import_map"], {})
+        # The builder never ran, so no specifier set was captured.
+        self.assertIsNone(bundle.bridge_input)
+
+
+class TestAssetErrorTaxonomy(BaseCase):
+    """Content/parse failures share the ``AssetError`` base; compile errors don't."""
+
+    def test_asset_error_is_the_common_base(self):
+        self.assertTrue(issubclass(AssetNotFoundError, AssetError))
+        self.assertTrue(issubclass(XMLAssetError, AssetError))
+
+    def test_compile_error_is_a_separate_family(self):
+        # CompileError is caught explicitly alongside SassCompileError, never
+        # via an ``except AssetError`` net — so it must stay outside that tree.
+        self.assertFalse(issubclass(CompileError, AssetError))
+        self.assertTrue(issubclass(CompileError, RuntimeError))
+
+
+class TestEsmGraphCanonicalHome(BaseCase):
+    """ESM-graph predicates live in ``odoo.libs.esm_graph``, not as re-exports."""
+
+    def test_predicates_resolve_from_esm_graph(self):
+        from odoo.libs import esm_graph
+
+        self.assertTrue(callable(esm_graph.is_native_module))
+        self.assertTrue(callable(esm_graph._parse_odoo_module_header))
+
+    def test_dead_reexport_not_resurrected(self):
+        import odoo.addons.base.models.assetsbundle as ab
+
+        # ``_parse_odoo_module_header`` stays (used internally by
+        # JavascriptAsset.parsed_header); the unused ``is_native_module``
+        # re-export was removed and must not creep back as "historical surface".
+        self.assertTrue(hasattr(ab, "_parse_odoo_module_header"))
+        self.assertFalse(hasattr(ab, "is_native_module"))
+
+
+class TestStylesheetErrorInversion(BaseCase):
+    """StylesheetAsset records fetch errors on itself; the bundle harvests them.
+
+    The 2026-06 audit-follow-up inverted a leaf-into-parent coupling:
+    ``StylesheetAsset._fetch_content`` used to append to
+    ``self.bundle.css_errors`` directly. It now records onto ``self.errors``,
+    and ``AssetsBundle.preprocess_css`` collects from each asset — so the asset
+    can be exercised without a live bundle that owns a ``css_errors`` list.
+    """
+
+    class _StubBundle(AssetsBundle):
+        # Skip the env / esm_registry-heavy __init__; inherit the class-level
+        # regexes and the real ``preprocess_css`` harvest path.
+        def __init__(self):
+            self.stylesheets = []
+            self.css_errors = []
+            self.rtl = False
+            self.autoprefix = False
+
+    def test_asset_records_error_without_touching_bundle(self):
+        class BareBundle:  # deliberately has no css_errors attribute
+            pass
+
+        asset = StylesheetAsset(BareBundle(), url="/web/static/src/css/missing.css")
+        with patch.object(WebAsset, "_fetch_content", side_effect=AssetError("boom")):
+            out = asset._fetch_content()
+        self.assertEqual(out, "")
+        self.assertEqual(asset.errors, ["boom"])
+        # The old design appended to self.bundle.css_errors here and would have
+        # raised AttributeError on a bundle that has no such list.
+        self.assertFalse(hasattr(asset.bundle, "css_errors"))
+
+    def test_bundle_harvests_asset_errors(self):
+        bundle = self._StubBundle()
+        good = StylesheetAsset(bundle, inline=".ok{color:red}")  # inline -> no fetch
+        bad1 = StylesheetAsset(bundle, url="/web/static/src/css/x1.css")
+        bad2 = StylesheetAsset(bundle, url="/web/static/src/css/x2.css")
+        bundle.stylesheets = [good, bad1, bad2]
+
+        def fake_fetch(self):
+            raise AssetError(f"missing {self.url}")
+
+        with patch.object(WebAsset, "_fetch_content", fake_fetch):
+            result = bundle.preprocess_css()
+
+        self.assertIn(".ok{color:red}", result)  # the good asset still ships
+        self.assertEqual(good.errors, [])
+        self.assertEqual(
+            bundle.css_errors,
+            [
+                "missing /web/static/src/css/x1.css",
+                "missing /web/static/src/css/x2.css",
+            ],
+        )
+
+    def test_preprocess_css_does_not_double_report_on_rerun(self):
+        # preprocess_css rebuilds css_errors from scratch each call, so running
+        # it twice must not accumulate duplicates (the harvest is idempotent).
+        bundle = self._StubBundle()
+        bad = StylesheetAsset(bundle, url="/web/static/src/css/x.css")
+        bundle.stylesheets = [bad]
+
+        def fake_fetch(self):
+            raise AssetError("missing x.css")
+
+        with patch.object(WebAsset, "_fetch_content", fake_fetch):
+            bundle.preprocess_css()
+            bundle.preprocess_css()
+
+        self.assertEqual(bundle.css_errors, ["missing x.css"])
