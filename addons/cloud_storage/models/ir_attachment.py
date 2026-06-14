@@ -1,10 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import logging
-import requests
 import uuid
 
-from odoo import models, fields, _
+import requests
+
+from odoo import _, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.http import Stream
 
@@ -63,6 +64,7 @@ class IrAttachment(models.Model):
             'url': False,
             'raw': attachment_data,
         })
+        return True
 
     def _generate_cloud_storage_blob_name(self):
         """
@@ -80,7 +82,7 @@ class IrAttachment(models.Model):
 
         :return: A cloud blob url str
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _generate_cloud_storage_download_info(self):
         """
@@ -94,7 +96,7 @@ class IrAttachment(models.Model):
             time_to_expiry
                 the time in seconds before the download url expires
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _generate_cloud_storage_upload_info(self):
         """
@@ -112,7 +114,7 @@ class IrAttachment(models.Model):
             [Optionally] headers
                 a dictionary of headers to be added to the upload request
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def _get_cloud_storage_unsupported_models(self):
         # Some models may use their attachments' data in the business code

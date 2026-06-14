@@ -23,6 +23,7 @@
             </list>
         </field>
     </record>
+
     <record id="res_lang_form" model="ir.ui.view">
         <field name="name">res.lang.form</field>
         <field name="model">res.lang</field>
@@ -64,20 +65,23 @@
             </form>
         </field>
     </record>
+
     <record id="res_lang_search" model="ir.ui.view">
         <field name="name">res.lang.search</field>
         <field name="model">res.lang</field>
         <field name="arch" type="xml">
             <search string="Languages">
                 <field name="name"
-                    filter_domain="['|', '|', ('name', 'ilike', self), ('code', 'ilike', self), ('iso_code', 'ilike', self)]"
-                    string="Language" />
+                    string="Language"
+                    filter_domain="['|', '|', ('name', 'ilike', self), ('code', 'ilike', self), ('iso_code', 'ilike', self)]" />
                 <field name="direction" />
                 <separator />
-                <filter string="Active" name="active" domain="[('active', '=', True)]" />
+                <filter string="Active" name="active"
+                    domain="[('active', '=', True)]" />
             </search>
         </field>
     </record>
+
     <record id="res_lang_act_window" model="ir.actions.act_window">
         <field name="name">Languages</field>
         <field name="res_model">res.lang</field>

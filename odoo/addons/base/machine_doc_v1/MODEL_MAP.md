@@ -568,7 +568,12 @@ Progress tracking for long-running cron jobs.
 
 #### IrAttachment — `ir.attachment` (`_name`)
 
-File storage — supports both database and filestore backends.
+File storage with pluggable backends (see `ir_attachment_storage.py`:
+`AttachmentStorage` / `DbStorage` / `FileStorage`, `@register_storage`).
+Two dispatch axes: `ir_attachment.location` selects where NEW content is
+written (`_storage_backend()`); existing content follows its store key,
+resolved by URI scheme via `_backend_for_key()` (plain `ab/<sha1>` keys →
+local filestore). The `_file_*` methods are local-filestore primitives.
 
 **Fields:**
 - `name` (Char, required), `description` (Text)
@@ -584,12 +589,15 @@ File storage — supports both database and filestore backends.
 - `index_content` (Text) — Extracted text for full-text search
 
 **Key Methods:**
-- `_storage()` — Returns `file` or `db` (from config)
+- `_storage()` — Configured location name (`file`, `db`, or custom)
+- `_storage_backend()` — Write-side backend for the configured location
+- `_backend_for_key(fname)` — Read-side backend owning a store key
+- `_storage_delete(fname)` — Key-dispatched content deletion
 - `_filestore()` — Filestore directory path
 - `force_storage()` — Migrate all attachments to configured storage
 - `_file_read(fname, size)`, `_file_write(bin_value, checksum)`, `_file_delete(fname)`
-- `_gc_file_store()` — Autovacuum garbage collection
-- `_compute_mimetype(values)` — Detect MIME type
+- `_gc_file_store()` — Autovacuum: runs every backend's `autovacuum()`
+- `_mimetype_from_values(values)` — Detect MIME type
 - `_postprocess_contents(values)` — Image auto-resizing
 - `create_unique(values_list)` — Create only if checksum+size unique
 - `generate_access_token()` — Generate scoped access tokens

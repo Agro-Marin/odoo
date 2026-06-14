@@ -1,0 +1,9 @@
+// A loud comment whose body is a bare hex token, of the exact shape Dart Sass
+// preserves verbatim (``/*! <hex> */``).  Before the split marker was
+// namespaced, ``rx_css_split`` mistook this for a per-file fragment boundary
+// and aborted the whole bundle's CSS compile with a RuntimeError.  Regression
+// fixture for ``AssetsBundle.preprocess_css`` -> ``rx_css_split``.
+/*! a1b2c3d */
+.split-marker-regression {
+    color: red;
+}

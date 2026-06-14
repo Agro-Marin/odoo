@@ -7,6 +7,12 @@
 .appearance-none-prefixed {
     -webkit-appearance: none;
 }
+.appearance-none-important {
+    appearance: none !important;
+}
+.appearance-menulist-button {
+    appearance: menulist-button;
+}
 
 .display-flex {
     display: flex;

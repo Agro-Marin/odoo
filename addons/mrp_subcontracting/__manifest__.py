@@ -112,4 +112,11 @@
     'uninstall_hook': 'uninstall_hook',
     'author': 'Odoo S.A.',
     'license': 'LGPL-3',
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'mrp_subcontracting.webclient',
+        ],
+    },
 }

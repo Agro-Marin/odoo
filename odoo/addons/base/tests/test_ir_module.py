@@ -1,3 +1,6 @@
+import io
+from unittest.mock import patch
+
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, new_test_user
 from odoo.tools import mute_logger
@@ -14,6 +17,39 @@ class IrModuleCase(TransactionCase):
     def test_new_module_icon(self):
         module = self.env["ir.module.module"].new({"name": "missing"})
         self.assertFalse(module.icon_image)
+
+    @mute_logger("odoo.modules.module")
+    def test_new_module_icon_flag(self):
+        # _compute_icon_image computes both icon_image and icon_flag; NewId
+        # records are skipped by its loop and must still get both fields
+        # assigned, otherwise reading raises "Compute method failed to assign".
+        module = self.env["ir.module.module"].new({"name": "missing"})
+        self.assertFalse(module.icon_flag)
+        self.assertFalse(module.icon_image)
+
+    def test_description_html_tolerates_malformed_index_html(self):
+        # description_html is read by _check() during module loading: a module
+        # shipping a non-UTF-8 or empty static/description/index.html must
+        # degrade gracefully instead of raising.
+        module = self.env["ir.module.module"].search([("name", "=", "base")])
+
+        with patch(
+            "odoo.tools.file_open",
+            side_effect=lambda *a, **kw: io.BytesIO(b"\x89PNG\xff\xfe broken \xff"),
+        ):
+            module.invalidate_recordset(["description_html"])
+            # must not raise UnicodeDecodeError
+            self.assertIsNotNone(module.description_html)
+
+        with patch(
+            "odoo.tools.file_open",
+            side_effect=lambda *a, **kw: io.BytesIO(b""),
+        ):
+            module.invalidate_recordset(["description_html"])
+            # empty file: must not raise lxml ParserError; falls back to the
+            # manifest description
+            self.assertIsNotNone(module.description_html)
+        module.invalidate_recordset(["description_html"])
 
     @mute_logger("odoo.modules.module")
     def test_module_wrong_icon(self):

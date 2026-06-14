@@ -262,4 +262,19 @@ For more specific needs, you may also assign custom-defined actions
     },
     "author": "Odoo S.A.",
     "license": "LGPL-3",
+    'esm': {
+        # ESM/esbuild bundle taxonomy — aggregated and validated by
+        # odoo.libs.esm_registry (see its docstring for the schema).
+        'bundles': [
+            'mail.assets_lamejs',
+            'mail.assets_odoo_sfu',
+            'mail.assets_public',
+        ],
+        'dynamic_children': {
+            'web.assets_web': [
+                'mail.assets_lamejs',
+                'mail.assets_odoo_sfu',
+            ],
+        },
+    },
 }

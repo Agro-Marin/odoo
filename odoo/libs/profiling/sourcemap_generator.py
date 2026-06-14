@@ -30,7 +30,13 @@ class SourceMapGenerator:
     """
 
     def __init__(self, source_root: str | None = None) -> None:
-        self._file: str | None = None
+        """Initialize an empty map, optionally rooted at ``source_root``."""
+        # `file` is public by design: the bundle URL this map describes is only known
+        # AFTER the bundle attachment is created (the bundle embeds the map
+        # URL and the map embeds the bundle URL), so callers assign
+        # ``generator.file = attachment.url`` between adding sources and
+        # calling :meth:`get_content`.
+        self.file: str | None = None
         self._source_root: str | None = source_root
         self._sources: dict[str, int] = {}
         self._mappings: list[_Mapping] = []
@@ -84,8 +90,8 @@ class SourceMapGenerator:
                 self._sources_contents[source] for source in self._sources
             ],
         }
-        if self._file:
-            result["file"] = self._file
+        if self.file:
+            result["file"] = self.file
         if self._source_root:
             result["sourceRoot"] = self._source_root
         return result

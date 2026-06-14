@@ -1,6 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="view_company_tree" model="ir.ui.view">
+        <field name="name">res.company.list</field>
+        <field name="model">res.company</field>
+        <field name="arch" type="xml">
+            <list string="Companies" decoration-muted="not active">
+                <field name="sequence" widget="handle" />
+                <field name="logo" invisible="not logo" widget="image"
+                    options="{'size': [24, 24], 'img_class': 'o_avatar rounded'}" width="30"
+                    nolabel="1" />
+                <field name="name" />
+                <field name="partner_id" required="0" />
+                <field name="child_ids" widget="many2many_tags" options="{'color_field': 'color'}" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_res_company_kanban" model="ir.ui.view">
+        <field name="name">res.company.kanban</field>
+        <field name="model">res.company</field>
+        <field name="arch" type="xml">
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <div t-attf-class="#{!selection_mode ? 'text-center' : ''}">
+                            <i class="fa-solid fa-building" role="img" aria-label="Enterprise"
+                                title="Enterprise" />
+                            <field class="fw-bold fs-5" name="name" />
+                        </div>
+                        <hr class="mt4 mb4" />
+                        <div class="row" t-if="!selection_mode">
+                            <div t-if="record.email.value" class="col-6 text-center">
+                                <strong>Email:</strong>
+                            </div>
+                            <div t-if="record.phone.value" class="col-6 text-center">
+                                <strong>Phone</strong>
+                            </div>
+                            <div t-if="record.email.value" class="col-6 text-center">
+                                <field name="email" />
+                            </div>
+                            <div t-if="record.phone.value" class="col-6 text-center o_force_ltr">
+                                <field name="phone" />
+                            </div>
+                        </div>
+                        <div t-else="">
+                            <div t-if="record.email.value">
+                                <strong>Email:</strong>
+                                <field name="email" />
+                            </div>
+                            <div t-if="record.phone.value" class="o_force_ltr">
+                                <strong>Phone:</strong>
+                                <field name="phone" />
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
     <record id="view_company_form" model="ir.ui.view">
         <field name="name">res.company.form</field>
         <field name="model">res.company</field>
@@ -70,65 +129,6 @@
                     </notebook>
                 </sheet>
             </form>
-        </field>
-    </record>
-
-    <record id="view_company_tree" model="ir.ui.view">
-        <field name="name">res.company.list</field>
-        <field name="model">res.company</field>
-        <field name="arch" type="xml">
-            <list string="Companies" decoration-muted="not active">
-                <field name="sequence" widget="handle" />
-                <field name="logo" invisible="not logo" widget="image"
-                    options="{'size': [24, 24], 'img_class': 'o_avatar rounded'}" width="30"
-                    nolabel="1" />
-                <field name="name" />
-                <field name="partner_id" required="0" />
-                <field name="child_ids" widget="many2many_tags" options="{'color_field': 'color'}" />
-            </list>
-        </field>
-    </record>
-
-    <record id="view_res_company_kanban" model="ir.ui.view">
-        <field name="name">res.company.kanban</field>
-        <field name="model">res.company</field>
-        <field name="arch" type="xml">
-            <kanban>
-                <templates>
-                    <t t-name="card">
-                        <div t-attf-class="#{!selection_mode ? 'text-center' : ''}">
-                            <i class="fa-solid fa-building" role="img" aria-label="Enterprise"
-                                title="Enterprise" />
-                            <field class="fw-bold fs-5" name="name" />
-                        </div>
-                        <hr class="mt4 mb4" />
-                        <div class="row" t-if="!selection_mode">
-                            <div t-if="record.email.value" class="col-6 text-center">
-                                <strong>Email:</strong>
-                            </div>
-                            <div t-if="record.phone.value" class="col-6 text-center">
-                                <strong>Phone</strong>
-                            </div>
-                            <div t-if="record.email.value" class="col-6 text-center">
-                                <field name="email" />
-                            </div>
-                            <div t-if="record.phone.value" class="col-6 text-center o_force_ltr">
-                                <field name="phone" />
-                            </div>
-                        </div>
-                        <div t-else="">
-                            <div t-if="record.email.value">
-                                <strong>Email:</strong>
-                                <field name="email" />
-                            </div>
-                            <div t-if="record.phone.value" class="o_force_ltr">
-                                <strong>Phone:</strong>
-                                <field name="phone" />
-                            </div>
-                        </div>
-                    </t>
-                </templates>
-            </kanban>
         </field>
     </record>
 
