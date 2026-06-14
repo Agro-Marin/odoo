@@ -1,6 +1,6 @@
 {
     "name": "Base Order Management",
-    "version": "19.0.2.0.0",
+    "version": "19.0.3.0.0",
     "category": "Hidden",
     "summary": "Foundation mixins for sale and purchase order types",
     "description": """
@@ -13,10 +13,12 @@ no views, no menus.
 
 Mixins:
 -------
-* **order.mixin** — state machine, validation registry, workflow actions
-* **order.amount.mixin** — tax computation (order-level)
-* **order.line.amount.mixin** — tax computation (line-level)
-* **order.line.fields.mixin** — common structural fields
+* **order.mixin** — state machine, validation registry, workflow actions,
+  mail/portal/catalog integration, duplicate detection
+* **order.amount.mixin** — tax computation and credit warning (order-level)
+* **order.line.amount.mixin** — pricing and tax computation (line-level)
+* **order.line.fields.mixin** — common structural fields, CRUD guards,
+  transfer tracking
 * **order.invoice.mixin** — invoice tracking (order-level)
 * **order.line.invoice.mixin** — invoice tracking (line-level)
 * **order.merge.mixin** — quotation/RFQ merge system
@@ -31,5 +33,6 @@ amount_taxexc_invoiced, etc.) for drop-in adoption.
         "mail",
         "portal",
         "account",
+        "product",
     ],
 }

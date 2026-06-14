@@ -1,23 +1,3 @@
-"""
-Order Merge Mixin
-
-Abstract mixin that consolidates the O(1) hash-based merge system shared
-between sale.order and purchase.order (~90% identical).
-
-Full workflow::
-
-    action_merge → validate → group → merge_group →
-        lines / metadata / messages → finalize → result action
-
-Hooks for model-specific behaviour:
-    ``_merge_get_eligible_orders`` — eligibility (sale: draft; purchase: draft+sent)
-    ``_prepare_grouped_data`` — grouping key (sale: +shipping; purchase: +destination)
-    ``_merge_metadata_refs`` — reference field (sale: client_order_ref; purchase: partner_ref)
-    ``_merge_finalize`` — cleanup (purchase: alternative PO handling)
-    ``_get_merge_result_name`` — action label ("Merged Quotations" / "Merged RFQs")
-    ``_get_merge_group_description`` — error message criteria list
-"""
-
 from collections import defaultdict
 
 from odoo import _, models
@@ -67,11 +47,7 @@ class OrderMergeMixin(models.AbstractModel):
     # ─── Eligibility ───────────────────────────────────────────────
 
     def _merge_get_eligible_orders(self):
-        """Return orders eligible for merging.
-
-        Default: draft orders only.
-        Purchase overrides to include ``sent`` state.
-        """
+        """Return orders eligible for merging (draft orders only)."""
         return self.filtered(lambda r: r.state == "draft")
 
     # ─── Validation ────────────────────────────────────────────────
@@ -205,7 +181,8 @@ class OrderMergeMixin(models.AbstractModel):
 
             key = self._merge_get_line_key(source_line)
             match = self._merge_find_matching_line(
-                source_line, line_index.get(key, []),
+                source_line,
+                line_index.get(key, []),
             )
 
             if match:

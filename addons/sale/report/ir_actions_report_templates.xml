@@ -41,7 +41,7 @@
             <t t-set="display_name_in_footer" t-value="True"/>
             <t t-set="layout_document_title">
                 <span t-if="is_proforma">Pro-Forma Invoice # </span>
-                <span t-elif="doc.state in ['draft','sent']">Quotation # </span>
+                <span t-elif="doc.state == 'draft'">Quotation # </span>
                 <span t-else="">Order # </span>
                 <span t-field="doc.name">SO0000</span>
             </t>
@@ -55,11 +55,11 @@
                     </div>
                     <div t-if="doc.date_order" class="col" name="informations_date">
                         <strong t-if="is_proforma">Issued Date</strong>
-                        <strong t-elif="doc.state in ['draft', 'sent']">Quotation Date</strong>
+                        <strong t-elif="doc.state == 'draft'">Quotation Date</strong>
                         <strong t-else="">Order Date</strong>
                         <div t-field="doc.date_order" t-options='{"widget": "date"}'>2023-12-31</div>
                     </div>
-                    <div t-if="doc.date_validity and doc.state in ['draft', 'sent']"
+                    <div t-if="doc.date_validity and doc.state == 'draft'"
                         class="col"
                         name="expiration_date">
                         <strong>Expiration</strong>
