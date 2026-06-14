@@ -15,9 +15,13 @@ from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
 
-COMMAND_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+# \Z (not $): $ also matches before a trailing newline, so a name like
+# 'db\n' would be accepted and travel into the import machinery.
+COMMAND_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*\Z")
 PROG_NAME = Path(sys.argv[0]).name
-commands: dict[str, type] = {}
+DEFAULT_COMMAND = "server"
+"""Command dispatched when argv names none; also rendered by ``help``."""
+commands: dict[str, type[Command]] = {}
 """All loaded commands"""
 
 
@@ -167,7 +171,17 @@ class Command:
             f"{type(self).__qualname__} must override `run(self, args)`"
         )
 
-    def __init_subclass__(cls) -> None:
+    def __init_subclass__(cls, register: bool = True) -> None:
+        """Validate and register the command subclass.
+
+        :param bool register: pass ``False`` for abstract helper bases
+            (``class DbCommand(Command, register=False)``) that exist to
+            share behavior between commands. Unregistered bases skip the
+            name/module and ``run``-override checks; their concrete
+            subclasses are validated and registered as usual.
+        """
+        if not register:
+            return
         cls.name = cls.name or cls.__name__.lower()
         module = cls.__module__.rpartition(".")[2]
         if not cls.is_valid_name(cls.name):
@@ -216,12 +230,25 @@ class Command:
     def is_valid_name(cls, name: str) -> re.Match[str] | None:
         return COMMAND_NAME_RE.match(name)
 
-    def add_config_arguments(self, parser: argparse.ArgumentParser) -> None:
-        """
-        Add standard -c/--config and -d/--database arguments to parser.
 
-        Args:
-            parser: ArgumentParser or subparser to add arguments to
+class DatabaseCommand(Command, register=False):
+    """Base for commands that operate on a single configured database.
+
+    Owns the bootstrap shared by every db-bound command: feed the parsed
+    ``-c``/``-d`` into the global config, then validate that exactly one
+    database is targeted. Subclasses still register the flags themselves
+    (via :meth:`add_config_arguments`) because where they belong — main
+    parser or each subparser — is a per-command layout decision.
+
+    The ``-c``/``-d`` plumbing (:meth:`add_config_arguments`,
+    :meth:`require_single_database`) lives here rather than on
+    :class:`Command`: a database is this base's defining concern, and
+    db-free commands (``deploy``, ``scaffold``, ``help``) have no use for it.
+    """
+
+    def add_config_arguments(self, parser: argparse.ArgumentParser) -> None:
+        """Add the standard ``-c``/``--config`` and ``-d``/``--database``
+        arguments to ``parser`` (a main parser or a subparser).
         """
         parser.add_argument(
             "-c",
@@ -237,29 +264,43 @@ class Command:
             help="database name, connection details will be taken from the config file",
         )
 
+    def bootstrap_config(
+        self,
+        parsed_args: argparse.Namespace,
+        *,
+        allow_none: bool = False,
+    ) -> str | None:
+        """Parse config from ``parsed_args`` and return the database name.
+
+        :param parsed_args: namespace holding ``config`` and ``db_name``
+            (as produced by ``add_config_arguments``)
+        :param bool allow_none: when True, a missing database returns None
+            instead of exiting
+        :return: the single validated database name (also written back to
+            ``parsed_args.db_name``)
+        """
+        config_args = build_config_args(parsed_args.config, parsed_args.db_name)
+        config.parse_config(config_args, setup_logging=True)
+        return self.require_single_database(parsed_args, allow_none=allow_none)
+
     def require_single_database(
         self,
         parsed_args: argparse.Namespace,
         *,
         allow_none: bool = False,
     ) -> str | None:
-        """
-        Validate single database and update parsed_args.db_name.
+        """Validate that exactly one database is configured and return it.
 
-        Thin wrapper over ``get_single_database`` that (a) routes errors
+        Thin wrapper over :func:`get_single_database` that (a) routes errors
         through ``self.parser.error`` so they pick up the argparse program
-        name and exit code, and (b) writes the resolved name back onto the
-        parsed namespace for convenience.
+        name and exit code, and (b) writes the resolved name back onto
+        ``parsed_args.db_name`` for convenience.
 
-        Args:
-            parsed_args: Namespace from argument parsing
-            allow_none: If True, returns None when no database configured
-
-        Returns:
-            Database name (also set on parsed_args.db_name)
-
-        Raises:
-            SystemExit via parser.error() if validation fails
+        :param parsed_args: namespace from argument parsing
+        :param bool allow_none: when True, a missing database returns None
+            instead of exiting
+        :return: the database name (also set on ``parsed_args.db_name``)
+        :raises SystemExit: via ``parser.error()`` if validation fails
         """
         db_name = get_single_database(
             config["db_name"],
@@ -294,8 +335,9 @@ def load_addons_commands(command: str | None = None) -> None:
     initialize_sys_path()
     for path in odoo.addons.__path__:
         for fullpath in Path(path).glob(f"*/cli/{command}.py"):
-            if not (found_command := fullpath.stem):
-                continue
+            # A glob match always has a non-empty stem, so no empty-name guard
+            # is needed here; only the validity check matters.
+            found_command = fullpath.stem
             if not Command.is_valid_name(found_command):
                 continue
             # loading as odoo.cli and not odoo.addons.{module}.cli
@@ -318,10 +360,24 @@ def load_addons_commands(command: str | None = None) -> None:
             # Addon CLI scripts may import optional dependencies; skip silently
             # but record at debug level so the failure is recoverable.
             _logger.debug("Could not load CLI command %s: %s", fq_name, e)
+        except Exception as e:
+            # A broken addon CLI file (SyntaxError, NameError, side-effect at
+            # import) must NOT take down command discovery: `odoo-bin help`
+            # loads every addon's cli/*.py, so one bad file would otherwise
+            # break the whole listing. Warn and keep going.
+            _logger.warning("Failed to load CLI command %s: %s", fq_name, e)
 
 
 def find_command(name: str) -> type[Command] | None:
     """Get command by name."""
+
+    # Reject invalid names early: a dotted name like 'db.init' would reach
+    # __import__ below and raise ModuleNotFoundError for a *parent* module
+    # (e.name == 'odoo.cli.db' != 'odoo.cli.db.init'), which the suppress
+    # guard correctly refuses to swallow — surfacing a raw traceback for
+    # what is simply an unknown command (a typo).
+    if not Command.is_valid_name(name):
+        return None
 
     # built-in commands
     if command := commands.get(name):
@@ -344,6 +400,21 @@ def find_command(name: str) -> type[Command] | None:
     return commands.get(name)
 
 
+def build_bootstrap_parser() -> argparse.ArgumentParser:
+    """Build the pre-dispatch parser that extracts ``--addons-path``.
+
+    Kept as a standalone factory so the abbreviation behavior can be unit
+    tested without invoking :func:`main`.
+
+    ``allow_abbrev=False`` is load-bearing: with the argparse default any
+    unambiguous prefix of ``--addons-path`` (``--addons``, ``--add``, ``--a``)
+    would be silently consumed as the addons path before the command sees it.
+    """
+    parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    parser.add_argument("--addons-path", default=None)
+    return parser
+
+
 def main() -> None:
     args = sys.argv[1:]
 
@@ -353,9 +424,11 @@ def main() -> None:
     # We call the private `_parse_config` (rather than the public `parse_config`)
     # because the latter flushes config warnings to stderr — that breaks the
     # contract of `test_unknown_command` which asserts an exact stderr message.
-    boot_parser = argparse.ArgumentParser(add_help=False)
-    boot_parser.add_argument("--addons-path", default=None)
+    boot_parser = build_bootstrap_parser()
     bootstrap, args = boot_parser.parse_known_args(args)
+    # Record the raw value (None when absent) so commands can tell whether
+    # the user supplied an addons path — the flag is no longer in `args`.
+    odoo.cli.BOOTSTRAP_ADDONS_PATH = bootstrap.addons_path
     if bootstrap.addons_path is not None:
         config._parse_config([f"--addons-path={bootstrap.addons_path}"])
 
@@ -369,10 +442,14 @@ def main() -> None:
         args = [x for x in args if x not in ("-h", "--help")]
     else:
         # No command specified, default command used
-        command_name = "server"
+        command_name = DEFAULT_COMMAND
 
+    # Set before find_command: importing the command module can transitively
+    # import modules that read COMMAND at import time (odoo.tests.common
+    # logs a diagnostic based on it); setting it after dispatch would show
+    # them None.
+    odoo.cli.COMMAND = command_name
     if command := find_command(command_name):
-        odoo.cli.COMMAND = command_name
         command().run(args)
     else:
         sys.exit(

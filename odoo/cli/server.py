@@ -31,7 +31,7 @@ def check_postgres_user() -> None:
     """
     if (config["db_user"] or os.environ.get("PGUSER")) == "postgres":
         sys.stderr.write(
-            "Using the database user 'postgres' is a security risk, aborting."
+            "Using the database user 'postgres' is a security risk, aborting.\n"
         )
         sys.exit(1)
 

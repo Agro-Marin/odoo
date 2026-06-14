@@ -49,16 +49,41 @@ _logger = logging.getLogger(__name__)
 # debug-only data.  In forked mode each worker has its own copy.
 sql_counter: int = 0
 
-# Cache: table name → sequence name for the id column.
+# Cache: (dbname, table) → sequence name for the id column.
 # Populated lazily by Cursor.copy_from() when returning_ids=True.
-_id_sequence_cache: dict[str, str] = {}
+# NB: keys MUST include the database name — one process serves several
+# databases whose same-named tables may have diverging schemas (staggered
+# module versions), and a stale cross-DB entry poisons every subsequent
+# bulk create() on that table until restart.
+_id_sequence_cache: dict[tuple[str, str], str] = {}
 
 # Monotonic counter for savepoint names (thread-safe via CPython's GIL).
 _savepoint_counter = itertools.count()
 
-# Cache: (table, columns) → list of PostgreSQL type names.
+# Cache: (dbname, table, columns) → list of PostgreSQL type names.
 # Used by binary COPY to provide exact types via set_types().
-_column_type_cache: dict[tuple[str, tuple[str, ...]], list[str]] = {}
+# Same dbname-keying requirement as _id_sequence_cache above.
+_column_type_cache: dict[tuple[str, str, tuple[str, ...]], list[str]] = {}
+
+
+def _clear_schema_caches(dbname: str | None = None) -> None:
+    """Drop cached schema lookups (column types, id sequences).
+
+    :param dbname: only drop entries for this database; ``None`` drops all.
+    """
+    for cache in (_column_type_cache, _id_sequence_cache):
+        if dbname is None:
+            cache.clear()
+        else:
+            # pop(), not del: two threads draining the same database (registry
+            # signalling + a concurrent drop) snapshot the same keys, and the
+            # loser of the race would KeyError on an already-removed key.
+            # list(cache) snapshots the keys BEFORE filtering: iterating the
+            # live dict while another thread (copy_from populating the cache)
+            # inserts raises "dictionary changed size during iteration".
+            for key in [k for k in list(cache) if k[0] == dbname]:
+                cache.pop(key, None)
+
 
 # DDL statements that must use client-side parameter formatting.
 # PostgreSQL's extended query protocol only accepts $N parameters in
@@ -70,13 +95,120 @@ _column_type_cache: dict[tuple[str, tuple[str, ...]], list[str]] = {}
 # CLUSTER, LOCK — these also reject server-side parameters, but Odoo
 # never parameterizes them.  If a future caller does, extend BOTH the
 # regex AND ``_DDL_PREFIXES`` (the 2-char prefix gate below).
+# Match the DDL keyword even when preceded by SQL comments (line ``-- ...``
+# or block ``/* ... */``).  Without the comment-skip prefix a statement like
+# ``-- migrate\nCREATE TABLE ...`` slips past detection: the auto-prepared
+# statement cache is never invalidated and a later ``SELECT *`` raises
+# ``cached plan must not change result type`` (verified reproducible).
 _RE_DDL = _re.compile(
-    r"^\s*(?:CREATE|ALTER|DROP|COMMENT|GRANT|REVOKE|DO)\b",
-    _re.IGNORECASE,
+    r"^\s*(?:(?:--[^\n]*\n|/\*.*?\*/)\s*)*"
+    r"(?:CREATE|ALTER|DROP|COMMENT|GRANT|REVOKE|DO)\b",
+    _re.IGNORECASE | _re.DOTALL,
 )
-# First two uppercase chars of DDL keywords for fast prefix filtering.
-# Avoids regex on the 99% of queries that are SELECT/INSERT/UPDATE/DELETE.
-_DDL_PREFIXES = frozenset(("CR", "AL", "DR", "CO", "GR", "RE", "DO"))
+# First two chars of the statement for fast prefix filtering — avoids the regex
+# on the 99% of queries that are SELECT/INSERT/UPDATE/DELETE.  ``--`` and ``/*``
+# are included so comment-prefixed DDL still reaches the regex; comment-prefixed
+# non-DDL is rare, so the extra regex runs are negligible.
+_DDL_PREFIXES = frozenset(("CR", "AL", "DR", "CO", "GR", "RE", "DO", "--", "/*"))
+
+# Recoverable transaction errors: the request/retry machinery (http._serve's
+# read-only retry, the ORM's optimistic-concurrency retry loop) catches these
+# and retries, so they are an EXPECTED part of normal operation under
+# contention.  Logging them at ERROR ("bad query") floods the log with false
+# faults on every retry.  Demote to WARNING — observable, but not masquerading
+# as a defect.  Anything genuinely fatal still hits the ERROR branch.
+_RECOVERABLE_SQL_ERRORS: tuple[type[BaseException], ...] = (
+    psycopg.errors.ReadOnlySqlTransaction,  # 25006 — caller retries r/w
+    psycopg.errors.SerializationFailure,  # 40001 — MVCC, caller retries
+    psycopg.errors.DeadlockDetected,  # 40P01 — caller retries
+    psycopg.errors.LockNotAvailable,  # 55P03 — NOWAIT/timeout, caller handles
+)
+
+
+def _find_value_markers(query: str) -> list[int]:
+    """Return positions of real ``%s`` placeholders in *query*.
+
+    Skips ``%%`` escape sequences, so a literal like ``LIKE 'a%%s'`` is not
+    mistaken for a placeholder (naive ``str.count``/``str.replace`` both
+    match the ``%s`` inside ``%%s`` and mangle the query).
+    """
+    out = []
+    i, n = 0, len(query)
+    while i < n - 1:
+        if query[i] == "%":
+            if query[i + 1] == "s":
+                out.append(i)
+            # skip the full token: '%%' escape, '%s' marker, or '%x' junk
+            i += 2
+        else:
+            i += 1
+    return out
+
+
+def _log_sql_error(exc: Exception, query: Any) -> None:
+    """Log a failed SQL statement at a level that matches its recoverability.
+
+    Recoverable errors (read-only retry, MVCC serialization, deadlock,
+    lock-not-available) are expected under contention and retried by the
+    caller, so they log at WARNING — observable without masquerading as a
+    fault.  Everything else is a genuine defect and logs at ERROR.
+
+    Shared by :meth:`Cursor.execute` and :meth:`Cursor.executemany`, whose
+    error handling was previously byte-for-byte identical.
+
+    :param exc: the exception raised by the psycopg call.
+    :param query: the executed query string (for the log message).
+    """
+    if isinstance(exc, _RECOVERABLE_SQL_ERRORS):
+        _logger.warning(
+            "recoverable SQL error (caller may retry): %s: %s",
+            type(exc).__name__,
+            query,
+        )
+    else:
+        _logger.error("bad query: %s\nERROR: %s", query, exc)
+
+
+def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
+    """Return *qs* with *params* spliced in as client-side quoted literals.
+
+    DDL structural positions (column types, ``DEFAULT`` expressions,
+    ``COMMENT`` bodies, sequence options, …) reject server-side ``$N``
+    parameters, so the values must be quoted client-side via
+    :func:`psycopg.sql.quote` and inlined into the statement text.
+
+    :param qs: the DDL statement text with ``%s`` / ``%(name)s`` markers.
+    :param params: positional (tuple/list) or named (dict) parameters.
+    :param ctx: a psycopg adapter context (connection/cursor) for ``quote``.
+    :return: the statement with every marker replaced by a quoted literal.
+    :raises ValueError: if the positional marker count differs from *params*.
+    """
+    # psycopg.sql.quote already returns str — no wrapper needed.
+    if isinstance(params, dict):
+        # %(name)s style: Python formatting is the only practical
+        # substitution.  Documented caveat — a literal % in a dict-param
+        # DDL body must be written %% by the caller.
+        return qs % {k: _sql.quote(v, ctx) for k, v in params.items()}
+    # Splice quoted values at the real %s markers rather than using
+    # ``qs % (...)``, which misreads a literal % in the DDL body
+    # (e.g. COMMENT ... IS '50% done') as a format spec and raises.
+    # _find_value_markers is %%-escape aware; literal %% is then
+    # unescaped to % in the surrounding segments to match what the
+    # old %-formatting did.
+    markers = _find_value_markers(qs)
+    if len(markers) != len(params):
+        raise ValueError(
+            f"DDL parameter count mismatch: {len(markers)} '%s' "
+            f"marker(s) but {len(params)} param(s)"
+        )
+    out, prev = [], 0
+    # lengths already validated equal above; strict=True is belt-and-braces
+    for pos, value in zip(markers, params, strict=True):
+        out.append(qs[prev:pos].replace("%%", "%"))
+        out.append(_sql.quote(value, ctx))
+        prev = pos + 2
+    out.append(qs[prev:].replace("%%", "%"))
+    return "".join(out)
 
 
 class Savepoint:
@@ -234,7 +366,14 @@ class BaseCursor(_CursorProtocol):
                 break
             self.precommit.run()
         else:
-            _logger.warning("Too many iterations for flushing the cursor!")
+            # Raise, don't warn: callers (commit()) would otherwise COMMIT
+            # and clear() the still-pending precommit hooks — silently
+            # dropping whatever work they were supposed to do.
+            raise RuntimeError(
+                "flush() did not converge after 10 iterations: precommit "
+                "hooks keep triggering new ORM changes; committing now "
+                "would silently drop pending hooks."
+            )
 
     def clear(self) -> None:
         """Clear the current transaction, and clear precommit hooks."""
@@ -307,7 +446,17 @@ class BaseCursor(_CursorProtocol):
         Returns ``None`` if no rows are available.  Eliminates the
         common ``cr.fetchone()[0]`` pattern which raises on empty results.
         """
-        raise NotImplementedError
+        # Implemented over self.fetchone() rather than left abstract: a bare
+        # ``raise NotImplementedError`` body is found by normal MRO lookup and
+        # therefore SHADOWS the __getattr__ delegation that TestCursor relies
+        # on.  fetchone() is intentionally NOT declared on the base, so on
+        # TestCursor it forwards to the real cursor; fetchscalar would not, and
+        # ``test_cursor.fetchscalar()`` would raise NotImplementedError while
+        # working in production — a trap for any controller using it under an
+        # integration test.  Cursor overrides this for one fewer attribute hop;
+        # every other subclass inherits a correct version for free.
+        row = self.fetchone()
+        return row[0] if row else None
 
     def dictfetchone(self) -> dict[str, Any] | None:
         """Return the first row as a dict (column_name -> value) or None if no rows are available."""
@@ -392,6 +541,11 @@ class Cursor(BaseCursor):
     sql_into_log: dict[str, tuple[int, float]]
     sql_log_count: int
 
+    # Class-level default: an instance whose __init__ failed before setting
+    # the flag must read as closed.  Also breaks the __getattr__ recursion
+    # (`self._closed` lookup re-entering __getattr__) on such instances.
+    _closed: bool = True
+
     def __init__(self, pool: ConnectionPool, dbname: str, dsn: dict):
         super().__init__()
         self.sql_from_log = {}
@@ -462,7 +616,10 @@ class Cursor(BaseCursor):
                 "dictfetchone: cursor has no result description "
                 "(query did not produce a result set)"
             )
-        return {col.name: val for col, val in zip(desc, row, strict=False)}
+        # strict=True: psycopg guarantees len(row) == len(description); a
+        # mismatch is a driver-level surprise that should raise, not silently
+        # drop trailing columns.
+        return {col.name: val for col, val in zip(desc, row, strict=True)}
 
     def _col_names(self) -> tuple[str, ...]:
         """Extract column names from the last query's description as a tuple."""
@@ -475,7 +632,7 @@ class Cursor(BaseCursor):
         if _rows_to_dicts is not None:
             return _rows_to_dicts(self._col_names(), rows)
         cols = self._col_names()
-        return [dict(zip(cols, row, strict=False)) for row in rows]
+        return [dict(zip(cols, row, strict=True)) for row in rows]
 
     def dictfetchall(self) -> list[dict[str, Any]]:
         rows = self._obj.fetchall()
@@ -484,7 +641,7 @@ class Cursor(BaseCursor):
         if _rows_to_dicts is not None:
             return _rows_to_dicts(self._col_names(), rows)
         cols = self._col_names()
-        return [dict(zip(cols, row, strict=False)) for row in rows]
+        return [dict(zip(cols, row, strict=True)) for row in rows]
 
     # -- Explicit forwarding for commonly-used psycopg Cursor methods -------
     # These were previously resolved via __getattr__ on every call.
@@ -508,9 +665,9 @@ class Cursor(BaseCursor):
     def rowcount(self) -> int:
         return self._obj.rowcount
 
-    @property
-    def connection(self) -> psycopg.Connection:
-        return self._cnx
+    def nextset(self) -> bool | None:
+        """Move to the next result set (e.g. ``executemany(returning=True)``)."""
+        return self._obj.nextset()
 
     def copy(
         self,
@@ -599,7 +756,13 @@ class Cursor(BaseCursor):
         # / query-time metrics to pin stats to the originating thread.
 
         if isinstance(query, SQL):
-            assert params is None, "Unexpected parameters for SQL query object"
+            # Explicit check survives ``python -O`` where ``assert`` is
+            # stripped — silently dropping caller params would execute a
+            # different query than intended.
+            if params is not None:
+                raise ValueError(
+                    "Unexpected parameters combined with a SQL query object"
+                )
             query, params = query.code, query.params
         elif params:
             if not isinstance(params, (tuple, list, dict)):
@@ -615,16 +778,17 @@ class Cursor(BaseCursor):
         # change schema, so psycopg3's auto-prepared statement cache must
         # be invalidated).
         qs = query if isinstance(query, str) else str(query)
-        c = qs.lstrip()[:2].upper()
+        # Slice before lstrip: a bare ``qs.lstrip()`` copies the ENTIRE query
+        # to read 2 chars whenever it has leading whitespace (Odoo's triple-
+        # quoted SQL nearly always does).  64 chars is far more than any real
+        # leading-whitespace run, so the prefix gate is unchanged.
+        c = qs[:64].lstrip()[:2].upper()
         is_ddl = c in _DDL_PREFIXES and _RE_DDL.match(qs) is not None
 
         if params and is_ddl:
-            ctx = self._cnx
-            # psycopg.sql.quote already returns str — no wrapper needed.
-            if isinstance(params, dict):
-                query = qs % {k: _sql.quote(v, ctx) for k, v in params.items()}
-            else:
-                query = qs % tuple(_sql.quote(v, ctx) for v in params)
+            # DDL rejects server-side $N parameters — inline them client-side
+            # as quoted literals (see _inline_ddl_params for the why/how).
+            query = _inline_ddl_params(qs, params, self._cnx)
             params = None
 
         start = real_time()
@@ -632,13 +796,7 @@ class Cursor(BaseCursor):
             self._obj.execute(query, params)
         except Exception as e:
             if log_exceptions:
-                # ReadOnlySqlTransaction is recoverable: http._serve catches it
-                # and retries with a r/w cursor.  Log at WARNING so the path is
-                # observable without masquerading as a fault.
-                if isinstance(e, psycopg.errors.ReadOnlySqlTransaction):
-                    _logger.warning("read-only cursor cannot execute (caller may retry r/w): %s", query)
-                else:
-                    _logger.error("bad query: %s\nERROR: %s", query, e)
+                _log_sql_error(e, query)
             raise
         finally:
             delay = real_time() - start
@@ -706,15 +864,18 @@ class Cursor(BaseCursor):
             raise ValueError(f"execute_values page_size must be >= 1, got {page_size}")
         if not argslist:
             return [] if fetch else None
-        # The template must have exactly one `%s` marker — it's the position
+        # The query must have exactly one real `%s` marker — the position
         # where the batched VALUES row-list gets expanded.  Any other `%s`
-        # would survive the `.replace(..., 1)` below and produce malformed
-        # SQL with a parameter-count mismatch at best.
-        if isinstance(query, str) and query.count("%s") != 1:
+        # would produce malformed SQL with a parameter-count mismatch at
+        # best.  Markers are located with an escape-aware scan: `%%`
+        # sequences (literal percent, e.g. LIKE 'a%%s') are NOT markers.
+        markers = _find_value_markers(query)
+        if len(markers) != 1:
             raise ValueError(
                 f"execute_values requires exactly one '%s' marker in the "
-                f"template (for the VALUES list); got {query.count('%s')}."
+                f"query (for the VALUES list); got {len(markers)}."
             )
+        marker_pos = markers[0]
         results = []
         batches = range(0, len(argslist), page_size)
         # Pipeline multi-batch non-fetch executions for single round-trip
@@ -736,7 +897,11 @@ class Cursor(BaseCursor):
                         params.extend(row)
                     else:
                         params.append(row)
-                full_query = query.replace("%s", ", ".join(placeholders), 1)
+                full_query = (
+                    f"{query[:marker_pos]}"
+                    f"{', '.join(placeholders)}"
+                    f"{query[marker_pos + 2 :]}"
+                )
                 self.execute(full_query, params)
                 if fetch:
                     results.extend(self.fetchall())
@@ -769,6 +934,14 @@ class Cursor(BaseCursor):
                 )
             query = query.code
 
+        # Materialize once if the sequence is not sized.  A generator is always
+        # truthy (so ``if not params_seq`` would NOT short-circuit an empty one,
+        # unlike an empty list) and has no ``len()`` (so the metrics count below
+        # would silently record 1 for an N-row batch).  psycopg's executemany
+        # consumes the iterable once internally anyway, so this adds no extra
+        # pass for the common list/tuple caller.
+        if not hasattr(params_seq, "__len__"):
+            params_seq = list(params_seq)
         if not params_seq:
             return
 
@@ -776,11 +949,7 @@ class Cursor(BaseCursor):
         try:
             self._obj.executemany(query, params_seq, returning=returning)
         except Exception as e:
-            # See execute() above — same recoverable RO case.
-            if isinstance(e, psycopg.errors.ReadOnlySqlTransaction):
-                _logger.warning("read-only cursor cannot executemany (caller may retry r/w): %s", query)
-            else:
-                _logger.error("bad query: %s\nERROR: %s", query, e)
+            _log_sql_error(e, query)
             raise
         finally:
             delay = real_time() - start
@@ -788,12 +957,11 @@ class Cursor(BaseCursor):
                 _logger.debug(
                     "[%.3f ms] executemany (%d rows): %s",
                     1000 * delay,
-                    len(params_seq) if hasattr(params_seq, "__len__") else -1,
+                    len(params_seq),  # always sized: materialized above
                     query,
                 )
 
-        count = len(params_seq) if hasattr(params_seq, "__len__") else 1
-        self._record_metrics(delay, count, query=query, start=start)
+        self._record_metrics(delay, len(params_seq), query=query, start=start)
 
     @contextmanager
     def pipeline(self) -> Generator[None]:
@@ -857,6 +1025,13 @@ class Cursor(BaseCursor):
             server-side row skipping — use batched INSERT … RETURNING).
         :return: list of generated IDs when *returning_ids* is True, else None
         """
+        if on_error is not None and on_error not in ("ignore", "stop"):
+            # Whitelist: on_error is interpolated into the COPY options
+            # clause below — never let an arbitrary string through.
+            raise ValueError(
+                f"copy_from: invalid on_error {on_error!r}; "
+                f"allowed values: 'ignore', 'stop'."
+            )
         if on_error and binary:
             raise ValueError(
                 "copy_from: on_error is not supported with binary=True; "
@@ -880,7 +1055,7 @@ class Cursor(BaseCursor):
             # column, but _inherits child tables share the parent's
             # sequence.  We fall back to the pg_depend catalog which finds
             # the sequence referenced by the column's DEFAULT expression.
-            seq_name = _id_sequence_cache.get(table)
+            seq_name = _id_sequence_cache.get((self.dbname, table))
             if seq_name is None:
                 self.execute(SQL("SELECT pg_get_serial_sequence(%s, 'id')", table))
                 (seq_name,) = self.fetchone()
@@ -907,7 +1082,7 @@ class Cursor(BaseCursor):
                     if not row or not row[0]:
                         raise ValueError(f"No serial sequence found for {table}.id")
                     seq_name = row[0]
-                _id_sequence_cache[table] = seq_name
+                _id_sequence_cache[self.dbname, table] = seq_name
             # Pre-generate IDs from the sequence
             self.execute(
                 SQL(
@@ -918,7 +1093,9 @@ class Cursor(BaseCursor):
             )
             ids = [row[0] for row in self.fetchall()]
             columns = ["id", *columns]
-            rows = [((id_,) + tuple(row)) for id_, row in zip(ids, rows, strict=False)]
+            # strict: nextval() generated exactly len(rows) ids — a mismatch
+            # is a logic error and must not silently truncate the batch.
+            rows = [((id_, *tuple(row))) for id_, row in zip(ids, rows, strict=True)]
         else:
             ids = None
 
@@ -1006,23 +1183,33 @@ class Cursor(BaseCursor):
         Results are cached in ``_column_type_cache`` since schema doesn't
         change during a session.
         """
-        key = (table, tuple(columns))
+        key = (self.dbname, table, tuple(columns))
         types = _column_type_cache.get(key)
         if types is None:
             self.execute(
                 SQL(
+                    # Resolve the table via ::regclass so search_path is honored
+                    # (TEMP tables live in pg_temp_N, never current_schema).  This
+                    # matches the pg_get_serial_sequence(table, 'id') resolution
+                    # used for returning_ids — the two lookups must agree, or
+                    # binary COPY into a temp table raises "column not found".
                     """SELECT a.attname, t.typname
                     FROM pg_attribute a
                     JOIN pg_type t ON a.atttypid = t.oid
-                    JOIN pg_class c ON a.attrelid = c.oid
-                    JOIN pg_namespace n ON c.relnamespace = n.oid
-                    WHERE c.relname = %s AND n.nspname = current_schema
+                    WHERE a.attrelid = %s::regclass
+                      AND a.attnum > 0 AND NOT a.attisdropped
                       AND a.attname = ANY(%s)""",
                     table,
                     list(columns),
                 )
             )
             type_map = dict(self.fetchall())
+            missing = [col for col in columns if col not in type_map]
+            if missing:
+                raise ValueError(
+                    f"copy_from: column(s) {missing} not found in table "
+                    f"{table!r} (current_schema)"
+                )
             types = [type_map[col] for col in columns]
             _column_type_cache[key] = types
         return types
@@ -1110,8 +1297,10 @@ class Cursor(BaseCursor):
 
     def commit(self) -> None:
         """Perform an SQL `COMMIT`"""
-        if self.transaction is not None:
-            assert self.transaction.savepoint_depth == 0, (
+        # Explicit check (not assert): must survive ``python -O`` — a commit
+        # inside a savepoint corrupts the savepoint's rollback state.
+        if self.transaction is not None and self.transaction.savepoint_depth:
+            raise RuntimeError(
                 "Cannot commit inside a savepoint! "
                 "This would corrupt the savepoint's rollback state."
             )
@@ -1130,8 +1319,9 @@ class Cursor(BaseCursor):
         so hooks can still read uncommitted transaction state (e.g. for cache
         invalidation decisions).  After ROLLBACK, that data is gone.
         """
-        if self.transaction is not None:
-            assert self.transaction.savepoint_depth == 0, (
+        # Explicit check (not assert): must survive ``python -O``.
+        if self.transaction is not None and self.transaction.savepoint_depth:
+            raise RuntimeError(
                 "Cannot rollback inside a savepoint! "
                 "Use cr.savepoint() for nested transaction control."
             )

@@ -5,7 +5,7 @@ import os
 import threading
 import time
 import warnings
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import partial
 from unittest.mock import MagicMock, patch
 
@@ -16,13 +16,19 @@ from psycopg_pool import PoolTimeout
 from odoo import api
 from odoo.db import db_connect
 from odoo.db import utils as _db_utils
-from odoo.db.cursor import Cursor, _FlushingSavepoint, _id_sequence_cache
+from odoo.db.cursor import (
+    Cursor,
+    _FlushingSavepoint,
+    _id_sequence_cache,
+    _inline_ddl_params,
+)
 from odoo.db.pool import (
     ConnectionPool,
     PoolError,
     _normalize_dsn_key,
     _reset_connection,
     _SuppressKnownPoolWarnings,
+    _translate_connect_error,
 )
 from odoo.db.utils import categorize_query, connection_info_for
 from odoo.modules.registry import Registry
@@ -192,6 +198,61 @@ class TestTestCursor(common.TransactionCase):
         self.write(self.record, "C")
         self.cr.rollback()
         self.check(self.record, "A")
+
+    def test_now_is_utc_and_resets(self):
+        """TestCursor.now() must mirror the real cursor: naive UTC, cached, and
+        reset on commit/rollback.  The old ``datetime.now()`` returned local
+        time, so on a non-UTC host every test-created create_date/write_date
+        landed hours off production semantics (invisible under UTC CI).
+        """
+        self.assertIsInstance(self.cr, TestCursor)
+        self.cr.commit()  # drop any timestamp cached during setUp
+        self.assertIsNone(self.cr._now)
+
+        t = self.cr.now()
+        self.assertIsNone(t.tzinfo, "now() must be naive")
+        utc_naive = datetime.now(UTC).replace(tzinfo=None)
+        # 600s tolerance is generous for slow CI yet still catches the ~6h
+        # local-vs-UTC skew on a non-UTC host (e.g. America/Mexico_City).
+        self.assertLess(
+            abs((utc_naive - t).total_seconds()),
+            600,
+            "TestCursor.now() is not UTC — local-time regression",
+        )
+        self.assertIs(self.cr.now(), t, "now() must be cached within a transaction")
+
+        self.cr.commit()
+        self.assertIsNone(self.cr._now, "commit() must reset now()")
+        self.cr.now()
+        self.cr.rollback()
+        self.assertIsNone(self.cr._now, "rollback() must reset now()")
+
+    def test_fetch_helpers_forward_to_real_cursor(self):
+        """Regression: BaseCursor.fetchscalar must not shadow TestCursor's
+        __getattr__ forwarding.
+
+        fetchscalar is defined on BaseCursor while fetchone is not, so
+        TestCursor forwards fetchone via __getattr__ but resolves fetchscalar
+        straight to the base.  When the base body was ``raise
+        NotImplementedError`` this made ``test_cursor.fetchscalar()`` raise
+        under integration tests while working in production.  The base now
+        implements it over self.fetchone() so every subclass inherits a
+        working version.
+        """
+        self.assertIsInstance(self.cr, TestCursor)
+
+        self.cr.execute("SELECT 42")
+        self.assertEqual(self.cr.fetchscalar(), 42)
+
+        # empty result set -> None, not IndexError on fetchone()[0]
+        self.cr.execute("SELECT 1 WHERE FALSE")
+        self.assertIsNone(self.cr.fetchscalar())
+
+        # the fetch helpers that were already forwarding must keep working
+        self.cr.execute("SELECT 7 AS v")
+        self.assertEqual(self.cr.fetchone(), (7,))
+        self.cr.execute("SELECT 7 AS v")
+        self.assertEqual(self.cr.dictfetchone(), {"v": 7})
 
     def test_sub_commit(self):
         """Check the behavior of a subcursor that commits."""
@@ -539,6 +600,33 @@ class TestCursorNow(BaseCase):
             cr.rollback()
             self.assertIsNone(cr._now)
 
+    def test_now_survives_savepoint(self):
+        """A savepoint (release OR rollback) must NOT invalidate the cache.
+
+        now() is the transaction start timestamp (snapshot isolation keeps it
+        stable for the whole transaction), so _now is reset only by
+        commit()/rollback(), never by savepoint churn.  assertIs proves the
+        value is the same cached object, i.e. it was not recomputed.
+        """
+        with registry().cursor() as cr:
+            t1 = cr.now()
+            with cr.savepoint():  # released (successful) savepoint
+                cr.execute("SELECT 1")
+            self.assertIs(cr.now(), t1)
+            with cr.savepoint() as sp:  # rolled-back savepoint
+                cr.execute("SELECT 1")
+                sp.rollback()
+            self.assertIs(cr.now(), t1)
+
+    def test_now_equals_transaction_timestamp(self):
+        """now() returns now()==transaction_timestamp() at UTC, i.e. the
+        transaction start time, not the per-statement clock_timestamp().
+        """
+        with registry().cursor() as cr:
+            t = cr.now()
+            cr.execute("SELECT transaction_timestamp() AT TIME ZONE 'UTC'")
+            self.assertEqual(t, cr.fetchone()[0])
+
 
 class TestCursorBulkMethods(BaseCase):
     """Test execute_values, executemany, and pipeline."""
@@ -624,7 +712,7 @@ class TestCursorBulkMethods(BaseCase):
             )
             # Results span multiple result sets — collect via nextset() loop
             ids = list(cr.fetchall())
-            while cr._obj.nextset():
+            while cr.nextset():
                 ids.extend(cr.fetchall())
             self.assertEqual(len(ids), 3)
 
@@ -836,7 +924,7 @@ class TestCopyFrom(BaseCase):
                     self.assertEqual(expected_id, row_id)
             finally:
                 # Clean up sequence cache to avoid cross-test contamination
-                _id_sequence_cache.pop("_test_cpid", None)
+                _id_sequence_cache.pop((cr.dbname, "_test_cpid"), None)
 
     def test_copy_from_empty_returning(self):
         """copy_from with empty rows and returning_ids returns empty list."""
@@ -1123,10 +1211,12 @@ class TestPoolTimeoutCleanup(BaseCase):
         info = connection_info_for("nonexistent_db_test")[1]
         key = _normalize_dsn_key(info)
 
-        # Pre-create a mock psycopg_pool that raises PoolTimeout
+        # Pre-create a mock psycopg_pool that raises PoolTimeout and holds
+        # no live connections (the dropped-database signature).
         mock_pool = MagicMock()
         mock_pool.closed = False
         mock_pool.getconn.side_effect = PoolTimeout("connection timeout")
+        mock_pool.get_stats.return_value = {"pool_size": 0}
         pool._pools[key] = mock_pool
 
         with self.assertRaises(PoolError):
@@ -1136,6 +1226,28 @@ class TestPoolTimeoutCleanup(BaseCase):
         self.assertNotIn(key, pool._pools)
         # And close() must have been called on it
         mock_pool.close.assert_called_once()
+
+    def test_pool_kept_on_timeout_with_live_connections(self):
+        """PoolTimeout while the pool still holds live connections means the
+        server is reachable but slow — tearing the pool down would close
+        healthy idle connections and amplify the slowdown into a reconnect
+        storm.  The pool must be kept.
+        """
+        pool = ConnectionPool(maxconn=4)
+        info = connection_info_for("nonexistent_db_test")[1]
+        key = _normalize_dsn_key(info)
+
+        mock_pool = MagicMock()
+        mock_pool.closed = False
+        mock_pool.getconn.side_effect = PoolTimeout("connection timeout")
+        mock_pool.get_stats.return_value = {"pool_size": 3}
+        pool._pools[key] = mock_pool
+
+        with self.assertRaises(PoolError):
+            pool.borrow(info)
+
+        self.assertIn(key, pool._pools)
+        mock_pool.close.assert_not_called()
 
     def test_pool_not_removed_on_other_errors(self):
         """Non-timeout psycopg errors should NOT remove the pool —
@@ -1744,4 +1856,806 @@ class TestExpDropClosesPoolTwice(BaseCase):
             close_indices[1],
             drop_indices[0],
             "second close_db must follow DROP DATABASE",
+        )
+
+
+class TestSchemaCachesPerDatabase(BaseCase):
+    """Schema caches must be keyed by database and cleared per-database.
+
+    One process serves several databases whose same-named tables may have
+    diverging schemas; a cross-DB cache hit poisons binary COPY (wrong
+    set_types) persistently — reproduced 2026-06-11 as ProtocolViolation
+    "insufficient data left in message" on the second database.
+    """
+
+    def test_column_type_cache_key_includes_dbname(self):
+        from odoo.db.cursor import _column_type_cache
+
+        with registry().cursor() as cr:
+            key = (cr.dbname, "ir_model_data", ("id", "name"))
+            _column_type_cache.pop(key, None)
+            try:
+                types = cr._get_column_types("ir_model_data", ["id", "name"])
+                self.assertEqual(len(types), 2)
+                self.assertIn(key, _column_type_cache)
+            finally:
+                _column_type_cache.pop(key, None)
+
+    def test_id_sequence_cache_key_includes_dbname(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_seqkey (id serial PRIMARY KEY, v text)")
+            try:
+                cr.copy_from("_test_seqkey", ["v"], [("x",)], returning_ids=True)
+                self.assertIn((cr.dbname, "_test_seqkey"), _id_sequence_cache)
+            finally:
+                _id_sequence_cache.pop((cr.dbname, "_test_seqkey"), None)
+
+    def test_clear_schema_caches_per_db(self):
+        from odoo.db.cursor import _clear_schema_caches, _column_type_cache
+
+        _column_type_cache[("dbx", "t", ("a",))] = ["int4"]
+        _column_type_cache[("dby", "t", ("a",))] = ["int8"]
+        _id_sequence_cache[("dbx", "t")] = "t_id_seq"
+        try:
+            _clear_schema_caches("dbx")
+            self.assertNotIn(("dbx", "t", ("a",)), _column_type_cache)
+            self.assertNotIn(("dbx", "t"), _id_sequence_cache)
+            self.assertIn(("dby", "t", ("a",)), _column_type_cache)
+        finally:
+            _clear_schema_caches("dbx")
+            _clear_schema_caches("dby")
+
+    def test_close_db_clears_schema_caches(self):
+        import odoo.db as db_mod
+        from odoo.db.cursor import _column_type_cache
+
+        fake = "_claude_fake_db_"
+        _column_type_cache[(fake, "t", ("a",))] = ["int4"]
+        _id_sequence_cache[(fake, "t")] = "t_id_seq"
+        # No pools exist for this name — exercises the cache side only.
+        db_mod.close_db(fake)
+        self.assertNotIn((fake, "t", ("a",)), _column_type_cache)
+        self.assertNotIn((fake, "t"), _id_sequence_cache)
+
+    def test_get_column_types_missing_column(self):
+        """Unknown column raises a descriptive ValueError, not a KeyError."""
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr._get_column_types("ir_model_data", ["id", "no_such_column"])
+
+
+class TestDrainDb(BaseCase):
+    """drain_db must clear schema caches for one database only."""
+
+    def test_drain_db_clears_caches_for_db_only(self):
+        from odoo.db import drain_db
+        from odoo.db.cursor import _column_type_cache
+
+        _column_type_cache[("dbx", "t", ("a",))] = ["int4"]
+        _column_type_cache[("dby", "t", ("a",))] = ["int8"]
+        try:
+            drain_db("dbx")
+            self.assertNotIn(("dbx", "t", ("a",)), _column_type_cache)
+            self.assertIn(("dby", "t", ("a",)), _column_type_cache)
+        finally:
+            _column_type_cache.pop(("dbx", "t", ("a",)), None)
+            _column_type_cache.pop(("dby", "t", ("a",)), None)
+
+
+class TestCheckSignalingDrains(BaseCase):
+    """The registry-reload branch of check_signaling must drain this
+    worker's pools: stale auto-prepared statements fail once per statement
+    after a type-changing upgrade, and stale schema caches do NOT self-heal.
+    (Source tripwire — same pattern as TestGetStatsLocked.)
+    """
+
+    def test_check_signaling_calls_drain_db(self):
+        src = inspect.getsource(Registry.check_signaling)
+        self.assertIn(
+            "drain_db",
+            src,
+            "check_signaling's reload branch must drain_db(self.db_name)",
+        )
+
+
+class TestCopyFromOnErrorWhitelist(BaseCase):
+    """on_error is interpolated into the COPY options clause — whitelist it."""
+
+    def test_rejects_arbitrary_on_error(self):
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr.copy_from("t", ["c"], [(1,)], on_error="ignore, FREEZE")
+
+    def test_accepts_stop(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_oe (v int)")
+            cr.copy_from("_test_oe", ["v"], [(1,)], on_error="stop")
+            cr.execute("SELECT count(*) FROM _test_oe")
+            self.assertEqual(cr.fetchone()[0], 1)
+
+
+class TestExecuteValuesEscapedPercent(BaseCase):
+    """%% escape sequences must not be mistaken for the VALUES marker.
+
+    Naive str.count/str.replace both match the %s inside %%s: a legitimate
+    query with a LIKE 'a%%s' literal was falsely rejected (count == 2), and
+    with no real marker the replace mangled the literal itself.
+    """
+
+    def test_literal_double_percent_accepted(self):
+        # NB: temp table name must be unique file-wide — temp tables live
+        # on the pooled SESSION and survive cursor close, so a name shared
+        # with another test (here: test_execute_values_paging's _test_evp)
+        # collides when both tests land on the same pooled connection.
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_evpesc (v text)")
+            cr.execute_values(
+                "INSERT INTO _test_evpesc (v) SELECT x FROM (VALUES %s) s(x) "
+                "WHERE 'abc' NOT LIKE 'a%%s'",
+                [("r1",), ("r2",)],
+            )
+            cr.execute("SELECT count(*) FROM _test_evpesc")
+            self.assertEqual(cr.fetchone()[0], 2)
+
+    def test_literal_only_rejected(self):
+        """A query whose only %s lives inside a %% escape has no marker."""
+        with registry().cursor() as cr:
+            with self.assertRaises(ValueError):
+                cr.execute_values("SELECT 'a%%s'", [(1,)])
+
+
+class TestSavepointGuardsSurviveOptimize(BaseCase):
+    """commit/rollback inside a savepoint must raise even under python -O
+    (explicit RuntimeError, not assert).
+
+    NB: the guard reads ``cr.transaction.savepoint_depth`` — a bare
+    ``registry().cursor()`` has ``transaction = None`` (only Environment
+    creation attaches one), so the guard never fires on it and commit()
+    would really COMMIT, destroying the savepoint.  Attach a stub
+    transaction so the depth bookkeeping (and the guard) engage.
+    """
+
+    class _StubTransaction:
+        """Minimal Transaction stand-in for _FlushingSavepoint bookkeeping."""
+
+        def __init__(self):
+            self.savepoint_depth = 0
+            self.default_env = None
+            self.registry = MagicMock(registry_sequence=1)
+            self.envs = []
+
+        def flush(self):
+            pass
+
+        def clear(self):
+            pass
+
+        def reset(self):
+            pass
+
+    def test_commit_inside_savepoint_raises(self):
+        with registry().cursor() as cr:
+            cr.transaction = self._StubTransaction()
+            try:
+                with self.assertRaises(RuntimeError):
+                    with cr.savepoint():
+                        cr.commit()
+                # guard fired BEFORE the SQL COMMIT: the savepoint unwound
+                # cleanly and the depth counter is balanced
+                self.assertEqual(cr.transaction.savepoint_depth, 0)
+            finally:
+                cr.transaction = None
+
+    def test_rollback_inside_savepoint_raises(self):
+        with registry().cursor() as cr:
+            cr.transaction = self._StubTransaction()
+            try:
+                with self.assertRaises(RuntimeError):
+                    with cr.savepoint():
+                        cr.rollback()
+                self.assertEqual(cr.transaction.savepoint_depth, 0)
+            finally:
+                cr.transaction = None
+
+
+class TestFlushNonConvergence(BaseCase):
+    """flush() must raise (not warn) when precommit hooks keep generating
+    work — committing would silently drop the pending hooks."""
+
+    def test_flush_nonconvergence_raises(self):
+        class _EndlessTransaction:
+            """Stub whose flush() always queues another precommit hook."""
+
+            def __init__(self, cr):
+                self._cr = cr
+                self.savepoint_depth = 0
+
+            def flush(self):
+                self._cr.precommit.add(lambda: None)
+
+            def clear(self):
+                pass
+
+        with registry().cursor() as cr:
+            orig = cr.transaction
+            cr.transaction = _EndlessTransaction(cr)
+            try:
+                with self.assertRaises(RuntimeError):
+                    cr.flush()
+            finally:
+                cr.transaction = orig
+                cr.precommit.clear()
+                cr.rollback()
+
+
+class TestUninitializedCursorClosed(BaseCase):
+    """An instance that failed before __init__ set _closed must read as
+    closed (class-level default) instead of recursing in __getattr__."""
+
+    def test_uninitialized_cursor_raises_interface_error(self):
+        cur = object.__new__(Cursor)
+        with self.assertRaises(psycopg.InterfaceError):
+            cur.some_attribute  # noqa: B018 — attribute access is the test
+
+
+class TestNormalizeDsnKeyUriExpansion(BaseCase):
+    """URI DSNs must be expanded into components before keying: the raw
+    URI string carries the cleartext password into the key (and the pool
+    logs), and keyword-form lookups can never match URI-form pools."""
+
+    def test_uri_password_not_in_key(self):
+        key = _normalize_dsn_key(
+            {"dsn": "postgresql://u:s3cret@h:5433/dbz", "application_name": "x"}
+        )
+        self.assertNotIn("s3cret", str(sorted(key)))
+        kd = dict(key)
+        self.assertEqual(kd.get("database"), "dbz")
+        self.assertEqual(kd.get("host"), "h")
+
+    def test_uri_password_rotation_changes_key(self):
+        k1 = _normalize_dsn_key({"dsn": "postgresql://u:old@h/dbz"})
+        k2 = _normalize_dsn_key({"dsn": "postgresql://u:new@h/dbz"})
+        self.assertNotEqual(k1, k2)
+
+    def test_kwargs_override_uri_components(self):
+        key = dict(
+            _normalize_dsn_key(
+                {
+                    "dsn": "postgresql://h/dbz?application_name=uriapp",
+                    "application_name": "kwapp",
+                }
+            )
+        )
+        self.assertEqual(key.get("application_name"), "kwapp")
+
+
+class TestCloseDatabaseByName(BaseCase):
+    """close_database matches pools on the database component alone, so
+    close_db() reaches URI-form pools too."""
+
+    def test_close_database_matches_uri_pools(self):
+        pool = ConnectionPool(maxconn=2)
+        uri_key = _normalize_dsn_key(
+            {"dsn": "postgresql://localhost/dbz?connect_timeout=10"}
+        )
+        uri_pool = MagicMock()
+        uri_pool.closed = False
+        other_key = _normalize_dsn_key({"dbname": "other"})
+        other_pool = MagicMock()
+        other_pool.closed = False
+        pool._pools[uri_key] = uri_pool
+        pool._pools[other_key] = other_pool
+
+        pool.close_database("dbz")
+
+        self.assertNotIn(uri_key, pool._pools)
+        uri_pool.close.assert_called_once()
+        self.assertIn(other_key, pool._pools)
+        other_pool.close.assert_not_called()
+
+
+class TestVersionGateInBorrow(BaseCase):
+    """The minimum-PG-version check must fail fast in borrow() — raising in
+    the configure callback surfaces as a generic 30s PoolTimeout with the
+    actionable message buried in psycopg.pool warnings.
+    (Source tripwires, same pattern as TestGetStatsLocked.)
+    """
+
+    def test_configure_does_not_raise_version_error(self):
+        from odoo.db.pool import _configure_connection
+
+        src = inspect.getsource(_configure_connection)
+        self.assertNotIn("raise PoolError", src)
+
+    def test_borrow_checks_server_version(self):
+        src = inspect.getsource(ConnectionPool.borrow)
+        self.assertIn("server_version", src)
+        self.assertIn("MIN_PG_VERSION", src)
+
+
+class TestPsycopgPoolPrivateApi(BaseCase):
+    """Pin the private psycopg APIs this package depends on, so a psycopg /
+    psycopg_pool upgrade that drops them fails here instead of in
+    production: give_back() reads conn._pool (set by psycopg_pool.getconn),
+    execute() clears conn._prepared after DDL."""
+
+    def test_conn_pool_attribute_set_by_getconn(self):
+        with registry().cursor() as cr:
+            self.assertIsNotNone(getattr(cr._cnx, "_pool", None))
+
+    def test_connection_prepared_attribute_exists(self):
+        with registry().cursor() as cr:
+            self.assertTrue(hasattr(cr._cnx, "_prepared"))
+
+
+class TestConnectErrorTranslation(BaseCase):
+    """libpq surfaces connection-phase failures as a bare OperationalError with
+    no SQLSTATE (diag.sqlstate is None), so the precise subclass is never raised
+    on a *connect* — only the server's FATAL text. ``_translate_connect_error``
+    maps that text back to the precise, permanent psycopg class so the pool can
+    fail fast instead of letting psycopg_pool retry a hopeless connection for
+    the full ~30s getconn budget."""
+
+    def _op_error(self, message):
+        return psycopg.OperationalError(message)
+
+    def test_missing_database_translates_to_invalid_catalog_name(self):
+        exc = self._op_error(
+            'connection failed: FATAL:  database "nope" does not exist'
+        )
+        self.assertIsInstance(
+            _translate_connect_error(exc), psycopg.errors.InvalidCatalogName
+        )
+
+    def test_missing_role_translates_to_auth_error(self):
+        exc = self._op_error('connection failed: FATAL:  role "nobody" does not exist')
+        self.assertIsInstance(
+            _translate_connect_error(exc),
+            psycopg.errors.InvalidAuthorizationSpecification,
+        )
+
+    def test_bad_password_translates_to_auth_error(self):
+        exc = self._op_error('FATAL:  password authentication failed for user "x"')
+        self.assertIsInstance(
+            _translate_connect_error(exc),
+            psycopg.errors.InvalidAuthorizationSpecification,
+        )
+
+    def test_no_pg_hba_entry_translates_to_auth_error(self):
+        exc = self._op_error('FATAL:  no pg_hba.conf entry for host "1.2.3.4"')
+        self.assertIsInstance(
+            _translate_connect_error(exc),
+            psycopg.errors.InvalidAuthorizationSpecification,
+        )
+
+    def test_transient_errors_return_none(self):
+        # Retrying these may succeed — they must NOT be classified permanent,
+        # or a momentary blip becomes a hard failure.
+        for msg in (
+            "connection refused",
+            "connection timeout",
+            "could not connect to server: Connection refused",
+            "server closed the connection unexpectedly",
+            "FATAL:  the database system is starting up",
+        ):
+            with self.subTest(msg=msg):
+                self.assertIsNone(_translate_connect_error(self._op_error(msg)))
+
+
+class TestPoolFailsFastOnMissingDatabase(BaseCase):
+    """Connecting to a database that does not exist must fail fast with a
+    precise InvalidCatalogName, not block ~30s on psycopg_pool's reconnect
+    retry and surface an opaque PoolError. This keeps exp_db_exist (and the
+    `db` CLI commands built on it) responsive on a typo'd database name."""
+
+    def test_borrow_missing_db_raises_invalid_catalog_name_fast(self):
+        pool = ConnectionPool(maxconn=4)
+        self.addCleanup(pool.close_all)
+        info = connection_info_for("zzz_missing_db_for_probe_test")[1]
+        start = time.monotonic()
+        with self.assertRaises(psycopg.errors.InvalidCatalogName):
+            pool.borrow(info)
+        elapsed = time.monotonic() - start
+        # The pre-fix path blocked the full 30s getconn budget; a fast-fail is
+        # sub-second. A generous bound keeps the assertion robust under CI load
+        # while still catching a regression to the retry-until-timeout path.
+        self.assertLess(
+            elapsed,
+            10,
+            msg=f"missing-db connect took {elapsed:.1f}s — fast-fail probe regressed",
+        )
+
+    def test_probe_is_wired_into_pool_creation(self):
+        # Tripwire: the fast-fail depends on the probe running on the
+        # cache-miss path. Guard against a refactor silently dropping it.
+        src = inspect.getsource(ConnectionPool._get_or_create_pool)
+        self.assertIn("_probe_connectable", src)
+
+
+class TestBorrowReturnsConnectionOnPostGetconnFailure(BaseCase):
+    """borrow() must return the connection to its psycopg pool if anything
+    AFTER getconn() raises (e.g. conn.info access on a degraded backend).
+
+    The earlier code released only the semaphore on that path, leaking the
+    psycopg-pool slot permanently — over time the per-DSN pool's max_size is
+    exhausted and every borrow blocks.  Forcing conn.info to raise reproduces
+    the leak; the fix wraps the post-getconn block to putconn on any failure.
+    """
+
+    def test_info_failure_returns_connection_and_releases_semaphore(self):
+        pool = ConnectionPool(maxconn=4)
+        info = connection_info_for("nonexistent_db_test")[1]
+        key = _normalize_dsn_key(info)
+
+        class _Info:
+            @property
+            def server_version(self):
+                raise psycopg.OperationalError("simulated degraded backend")
+
+            backend_pid = 1
+
+        conn = MagicMock()
+        conn.info = _Info()
+        mock_pool = MagicMock()
+        mock_pool.closed = False
+        mock_pool.getconn.return_value = conn
+        pool._pools[key] = mock_pool
+
+        sem_before = pool._pool_sem._value
+        with self.assertRaises(psycopg.OperationalError):
+            pool.borrow(info)
+
+        mock_pool.putconn.assert_called_once_with(conn)
+        self.assertEqual(
+            pool._pool_sem._value,
+            sem_before,
+            "semaphore not released — borrow() leak fix regressed",
+        )
+
+    def test_min_version_path_also_returns_connection(self):
+        pool = ConnectionPool(maxconn=4)
+        info = connection_info_for("nonexistent_db_test")[1]
+        key = _normalize_dsn_key(info)
+
+        conn = MagicMock()
+        conn.info.server_version = 150000  # PG15 < MIN_PG_VERSION
+        conn.info.backend_pid = 1
+        mock_pool = MagicMock()
+        mock_pool.closed = False
+        mock_pool.getconn.return_value = conn
+        pool._pools[key] = mock_pool
+
+        sem_before = pool._pool_sem._value
+        with self.assertRaises(PoolError):
+            pool.borrow(info)
+        mock_pool.putconn.assert_called_once_with(conn)
+        self.assertEqual(pool._pool_sem._value, sem_before)
+
+
+class TestSchemaCacheClearConcurrency(BaseCase):
+    """_clear_schema_caches() iterates the module-global schema cache while
+    copy_from() populates it from other threads.  Iterating a live dict while
+    another thread inserts raises 'dictionary changed size during iteration'.
+    The fix snapshots the keys via list(cache) before filtering.
+    """
+
+    def test_clear_does_not_race_concurrent_populate(self):
+        from odoo.db.cursor import _clear_schema_caches
+
+        cache = _id_sequence_cache
+        cache.clear()
+        self.addCleanup(cache.clear)
+        errors = []
+        stop = threading.Event()
+
+        def populate():
+            i = 0
+            while not stop.is_set():
+                cache[("otherdb", f"t{i}")] = "seq"
+                i += 1
+                if i % 5000 == 0:
+                    cache.clear()
+
+        def clear_loop():
+            while not stop.is_set():
+                try:
+                    _clear_schema_caches("targetdb")
+                except RuntimeError as e:
+                    errors.append(str(e))
+                    return
+
+        threads = [
+            threading.Thread(target=populate),
+            threading.Thread(target=clear_loop),
+        ]
+        for t in threads:
+            t.start()
+        time.sleep(1.0)
+        stop.set()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(
+            errors, [], "_clear_schema_caches raced the cache dict — fix regressed"
+        )
+
+
+class TestExecutemanyGeneratorParams(BaseCase):
+    """executemany() must handle a generator params_seq correctly: an empty
+    generator short-circuits like an empty list, and a loaded generator both
+    executes every row and records the right metric count (a generator has no
+    len(), so the pre-fix code recorded 1 for an N-row batch).
+    """
+
+    def test_loaded_generator_executes_and_counts_all_rows(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_em_gen (v int)")
+            before = cr.sql_log_count
+            cr.executemany(
+                "INSERT INTO _test_em_gen(v) VALUES (%s)",
+                ((i,) for i in range(3)),
+            )
+            counted = cr.sql_log_count - before
+            cr.execute("SELECT count(*) FROM _test_em_gen")
+            self.assertEqual(cr.fetchone()[0], 3)
+            self.assertEqual(
+                counted, 3, "metric undercount for generator — fix regressed"
+            )
+
+    def test_empty_generator_short_circuits(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_em_empty (v int)")
+            before = cr.sql_log_count
+            cr.executemany("INSERT INTO _test_em_empty(v) VALUES (%s)", (x for x in ()))
+            self.assertEqual(
+                cr.sql_log_count, before, "empty generator must short-circuit"
+            )
+            cr.execute("SELECT count(*) FROM _test_em_empty")
+            self.assertEqual(cr.fetchone()[0], 0)
+
+
+class TestRecoverableErrorLogLevel(BaseCase):
+    """Recoverable transaction errors (read-only retry, MVCC serialization,
+    deadlock, lock-not-available) are part of normal operation under
+    contention and are retried by the caller.  execute() must log them at
+    WARNING, not ERROR ('bad query'), to avoid flooding the log with false
+    faults on every retry.
+    """
+
+    def test_readonly_write_logged_as_warning_not_error(self):
+        with self.assertLogs("odoo.db.cursor", level="WARNING") as cm:
+            with self.assertRaises(psycopg.errors.ReadOnlySqlTransaction):
+                with registry().cursor(readonly=True) as cr:
+                    cr.execute(
+                        "UPDATE res_users SET login = login WHERE id = %s",
+                        (ADMIN_USER_ID,),
+                    )
+        levels = {r.levelname for r in cm.records}
+        self.assertIn("WARNING", levels)
+        self.assertNotIn(
+            "ERROR", levels, "recoverable error logged at ERROR — fix regressed"
+        )
+
+    def test_lock_not_available_logged_as_warning_not_error(self):
+        """LockNotAvailable (55P03) was NOT in the old special-case and hit the
+        ERROR branch — this is the true old-vs-new differentiator.  Reproduced
+        deterministically with FOR UPDATE NOWAIT against a row another cursor
+        already holds locked.
+        """
+        with registry().cursor() as cr_lock:
+            cr_lock.execute(
+                "SELECT id FROM res_users WHERE id = %s FOR UPDATE",
+                (ADMIN_USER_ID,),
+            )
+            with self.assertLogs("odoo.db.cursor", level="WARNING") as cm:
+                with self.assertRaises(psycopg.errors.LockNotAvailable):
+                    with registry().cursor() as cr_nowait:
+                        cr_nowait.execute(
+                            "SELECT id FROM res_users WHERE id = %s FOR UPDATE NOWAIT",
+                            (ADMIN_USER_ID,),
+                        )
+        levels = {r.levelname for r in cm.records}
+        self.assertIn("WARNING", levels)
+        self.assertNotIn(
+            "ERROR", levels, "LockNotAvailable logged at ERROR — fix regressed"
+        )
+
+
+class TestDDLDetectionLeadingWhitespace(BaseCase):
+    """DDL detection reads the first non-space chars; the fix bounds lstrip()
+    to the first 64 chars (avoiding a full-query copy on the hot path).  DDL
+    that begins after leading whitespace (Odoo's triple-quoted SQL) must still
+    be detected so its params are inlined client-side — otherwise psycopg sends
+    $1 which PostgreSQL rejects in a DEFAULT expression.
+    """
+
+    def test_leading_whitespace_ddl_still_inlines_params(self):
+        with registry().cursor() as cr:
+            cr.execute(
+                "\n            CREATE TEMP TABLE _test_ddl_ws (val int DEFAULT %s)",
+                (7,),
+            )
+            cr.execute(
+                "SELECT column_default FROM information_schema.columns "
+                "WHERE table_name = '_test_ddl_ws' AND column_name = 'val'"
+            )
+            self.assertEqual(cr.fetchone()[0], "7")
+
+
+class TestResetConnectionLeavesSessionGuc(BaseCase):
+    """_reset_connection (the pool's return hook) resets ONLY
+    autocommit/isolation_level/read_only and the prepared-statement tuning —
+    never arbitrary session GUCs.  A plain ``SET search_path`` therefore
+    survives the pool return and leaks to the next borrower; callers needing
+    short-lived overrides must use ``SET LOCAL``.  This pins the documented
+    contract so a future ``RESET ALL`` in _reset_connection does not silently
+    change it (the ODOO_FAKETIME_TEST_MODE path in Cursor.__init__ relies on
+    a session SET persisting across rollback).
+    """
+
+    def test_session_set_survives_reset_local_does_not(self):
+        cr = db_connect(common.get_db_name()).cursor()
+        try:
+            conn = cr.connection
+            cr.execute("SET search_path = pg_catalog")
+            cr.commit()  # close the txn so the SESSION-level SET sticks
+            _reset_connection(conn)  # the pool's return hook — no open txn here
+            cr.execute("SHOW search_path")
+            self.assertEqual(
+                cr.fetchscalar(),
+                "pg_catalog",
+                "_reset_connection reset a session GUC — the documented leak "
+                "contract changed (was a RESET ALL added?)",
+            )
+            # Contrast: SET LOCAL is transaction-scoped and must NOT persist.
+            cr.execute("SET LOCAL search_path = information_schema")
+            cr.rollback()
+            cr.execute("SHOW search_path")
+            self.assertEqual(cr.fetchscalar(), "pg_catalog")
+        finally:
+            # Hygiene: never return a connection with a mutated search_path to
+            # the shared pool — the next borrower (another test) would inherit
+            # it.  This is exactly the leak the test documents.
+            cr.execute("RESET search_path")
+            cr.commit()
+            cr.close()
+
+
+class TestProbeDoesNotBlockOtherDatabases(BaseCase):
+    """_get_or_create_pool must run the synchronous pre-flight probe OUTSIDE
+    self._lock.  self._lock serializes creation of every per-DSN pool, so a
+    slow/unreachable probe for one database held across the lock would stall
+    pool creation for every OTHER database.
+    """
+
+    def test_slow_probe_for_one_db_does_not_block_another(self):
+        pool = ConnectionPool(maxconn=8)
+        probe_sleep = 1.0
+
+        class _StubPool:
+            closed = False
+
+            def __init__(self, *a, **k):
+                pass
+
+            def get_stats(self):
+                return {}
+
+            def close(self):
+                pass
+
+            @staticmethod
+            def check_connection(conn):
+                return None
+
+        probe_started = threading.Event()
+
+        def slow_probe(conninfo, kwargs):
+            probe_started.set()
+            time.sleep(probe_sleep)
+
+        errors = []
+        elapsed = {}
+
+        def create(label, info):
+            try:
+                t0 = time.monotonic()
+                pool._get_or_create_pool(frozenset(info.items()), dict(info))
+                elapsed[label] = time.monotonic() - t0
+            except Exception as e:
+                errors.append(f"{label}: {type(e).__name__}: {e}")
+
+        with (
+            patch("odoo.db.pool._PsycopgPool", _StubPool),
+            patch.object(pool, "_probe_connectable", side_effect=slow_probe),
+        ):
+            t_a = threading.Thread(target=create, args=("a", {"database": "a"}))
+            t_b = threading.Thread(target=create, args=("b", {"database": "b"}))
+            start = time.monotonic()
+            t_a.start()
+            # Only start B once A is confirmed inside the probe; this is the
+            # exact interleaving that deadlocked on the shared lock before.
+            self.assertTrue(probe_started.wait(5.0), "probe for A never started")
+            t_b.start()
+            t_a.join()
+            t_b.join()
+            wall = time.monotonic() - start
+
+        pool.close_all()
+        self.assertEqual(errors, [], f"pool creation raised: {errors}")
+        # Independent probes => wall ~= probe_sleep.  Serialized by the shared
+        # lock => wall ~= 2 * probe_sleep.  1.6x cleanly separates the two.
+        self.assertLess(
+            wall,
+            probe_sleep * 1.6,
+            f"pool creation for two different databases serialized "
+            f"(wall={wall:.2f}s, probe={probe_sleep}s) — the probe is holding "
+            f"the shared _pools lock across its network round-trip",
+        )
+
+    def test_probe_uses_short_connect_timeout(self):
+        """The throwaway probe must bound itself to _PROBE_CONNECT_TIMEOUT, not
+        inherit the 10s connect_timeout that _HEALTH_PARAMS injects into kwargs
+        (a ``setdefault`` there would be a silent no-op).
+        """
+        from odoo.db.pool import _PROBE_CONNECT_TIMEOUT
+
+        pool = ConnectionPool(maxconn=2)
+        captured = {}
+
+        def fake_connect(conninfo, **kw):
+            captured.update(kw)
+            # transient failure => swallowed by _probe_connectable, no raise out
+            raise psycopg.OperationalError("connection refused")
+
+        with patch("psycopg.connect", side_effect=fake_connect):
+            pool._probe_connectable(
+                "", {"dbname": "x", "connect_timeout": "10", "options": "-c jit=off"}
+            )
+        self.assertEqual(captured.get("connect_timeout"), _PROBE_CONNECT_TIMEOUT)
+
+
+class TestInlineDdlParams(BaseCase):
+    """_inline_ddl_params splices params into DDL as client-side quoted
+    literals (DDL rejects server-side $N parameters).  Extracted from
+    Cursor.execute() so the %%-escape-aware splice — the trickiest bit of
+    the cursor — is unit-testable without a DDL round-trip.  ``quote`` runs
+    with a null adapter context, so these need no database connection.
+    """
+
+    def test_positional_inlines_and_quotes(self):
+        self.assertEqual(_inline_ddl_params("DEFAULT %s", (7,), None), "DEFAULT 7")
+        # strings are single-quoted and internal quotes doubled
+        self.assertEqual(
+            _inline_ddl_params("c = %s", ("o'reilly",), None), "c = 'o''reilly'"
+        )
+
+    def test_named_dict_params(self):
+        self.assertEqual(
+            _inline_ddl_params("a = %(x)s", {"x": "v"}, None), "a = 'v'"
+        )
+
+    def test_literal_percent_is_unescaped_around_marker(self):
+        # `%%` is a literal percent, not a marker; it must survive as a single
+        # `%`, while the real `%s` is replaced.  Naive `qs % params` raises here.
+        self.assertEqual(
+            _inline_ddl_params("IS '50%% done' DEFAULT %s", ("v",), None),
+            "IS '50% done' DEFAULT 'v'",
+        )
+
+    def test_double_percent_only_no_marker(self):
+        self.assertEqual(
+            _inline_ddl_params("COMMENT IS '100%% sure'", (), None),
+            "COMMENT IS '100% sure'",
+        )
+
+    def test_marker_count_mismatch_raises(self):
+        with self.assertRaises(ValueError):
+            _inline_ddl_params("%s %s", ("only-one",), None)
+        with self.assertRaises(ValueError):
+            _inline_ddl_params("DEFAULT %s", (1, 2), None)
+
+    def test_multiple_positional_in_order(self):
+        self.assertEqual(
+            _inline_ddl_params("(%s, %s, %s)", (1, 2, 3), None), "(1, 2, 3)"
         )

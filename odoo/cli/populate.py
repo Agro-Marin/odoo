@@ -1,11 +1,11 @@
 import logging
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from odoo.tools import config
 from odoo.tools.populate import populate_models
 
-from . import Command, build_config_args, get_single_database, odoo_env
+from . import DatabaseCommand, odoo_env
 
 if TYPE_CHECKING:
     from odoo import api
@@ -19,7 +19,43 @@ DEFAULT_MODELS = "res.partner,product.template,account.move,sale.order,crm.lead,
 _logger = logging.getLogger(__name__)
 
 
-class Populate(Command):
+def _parse_model_factors(
+    factors: str, models: str, error: Callable[[str], None]
+) -> dict[str, int]:
+    """Map each model name to its factor.
+
+    The last factor propagates to the remaining models; surplus factors are
+    reported (they usually mean a typo in --models) but tolerated.
+
+    :param factors: comma-separated ints, e.g. ``"3"`` or ``"3,5"``
+    :param models: comma-separated model names
+    :param error: argparse-style error callback (NoReturn in practice)
+    """
+    try:
+        opt_factors = [int(f) for f in factors.split(",")]
+    except ValueError:
+        error(f"--factors must be a comma-separated list of integers, got {factors!r}")
+        # argparse's parser.error never returns; guard the fall-through for
+        # callbacks that do (tests, programmatic use).
+        return {}
+    model_names = models.split(",")
+    if len(opt_factors) > len(model_names):
+        _logger.warning(
+            "%d factors provided for %d models; ignoring the extra factors %s",
+            len(opt_factors),
+            len(model_names),
+            opt_factors[len(model_names) :],
+        )
+    # deduplicate models if necessary, keeping the last factor of each model
+    return {
+        model_name: (
+            opt_factors[index] if index < len(opt_factors) else opt_factors[-1]
+        )
+        for index, model_name in enumerate(model_names)
+    }
+
+
+class Populate(DatabaseCommand):
     """Populate database via duplication of existing data for testing/demo purposes"""
 
     def run(self, cmdargs: list[str]) -> None:
@@ -47,29 +83,10 @@ class Populate(Command):
         )
         parsed_args = parser.parse_args(cmdargs)
 
-        # build_config_args already adds --no-http via its default; don't
-        # pass it in extra_args as well (optparse tolerates the duplicate
-        # but the redundancy obscures intent).
-        config_args = build_config_args(parsed_args.config, parsed_args.db_name)
-        config.parse_config(config_args, setup_logging=True)
-
-        # deduplicate models if necessary, and keep the last corresponding
-        # factor for each model
-        try:
-            opt_factors = [int(f) for f in parsed_args.factors.split(",")]
-        except ValueError:
-            parser.error(
-                f"--factors must be a comma-separated list of integers, got "
-                f"{parsed_args.factors!r}"
-            )
-        model_factors = {
-            model_name: (
-                opt_factors[index] if index < len(opt_factors) else opt_factors[-1]
-            )
-            for index, model_name in enumerate(
-                parsed_args.models_to_populate.split(",")
-            )
-        }
+        db_name = self.bootstrap_config(parsed_args)
+        model_factors = _parse_model_factors(
+            parsed_args.factors, parsed_args.models_to_populate, parser.error
+        )
         if len(parsed_args.separator) != 1:
             parser.error(
                 f"--sep must be a single Unicode character, got "
@@ -77,7 +94,6 @@ class Populate(Command):
             )
         separator_code = ord(parsed_args.separator)
 
-        db_name = get_single_database(config["db_name"])
         with odoo_env(db_name, context={"active_test": False}) as env:
             self.populate(env, model_factors, separator_code)
 
@@ -95,6 +111,13 @@ class Populate(Command):
             if (model := env.get(model_name)) is not None
             and not (model._transient or model._abstract)
         }
+        # A typo'd --models entry was previously dropped without a trace and
+        # the command still reported success.
+        if skipped := set(modelname_factors) - {m._name for m in model_factors}:
+            _logger.warning(
+                "Ignoring unknown, transient or abstract models: %s",
+                ", ".join(sorted(skipped)),
+            )
         _logger.log(logging.RUNBOT, "Populating models %s", list(model_factors))
         t0 = time.time()
         populate_models(model_factors, separator_code)

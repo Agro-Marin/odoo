@@ -34,7 +34,6 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-
 class WatchedFileHandler(logging.handlers.WatchedFileHandler):
     def __init__(self, filename: str) -> None:
         self.errors = None  # py38
@@ -452,6 +451,13 @@ PSEUDOCONFIG_MAPPER: Final[dict[str, list[str]]] = {
 
 logging.RUNBOT = 25
 logging.addLevelName(logging.RUNBOT, "INFO")  # displayed as info in log
+# addLevelName also hijacks the name->level mapping ("INFO" -> 25), silently
+# breaking every stdlib lookup by name: assertLogs(level="INFO") and
+# Logger.setLevel("INFO") would resolve to 25 and filter out real INFO (20)
+# records. Keep the level->name display alias above, restore the canonical
+# name->level entry. ("odoo:RUNBOT" handler specs resolve via the module
+# attribute, not this mapping.)
+logging._nameToLevel["INFO"] = logging.INFO
 IGNORE: Final[frozenset[str]] = frozenset(
     {
         "Comparison between bytes and int",  # a.foo != False or some shit, we don't care

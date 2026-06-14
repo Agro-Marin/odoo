@@ -62,6 +62,7 @@ from .runtime.transaction import Transaction
 
 if TYPE_CHECKING:
     from .models.base import BaseModel
+    from .runtime.environment import Environment
     from .runtime.registry import Registry
 
 _logger = logging.getLogger("odoo.orm.testing")
@@ -156,10 +157,8 @@ class InMemoryCursor(BaseCursor):
         """Return up to *size* rows from the last executed query."""
         return self._last_result[:size]
 
-    def fetchscalar(self):
-        """Return the first column of the first row, or ``None``."""
-        row = self.fetchone()
-        return row[0] if row else None
+    # fetchscalar() is inherited from BaseCursor (self.fetchone()-based) — the
+    # local fetchone() above makes the inherited version correct here.
 
     def dictfetchone(self) -> dict | None:
         """Return ``None`` — no column metadata available without a real cursor."""

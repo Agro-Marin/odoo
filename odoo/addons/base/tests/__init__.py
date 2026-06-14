@@ -24,6 +24,9 @@ from . import test_init
 from . import test_ir_actions
 from . import test_ir_asset
 from . import test_ir_attachment
+from . import test_ira_review_probes
+from . import test_ira_challenge_probes
+from . import test_ir_attachment_storage
 from . import test_ir_binary
 from . import test_ir_cron
 from . import test_ir_filters
